@@ -1,7 +1,7 @@
 ---
 mode: agent
 description: 'Answer telemetry questions with data queries'
-tools: ['runInTerminal', 'search', 'extensions', 'githubRepo', 'todos', 'kusto_query']
+tools: ['search', 'runCommands/runInTerminal', 'Azure MCP/kusto_query', 'githubRepo', 'extensions', 'todos']
 ---
 
 <overview>

@@ -120,14 +120,15 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	constructor(
 		action: IAction,
-		private currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		protected currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		widgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> | undefined,
 		delegate: IModelPickerDelegate,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		// Modify the original action with a different label and make it show the current model
 		const actionWithLabel: IAction = {
@@ -142,7 +143,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService)
 		};
 
-		super(actionWithLabel, modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(actionWithLabel, widgetOptions ?? modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
 
 		// Listen for model changes from the delegate
 		this._register(delegate.onDidChangeModel(model => {

@@ -59,10 +59,6 @@
 	font-weight: bold;
 }
 
-.scm-view .scm-provider .monaco-highlighted-label .codicon {
-	font-size: 14px;
-}
-
 .scm-view .scm-provider > .actions {
 	overflow: hidden;
 	justify-content: flex-end;
@@ -91,7 +87,6 @@
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label > .codicon {
-	font-size: 12px;
 	justify-content: center;
 }
 

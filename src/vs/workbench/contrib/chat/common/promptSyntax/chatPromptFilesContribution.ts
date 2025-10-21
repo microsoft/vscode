@@ -19,7 +19,7 @@ interface IRawChatFileContribution {
 	readonly description?: string; // reserved for future use
 }
 
-type ChatContributionPoint = 'chatPromptFiles' | 'chatInstructions' | 'chatModes';
+type ChatContributionPoint = 'chatPromptFiles' | 'chatInstructions' | 'chatAgents';
 
 function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 	return extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatFileContribution[]>({
@@ -60,13 +60,13 @@ function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 
 const epPrompt = registerChatFilesExtensionPoint('chatPromptFiles');
 const epInstructions = registerChatFilesExtensionPoint('chatInstructions');
-const epModes = registerChatFilesExtensionPoint('chatModes');
+const epAgents = registerChatFilesExtensionPoint('chatAgents');
 
 function pointToType(contributionPoint: ChatContributionPoint): PromptsType {
 	switch (contributionPoint) {
 		case 'chatPromptFiles': return PromptsType.prompt;
 		case 'chatInstructions': return PromptsType.instructions;
-		case 'chatModes': return PromptsType.mode;
+		case 'chatAgents': return PromptsType.agent;
 	}
 }
 
@@ -84,13 +84,13 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 	) {
 		this.handle(epPrompt, 'chatPromptFiles');
 		this.handle(epInstructions, 'chatInstructions');
-		this.handle(epModes, 'chatModes');
+		this.handle(epAgents, 'chatAgents');
 	}
 
 	private handle(extensionPoint: extensionsRegistry.IExtensionPoint<IRawChatFileContribution[]>, contributionPoint: ChatContributionPoint) {
 		extensionPoint.setHandler((_extensions, delta) => {
 			for (const ext of delta.added) {
-				if (contributionPoint === 'chatModes') {
+				if (contributionPoint === 'chatAgents') {
 					checkProposedApiEnabled(ext.description, 'chatParticipantPrivate');
 				}
 				const type = pointToType(contributionPoint);

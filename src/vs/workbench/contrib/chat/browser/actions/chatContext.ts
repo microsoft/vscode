@@ -65,6 +65,10 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 	readonly icon: ThemeIcon = Codicon.tools;
 	readonly ordinal = -500;
 
+	isEnabled(widget: IChatWidget): boolean {
+		return !!widget.attachmentCapabilities.supportsToolAttachments;
+	}
+
 	asPicker(widget: IChatWidget): IChatContextPicker {
 
 		type Pick = IChatContextPickerPickItem & { toolInfo: { ordinal: number; label: string } };
@@ -232,6 +236,9 @@ class ClipboardImageContextValuePick implements IChatContextValueItem {
 	) { }
 
 	async isEnabled(widget: IChatWidget) {
+		if (!widget.attachmentCapabilities.supportsImageAttachments) {
+			return false;
+		}
 		if (!widget.input.selectedLanguageModel?.metadata.capabilities?.vision) {
 			return false;
 		}
@@ -264,7 +271,7 @@ class ScreenshotContextValuePick implements IChatContextValueItem {
 	) { }
 
 	async isEnabled(widget: IChatWidget) {
-		return !!widget.input.selectedLanguageModel?.metadata.capabilities?.vision;
+		return !!widget.attachmentCapabilities.supportsImageAttachments && !!widget.input.selectedLanguageModel?.metadata.capabilities?.vision;
 	}
 
 	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {

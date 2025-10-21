@@ -860,7 +860,7 @@ export function registerAccessibilityConfiguration() {
 
 export { AccessibilityVoiceSettingId };
 
-export const SpeechTimeoutDefault = 2000;
+export const SpeechTimeoutDefault = 0;
 
 export class DynamicSpeechAccessibilityConfiguration extends Disposable implements IWorkbenchContribution {
 

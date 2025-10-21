@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as async from '../../common/async.js';
-import * as MicrotaskDelay from "../../common/symbols.js";
+import * as MicrotaskDelay from '../../common/symbols.js';
 import { CancellationToken, CancellationTokenSource } from '../../common/cancellation.js';
 import { isCancellationError } from '../../common/errors.js';
 import { Event } from '../../common/event.js';

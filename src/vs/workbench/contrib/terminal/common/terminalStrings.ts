@@ -18,6 +18,7 @@ export const terminalStrings = {
 	typeLocal: localize('local', "Local"),
 	actionCategory: localize2('terminalCategory', "Terminal"),
 	focus: localize2('workbench.action.terminal.focus', "Focus Terminal"),
+	focusInstance: localize2('workbench.action.terminal.focusInstance', "Focus Terminal"),
 	focusAndHideAccessibleBuffer: localize2('workbench.action.terminal.focusAndHideAccessibleBuffer', "Focus Terminal and Hide Accessible Buffer"),
 	kill: {
 		...localize2('killTerminal', "Kill Terminal"),

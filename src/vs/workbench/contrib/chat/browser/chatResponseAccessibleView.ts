@@ -13,6 +13,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { IChatToolInvocation } from '../common/chatService.js';
 import { isResponseVM } from '../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
 
@@ -83,7 +84,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			});
 			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
 			for (const toolInvocation of toolInvocations) {
-				if (toolInvocation.confirmationMessages) {
+				if (toolInvocation.confirmationMessages && toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 					const title = typeof toolInvocation.confirmationMessages.title === 'string' ? toolInvocation.confirmationMessages.title : toolInvocation.confirmationMessages.title.value;
 					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderAsPlaintext(toolInvocation.confirmationMessages.message));
 					let input = '';
@@ -106,9 +107,12 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 						responseContent += `: ${input}`;
 					}
 					responseContent += `\n${message}\n`;
-				} else if (toolInvocation.isComplete && toolInvocation.resultDetails && 'input' in toolInvocation.resultDetails) {
-					responseContent += '\n' + toolInvocation.resultDetails.isError ? 'Errored ' : 'Completed ';
-					responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderAsPlaintext(toolInvocation.invocationMessage))} with input: ${toolInvocation.resultDetails.input}`}\n`;
+				} else {
+					const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
+					if (resultDetails && 'input' in resultDetails) {
+						responseContent += '\n' + (resultDetails.isError ? 'Errored ' : 'Completed ');
+						responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderAsPlaintext(toolInvocation.invocationMessage))} with input: ${resultDetails.input}`}\n`;
+					}
 				}
 			}
 

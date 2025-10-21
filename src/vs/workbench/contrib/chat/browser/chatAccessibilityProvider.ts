@@ -85,7 +85,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		const toolInvocation = element.response.value.filter(v => v.kind === 'toolInvocation');
 		let toolInvocationHint = '';
 		if (toolInvocation.length) {
-			const waitingForConfirmation = toolInvocation.filter(v => !v.isComplete);
+			const waitingForConfirmation = toolInvocation.filter(v => v.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation);
 			if (waitingForConfirmation.length) {
 				toolInvocationHint = this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocation);
 			}

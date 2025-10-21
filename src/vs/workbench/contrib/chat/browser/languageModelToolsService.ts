@@ -38,7 +38,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
 import { IVariableReference } from '../common/chatModes.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
-import { ConfirmedReason, IChatService, ToolConfirmKind } from '../common/chatService.js';
+import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } from '../common/chatService.js';
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet } from '../common/languageModelToolsService.js';
@@ -316,11 +316,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					source.dispose(true);
 				}));
 				store.add(token.onCancellationRequested(() => {
-					toolInvocation?.confirmed.complete({ type: ToolConfirmKind.Denied });
+					IChatToolInvocation.confirmWith(toolInvocation, { type: ToolConfirmKind.Denied });
 					source.cancel();
 				}));
 				store.add(source.token.onCancellationRequested(() => {
-					toolInvocation?.confirmed.complete({ type: ToolConfirmKind.Denied });
+					IChatToolInvocation.confirmWith(toolInvocation, { type: ToolConfirmKind.Denied });
 				}));
 				token = source.token;
 
@@ -332,17 +332,17 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				trackedCall.invocation = toolInvocation;
 				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace);
 				if (autoConfirmed) {
-					toolInvocation.confirmed.complete(autoConfirmed);
+					IChatToolInvocation.confirmWith(toolInvocation, autoConfirmed);
 				}
 
 				model.acceptResponseProgress(request, toolInvocation);
 
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;
 				if (prepared?.confirmationMessages) {
-					if (!toolInvocation.isConfirmed?.type && !autoConfirmed) {
+					if (!IChatToolInvocation.isConfirmed(toolInvocation) && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation]);
 					}
-					const userConfirmed = await toolInvocation.confirmed.p;
+					const userConfirmed = await IChatToolInvocation.awaitConfirmation(toolInvocation, token);
 					if (userConfirmed.type === ToolConfirmKind.Denied) {
 						throw new CancellationError();
 					}

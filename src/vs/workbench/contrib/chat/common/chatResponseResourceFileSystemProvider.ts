@@ -109,11 +109,12 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 
 	private lookupURI(uri: URI): Uint8Array | Promise<Uint8Array> {
 		const { result, index } = this.findMatchingInvocation(uri);
-		if (!isToolResultInputOutputDetails(result.resultDetails)) {
+		const details = IChatToolInvocation.resultDetails(result);
+		if (!isToolResultInputOutputDetails(details)) {
 			throw createFileSystemProviderError(`Tool does not have I/O`, FileSystemProviderErrorCode.FileNotFound);
 		}
 
-		const part = result.resultDetails.output.at(index);
+		const part = details.output.at(index);
 		if (!part) {
 			throw createFileSystemProviderError(`Tool does not have part`, FileSystemProviderErrorCode.FileNotFound);
 		}

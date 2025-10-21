@@ -38,12 +38,14 @@
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "chatmode",
+        "id": "agent",
         "aliases": [
-          "Chat Mode",
-          "chat mode"
+          "Agent",
+          "chat agent"
         ],
         "extensions": [
+          ".agent.md",
+          ".vscode-agent.md",
           ".chatmode.md"
         ],
         "configuration": "./language-configuration.json"

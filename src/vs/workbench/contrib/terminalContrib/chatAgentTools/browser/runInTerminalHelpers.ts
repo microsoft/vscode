@@ -134,7 +134,9 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		if (
 			firstSubcommandFirstWord !== commandLine &&
 			!commandsWithSubcommands.has(commandLine) &&
-			!commandsWithSubSubCommands.has(commandLine)
+			!commandsWithSubSubCommands.has(commandLine) &&
+			autoApproveResult.commandLineResult.result !== 'denied' &&
+			autoApproveResult.subCommandResults.every(e => e.result !== 'denied')
 		) {
 			actions.push({
 				label: localize('autoApprove.exactCommand', 'Always Allow Exact Command Line'),

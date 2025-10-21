@@ -4514,8 +4514,8 @@ suite('Editor Controller', () => {
 				['(', ')']
 			],
 			indentationRules: {
-				increaseIndentPattern: new RegExp("(^.*\\{[^}]*$)"),
-				decreaseIndentPattern: new RegExp("^\\s*\\}")
+				increaseIndentPattern: new RegExp('(^.*\\{[^}]*$)'),
+				decreaseIndentPattern: new RegExp('^\\s*\\}')
 			}
 		}));
 
@@ -4599,8 +4599,8 @@ suite('Editor Controller', () => {
 				['(', ')']
 			],
 			indentationRules: {
-				increaseIndentPattern: new RegExp("({+(?=([^\"]*\"[^\"]*\")*[^\"}]*$))|(\\[+(?=([^\"]*\"[^\"]*\")*[^\"\\]]*$))"),
-				decreaseIndentPattern: new RegExp("^\\s*[}\\]],?\\s*$")
+				increaseIndentPattern: new RegExp('({+(?=([^"]*"[^"]*")*[^"}]*$))|(\\[+(?=([^"]*"[^"]*")*[^"\\]]*$))'),
+				decreaseIndentPattern: new RegExp('^\\s*[}\\]],?\\s*$')
 			}
 		}));
 

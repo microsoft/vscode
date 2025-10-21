@@ -550,8 +550,9 @@ export class PtyService extends Disposable implements IPtyService {
 			const doneSet: Set<number> = new Set();
 			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(args.workspaceId, tab, doneSet)));
 			const tabs = expandedTabs.filter(t => t.terminals.length > 0);
+			const expandedBackground = (await Promise.all(layout.background?.map(b => this._expandTerminalInstance(args.workspaceId, b, doneSet)) ?? [])).filter(b => b.terminal !== null).map(b => b.terminal);
 			performance.mark('code/didGetTerminalLayoutInfo');
-			return { tabs };
+			return { tabs, background: expandedBackground };
 		}
 		performance.mark('code/didGetTerminalLayoutInfo');
 		return undefined;
@@ -567,22 +568,24 @@ export class PtyService extends Disposable implements IPtyService {
 		};
 	}
 
-	private async _expandTerminalInstance(workspaceId: string, t: ITerminalInstanceLayoutInfoById, doneSet: Set<number>): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
+	private async _expandTerminalInstance(workspaceId: string, t: ITerminalInstanceLayoutInfoById | number, doneSet: Set<number>): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
+		const hasLayout = typeof t !== 'number';
+		const ptyId = hasLayout ? t.terminal : t;
 		try {
-			const oldId = this._getRevivingProcessId(workspaceId, t.terminal);
+			const oldId = this._getRevivingProcessId(workspaceId, ptyId);
 			const revivedPtyId = this._revivedPtyIdMap.get(oldId)?.newId;
 			this._logService.info(`Expanding terminal instance, old id ${oldId} -> new id ${revivedPtyId}`);
 			this._revivedPtyIdMap.delete(oldId);
-			const persistentProcessId = revivedPtyId ?? t.terminal;
+			const persistentProcessId = revivedPtyId ?? ptyId;
 			if (doneSet.has(persistentProcessId)) {
 				throw new Error(`Terminal ${persistentProcessId} has already been expanded`);
 			}
 			doneSet.add(persistentProcessId);
 			const persistentProcess = this._throwIfNoPty(persistentProcessId);
-			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess, revivedPtyId !== undefined);
+			const processDetails = persistentProcess && await this._buildProcessDetails(ptyId, persistentProcess, revivedPtyId !== undefined);
 			return {
 				terminal: { ...processDetails, id: persistentProcessId },
-				relativeSize: t.relativeSize
+				relativeSize: hasLayout ? t.relativeSize : 0
 			};
 		} catch (e) {
 			this._logService.warn(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
@@ -592,7 +595,7 @@ export class PtyService extends Disposable implements IPtyService {
 			// this will be filtered out and not reconnected
 			return {
 				terminal: null,
-				relativeSize: t.relativeSize
+				relativeSize: hasLayout ? t.relativeSize : 0
 			};
 		}
 	}

@@ -1632,7 +1632,7 @@
         },
         {
           "command": "typescript.goToProjectConfig",
-          "when": "editorLangId == typescriptreact"
+          "when": "editorLangId == typescriptreact && typescript.isManagedFile"
         },
         {
           "command": "javascript.goToProjectConfig",
@@ -1682,7 +1682,7 @@
       "editor/context": [
         {
           "command": "typescript.goToSourceDefinition",
-          "when": "tsSupportsSourceDefinition && (resourceLangId == typescript || resourceLangId == typescriptreact || resourceLangId == javascript || resourceLangId == javascriptreact)",
+          "when": "!config.typescript.experimental.useTsgo && tsSupportsSourceDefinition && (resourceLangId == typescript || resourceLangId == typescriptreact || resourceLangId == javascript || resourceLangId == javascriptreact)",
           "group": "navigation@1.41"
         }
       ],

@@ -48,7 +48,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		super(toolInvocation);
 
 		const details: IToolResultOutputDetails = toolInvocation.kind === 'toolInvocation'
-			? toolInvocation.resultDetails as IToolResultOutputDetails
+			? IChatToolInvocation.resultDetails(toolInvocation) as IToolResultOutputDetails
 			: {
 				output: {
 					type: 'data',

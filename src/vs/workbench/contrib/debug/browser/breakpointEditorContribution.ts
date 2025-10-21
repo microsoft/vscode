@@ -7,7 +7,7 @@ import { isSafari } from '../../../../base/browser/browser.js';
 import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
-import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { memoize } from '../../../../base/common/decorators.js';
@@ -406,94 +406,79 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 
 		if (breakpoints.length === 1) {
 			const breakpointType = breakpoints[0].logMessage ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
-			actions.push(new Action('debug.removeBreakpoint', nls.localize('removeBreakpoint', "Remove {0}", breakpointType), undefined, true, async () => {
-				await this.debugService.removeBreakpoints(breakpoints[0].getId());
+			actions.push(toAction({
+				id: 'debug.removeBreakpoint', label: nls.localize('removeBreakpoint', "Remove {0}", breakpointType), enabled: true, run: async () => {
+					await this.debugService.removeBreakpoints(breakpoints[0].getId());
+				}
 			}));
-			actions.push(new Action(
-				'workbench.debug.action.editBreakpointAction',
-				nls.localize('editBreakpoint', "Edit {0}...", breakpointType),
-				undefined,
-				true,
-				() => Promise.resolve(this.showBreakpointWidget(breakpoints[0].lineNumber, breakpoints[0].column))
-			));
-
-			actions.push(new Action(
-				`workbench.debug.viewlet.action.toggleBreakpoint`,
-				breakpoints[0].enabled ? nls.localize('disableBreakpoint', "Disable {0}", breakpointType) : nls.localize('enableBreakpoint', "Enable {0}", breakpointType),
-				undefined,
-				true,
-				() => this.debugService.enableOrDisableBreakpoints(!breakpoints[0].enabled, breakpoints[0])
-			));
+			actions.push(toAction({
+				id: 'workbench.debug.action.editBreakpointAction',
+				label: nls.localize('editBreakpoint', "Edit {0}...", breakpointType),
+				enabled: true,
+				run: () => Promise.resolve(this.showBreakpointWidget(breakpoints[0].lineNumber, breakpoints[0].column))
+			})); actions.push(toAction({
+				id: `workbench.debug.viewlet.action.toggleBreakpoint`,
+				label: breakpoints[0].enabled ? nls.localize('disableBreakpoint', "Disable {0}", breakpointType) : nls.localize('enableBreakpoint', "Enable {0}", breakpointType),
+				enabled: true,
+				run: () => this.debugService.enableOrDisableBreakpoints(!breakpoints[0].enabled, breakpoints[0])
+			}));
 		} else if (breakpoints.length > 1) {
 			const sorted = breakpoints.slice().sort((first, second) => (first.column && second.column) ? first.column - second.column : 1);
-			actions.push(new SubmenuAction('debug.removeBreakpoints', nls.localize('removeBreakpoints', "Remove Breakpoints"), sorted.map(bp => new Action(
-				'removeInlineBreakpoint',
-				bp.column ? nls.localize('removeInlineBreakpointOnColumn', "Remove Inline Breakpoint on Column {0}", bp.column) : nls.localize('removeLineBreakpoint', "Remove Line Breakpoint"),
-				undefined,
-				true,
-				() => this.debugService.removeBreakpoints(bp.getId())
-			))));
-
-			actions.push(new SubmenuAction('debug.editBreakpoints', nls.localize('editBreakpoints', "Edit Breakpoints"), sorted.map(bp =>
-				new Action('editBreakpoint',
-					bp.column ? nls.localize('editInlineBreakpointOnColumn', "Edit Inline Breakpoint on Column {0}", bp.column) : nls.localize('editLineBreakpoint', "Edit Line Breakpoint"),
-					undefined,
-					true,
-					() => Promise.resolve(this.showBreakpointWidget(bp.lineNumber, bp.column))
-				)
-			)));
-
-			actions.push(new SubmenuAction('debug.enableDisableBreakpoints', nls.localize('enableDisableBreakpoints', "Enable/Disable Breakpoints"), sorted.map(bp => new Action(
-				bp.enabled ? 'disableColumnBreakpoint' : 'enableColumnBreakpoint',
-				bp.enabled ? (bp.column ? nls.localize('disableInlineColumnBreakpoint', "Disable Inline Breakpoint on Column {0}", bp.column) : nls.localize('disableBreakpointOnLine', "Disable Line Breakpoint"))
+			actions.push(new SubmenuAction('debug.removeBreakpoints', nls.localize('removeBreakpoints', "Remove Breakpoints"), sorted.map(bp => toAction({
+				id: 'removeInlineBreakpoint',
+				label: bp.column ? nls.localize('removeInlineBreakpointOnColumn', "Remove Inline Breakpoint on Column {0}", bp.column) : nls.localize('removeLineBreakpoint', "Remove Line Breakpoint"),
+				enabled: true,
+				run: () => this.debugService.removeBreakpoints(bp.getId())
+			})))); actions.push(new SubmenuAction('debug.editBreakpoints', nls.localize('editBreakpoints', "Edit Breakpoints"), sorted.map(bp =>
+				toAction({
+					id: 'editBreakpoint',
+					label: bp.column ? nls.localize('editInlineBreakpointOnColumn', "Edit Inline Breakpoint on Column {0}", bp.column) : nls.localize('editLineBreakpoint', "Edit Line Breakpoint"),
+					enabled: true,
+					run: () => Promise.resolve(this.showBreakpointWidget(bp.lineNumber, bp.column))
+				})
+			))); actions.push(new SubmenuAction('debug.enableDisableBreakpoints', nls.localize('enableDisableBreakpoints', "Enable/Disable Breakpoints"), sorted.map(bp => toAction({
+				id: bp.enabled ? 'disableColumnBreakpoint' : 'enableColumnBreakpoint',
+				label: bp.enabled ? (bp.column ? nls.localize('disableInlineColumnBreakpoint', "Disable Inline Breakpoint on Column {0}", bp.column) : nls.localize('disableBreakpointOnLine', "Disable Line Breakpoint"))
 					: (bp.column ? nls.localize('enableBreakpoints', "Enable Inline Breakpoint on Column {0}", bp.column) : nls.localize('enableBreakpointOnLine', "Enable Line Breakpoint")),
-				undefined,
-				true,
-				() => this.debugService.enableOrDisableBreakpoints(!bp.enabled, bp)
-			))));
+				enabled: true,
+				run: () => this.debugService.enableOrDisableBreakpoints(!bp.enabled, bp)
+			}))));
 		} else {
-			actions.push(new Action(
-				'addBreakpoint',
-				nls.localize('addBreakpoint', "Add Breakpoint"),
-				undefined,
-				true,
-				() => this.debugService.addBreakpoints(uri, [{ lineNumber, column }])
-			));
-			actions.push(new Action(
-				'addConditionalBreakpoint',
-				nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint..."),
-				undefined,
-				true,
-				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.CONDITION))
-			));
-			actions.push(new Action(
-				'addLogPoint',
-				nls.localize('addLogPoint', "Add Logpoint..."),
-				undefined,
-				true,
-				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.LOG_MESSAGE))
-			));
-			actions.push(new Action(
-				'addTriggeredBreakpoint',
-				nls.localize('addTriggeredBreakpoint', "Add Triggered Breakpoint..."),
-				undefined,
-				true,
-				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.TRIGGER_POINT))
-			));
+			actions.push(toAction({
+				id: 'addBreakpoint',
+				label: nls.localize('addBreakpoint', "Add Breakpoint"),
+				enabled: true,
+				run: () => this.debugService.addBreakpoints(uri, [{ lineNumber, column }])
+			}));
+			actions.push(toAction({
+				id: 'addConditionalBreakpoint',
+				label: nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint..."),
+				enabled: true,
+				run: () => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.CONDITION))
+			}));
+			actions.push(toAction({
+				id: 'addLogPoint',
+				label: nls.localize('addLogPoint', "Add Logpoint..."),
+				enabled: true,
+				run: () => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.LOG_MESSAGE))
+			}));
+			actions.push(toAction({
+				id: 'addTriggeredBreakpoint',
+				label: nls.localize('addTriggeredBreakpoint', "Add Triggered Breakpoint..."),
+				enabled: true,
+				run: () => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.TRIGGER_POINT))
+			}));
 		}
 
 		if (this.debugService.state === State.Stopped) {
 			actions.push(new Separator());
-			actions.push(new Action(
-				'runToLine',
-				nls.localize('runToLine', "Run to Line"),
-				undefined,
-				true,
-				() => this.debugService.runTo(uri, lineNumber).catch(onUnexpectedError)
-			));
-		}
-
-		return actions;
+			actions.push(toAction({
+				id: 'runToLine',
+				label: nls.localize('runToLine', "Run to Line"),
+				enabled: true,
+				run: () => this.debugService.runTo(uri, lineNumber).catch(onUnexpectedError)
+			}));
+		} return actions;
 	}
 
 	private marginFreeFromNonDebugDecorations(line: number): boolean {

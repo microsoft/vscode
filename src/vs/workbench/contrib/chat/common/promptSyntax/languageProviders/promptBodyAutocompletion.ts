@@ -56,7 +56,7 @@ export class PromptBodyAutocompletion implements CompletionItemProvider {
 			}
 		} else if (reference.type === '') {
 			const promptFileType = getPromptFileType(model.uri);
-			if (promptFileType === PromptsType.mode || promptFileType === PromptsType.prompt) {
+			if (promptFileType === PromptsType.agent || promptFileType === PromptsType.prompt) {
 				await this.collectToolCompletions(model, position, reference.contentRange, suggestions);
 			}
 		}

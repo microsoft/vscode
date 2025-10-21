@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerAttachPromptActions } from './attachInstructionsAction.js';
-import { registerChatModeActions } from './chatModeActions.js';
+import { registerAgentActions } from './chatModeActions.js';
 import { registerRunPromptActions } from './runPromptAction.js';
 import { registerSaveToPromptActions } from './saveToPromptAction.js';
 import { registerNewPromptFileActions } from './newPromptFileActions.js';
@@ -17,6 +17,6 @@ export function registerPromptActions(): void {
 	registerRunPromptActions();
 	registerAttachPromptActions();
 	registerSaveToPromptActions();
-	registerChatModeActions();
+	registerAgentActions();
 	registerNewPromptFileActions();
 }

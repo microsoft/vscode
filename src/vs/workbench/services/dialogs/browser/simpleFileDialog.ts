@@ -308,6 +308,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			this.filePickBox.matchOnLabel = false;
 			this.filePickBox.sortByLabel = false;
 			this.filePickBox.ignoreFocusOut = true;
+			this.filePickBox.placeholder = nls.localize('remoteFileDialog.placeholder', "Folder path");
 			this.filePickBox.ok = true;
 			this.filePickBox.okLabel = typeof this.options.openLabel === 'string' ? this.options.openLabel : this.options.openLabel?.withoutMnemonic;
 			if ((this.scheme !== Schemas.file) && this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1) && (this.options.availableFileSystems.indexOf(Schemas.file) > -1)) {

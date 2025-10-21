@@ -235,10 +235,10 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		assert.deepStrictEqual(editOperations.length, 1);
 		const operation = editOperations[0];
 		assert.deepStrictEqual(getIRange(operation.range), {
-			"startLineNumber": 2,
-			"startColumn": 1,
-			"endLineNumber": 2,
-			"endColumn": 5,
+			'startLineNumber': 2,
+			'startColumn': 1,
+			'endLineNumber': 2,
+			'endColumn': 5,
 		});
 		assert.deepStrictEqual(operation.text, '');
 	});
@@ -263,10 +263,10 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		assert.deepStrictEqual(editOperations.length, 1);
 		let operation = editOperations[0];
 		assert.deepStrictEqual(getIRange(operation.range), {
-			"startLineNumber": 3,
-			"startColumn": 1,
-			"endLineNumber": 3,
-			"endColumn": 5,
+			'startLineNumber': 3,
+			'startColumn': 1,
+			'endLineNumber': 3,
+			'endColumn': 5,
 		});
 		assert.deepStrictEqual(operation.text, '');
 
@@ -280,10 +280,10 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		assert.deepStrictEqual(editOperations.length, 1);
 		operation = editOperations[0];
 		assert.deepStrictEqual(getIRange(operation.range), {
-			"startLineNumber": 2,
-			"startColumn": 1,
-			"endLineNumber": 2,
-			"endColumn": 1,
+			'startLineNumber': 2,
+			'startColumn': 1,
+			'endLineNumber': 2,
+			'endColumn': 1,
 		});
 		assert.deepStrictEqual(operation.text, '    ');
 	});
@@ -307,10 +307,10 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		assert.deepStrictEqual(editOperations.length, 1);
 		const operation = editOperations[0];
 		assert.deepStrictEqual(getIRange(operation.range), {
-			"startLineNumber": 2,
-			"startColumn": 1,
-			"endLineNumber": 2,
-			"endColumn": 1,
+			'startLineNumber': 2,
+			'startColumn': 1,
+			'endLineNumber': 2,
+			'endColumn': 1,
 		});
 		assert.deepStrictEqual(operation.text, '    ');
 	});
@@ -354,10 +354,10 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		assert.deepStrictEqual(editOperations.length, 1);
 		const operation = editOperations[0];
 		assert.deepStrictEqual(getIRange(operation.range), {
-			"startLineNumber": 2,
-			"startColumn": 1,
-			"endLineNumber": 2,
-			"endColumn": 4,
+			'startLineNumber': 2,
+			'startColumn': 1,
+			'endLineNumber': 2,
+			'endColumn': 4,
 		});
 		assert.deepStrictEqual(operation.text, '');
 	});

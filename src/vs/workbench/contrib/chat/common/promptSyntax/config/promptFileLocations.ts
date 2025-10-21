@@ -20,7 +20,12 @@ export const INSTRUCTION_FILE_EXTENSION = '.instructions.md';
 /**
  * File extension for the modes files.
  */
-export const MODE_FILE_EXTENSION = '.chatmode.md';
+export const LEGACY_MODE_FILE_EXTENSION = '.chatmode.md';
+
+/**
+ * File extension for the agent files.
+ */
+export const AGENT_FILE_EXTENSION = '.vscode-agent.md';
 
 /**
  * Copilot custom instructions file name.
@@ -41,7 +46,12 @@ export const INSTRUCTIONS_DEFAULT_SOURCE_FOLDER = '.github/instructions';
 /**
  * Default modes source folder.
  */
-export const MODE_DEFAULT_SOURCE_FOLDER = '.github/chatmodes';
+export const LEGACY_MODE_DEFAULT_SOURCE_FOLDER = '.github/chatmodes';
+
+/**
+ * Agents folder.
+ */
+export const AGENTS_SOURCE_FOLDER = '.github/agents';
 
 /**
  * Gets the prompt file type from the provided path.
@@ -57,8 +67,8 @@ export function getPromptFileType(fileUri: URI): PromptsType | undefined {
 		return PromptsType.instructions;
 	}
 
-	if (filename.endsWith(MODE_FILE_EXTENSION)) {
-		return PromptsType.mode;
+	if (filename.endsWith(LEGACY_MODE_FILE_EXTENSION) || filename.endsWith(AGENT_FILE_EXTENSION)) {
+		return PromptsType.agent;
 	}
 
 	return undefined;
@@ -77,8 +87,8 @@ export function getPromptFileExtension(type: PromptsType): string {
 			return INSTRUCTION_FILE_EXTENSION;
 		case PromptsType.prompt:
 			return PROMPT_FILE_EXTENSION;
-		case PromptsType.mode:
-			return MODE_FILE_EXTENSION;
+		case PromptsType.agent:
+			return AGENT_FILE_EXTENSION;
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -90,8 +100,8 @@ export function getPromptFileDefaultLocation(type: PromptsType): string {
 			return INSTRUCTIONS_DEFAULT_SOURCE_FOLDER;
 		case PromptsType.prompt:
 			return PROMPT_DEFAULT_SOURCE_FOLDER;
-		case PromptsType.mode:
-			return MODE_DEFAULT_SOURCE_FOLDER;
+		case PromptsType.agent:
+			return AGENTS_SOURCE_FOLDER;
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -107,7 +117,8 @@ export function getCleanPromptName(fileUri: URI): string {
 	const extensions = [
 		PROMPT_FILE_EXTENSION,
 		INSTRUCTION_FILE_EXTENSION,
-		MODE_FILE_EXTENSION,
+		LEGACY_MODE_FILE_EXTENSION,
+		AGENT_FILE_EXTENSION,
 	];
 
 	for (const ext of extensions) {

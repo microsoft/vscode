@@ -8,7 +8,7 @@ import { $ } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import type { IHoverLifecycleOptions, IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, type IHoverLifecycleOptions, type IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -59,10 +59,7 @@ import { ILanguageModelToolsService, ToolSet } from '../common/languageModelTool
 import { getCleanPromptName } from '../common/promptSyntax/config/promptFileLocations.js';
 
 const commonHoverOptions: Partial<IHoverOptions> = {
-	appearance: {
-		compact: true,
-		showPointer: true,
-	},
+	style: HoverStyle.Pointer,
 	position: {
 		hoverPosition: HoverPosition.BELOW
 	},
@@ -336,9 +333,15 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	if ((!supportsVision && currentLanguageModel) || omittedState === OmittedState.Full) {
 		element.classList.add('warning');
 		hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", currentLanguageModelName ?? 'This model');
-		disposable.add(hoverService.setupDelayedHover(element, { content: hoverElement, appearance: { showPointer: true } }));
+		disposable.add(hoverService.setupDelayedHover(element, {
+			content: hoverElement,
+			style: HoverStyle.Pointer,
+		}));
 	} else {
-		disposable.add(hoverService.setupDelayedHover(element, { content: hoverElement, appearance: { showPointer: true } }));
+		disposable.add(hoverService.setupDelayedHover(element, {
+			content: hoverElement,
+			style: HoverStyle.Pointer,
+		}));
 
 		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>], { type: 'image/png' });
 		const url = URL.createObjectURL(blob);

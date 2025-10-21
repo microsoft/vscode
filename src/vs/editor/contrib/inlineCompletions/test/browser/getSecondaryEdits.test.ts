@@ -52,7 +52,7 @@ suite('getSecondaryEdits', () => {
 			'}'
 		].join('\n'));
 		const secondaryEdits = getSecondaryEdits(textModel, positions, primaryEdit);
-		assert.deepStrictEqual(TextEdit.fromParallelReplacementsUnsorted(secondaryEdits.filter(isDefined)).toString(textModel.getValue()), "...ction fib(❰\n↦) {\n\t... 0;\n}❱");
+		assert.deepStrictEqual(TextEdit.fromParallelReplacementsUnsorted(secondaryEdits.filter(isDefined)).toString(textModel.getValue()), '...ction fib(❰\n↦) {\n\t... 0;\n}❱');
 		textModel.dispose();
 	});
 

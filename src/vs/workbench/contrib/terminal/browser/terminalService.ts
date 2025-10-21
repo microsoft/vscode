@@ -24,7 +24,7 @@ import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IP
 import { formatMessageForTerminal } from '../../../../platform/terminal/common/terminalStrings.js';
 import { iconForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -374,7 +374,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// If this was a hideFromUser terminal created by the API this was triggered by show,
 		// in which case we need to create the terminal group
 		if (value.shellLaunchConfig.hideFromUser) {
-			this._showBackgroundTerminal(value);
+			this.showBackgroundTerminal(value);
 		}
 		if (value.target === TerminalLocation.Editor) {
 			this._terminalEditorService.setActiveInstance(value);
@@ -467,9 +467,10 @@ export class TerminalService extends Disposable implements ITerminalService {
 		mark('code/terminal/willGetTerminalLayoutInfo');
 		const layoutInfo = await localBackend.getTerminalLayoutInfo();
 		mark('code/terminal/didGetTerminalLayoutInfo');
-		if (layoutInfo && layoutInfo.tabs.length > 0) {
+		if (layoutInfo && (layoutInfo.tabs.length > 0 || layoutInfo?.background?.length)) {
 			mark('code/terminal/willRecreateTerminalGroups');
 			this._reconnectedTerminalGroups = this._recreateTerminalGroups(layoutInfo);
+			this._backgroundedTerminalInstances = await this._reviveBackgroundTerminalInstances(layoutInfo.background || []);
 			mark('code/terminal/didRecreateTerminalGroups');
 		}
 		// now that terminals have been restored,
@@ -503,6 +504,19 @@ export class TerminalService extends Disposable implements ITerminalService {
 			}
 		}
 		return Promise.all(groupPromises).then(result => result.filter(e => !!e) as ITerminalGroup[]);
+	}
+
+	private async _reviveBackgroundTerminalInstances(bgTerminals: (IPtyHostAttachTarget | null)[]): Promise<ITerminalInstance[]> {
+		const instances: ITerminalInstance[] = [];
+		for (const bg of bgTerminals) {
+			const attachPersistentProcess = bg;
+			if (!attachPersistentProcess) {
+				continue;
+			}
+			const instance = await this.createTerminal({ config: { attachPersistentProcess, hideFromUser: true, forcePersist: true }, location: TerminalLocation.Panel });
+			instances.push(instance);
+		}
+		return instances;
 	}
 
 	private async _recreateTerminalGroup(tabLayout: IRawTerminalTabLayoutInfo<IPtyHostAttachTarget | null>, terminalLayouts: IRawTerminalInstanceLayoutInfo<IPtyHostAttachTarget | null>[]): Promise<ITerminalGroup | undefined> {
@@ -702,7 +716,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			return;
 		}
 		const tabs = this._terminalGroupService.groups.map(g => g.getLayoutInfo(g === this._terminalGroupService.activeGroup));
-		const state: ITerminalsLayoutInfoById = { tabs };
+		const state: ITerminalsLayoutInfoById = { tabs, background: this._backgroundedTerminalInstances.filter(i => i.shellLaunchConfig.forcePersist).map(i => i.persistentProcessId).filter((e): e is number => e !== undefined) };
 		this._primaryBackend?.setTerminalLayoutInfo(state);
 	}
 
@@ -991,7 +1005,13 @@ export class TerminalService extends Disposable implements ITerminalService {
 			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Panel);
 			this._backgroundedTerminalInstances.push(instance);
 			this._backgroundedTerminalDisposables.set(instance.instanceId, [
-				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
+				instance.onDisposed(instance => {
+					const idx = this._backgroundedTerminalInstances.indexOf(instance);
+					if (idx !== -1) {
+						this._backgroundedTerminalInstances.splice(idx, 1);
+					}
+					this._onDidDisposeInstance.fire(instance);
+				})
 			]);
 			this._terminalHasBeenCreated.set(true);
 			return instance;
@@ -1160,7 +1180,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 	}
 
-	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
+	public async showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): Promise<void> {
 		const index = this._backgroundedTerminalInstances.indexOf(instance);
 		if (index === -1) {
 			return;
@@ -1174,7 +1194,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._terminalGroupService.createGroup(instance);
 
 		// Make active automatically if it's the first instance
-		if (this.instances.length === 1) {
+		if (this.instances.length === 1 && !suppressSetActive) {
 			this._terminalGroupService.setActiveInstanceByIndex(0);
 		}
 
@@ -1249,7 +1269,7 @@ class TerminalEditorStyle extends Themable {
 			if (icon instanceof URI) {
 				uri = icon;
 			} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
-				uri = colorTheme.type === ColorScheme.LIGHT ? icon.light : icon.dark;
+				uri = isDark(colorTheme.type) ? icon.dark : icon.light;
 			}
 			const iconClasses = getUriClasses(instance, colorTheme.type);
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {

@@ -443,6 +443,7 @@ export const enum TerminalCommandId {
 	SizeToContentWidthActiveTab = 'workbench.action.terminal.sizeToContentWidthActiveTab',
 	ResizePaneDown = 'workbench.action.terminal.resizePaneDown',
 	Focus = 'workbench.action.terminal.focus',
+	FocusInstance = 'workbench.action.terminal.focusInstance',
 	FocusNext = 'workbench.action.terminal.focusNext',
 	FocusPrevious = 'workbench.action.terminal.focusPrevious',
 	Paste = 'workbench.action.terminal.paste',

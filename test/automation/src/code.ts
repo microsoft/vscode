@@ -24,6 +24,7 @@ export interface LaunchOptions {
 	readonly logger: Logger;
 	logsPath: string;
 	crashesPath: string;
+	readonly videosPath?: string;
 	verbose?: boolean;
 	useInMemorySecretStorage?: boolean;
 	readonly extraArgs?: string[];

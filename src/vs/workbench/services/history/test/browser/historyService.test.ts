@@ -51,7 +51,7 @@ suite('HistoryService', function () {
 			configurationService.setUserConfiguration('workbench.editor.navigationScope', 'editor');
 		}
 		if (configureSearchExclude) {
-			configurationService.setUserConfiguration('search', { exclude: { "**/node_modules/**": true } });
+			configurationService.setUserConfiguration('search', { exclude: { '**/node_modules/**': true } });
 		}
 		instantiationService.stub(IConfigurationService, configurationService);
 

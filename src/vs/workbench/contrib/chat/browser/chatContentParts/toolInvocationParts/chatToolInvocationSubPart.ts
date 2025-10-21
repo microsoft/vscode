@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { autorunSelfDisposable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
@@ -29,23 +30,27 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 	) {
 		super();
 
-		if (toolInvocation.kind === 'toolInvocation' && !toolInvocation.isComplete) {
-			toolInvocation.isCompletePromise.then(() => this._onNeedsRerender.fire());
+		if (toolInvocation.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(toolInvocation)) {
+			this._register(autorunSelfDisposable(reader => {
+				if (IChatToolInvocation.isComplete(toolInvocation, reader)) {
+					this._onNeedsRerender.fire();
+					reader.dispose();
+				}
+			}));
 		}
 	}
 
 	protected getIcon() {
 		const toolInvocation = this.toolInvocation;
-		const isSkipped = typeof toolInvocation.isConfirmed !== 'boolean' && toolInvocation.isConfirmed?.type === ToolConfirmKind.Skipped;
+		const confirmState = IChatToolInvocation.isConfirmed(toolInvocation);
+		const isSkipped = confirmState?.type === ToolConfirmKind.Skipped;
 		if (isSkipped) {
 			return Codicon.circleSlash;
 		}
-		const isConfirmed = typeof toolInvocation.isConfirmed === 'boolean'
-			? toolInvocation.isConfirmed
-			: toolInvocation.isConfirmed?.type !== ToolConfirmKind.Denied;
-		return !isConfirmed ?
+
+		return confirmState?.type === ToolConfirmKind.Denied ?
 			Codicon.error :
-			toolInvocation.isComplete ?
+			IChatToolInvocation.isComplete(toolInvocation) ?
 				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
 	}
 }

@@ -400,5 +400,7 @@ steps:
         # SBOM generation uses hard links which are not supported by the Linux kernel
         # for files that have the SUID bit set, so we need to remove the SUID bit from
         # the chrome-sandbox file.
+        sudo ls -l $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/chrome-sandbox
         sudo chmod u-s $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/chrome-sandbox
+        sudo ls -l $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/chrome-sandbox
       displayName: Move artifacts to out directory

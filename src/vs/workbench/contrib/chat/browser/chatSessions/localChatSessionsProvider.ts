@@ -6,7 +6,9 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { IObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroupsService, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
@@ -198,6 +200,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		const status = chatWidget?.viewModel?.model ? this.modelToStatus(chatWidget.viewModel.model) : undefined;
 		const widgetSession: ChatSessionItemWithProvider = {
 			id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
+			resource: URI.parse(`${Schemas.vscodeChatSession}://widget`),
 			label: chatWidget?.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat").value,
 			description: nls.localize('chat.sessions.chatView.description', "Chat View"),
 			iconPath: Codicon.chatSparkle,
@@ -229,6 +232,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 					}
 					const editorSession: ChatSessionItemWithProvider = {
 						id: editorInfo.editor.sessionId,
+						resource: editorInfo.editor.resource,
 						label: editorInfo.editor.getName(),
 						iconPath: Codicon.chatSparkle,
 						status,
@@ -242,8 +246,10 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			}
 		});
 
+		// TODO: This should not be a session items
 		const historyNode: IChatSessionItem = {
 			id: LocalChatSessionsProvider.HISTORY_NODE_ID,
+			resource: URI.parse(`${Schemas.vscodeChatSession}://history`),
 			label: nls.localize('chat.sessions.showHistory', "History"),
 		};
 

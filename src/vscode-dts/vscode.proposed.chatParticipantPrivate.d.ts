@@ -288,8 +288,16 @@ declare module 'vscode' {
 
 	// #region LanguageModelProxyProvider
 
+	/**
+	 * Duplicated so that this proposal and languageModelProxy can be independent.
+	 */
+	export interface LanguageModelProxy extends Disposable {
+		readonly uri: Uri;
+		readonly key: string;
+	}
+
 	export interface LanguageModelProxyProvider {
-		provideModelProxy(forExtensionId: string, token: CancellationToken): ProviderResult<LanguageModelProxyInfo>;
+		provideModelProxy(forExtensionId: string, token: CancellationToken): ProviderResult<LanguageModelProxy>;
 	}
 
 	export namespace lm {

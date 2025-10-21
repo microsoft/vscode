@@ -54,6 +54,6 @@ export class McpServerEditorInput extends EditorInput {
 			return true;
 		}
 
-		return other instanceof McpServerEditorInput && this._mcpServer.name === other._mcpServer.name;
+		return other instanceof McpServerEditorInput && this._mcpServer.id === other._mcpServer.id;
 	}
 }

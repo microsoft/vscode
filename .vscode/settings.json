@@ -216,7 +216,7 @@
 
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
 	"chat.emptyState.history.enabled": true,
-	"github.copilot.chat.advanced.taskTools.enabled": true,
+	"chat.agentSessionsViewLocation": "view",
 	"chat.promptFilesRecommendations": {
 		"plan-fast": true,
 		"plan-deep": true

@@ -20,8 +20,6 @@ import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { IMcpServer, McpServerDefinition, McpServerLaunch, McpServerTransportType } from './mcpTypes.js';
 
 export class McpDevModeServerAttache extends Disposable {
-	public active: boolean = false;
-
 	constructor(
 		server: IMcpServer,
 		fwdRef: { lastModeDebugged: boolean },

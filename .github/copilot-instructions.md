@@ -48,12 +48,10 @@ Each extension follows the standard VS Code extension structure with `package.js
 
 ## Validating TypeScript changes
 
-You MUST check compilation output before running ANY script or declaring work complete!
+MANDATORY: Always check the `VS Code - Build` watch task output (via #get_task_output) for compilation errors before running ANY script or declaring work complete, then fix all compilation errors before moving forward.
 
-1. **ALWAYS** check the `VS Code - Build` watch task output for compilation errors
-2. **NEVER** run tests if there are compilation errors
-3. **NEVER** use `npm run compile` to compile TypeScript files, always check task output
-4. **FIX** all compilation errors before moving forward
+- NEVER run tests if there are compilation errors
+- NEVER use `npm run compile` to compile TypeScript files but call #get_task_output instead
 
 ### TypeScript compilation steps
 - Monitor the `VS Code - Build` task outputs for real-time compilation errors as you make changes

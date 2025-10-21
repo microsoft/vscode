@@ -11,10 +11,6 @@ export function sendInlineCompletionsEndOfLifeTelemetry(dataChannel: DataChannel
 
 export type InlineCompletionEndOfLifeEvent = {
 	// request
-	/**
-	 * @deprecated To be removed at one point in favor of opportunityId
-	 */
-	id: string;
 	opportunityId: string;
 	requestReason: string;
 	editorType: string;
@@ -61,7 +57,6 @@ export type InlineCompletionEndOfLifeEvent = {
 type InlineCompletionsEndOfLifeClassification = {
 	owner: 'benibenj';
 	comment: 'Inline completions ended';
-	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the inline completion request' };
 	opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for an opportunity to show an inline completion or NES' };
 	correlationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The correlation identifier for the inline completion' };
 	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the extension that contributed the inline completion' };

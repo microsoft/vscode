@@ -27,7 +27,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { contrastBorder, focusBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { spinningLoading, syncing } from '../../../../../platform/theme/common/iconRegistry.js';
-import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
+import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { registerThemingParticipant } from '../../../../../platform/theme/common/themeService.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -1254,7 +1254,7 @@ class KeywordActivationStatusEntry extends Disposable {
 registerThemingParticipant((theme, collector) => {
 	let activeRecordingColor: Color | undefined;
 	let activeRecordingDimmedColor: Color | undefined;
-	if (theme.type === ColorScheme.LIGHT || theme.type === ColorScheme.DARK) {
+	if (!isHighContrast(theme.type)) {
 		activeRecordingColor = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND) ?? theme.getColor(focusBorder);
 		activeRecordingDimmedColor = activeRecordingColor?.transparent(0.38);
 	} else {

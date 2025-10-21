@@ -71,7 +71,7 @@ interface IActiveTerminalData {
 	count: IInstanceCount;
 }
 
-interface IReconnectionTaskData {
+export interface IReconnectionTaskData {
 	label: string;
 	id: string;
 	lastTask: string;

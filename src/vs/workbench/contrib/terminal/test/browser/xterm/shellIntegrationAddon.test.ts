@@ -248,13 +248,13 @@ suite('ShellIntegrationAddon', () => {
 				deepEqual(parseMarkSequence(['', '']), { id: undefined, hidden: false });
 			});
 			test('ID', async () => {
-				deepEqual(parseMarkSequence(['Id=3', '']), { id: "3", hidden: false });
+				deepEqual(parseMarkSequence(['Id=3', '']), { id: '3', hidden: false });
 			});
 			test('hidden', async () => {
 				deepEqual(parseMarkSequence(['', 'Hidden']), { id: undefined, hidden: true });
 			});
 			test('ID + hidden', async () => {
-				deepEqual(parseMarkSequence(['Id=4555', 'Hidden']), { id: "4555", hidden: true });
+				deepEqual(parseMarkSequence(['Id=4555', 'Hidden']), { id: '4555', hidden: true });
 			});
 		});
 	});

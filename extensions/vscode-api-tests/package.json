@@ -32,7 +32,9 @@
     "notebookMessaging",
     "notebookMime",
     "portsAttributes",
+    "quickInputButtonLocation",
     "quickPickSortByLabel",
+    "quickPickItemResource",
     "resolvers",
     "scmActionButton",
     "scmSelectedProvider",
@@ -51,7 +53,8 @@
     "tunnels",
     "workspaceTrust",
     "inlineCompletionsAdditions",
-    "devDeviceId"
+    "devDeviceId",
+    "languageModelProxy"
   ],
   "private": true,
   "activationEvents": [],

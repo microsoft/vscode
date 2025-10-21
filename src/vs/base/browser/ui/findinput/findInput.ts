@@ -16,8 +16,8 @@ import { KeyCode } from '../../../common/keyCodes.js';
 import './findInput.css';
 import * as nls from '../../../../nls.js';
 import { DisposableStore, MutableDisposable } from '../../../common/lifecycle.js';
-import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { IHistory } from '../../../common/history.js';
+import type { IHoverLifecycleOptions } from '../hover/hover.js';
 
 
 export interface IFindInputOptions {
@@ -38,6 +38,7 @@ export interface IFindInputOptions {
 	readonly toggleStyles: IToggleStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly history?: IHistory<string>;
+	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -114,13 +115,12 @@ export class FindInput extends Widget {
 			history: options.history
 		}));
 
-		const hoverDelegate = this._register(createInstantHoverDelegate());
-
 		if (this.showCommonFindToggles) {
+			const hoverLifecycleOptions: IHoverLifecycleOptions = options?.hoverLifecycleOptions || { groupId: 'find-input' };
 			this.regex = this._register(new RegexToggle({
 				appendTitle: appendRegexLabel,
 				isChecked: false,
-				hoverDelegate,
+				hoverLifecycleOptions,
 				...options.toggleStyles
 			}));
 			this._register(this.regex.onChange(viaKeyboard => {
@@ -137,7 +137,7 @@ export class FindInput extends Widget {
 			this.wholeWords = this._register(new WholeWordsToggle({
 				appendTitle: appendWholeWordsLabel,
 				isChecked: false,
-				hoverDelegate,
+				hoverLifecycleOptions,
 				...options.toggleStyles
 			}));
 			this._register(this.wholeWords.onChange(viaKeyboard => {
@@ -151,7 +151,7 @@ export class FindInput extends Widget {
 			this.caseSensitive = this._register(new CaseSensitiveToggle({
 				appendTitle: appendCaseSensitiveLabel,
 				isChecked: false,
-				hoverDelegate,
+				hoverLifecycleOptions,
 				...options.toggleStyles
 			}));
 			this._register(this.caseSensitive.onChange(viaKeyboard => {

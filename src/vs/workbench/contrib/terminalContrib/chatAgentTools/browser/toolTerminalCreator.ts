@@ -140,6 +140,7 @@ export class ToolTerminalCreator {
 		const config: IShellLaunchConfig = {
 			icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
 			hideFromUser: true,
+			forcePersist: true,
 			env: {
 				// Avoid making `git diff` interactive when called from copilot
 				GIT_PAGER: 'cat',

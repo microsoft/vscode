@@ -115,7 +115,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			_progress,
 			token,
 			store,
-			() => this._isTaskActive(task),
+			(terminalTask) => this._isTaskActive(terminalTask),
 			dependencyTasks
 		);
 		store.dispose();
@@ -146,7 +146,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 
 	private async _isTaskActive(task: Task): Promise<boolean> {
 		const activeTasks = await this._tasksService.getActiveTasks();
-		return activeTasks?.includes(task) ?? false;
+		return activeTasks?.some((t) => t._id === task._id);
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {

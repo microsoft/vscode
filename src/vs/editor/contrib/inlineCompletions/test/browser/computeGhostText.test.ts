@@ -86,8 +86,8 @@ suite('computeGhostText', () => {
 	});
 
 	test('Multi Part Diffing 2', () => {
-		assert.deepStrictEqual(getOutput('[)]', '())'), ({ prefix: undefined, subword: "[(])[)]" }));
-		assert.deepStrictEqual(getOutput('[))]', '(())'), ({ prefix: undefined, subword: "[((]))" }));
+		assert.deepStrictEqual(getOutput('[)]', '())'), ({ prefix: undefined, subword: '[(])[)]' }));
+		assert.deepStrictEqual(getOutput('[))]', '(())'), ({ prefix: undefined, subword: '[((]))' }));
 	});
 
 	test('Parenthesis Matching', () => {

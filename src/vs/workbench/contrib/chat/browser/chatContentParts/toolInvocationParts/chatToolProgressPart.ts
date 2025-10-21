@@ -36,7 +36,7 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 	}
 
 	private createProgressPart(): HTMLElement {
-		if (this.toolInvocation.isComplete && this.toolIsConfirmed && this.toolInvocation.pastTenseMessage) {
+		if (IChatToolInvocation.isComplete(this.toolInvocation) && this.toolIsConfirmed && this.toolInvocation.pastTenseMessage) {
 			const key = this.getAnnouncementKey('complete');
 			const completionContent = this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage;
 			const shouldAnnounce = this.toolInvocation.kind === 'toolInvocation' && this.hasMeaningfulContent(this.toolInvocation.pastTenseMessage) ? this.computeShouldAnnounce(key) : false;
@@ -45,7 +45,7 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 			return part.domNode;
 		} else {
 			const container = document.createElement('div');
-			const progressObservable = this.toolInvocation.kind === 'toolInvocation' ? this.toolInvocation.progress : undefined;
+			const progressObservable = this.toolInvocation.kind === 'toolInvocation' ? this.toolInvocation.state.map((s, r) => s.type === IChatToolInvocation.StateKind.Executing ? s.progress.read(r) : undefined) : undefined;
 			this._register(autorun(reader => {
 				const progress = progressObservable?.read(reader);
 				const key = this.getAnnouncementKey('progress');
@@ -59,13 +59,8 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 	}
 
 	private get toolIsConfirmed() {
-		if (!this.toolInvocation.isConfirmed) {
-			return false;
-		}
-		if (this.toolInvocation.isConfirmed === true) {
-			return true;
-		}
-		return this.toolInvocation.isConfirmed.type !== ToolConfirmKind.Denied;
+		const c = IChatToolInvocation.isConfirmed(this.toolInvocation);
+		return !!c && c.type !== ToolConfirmKind.Denied;
 	}
 
 	private renderProgressContent(content: IMarkdownString | string, shouldAnnounce: boolean) {

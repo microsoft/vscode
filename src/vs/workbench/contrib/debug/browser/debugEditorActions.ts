@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getDomNodePagePosition } from '../../../../base/browser/dom.js';
-import { Action } from '../../../../base/common/actions.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorAction, IActionOptions, registerEditorAction } from '../../../../editor/browser/editorExtensions.js';
@@ -542,7 +542,7 @@ class StepIntoTargetsAction extends EditorAction {
 		contextMenuService.showContextMenu({
 			getAnchor: () => ({ x, y }),
 			getActions: () => {
-				return targets.map(t => new Action(`stepIntoTarget:${t.id}`, t.label, undefined, true, () => session.stepIn(frame.thread.threadId, t.id)));
+				return targets.map(t => toAction({ id: `stepIntoTarget:${t.id}`, label: t.label, enabled: true, run: () => session.stepIn(frame.thread.threadId, t.id) }));
 			}
 		});
 	}

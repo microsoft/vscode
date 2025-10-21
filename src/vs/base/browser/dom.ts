@@ -5,7 +5,7 @@
 
 import * as browser from './browser.js';
 import { BrowserFeatures } from './canIUse.js';
-import { IKeyboardEvent, StandardKeyboardEvent } from './keyboardEvent.js';
+import { hasModifierKeys, IKeyboardEvent, StandardKeyboardEvent } from './keyboardEvent.js';
 import { IMouseEvent, StandardMouseEvent } from './mouseEvent.js';
 import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from '../common/async.js';
 import { BugIndicatingError, onUnexpectedError } from '../common/errors.js';
@@ -1813,7 +1813,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 	}
 
 	get isModifierPressed(): boolean {
-		return this._keyStatus.altKey || this._keyStatus.ctrlKey || this._keyStatus.metaKey || this._keyStatus.shiftKey;
+		return hasModifierKeys(this._keyStatus);
 	}
 
 	/**

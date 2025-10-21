@@ -36,7 +36,7 @@ import { getFlatContextMenuActions, MenuEntryActionViewItem } from '../../../../
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { DisposableMap, DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
 import { getColorClass, getUriClasses } from './terminalIcon.js';
 import { getTerminalActionBarArgs } from './terminalMenus.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
@@ -628,7 +628,7 @@ class TerminalThemeIconStyle extends Themable {
 			if (icon instanceof URI) {
 				uri = icon;
 			} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
-				uri = colorTheme.type === ColorScheme.LIGHT ? icon.light : icon.dark;
+				uri = isDark(colorTheme.type) ? icon.dark : icon.light;
 			}
 			const iconClasses = getUriClasses(instance, colorTheme.type);
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {

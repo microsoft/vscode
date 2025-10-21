@@ -35,7 +35,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { MODE_FILE_EXTENSION } from '../../chat/common/promptSyntax/config/promptFileLocations.js';
+import { AGENT_FILE_EXTENSION, LEGACY_MODE_FILE_EXTENSION } from '../../chat/common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../chat/common/promptSyntax/promptTypes.js';
 import { ACTION_START, CTX_INLINE_CHAT_V1_ENABLED, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { AbstractInline1ChatAction } from './inlineChatActions.js';
@@ -51,7 +51,8 @@ const IGNORED_LANGUAGE_IDS = new Set([
 	'search-result',
 	INSTRUCTIONS_LANGUAGE_ID,
 	PROMPT_LANGUAGE_ID,
-	MODE_FILE_EXTENSION
+	LEGACY_MODE_FILE_EXTENSION,
+	AGENT_FILE_EXTENSION
 ]);
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));

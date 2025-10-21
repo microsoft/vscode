@@ -36,18 +36,18 @@ const ROOT_2 = fixPath(root2);
 class MockTerminalProfileResolverService extends TestTerminalProfileResolverService {
 	override async getDefaultProfile(): Promise<ITerminalProfile> {
 		return {
-			profileName: "my-sh",
-			path: "/usr/bin/zsh",
+			profileName: 'my-sh',
+			path: '/usr/bin/zsh',
 			env: {
-				TEST: "TEST",
+				TEST: 'TEST',
 			},
 			isDefault: true,
 			isUnsafePath: false,
 			isFromPath: true,
 			icon: {
-				id: "terminal-linux",
+				id: 'terminal-linux',
 			},
-			color: "terminal.ansiYellow",
+			color: 'terminal.ansiYellow',
 		};
 	}
 }

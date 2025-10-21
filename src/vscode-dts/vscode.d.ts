@@ -13874,6 +13874,14 @@ declare module 'vscode' {
 		 *
 		 * To stop listening to events the watcher must be disposed.
 		 *
+		 * *Note* that file events from deleting a folder may not include events for the contained files.
+		 * For example, when a folder is moved to the trash, only one event is reported because technically
+		 * this is a rename/move operation and not a delete operation for each files within.
+		 * On top of that, performance optimisations are in place to fold multiple events that all belong
+		 * to the same parent operation (e.g. delete folder) into one event for that parent. As such, if
+		 * you need to know about all deleted files, you have to watch with `**` and deal with all file
+		 * events yourself.
+		 *
 		 * *Note* that file events from recursive file watchers may be excluded based on user configuration.
 		 * The setting `files.watcherExclude` helps to reduce the overhead of file events from folders
 		 * that are known to produce many file changes at once (such as `.git` folders). As such,
@@ -13893,11 +13901,6 @@ declare module 'vscode' {
 		 *   path that was provided for watching
 		 * In the same way, symbolic links are preserved, i.e. the file event will report the path of the
 		 * symbolic link as it was provided for watching and not the target.
-		 *
-		 * *Note* that file events from deleting a folder may not include events for contained files but
-		 * only the most top level folder that was deleted. This is a performance optimisation to reduce
-		 * the overhead of file events being sent. If you need to know about all deleted files, you have
-		 * to watch with `**` and deal with all file events yourself.
 		 *
 		 * ### Examples
 		 *
@@ -20898,7 +20901,7 @@ declare module 'vscode' {
 
 		/**
 		 * Create a new {@linkcode LanguageModelDataPart} for a json.
-		 * 
+		 *
 		 * *Note* that this function is not expecting "stringified JSON" but
 		 * an object that can be stringified. This function will throw an error
 		 * when the passed value cannot be JSON-stringified.
@@ -20909,7 +20912,7 @@ declare module 'vscode' {
 
 		/**
 		 * Create a new {@linkcode LanguageModelDataPart} for text.
-		 * 
+		 *
 		 * *Note* that an UTF-8 encoder is used to create bytes for the string.
 		 * @param value Text data
 		 * @param mimeType The MIME type if any. Common values are `text/plain` and `text/markdown`.
