@@ -62,6 +62,17 @@ interface ParsedHeader {
 	readonly attributes: IHeaderAttribute[];
 }
 
+export namespace PromptHeaderAttributes {
+	export const description = 'description';
+	export const agent = 'agent';
+	export const mode = 'mode';
+	export const model = 'model';
+	export const applyTo = 'applyTo';
+	export const tools = 'tools';
+	export const handOffs = 'handoffs';
+	export const advancedOptions = 'advancedOptions';
+}
+
 export class PromptHeader {
 	private _parsed: ParsedHeader | undefined;
 
@@ -137,23 +148,23 @@ export class PromptHeader {
 	}
 
 	public get description(): string | undefined {
-		return this.getStringAttribute('description');
+		return this.getStringAttribute(PromptHeaderAttributes.description);
 	}
 
 	public get agent(): string | undefined {
-		return this.getStringAttribute('agent') ?? this.getStringAttribute('mode');
+		return this.getStringAttribute(PromptHeaderAttributes.agent) ?? this.getStringAttribute(PromptHeaderAttributes.mode);
 	}
 
 	public get model(): string | undefined {
-		return this.getStringAttribute('model');
+		return this.getStringAttribute(PromptHeaderAttributes.model);
 	}
 
 	public get applyTo(): string | undefined {
-		return this.getStringAttribute('applyTo');
+		return this.getStringAttribute(PromptHeaderAttributes.applyTo);
 	}
 
 	public get tools(): string[] | undefined {
-		const toolsAttribute = this._parsedHeader.attributes.find(attr => attr.key === 'tools');
+		const toolsAttribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.tools);
 		if (!toolsAttribute) {
 			return undefined;
 		}
@@ -181,7 +192,7 @@ export class PromptHeader {
 	}
 
 	public get handOffs(): IHandOff[] | undefined {
-		const handoffsAttribute = this._parsedHeader.attributes.find(attr => attr.key === 'handoffs');
+		const handoffsAttribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.handOffs);
 		if (!handoffsAttribute) {
 			return undefined;
 		}

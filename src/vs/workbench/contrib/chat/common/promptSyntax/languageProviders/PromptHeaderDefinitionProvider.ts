@@ -10,6 +10,7 @@ import { Definition, DefinitionProvider } from '../../../../../../editor/common/
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IChatModeService } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId } from '../promptTypes.js';
+import { PromptHeaderAttributes } from '../service/newPromptsParser.js';
 import { IPromptsService } from '../service/promptsService.js';
 
 export class PromptHeaderDefinitionProvider implements DefinitionProvider {
@@ -37,7 +38,7 @@ export class PromptHeaderDefinitionProvider implements DefinitionProvider {
 			return undefined;
 		}
 
-		const agentAttr = header.getAttribute('agent') ?? header.getAttribute('mode');
+		const agentAttr = header.getAttribute(PromptHeaderAttributes.agent) ?? header.getAttribute(PromptHeaderAttributes.mode);
 		if (agentAttr && agentAttr.value.type === 'string' && agentAttr.range.containsPosition(position)) {
 			const agent = this.chatModeService.findModeByName(agentAttr.value.value);
 			if (agent && agent.uri) {
