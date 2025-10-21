@@ -8,15 +8,17 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IOverlayWebview } from '../../webview/browser/webview.js';
-import { WebviewIconManager, WebviewIcons } from './webviewIconManager.js';
 
 export interface WebviewInputInitInfo {
 	readonly viewType: string;
 	readonly providedId: string | undefined;
 	readonly name: string;
+	readonly iconPath: WebviewIcons | undefined;
 }
 
 export class WebviewInput extends EditorInput {
@@ -58,7 +60,7 @@ export class WebviewInput extends EditorInput {
 	constructor(
 		init: WebviewInputInitInfo,
 		webview: IOverlayWebview,
-		private readonly _iconManager: WebviewIconManager,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 
@@ -67,6 +69,11 @@ export class WebviewInput extends EditorInput {
 
 		this._name = init.name;
 		this._webview = webview;
+
+		this._register(_themeService.onDidColorThemeChange(() => {
+			// Potentially update icon
+			this._onDidChangeLabel.fire();
+		}));
 	}
 
 	override dispose() {
@@ -104,13 +111,23 @@ export class WebviewInput extends EditorInput {
 		return this.webview.extension;
 	}
 
+	override getIcon(): URI | undefined {
+		if (!this._iconPath) {
+			return;
+		}
+
+		return isDark(this._themeService.getColorTheme().type)
+			? this._iconPath.dark
+			: (this._iconPath.light ?? this._iconPath.dark);
+	}
+
 	public get iconPath() {
 		return this._iconPath;
 	}
 
 	public set iconPath(value: WebviewIcons | undefined) {
 		this._iconPath = value;
-		this._iconManager.setIcons(this._resourceId, value);
+		this._onDidChangeLabel.fire();
 	}
 
 	public override matches(other: EditorInput | IUntypedEditorInput): boolean {
@@ -138,3 +155,8 @@ export class WebviewInput extends EditorInput {
 		return this._webview.claim(claimant, targetWindow, scopedContextKeyService);
 	}
 }
+export interface WebviewIcons {
+	readonly light: URI;
+	readonly dark: URI;
+}
+
