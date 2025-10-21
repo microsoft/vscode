@@ -46,7 +46,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			applyCodeBlockSuggestionId: string | undefined;
 		}, {
 			owner: 'hediet';
-			comment: 'Reports when code from AI is suggested to the user.';
+			comment: 'Reports when code from AI is suggested to the user. @sentToGitHub';
 
 			eventId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for this event.' };
 			suggestionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for this suggestion. Not always set.' };
@@ -125,7 +125,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			| 'accept';
 		}, {
 			owner: 'hediet';
-			comment: 'Reports when code from AI is accepted by the user.';
+			comment: 'Reports when code from AI is accepted by the user. @sentToGitHub';
 
 			eventId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for this event.' };
 			suggestionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for this suggestion. Not always set.' };
