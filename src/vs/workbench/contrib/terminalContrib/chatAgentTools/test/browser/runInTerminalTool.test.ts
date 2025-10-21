@@ -7,7 +7,7 @@ import { ok, strictEqual } from 'assert';
 import { Separator } from '../../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { isLinux, isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -988,7 +988,7 @@ suite('TerminalProfileFetcher', () => {
 	}
 
 	suite('getCopilotProfile', () => {
-		test('should return custom profile when configured', async () => {
+		(isWindows ? test : test.skip)('should return custom profile when configured', async () => {
 			testTool.setBackendOs(OperatingSystem.Windows);
 			const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] });
 			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
@@ -997,7 +997,7 @@ suite('TerminalProfileFetcher', () => {
 			strictEqual(result, customProfile);
 		});
 
-		test('should fall back to default shell when no custom profile is configured', async () => {
+		(isLinux ? test : test.skip)('should fall back to default shell when no custom profile is configured', async () => {
 			testTool.setBackendOs(OperatingSystem.Linux);
 			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, null);
 
