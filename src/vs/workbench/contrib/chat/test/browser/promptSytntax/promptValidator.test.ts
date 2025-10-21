@@ -26,7 +26,7 @@ import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { getPromptFileExtension } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptValidator } from '../../../common/promptSyntax/languageProviders/promptValidator.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { NewPromptsParser } from '../../../common/promptSyntax/service/newPromptsParser.js';
+import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../common/mockChatModeService.js';
 import { MockChatService } from '../../common/mockChatService.js';
@@ -80,7 +80,7 @@ suite('PromptValidator', () => {
 		const customChatMode = new CustomChatMode({
 			uri: URI.parse('myFs://test/test/chatmode.md'),
 			name: 'BeastMode',
-			modeInstructions: { content: 'Beast mode instructions', toolReferences: [] },
+			agentInstructions: { content: 'Beast mode instructions', toolReferences: [] },
 			source: { storage: PromptsStorage.local }
 		});
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
@@ -96,29 +96,29 @@ suite('PromptValidator', () => {
 
 	async function validate(code: string, promptType: PromptsType): Promise<IMarkerData[]> {
 		const uri = URI.parse('myFs://test/testFile' + getPromptFileExtension(promptType));
-		const result = new NewPromptsParser().parse(uri, code);
+		const result = new PromptFileParser().parse(uri, code);
 		const validator = instaService.createInstance(PromptValidator);
 		const markers: IMarkerData[] = [];
 		await validator.validate(result, promptType, m => markers.push(m));
 		return markers;
 	}
-	suite('modes', () => {
+	suite('agents', () => {
 
-		test('correct mode', async () => {
+		test('correct agent', async () => {
 			const content = [
 			/* 01 */'---',
 			/* 02 */`description: "Agent mode test"`,
 			/* 03 */'model: MAE 4.1',
 			/* 04 */`tools: ['tool1', 'tool2']`,
 			/* 05 */'---',
-			/* 06 */'This is a chat mode test.',
+			/* 06 */'This is a chat agent test.',
 			/* 07 */'Here is a #tool1 variable and a #file:./reference1.md as well as a [reference](./reference2.md).',
 			].join('\n');
-			const markers = await validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(markers, []);
 		});
 
-		test('mode with errors (empty description, unknown tool & model)', async () => {
+		test('agent with errors (empty description, unknown tool & model)', async () => {
 			const content = [
 			/* 01 */'---',
 			/* 02 */`description: ""`, // empty description -> error
@@ -127,7 +127,7 @@ suite('PromptValidator', () => {
 			/* 05 */'---',
 			/* 06 */'Body',
 			].join('\n');
-			const markers = await validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
@@ -145,7 +145,7 @@ suite('PromptValidator', () => {
 				`tools: 'tool1'`,
 				'---',
 			].join('\n');
-			const markers = await validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
 			assert.deepStrictEqual(markers.map(m => m.message), [`The 'tools' attribute must be an array.`]);
 		});
@@ -157,7 +157,7 @@ suite('PromptValidator', () => {
 				`tools: ['tool1', 2]`,
 				'---',
 			].join('\n');
-			const markers = await validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
@@ -173,7 +173,7 @@ suite('PromptValidator', () => {
 				`tools: ['tool1', 'tool3']`,
 				'---',
 			].join('\n');
-			const markers = await validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
@@ -182,17 +182,17 @@ suite('PromptValidator', () => {
 			);
 		});
 
-		test('unknown attribute in mode file', async () => {
+		test('unknown attribute in agent file', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				`applyTo: '*.ts'`, // not allowed in mode file
+				`applyTo: '*.ts'`, // not allowed in agent file
 				'---',
 			].join('\n');
-			const markers = await validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.startsWith(`Attribute 'applyTo' is not supported in mode files.`));
+			assert.ok(markers[0].message.startsWith(`Attribute 'applyTo' is not supported in agent files.`));
 		});
 
 		test('tools with invalid handoffs', async () => {
@@ -203,7 +203,7 @@ suite('PromptValidator', () => {
 					`handoffs: next`,
 					'---',
 				].join('\n');
-				const markers = await validate(content, PromptsType.mode);
+				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1);
 				assert.deepStrictEqual(markers.map(m => m.message), [`The 'handoffs' attribute must be an array.`]);
 			}
@@ -215,7 +215,7 @@ suite('PromptValidator', () => {
 					`  - label: '123'`,
 					'---',
 				].join('\n');
-				const markers = await validate(content, PromptsType.mode);
+				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1);
 				assert.deepStrictEqual(markers.map(m => m.message), [`Missing required properties 'agent', 'prompt' in handoff object.`]);
 			}
@@ -230,16 +230,16 @@ suite('PromptValidator', () => {
 					`    send: true`,
 					'---',
 				].join('\n');
-				const markers = await validate(content, PromptsType.mode);
+				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1);
 				assert.deepStrictEqual(markers.map(m => m.message), [`The 'agent' property in a handoff must be a non-empty string.`]);
 			}
 		});
 
-		test('mode with handoffs attribute', async () => {
+		test('agent with handoffs attribute', async () => {
 			const content = [
 				'---',
-				'description: \"Test mode with handoffs\"',
+				'description: \"Test agent with handoffs\"',
 				`handoffs:`,
 				'  - label: Test Prompt',
 				'    agent: Default',
@@ -250,7 +250,7 @@ suite('PromptValidator', () => {
 				'---',
 				'Body',
 			].join('\n');
-			const markers = await validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues for handoffs attribute');
 		});
 	});
@@ -326,7 +326,7 @@ suite('PromptValidator', () => {
 		});
 
 		test('prompt model not suited for agent mode', async () => {
-			// MAE 3.5 Turbo lacks agentMode capability -> warning when used in agent (default) mode
+			// MAE 3.5 Turbo lacks agentMode capability -> warning when used in agent (default)
 			const content = [
 				'---',
 				'description: "Prompt with unsuitable model"',
@@ -340,6 +340,20 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `Model 'MAE 3.5 Turbo' is not suited for agent mode.`);
 		});
 
+		test('prompt with custom agent BeastMode and tools', async () => {
+			// Explicit custom agent should be recognized; BeastMode kind comes from setup; ensure tools accepted
+			const content = [
+				'---',
+				'description: "Prompt custom mode"',
+				'agent: BeastMode',
+				`tools: ['tool1']`,
+				'---',
+				'Body'
+			].join('\n');
+			const markers = await validate(content, PromptsType.prompt);
+			assert.deepStrictEqual(markers, []);
+		});
+
 		test('prompt with custom mode BeastMode and tools', async () => {
 			// Explicit custom mode should be recognized; BeastMode kind comes from setup; ensure tools accepted
 			const content = [
@@ -351,14 +365,32 @@ suite('PromptValidator', () => {
 				'Body'
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
-			assert.deepStrictEqual(markers, []);
+			assert.strictEqual(markers.length, 1);
+			assert.deepStrictEqual(markers.map(m => m.message), [`The 'mode' attribute has been deprecated. Please rename it to 'agent'.`]);
+
 		});
 
-		test('prompt with unknown mode Ask', async () => {
+		test('prompt with custom mode an agent', async () => {
+			// Explicit custom mode should be recognized; BeastMode kind comes from setup; ensure tools accepted
 			const content = [
 				'---',
-				'description: "Prompt unknown mode Ask"',
-				'mode: Ask',
+				'description: "Prompt custom mode"',
+				'mode: BeastMode',
+				`agent: agent`,
+				'---',
+				'Body'
+			].join('\n');
+			const markers = await validate(content, PromptsType.prompt);
+			assert.strictEqual(markers.length, 1);
+			assert.deepStrictEqual(markers.map(m => m.message), [`The 'mode' attribute has been deprecated. The 'agent' attribute is used instead.`]);
+
+		});
+
+		test('prompt with unknown agent Ask', async () => {
+			const content = [
+				'---',
+				'description: "Prompt unknown agent Ask"',
+				'agent: Ask',
 				`tools: ['tool1','tool2']`,
 				'---',
 				'Body'
@@ -366,14 +398,14 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1, 'Expected one warning about tools in non-agent mode');
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, `Unknown mode 'Ask'. Available modes: agent, ask, edit, BeastMode.`);
+			assert.strictEqual(markers[0].message, `Unknown agent 'Ask'. Available agents: agent, ask, edit, BeastMode.`);
 		});
 
-		test('prompt with mode edit', async () => {
+		test('prompt with agent edit', async () => {
 			const content = [
 				'---',
 				'description: "Prompt edit mode with tool"',
-				'mode: edit',
+				'agent: edit',
 				`tools: ['tool1']`,
 				'---',
 				'Body'

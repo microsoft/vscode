@@ -23,6 +23,9 @@ import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../s
 export interface CustomDocumentBackupData extends IWorkingCopyBackupMeta {
 	readonly viewType: string;
 	readonly editorResource: UriComponents;
+
+	readonly customTitle: string | undefined;
+
 	backupId: string;
 
 	readonly extension: undefined | {
@@ -92,7 +95,11 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 		const data = this.fromJson(JSON.parse(serializedEditorInput));
 
 		const webview = reviveWebview(this._webviewService, data);
-		const customInput = this._instantiationService.createInstance(CustomEditorInput, { resource: data.editorResource, viewType: data.viewType }, webview, { startsDirty: data.dirty, backupId: data.backupId });
+		const customInput = this._instantiationService.createInstance(CustomEditorInput, {
+			resource: data.editorResource,
+			viewType: data.viewType,
+			customTitle: data.title,
+		}, webview, { startsDirty: data.dirty, backupId: data.backupId });
 		if (typeof data.group === 'number') {
 			customInput.updateGroup(data.group);
 		}
@@ -100,11 +107,11 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 	}
 }
 
-function reviveWebview(webviewService: IWebviewService, data: { origin: string | undefined; viewType: string; state: any; webviewOptions: WebviewOptions; contentOptions: WebviewContentOptions; extension?: WebviewExtensionDescription }) {
+function reviveWebview(webviewService: IWebviewService, data: { origin: string | undefined; viewType: string; state: any; webviewOptions: WebviewOptions; contentOptions: WebviewContentOptions; extension?: WebviewExtensionDescription; title: string | undefined }) {
 	const webview = webviewService.createWebviewOverlay({
 		providedViewType: data.viewType,
 		origin: data.origin,
-		title: undefined,
+		title: data.title,
 		options: {
 			purpose: WebviewContentPurpose.CustomEditor,
 			enableFindWidget: data.webviewOptions.enableFindWidget,
@@ -185,9 +192,14 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 			contentOptions: restoreWebviewContentOptions(backupData.webview.options),
 			state: backupData.webview.state,
 			extension,
+			title: backupData.customTitle,
 		});
 
-		const editor = this._instantiationService.createInstance(CustomEditorInput, { resource: URI.revive(backupData.editorResource), viewType: backupData.viewType }, webview, { backupId: backupData.backupId });
+		const editor = this._instantiationService.createInstance(CustomEditorInput, {
+			resource: URI.revive(backupData.editorResource),
+			viewType: backupData.viewType,
+			customTitle: backupData.customTitle,
+		}, webview, { backupId: backupData.backupId });
 		editor.updateGroup(0);
 		return editor;
 	}

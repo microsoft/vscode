@@ -16,8 +16,8 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { getCleanPromptName } from '../../../common/promptSyntax/config/promptFileLocations.js';
-import { PromptsType, INSTRUCTIONS_DOCUMENTATION_URL, MODE_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../../../common/promptSyntax/promptTypes.js';
-import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_MODE_COMMAND_ID } from '../newPromptFileActions.js';
+import { PromptsType, INSTRUCTIONS_DOCUMENTATION_URL, AGENT_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../../../common/promptSyntax/promptTypes.js';
+import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID } from '../newPromptFileActions.js';
 import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { askForPromptFileName } from './askForPromptName.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -26,6 +26,8 @@ import { UILabelProvider } from '../../../../../../base/common/keybindingLabels.
 import { OS } from '../../../../../../base/common/platform.js';
 import { askForPromptSourceFolder } from './askForPromptSourceFolder.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 
 /**
  * Options for the {@link askToSelectInstructions} function.
@@ -138,17 +140,17 @@ const UPDATE_INSTRUCTIONS_OPTION: IPromptPickerQuickPickItem = Object.freeze({
 /**
  * A quick pick item that starts the 'New Instructions File' command.
  */
-const NEW_MODE_FILE_OPTION: IPromptPickerQuickPickItem = Object.freeze({
+const NEW_AGENT_FILE_OPTION: IPromptPickerQuickPickItem = Object.freeze({
 	type: 'item',
 	label: `$(plus) ${localize(
-		'commands.new-modefile.select-dialog.label',
-		'Create new custom chat mode file...',
+		'commands.new-agentfile.select-dialog.label',
+		'Create new agent file...',
 	)}`,
-	value: URI.parse(MODE_DOCUMENTATION_URL),
+	value: URI.parse(AGENT_DOCUMENTATION_URL),
 	pickable: false,
 	alwaysShow: true,
 	buttons: [HELP_BUTTON],
-	commandId: NEW_MODE_COMMAND_ID,
+	commandId: NEW_AGENT_COMMAND_ID,
 });
 
 
@@ -194,6 +196,7 @@ export class PromptFilePickers {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 	}
 
@@ -297,9 +300,37 @@ export class PromptFilePickers {
 		}
 		const locals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.local, CancellationToken.None);
 		if (locals.length) {
-			result.push({ type: 'separator', label: localize('separator.workspace', "Workspace") });
+			// Note: No need to localize the label ".github/instructions', since it's the same in all languages.
+			result.push({ type: 'separator', label: '.github/instructions' });
 			result.push(...locals.map(l => this._createPromptPickItem(l, buttons)));
 		}
+
+		// Agent instruction files (copilot-instructions.md and AGENTS.md) are added here and not included in the output of
+		// listPromptFilesForStorage() because that function only handles *.instructions.md files (under `.github/instructions/`, etc.)
+		let agentInstructionFiles: IPromptPath[] = [];
+		if (options.type === PromptsType.instructions) {
+			const useNestedAgentMD = this._configurationService.getValue(PromptsConfig.USE_NESTED_AGENT_MD);
+			const agentInstructionUris = [
+				...await this._promptsService.listCopilotInstructionsMDs(CancellationToken.None),
+				...await this._promptsService.listAgentMDs(CancellationToken.None, !!useNestedAgentMD)
+			];
+			agentInstructionFiles = agentInstructionUris.map(uri => {
+				const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
+				// Don't show the folder path for files under .github folder (namely, copilot-instructions.md) since that is only defined once per repo.
+				const shouldShowFolderPath = folderName?.toLowerCase() !== '.github';
+				return {
+					uri,
+					description: shouldShowFolderPath ? folderName : undefined,
+					storage: PromptsStorage.local,
+					type: options.type
+				} satisfies IPromptPath;
+			});
+		}
+		if (agentInstructionFiles.length) {
+			result.push({ type: 'separator', label: localize('separator.workspace-agent-instructions', "Agent Instructions") });
+			result.push(...agentInstructionFiles.map(l => this._createPromptPickItem(l, buttons)));
+		}
+
 		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, CancellationToken.None);
 		if (exts.length) {
 			result.push({ type: 'separator', label: localize('separator.extensions', "Extensions") });
@@ -319,8 +350,8 @@ export class PromptFilePickers {
 				return [NEW_PROMPT_FILE_OPTION];
 			case PromptsType.instructions:
 				return [NEW_INSTRUCTIONS_FILE_OPTION, UPDATE_INSTRUCTIONS_OPTION];
-			case PromptsType.mode:
-				return [NEW_MODE_FILE_OPTION];
+			case PromptsType.agent:
+				return [NEW_AGENT_FILE_OPTION];
 			default:
 				throw new Error(`Unknown prompt type '${type}'.`);
 		}

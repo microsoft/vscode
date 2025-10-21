@@ -17,7 +17,7 @@ import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { IArrayValue, IHeaderAttribute, ParsedPromptFile } from '../service/newPromptsParser.js';
+import { IArrayValue, IHeaderAttribute, ParsedPromptFile } from '../promptFileParser.js';
 import { PromptsConfig } from '../config/config.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
@@ -25,7 +25,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-
+import { AGENTS_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 
 const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -36,12 +36,25 @@ export class PromptValidator {
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IPromptsService private readonly promptsService: IPromptsService
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
 		promptAST.header?.errors.forEach(error => report(toMarker(error.message, error.range, MarkerSeverity.Error)));
 		this.validateHeader(promptAST, promptType, report);
 		await this.validateBody(promptAST, report);
+		await this.validateFileName(promptAST, promptType, report);
+	}
+
+	private async validateFileName(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
+		if (promptType === PromptsType.agent && promptAST.uri.path.endsWith(LEGACY_MODE_FILE_EXTENSION)) {
+			const location = this.promptsService.getAgentFileURIFromModeFile(promptAST.uri);
+			if (location && await this.fileService.canCreateFile(location)) {
+				report(toMarker(localize('promptValidator.chatModesRenamedToAgents', "Chat modes have been renamed to agents. Please move this file to {0}", location.toString()), new Range(1, 1, 1, 4), MarkerSeverity.Warning));
+			} else {
+				report(toMarker(localize('promptValidator.chatModesRenamedToAgentsNoMove', "Chat modes have been renamed to agents. Please move the file to {0}", AGENTS_SOURCE_FOLDER), new Range(1, 1, 1, 4), MarkerSeverity.Warning));
+			}
+		}
 	}
 
 	private async validateBody(promptAST: ParsedPromptFile, report: (markers: IMarkerData) => void): Promise<void> {
@@ -115,8 +128,8 @@ export class PromptValidator {
 					case PromptsType.prompt:
 						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
 						break;
-					case PromptsType.mode:
-						report(toMarker(localize('promptValidator.unknownAttribute.mode', "Attribute '{0}' is not supported in mode files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
+					case PromptsType.agent:
+						report(toMarker(localize('promptValidator.unknownAttribute.agent', "Attribute '{0}' is not supported in agent files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
 						break;
 					case PromptsType.instructions:
 						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
@@ -127,9 +140,9 @@ export class PromptValidator {
 		this.validateDescription(attributes, report);
 		switch (promptType) {
 			case PromptsType.prompt: {
-				const mode = this.validateMode(attributes, report);
-				this.validateTools(attributes, mode?.kind ?? ChatModeKind.Agent, report);
-				this.validateModel(attributes, mode?.kind ?? ChatModeKind.Agent, report);
+				const agent = this.validateAgent(attributes, report);
+				this.validateTools(attributes, agent?.kind ?? ChatModeKind.Agent, report);
+				this.validateModel(attributes, agent?.kind ?? ChatModeKind.Agent, report);
 				break;
 			}
 			case PromptsType.instructions:
@@ -137,7 +150,7 @@ export class PromptValidator {
 				this.validateExcludeAgent(attributes, report);
 				break;
 
-			case PromptsType.mode:
+			case PromptsType.agent:
 				this.validateTools(attributes, ChatModeKind.Agent, report);
 				this.validateModel(attributes, ChatModeKind.Agent, report);
 				this.validateHandoffs(attributes, report);
@@ -162,7 +175,7 @@ export class PromptValidator {
 	}
 
 
-	private validateModel(attributes: IHeaderAttribute[], modeKind: ChatModeKind, report: (markers: IMarkerData) => void): void {
+	private validateModel(attributes: IHeaderAttribute[], agentKind: ChatModeKind, report: (markers: IMarkerData) => void): void {
 		const attribute = attributes.find(attr => attr.key === 'model');
 		if (!attribute) {
 			return;
@@ -186,7 +199,7 @@ export class PromptValidator {
 		if (!modelMetadata) {
 			report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), attribute.value.range, MarkerSeverity.Warning));
 
-		} else if (modeKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
+		} else if (agentKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
 			report(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", modelName), attribute.value.range, MarkerSeverity.Warning));
 		}
 	}
@@ -201,43 +214,53 @@ export class PromptValidator {
 		return undefined;
 	}
 
-	private validateMode(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): IChatMode | undefined {
-		const attribute = attributes.find(attr => attr.key === 'mode');
+	private validateAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): IChatMode | undefined {
+		const agentAttribute = attributes.find(attr => attr.key === 'agent');
+		const modeAttribute = attributes.find(attr => attr.key === 'mode');
+		if (modeAttribute) {
+			if (agentAttribute) {
+				report(toMarker(localize('promptValidator.modeDeprecated', "The 'mode' attribute has been deprecated. The 'agent' attribute is used instead."), modeAttribute.range, MarkerSeverity.Warning));
+			} else {
+				report(toMarker(localize('promptValidator.modeDeprecated.useAgent', "The 'mode' attribute has been deprecated. Please rename it to 'agent'."), modeAttribute.range, MarkerSeverity.Error));
+			}
+		}
+
+		const attribute = attributes.find(attr => attr.key === 'agent') ?? modeAttribute;
 		if (!attribute) {
-			return undefined; // default mode for prompts is Agent
+			return undefined; // default agent for prompts is Agent
 		}
 		if (attribute.value.type !== 'string') {
-			report(toMarker(localize('promptValidator.modeMustBeString', "The 'mode' attribute must be a string."), attribute.value.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.attributeMustBeString', "The '{0}' attribute must be a string.", attribute.key), attribute.value.range, MarkerSeverity.Error));
 			return undefined;
 		}
-		const modeValue = attribute.value.value;
-		if (modeValue.trim().length === 0) {
-			report(toMarker(localize('promptValidator.modeMustBeNonEmpty', "The 'mode' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
+		const agentValue = attribute.value.value;
+		if (agentValue.trim().length === 0) {
+			report(toMarker(localize('promptValidator.attributeMustBeNonEmpty', "The '{0}' attribute must be a non-empty string.", attribute.key), attribute.value.range, MarkerSeverity.Error));
 			return undefined;
 		}
 
-		const modes = this.chatModeService.getModes();
-		const availableModes = [];
+		const agents = this.chatModeService.getModes();
+		const availableAgents = [];
 
-		// Check if mode exists in builtin or custom modes
-		for (const mode of Iterable.concat(modes.builtin, modes.custom)) {
-			if (mode.name === modeValue) {
-				return mode;
+		// Check if agent exists in builtin or custom agents
+		for (const agent of Iterable.concat(agents.builtin, agents.custom)) {
+			if (agent.name === agentValue) {
+				return agent;
 			}
-			availableModes.push(mode.name); // collect all available mode names
+			availableAgents.push(agent.name); // collect all available agent names
 		}
 
-		const errorMessage = localize('promptValidator.modeNotFound', "Unknown mode '{0}'. Available modes: {1}.", modeValue, availableModes.join(', '));
+		const errorMessage = localize('promptValidator.agentNotFound', "Unknown agent '{0}'. Available agents: {1}.", agentValue, availableAgents.join(', '));
 		report(toMarker(errorMessage, attribute.value.range, MarkerSeverity.Warning));
 		return undefined;
 	}
 
-	private validateTools(attributes: IHeaderAttribute[], modeKind: ChatModeKind, report: (markers: IMarkerData) => void): undefined {
+	private validateTools(attributes: IHeaderAttribute[], agentKind: ChatModeKind, report: (markers: IMarkerData) => void): undefined {
 		const attribute = attributes.find(attr => attr.key === 'tools');
 		if (!attribute) {
 			return;
 		}
-		if (modeKind !== ChatModeKind.Agent) {
+		if (agentKind !== ChatModeKind.Agent) {
 			report(toMarker(localize('promptValidator.toolsOnlyInAgent', "The 'tools' attribute is only supported in agent mode. Attribute will be ignored."), attribute.range, MarkerSeverity.Warning));
 		}
 
@@ -357,23 +380,23 @@ export class PromptValidator {
 	}
 }
 
-const validAttributeNames = {
-	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode'],
+const allAttributeNames = {
+	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode', 'agent'],
 	[PromptsType.instructions]: ['description', 'applyTo', 'excludeAgent'],
-	[PromptsType.mode]: ['description', 'model', 'tools', 'advancedOptions', 'handoffs']
+	[PromptsType.agent]: ['description', 'model', 'tools', 'advancedOptions', 'handoffs']
 };
-const validAttributeNamesNoExperimental = {
-	[PromptsType.prompt]: validAttributeNames[PromptsType.prompt].filter(name => !isExperimentalAttribute(name)),
-	[PromptsType.instructions]: validAttributeNames[PromptsType.instructions].filter(name => !isExperimentalAttribute(name)),
-	[PromptsType.mode]: validAttributeNames[PromptsType.mode].filter(name => !isExperimentalAttribute(name))
+const recommendedAttributeNames = {
+	[PromptsType.prompt]: allAttributeNames[PromptsType.prompt].filter(name => !isNonRecommendedAttribute(name)),
+	[PromptsType.instructions]: allAttributeNames[PromptsType.instructions].filter(name => !isNonRecommendedAttribute(name)),
+	[PromptsType.agent]: allAttributeNames[PromptsType.agent].filter(name => !isNonRecommendedAttribute(name))
 };
 
-export function getValidAttributeNames(promptType: PromptsType, includeExperimental: boolean): string[] {
-	return includeExperimental ? validAttributeNames[promptType] : validAttributeNamesNoExperimental[promptType];
+export function getValidAttributeNames(promptType: PromptsType, includeNonRecommended: boolean): string[] {
+	return includeNonRecommended ? allAttributeNames[promptType] : recommendedAttributeNames[promptType];
 }
 
-export function isExperimentalAttribute(attributeName: string): boolean {
-	return attributeName === 'advancedOptions' || attributeName === 'excludeAgent';
+export function isNonRecommendedAttribute(attributeName: string): boolean {
+	return attributeName === 'advancedOptions' || attributeName === 'excludeAgent' || attributeName === 'mode';
 }
 
 function toMarker(message: string, range: Range, severity = MarkerSeverity.Error): IMarkerData {

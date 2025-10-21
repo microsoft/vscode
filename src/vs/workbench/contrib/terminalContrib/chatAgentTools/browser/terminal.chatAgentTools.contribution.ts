@@ -22,7 +22,7 @@ import { TerminalChatAgentToolsCommandId } from '../common/terminal.chatAgentToo
 import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
 import { GetTerminalSelectionTool, GetTerminalSelectionToolData } from './tools/getTerminalSelectionTool.js';
-import { RunInTerminalTool, RunInTerminalToolData } from './tools/runInTerminalTool.js';
+import { RunInTerminalTool, createRunInTerminalToolData } from './tools/runInTerminalTool.js';
 import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/createAndRunTaskTool.js';
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
@@ -41,9 +41,6 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 
 		// #region Terminal
 
-		const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
-		this._register(toolsService.registerTool(RunInTerminalToolData, runInTerminalTool));
-
 		const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
 		this._register(toolsService.registerTool(GetTerminalOutputToolData, getTerminalOutputTool));
 
@@ -51,8 +48,13 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 			icon: ThemeIcon.fromId(Codicon.terminal.id),
 			description: localize('toolset.runCommands', 'Runs commands in the terminal')
 		}));
-		runCommandsToolSet.addTool(RunInTerminalToolData);
 		runCommandsToolSet.addTool(GetTerminalOutputToolData);
+
+		instantiationService.invokeFunction(createRunInTerminalToolData).then(runInTerminalToolData => {
+			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
+			this._register(toolsService.registerTool(runInTerminalToolData, runInTerminalTool));
+			runCommandsToolSet.addTool(runInTerminalToolData);
+		});
 
 		const getTerminalSelectionTool = instantiationService.createInstance(GetTerminalSelectionTool);
 		this._register(toolsService.registerTool(GetTerminalSelectionToolData, getTerminalSelectionTool));
