@@ -1488,7 +1488,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const providerTips = this._lockedAgent ? this.chatSessionsService.getWelcomeTipsForSessionType(this._lockedAgent.id) : undefined;
 		const suggestedPrompts = this._lockedAgent ? undefined : this.getNewSuggestedPrompts();
 		const welcomeContent: IChatViewWelcomeContent = {
-			title: providerTitle ?? localize('expChatTitle', 'Build with Agent'),
+			title: providerTitle ?? localize('expChatTitle', 'Build with agents'),
 			message: providerMessage ? new MarkdownString(providerMessage) : new MarkdownString(localize('expchatMessage', "Let's get started")),
 			icon: providerIcon ?? Codicon.chatSparkle,
 			inputPart: this.inputPart.element,
