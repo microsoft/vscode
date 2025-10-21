@@ -296,7 +296,7 @@ interface IModifiedEntryTelemetryInfoDTO {
 	readonly modelId?: string;
 	readonly modeId?: 'ask' | 'edit' | 'agent' | 'custom' | 'applyCodeBlock' | undefined;
 	readonly applyCodeBlockSuggestionId?: EditSuggestionId | undefined;
-	readonly feature?: string;
+	readonly feature?: 'sideBarChat' | 'inlineChat' | undefined;
 }
 
 type ResourceMapDTO<T> = [string, T][];

@@ -15,7 +15,7 @@ import { ILanguageModelToolsService, ToolSet } from '../../languageModelToolsSer
 import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { IHeaderAttribute, PromptBody, PromptHeader, PromptHeaderAttributes } from '../service/newPromptsParser.js';
+import { IHeaderAttribute, PromptBody, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
 
 export class PromptHoverProvider implements HoverProvider {
 	/**

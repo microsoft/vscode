@@ -11,7 +11,7 @@ import { localize } from '../../../../../../nls.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { ParsedPromptFile, PromptHeaderAttributes } from '../service/newPromptsParser.js';
+import { ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { Selection } from '../../../../../../editor/common/core/selection.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 
