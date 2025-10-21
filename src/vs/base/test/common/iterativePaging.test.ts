@@ -32,7 +32,7 @@ function createTestPager(pageSize: number, maxPages: number): IIterativePager<nu
 	};
 }
 
-suite('InfinitePagedModel', () => {
+suite('IterativePagedModel', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
