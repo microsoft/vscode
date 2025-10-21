@@ -12,7 +12,7 @@ import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../pl
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
 import { PromptsType } from '../promptTypes.js';
-import { IHandOff, ParsedPromptFile } from './newPromptsParser.js';
+import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 
 /**
  * Provides prompt services.
