@@ -82,7 +82,7 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 			if (location && await this.fileService.canMove(uri, location)) {
 				const edit: IWorkspaceFileEdit = { oldResource: uri, newResource: location, options: { overwrite: false, copy: false } };
 				result.push({
-					title: localize('migrateToAgent', "Migrate to agent file"),
+					title: localize('migrateToAgent', "Migrate to custom agent file"),
 					edit: {
 						edits: [edit]
 					}

@@ -431,8 +431,8 @@ export class OpenModePickerAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenModePickerAction.ID,
-			title: localize2('interactive.openModePicker.label', "Open Mode Picker"),
-			tooltip: localize('setChatMode', "Set Mode"),
+			title: localize2('interactive.openModePicker.label', "Open Agent Picker"),
+			tooltip: localize('setChatMode', "Set Agent"),
 			category: CHAT_CATEGORY,
 			f1: false,
 			precondition: ChatContextKeys.enabled,

@@ -51,6 +51,7 @@ export class RepositoryActionRunner extends ActionRunner {
 }
 
 interface RepositoryTemplate {
+	readonly icon: HTMLElement;
 	readonly label: IconLabel;
 	readonly countContainer: HTMLElement;
 	readonly count: CountBadge;
@@ -83,7 +84,8 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		}
 
 		const provider = append(container, $('.scm-provider'));
-		const label = new IconLabel(provider, { supportIcons: true });
+		const icon = append(provider, $('.icon'));
+		const label = new IconLabel(provider, { supportIcons: false });
 
 		const actions = append(provider, $('.actions'));
 		const toolBar = new WorkbenchToolBar(actions, { actionViewItemProvider: this.actionViewItemProvider, resetMenu: this.toolbarMenuId }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
@@ -93,24 +95,20 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 
 		const templateDisposable = combinedDisposable(label, visibilityDisposable, toolBar);
 
-		return { label, countContainer, count, toolBar, elementDisposables: new DisposableStore(), templateDisposable };
+		return { icon, label, countContainer, count, toolBar, elementDisposables: new DisposableStore(), templateDisposable };
 	}
 
 	renderElement(arg: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate): void {
 		const repository = isSCMRepository(arg) ? arg : arg.element;
 
-		const icon = ThemeIcon.isThemeIcon(repository.provider.iconPath)
-			? repository.provider.iconPath.id
-			: undefined;
-
-		const label = icon
-			? `$(${icon}) ${repository.provider.name}`
-			: repository.provider.name;
+		if (ThemeIcon.isThemeIcon(repository.provider.iconPath)) {
+			templateData.icon.classList.add(...ThemeIcon.asClassNameArray(repository.provider.iconPath));
+		}
 
 		if (repository.provider.rootUri) {
-			templateData.label.setLabel(label, repository.provider.label, { title: `${repository.provider.label}: ${repository.provider.rootUri.fsPath}` });
+			templateData.label.setLabel(repository.provider.name, repository.provider.label, { title: `${repository.provider.label}: ${repository.provider.rootUri.fsPath}` });
 		} else {
-			templateData.label.setLabel(label, undefined, { title: repository.provider.label });
+			templateData.label.setLabel(repository.provider.name, undefined, { title: repository.provider.label });
 		}
 
 		let statusPrimaryActions: IAction[] = [];
