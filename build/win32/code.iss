@@ -1612,14 +1612,16 @@ begin
       StopTunnelServiceIfNeeded();
 
       if not SessionEndFileExists() then begin
+        Log('Invoking inno_updater for background update');
         Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists()) + ' "{cm:UpdatingVisualStudioCode}" "{#VersionedResourcesFolder}"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
         DeleteFile(ExpandConstant('{app}\updating_version'));
+        Log('inno_updater completed successfully');
       end else begin
         Log('Skipping inno_updater.exe call because OS session is ending');
       end;
     end else begin
       Log('Invoking inno_updater to remove previous installation folder');
-      Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--remove" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+      Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--gc" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
       Log('inno_updater completed gc successfully');
     end;
 
