@@ -476,7 +476,7 @@ suite('PromptValidator', () => {
 				'---',
 				'description: "Unknown tool var"',
 				'---',
-				'This line references known #tool1 and unknown #toolX'
+				'This line references known #tool:tool1 and unknown #tool:toolX'
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1, 'Expected one warning for unknown tool variable');
