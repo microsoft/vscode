@@ -93,6 +93,7 @@ import type { IProgressState } from '@xterm/addon-progress';
 import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { isNumber } from '../../../../base/common/types.js';
+import { PromptInputState } from '../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 
 const enum Constants {
 	/**
@@ -929,21 +930,31 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			timeoutMs = Math.max(timeoutValue, 500);
 		}
 
-		if (!commandDetection) {
+		if (!commandDetection || commandDetection.promptInputModel.state !== PromptInputState.Input) {
 			const store = new DisposableStore();
-			store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
-				commandDetection = e;
-			}));
-
 			const processReadyTime = this._processManager.processReadyTime;
 			if (processReadyTime) {
 				const elapsed = Date.now() - processReadyTime;
 				timeoutMs = Math.max(0, timeoutMs - elapsed);
 			}
 
-			if (timeoutMs > 0) {
-				await timeout(timeoutMs);
-			}
+			// Discuss: Talk about, get clarification one more time.
+			await Promise.race([
+				new Promise<void>(r => {
+					store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
+						commandDetection = e;
+						if (commandDetection.promptInputModel.state === PromptInputState.Input) {
+							r();
+						} else {
+							store.add(commandDetection.promptInputModel.onDidStartInput(() => {
+								r();
+							}));
+						}
+					}));
+				}),
+				timeout(timeoutMs)
+			]);
+
 			store.dispose();
 		}
 
