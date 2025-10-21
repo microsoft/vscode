@@ -237,7 +237,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const idealIconWidth = 22;
 			const minimalIconWidth = 16; // codicon size
 			const iconWidth = (pillRect: Rect) => {
-				const availableWidth = this._availableWidthForIcon.get()(pillRect.bottom + this._editorObs.editor.getScrollTop()) - gutterViewPortPadding;
+				const availableWidth = this._availableWidthForIcon.read(undefined)(pillRect.bottom + this._editorObs.editor.getScrollTop()) - gutterViewPortPadding;
 				return Math.max(Math.min(availableWidth, idealIconWidth), minimalIconWidth);
 			};
 
@@ -343,6 +343,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 					zIndex: '20',
 					position: 'absolute',
 					backgroundColor: this._gutterIndicatorStyles.map(v => v.background),
+					// eslint-disable-next-line local/code-no-any-casts
 					['--vscodeIconForeground' as any]: this._gutterIndicatorStyles.map(v => v.foreground),
 					border: this._gutterIndicatorStyles.map(v => `1px solid ${v.border}`),
 					boxSizing: 'border-box',

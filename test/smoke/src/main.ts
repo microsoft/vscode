@@ -12,7 +12,7 @@ import * as minimist from 'minimist';
 import * as vscodetest from '@vscode/test-electron';
 import fetch from 'node-fetch';
 import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion, ApplicationOptions } from '../../automation';
-import { retry, timeout } from './utils';
+import { retry } from './utils';
 
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
@@ -102,7 +102,7 @@ function createLogger(): Logger {
 	}
 
 	// Prepare logs rot path
-	fs.rmSync(logsRootPath, { recursive: true, force: true, maxRetries: 3 });
+	fs.rmSync(logsRootPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
 	fs.mkdirSync(logsRootPath, { recursive: true });
 
 	// Always log to log file
@@ -117,19 +117,6 @@ try {
 	logger.log(`Error enabling graceful-fs: ${error}`);
 }
 
-const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
-if (fs.existsSync(testDataPath)) {
-	fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10 });
-}
-fs.mkdirSync(testDataPath, { recursive: true });
-process.once('exit', () => {
-	try {
-		fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10 });
-	} catch {
-		// noop
-	}
-});
-
 function getTestTypeSuffix(): string {
 	if (opts.web) {
 		return 'browser';
@@ -140,8 +127,21 @@ function getTestTypeSuffix(): string {
 	}
 }
 
+const testDataPath = path.join(os.tmpdir(), `vscsmoke-${getTestTypeSuffix()}`);
+if (fs.existsSync(testDataPath)) {
+	fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
+}
+fs.mkdirSync(testDataPath, { recursive: true });
+process.once('exit', () => {
+	try {
+		fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
+	} catch {
+		// noop
+	}
+});
+
 const testRepoUrl = 'https://github.com/microsoft/vscode-smoketest-express';
-const workspacePath = path.join(testDataPath, `vscode-smoketest-express-${getTestTypeSuffix()}`);
+const workspacePath = path.join(testDataPath, `vscode-smoketest-express`);
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 fs.mkdirSync(extensionsPath, { recursive: true });
 
@@ -245,7 +245,7 @@ const userDataDir = path.join(testDataPath, 'd');
 async function setupRepository(): Promise<void> {
 	if (opts['test-repo']) {
 		logger.log('Copying test project repository:', opts['test-repo']);
-		fs.rmSync(workspacePath, { recursive: true, force: true, maxRetries: 10 });
+		fs.rmSync(workspacePath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
 		// not platform friendly
 		if (process.platform === 'win32') {
 			cp.execSync(`xcopy /E "${opts['test-repo']}" "${workspacePath}"\\*`);
@@ -314,15 +314,9 @@ async function ensureStableCode(): Promise<void> {
 				},
 				error: error => logger.log(`download stable code error: ${error}`)
 			}
-		}), 'download stable code', logger), 1000, 3, () => new Promise<void>((resolve, reject) => {
-			fs.rm(stableCodeDestination, { recursive: true, force: true, maxRetries: 10 }, error => {
-				if (error) {
-					reject(error);
-				} else {
-					resolve();
-				}
-			});
-		}));
+		}), 'download stable code', logger), 1000, 3, async () => {
+			fs.rmSync(stableCodeDestination, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
+		});
 
 		if (process.platform === 'darwin') {
 			// Visual Studio Code.app/Contents/MacOS/Electron
@@ -388,22 +382,9 @@ before(async function () {
 // After main suite (after all tests)
 after(async function () {
 	try {
-		let deleted = false;
-		await measureAndLog(() => Promise.race([
-			new Promise<void>((resolve, reject) => fs.rm(testDataPath, { recursive: true, force: true, maxRetries: 10 }, error => {
-				if (error) {
-					reject(error);
-				} else {
-					deleted = true;
-					resolve();
-				}
-			})),
-			timeout(30000).then(() => {
-				if (!deleted) {
-					throw new Error('giving up after 30s');
-				}
-			})
-		]), 'rimraf(testDataPath)', logger);
+		await measureAndLog(async () => {
+			fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
+		}, 'rimraf(testDataPath)', logger);
 	} catch (error) {
 		logger.log(`Unable to delete smoke test workspace: ${error}. This indicates some process is locking the workspace folder.`);
 	}

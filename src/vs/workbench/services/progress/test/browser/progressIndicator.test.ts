@@ -7,32 +7,33 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../browser/progressIndicator.js';
+import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
 
-class TestProgressBar {
+class TestProgressBar extends ProgressBar {
 	fTotal: number = 0;
 	fWorked: number = 0;
 	fInfinite: boolean = false;
 	fDone: boolean = false;
 
-	infinite() {
+	override infinite() {
 		this.fDone = null!;
 		this.fInfinite = true;
 
 		return this;
 	}
 
-	total(total: number) {
+	override total(total: number) {
 		this.fDone = null!;
 		this.fTotal = total;
 
 		return this;
 	}
 
-	hasTotal() {
+	override hasTotal() {
 		return !!this.fTotal;
 	}
 
-	worked(worked: number) {
+	override worked(worked: number) {
 		this.fDone = null!;
 
 		if (this.fWorked) {
@@ -44,7 +45,7 @@ class TestProgressBar {
 		return this;
 	}
 
-	done() {
+	override done() {
 		this.fDone = true;
 
 		this.fInfinite = null!;
@@ -54,13 +55,13 @@ class TestProgressBar {
 		return this;
 	}
 
-	stop() {
+	override stop() {
 		return this.done();
 	}
 
-	show(): void { }
+	override show(): void { }
 
-	hide(): void { }
+	override hide(): void { }
 }
 
 suite('Progress Indicator', () => {
@@ -72,13 +73,13 @@ suite('Progress Indicator', () => {
 	});
 
 	test('ScopedProgressIndicator', async () => {
-		const testProgressBar = new TestProgressBar();
+		const testProgressBar = disposables.add(new TestProgressBar(document.createElement('div')));
 		const progressScope = disposables.add(new class extends AbstractProgressScope {
 			constructor() { super('test.scopeId', true); }
 			testOnScopeOpened(scopeId: string) { super.onScopeOpened(scopeId); }
 			testOnScopeClosed(scopeId: string): void { super.onScopeClosed(scopeId); }
 		}());
-		const testObject = disposables.add(new ScopedProgressIndicator((<any>testProgressBar), progressScope));
+		const testObject = disposables.add(new ScopedProgressIndicator(testProgressBar, progressScope));
 
 		// Active: Show (Infinite)
 		let fn = testObject.show(true);

@@ -43,6 +43,17 @@
 }
 
 .chat-confirmation-widget-container {
+	position: relative;
+
+	> .monaco-progress-container.active {
+		position: absolute;
+		left: 0px;
+		right: 0;
+		top: 0px;
+		border-top-left-radius: 10px;
+		border-top-right-radius: 10px;
+	}
+
 	.chat-collapsible-top-level-resource-group {
 		margin-top: -12px;
 		margin-bottom: 12px;
@@ -271,6 +282,7 @@
 		.monaco-button {
 			overflow-wrap: break-word;
 			padding: 2px 5px;
+			width: inherit;
 		}
 	}
 }

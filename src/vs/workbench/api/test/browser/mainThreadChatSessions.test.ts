@@ -7,6 +7,8 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -17,7 +19,7 @@ import { TestInstantiationService } from '../../../../platform/instantiation/tes
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions.contribution.js';
 import { IChatAgentRequest } from '../../../contrib/chat/common/chatAgents.js';
-import { IChatProgress } from '../../../contrib/chat/common/chatService.js';
+import { IChatProgress, IChatProgressMessage } from '../../../contrib/chat/common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -27,7 +29,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { mock, TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
-import { ExtHostChatSessionsShape, IChatProgressDto } from '../../common/extHost.protocol.js';
+import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -47,6 +49,8 @@ suite('ObservableChatSession', function () {
 
 		proxy = {
 			$provideChatSessionContent: sinon.stub(),
+			$provideChatSessionProviderOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<IChatSessionProviderOptions | undefined>>().resolves(undefined),
+			$provideHandleOptionsChange: sinon.stub(),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
@@ -77,14 +81,17 @@ suite('ObservableChatSession', function () {
 	}
 
 	async function createInitializedSession(sessionContent: any, sessionId = 'test-id'): Promise<ObservableChatSession> {
-		const session = new ObservableChatSession(sessionId, 1, proxy, logService, dialogService);
+		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const session = new ObservableChatSession(sessionId, resource, 1, proxy, logService, dialogService);
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 		await session.initialize(CancellationToken.None);
 		return session;
 	}
 
 	test('constructor creates session with proper initial state', function () {
-		const session = disposables.add(new ObservableChatSession('test-id', 1, proxy, logService, dialogService));
+		const sessionId = 'test-id';
+		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const session = disposables.add(new ObservableChatSession(sessionId, resource, 1, proxy, logService, dialogService));
 
 		assert.strictEqual(session.sessionId, 'test-id');
 		assert.strictEqual(session.providerHandle, 1);
@@ -98,7 +105,9 @@ suite('ObservableChatSession', function () {
 	});
 
 	test('session queues progress before initialization and processes it after', async function () {
-		const session = disposables.add(new ObservableChatSession('test-id', 1, proxy, logService, dialogService));
+		const sessionId = 'test-id';
+		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const session = disposables.add(new ObservableChatSession(sessionId, resource, 1, proxy, logService, dialogService));
 
 		const progress1: IChatProgress = { kind: 'progressMessage', content: { value: 'Hello', isTrusted: false } };
 		const progress2: IChatProgress = { kind: 'progressMessage', content: { value: 'World', isTrusted: false } };
@@ -138,7 +147,7 @@ suite('ObservableChatSession', function () {
 		// Verify history was loaded
 		assert.strictEqual(session.history.length, 2);
 		assert.strictEqual(session.history[0].type, 'request');
-		assert.strictEqual((session.history[0] as any).prompt, 'Previous question');
+		assert.strictEqual(session.history[0].prompt, 'Previous question');
 		assert.strictEqual(session.history[1].type, 'response');
 
 		// Verify capabilities were set up
@@ -147,7 +156,10 @@ suite('ObservableChatSession', function () {
 	});
 
 	test('initialization is idempotent and returns same promise', async function () {
-		const session = disposables.add(new ObservableChatSession('test-id', 1, proxy, logService, dialogService));
+		const sessionId = 'test-id';
+		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const session = disposables.add(new ObservableChatSession(sessionId, resource, 1, proxy, logService, dialogService));
+
 		const sessionContent = createSessionContent();
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 
@@ -211,7 +223,14 @@ suite('ObservableChatSession', function () {
 
 		assert.ok(session.requestHandler);
 
-		const request = { requestId: 'req1', prompt: 'Test prompt' } as any;
+		const request: IChatAgentRequest = {
+			requestId: 'req1',
+			sessionId: 'test-session',
+			agentId: 'test-agent',
+			message: 'Test prompt',
+			location: ChatAgentLocation.Chat,
+			variables: { variables: [] }
+		};
 		const progressCallback = sinon.stub();
 
 		await session.requestHandler!(request, progressCallback, [], CancellationToken.None);
@@ -225,7 +244,14 @@ suite('ObservableChatSession', function () {
 
 		assert.ok(session.requestHandler);
 
-		const request = { requestId: 'req1', prompt: 'Test prompt' } as any;
+		const request: IChatAgentRequest = {
+			requestId: 'req1',
+			sessionId: 'test-session',
+			agentId: 'test-agent',
+			message: 'Test prompt',
+			location: ChatAgentLocation.Chat,
+			variables: { variables: [] }
+		};
 		const progressCallback = sinon.stub();
 
 		let resolveRequest: () => void;
@@ -258,7 +284,9 @@ suite('ObservableChatSession', function () {
 	});
 
 	test('dispose properly cleans up resources and notifies listeners', function () {
-		const session = new ObservableChatSession('test-id', 1, proxy, logService, dialogService);
+		const sessionId = 'test-id';
+		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const session = disposables.add(new ObservableChatSession(sessionId, resource, 1, proxy, logService, dialogService));
 
 		let disposeEventFired = false;
 		const disposable = session.onWillDispose(() => {
@@ -274,7 +302,9 @@ suite('ObservableChatSession', function () {
 	});
 
 	test('session key generation is consistent', function () {
-		const session = new ObservableChatSession('test-id', 42, proxy, logService, dialogService);
+		const sessionId = 'test-id';
+		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const session = disposables.add(new ObservableChatSession(sessionId, resource, 42, proxy, logService, dialogService));
 
 		assert.strictEqual(session.sessionKey, '42_test-id');
 		assert.strictEqual(ObservableChatSession.generateSessionKey(42, 'test-id'), '42_test-id');
@@ -301,13 +331,13 @@ suite('ObservableChatSession', function () {
 		// Verify all history was loaded correctly
 		assert.strictEqual(session.history.length, 4);
 		assert.strictEqual(session.history[0].type, 'request');
-		assert.strictEqual((session.history[0] as any).prompt, 'First question');
+		assert.strictEqual(session.history[0].prompt, 'First question');
 		assert.strictEqual(session.history[1].type, 'response');
-		assert.strictEqual((session.history[1].parts[0] as any).content.value, 'First answer');
+		assert.strictEqual((session.history[1].parts[0] as IChatProgressMessage).content.value, 'First answer');
 		assert.strictEqual(session.history[2].type, 'request');
-		assert.strictEqual((session.history[2] as any).prompt, 'Second question');
+		assert.strictEqual(session.history[2].prompt, 'Second question');
 		assert.strictEqual(session.history[3].type, 'response');
-		assert.strictEqual((session.history[3].parts[0] as any).content.value, 'Second answer');
+		assert.strictEqual((session.history[3].parts[0] as IChatProgressMessage).content.value, 'Second answer');
 
 		// Session should be complete since it has no capabilities
 		assert.strictEqual(session.isCompleteObs.get(), true);
@@ -327,6 +357,8 @@ suite('MainThreadChatSessions', function () {
 
 		proxy = {
 			$provideChatSessionContent: sinon.stub(),
+			$provideChatSessionProviderOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<IChatSessionProviderOptions | undefined>>().resolves(undefined),
+			$provideHandleOptionsChange: sinon.stub(),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
@@ -387,7 +419,6 @@ suite('MainThreadChatSessions', function () {
 		// Valid
 		const chatSessionItem = await chatSessionsService.provideNewChatSessionItem('test-type', {
 			request: mockRequest,
-			prompt: 'my prompt',
 			metadata: {}
 		}, CancellationToken.None);
 		assert.strictEqual(chatSessionItem.id, 'new-session-id');
@@ -397,7 +428,6 @@ suite('MainThreadChatSessions', function () {
 		await assert.rejects(
 			chatSessionsService.provideNewChatSessionItem('invalid-type', {
 				request: mockRequest,
-				prompt: 'my prompt',
 				metadata: {}
 			}, CancellationToken.None)
 		);
@@ -415,13 +445,15 @@ suite('MainThreadChatSessions', function () {
 			hasRequestHandler: false
 		};
 
+		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test-type/test-session`);
+
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
-		const session1 = await chatSessionsService.provideChatSessionContent('test-type', 'test-session', CancellationToken.None);
+		const session1 = await chatSessionsService.provideChatSessionContent('test-type', 'test-session', resource, CancellationToken.None);
 
 		assert.ok(session1);
 		assert.strictEqual(session1.sessionId, 'test-session');
 
-		const session2 = await chatSessionsService.provideChatSessionContent('test-type', 'test-session', CancellationToken.None);
+		const session2 = await chatSessionsService.provideChatSessionContent('test-type', 'test-session', resource, CancellationToken.None);
 		assert.strictEqual(session1, session2);
 
 		assert.ok((proxy.$provideChatSessionContent as sinon.SinonStub).calledOnce);
@@ -440,7 +472,8 @@ suite('MainThreadChatSessions', function () {
 
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 
-		const session = await chatSessionsService.provideChatSessionContent('test-type', 'test-session', CancellationToken.None) as ObservableChatSession;
+		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test-type/test-session`);
+		const session = await chatSessionsService.provideChatSessionContent('test-type', 'test-session', resource, CancellationToken.None) as ObservableChatSession;
 
 		const progressDto: IChatProgressDto = { kind: 'progressMessage', content: { value: 'Test', isTrusted: false } };
 		await mainThread.$handleProgressChunk(1, 'test-session', 'req1', [progressDto]);
@@ -463,7 +496,8 @@ suite('MainThreadChatSessions', function () {
 
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 
-		const session = await chatSessionsService.provideChatSessionContent('test-type', 'test-session', CancellationToken.None) as ObservableChatSession;
+		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test-type/test-session`);
+		const session = await chatSessionsService.provideChatSessionContent('test-type', 'test-session', resource, CancellationToken.None) as ObservableChatSession;
 
 		const progressDto: IChatProgressDto = { kind: 'progressMessage', content: { value: 'Test', isTrusted: false } };
 		await mainThread.$handleProgressChunk(1, 'test-session', 'req1', [progressDto]);
@@ -491,7 +525,8 @@ suite('MainThreadChatSessions', function () {
 
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 
-		const session = await chatSessionsService.provideChatSessionContent('test-type', 'multi-turn-session', CancellationToken.None) as ObservableChatSession;
+		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test-type/multi-turn-session`);
+		const session = await chatSessionsService.provideChatSessionContent('test-type', 'multi-turn-session', resource, CancellationToken.None) as ObservableChatSession;
 
 		// Verify the session loaded correctly
 		assert.ok(session);
@@ -500,10 +535,10 @@ suite('MainThreadChatSessions', function () {
 
 		// Verify all history items are correctly loaded
 		assert.strictEqual(session.history[0].type, 'request');
-		assert.strictEqual((session.history[0] as any).prompt, 'First question');
+		assert.strictEqual(session.history[0].prompt, 'First question');
 		assert.strictEqual(session.history[1].type, 'response');
 		assert.strictEqual(session.history[2].type, 'request');
-		assert.strictEqual((session.history[2] as any).prompt, 'Second question');
+		assert.strictEqual(session.history[2].prompt, 'Second question');
 		assert.strictEqual(session.history[3].type, 'response');
 
 		// Session should be complete since it has no active capabilities

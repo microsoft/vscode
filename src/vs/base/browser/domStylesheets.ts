@@ -5,6 +5,7 @@
 
 import { DisposableStore, toDisposable, IDisposable } from '../common/lifecycle.js';
 import { autorun, IObservable } from '../common/observable.js';
+import { isFirefox } from './browser.js';
 import { getWindows, sharedMutationObserver } from './dom.js';
 import { mainWindow } from './window.js';
 
@@ -100,7 +101,7 @@ function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, globalStylesh
 		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
 	}
 
-	disposables.add(sharedMutationObserver.observe(globalStylesheet, disposables, { childList: true })(() => {
+	disposables.add(sharedMutationObserver.observe(globalStylesheet, disposables, { childList: true, subtree: isFirefox, characterData: isFirefox })(() => {
 		clone.textContent = globalStylesheet.textContent;
 	}));
 

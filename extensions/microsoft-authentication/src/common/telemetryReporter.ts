@@ -86,7 +86,7 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		this._telemetryReporter.sendTelemetryEvent('logoutFailed');
 	}
 
-	sendTelemetryErrorEvent(error: unknown): void {
+	sendTelemetryErrorEvent(error: Error | string): void {
 		let errorMessage: string | undefined;
 		let errorName: string | undefined;
 		let errorCode: string | undefined;
@@ -94,7 +94,7 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		if (typeof error === 'string') {
 			errorMessage = error;
 		} else {
-			const authError: AuthError = error as any;
+			const authError: AuthError = error as AuthError;
 			// don't set error message or stack because it contains PII
 			errorCode = authError.errorCode;
 			errorCorrelationId = authError.correlationId;

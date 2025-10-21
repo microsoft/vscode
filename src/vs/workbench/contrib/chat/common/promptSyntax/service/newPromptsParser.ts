@@ -62,6 +62,17 @@ interface ParsedHeader {
 	readonly attributes: IHeaderAttribute[];
 }
 
+export namespace PromptHeaderAttributes {
+	export const description = 'description';
+	export const agent = 'agent';
+	export const mode = 'mode';
+	export const model = 'model';
+	export const applyTo = 'applyTo';
+	export const tools = 'tools';
+	export const handOffs = 'handoffs';
+	export const advancedOptions = 'advancedOptions';
+}
+
 export class PromptHeader {
 	private _parsed: ParsedHeader | undefined;
 
@@ -75,16 +86,18 @@ export class PromptHeader {
 			const node = parse(lines, yamlErrors);
 			const attributes = [];
 			const errors: ParseError[] = yamlErrors.map(err => ({ message: err.message, range: this.asRange(err), code: err.code }));
-			if (node?.type === 'object') {
-				for (const property of node.properties) {
-					attributes.push({
-						key: property.key.value,
-						range: this.asRange({ start: property.key.start, end: property.value.end }),
-						value: this.asValue(property.value)
-					});
+			if (node) {
+				if (node.type !== 'object') {
+					errors.push({ message: 'Invalid header, expecting <key: value> pairs', range: this.range, code: 'INVALID_YAML' });
+				} else {
+					for (const property of node.properties) {
+						attributes.push({
+							key: property.key.value,
+							range: this.asRange({ start: property.key.start, end: property.value.end }),
+							value: this.asValue(property.value)
+						});
+					}
 				}
-			} else {
-				errors.push({ message: 'Invalid header, expecting <key: value> pairs', range: this.range, code: 'INVALID_YAML' });
 			}
 			this._parsed = { node, attributes, errors };
 		}
@@ -135,23 +148,23 @@ export class PromptHeader {
 	}
 
 	public get description(): string | undefined {
-		return this.getStringAttribute('description');
+		return this.getStringAttribute(PromptHeaderAttributes.description);
 	}
 
-	public get mode(): string | undefined {
-		return this.getStringAttribute('mode');
+	public get agent(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.agent) ?? this.getStringAttribute(PromptHeaderAttributes.mode);
 	}
 
 	public get model(): string | undefined {
-		return this.getStringAttribute('model');
+		return this.getStringAttribute(PromptHeaderAttributes.model);
 	}
 
 	public get applyTo(): string | undefined {
-		return this.getStringAttribute('applyTo');
+		return this.getStringAttribute(PromptHeaderAttributes.applyTo);
 	}
 
 	public get tools(): string[] | undefined {
-		const toolsAttribute = this._parsedHeader.attributes.find(attr => attr.key === 'tools');
+		const toolsAttribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.tools);
 		if (!toolsAttribute) {
 			return undefined;
 		}
@@ -178,7 +191,43 @@ export class PromptHeader {
 		return undefined;
 	}
 
+	public get handOffs(): IHandOff[] | undefined {
+		const handoffsAttribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.handOffs);
+		if (!handoffsAttribute) {
+			return undefined;
+		}
+		if (handoffsAttribute.value.type === 'array') {
+			// Array format: list of objects: { agent, label, prompt, send? }
+			const handoffs: IHandOff[] = [];
+			for (const item of handoffsAttribute.value.items) {
+				if (item.type === 'object') {
+					let agent: string | undefined;
+					let label: string | undefined;
+					let prompt: string | undefined;
+					let send: boolean | undefined;
+					for (const prop of item.properties) {
+						if (prop.key.value === 'agent' && prop.value.type === 'string') {
+							agent = prop.value.value;
+						} else if (prop.key.value === 'label' && prop.value.type === 'string') {
+							label = prop.value.value;
+						} else if (prop.key.value === 'prompt' && prop.value.type === 'string') {
+							prompt = prop.value.value;
+						} else if (prop.key.value === 'send' && prop.value.type === 'boolean') {
+							send = prop.value.value;
+						}
+					}
+					if (agent && label && prompt !== undefined) {
+						handoffs.push({ agent, label, prompt, send });
+					}
+				}
+			}
+			return handoffs;
+		}
+		return undefined;
+	}
 }
+
+export interface IHandOff { readonly agent: string; readonly label: string; readonly prompt: string; readonly send?: boolean }
 
 export interface IHeaderAttribute {
 	readonly range: Range;
@@ -283,7 +332,7 @@ export class PromptBody {
 		try {
 			if (path.startsWith('/')) {
 				return this.uri.with({ path });
-			} else if (path.match(/^[a-zA-Z]:\\/)) {
+			} else if (path.match(/^[a-zA-Z]+:\//)) {
 				return URI.parse(path);
 			} else {
 				const dirName = dirname(this.uri);

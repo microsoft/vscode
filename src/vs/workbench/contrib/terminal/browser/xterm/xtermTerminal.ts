@@ -241,7 +241,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			},
 		}));
 		this._updateSmoothScrolling();
-		this._core = (this.raw as any)._core as IXtermCore;
+		interface ITerminalWithCore extends RawXtermTerminal {
+			_core: IXtermCore;
+		}
+		this._core = (this.raw as ITerminalWithCore)._core as IXtermCore;
 
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
