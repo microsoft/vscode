@@ -122,9 +122,9 @@ class ConfigureToolsAction extends Action2 {
 			precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			menu: [{
 				when: ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ChatContextKeys.lockedToCodingAgent.negate()),
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 1,
+				order: 100,
 			}]
 		});
 	}
@@ -160,8 +160,8 @@ class ConfigureToolsAction extends Action2 {
 				description = localize('chat.tools.description.session', "The selected tools were configured by a prompt command and only apply to this chat session.");
 				break;
 			case ToolsScope.Mode:
-				placeholder = localize('chat.tools.placeholder.mode', "Select tools for this agent");
-				description = localize('chat.tools.description.mode', "The selected tools are configured by the '{0}' agent. Changes to the tools will be applied to the agent file as well.", widget.input.currentModeObs.get().label);
+				placeholder = localize('chat.tools.placeholder.mode', "Select tools for this chat mode");
+				description = localize('chat.tools.description.mode', "The selected tools are configured by the '{0}' chat mode. Changes to the tools will be applied to the mode file as well.", widget.input.currentModeObs.get().label);
 				break;
 			case ToolsScope.Global:
 				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat.");
@@ -189,7 +189,7 @@ class ConfigureToolsActionRendering implements IWorkbenchContribution {
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 	) {
-		const disposable = actionViewItemService.register(MenuId.ChatExecute, ConfigureToolsAction.ID, (action, _opts, instantiationService) => {
+		const disposable = actionViewItemService.register(MenuId.ChatInput, ConfigureToolsAction.ID, (action, _opts, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
