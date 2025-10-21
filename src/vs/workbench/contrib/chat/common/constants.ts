@@ -24,7 +24,7 @@ export enum ChatConfiguration {
 }
 
 /**
- * The "kind" of the chat mode- "Agent" for custom modes.
+ * The "kind" of agents for custom agents.
  */
 export enum ChatModeKind {
 	Ask = 'ask',

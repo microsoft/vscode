@@ -140,8 +140,8 @@ export class PromptHeader {
 		return this.getStringAttribute('description');
 	}
 
-	public get mode(): string | undefined {
-		return this.getStringAttribute('mode');
+	public get agent(): string | undefined {
+		return this.getStringAttribute('agent') ?? this.getStringAttribute('mode');
 	}
 
 	public get model(): string | undefined {
