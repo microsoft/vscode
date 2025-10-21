@@ -18,15 +18,19 @@ export class TestTreeSitterLibraryService implements ITreeSitterLibraryService {
 		return false;
 	}
 
-	getLanguage(languageId: string, reader: IReader | undefined): Language | undefined {
+	getLanguageSync(languageId: string, reader: IReader | undefined): Language | undefined {
 		return undefined;
 	}
 
-	getInjectionQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
+	getInjectionQueriesSync(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		return null;
 	}
 
-	getHighlightingQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
+	getHighlightingQueriesSync(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		return null;
+	}
+
+	async createQuery(languageId: string, querySource: string, reader: IReader | undefined): Promise<Query | null | undefined> {
+		return undefined;
 	}
 }

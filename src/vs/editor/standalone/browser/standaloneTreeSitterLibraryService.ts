@@ -18,7 +18,7 @@ export class StandaloneTreeSitterLibraryService implements ITreeSitterLibrarySer
 		return false;
 	}
 
-	getLanguage(languageId: string, reader: IReader | undefined): Language | undefined {
+	getLanguageSync(languageId: string, reader: IReader | undefined): Language | undefined {
 		return undefined;
 	}
 	/**
@@ -26,7 +26,7 @@ export class StandaloneTreeSitterLibraryService implements ITreeSitterLibrarySer
 	 * @param languageId
 	 * @param reader
 	 */
-	getInjectionQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
+	getInjectionQueriesSync(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		return null;
 	}
 	/**
@@ -34,7 +34,7 @@ export class StandaloneTreeSitterLibraryService implements ITreeSitterLibrarySer
 	 * @param languageId
 	 * @param reader
 	 */
-	getHighlightingQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
+	getHighlightingQueriesSync(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		return null;
 	}
 }

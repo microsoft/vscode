@@ -57,18 +57,18 @@ export class CommandLineAutoApprover extends Disposable {
 		const parserClass = this._treeSitterLibraryService.getParserClass();
 		parserClass.then(async parserCtor => {
 			// HACK: Trigger async load
-			_treeSitterLibraryService.getLanguage('bash', undefined);
-			_treeSitterLibraryService.getLanguage('powershell', undefined);
+			_treeSitterLibraryService.getLanguageSync('bash', undefined);
+			_treeSitterLibraryService.getLanguageSync('powershell', undefined);
 			await timeout(1000);
-			const bashLang = _treeSitterLibraryService.getLanguage('bash', undefined);
-			const pwshLang = _treeSitterLibraryService.getLanguage('powershell', undefined);
+			const bashLang = _treeSitterLibraryService.getLanguageSync('bash', undefined);
+			const pwshLang = _treeSitterLibraryService.getLanguageSync('powershell', undefined);
 
 			const parser = new parserCtor();
 			if (bashLang) {
 				parser.setLanguage(bashLang);
 				const tree = parser.parse('echo "$(evil) a|b|c" | ls');
 
-				const q = await _treeSitterLibraryService.createQuery('bash', undefined, '(command) @command');
+				const q = await _treeSitterLibraryService.createQuery('bash', '(command) @command', undefined);
 				if (tree && q) {
 					const captures = q.captures(tree.rootNode);
 					const subCommands = captures.map(e => e.node.text);
@@ -80,7 +80,7 @@ export class CommandLineAutoApprover extends Disposable {
 				parser.setLanguage(pwshLang);
 				const tree = parser.parse('Get-ChildItem | Write-Host "$(evil)"');
 
-				const q = await _treeSitterLibraryService.createQuery('powershell', undefined, '(command\ncommand_name: (command_name) @function)');
+				const q = await _treeSitterLibraryService.createQuery('powershell', '(command\ncommand_name: (command_name) @function)', undefined);
 				if (tree && q) {
 					const captures = q.captures(tree.rootNode);
 					const subCommands = captures.map(e => e.node.text);

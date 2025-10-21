@@ -12,22 +12,55 @@ export const ITreeSitterLibraryService = createDecorator<ITreeSitterLibraryServi
 export interface ITreeSitterLibraryService {
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * Gets the tree sitter Parser constructor.
+	 */
 	getParserClass(): Promise<typeof Parser>;
 
+	/**
+	 * Checks whether a language is supported and available based setting enablement.
+	 * @param languageId The language identifier to check.
+	 * @param reader Optional observable reader.
+	 */
 	supportsLanguage(languageId: string, reader: IReader | undefined): boolean;
-	getLanguage(languageId: string, reader: IReader | undefined): Language | undefined;
-	/**
-	 * Return value of null indicates that there are no injection queries for this language.
-	 * @param languageId
-	 * @param reader
-	 */
-	getInjectionQueries(languageId: string, reader: IReader | undefined): Query | null | undefined;
-	/**
-	 * Return value of null indicates that there are no highlights queries for this language.
-	 * @param languageId
-	 * @param reader
-	 */
-	getHighlightingQueries(languageId: string, reader: IReader | undefined): Query | null | undefined;
 
-	createQuery(languageId: string, reader: IReader | undefined, querySource: string): Promise<Query | null | undefined>;
+	/**
+	 * Gets the Tree-sitter Language object synchronously.
+	 *
+	 * Note that This method runs synchronously and may fail if the language is
+	 * not yet cached, as synchronous methods are required by editor APIs.
+	 * @param languageId The language identifier to retrieve.
+	 * @param reader Optional observable reader.
+	 */
+	getLanguageSync(languageId: string, reader: IReader | undefined): Language | undefined;
+
+	/**
+	 * Gets the injection queries for a language. A return value of `null`
+	 * indicates that there are no highlights queries for this language.
+	 *
+	 * Note that This method runs synchronously and may fail if the language is
+	 * not yet cached, as synchronous methods are required by editor APIs.
+	 * @param languageId The language identifier to retrieve queries for.
+	 * @param reader Optional observable reader.
+	 */
+	getInjectionQueriesSync(languageId: string, reader: IReader | undefined): Query | null | undefined;
+
+	/**
+	 * Gets the highlighting queries for a language. A return value of `null`
+	 * indicates that there are no highlights queries for this language.
+	 *
+	 * Note that This method runs synchronously and may fail if the language is
+	 * not yet cached, as synchronous methods are required by editor APIs.
+	 * @param languageId The language identifier to retrieve queries for.
+	 * @param reader Optional observable reader.
+	 */
+	getHighlightingQueriesSync(languageId: string, reader: IReader | undefined): Query | null | undefined;
+
+	/**
+	 * Creates a custom query for a language. Returns undefiend if
+	 * @param languageId The language identifier to create the query for.
+	 * @param reader Optional observable reader.
+	 * @param querySource The query source string to compile.
+	 */
+	createQuery(languageId: string, querySource: string, reader: IReader | undefined): Promise<Query | null | undefined>;
 }

@@ -121,7 +121,7 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		return treeSitter.Parser;
 	}
 
-	getLanguage(languageId: string, reader: IReader | undefined): Language | undefined {
+	getLanguageSync(languageId: string, reader: IReader | undefined): Language | undefined {
 		if (!this.supportsLanguage(languageId, reader)) {
 			return undefined;
 		}
@@ -129,7 +129,7 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		return lang;
 	}
 
-	getInjectionQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
+	getInjectionQueriesSync(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		if (!this.supportsLanguage(languageId, reader)) {
 			return undefined;
 		}
@@ -137,7 +137,7 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		return query;
 	}
 
-	getHighlightingQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
+	getHighlightingQueriesSync(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		if (!this.supportsLanguage(languageId, reader)) {
 			return undefined;
 		}
@@ -145,7 +145,7 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		return query;
 	}
 
-	async createQuery(languageId: string, reader: IReader | undefined, querySource: string): Promise<Query | null | undefined> {
+	async createQuery(languageId: string, querySource: string, reader: IReader | undefined): Promise<Query | null | undefined> {
 		if (!this.supportsLanguage(languageId, reader)) {
 			return undefined;
 		}
