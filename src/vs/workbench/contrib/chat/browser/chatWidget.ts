@@ -1715,6 +1715,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private renderChatSuggestNextWidget(): void {
+		// Skip rendering in coding agent sessions
+		if (this.isLockedToCodingAgent) {
+			this.chatSuggestNextWidget.hide();
+			return;
+		}
+
 		const items = this.viewModel?.getItems() ?? [];
 		if (!items.length) {
 			return;
