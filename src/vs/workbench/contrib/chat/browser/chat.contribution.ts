@@ -453,7 +453,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentEnabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.agent.enabled.description', "Enable agents for chat. When this is enabled, agents can be activated via the dropdown in the view."),
+			description: nls.localize('chat.agent.enabled.description', "Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view."),
 			default: true,
 			policy: {
 				name: 'ChatAgentMode',
@@ -463,7 +463,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.agent.enabled.description',
-						value: nls.localize('chat.agent.enabled.description', "Enable agents for chat. When this is enabled, agents can be activated via the dropdown in the view."),
+						value: nls.localize('chat.agent.enabled.description', "Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view."),
 					}
 				}
 			}
