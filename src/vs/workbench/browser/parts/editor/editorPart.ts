@@ -3,39 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { Part } from '../../part.js';
-import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
-import { Event, Emitter, Relay, PauseableEmitter } from '../../../../base/common/event.js';
-import { contrastBorder, editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
-import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, ISerializedNode, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from '../../../../base/browser/ui/grid/grid.js';
-import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from '../../../common/editor.js';
-import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from '../../../common/theme.js';
-import { distinct, coalesce } from '../../../../base/common/arrays.js';
-import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView, IEditorGroupsView, IEditorGroupViewOptions } from './editor.js';
-import { EditorGroupView } from './editorGroupView.js';
-import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
-import { IDisposable, dispose, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISerializedEditorGroupModel, isSerializedEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
-import { EditorDropTarget } from './editorDropTarget.js';
-import { Color } from '../../../../base/common/color.js';
+import { $, Dimension, EventHelper, addDisposableGenericMouseDownListener, getActiveElement, getWindow, isAncestorOfActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Parts, IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
-import { DeepPartial, assertType } from '../../../../base/common/types.js';
-import { CompositeDragAndDropObserver } from '../../dnd.js';
-import { DeferredPromise, Promises } from '../../../../base/common/async.js';
-import { findGroup } from '../../../services/editor/common/editorGroupFinder.js';
-import { SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { Direction, Grid, GridBranchNode, GridNode, ISerializedGrid, ISerializedNode, IView, IViewSize, LayoutPriority, Orientation, SerializableGrid, Sizing, createSerializedGrid, isGridBranchNode, orthogonal } from '../../../../base/browser/ui/grid/grid.js';
 import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
-import { IHostService } from '../../../services/host/browser/host.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { coalesce, distinct } from '../../../../base/common/arrays.js';
+import { DeferredPromise, Promises } from '../../../../base/common/async.js';
+import { Color } from '../../../../base/common/color.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Emitter, Event, PauseableEmitter, Relay } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DeepPartial, assertType } from '../../../../base/common/types.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
+import { EditorInputWithOptions, GroupIdentifier, GroupModelChangeKind, IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../common/editor.js';
+import { ISerializedEditorGroupModel, isSerializedEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
+import { EDITOR_PANE_BACKGROUND } from '../../../common/theme.js';
+import { findGroup } from '../../../services/editor/common/editorGroupFinder.js';
+import { EditorGroupLayout, GroupDirection, GroupLayoutArgument, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IEditorDropTargetDelegate, IEditorPart, IEditorSideGroup, IFindGroupScope, IMergeGroupOptions, MergeGroupMode } from '../../../services/editor/common/editorGroupsService.js';
+import { SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IWorkbenchLayoutService, Parts, Position } from '../../../services/layout/browser/layoutService.js';
+import { CompositeDragAndDropObserver } from '../../dnd.js';
+import { Part } from '../../part.js';
+import { IEditorGroupView, IEditorGroupViewOptions, IEditorGroupsView, IEditorPartCreationOptions, IEditorPartsView, getEditorPartOptions, impactsEditorPartOptions } from './editor.js';
+import { EditorDropTarget } from './editorDropTarget.js';
+import { EditorGroupView } from './editorGroupView.js';
 
 export interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
@@ -990,7 +990,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	readonly priority: LayoutPriority = LayoutPriority.High;
 
 	private get gridSeparatorBorder(): Color {
-		return this.theme.getColor(EDITOR_GROUP_BORDER) || this.theme.getColor(contrastBorder) || Color.transparent;
+		return Color.fromHex('#FF0000'); // Bright red separators!
 	}
 
 	override updateStyles(): void {
