@@ -43,10 +43,10 @@ import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
 import { dedupeRules, generateAutoApproveActions, isPowerShell } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
-import { splitCommandLineIntoSubCommands } from '../subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
+import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
 
 const enum TerminalToolStorageKeysInternal {
 	TerminalSession = 'chat.terminalSessions'
@@ -148,6 +148,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private readonly _terminalToolCreator: ToolTerminalCreator;
 	private readonly _commandSimplifier: CommandSimplifier;
+	private readonly _treeSitterCommandParser: TreeSitterCommandParser;
 	private readonly _telemetry: RunInTerminalToolTelemetry;
 	protected readonly _commandLineAutoApprover: CommandLineAutoApprover;
 	protected readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
@@ -182,6 +183,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		this._terminalToolCreator = _instantiationService.createInstance(ToolTerminalCreator);
 		this._commandSimplifier = _instantiationService.createInstance(CommandSimplifier, this._osBackend);
+		this._treeSitterCommandParser = this._instantiationService.createInstance(TreeSitterCommandParser);
 		this._telemetry = _instantiationService.createInstance(RunInTerminalToolTelemetry);
 		this._commandLineAutoApprover = this._register(_instantiationService.createInstance(CommandLineAutoApprover));
 
@@ -237,7 +239,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// can be reviewed in the terminal channel. It also allows gauging the effective set of
 			// commands that would be auto approved if it were enabled.
 			const actualCommand = toolEditedCommand ?? args.command;
-			const subCommands = splitCommandLineIntoSubCommands(actualCommand, shell, os);
+
+			const treeSitterLanguage = isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash;
+			// TODO: Handle throw
+			const subCommands = await this._treeSitterCommandParser.extractSubCommands(treeSitterLanguage, actualCommand);
+			this._logService.info('RunInTerminalTool: autoApprove: Parsed sub-commands', subCommands);
+
+
+			// const subCommands = splitCommandLineIntoSubCommands(actualCommand, shell, os);
 			const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
 			const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(actualCommand);
 			const autoApproveReasons: string[] = [
@@ -252,30 +261,30 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			const deniedSubCommandResult = subCommandResults.find(e => e.result === 'denied');
 			if (deniedSubCommandResult) {
-				this._logService.info('autoApprove: Sub-command DENIED auto approval');
+				this._logService.info('RunInTerminalTool: autoApprove: Sub-command DENIED auto approval');
 				isDenied = true;
 				autoApproveDefault = deniedSubCommandResult.rule?.isDefaultRule;
 				autoApproveReason = 'subCommand';
 			} else if (commandLineResult.result === 'denied') {
-				this._logService.info('autoApprove: Command line DENIED auto approval');
+				this._logService.info('RunInTerminalTool: autoApprove: Command line DENIED auto approval');
 				isDenied = true;
 				autoApproveDefault = commandLineResult.rule?.isDefaultRule;
 				autoApproveReason = 'commandLine';
 			} else {
 				if (subCommandResults.every(e => e.result === 'approved')) {
-					this._logService.info('autoApprove: All sub-commands auto-approved');
+					this._logService.info('RunInTerminalTool: autoApprove: All sub-commands auto-approved');
 					autoApproveReason = 'subCommand';
 					isAutoApproved = true;
 					autoApproveDefault = subCommandResults.every(e => e.rule?.isDefaultRule);
 				} else {
-					this._logService.info('autoApprove: All sub-commands NOT auto-approved');
+					this._logService.info('RunInTerminalTool: autoApprove: All sub-commands NOT auto-approved');
 					if (commandLineResult.result === 'approved') {
-						this._logService.info('autoApprove: Command line auto-approved');
+						this._logService.info('RunInTerminalTool: autoApprove: Command line auto-approved');
 						autoApproveReason = 'commandLine';
 						isAutoApproved = true;
 						autoApproveDefault = commandLineResult.rule?.isDefaultRule;
 					} else {
-						this._logService.info('autoApprove: Command line NOT auto-approved');
+						this._logService.info('RunInTerminalTool: autoApprove: Command line NOT auto-approved');
 					}
 				}
 			}
