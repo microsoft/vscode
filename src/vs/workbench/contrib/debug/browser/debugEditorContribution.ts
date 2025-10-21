@@ -587,18 +587,19 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
-			// Only show exception widget in the active editor to prevent disrupting workflow in multiple editor groups with the same file
+			// Show exception widget in all editors with the same file, but only scroll in the active editor
 			const activeControl = this.editorService.activeTextEditorControl;
 			const isActiveEditor = activeControl === this.editor;
+			const exceptionInfo = await focusedSf.thread.exceptionInfo;
 
-			if (isActiveEditor) {
-				const exceptionInfo = await focusedSf.thread.exceptionInfo;
-				if (exceptionInfo) {
+			if (exceptionInfo) {
+				if (isActiveEditor) {
+					// Active editor: show widget and scroll to it
 					this.showExceptionWidget(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
+				} else {
+					// Inactive editor: show widget without scrolling
+					this.showExceptionWidgetWithoutScroll(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
 				}
-			} else {
-				// For non-active editors, close any existing exception widget
-				this.closeExceptionWidget();
 			}
 		}
 	}
@@ -617,6 +618,16 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			endLineNumber: lineNumber,
 			endColumn: column,
 		});
+		this.exceptionWidgetVisible.set(true);
+	}
+
+	private showExceptionWidgetWithoutScroll(exceptionInfo: IExceptionInfo, debugSession: IDebugSession | undefined, lineNumber: number, column: number): void {
+		if (this.exceptionWidget) {
+			this.exceptionWidget.dispose();
+		}
+
+		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession);
+		this.exceptionWidget.show({ lineNumber, column }, 0);
 		this.exceptionWidgetVisible.set(true);
 	}
 
