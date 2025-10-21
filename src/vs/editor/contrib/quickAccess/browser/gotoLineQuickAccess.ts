@@ -71,7 +71,10 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			picker.items = [{
 				lineNumber: position.lineNumber,
 				column: position.column,
-				label
+				label,
+				detail: inputText.length ?
+					undefined : // Don't show hint once the user has started typing.
+					localize('gotoLineQuickAccessDescription', "Use :line[:column] or ::offset to go to a position. Negative values are counted from the end.")
 			}];
 
 			// ARIA Label
