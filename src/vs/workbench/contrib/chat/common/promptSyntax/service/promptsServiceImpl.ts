@@ -75,7 +75,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
-		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
 	) {
 		super();
 
@@ -379,6 +379,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 		return await this.fileLocator.findCopilotInstructionsMDsInWorkspace(token);
 	}
+
+	public getAgentFileURIFromModeFile(oldURI: URI): URI | undefined {
+		return this.fileLocator.getAgentFileURIFromModeFile(oldURI);
+	}
+
 }
 
 function getCommandNameFromPromptPath(promptPath: IPromptPath): string {
