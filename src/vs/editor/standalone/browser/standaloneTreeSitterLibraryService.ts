@@ -19,7 +19,7 @@ export class StandaloneTreeSitterLibraryService implements ITreeSitterLibrarySer
 	}
 
 	async getLanguage(languageId: string): Promise<Language> {
-		throw new Error('not implemented in TestTreeSitterLibraryService');
+		throw new Error('not implemented in StandaloneTreeSitterLibraryService');
 	}
 
 	getLanguageSync(languageId: string, reader: IReader | undefined): Language | undefined {
@@ -34,7 +34,7 @@ export class StandaloneTreeSitterLibraryService implements ITreeSitterLibrarySer
 		return null;
 	}
 
-	async createQuery(languageId: string, querySource: string, reader: IReader | undefined): Promise<Query | null | undefined> {
-		return undefined;
+	async createQuery(languageId: string, querySource: string): Promise<Query> {
+		throw new Error('not implemented in StandaloneTreeSitterLibraryService');
 	}
 }

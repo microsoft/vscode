@@ -63,7 +63,7 @@ export class CommandLineAutoApprover extends Disposable {
 				parser.setLanguage(bashLang);
 				const tree = parser.parse('echo "$(evil) a|b|c" | ls');
 
-				const q = await this._treeSitterLibraryService.createQuery('bash', '(command) @command', undefined);
+				const q = await this._treeSitterLibraryService.createQuery('bash', '(command) @command');
 				if (tree && q) {
 					const captures = q.captures(tree.rootNode);
 					const subCommands = captures.map(e => e.node.text);
@@ -75,7 +75,7 @@ export class CommandLineAutoApprover extends Disposable {
 				parser.setLanguage(pwshLang);
 				const tree = parser.parse('Get-ChildItem | Write-Host "$(evil)"');
 
-				const q = await this._treeSitterLibraryService.createQuery('powershell', '(command\ncommand_name: (command_name) @function)', undefined);
+				const q = await this._treeSitterLibraryService.createQuery('powershell', '(command\ncommand_name: (command_name) @function)');
 				if (tree && q) {
 					const captures = q.captures(tree.rootNode);
 					const subCommands = captures.map(e => e.node.text);

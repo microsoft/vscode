@@ -69,5 +69,5 @@ export interface ITreeSitterLibraryService {
 	 * @param reader Optional observable reader.
 	 * @param querySource The query source string to compile.
 	 */
-	createQuery(languageId: string, querySource: string, reader: IReader | undefined): Promise<Query | null | undefined>;
+	createQuery(languageId: string, querySource: string): Promise<Query>;
 }

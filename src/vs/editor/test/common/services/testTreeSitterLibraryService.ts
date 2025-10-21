@@ -34,7 +34,7 @@ export class TestTreeSitterLibraryService implements ITreeSitterLibraryService {
 		return null;
 	}
 
-	async createQuery(languageId: string, querySource: string, reader: IReader | undefined): Promise<Query | null | undefined> {
-		return undefined;
+	async createQuery(languageId: string, querySource: string): Promise<Query> {
+		throw new Error('not implemented in TestTreeSitterLibraryService');
 	}
 }

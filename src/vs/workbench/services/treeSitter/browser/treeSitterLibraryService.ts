@@ -149,10 +149,7 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		return query;
 	}
 
-	async createQuery(languageId: string, querySource: string, reader: IReader | undefined): Promise<Query | null | undefined> {
-		if (!this.supportsLanguage(languageId, reader)) {
-			return undefined;
-		}
+	async createQuery(languageId: string, querySource: string): Promise<Query> {
 		const [
 			language,
 			treeSitter
