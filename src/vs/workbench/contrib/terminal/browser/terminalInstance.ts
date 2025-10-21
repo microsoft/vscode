@@ -931,7 +931,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			timeoutMs = Math.max(timeOutValue, 500);
 		}
 
-		// Brainstorm-Question: Command detection feels pretty slow, why?
+		// Question: Still dup command even when command detection is available.
+		// Maybe we should just not Promise.race , but rather merely wait for timeout instead?
 		if (!commandDetection) {
 			const store = new DisposableStore();
 			await Promise.race([
