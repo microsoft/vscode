@@ -417,8 +417,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			// Slow picks: files and symbols
 			additionalPicks: (async (): Promise<Picks<IAnythingQuickPickItem>> => {
 
-				// Exclude any result that is already present in editor history
-				const additionalPicksExcludes = new ResourceMap<boolean>();
+				// Exclude any result that is already present in editor history.
+				const additionalPicksExcludes = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 				for (const historyEditorPick of historyEditorPicks) {
 					if (historyEditorPick.resource) {
 						additionalPicksExcludes.set(historyEditorPick.resource, true);
@@ -638,7 +638,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Otherwise, make sure to filter relative path results from
 		// the search results to prevent duplicates
-		const relativePathFileResultsMap = new ResourceMap<boolean>();
+		const relativePathFileResultsMap = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		for (const relativePathFileResult of relativePathFileResults) {
 			relativePathFileResultsMap.set(relativePathFileResult, true);
 		}
@@ -681,7 +681,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			}
 
 			// Remember which result we already covered
-			const existingFileSearchResultsMap = new ResourceMap<boolean>();
+			const existingFileSearchResultsMap = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 			for (const fileSearchResult of fileSearchResults.results) {
 				existingFileSearchResultsMap.set(fileSearchResult.resource, true);
 			}
