@@ -595,7 +595,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.ShellIntegrationQuickFixEnabled]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.shellIntegration.quickFixEnabled', "When shell integration is enabled, show quick fixes for failed terminal commands. This includes the lightbulb icon and AI sparkle icon."),
+		markdownDescription: localize('terminal.integrated.shellIntegration.quickFixEnabled', "When shell integration is enabled, enables quick fixes for terminal commands that appear as a lightbulb or sparkle icon to the left of the prompt."),
 		type: 'boolean',
 		default: true
 	},
