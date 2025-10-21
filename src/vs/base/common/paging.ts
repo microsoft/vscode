@@ -332,7 +332,7 @@ export class InfinitePagedModel<T> implements IPagedModel<T> {
 
 		// If trying to resolve the sentinel item, load next page
 		if (index === this.items.length && this._hasNextPage) {
-			await this.loadNextPage();
+			await this.loadNextPage(cancellationToken);
 		}
 
 		// After loading, the requested index should now be valid
@@ -343,7 +343,7 @@ export class InfinitePagedModel<T> implements IPagedModel<T> {
 		throw new Error('Index out of bounds');
 	}
 
-	private async loadNextPage(): Promise<void> {
+	private async loadNextPage(cancellationToken: CancellationToken): Promise<void> {
 		if (!this._hasNextPage) {
 			return;
 		}
@@ -354,7 +354,7 @@ export class InfinitePagedModel<T> implements IPagedModel<T> {
 			return;
 		}
 
-		const pagePromise = this.pager.getNextPage(CancellationToken.None);
+		const pagePromise = this.pager.getNextPage(cancellationToken);
 
 		this.loadingPromise = pagePromise
 			.then(page => {
