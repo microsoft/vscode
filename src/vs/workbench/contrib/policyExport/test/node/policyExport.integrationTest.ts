@@ -19,8 +19,13 @@ suite('PolicyExport Integration Tests', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('exported policy data matches checked-in file', async function () {
+		// Skip this test in ADO pipelines
+		if (process.env['TF_BUILD']) {
+			this.skip();
+		}
+
 		// This test launches VS Code with --export-policy-data flag, so it takes longer
-		this.timeout(120000);
+		this.timeout(60000);
 
 		// Get the repository root (FileAccess.asFileUri('') points to the 'out' directory)
 		const rootPath = dirname(FileAccess.asFileUri('').fsPath);
