@@ -17,7 +17,7 @@ import { IChatService, type IChatTerminalToolInvocationData } from '../../../../
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
-import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
+import { RunInTerminalTool, RunInTerminalToolConfirmationHelper, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -32,7 +32,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
 
 	getCopilotProfile() {
-		return this._getCopilotProfile();
+		return this._terminalCommandConfirmation.getCopilotProfile();
 	}
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
@@ -77,7 +77,8 @@ suite('RunInTerminalTool', () => {
 		storageService = instantiationService.get(IStorageService);
 		storageService.store(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, true, StorageScope.APPLICATION, StorageTarget.USER);
 
-		runInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+		const confirmTerminalTool = store.add(instantiationService.createInstance(RunInTerminalToolConfirmationHelper));
+		runInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool, confirmTerminalTool));
 	});
 
 	function setAutoApprove(value: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean }) {
