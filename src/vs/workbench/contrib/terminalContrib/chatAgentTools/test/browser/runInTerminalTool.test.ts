@@ -7,7 +7,7 @@ import { ok, strictEqual } from 'assert';
 import { Separator } from '../../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { isLinux, isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -30,10 +30,8 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 	get commandLineAutoApprover() { return this._commandLineAutoApprover; }
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
+	get profileFetcher() { return this._profileFetcher; }
 
-	getCopilotProfile() {
-		return this._getCopilotProfile();
-	}
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
 	}
@@ -962,21 +960,64 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
-	suite('getCopilotShellOrProfile', () => {
-		test('should return custom profile when configured', async () => {
-			runInTerminalTool.setBackendOs(OperatingSystem.Windows);
+});
+
+suite('TerminalProfileFetcher', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let instantiationService: TestInstantiationService;
+	let configurationService: TestConfigurationService;
+	let testTool: TestRunInTerminalTool;
+
+	setup(() => {
+		configurationService = new TestConfigurationService();
+
+		instantiationService = workbenchInstantiationService({
+			configurationService: () => configurationService,
+		}, store);
+		instantiationService.stub(ILanguageModelToolsService, {
+			getTools() {
+				return [];
+			},
+		});
+		instantiationService.stub(ITerminalService, {
+			onDidDisposeInstance: new Emitter<ITerminalInstance>().event
+		});
+		instantiationService.stub(IChatService, {
+			onDidDisposeSession: new Emitter<{ sessionId: string; reason: 'cleared' }>().event
+		});
+		instantiationService.stub(ITerminalProfileResolverService, {
+			getDefaultProfile: async () => ({ path: 'pwsh' } as ITerminalProfile)
+		});
+
+		testTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+	});
+
+	function setConfig(key: string, value: unknown) {
+		configurationService.setUserConfiguration(key, value);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: () => true,
+			affectedKeys: new Set([key]),
+			source: ConfigurationTarget.USER,
+			change: null!,
+		});
+	}
+
+	suite('getCopilotProfile', () => {
+		(isWindows ? test : test.skip)('should return custom profile when configured', async () => {
+			testTool.setBackendOs(OperatingSystem.Windows);
 			const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] });
 			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
 
-			const result = await runInTerminalTool.getCopilotProfile();
+			const result = await testTool.profileFetcher.getCopilotProfile();
 			strictEqual(result, customProfile);
 		});
 
-		test('should fall back to default shell when no custom profile is configured', async () => {
-			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+		(isLinux ? test : test.skip)('should fall back to default shell when no custom profile is configured', async () => {
+			testTool.setBackendOs(OperatingSystem.Linux);
 			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, null);
 
-			const result = await runInTerminalTool.getCopilotProfile();
+			const result = await testTool.profileFetcher.getCopilotProfile();
 			strictEqual(typeof result, 'object');
 			strictEqual((result as ITerminalProfile).path, 'pwsh'); // From the mock ITerminalProfileResolverService
 		});
