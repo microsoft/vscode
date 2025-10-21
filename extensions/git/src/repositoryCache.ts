@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LogOutputChannel, Memento, workspace } from 'vscode';
-import * as path from 'path';
 import { LRUCache } from './cache';
 import { Remote } from './api/git';
+import { isDescendant } from './util';
 
 export interface RepositoryCacheInfo {
 	repoRootPath: string; // root path of the local repo clone associated with this workspace folder/workspace file
@@ -27,7 +27,7 @@ export class RepositoryCache {
 	private static readonly MAX_REPO_ENTRIES = 30; // Max repositories tracked
 	private static readonly MAX_FOLDER_ENTRIES = 10; // Max folders per repository
 
-	// Outer LRU: repoUrl -> inner LRU (folderPathOrWorkspaceFile -> KnownFolderInfo). Only keys matter.
+	// Outer LRU: repoUrl -> inner LRU (folderPathOrWorkspaceFile -> RepositoryCacheInfo).
 	private readonly lru = new LRUCache<string, LRUCache<string, RepositoryCacheInfo>>(RepositoryCache.MAX_REPO_ENTRIES);
 
 	constructor(public readonly _globalState: Memento, private readonly _logger: LogOutputChannel) {
@@ -78,13 +78,7 @@ export class RepositoryCache {
 				const sorted = [...this._workspaceFolders].sort((a, b) => b.uri.fsPath.length - a.uri.fsPath.length);
 				for (const folder of sorted) {
 					const folderPath = folder.uri.fsPath;
-					const relToFolder = path.relative(folderPath, rootPath);
-					if (relToFolder === '' || (!relToFolder.startsWith('..') && !path.isAbsolute(relToFolder))) {
-						folderPathOrWorkspaceFile = folderPath;
-						break;
-					}
-					const relFromFolder = path.relative(rootPath, folderPath);
-					if (relFromFolder === '' || (!relFromFolder.startsWith('..') && !path.isAbsolute(relFromFolder))) {
+					if (isDescendant(folderPath, rootPath) || isDescendant(rootPath, folderPath)) {
 						folderPathOrWorkspaceFile = folderPath;
 						break;
 					}
@@ -176,7 +170,7 @@ export class RepositoryCache {
 	}
 
 	private save(): void {
-		// Serialize as [repoUrl, [folderPathOrWorkspaceFile, KnownFolderInfo][]] preserving outer LRU order.
+		// Serialize as [repoUrl, [folderPathOrWorkspaceFile, RepositoryCacheInfo][]] preserving outer LRU order.
 		const serialized: [string, [string, RepositoryCacheInfo][]][] = [];
 		for (const [repo, inner] of this.lru) {
 			const folders: [string, RepositoryCacheInfo][] = [];

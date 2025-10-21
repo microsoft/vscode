@@ -183,6 +183,19 @@ export interface InitOptions {
 	defaultBranch?: string;
 }
 
+export interface CloneOptions {
+	/**
+	 * If set to a URI, the repository will be cloned into this directory.
+	 * If not set, or set to `false`, and if we already know about an exiting clone of this repo,
+	 * we will open that clone instead of creating a new one.
+	 * If set to `true`, the user will be prompt to choose a directory to clone into.
+	 */
+	parentPath?: Uri | boolean;
+	ref?: string;
+	recursive?: boolean;
+	openFolder?: boolean;
+}
+
 export interface RefQuery {
 	readonly contains?: string;
 	readonly count?: number;
@@ -366,6 +379,7 @@ export interface API {
 	getRepository(uri: Uri): Repository | null;
 	getRepositoryRoot(uri: Uri): Promise<Uri | null>;
 	init(root: Uri, options?: InitOptions): Promise<Repository | null>;
+	clone(uri: Uri, options?: CloneOptions): Promise<Repository | null>;
 	openRepository(root: Uri): Promise<Repository | null>
 
 	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;

@@ -109,7 +109,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
-	const cc = new CommandCenter(git, model, context.globalState, logger, telemetryReporter, repositoryCache);
+	const cc = new CommandCenter(git, model, context.globalState, logger, telemetryReporter);
 	disposables.push(
 		cc,
 		new GitFileSystemProvider(model, logger),
