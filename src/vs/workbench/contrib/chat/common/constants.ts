@@ -16,7 +16,7 @@ export enum ChatConfiguration {
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
-	TodoList = 'chat.agent.todoList',
+	TodosShowWidget = 'chat.tools.todos.showWidget',
 	UseCloudButtonV2 = 'chat.useCloudButtonV2',
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
