@@ -12,7 +12,6 @@ import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } 
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-import { timeout } from '../../../../../base/common/async.js';
 
 export interface IAutoApproveRule {
 	regex: RegExp;
@@ -56,19 +55,15 @@ export class CommandLineAutoApprover extends Disposable {
 
 		const parserClass = this._treeSitterLibraryService.getParserClass();
 		parserClass.then(async parserCtor => {
-			// HACK: Trigger async load
-			_treeSitterLibraryService.getLanguageSync('bash', undefined);
-			_treeSitterLibraryService.getLanguageSync('powershell', undefined);
-			await timeout(1000);
-			const bashLang = _treeSitterLibraryService.getLanguageSync('bash', undefined);
-			const pwshLang = _treeSitterLibraryService.getLanguageSync('powershell', undefined);
+			const bashLang = await this._treeSitterLibraryService.getLanguage('bash');
+			const pwshLang = await this._treeSitterLibraryService.getLanguage('powershell');
 
 			const parser = new parserCtor();
 			if (bashLang) {
 				parser.setLanguage(bashLang);
 				const tree = parser.parse('echo "$(evil) a|b|c" | ls');
 
-				const q = await _treeSitterLibraryService.createQuery('bash', '(command) @command', undefined);
+				const q = await this._treeSitterLibraryService.createQuery('bash', '(command) @command', undefined);
 				if (tree && q) {
 					const captures = q.captures(tree.rootNode);
 					const subCommands = captures.map(e => e.node.text);
@@ -80,7 +75,7 @@ export class CommandLineAutoApprover extends Disposable {
 				parser.setLanguage(pwshLang);
 				const tree = parser.parse('Get-ChildItem | Write-Host "$(evil)"');
 
-				const q = await _treeSitterLibraryService.createQuery('powershell', '(command\ncommand_name: (command_name) @function)', undefined);
+				const q = await this._treeSitterLibraryService.createQuery('powershell', '(command\ncommand_name: (command_name) @function)', undefined);
 				if (tree && q) {
 					const captures = q.captures(tree.rootNode);
 					const subCommands = captures.map(e => e.node.text);
