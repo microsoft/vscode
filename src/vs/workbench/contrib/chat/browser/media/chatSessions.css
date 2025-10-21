@@ -261,6 +261,11 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
+/* Chat editor relative positioning for loading overlay */
+.chat-editor-relative {
+	position: relative;
+}
+
 /* Chat editor loading overlay styles */
 .chat-loading-overlay {
 	position: absolute;

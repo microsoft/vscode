@@ -32,6 +32,7 @@ export interface IWorkspaceFolderData {
 export interface ISetTerminalLayoutInfoArgs {
 	workspaceId: string;
 	tabs: ITerminalTabLayoutInfoById[];
+	background: number[] | null;
 }
 
 export interface IGetTerminalLayoutInfoArgs {
