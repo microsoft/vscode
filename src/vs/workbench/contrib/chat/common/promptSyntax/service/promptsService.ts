@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatModeKind } from '../../constants.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { Event } from '../../../../../../base/common/event.js';
-import { ITextModel } from '../../../../../../editor/common/model.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { PromptsType } from '../promptTypes.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IChatModeInstructions } from '../../chatModes.js';
+import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
+import { PromptsType } from '../promptTypes.js';
 import { IHandOff, ParsedPromptFile } from './newPromptsParser.js';
-import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 
 /**
  * Provides prompt services.
@@ -75,20 +74,26 @@ export interface IUserPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.user;
 }
 
+export type IAgentSource = {
+	readonly storage: PromptsStorage.extension;
+	readonly extensionId: ExtensionIdentifier;
+} | {
+	readonly storage: PromptsStorage.local | PromptsStorage.user;
+};
 
-export interface ICustomChatMode {
+export interface ICustomAgent {
 	/**
-	 * URI of a custom chat mode file.
+	 * URI of a custom agent file.
 	 */
 	readonly uri: URI;
 
 	/**
-	 * Name of the custom chat mode as used in prompt files or contexts
+	 * Name of the custom agent as used in prompt files or contexts
 	 */
 	readonly name: string;
 
 	/**
-	 * Description of the mode
+	 * Description of the agent
 	 */
 	readonly description?: string;
 
@@ -103,56 +108,26 @@ export interface ICustomChatMode {
 	readonly model?: string;
 
 	/**
-	 * Contents of the custom chat mode file body and other mode instructions.
+	 * Contents of the custom agent file body and other agent instructions.
 	 */
-	readonly modeInstructions: IChatModeInstructions;
+	readonly agentInstructions: IChatModeInstructions;
 
 	/**
-	 * Hand-offs defined in the custom chat mode file.
+	 * Hand-offs defined in the custom agent file.
 	 */
 	readonly handOffs?: readonly IHandOff[];
+
+	/**
+	 * Where the agent was loaded from.
+	 */
+	readonly source: IAgentSource;
 }
 
-/**
- * Type of combined tools metadata for the case
- * when the prompt is in the agent mode.
- */
-interface ICombinedAgentToolsMetadata {
-	/**
-	 * List of combined tools metadata for
-	 * the entire tree of prompt references.
-	 */
-	readonly tools: readonly string[] | undefined;
-
-	/**
-	 * Resulting chat mode of a prompt, based on modes
-	 * used in the entire tree of prompt references.
-	 */
-	readonly mode: ChatModeKind.Agent;
+export interface IAgentInstructions {
+	readonly content: string;
+	readonly toolReferences: readonly IVariableReference[];
+	readonly metadata?: Record<string, boolean | string | number>;
 }
-
-/**
- * Type of combined tools metadata for the case
- * when the prompt is in non-agent mode.
- */
-interface ICombinedNonAgentToolsMetadata {
-	/**
-	 * List of combined tools metadata is empty
-	 * when the prompt is in non-agent mode.
-	 */
-	readonly tools: undefined;
-
-	/**
-	 * Resulting chat mode of a prompt, based on modes
-	 * used in the entire tree of prompt references.
-	 */
-	readonly mode?: ChatModeKind.Ask | ChatModeKind.Edit;
-}
-
-/**
- * General type of the combined tools metadata.
- */
-export type TCombinedToolsMetadata = ICombinedAgentToolsMetadata | ICombinedNonAgentToolsMetadata;
 
 /**
  * Provides prompt services.
@@ -203,14 +178,14 @@ export interface IPromptsService extends IDisposable {
 	getPromptCommandName(uri: URI): Promise<string>;
 
 	/**
-	 * Event that is triggered when the list of custom chat modes changes.
+	 * Event that is triggered when the list of custom agents changes.
 	 */
-	readonly onDidChangeCustomChatModes: Event<void>;
+	readonly onDidChangeCustomAgents: Event<void>;
 
 	/**
-	 * Finds all available custom chat modes
+	 * Finds all available custom agents
 	 */
-	getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]>;
+	getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]>;
 
 	/**
 	 * Parses the provided URI
@@ -233,7 +208,21 @@ export interface IPromptsService extends IDisposable {
 
 	getPromptLocationLabel(promptPath: IPromptPath): string;
 
+	/**
+	 * Gets list of all AGENTS.md files in the workspace.
+	 */
 	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]>;
+
+	/**
+	 * Gets list of AGENTS.md files.
+	 * @param includeNested Whether to include AGENTS.md files from subfolders, or only from the root.
+	 */
+	listAgentMDs(token: CancellationToken, includeNested: boolean): Promise<URI[]>;
+
+	/**
+	 * Gets list of .github/copilot-instructions.md files.
+	 */
+	listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]>;
 }
 
 export interface IChatPromptSlashCommand {
