@@ -92,7 +92,11 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 		const hasHandleDrag = !!options.dragAndDropController?.handleDrag;
 		const hasHandleDrop = !!options.dragAndDropController?.handleDrop;
 		const treeView = this._createExtHostTreeView(viewId, options, extension);
-		const proxyOptions = { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag, hasHandleDrop, manuallyManageCheckboxes: !!options.manageCheckboxStateManually };
+		const renderLabelIcons = options.renderLabelIcons ?? false;
+		if (options.renderLabelIcons !== undefined) {
+			checkProposedApiEnabled(extension, 'treeViewRenderLabelIcons');
+		}
+		const proxyOptions = { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag, hasHandleDrop, manuallyManageCheckboxes: !!options.manageCheckboxStateManually, renderLabelIcons };
 		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, proxyOptions);
 		const view = {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },

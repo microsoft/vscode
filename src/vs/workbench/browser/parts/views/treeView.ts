@@ -226,6 +226,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private _messageValue: string | { element: HTMLElement; disposables: DisposableStore } | undefined;
 	private _canSelectMany: boolean = false;
 	private _manuallyManageCheckboxes: boolean = false;
+	private _renderLabelIcons: boolean = false;
 	private messageElement: HTMLElement | undefined;
 	private tree: Tree | undefined;
 	private treeLabels: ResourceLabels | undefined;
@@ -522,6 +523,14 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this._manuallyManageCheckboxes = manuallyManageCheckboxes;
 	}
 
+	get renderLabelIcons(): boolean {
+		return this._renderLabelIcons;
+	}
+
+	set renderLabelIcons(renderLabelIcons: boolean) {
+		this._renderLabelIcons = renderLabelIcons;
+	}
+
 	get hasIconForParentNode(): boolean {
 		return this._hasIconForParentNode;
 	}
@@ -695,7 +704,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
 		const aligner = this.treeDisposables.add(new Aligner(this.themeService));
 		const checkboxStateHandler = this.treeDisposables.add(new CheckboxStateHandler());
-		const renderer = this.treeDisposables.add(this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, () => this.manuallyManageCheckboxes));
+		const renderer = this.treeDisposables.add(this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, () => this.manuallyManageCheckboxes, () => this.renderLabelIcons));
 		this.treeDisposables.add(renderer.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e)));
 
 		const widgetAriaLabel = this._title;
@@ -1257,6 +1266,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		private aligner: Aligner,
 		private checkboxStateHandler: CheckboxStateHandler,
 		private readonly manuallyManageCheckboxes: () => boolean,
+		private readonly renderLabelIcons: () => boolean,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -1286,7 +1296,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		container.classList.add('custom-view-tree-node-item');
 
 		const checkboxContainer = DOM.append(container, DOM.$(''));
-		const resourceLabel = this.labels.create(container, { supportHighlights: true, hoverDelegate: this._hoverDelegate });
+		const resourceLabel = this.labels.create(container, { supportHighlights: true, supportIcons: this.renderLabelIcons(), hoverDelegate: this._hoverDelegate });
 		const icon = DOM.prepend(resourceLabel.element, DOM.$('.custom-view-tree-node-item-icon'));
 		const actionsContainer = DOM.append(resourceLabel.element, DOM.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
