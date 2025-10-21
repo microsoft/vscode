@@ -9,7 +9,7 @@ import { promises as fs } from 'fs';
 import * as os from 'os';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isWindows } from '../../../../../base/common/platform.js';
-import { join } from '../../../../../base/common/path.js';
+import { dirname, join } from '../../../../../base/common/path.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import * as util from 'util';
 
@@ -20,9 +20,10 @@ suite('PolicyExport Integration Tests', () => {
 
 	test('exported policy data matches checked-in file', async function () {
 		// This test launches VS Code with --export-policy-data flag, so it takes longer
-		this.timeout(60000);
+		this.timeout(120000);
 
-		const rootPath = FileAccess.asFileUri('').fsPath.replace(/[\/\\]out[\/\\].*$/, '');
+		// Get the repository root (FileAccess.asFileUri('') points to the 'out' directory)
+		const rootPath = dirname(FileAccess.asFileUri('').fsPath);
 		const checkedInFile = join(rootPath, 'build/lib/policies/policyData.jsonc');
 		const tempFile = join(os.tmpdir(), `policyData-test-${Date.now()}.jsonc`);
 
