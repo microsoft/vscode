@@ -925,10 +925,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const siEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
 			// Discuss: This default from copilot chat setting feels pretty slow..
 			timeoutMs = siEnabled ? 5000 : (this.isRemote ? 3000 : 2000);
-		} else if (timeoutValue === 0) {
-			// Discuss: This is supposed to be fastest value.
-			// Past: We used to have Promise race between onDidAddCommandDetectionCapability and timeout of 2000ms.
-			timeoutMs = 500;
 		} else {
 			timeoutMs = Math.max(timeoutValue, 500);
 		}
