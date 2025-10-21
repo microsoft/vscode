@@ -42,7 +42,7 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 
 		// #region Terminal
 
-		const terminalConfirmationHelper = instantiationService.createInstance(RunInTerminalToolConfirmationHelper);
+		const terminalConfirmationHelper = this._register(instantiationService.createInstance(RunInTerminalToolConfirmationHelper));
 		const confirmTerminalCommandTool = instantiationService.createInstance(ConfirmTerminalCommandTool, terminalConfirmationHelper);
 		this._register(toolsService.registerTool(ConfirmTerminalCommandToolData, confirmTerminalCommandTool));
 		const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
