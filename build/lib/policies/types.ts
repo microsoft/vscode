@@ -12,7 +12,7 @@ export interface ProductJson {
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
 		readonly resourceUrlTemplate: string;
-	}
+	};
 }
 
 export interface Policy {
