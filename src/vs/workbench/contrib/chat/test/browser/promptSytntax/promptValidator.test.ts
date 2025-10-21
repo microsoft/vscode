@@ -192,7 +192,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.startsWith(`Attribute 'applyTo' is not supported in agent files.`));
+			assert.ok(markers[0].message.startsWith(`Attribute 'applyTo' is not supported in custom agent files.`));
 		});
 
 		test('tools with invalid handoffs', async () => {
@@ -413,7 +413,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, `The 'tools' attribute is only supported in agent mode. Attribute will be ignored.`);
+			assert.strictEqual(markers[0].message, `The 'tools' attribute is only supported when using agents. Attribute will be ignored.`);
 		});
 	});
 
