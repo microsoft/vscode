@@ -932,7 +932,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Brainstorm-Question: Command detection feels pretty slow, why?
-		this._logService.debug(`*** state of commandDetection is: ${commandDetection}`);
 		if (!commandDetection) {
 			const store = new DisposableStore();
 			await Promise.race([
