@@ -917,26 +917,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-
-		// Resolve configured timeout
-		const rawConfigured = this._configurationService.getValue(TerminalSettingId.ShellIntegrationTimeout) as number | undefined;
+		const timeOutValue = this._configurationService.getValue(TerminalSettingId.ShellIntegrationTimeout) as number | undefined;
 		let timeoutMs: number;
-		if (rawConfigured === undefined || typeof rawConfigured !== 'number' || rawConfigured < 0) {
+
+		if (timeOutValue === undefined || typeof timeOutValue !== 'number' || timeOutValue < 0) {
 			const siEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
 			// Discuss: This default from copilot chat setting feels pretty slow..
 			timeoutMs = siEnabled ? 5000 : (this.isRemote ? 3000 : 2000);
-			this._logService.debug(`***runCommand***: timeout unset/negative, using heuristic: ${timeoutMs}ms (siEnabled=${siEnabled}, isRemote=${this.isRemote})`);
-		} else if (rawConfigured === 0) {
-			timeoutMs = 2000;
-			this._logService.debug(`***runCommand***: timeout explicitly set to 0 (immediate)`);
+		} else if (timeOutValue === 0) {
+			// Discuss: This is supposed to be fastest value. We used to have Promise race between onDidAddCommandDetectionCapability and timeout of 2000ms.
+			timeoutMs = 500;
 		} else {
-			timeoutMs = Math.max(rawConfigured, 500);
-			this._logService.debug(`***runCommand***: timeout configured to ${rawConfigured}ms, enforced to ${timeoutMs}ms (min 500ms)`);
+			timeoutMs = Math.max(timeOutValue, 500);
 		}
 
-		this._logService.debug(`***runCommand***: Timeout Ms is: ${timeoutMs}`);
-
-		// Question: I dont think command detection is "enough" to avoid dup command UI. Maybe we should just wait instead of racing between timeout.
+		// Brainstorm-Question: Command detection feels pretty slow, why?
 		this._logService.debug(`*** state of commandDetection is: ${commandDetection}`);
 		if (!commandDetection) {
 			const store = new DisposableStore();
@@ -944,7 +939,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				new Promise<void>(r => {
 					store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
 						commandDetection = e;
-						this._logService.debug(`***runCommand*** got the command detection capability`);
 						r();
 					}));
 				}),
