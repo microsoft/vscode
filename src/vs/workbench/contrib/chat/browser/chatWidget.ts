@@ -62,6 +62,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IC
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
+import { IChatTodoListService } from '../common/chatTodoListService.js';
 import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
 import { ChatMode, IChatModeService } from '../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
@@ -500,6 +501,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -698,6 +700,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => {
 			if (!this.shouldShowChatSetup()) {
 				this.resetWelcomeViewInput();
+			}
+		}));
+		this._register(this.chatTodoListService.onDidUpdateTodos((sessionId) => {
+			if (this.viewModel?.sessionId === sessionId) {
+				this.inputPart.renderChatTodoListWidget(sessionId);
 			}
 		}));
 	}
@@ -962,7 +969,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.unlockFromCodingAgent();
 		}
 
-		this.clearTodoListWidget(this.viewModel?.sessionId);
+		this.inputPart.clearTodoListWidget(this.viewModel?.sessionId, true);
 		// Cancel any pending widget render and hide the widget BEFORE firing onDidClear
 		// This prevents the widget from being re-shown by any handlers triggered by the clear event
 		this._chatSuggestNextScheduler.cancel();
@@ -1005,7 +1012,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			if (treeItems.length > 0) {
 				this.updateChatViewVisibility();
-				this.renderChatInputTodoListWidget();
 			} else {
 				this._welcomeRenderScheduler.schedule();
 			}
@@ -1308,29 +1314,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		const historyItems = await this.computeHistoryItems();
 		this.renderHistoryItems(historyItems);
-	}
-
-	private renderChatInputTodoListWidget(): void {
-		const sessionId = this.viewModel?.sessionId;
-		if (!sessionId) {
-			return;
-		}
-
-		const showTodoWidget = this.configurationService.getValue<boolean>(ChatConfiguration.TodosShowWidget);
-
-		// If disabled, don't show the widget
-		if (!showTodoWidget) {
-			return;
-		}
-
-		// Render the todo widget in the chat input area
-		this.inputPart.renderChatTodoListWidget(sessionId);
-		this._onDidChangeContentHeight.fire();
-	}
-
-	private clearTodoListWidget(sessionId: string | undefined, force: boolean = false): void {
-		this.inputPart.clearTodoListWidget(sessionId, force);
-		this._onDidChangeContentHeight.fire();
 	}
 
 	private _getGenerateInstructionsMessage(): IMarkdownString {
@@ -2398,11 +2381,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._updateAgentCapabilitiesContextKeys(e.agent);
 			}
 			if (e.kind === 'addRequest') {
-				this.clearTodoListWidget(model.sessionId, false);
+				this.inputPart.clearTodoListWidget(this.viewModel?.sessionId, false);
 			}
 			// Hide widget on request removal
 			if (e.kind === 'removeRequest') {
-				this.clearTodoListWidget(model.sessionId, true);
+				this.inputPart.clearTodoListWidget(this.viewModel?.sessionId, true);
 				this.chatSuggestNextWidget.hide();
 			}
 			// Show next steps widget when response completes (not when request starts)
