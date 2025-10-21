@@ -26,7 +26,7 @@ import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { getPromptFileExtension } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptValidator } from '../../../common/promptSyntax/languageProviders/promptValidator.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { NewPromptsParser } from '../../../common/promptSyntax/service/newPromptsParser.js';
+import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../common/mockChatModeService.js';
 import { MockChatService } from '../../common/mockChatService.js';
@@ -96,7 +96,7 @@ suite('PromptValidator', () => {
 
 	async function validate(code: string, promptType: PromptsType): Promise<IMarkerData[]> {
 		const uri = URI.parse('myFs://test/testFile' + getPromptFileExtension(promptType));
-		const result = new NewPromptsParser().parse(uri, code);
+		const result = new PromptFileParser().parse(uri, code);
 		const validator = instaService.createInstance(PromptValidator);
 		const markers: IMarkerData[] = [];
 		await validator.validate(result, promptType, m => markers.push(m));
@@ -192,7 +192,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.startsWith(`Attribute 'applyTo' is not supported in agent files.`));
+			assert.ok(markers[0].message.startsWith(`Attribute 'applyTo' is not supported in custom agent files.`));
 		});
 
 		test('tools with invalid handoffs', async () => {
@@ -413,7 +413,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, `The 'tools' attribute is only supported in agent mode. Attribute will be ignored.`);
+			assert.strictEqual(markers[0].message, `The 'tools' attribute is only supported when using agents. Attribute will be ignored.`);
 		});
 	});
 

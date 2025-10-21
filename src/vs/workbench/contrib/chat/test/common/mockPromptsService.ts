@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { ParsedPromptFile } from '../../common/promptSyntax/service/newPromptsParser.js';
+import { ParsedPromptFile } from '../../common/promptSyntax/promptFileParser.js';
 import { ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export class MockPromptsService implements IPromptsService {
@@ -37,6 +37,8 @@ export class MockPromptsService implements IPromptsService {
 	getSourceFolders(_type: any): readonly any[] { throw new Error('Not implemented'); }
 	asPromptSlashCommand(_command: string): any { return undefined; }
 	resolvePromptSlashCommand(_data: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
+	resolvePromptSlashCommandFromCache(command: string): ParsedPromptFile | undefined { throw new Error('Not implemented'); }
+	get onDidChangeParsedPromptFilesCache(): Event<void> { throw new Error('Not implemented'); }
 	findPromptSlashCommands(): Promise<any[]> { throw new Error('Not implemented'); }
 	getPromptCommandName(uri: URI): Promise<string> { throw new Error('Not implemented'); }
 	parse(_uri: URI, _type: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
@@ -48,6 +50,6 @@ export class MockPromptsService implements IPromptsService {
 	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
 	listAgentMDs(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
 	listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
-
+	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined { throw new Error('Not implemented'); }
 	dispose(): void { }
 }

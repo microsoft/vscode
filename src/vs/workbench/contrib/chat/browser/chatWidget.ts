@@ -63,7 +63,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
 import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
-import { IChatModeService } from '../common/chatModes.js';
+import { ChatMode, IChatModeService } from '../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
@@ -78,7 +78,7 @@ import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/langua
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
-import { IHandOff, ParsedPromptFile, PromptHeader } from '../common/promptSyntax/service/newPromptsParser.js';
+import { IHandOff, ParsedPromptFile, PromptHeader } from '../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
@@ -1460,11 +1460,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				suggestedPrompts
 			};
 		} else {
-			const agentHelpMessage = localize('agentMessage', "Ask to edit your files in [agent mode]({0}). Agent mode will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent');
+			const agentHelpMessage = localize('agentMessage', "Ask to edit your files using [Agent]({0}). Agent will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent');
 			const message = expEmptyState ? disclaimerMessage : `${agentHelpMessage}\n\n${disclaimerMessage}`;
 
 			return {
-				title: localize('agentTitle', "Build with agent mode"),
+				title: localize('agentTitle', "Build with Agent"),
 				message: new MarkdownString(message),
 				icon,
 				additionalMessage,
@@ -1488,7 +1488,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const providerTips = this._lockedAgent ? this.chatSessionsService.getWelcomeTipsForSessionType(this._lockedAgent.id) : undefined;
 		const suggestedPrompts = this._lockedAgent ? undefined : this.getNewSuggestedPrompts();
 		const welcomeContent: IChatViewWelcomeContent = {
-			title: providerTitle ?? localize('expChatTitle', 'Build with agent mode'),
+			title: providerTitle ?? localize('expChatTitle', 'Build with agents'),
 			message: providerMessage ? new MarkdownString(providerMessage) : new MarkdownString(localize('expchatMessage', "Let's get started")),
 			icon: providerIcon ?? Codicon.chatSparkle,
 			inputPart: this.inputPart.element,
@@ -1715,6 +1715,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private renderChatSuggestNextWidget(): void {
+		// Skip rendering in coding agent sessions
+		if (this.isLockedToCodingAgent) {
+			this.chatSuggestNextWidget.hide();
+			return;
+		}
+
 		const items = this.viewModel?.getItems() ?? [];
 		if (!items.length) {
 			return;
@@ -1754,7 +1760,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Switch to the specified agent/mode if provided
 		if (handoff.agent) {
-			this.input.setChatMode(handoff.agent);
+			this._switchToAgentByName(handoff.agent);
 		}
 		// Insert the handoff prompt into the input
 		this.input.setValue(handoff.prompt, false);
@@ -2640,11 +2646,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const isUserQuery = !query;
 
-			if (!this.viewModel.editing) {
-				// process the prompt command
-				await this._applyPromptFileIfSet(requestInputs);
-				await this._autoAttachInstructions(requestInputs);
-			}
+			// process the prompt command
+			await this._applyPromptFileIfSet(requestInputs);
+			await this._autoAttachInstructions(requestInputs);
 
 			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit && !this.chatService.edits2Enabled) {
 				const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
@@ -2957,21 +2961,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput.set(!!currentAgent);
 	}
 
-	private async _applyPromptMetadata({ agent: mode, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
-
-		const currentMode = this.input.currentModeObs.get();
-
-		if (tools !== undefined && !mode && currentMode.kind !== ChatModeKind.Agent) {
-			mode = ChatModeKind.Agent;
-		}
+	private async _switchToAgentByName(agentName: string): Promise<void> {
+		const currentAgent = this.input.currentModeObs.get();
 
 		// switch to appropriate agent if needed
-		if (mode && mode !== currentMode.name) {
+		if (agentName !== currentAgent.name) {
 			// Find the mode object to get its kind
-			const chatMode = this.chatModeService.findModeByName(mode);
-			if (chatMode) {
-				if (currentMode.kind !== chatMode.kind) {
-					const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, currentMode.kind, chatMode.kind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
+			const agent = this.chatModeService.findModeByName(agentName);
+			if (agent) {
+				if (currentAgent.kind !== agent.kind) {
+					const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, currentAgent.kind, agent.kind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
 					if (!chatModeCheck) {
 						return undefined;
 					} else if (chatModeCheck.needToClearSession) {
@@ -2979,8 +2978,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						await this.waitForReady();
 					}
 				}
-				this.input.setChatMode(chatMode.id);
+				this.input.setChatMode(agent.id);
 			}
+		}
+	}
+
+	private async _applyPromptMetadata({ agent, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
+
+		if (tools !== undefined && !agent && this.input.currentModeKind !== ChatModeKind.Agent) {
+			agent = ChatMode.Agent.name;
+		}
+		// switch to appropriate agent if needed
+		if (agent) {
+			this._switchToAgentByName(agent);
 		}
 
 		// if not tools to enable are present, we are done

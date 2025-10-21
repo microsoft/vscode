@@ -21,6 +21,24 @@ export function isPowerShell(envShell: string, os: OperatingSystem): boolean {
 	return /^(?:powershell|pwsh)(?:-preview)?$/.test(pathPosix.basename(envShell));
 }
 
+export function isWindowsPowerShell(envShell: string): boolean {
+	return envShell.endsWith('System32\\WindowsPowerShell\\v1.0\\powershell.exe');
+}
+
+export function isZsh(envShell: string, os: OperatingSystem): boolean {
+	if (os === OperatingSystem.Windows) {
+		return /^zsh(?:\.exe)?$/i.test(pathWin32.basename(envShell));
+	}
+	return /^zsh$/.test(pathPosix.basename(envShell));
+}
+
+export function isFish(envShell: string, os: OperatingSystem): boolean {
+	if (os === OperatingSystem.Windows) {
+		return /^fish(?:\.exe)?$/i.test(pathWin32.basename(envShell));
+	}
+	return /^fish$/.test(pathPosix.basename(envShell));
+}
+
 // Maximum output length to prevent context overflow
 const MAX_OUTPUT_LENGTH = 60000; // ~60KB limit to keep context manageable
 const TRUNCATION_MESSAGE = '\n\n[... MIDDLE OF OUTPUT TRUNCATED ...]\n\n';

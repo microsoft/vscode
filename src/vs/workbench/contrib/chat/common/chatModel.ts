@@ -12,7 +12,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
-import { IObservable, ObservablePromise, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { IObservable, ObservablePromise, autorunSelfDisposable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
@@ -492,10 +492,11 @@ class AbstractResponse implements IResponse {
 		}
 
 		// For completed tool invocations, also include the result details if available
-		if (toolInvocation.kind === 'toolInvocationSerialized' || (toolInvocation.kind === 'toolInvocation' && toolInvocation.isComplete)) {
-			if (toolInvocation.resultDetails && 'input' in toolInvocation.resultDetails) {
-				const resultPrefix = toolInvocation.kind === 'toolInvocationSerialized' || toolInvocation.isComplete ? 'Completed' : 'Errored';
-				text += `\n${resultPrefix} with input: ${toolInvocation.resultDetails.input}`;
+		if (toolInvocation.kind === 'toolInvocationSerialized' || (toolInvocation.kind === 'toolInvocation' && IChatToolInvocation.isComplete(toolInvocation))) {
+			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
+			if (resultDetails && 'input' in resultDetails) {
+				const resultPrefix = toolInvocation.kind === 'toolInvocationSerialized' || IChatToolInvocation.isComplete(toolInvocation) ? 'Completed' : 'Errored';
+				text += `\n${resultPrefix} with input: ${resultDetails.input}`;
 			}
 		}
 
@@ -680,13 +681,13 @@ export class Response extends AbstractResponse implements IDisposable {
 			});
 
 		} else if (progress.kind === 'toolInvocation') {
-			if (progress.confirmationMessages) {
-				progress.confirmed.p.then(() => {
-					this._updateRepr(false);
-				});
-			}
-			progress.isCompletePromise.then(() => {
+			autorunSelfDisposable(reader => {
+				progress.state.read(reader); // update repr when state changes
 				this._updateRepr(false);
+
+				if (IChatToolInvocation.isComplete(progress, reader)) {
+					reader.dispose();
+				}
 			});
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
@@ -908,7 +909,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			signal.read(r);
 
 			return this._response.value.some(part =>
-				part.kind === 'toolInvocation' && part.isConfirmed === undefined
+				part.kind === 'toolInvocation' && part.state.read(r).type === IChatToolInvocation.StateKind.WaitingForConfirmation
 				|| part.kind === 'confirmation' && part.isUsed === false
 			);
 		});

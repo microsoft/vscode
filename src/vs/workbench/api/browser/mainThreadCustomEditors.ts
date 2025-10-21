@@ -670,6 +670,8 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		const backupMeta: CustomDocumentBackupData = {
 			viewType: this.viewType,
 			editorResource: this._editorResource,
+			customTitle: primaryEditor.getCustomTitle(),
+			iconPath: primaryEditor.iconPath,
 			backupId: '',
 			extension: primaryEditor.extension ? {
 				id: primaryEditor.extension.id.value,
