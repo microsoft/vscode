@@ -92,6 +92,7 @@ import { TerminalContribCommandId } from '../terminalContribExports.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { isNumber } from '../../../../base/common/types.js';
 
 const enum Constants {
 	/**
@@ -920,7 +921,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const timeoutValue = this._configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
 		let timeoutMs: number;
 
-		if (timeoutValue === undefined || typeof timeoutValue !== 'number' || timeoutValue < 0) {
+		if (timeoutValue === undefined || !isNumber(timeoutValue) || timeoutValue < 0) {
 			const siEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
 			// Discuss: This default from copilot chat setting feels pretty slow..
 			timeoutMs = siEnabled ? 5000 : (this.isRemote ? 3000 : 2000);
