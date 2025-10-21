@@ -2988,7 +2988,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (tools !== undefined && !agent && this.input.currentModeKind !== ChatModeKind.Agent) {
 			agent = ChatMode.Agent.name;
 		}
-		// switch to appropriate agent if neededz
+		// switch to appropriate agent if needed
 		if (agent) {
 			this._switchToAgentByName(agent);
 		}
