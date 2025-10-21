@@ -758,7 +758,7 @@ suite('PromptsService', () => {
 							name: '.github/agents',
 							children: [
 								{
-									name: 'agent1.vscode-agent.md',
+									name: 'agent1.agent.md',
 									contents: [
 										'---',
 										'description: \'Agent file 1.\'',
@@ -785,7 +785,7 @@ suite('PromptsService', () => {
 					},
 					model: undefined,
 					tools: undefined,
-					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.vscode-agent.md'),
+					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
 			];
@@ -813,7 +813,7 @@ suite('PromptsService', () => {
 							name: '.github/agents',
 							children: [
 								{
-									name: 'agent1.vscode-agent.md',
+									name: 'agent1.agent.md',
 									contents: [
 										'---',
 										'description: \'Agent file 1.\'',
@@ -823,7 +823,7 @@ suite('PromptsService', () => {
 									],
 								},
 								{
-									name: 'agent2.vscode-agent.md',
+									name: 'agent2.agent.md',
 									contents: [
 										'First use #tool2\nThen use #tool1',
 									],
@@ -847,7 +847,7 @@ suite('PromptsService', () => {
 					},
 					handOffs: undefined,
 					model: undefined,
-					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.vscode-agent.md'),
+					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local },
 				},
 				{
@@ -860,7 +860,7 @@ suite('PromptsService', () => {
 						],
 						metadata: undefined
 					},
-					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.vscode-agent.md'),
+					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local },
 				}
 			];
