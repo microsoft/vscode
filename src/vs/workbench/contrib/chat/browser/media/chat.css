@@ -1198,6 +1198,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 4px;
 }
 
+.interactive-session .chat-input-toolbars .chat-sessionPicker-container {
+	display: flex;
+}
+
 .interactive-session .chat-input-toolbars .codicon-debug-stop {
 	color: var(--vscode-icon-foreground) !important;
 }
@@ -2713,7 +2717,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-todo-list-widget .todo-item > .todo-status-icon.codicon {
 	flex-shrink: 0;
-	font-size: var(--vscode-chat-font-size-body-l);
+	font-size: 16px;
 }
 
 .chat-todo-list-widget .todo-content {

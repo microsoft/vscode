@@ -36,29 +36,29 @@ import { IUntitledTextEditorService } from '../../../services/untitled/common/un
 interface CustomEditorInputInitInfo {
 	readonly resource: URI;
 	readonly viewType: string;
+	readonly customTitle: string | undefined;
 }
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	static create(
 		instantiationService: IInstantiationService,
-		resource: URI,
-		viewType: string,
+		init: CustomEditorInputInitInfo,
 		group: GroupIdentifier | undefined,
 		options?: { readonly customClasses?: string; readonly oldResource?: URI },
 	): EditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			// If it's an untitled file we must populate the untitledDocumentData
-			const untitledString = accessor.get(IUntitledTextEditorService).getValue(resource);
+			const untitledString = accessor.get(IUntitledTextEditorService).getValue(init.resource);
 			const untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
 			const webview = accessor.get(IWebviewService).createWebviewOverlay({
-				providedViewType: viewType,
-				title: undefined,
+				providedViewType: init.viewType,
+				title: init.customTitle,
 				options: { customClasses: options?.customClasses },
 				contentOptions: {},
 				extension: undefined,
 			});
-			const input = instantiationService.createInstance(CustomEditorInput, { resource, viewType }, webview, { untitledDocumentData: untitledDocumentData, oldResource: options?.oldResource });
+			const input = instantiationService.createInstance(CustomEditorInput, init, webview, { untitledDocumentData: untitledDocumentData, oldResource: options?.oldResource });
 			if (typeof group !== 'undefined') {
 				input.updateGroup(group);
 			}
@@ -71,6 +71,9 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	private readonly _editorResource: URI;
 	public readonly oldResource?: URI;
 	private _defaultDirtyState: boolean | undefined;
+
+	private _editorName: string | undefined = undefined;
+	private _customTitle: string | undefined = undefined;
 
 	private readonly _backupId: string | undefined;
 
@@ -102,6 +105,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._defaultDirtyState = options.startsDirty;
 		this._backupId = options.backupId;
 		this._untitledDocumentData = options.untitledDocumentData;
+
+		this._customTitle = init.customTitle;
 
 		this.registerListeners();
 	}
@@ -171,13 +176,25 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return capabilities;
 	}
 
-	private _editorName: string | undefined = undefined;
 	override getName(): string {
+		if (this._customTitle) {
+			return this._customTitle;
+		}
+
 		if (typeof this._editorName !== 'string') {
 			this._editorName = this.customEditorLabelService.getName(this.resource) ?? basename(this.labelService.getUriLabel(this.resource));
 		}
 
 		return this._editorName;
+	}
+
+	override setName(value: string): void {
+		this._customTitle = value;
+		super.setName(value);
+	}
+
+	getCustomTitle(): string | undefined {
+		return this._customTitle;
 	}
 
 	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
@@ -247,6 +264,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	override getTitle(verbosity?: Verbosity): string {
+		if (this._customTitle) {
+			return this._customTitle;
+		}
+
 		switch (verbosity) {
 			case Verbosity.SHORT:
 				return this.shortTitle;
@@ -268,7 +289,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public override copy(): EditorInput {
-		return CustomEditorInput.create(this.instantiationService, this.resource, this.viewType, this.group, this.webview.options);
+		return CustomEditorInput.create(this.instantiationService,
+			{ resource: this.resource, viewType: this.viewType, customTitle: this._customTitle },
+			this.group,
+			this.webview.options);
 	}
 
 	public override isReadonly(): boolean | IMarkdownString {

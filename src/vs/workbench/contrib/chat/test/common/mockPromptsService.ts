@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { ParsedPromptFile } from '../../common/promptSyntax/service/newPromptsParser.js';
+import { ParsedPromptFile } from '../../common/promptSyntax/promptFileParser.js';
 import { ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export class MockPromptsService implements IPromptsService {
@@ -48,6 +48,6 @@ export class MockPromptsService implements IPromptsService {
 	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
 	listAgentMDs(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
 	listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
-
+	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined { throw new Error('Not implemented'); }
 	dispose(): void { }
 }
