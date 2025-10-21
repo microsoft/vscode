@@ -295,16 +295,20 @@ export class AgentSessionsView extends FilterViewPane {
 	}
 
 	private async refreshList({ fromEvent }: { fromEvent: boolean }): Promise<void> {
-		await this.progressService.withProgress(
-			{
-				location: this.id,
-				title: localize('agentSessions.refreshing', 'Refreshing agent sessions...'),
-				delay: fromEvent ? 800 : undefined
-			},
-			async () => {
-				await this.list?.updateChildren();
-			}
-		);
+		if (this.sessionsViewModel?.sessions.length === 0 || !fromEvent) {
+			await this.progressService.withProgress(
+				{
+					location: this.id,
+					title: localize('agentSessions.refreshing', 'Refreshing agent sessions...'),
+					delay: fromEvent ? 800 : undefined
+				},
+				async () => {
+					await this.list?.updateChildren();
+				}
+			);
+		} else {
+			await this.list?.updateChildren();
+		}
 	}
 
 	//#endregion
