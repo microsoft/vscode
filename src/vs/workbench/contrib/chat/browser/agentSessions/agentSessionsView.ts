@@ -136,7 +136,7 @@ export class AgentSessionsView extends FilterViewPane {
 			this.chatSessionsService.onDidChangeAvailability,
 			this.chatSessionsService.onDidChangeSessionItems,
 			this.chatSessionsService.onDidChangeInProgress
-		), () => undefined, 500)(() => this.refreshList()));
+		), () => undefined, 500)(() => this.refreshList({ fromEvent: true })));
 
 		this._register(list.onDidOpen(e => {
 			this.openAgentSession(e);
@@ -216,7 +216,7 @@ export class AgentSessionsView extends FilterViewPane {
 				});
 			}
 			runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
-				view.refreshList();
+				view.refreshList({ fromEvent: false });
 			}
 		}));
 	}
@@ -294,12 +294,12 @@ export class AgentSessionsView extends FilterViewPane {
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore>;
 	}
 
-	private async refreshList(): Promise<void> {
+	private async refreshList({ fromEvent }: { fromEvent: boolean }): Promise<void> {
 		await this.progressService.withProgress(
 			{
 				location: this.id,
 				title: localize('agentSessions.refreshing', 'Refreshing agent sessions...'),
-				delay: 800
+				delay: fromEvent ? 800 : undefined
 			},
 			async () => {
 				await this.list?.updateChildren();
