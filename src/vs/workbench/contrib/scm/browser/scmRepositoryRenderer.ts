@@ -5,14 +5,14 @@
 
 import './media/scm.css';
 import { IDisposable, DisposableStore, combinedDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, IObservable } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { append, $ } from '../../../../base/browser/dom.js';
 import { ISCMProvider, ISCMRepository, ISCMViewService } from '../common/scm.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
-import { connectPrimaryMenu, getRepositoryResourceCount, getSCMRepositoryIcon, isSCMRepository, StatusBarAction } from './util.js';
+import { connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, StatusBarAction } from './util.js';
 import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
@@ -25,8 +25,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export class RepositoryActionRunner extends ActionRunner {
 	constructor(private readonly getSelectedRepositories: () => ISCMRepository[]) {
@@ -65,21 +64,17 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	static readonly TEMPLATE_ID = 'repository';
 	get templateId(): string { return RepositoryRenderer.TEMPLATE_ID; }
 
-	private readonly _selectionModeConfig: IObservable<'multiple' | 'single'>;
 	constructor(
 		private readonly toolbarMenuId: MenuId,
 		private readonly actionViewItemProvider: IActionViewItemProvider,
 		@ICommandService private commandService: ICommandService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService,
 		@ISCMViewService private scmViewService: ISCMViewService,
 		@ITelemetryService private telemetryService: ITelemetryService
-	) {
-		this._selectionModeConfig = observableConfigValue('scm.repositories.selectionMode', 'single', this.configurationService);
-	}
+	) { }
 
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
 		// hack
@@ -104,24 +99,19 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	renderElement(arg: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate): void {
 		const repository = isSCMRepository(arg) ? arg : arg.element;
 
-		templateData.elementDisposables.add(autorun(reader => {
-			const selectionMode = this._selectionModeConfig.read(undefined);
-			const activeRepository = this.scmViewService.activeRepository.read(reader);
+		const icon = ThemeIcon.isThemeIcon(repository.provider.iconPath)
+			? repository.provider.iconPath.id
+			: undefined;
 
-			const icon = selectionMode === 'single'
-				? getSCMRepositoryIcon(activeRepository, repository)
-				: getSCMRepositoryIcon(activeRepository ? { repository: activeRepository.repository, pinned: false } : undefined, repository);
+		const label = icon
+			? `$(${icon}) ${repository.provider.name}`
+			: repository.provider.name;
 
-			const label = icon
-				? `$(${icon.id}) ${repository.provider.name}`
-				: repository.provider.name;
-
-			if (repository.provider.rootUri) {
-				templateData.label.setLabel(label, repository.provider.label, { title: `${repository.provider.label}: ${repository.provider.rootUri.fsPath}` });
-			} else {
-				templateData.label.setLabel(label, undefined, { title: repository.provider.label });
-			}
-		}));
+		if (repository.provider.rootUri) {
+			templateData.label.setLabel(label, repository.provider.label, { title: `${repository.provider.label}: ${repository.provider.rootUri.fsPath}` });
+		} else {
+			templateData.label.setLabel(label, undefined, { title: repository.provider.label });
+		}
 
 		let statusPrimaryActions: IAction[] = [];
 		let menuPrimaryActions: IAction[] = [];
@@ -130,9 +120,9 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			templateData.toolBar.setActions([...statusPrimaryActions, ...menuPrimaryActions], menuSecondaryActions);
 		};
 
-		templateData.elementDisposables.add(autorunWithStore((reader, store) => {
+		templateData.elementDisposables.add(autorun(reader => {
 			const commands = repository.provider.statusBarCommands.read(reader) ?? [];
-			statusPrimaryActions = commands.map(c => store.add(new StatusBarAction(c, this.commandService)));
+			statusPrimaryActions = commands.map(c => reader.store.add(new StatusBarAction(c, this.commandService)));
 			updateToolbar();
 		}));
 

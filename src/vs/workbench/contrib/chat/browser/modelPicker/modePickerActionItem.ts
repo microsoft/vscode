@@ -79,17 +79,17 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 					mode => mode.source?.storage === PromptsStorage.extension && mode.source.extensionId.value === productService.defaultChatAgent?.chatExtensionId ?
 						'builtin' : 'custom');
 
-				const customBuiltinModeActions = customModes.builtin.map(mode => {
+				const customBuiltinModeActions = customModes.builtin?.map(mode => {
 					const action = makeActionFromCustomMode(mode, currentMode);
 					action.category = builtInCategory;
 					return action;
-				});
+				}) ?? [];
 
 				const orderedModes = coalesce([
 					agentMode && makeAction(agentMode, currentMode),
 					...customBuiltinModeActions,
 					...otherBuiltinModes.map(mode => mode && makeAction(mode, currentMode)),
-					...customModes.custom.map(mode => makeActionFromCustomMode(mode, currentMode))
+					...customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? []
 				]);
 
 				return orderedModes;

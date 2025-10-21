@@ -45,6 +45,7 @@ import {
 	widgetShadow
 } from '../../../../platform/theme/common/colorRegistry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 
 /** for debugging */
 const _sticky = false
@@ -935,10 +936,7 @@ class InputWithButton implements IDisposable {
 			this._buttonHoverContent = this._buttonGenHoverText;
 			this._disposables.add(getBaseLayerHoverDelegate().setupDelayedHover(this._buttonNode, () => ({
 				content: this._buttonHoverContent,
-				appearance: {
-					showPointer: true,
-					compact: true,
-				}
+				style: HoverStyle.Pointer,
 			})));
 
 			this._domNode.appendChild(this._buttonNode);

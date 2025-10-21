@@ -13,7 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditableData } from '../../../common/views.js';
-import { IChatAgentRequest } from './chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './chatAgents.js';
 import { IChatProgress } from './chatService.js';
 
 export const enum ChatSessionStatus {
@@ -53,10 +53,7 @@ export interface IChatSessionsExtensionPoint {
 	readonly welcomeMessage?: string;
 	readonly welcomeTips?: string;
 	readonly inputPlaceholder?: string;
-	readonly capabilities?: {
-		supportsFileAttachments?: boolean;
-		supportsToolAttachments?: boolean;
-	};
+	readonly capabilities?: IChatAgentAttachmentCapabilities;
 	readonly commands?: IChatSessionCommandContribution[];
 }
 export interface IChatSessionItem {
@@ -175,6 +172,11 @@ export interface IChatSessionsService {
 
 	getSessionOption(chatSessionType: string, sessionId: string, optionId: string): string | undefined;
 	setSessionOption(chatSessionType: string, sessionId: string, optionId: string, value: string): boolean;
+
+	/**
+	 * Get the capabilities for a specific session type
+	 */
+	getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');

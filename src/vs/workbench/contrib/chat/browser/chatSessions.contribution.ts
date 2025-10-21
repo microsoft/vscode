@@ -21,7 +21,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
-import { IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
@@ -37,6 +37,7 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 		type: 'array',
 		items: {
 			type: 'object',
+			additionalProperties: false,
 			properties: {
 				type: {
 					description: localize('chatSessionsExtPoint.chatSessionType', 'Unique identifier for the type of chat session.'),
@@ -81,6 +82,7 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 				capabilities: {
 					description: localize('chatSessionsExtPoint.capabilities', 'Optional capabilities for this chat session.'),
 					type: 'object',
+					additionalProperties: false,
 					properties: {
 						supportsFileAttachments: {
 							description: localize('chatSessionsExtPoint.supportsFileAttachments', 'Whether this chat session supports attaching files or file references.'),
@@ -88,6 +90,34 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 						},
 						supportsToolAttachments: {
 							description: localize('chatSessionsExtPoint.supportsToolAttachments', 'Whether this chat session supports attaching tools or tool references.'),
+							type: 'boolean'
+						},
+						supportsMCPAttachments: {
+							description: localize('chatSessionsExtPoint.supportsMCPAttachments', 'Whether this chat session supports attaching MCP resources.'),
+							type: 'boolean'
+						},
+						supportsImageAttachments: {
+							description: localize('chatSessionsExtPoint.supportsImageAttachments', 'Whether this chat session supports attaching images.'),
+							type: 'boolean'
+						},
+						supportsSearchResultAttachments: {
+							description: localize('chatSessionsExtPoint.supportsSearchResultAttachments', 'Whether this chat session supports attaching search results.'),
+							type: 'boolean'
+						},
+						supportsInstructionAttachments: {
+							description: localize('chatSessionsExtPoint.supportsInstructionAttachments', 'Whether this chat session supports attaching instructions.'),
+							type: 'boolean'
+						},
+						supportsSourceControlAttachments: {
+							description: localize('chatSessionsExtPoint.supportsSourceControlAttachments', 'Whether this chat session supports attaching source control changes.'),
+							type: 'boolean'
+						},
+						supportsProblemAttachments: {
+							description: localize('chatSessionsExtPoint.supportsProblemAttachments', 'Whether this chat session supports attaching problems.'),
+							type: 'boolean'
+						},
+						supportsSymbolAttachments: {
+							description: localize('chatSessionsExtPoint.supportsSymbolAttachments', 'Whether this chat session supports attaching symbols.'),
 							type: 'boolean'
 						}
 					}
@@ -752,6 +782,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 */
 	public getInputPlaceholderForSessionType(chatSessionType: string): string | undefined {
 		return this._sessionTypeInputPlaceholders.get(chatSessionType);
+	}
+
+	/**
+	 * Get the capabilities for a specific session type
+	 */
+	public getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined {
+		const contribution = this._contributions.get(chatSessionType);
+		return contribution?.capabilities;
 	}
 
 	/**
