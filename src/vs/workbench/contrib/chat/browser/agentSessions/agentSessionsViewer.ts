@@ -148,8 +148,10 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 export class AgentSessionsListDelegate implements IListVirtualDelegate<IAgentSessionViewModel> {
 
+	static readonly ITEM_HEIGHT = 44;
+
 	getHeight(element: IAgentSessionViewModel): number {
-		return 44;
+		return AgentSessionsListDelegate.ITEM_HEIGHT;
 	}
 
 	getTemplateId(element: IAgentSessionViewModel): string {

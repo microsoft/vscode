@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ThrottledDelayer } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionItemProvider, IChatSessionsService } from '../../common/chatSessionsService.js';
 
 //#region Interfaces, Types
 
@@ -25,6 +27,8 @@ export const enum AgentSessionStatus {
 }
 
 export interface IAgentSessionViewModel {
+
+	readonly provider: IChatSessionItemProvider;
 
 	readonly id: string;
 	readonly resource: URI;
@@ -46,6 +50,10 @@ export interface IAgentSessionViewModel {
 	};
 }
 
+export function isLocalAgentSessionItem(session: IAgentSessionViewModel): boolean {
+	return session.provider.chatSessionType === 'local';
+}
+
 export function isAgentSession(obj: IAgentSessionsViewModel | IAgentSessionViewModel): obj is IAgentSessionViewModel {
 	const session = obj as IAgentSessionViewModel | undefined;
 
@@ -64,18 +72,47 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 
 	readonly sessions: IAgentSessionViewModel[] = [];
 
-	constructor(@IChatSessionsService chatSessionsService: IChatSessionsService) {
+	private readonly resolver = this._register(new ThrottledDelayer<void>(100));
+
+	constructor(@IChatSessionsService private readonly chatSessionsService: IChatSessionsService) {
 		super();
 	}
 
 	async resolve(): Promise<void> {
-		this.sessions.length = 0;
+		return this.resolver.trigger(token => this.doResolve(token));
+	}
 
-		this.sessions.push(
-			{ id: '1', resource: URI.from({ scheme: 'agentSession', path: '1' }), label: 'React Component Help', description: 'Assistance with building React components.', timing: { startTime: Date.now() - 1000 * 60 * 2 }, statistics: { insertions: 10, deletions: 2 } },
-			{ id: '2', resource: URI.from({ scheme: 'agentSession', path: '2' }), label: 'TypeScript Types', description: 'Explain TypeScript generics.', timing: { startTime: Date.now() - 1000 * 60 * 60 }, statistics: { insertions: 5, deletions: 1 } },
-			{ id: '3', resource: URI.from({ scheme: 'agentSession', path: '3' }), label: 'API Integration', description: 'How to fetch data in next.js?', timing: { startTime: Date.now() - 1000 * 60 * 60 * 24, endTime: Date.now() - 1000 * 60 * 60 * 12 }, statistics: { insertions: 8, deletions: 3 } },
-			{ id: '4', resource: URI.from({ scheme: 'agentSession', path: '4' }), label: 'Database Schema', description: 'Help me design a database schema.', timing: { startTime: Date.now() - 1000 * 60 * 60 * 48, endTime: Date.now() - 1000 * 60 * 60 * 24 }, statistics: { insertions: 7, deletions: 2 } },
-		);
+	private async doResolve(token: CancellationToken): Promise<void> {
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		const newSessions: IAgentSessionViewModel[] = [];
+		for (const provider of this.chatSessionsService.getAllChatSessionItemProviders()) {
+			const sessions = await provider.provideChatSessionItems(token);
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			for (const session of sessions) {
+				newSessions.push({
+					provider,
+					id: session.id,
+					resource: session.resource,
+					label: session.label,
+					description: session.description ?? '',
+					icon: session.iconPath,
+					status: session.status as AgentSessionStatus | undefined,
+					timing: {
+						startTime: session.timing?.startTime ?? Date.now(),
+						endTime: session.timing?.endTime
+					},
+					statistics: session.statistics
+				});
+			}
+		}
+
+		this.sessions.length = 0;
+		this.sessions.push(...newSessions);
 	}
 }

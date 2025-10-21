@@ -54,6 +54,16 @@
 
 		.agent-session-details-row {
 			color: var(--vscode-descriptionForeground);
+
+			.rendered-markdown {
+				p {
+					margin: 0;
+				}
+
+				a {
+					color: var(--vscode-descriptionForeground);
+				}
+			}
 		}
 
 		.agent-session-title,

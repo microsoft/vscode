@@ -22,9 +22,9 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
+import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { $, append } from '../../../../../base/browser/dom.js';
-import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel } from './agentSessionViewModel.js';
+import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel, isLocalAgentSessionItem } from './agentSessionViewModel.js';
 import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsFilter, AgentSessionsIdentityProvider, AgentSessionsListDelegate } from './agentSessionsViewer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
@@ -35,10 +35,17 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
+import { findExistingChatEditorByUri, NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
 import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
+import { ChatSessionUri } from '../../common/chatUri.js';
+import { IChatEditorOptions } from '../chatEditor.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { assertReturnsDefined } from '../../../../../base/common/types.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 export class AgentSessionsView extends FilterViewPane {
 
@@ -62,7 +69,9 @@ export class AgentSessionsView extends FilterViewPane {
 		@IHoverService hoverService: IHoverService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super({
 			...options,
@@ -95,19 +104,20 @@ export class AgentSessionsView extends FilterViewPane {
 	}
 
 	private registerListeners(): void {
+		const list = assertReturnsDefined(this.list);
 
 		// Sessions Filter
 		this._register(this.filterWidget.onDidChangeFilterText(() => {
 			if (this.filter) {
 				this.filter.pattern = this.filterWidget.getFilterText() || '';
-				this.list?.refilter();
+				list.refilter();
 			}
 		}));
 
 		this._register(this.filterWidget.onDidAcceptFilterText(() => {
-			this.list?.domFocus();
-			if (this.list?.getFocus().length === 0) {
-				this.list?.focusFirst();
+			list.domFocus();
+			if (list.getFocus().length === 0) {
+				list.focusFirst();
 			}
 		}));
 
@@ -118,14 +128,58 @@ export class AgentSessionsView extends FilterViewPane {
 			}
 
 			this.sessionsViewModel = this._register(this.instantiationService.createInstance(AgentSessionsViewModel));
-			this.list?.setInput(this.sessionsViewModel);
+			list.setInput(this.sessionsViewModel);
 		}));
 
 		this._register(Event.any(
 			this.chatSessionsService.onDidChangeItemsProviders,
 			this.chatSessionsService.onDidChangeAvailability,
-			this.chatSessionsService.onDidChangeSessionItems
+			this.chatSessionsService.onDidChangeSessionItems,
+			this.chatSessionsService.onDidChangeInProgress
 		)(() => this.refreshList()));
+
+		this._register(list.onDidOpen(e => {
+			this.openAgentSession(e);
+		}));
+
+		this._register(list.onMouseDblClick(({ element }) => {
+			if (element === null) {
+				this.commandService.executeCommand(ACTION_ID_OPEN_CHAT);
+			}
+		}));
+	}
+
+	private async openAgentSession(e: IOpenEvent<IAgentSessionViewModel | undefined>) {
+		const session = e.element;
+		if (!session) {
+			return;
+		}
+
+		if (session.resource.scheme !== ChatSessionUri.scheme) {
+			await this.openerService.open(session.resource);
+			return;
+		}
+
+		const uri = ChatSessionUri.forSession(session.provider.chatSessionType, session.id);
+		const existingSessionEditor = findExistingChatEditorByUri(uri, session.id, this.editorGroupsService);
+		if (existingSessionEditor) {
+			await this.editorGroupsService.getGroup(existingSessionEditor.groupId)?.openEditor(existingSessionEditor.editor, e.editorOptions);
+			return;
+		}
+
+		let sessionResource: URI;
+		let sessionOptions: IChatEditorOptions;
+		if (isLocalAgentSessionItem(session)) {
+			sessionResource = ChatEditorInput.getNewEditorUri();
+			sessionOptions = { target: { sessionId: session.id } };
+		} else {
+			sessionResource = ChatSessionUri.forSession(session.provider.chatSessionType, session.id);
+			sessionOptions = { title: { preferred: session.label } };
+		}
+
+		sessionOptions.ignoreInView = true;
+
+		await this.editorService.openEditor({ resource: sessionResource, options: sessionOptions });
 	}
 
 	private registerActions(): void {
@@ -233,7 +287,8 @@ export class AgentSessionsView extends FilterViewPane {
 				identityProvider: new AgentSessionsIdentityProvider(),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
-				filter: this.filter
+				filter: this.filter,
+				paddingBottom: AgentSessionsListDelegate.ITEM_HEIGHT
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore>;
 	}
