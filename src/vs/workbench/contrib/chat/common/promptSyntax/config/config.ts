@@ -176,44 +176,56 @@ export namespace PromptsConfig {
 	 * @see {@link PROMPT_FILES_SUGGEST_KEY}.
 	 */
 	export function getPromptFilesRecommendationsValue(configService: IConfigurationService, resource?: URI): Record<string, boolean | string> | undefined {
-		// Get the merged configuration value (VS Code automatically merges all levels: default → user → workspace → folder)
-		const configValue = configService.getValue(PromptsConfig.PROMPT_FILES_SUGGEST_KEY, { resource });
+		// Inspect configuration to access different scopes separately
+		const inspected = configService.inspect<Record<string, boolean | string>>(PromptsConfig.PROMPT_FILES_SUGGEST_KEY, { resource });
 
-		if (!configValue || typeof configValue !== 'object' || Array.isArray(configValue)) {
-			return undefined;
-		}
-
+		// Manually merge configurations with user settings taking priority over workspace/folder settings
+		// Priority order (highest to lowest): user → workspace → workspace folder → default
 		const suggestions: Record<string, boolean | string> = {};
 
-		for (const [promptName, value] of Object.entries(configValue)) {
-			const cleanPromptName = promptName.trim();
-
-			// Skip empty prompt names
-			if (!cleanPromptName) {
-				continue;
+		// Helper function to merge configuration values
+		const mergeConfig = (config: Record<string, boolean | string> | undefined) => {
+			if (!config || typeof config !== 'object' || Array.isArray(config)) {
+				return;
 			}
 
-			// Accept boolean values directly
-			if (typeof value === 'boolean') {
-				suggestions[cleanPromptName] = value;
-				continue;
-			}
+			for (const [promptName, value] of Object.entries(config)) {
+				const cleanPromptName = promptName.trim();
 
-			// Accept string values as when clauses
-			if (typeof value === 'string') {
-				const cleanValue = value.trim();
-				if (cleanValue) {
-					suggestions[cleanPromptName] = cleanValue;
+				// Skip empty prompt names
+				if (!cleanPromptName) {
+					continue;
 				}
-				continue;
-			}
 
-			// Convert other truthy/falsy values to boolean
-			const booleanValue = asBoolean(value);
-			if (booleanValue !== undefined) {
-				suggestions[cleanPromptName] = booleanValue;
+				// Only add if not already set by a higher-priority scope
+				if (suggestions[cleanPromptName] === undefined) {
+					// Accept boolean values directly
+					if (typeof value === 'boolean') {
+						suggestions[cleanPromptName] = value;
+					}
+					// Accept string values as when clauses
+					else if (typeof value === 'string') {
+						const cleanValue = value.trim();
+						if (cleanValue) {
+							suggestions[cleanPromptName] = cleanValue;
+						}
+					}
+					// Convert other truthy/falsy values to boolean
+					else {
+						const booleanValue = asBoolean(value);
+						if (booleanValue !== undefined) {
+							suggestions[cleanPromptName] = booleanValue;
+						}
+					}
+				}
 			}
-		}
+		};
+
+		// Merge in priority order: user first (highest priority), then workspace, then workspace folder, then default
+		mergeConfig(inspected.userValue);
+		mergeConfig(inspected.workspaceValue);
+		mergeConfig(inspected.workspaceFolderValue);
+		mergeConfig(inspected.defaultValue);
 
 		// Return undefined if no valid suggestions were found
 		return Object.keys(suggestions).length > 0 ? suggestions : undefined;

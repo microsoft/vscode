@@ -457,4 +457,206 @@ suite('PromptsConfig', () => {
 			});
 		});
 	});
+
+	suite('getPromptFilesRecommendationsValue', () => {
+		/**
+		 * Create a mock config service with inspect support for testing prompt file recommendations.
+		 */
+		function createInspectMock(inspectedValue: {
+			userValue?: Record<string, boolean | string>;
+			workspaceValue?: Record<string, boolean | string>;
+			workspaceFolderValue?: Record<string, boolean | string>;
+			defaultValue?: Record<string, boolean | string>;
+		}): IConfigurationService {
+			return mockService<IConfigurationService>({
+				inspect<T>(key: string) {
+					assert.strictEqual(key, PromptsConfig.PROMPT_FILES_SUGGEST_KEY, `Expected key '${PromptsConfig.PROMPT_FILES_SUGGEST_KEY}', got '${key}'.`);
+					return inspectedValue as any;
+				},
+			});
+		}
+
+		test('user settings override workspace settings', () => {
+			// User sets plan-fast to false, workspace sets it to true
+			const configService = createInspectMock({
+				userValue: { 'plan-fast': false },
+				workspaceValue: { 'plan-fast': true, 'plan-deep': true },
+			});
+
+			const result = PromptsConfig.getPromptFilesRecommendationsValue(configService);
+
+			assert.deepStrictEqual(
+				result,
+				{
+					'plan-fast': false,  // User setting takes priority
+					'plan-deep': true,   // Workspace setting used when user hasn't set it
+				},
+				'User settings must override workspace settings for the same property.',
+			);
+		});
+
+		test('user settings override workspace folder settings', () => {
+			const configService = createInspectMock({
+				userValue: { 'prompt-a': false },
+				workspaceFolderValue: { 'prompt-a': true, 'prompt-b': 'resourceLangId == typescript' },
+			});
+
+			const result = PromptsConfig.getPromptFilesRecommendationsValue(configService);
+
+			assert.deepStrictEqual(
+				result,
+				{
+					'prompt-a': false,  // User setting takes priority
+					'prompt-b': 'resourceLangId == typescript',  // Folder setting used when user hasn't set it
+				},
+				'User settings must override workspace folder settings.',
+			);
+		});
+
+		test('workspace settings override workspace folder settings', () => {
+			const configService = createInspectMock({
+				workspaceValue: { 'prompt-x': true },
+				workspaceFolderValue: { 'prompt-x': false, 'prompt-y': true },
+			});
+
+			const result = PromptsConfig.getPromptFilesRecommendationsValue(configService);
+
+			assert.deepStrictEqual(
+				result,
+				{
+					'prompt-x': true,  // Workspace setting takes priority over folder
+					'prompt-y': true,
+				},
+				'Workspace settings must override workspace folder settings.',
+			);
+		});
+
+		test('only user settings', () => {
+			const configService = createInspectMock({
+				userValue: { 'my-prompt': true, 'another-prompt': 'resourceExtname == .js' },
+			});
+
+			const result = PromptsConfig.getPromptFilesRecommendationsValue(configService);
+
+			assert.deepStrictEqual(
+				result,
+				{
+					'my-prompt': true,
+					'another-prompt': 'resourceExtname == .js',
+				},
+				'Must correctly read user settings.',
+			);
+		});
+
+		test('only workspace settings', () => {
+			const configService = createInspectMock({
+				workspaceValue: { 'workspace-prompt': false },
+			});
+
+			const result = PromptsConfig.getPromptFilesRecommendationsValue(configService);
+
+			assert.deepStrictEqual(
+				result,
+				{
+					'workspace-prompt': false,
+				},
+				'Must correctly read workspace settings.',
+			);
+		});
+
+		test('empty configuration', () => {
+			const configService = createInspectMock({});
+
+			const result = PromptsConfig.getPromptFilesRecommendationsValue(configService);
+
+			assert.strictEqual(
+				result,
+				undefined,
+				'Must return undefined when no configuration is set.',
+			);
+		});
+
+		test('filters invalid values', () => {
+			const configService = createInspectMock({
+				userValue: {
+					'valid-bool': true,
+					'valid-string': 'resourceLangId == markdown',
+					'invalid-empty-string': '',
+					'invalid-whitespace': '   ',
+					'valid-false': false,
+				},
+			});
+
+			const result = PromptsConfig.getPromptFilesRecommendationsValue(configService);
+
+			assert.deepStrictEqual(
+				result,
+				{
+					'valid-bool': true,
+					'valid-string': 'resourceLangId == markdown',
+					'valid-false': false,
+				},
+				'Must filter out invalid values.',
+			);
+		});
+
+		test('trims prompt names', () => {
+			const configService = createInspectMock({
+				userValue: {
+					'  prompt-with-spaces  ': true,
+					'normal-prompt': false,
+				},
+			});
+
+			const result = PromptsConfig.getPromptFilesRecommendationsValue(configService);
+
+			assert.deepStrictEqual(
+				result,
+				{
+					'prompt-with-spaces': true,
+					'normal-prompt': false,
+				},
+				'Must trim whitespace from prompt names.',
+			);
+		});
+
+		test('complex merge scenario', () => {
+			// Complex scenario with all levels
+			const configService = createInspectMock({
+				userValue: {
+					'user-only': true,
+					'override-all': 'user-value',
+				},
+				workspaceValue: {
+					'workspace-only': false,
+					'override-all': 'workspace-value',
+					'override-workspace-folder': true,
+				},
+				workspaceFolderValue: {
+					'folder-only': 'resourceExtname == .html',
+					'override-all': 'folder-value',
+					'override-workspace-folder': false,
+				},
+				defaultValue: {
+					'default-only': true,
+					'override-all': 'default-value',
+				},
+			});
+
+			const result = PromptsConfig.getPromptFilesRecommendationsValue(configService);
+
+			assert.deepStrictEqual(
+				result,
+				{
+					'user-only': true,
+					'override-all': 'user-value',  // User takes highest priority
+					'workspace-only': false,
+					'override-workspace-folder': true,  // Workspace overrides folder
+					'folder-only': 'resourceExtname == .html',
+					'default-only': true,
+				},
+				'Must correctly merge all configuration levels with proper priority.',
+			);
+		});
+	});
 });
