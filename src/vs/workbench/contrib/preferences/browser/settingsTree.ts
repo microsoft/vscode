@@ -7,7 +7,7 @@ import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
 import * as DOM from '../../../../base/browser/dom.js';
 import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -34,7 +34,7 @@ import { isIOS } from '../../../../base/common/platform.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { isDefined, isUndefinedOrNull } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { localize } from '../../../../nls.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -57,6 +57,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { getIgnoredSettings } from '../../../../platform/userDataSync/common/settingsMerge.js';
 import { IUserDataSyncEnablementService, getDefaultIgnoredSettings } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -823,8 +824,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected readonly _onApplyFilter = this._register(new Emitter<string>());
 	readonly onApplyFilter: Event<string> = this._onApplyFilter.event;
 
-	private readonly markdownRenderer: MarkdownRenderer;
-
 	constructor(
 		private readonly settingActions: IAction[],
 		private readonly disposableActionFactory: (setting: ISetting, settingTarget: SettingsTarget) => IAction[],
@@ -841,10 +840,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		@IProductService protected readonly _productService: IProductService,
 		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
 		@IHoverService protected readonly _hoverService: IHoverService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
-
-		this.markdownRenderer = _instantiationService.createInstance(MarkdownRenderer, {});
 
 		this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
 		this._register(this._configService.onDidChangeConfiguration(e => {
@@ -1028,20 +1026,17 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		// Rewrite `#editor.fontSize#` to link format
 		text = fixSettingLinks(text);
 
-		const renderedMarkdown = this.markdownRenderer.render({ value: text, isTrusted: true }, {
-			actionHandler: {
-				callback: (content: string) => {
-					if (content.startsWith('#')) {
-						const e: ISettingLinkClickEvent = {
-							source: element,
-							targetKey: content.substring(1)
-						};
-						this._onDidClickSettingLink.fire(e);
-					} else {
-						this._openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
-					}
-				},
-				disposables
+		const renderedMarkdown = disposables.add(this._markdownRendererService.render({ value: text, isTrusted: true }, {
+			actionHandler: (content: string) => {
+				if (content.startsWith('#')) {
+					const e: ISettingLinkClickEvent = {
+						source: element,
+						targetKey: content.substring(1)
+					};
+					this._onDidClickSettingLink.fire(e);
+				} else {
+					this._openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
+				}
 			},
 			asyncRenderCallback: () => {
 				const height = container.clientHeight;
@@ -1049,8 +1044,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 					this._onDidChangeSettingHeight.fire({ element, height });
 				}
 			},
-		});
-		disposables.add(renderedMarkdown);
+		}));
 
 		renderedMarkdown.element.classList.add('setting-item-markdown');
 		cleanRenderedMarkdown(renderedMarkdown.element);
@@ -1063,7 +1057,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.toDispose.dispose();
 	}
 
-	disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined): void {
+	disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate): void {
 		(template as ISettingItemTemplate).elementDisposables?.clear();
 	}
 }
@@ -1178,7 +1172,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 
 		const onClickOrKeydown = (e: UIEvent) => {
 			if (isLanguageTagSetting) {
-				this._onApplyFilter.fire(`@${LANGUAGE_SETTING_TAG}${plainKey}`);
+				this._onApplyFilter.fire(`@${LANGUAGE_SETTING_TAG}${plainKey.replaceAll(' ', '')}`);
 			} else {
 				this._onDidOpenSettings.fire(dataElement.setting.key);
 			}
@@ -1816,7 +1810,7 @@ class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRender
 		});
 
 		const selectBox = new SelectBox([], 0, this._contextViewService, styles, {
-			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
+			useCustomDrawn: !hasNativeContextMenu(this._configService) || !(isIOS && BrowserFeatures.pointerEvents)
 		});
 
 		common.toDispose.add(selectBox);
@@ -1881,11 +1875,8 @@ class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRender
 					detail: enumItemLabels[index] ? data : '',
 					description,
 					descriptionIsMarkdown: enumDescriptionsAreMarkdown,
-					descriptionMarkdownActionHandler: {
-						callback: (content) => {
-							this._openerService.open(content).catch(onUnexpectedError);
-						},
-						disposables: disposables
+					descriptionMarkdownActionHandler: (content) => {
+						this._openerService.open(content).catch(onUnexpectedError);
 					},
 					decoratorRight: (((data === stringifiedDefaultValue) || (createdDefault && index === 0)) ? localize('settings.Default', "default") : '')
 				} satisfies ISelectOptionItem;
@@ -2538,7 +2529,7 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 				ariaLabelSections.push(`${indicatorsLabelAriaLabel}.`);
 			}
 
-			const descriptionWithoutSettingLinks = renderMarkdownAsPlaintext({ value: fixSettingLinks(element.description, false) });
+			const descriptionWithoutSettingLinks = renderAsPlaintext({ value: fixSettingLinks(element.description, false) });
 			if (descriptionWithoutSettingLinks.length) {
 				ariaLabelSections.push(descriptionWithoutSettingLinks);
 			}
@@ -2625,7 +2616,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 		}));
 	}
 
-	protected override createModel(user: string, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
+	protected override createModel(user: string, options: IObjectTreeOptions<SettingsTreeElement | null, void>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
 		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(user, options);
 	}
 }

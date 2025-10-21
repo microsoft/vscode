@@ -168,7 +168,7 @@ class SyncedBuffer {
 	) { }
 
 	public open(): void {
-		const args: Proto.OpenRequestArgs = {
+		const args: Proto.OpenRequestArgs & { plugins?: string[] } = {
 			file: this.filepath,
 			fileContent: this.document.getText(),
 			projectRootPath: this.getProjectRootPath(this.document.uri),
@@ -183,7 +183,7 @@ class SyncedBuffer {
 			.filter(x => x.languages.indexOf(this.document.languageId) >= 0);
 
 		if (tsPluginsForDocument.length) {
-			(args as any).plugins = tsPluginsForDocument.map(plugin => plugin.name);
+			args.plugins = tsPluginsForDocument.map(plugin => plugin.name);
 		}
 
 		this.synchronizer.open(this.resource, args);
@@ -349,15 +349,15 @@ class GetErrRequest {
 		}
 	}
 
-	private areProjectDiagnosticsEnabled() {
+	private areProjectDiagnosticsEnabled(): boolean {
 		return this.client.configuration.enableProjectDiagnostics && this.client.capabilities.has(ClientCapability.Semantic);
 	}
 
-	private areRegionDiagnosticsEnabled() {
+	private areRegionDiagnosticsEnabled(): boolean {
 		return this.client.configuration.enableRegionDiagnostics && this.client.apiVersion.gte(API.v560);
 	}
 
-	public cancel(): any {
+	public cancel(): void {
 		if (!this._done) {
 			this._token.cancel();
 		}

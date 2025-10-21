@@ -29,6 +29,7 @@ import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browse
 import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/terminalStickyScrollContribution.js';
 import './media/terminalChatWidget.css';
 import { MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { ChatMode } from '../../../chat/common/chatModes.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -141,7 +142,8 @@ export class TerminalChatWidget extends Disposable {
 						telemetrySource: 'terminal-inline-chat',
 						executeToolbar: MenuId.ChatExecute,
 						inputSideToolbar: MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR,
-					}
+					},
+					defaultMode: ChatMode.Ask
 				}
 			},
 		);
@@ -228,7 +230,7 @@ export class TerminalChatWidget extends Disposable {
 
 	private _resetPlaceholder() {
 		const defaultAgent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Terminal);
-		this.inlineChatWidget.placeholder = defaultAgent?.description ?? localize('askAI', 'Ask AI');
+		this.inlineChatWidget.placeholder = defaultAgent?.description ?? localize('askAboutCommands', 'Ask about commands');
 	}
 
 	async reveal(viewState?: IChatViewState): Promise<void> {
@@ -331,12 +333,7 @@ export class TerminalChatWidget extends Disposable {
 				const model = this._model.value;
 				if (model) {
 					this._inlineChatWidget.setChatModel(model, this._loadViewState());
-					model.waitForInitialization().then(() => {
-						if (token.isCancellationRequested) {
-							return;
-						}
-						this._resetPlaceholder();
-					});
+					this._resetPlaceholder();
 				}
 				if (!this._model.value) {
 					throw new Error('Failed to start chat session');
@@ -479,7 +476,7 @@ export class TerminalChatWidget extends Disposable {
 				result: currentRequest.response!.result,
 				followups: currentRequest.response!.followups
 			});
-		widget.focusLastMessage();
+		widget.focusResponseItem();
 		this.hide();
 	}
 }

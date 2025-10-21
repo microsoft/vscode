@@ -24,15 +24,13 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 
 		return {
 			['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature']: (node: any) => {
-
-
 				const interfaceName = (<TSESTree.TSInterfaceDeclaration>(<TSESTree.Identifier>node).parent?.parent).id.name;
 				if (allowed.has(interfaceName)) {
 					// allowed
 					return;
 				}
 
-				const methodName = (<any>(<TSESTree.TSMethodSignatureNonComputedName>node).key).name;
+				const methodName = ((<TSESTree.TSMethodSignatureNonComputedName>node).key as TSESTree.Identifier).name;
 
 				if (!ApiProviderNaming._providerFunctionNames.test(methodName)) {
 					context.report({

@@ -11,7 +11,8 @@ import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
-import type { InlineDecoration, ViewLineRenderingData } from '../../../common/viewModel.js';
+import type { ViewLineRenderingData } from '../../../common/viewModel.js';
+import { InlineDecoration } from '../../../common/viewModel/inlineDecorations.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import type { ViewLineOptions } from '../../viewParts/viewLines/viewLineOptions.js';
 import type { ITextureAtlasPageGlyph } from '../atlas/atlas.js';
@@ -157,7 +158,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		const dpr = getActiveWindow().devicePixelRatio;
 		this._scrollOffsetValueBuffer[0] = (e?.scrollLeft ?? this._context.viewLayout.getCurrentScrollLeft()) * dpr;
 		this._scrollOffsetValueBuffer[1] = (e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) * dpr;
-		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer);
+		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer as Float32Array<ArrayBuffer>);
 		return true;
 	}
 

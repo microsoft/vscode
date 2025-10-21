@@ -29,9 +29,11 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 async function launchElectron(configuration: IElectronConfiguration, options: LaunchOptions) {
 	const { logger, tracing, snapshots } = options;
 
-	const electron = await measureAndLog(() => playwright._electron.launch({
+	const playwrightImpl = options.playwright ?? playwright;
+	const electron = await measureAndLog(() => playwrightImpl._electron.launch({
 		executablePath: configuration.electronPath,
 		args: configuration.args,
+		recordVideo: options.videosPath ? { dir: options.videosPath } : undefined,
 		env: configuration.env as { [key: string]: string },
 		timeout: 0
 	}), 'playwright-electron#launch', logger);

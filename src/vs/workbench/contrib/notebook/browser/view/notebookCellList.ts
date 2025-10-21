@@ -78,7 +78,7 @@ function validateWebviewBoundary(element: HTMLElement) {
 }
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
-	protected override readonly view!: NotebookCellListView<CellViewModel>;
+	declare protected readonly view: NotebookCellListView<CellViewModel>;
 	private viewZones!: NotebookViewZones;
 	private cellOverlays!: NotebookCellOverlays;
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
@@ -114,7 +114,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private readonly _onDidChangeVisibleRanges = this._localDisposableStore.add(new Emitter<void>());
 
-	onDidChangeVisibleRanges: Event<void> = this._onDidChangeVisibleRanges.event;
+	readonly onDidChangeVisibleRanges: Event<void> = this._onDidChangeVisibleRanges.event;
 	private _visibleRanges: ICellRange[] = [];
 
 	get visibleRanges() {

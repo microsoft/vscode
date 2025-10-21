@@ -8,7 +8,7 @@ import { commands, env, ProgressLocation, Uri, window, workspace, QuickPickOptio
 import { getOctokit } from './auth.js';
 import { GitErrorCodes, PushErrorHandler, Remote, Repository } from './typings/git.js';
 import * as path from 'path';
-import TelemetryReporter from '@vscode/extension-telemetry';
+import { TelemetryReporter } from '@vscode/extension-telemetry';
 
 
 
@@ -102,7 +102,7 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 	private disposables: Disposable[] = [];
 	private commandErrors = new CommandErrorOutputTextDocumentContentProvider();
 
-	constructor(private readonly telemetryReporter: TelemetryReporter.default) {
+	constructor(private readonly telemetryReporter: TelemetryReporter) {
 		this.disposables.push(workspace.registerTextDocumentContentProvider('github-output', this.commandErrors));
 	}
 

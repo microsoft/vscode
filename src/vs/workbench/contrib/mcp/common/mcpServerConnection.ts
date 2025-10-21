@@ -9,10 +9,10 @@ import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposabl
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogger, log } from '../../../../platform/log/common/log.js';
+import { ILogger, log, LogLevel } from '../../../../platform/log/common/log.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
+import { IMcpClientMethods, IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 
 export class McpServerConnection extends Disposable implements IMcpServerConnection {
 	private readonly _launch = this._register(new MutableDisposable<IReference<IMcpMessageTransport>>());
@@ -28,13 +28,14 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		private readonly _delegate: IMcpHostDelegate,
 		public readonly launchDefinition: McpServerLaunch,
 		private readonly _logger: ILogger,
+		private readonly _errorOnUserInteraction: boolean | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 	}
 
 	/** @inheritdoc */
-	public async start(): Promise<McpConnectionState> {
+	public async start(methods: IMcpClientMethods): Promise<McpConnectionState> {
 		const currentState = this._state.get();
 		if (!McpConnectionState.canBeStarted(currentState.state)) {
 			return this._waitForState(McpConnectionState.Kind.Running, McpConnectionState.Kind.Error);
@@ -45,8 +46,8 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		this._logger.info(localize('mcpServer.starting', 'Starting server {0}', this.definition.label));
 
 		try {
-			const launch = this._delegate.start(this._collection, this.definition, this.launchDefinition);
-			this._launch.value = this.adoptLaunch(launch);
+			const launch = this._delegate.start(this._collection, this.definition, this.launchDefinition, { errorOnUserInteraction: this._errorOnUserInteraction });
+			this._launch.value = this.adoptLaunch(launch, methods);
 			return this._waitForState(McpConnectionState.Kind.Running, McpConnectionState.Kind.Error);
 		} catch (e) {
 			const errorState: McpConnectionState = {
@@ -58,7 +59,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		}
 	}
 
-	private adoptLaunch(launch: IMcpMessageTransport): IReference<IMcpMessageTransport> {
+	private adoptLaunch(launch: IMcpMessageTransport, methods: IMcpClientMethods): IReference<IMcpMessageTransport> {
 		const store = new DisposableStore();
 		const cts = new CancellationTokenSource();
 
@@ -76,7 +77,12 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 
 			if (state.state === McpConnectionState.Kind.Running && !didStart) {
 				didStart = true;
-				McpServerRequestHandler.create(this._instantiationService, launch, this._logger, cts.token).then(
+				McpServerRequestHandler.create(this._instantiationService, {
+					launch,
+					logger: this._logger,
+					requestLogLevel: this.definition.devMode ? LogLevel.Info : LogLevel.Debug,
+					...methods,
+				}, cts.token).then(
 					handler => {
 						if (!store.isDisposed) {
 							this._requestHandler.set(handler, undefined);
@@ -85,7 +91,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 						}
 					},
 					err => {
-						if (!store.isDisposed) {
+						if (!store.isDisposed && McpConnectionState.isRunning(this._state.read(undefined))) {
 							let message = err.message;
 							if (err instanceof CancellationError) {
 								message = 'Server exited before responding to `initialize` request.';

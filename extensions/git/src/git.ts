@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 import which from 'which';
 import { EventEmitter } from 'events';
 import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback } from './util';
+import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
@@ -23,6 +23,12 @@ const MAX_CLI_LENGTH = 30000;
 export interface IGit {
 	path: string;
 	version: string;
+}
+
+export interface IDotGit {
+	readonly path: string;
+	readonly commonPath?: string;
+	readonly superProjectPath?: string;
 }
 
 export interface IFileStatus {
@@ -301,8 +307,8 @@ export class GitError extends Error {
 			stderr: this.stderr
 		}, null, 2);
 
-		if (this.error) {
-			result += (<any>this.error).stack;
+		if (this.error?.stack) {
+			result += this.error.stack;
 		}
 
 		return result;
@@ -341,8 +347,15 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.InvalidBranchName;
 	} else if (/Please,? commit your changes or stash them/.test(stderr)) {
 		return GitErrorCodes.DirtyWorkTree;
+	} else if (/detected dubious ownership in repository at/.test(stderr)) {
+		return GitErrorCodes.NotASafeGitRepository;
+	} else if (/contains modified or untracked files|use --force to delete it/.test(stderr)) {
+		return GitErrorCodes.WorktreeContainsChanges;
+	} else if (/fatal: '[^']+' already exists/.test(stderr)) {
+		return GitErrorCodes.WorktreeAlreadyExists;
+	} else if (/is already used by worktree at/.test(stderr)) {
+		return GitErrorCodes.WorktreeBranchAlreadyUsed;
 	}
-
 	return undefined;
 }
 
@@ -401,7 +414,7 @@ export class Git {
 		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
 	}
 
-	open(repositoryRoot: string, repositoryRootRealPath: string | undefined, dotGit: { path: string; commonPath?: string }, logger: LogOutputChannel): Repository {
+	open(repositoryRoot: string, repositoryRootRealPath: string | undefined, dotGit: IDotGit, logger: LogOutputChannel): Repository {
 		return new Repository(this, repositoryRoot, repositoryRootRealPath, dotGit, logger);
 	}
 
@@ -537,9 +550,16 @@ export class Git {
 		return repositoryRootPath;
 	}
 
-	async getRepositoryDotGit(repositoryPath: string): Promise<{ path: string; commonPath?: string }> {
-		const result = await this.exec(repositoryPath, ['rev-parse', '--git-dir', '--git-common-dir']);
-		let [dotGitPath, commonDotGitPath] = result.stdout.split('\n').map(r => r.trim());
+	async getRepositoryDotGit(repositoryPath: string): Promise<IDotGit> {
+		let dotGitPath: string | undefined, commonDotGitPath: string | undefined, superProjectPath: string | undefined;
+
+		const args = ['rev-parse', '--git-dir', '--git-common-dir'];
+		if (this.compareGitVersionTo('2.13.0') >= 0) {
+			args.push('--show-superproject-working-tree');
+		}
+
+		const result = await this.exec(repositoryPath, args);
+		[dotGitPath, commonDotGitPath, superProjectPath] = result.stdout.split('\n').map(r => r.trim());
 
 		if (!path.isAbsolute(dotGitPath)) {
 			dotGitPath = path.join(repositoryPath, dotGitPath);
@@ -551,11 +571,13 @@ export class Git {
 				commonDotGitPath = path.join(repositoryPath, commonDotGitPath);
 			}
 			commonDotGitPath = path.normalize(commonDotGitPath);
-
-			return { path: dotGitPath, commonPath: commonDotGitPath !== dotGitPath ? commonDotGitPath : undefined };
 		}
 
-		return { path: dotGitPath };
+		return {
+			path: dotGitPath,
+			commonPath: commonDotGitPath !== dotGitPath ? commonDotGitPath : undefined,
+			superProjectPath: superProjectPath ? path.normalize(superProjectPath) : undefined
+		};
 	}
 
 	async exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
@@ -841,6 +863,12 @@ export class GitStatusParser {
 
 		return lastIndex + 1;
 	}
+}
+
+export interface Worktree {
+	readonly name: string;
+	readonly path: string;
+	readonly ref: string;
 }
 
 export interface Submodule {
@@ -1211,9 +1239,20 @@ export class Repository {
 		private _git: Git,
 		private repositoryRoot: string,
 		private repositoryRootRealPath: string | undefined,
-		readonly dotGit: { path: string; commonPath?: string },
+		readonly dotGit: IDotGit,
 		private logger: LogOutputChannel
-	) { }
+	) {
+		this._kind = this.dotGit.commonPath
+			? 'worktree'
+			: this.dotGit.superProjectPath
+				? 'submodule'
+				: 'repository';
+	}
+
+	private readonly _kind: 'repository' | 'submodule' | 'worktree';
+	get kind(): 'repository' | 'submodule' | 'worktree' {
+		return this._kind;
+	}
 
 	get git(): Git {
 		return this._git;
@@ -1280,8 +1319,8 @@ export class Repository {
 		});
 	}
 
-	async log(options?: LogOptions): Promise<Commit[]> {
-		const spawnOptions: SpawnOptions = {};
+	async log(options?: LogOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
+		const spawnOptions: SpawnOptions = { cancellationToken };
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.shortStats) {
@@ -1307,7 +1346,13 @@ export class Repository {
 		}
 
 		if (options?.author) {
-			args.push(`--author="${options.author}"`);
+			args.push(`--author=${options.author}`);
+		}
+
+		if (options?.grep) {
+			args.push(`--grep=${options.grep}`);
+			args.push('--extended-regexp');
+			args.push('--regexp-ignore-case');
 		}
 
 		if (typeof options?.maxParents === 'number') {
@@ -1342,7 +1387,7 @@ export class Repository {
 		return parseGitCommits(result.stdout);
 	}
 
-	async logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
+	async logFile(uri: Uri, options?: LogFileOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.maxEntries && !options?.reverse) {
@@ -1373,7 +1418,7 @@ export class Repository {
 		args.push('--', uri.fsPath);
 
 		try {
-			const result = await this.exec(args);
+			const result = await this.exec(args, { cancellationToken });
 			if (result.exitCode) {
 				// No file history, e.g. a new file or untracked
 				return [];
@@ -1991,6 +2036,29 @@ export class Repository {
 
 	async deleteTag(name: string): Promise<void> {
 		const args = ['tag', '-d', name];
+		await this.exec(args);
+	}
+
+	async addWorktree(options: { path: string; commitish: string; branch?: string }): Promise<void> {
+		const args = ['worktree', 'add'];
+
+		if (options.branch) {
+			args.push('-b', options.branch);
+		}
+
+		args.push(options.path, options.commitish);
+
+		await this.exec(args);
+	}
+
+	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
+		const args = ['worktree', 'remove'];
+
+		if (options?.force) {
+			args.push('--force');
+		}
+
+		args.push(path);
 		await this.exec(args);
 	}
 
@@ -2706,6 +2774,64 @@ export class Repository {
 		return parseGitStashes(result.stdout.trim());
 	}
 
+	async getWorktrees(): Promise<Worktree[]> {
+		return await this.getWorktreesFS();
+	}
+
+	private async getWorktreesFS(): Promise<Worktree[]> {
+		const config = workspace.getConfiguration('git', Uri.file(this.repositoryRoot));
+		const shouldDetectWorktrees = config.get<boolean>('detectWorktrees') === true;
+
+		if (!shouldDetectWorktrees) {
+			this.logger.info('[Git][getWorktreesFS] Worktree detection is disabled, skipping worktree detection');
+			return [];
+		}
+
+		try {
+			// List all worktree folder names
+			const worktreesPath = path.join(this.dotGit.commonPath ?? this.dotGit.path, 'worktrees');
+			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
+			const result: Worktree[] = [];
+
+			for (const dirent of dirents) {
+				if (!dirent.isDirectory()) {
+					continue;
+				}
+
+				try {
+					const headPath = path.join(worktreesPath, dirent.name, 'HEAD');
+					const headContent = (await fs.readFile(headPath, 'utf8')).trim();
+
+					const gitdirPath = path.join(worktreesPath, dirent.name, 'gitdir');
+					const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
+
+					result.push({
+						name: dirent.name,
+						// Remove '/.git' suffix
+						path: gitdirContent.replace(/\/.git.*$/, ''),
+						// Remove 'ref: ' prefix
+						ref: headContent.replace(/^ref: /, ''),
+					});
+				} catch (err) {
+					if (/ENOENT/.test(err.message)) {
+						continue;
+					}
+
+					throw err;
+				}
+			}
+
+			return result;
+		}
+		catch (err) {
+			if (/ENOENT/.test(err.message) || /ENOTDIR/.test(err.message)) {
+				return [];
+			}
+
+			throw err;
+		}
+	}
+
 	async getRemotes(): Promise<Remote[]> {
 		const remotes: MutableRemote[] = [];
 
@@ -2846,8 +2972,8 @@ export class Repository {
 					const result = await this.exec(['rev-list', '--left-right', '--count', `${branch.name}...${branch.upstream.remote}/${branch.upstream.name}`]);
 					const [ahead, behind] = result.stdout.trim().split('\t');
 
-					(branch as any).ahead = Number(ahead) || 0;
-					(branch as any).behind = Number(behind) || 0;
+					(branch as Mutable<Branch>).ahead = Number(ahead) || 0;
+					(branch as Mutable<Branch>).behind = Number(behind) || 0;
 				} catch { }
 			}
 
@@ -2925,6 +3051,37 @@ export class Repository {
 			return Promise.reject<Commit>('bad commit format');
 		}
 		return commits[0];
+	}
+
+	async showChanges(ref: string): Promise<string> {
+		try {
+			const result = await this.exec(['log', '-p', '-n1', ref, '--']);
+			return result.stdout.trim();
+		} catch (err) {
+			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.BadRevision;
+			}
+
+			throw err;
+		}
+	}
+
+	async showChangesBetween(ref1: string, ref2: string, path?: string): Promise<string> {
+		try {
+			const args = ['log', '-p', `${ref1}..${ref2}`, '--'];
+			if (path) {
+				args.push(this.sanitizeRelativePath(path));
+			}
+
+			const result = await this.exec(args);
+			return result.stdout.trim();
+		} catch (err) {
+			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.BadRevision;
+			}
+
+			throw err;
+		}
 	}
 
 	async revList(ref1: string, ref2: string): Promise<string[]> {
@@ -3008,8 +3165,8 @@ export class Repository {
 			return relativePath;
 		}
 
-		// Fallback to the original path
-		filePath = sanitizeRelativePath(filePath);
+		// Fallback to relative()
+		filePath = sanitizeRelativePath(path.relative(this.repositoryRoot, filePath));
 		this.logger.trace(`[Git][sanitizeRelativePath] relativePath (fallback): ${filePath}`);
 		return filePath;
 	}

@@ -18,12 +18,12 @@ import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { INotificationsToastController } from './notificationsCommands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { Severity, NotificationsFilter, NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { Severity, NotificationsFilter, NotificationPriority, withSeverityPrefix } from '../../../../platform/notification/common/notification.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IntervalCounter } from '../../../../base/common/async.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { NotificationsToastsVisibleContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
@@ -46,9 +46,9 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	private static readonly MAX_NOTIFICATIONS = 3;
 
 	private static readonly PURGE_TIMEOUT: { [severity: number]: number } = {
-		[Severity.Info]: 15000,
-		[Severity.Warning]: 18000,
-		[Severity.Error]: 20000
+		[Severity.Info]: 10000,
+		[Severity.Warning]: 12000,
+		[Severity.Error]: 15000
 	};
 
 	private static readonly SPAM_PROTECTION = {
@@ -200,11 +200,11 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
 			verticalScrollMode: ScrollbarVisibility.Hidden,
 			widgetAriaLabel: (() => {
-
 				if (!item.source) {
-					return localize('notificationAriaLabel', "{0}, notification", item.message.raw);
+					return withSeverityPrefix(localize('notificationAriaLabel', "{0}, notification", item.message.raw), item.severity);
 				}
-				return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", item.message.raw, item.source);
+
+				return withSeverityPrefix(localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", item.message.raw, item.source), item.severity);
 			})()
 		});
 		itemDisposables.add(notificationList);
@@ -289,7 +289,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		disposables.add(addDisposableListener(notificationToastContainer, EventType.MOUSE_OUT, () => isMouseOverToast = false));
 
 		// Install Timers to Purge Notification
-		let purgeTimeoutHandle: any;
+		let purgeTimeoutHandle: Timeout;
 		let listener: IDisposable;
 
 		const hideAfterTimeout = () => {
@@ -560,11 +560,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			availableHeight -= (2 * 12); // adjust for paddings top and bottom
 		}
 
-		availableHeight = typeof availableHeight === 'number'
-			? Math.round(availableHeight * 0.618) // try to not cover the full height for stacked toasts
-			: 0;
-
-		return new Dimension(Math.min(maxWidth, availableWidth), availableHeight);
+		return new Dimension(Math.min(maxWidth, availableWidth), availableHeight ?? 0);
 	}
 
 	private layoutLists(width: number): void {
@@ -572,6 +568,13 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	}
 
 	private layoutContainer(heightToGive: number): void {
+
+		// Allow the full height for 1 toast but adjust for multiple toasts
+		// so that a stack of notifications does not exceed all the way up
+
+		let singleToastHeightToGive = heightToGive;
+		let multipleToastsHeightToGive = Math.round(heightToGive * 0.618);
+
 		let visibleToasts = 0;
 		for (const toast of this.getToasts(ToastVisibility.HIDDEN_OR_VISIBLE)) {
 
@@ -579,12 +582,13 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			toast.container.style.opacity = '0';
 			this.updateToastVisibility(toast, true);
 
-			heightToGive -= toast.container.offsetHeight;
+			singleToastHeightToGive -= toast.container.offsetHeight;
+			multipleToastsHeightToGive -= toast.container.offsetHeight;
 
 			let makeVisible = false;
 			if (visibleToasts === NotificationsToasts.MAX_NOTIFICATIONS) {
 				makeVisible = false; // never show more than MAX_NOTIFICATIONS
-			} else if (heightToGive >= 0) {
+			} else if ((visibleToasts === 0 && singleToastHeightToGive >= 0) || (visibleToasts > 0 && multipleToastsHeightToGive >= 0)) {
 				makeVisible = true; // hide toast if available height is too little
 			}
 
@@ -604,7 +608,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		}
 
 		// Update visibility in DOM
-		const notificationsToastsContainer = assertIsDefined(this.notificationsToastsContainer);
+		const notificationsToastsContainer = assertReturnsDefined(this.notificationsToastsContainer);
 		if (visible) {
 			notificationsToastsContainer.appendChild(toast.container);
 		} else {

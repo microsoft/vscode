@@ -5,51 +5,58 @@
 
 .chat-setup-dialog {
 
-	p {
-		margin-top: 0;
-		margin-bottom: 0;
-		width: 100%;
+	/* Continue Buttons */
+
+	.dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button::before {
+		content: '';
+		background-size: 16px;
+		background-repeat: no-repeat;
+		background-position: left center;
+		padding-right: 6px;
+		width: 16px;
+		height: 22px;
+		line-height: inherit !important;
+		display: inline-block;
 	}
 
-	p.setup-legal {
-		font-size: 12px;
+	.dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.default::before {
+		background-image: url('./github.svg');
+	}
+
+	.dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.google::before {
+		background-image: url('./google.svg');
+	}
+
+	/* Link Buttons */
+
+	.dialog-buttons-row > .dialog-buttons > .monaco-button.link-button {
+		border: 0 !important;
+		background-color: unset !important;
+		color: var(--vscode-textLink-foreground) !important;
+		width: fit-content;
+		margin-left: auto;
+		margin-right: auto;
+	}
+
+	.dialog-buttons-row > .dialog-buttons > .monaco-button.link-button.skip-button {
+		font-size: 11px;
+		color: var(--vscode-descriptionForeground) !important;
+	}
+
+	/* Footer */
+
+	.chat-setup-dialog-footer {
+		font-size: 11px;
 		color: var(--vscode-descriptionForeground);
-		margin-top: 2em;
 	}
+}
 
-	p.setup-settings {
-		font-size: 12px;
-		color: var(--vscode-descriptionForeground);
-		margin-top: 1em;
-	}
+.monaco-workbench.hc-black .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before,
+.monaco-workbench.vs-dark .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before {
+	background-image: url('./apple-dark.svg');
+}
 
-	.chat-feature-container {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		padding: 5px 10px 5px 10px;
-	}
-
-	.chat-feature-container .codicon[class*='codicon-'] {
-		font-size: 16px;
-	}
-
-	.codicon[class*='codicon-'] {
-		font-size: 13px;
-		line-height: 1.4em;
-		vertical-align: bottom;
-	}
-
-	.button-container {
-		padding-top: 20px;
-	}
-
-	/** Dropdown Button */
-	.monaco-button-dropdown {
-		width: 100%;
-	}
-
-	.monaco-button-dropdown .monaco-text-button {
-		width: 100%;
-	}
+.monaco-workbench.hc-light .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before,
+.monaco-workbench.vs .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before {
+	background-image: url('./apple-light.svg');
 }

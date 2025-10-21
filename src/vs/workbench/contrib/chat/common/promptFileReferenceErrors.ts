@@ -121,7 +121,7 @@ export class RecursiveReference extends ResolveError {
 
 	constructor(
 		uri: URI,
-		public readonly recursivePath: string[],
+		public readonly recursivePath: readonly string[],
 	) {
 		// sanity check - a recursive path must always have at least
 		// two items in the list, otherwise it is not a recursive loop

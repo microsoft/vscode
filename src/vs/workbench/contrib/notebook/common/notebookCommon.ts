@@ -42,6 +42,7 @@ export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor'
 export const NOTEBOOK_MULTI_DIFF_EDITOR_ID = 'workbench.editor.notebookMultiTextDiffEditor';
 export const INTERACTIVE_WINDOW_EDITOR_ID = 'workbench.editor.interactive';
 export const REPL_EDITOR_ID = 'workbench.editor.repl';
+export const NOTEBOOK_OUTPUT_EDITOR_ID = 'workbench.editor.notebookOutputEditor';
 
 export const EXECUTE_REPL_COMMAND_ID = 'replNotebook.input.execute';
 
@@ -234,7 +235,7 @@ export interface ICellOutput {
 	 * Alternative output id that's reused when the output is updated.
 	 */
 	alternativeOutputId: string;
-	onDidChangeData: Event<void>;
+	readonly onDidChangeData: Event<void>;
 	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
 	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
@@ -276,13 +277,13 @@ export interface ICell {
 	getHashValue(): number;
 	textBuffer: IReadonlyTextBuffer;
 	textModel?: ITextModel;
-	onDidChangeTextModel: Event<void>;
+	readonly onDidChangeTextModel: Event<void>;
 	getValue(): string;
-	onDidChangeOutputs?: Event<NotebookCellOutputsSplice>;
-	onDidChangeOutputItems?: Event<void>;
-	onDidChangeLanguage: Event<string>;
-	onDidChangeMetadata: Event<void>;
-	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent>;
+	readonly onDidChangeOutputs?: Event<NotebookCellOutputsSplice>;
+	readonly onDidChangeOutputItems?: Event<void>;
+	readonly onDidChangeLanguage: Event<string>;
+	readonly onDidChangeMetadata: Event<void>;
+	readonly onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent>;
 }
 
 export interface INotebookSnapshotOptions {
@@ -304,8 +305,8 @@ export interface INotebookTextModel extends INotebookTextModelLike {
 	createSnapshot(options: INotebookSnapshotOptions): NotebookData;
 	restoreSnapshot(snapshot: NotebookData, transientOptions?: TransientOptions): void;
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo?: boolean): boolean;
-	onDidChangeContent: Event<NotebookTextModelChangedEvent>;
-	onWillDispose: Event<void>;
+	readonly onDidChangeContent: Event<NotebookTextModelChangedEvent>;
+	readonly onWillDispose: Event<void>;
 }
 
 export type NotebookCellTextModelSplice<T> = [
@@ -646,7 +647,20 @@ export namespace CellUri {
 		});
 	}
 
-	export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number } | undefined {
+	export function generateOutputEditorUri(notebook: URI, cellId: string, cellIndex: number, outputId: string, outputIndex: number): URI {
+		return notebook.with({
+			scheme: Schemas.vscodeNotebookCellOutput,
+			query: new URLSearchParams({
+				openIn: 'notebookOutputEditor',
+				notebook: notebook.toString(),
+				cellIndex: String(cellIndex),
+				outputId: outputId,
+				outputIndex: String(outputIndex),
+			}).toString()
+		});
+	}
+
+	export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number; cellIndex?: number } | undefined {
 		return extractCellOutputDetails(uri);
 	}
 
@@ -1002,6 +1016,7 @@ export const NotebookSetting = {
 	stickyScrollMode: 'notebook.stickyScroll.mode',
 	undoRedoPerCell: 'notebook.undoRedoPerCell',
 	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
+	openOutputInPreviewEditor: 'notebook.output.openInPreviewEditor.enabled',
 	showFoldingControls: 'notebook.showFoldingControls',
 	dragAndDropEnabled: 'notebook.dragAndDropEnabled',
 	cellEditorOptionsCustomizations: 'notebook.editorOptionsCustomizations',
@@ -1077,14 +1092,6 @@ export interface NotebookExtensionDescription {
 	readonly id: ExtensionIdentifier;
 	readonly location: UriComponents | undefined;
 }
-
-/**
- * Whether the provided mime type is a text stream like `stdout`, `stderr`.
- */
-export function isTextStreamMime(mimeType: string) {
-	return ['application/vnd.code.notebook.stdout', 'application/vnd.code.notebook.stderr'].includes(mimeType);
-}
-
 
 const textDecoder = new TextDecoder();
 

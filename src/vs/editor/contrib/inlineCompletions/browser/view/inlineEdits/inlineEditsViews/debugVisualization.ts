@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { IReader, derivedWithStore } from '../../../../../../../base/common/observable.js';
-import { Rect } from '../../../../../../browser/rect.js';
+import { IReader, derived } from '../../../../../../../base/common/observable.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
 
 export interface IVisualizationEffect {
 	visualize(): IDisposable;
 }
 
 export function setVisualization(data: object, visualization: IVisualizationEffect): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	(data as any)['$$visualization'] = visualization;
 }
 
@@ -104,8 +105,8 @@ export function debugView(value: unknown, reader: IReader): void {
 }
 
 function debugReadDisposable(d: IDisposable, reader: IReader): void {
-	derivedWithStore((_reader, store) => {
-		store.add(d);
+	derived({ name: 'debugReadDisposable' }, (_reader) => {
+		_reader.store.add(d);
 		return undefined;
 	}).read(reader);
 }

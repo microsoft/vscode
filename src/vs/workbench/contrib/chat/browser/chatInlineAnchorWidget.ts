@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -36,11 +36,12 @@ import { FolderThemeIcon, IThemeService } from '../../../../platform/theme/commo
 import { fillEditorsDragData } from '../../../browser/dnd.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { INotebookDocumentService } from '../../../services/notebook/common/notebookDocumentService.js';
 import { ExplorerFolderContext } from '../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatContentInlineReference } from '../common/chatService.js';
 import { IChatWidgetService } from './chat.js';
-import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from './chatContentParts/chatAttachmentsContentPart.js';
+import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from './chatAttachmentWidgets.js';
 import { IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
 
 type ContentRefData =
@@ -51,6 +52,22 @@ type ContentRefData =
 		readonly range?: IRange;
 	};
 
+export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore) {
+	const links = element.querySelectorAll('a');
+	links.forEach(a => {
+		// Empty link text -> render file widget
+		if (!a.textContent?.trim()) {
+			const href = a.getAttribute('data-href');
+			const uri = href ? URI.parse(href) : undefined;
+			if (uri?.scheme) {
+				const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri });
+				disposables.add(chatMarkdownAnchorService.register(widget));
+				disposables.add(widget);
+			}
+		}
+	});
+}
+
 export class InlineAnchorWidget extends Disposable {
 
 	public static readonly className = 'chat-inline-anchor-widget';
@@ -58,8 +75,6 @@ export class InlineAnchorWidget extends Disposable {
 	private readonly _chatResourceContext: IContextKey<string>;
 
 	readonly data: ContentRefData;
-
-	private _isDisposed = false;
 
 	constructor(
 		private readonly element: HTMLAnchorElement | HTMLElement,
@@ -75,6 +90,7 @@ export class InlineAnchorWidget extends Disposable {
 		@IModelService modelService: IModelService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
+		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService,
 	) {
 		super();
 
@@ -111,7 +127,9 @@ export class InlineAnchorWidget extends Disposable {
 			const label = labelService.getUriBasenameLabel(location.uri);
 			iconText = location.range && this.data.kind !== 'symbol' ?
 				`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
-				label;
+				location.uri.scheme === 'vscode-notebook-cell' && this.data.kind !== 'symbol' ?
+					`${label} • cell${this.getCellIndex(location.uri)}` :
+					label;
 
 			let fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
 			const recomputeIconClasses = () => getIconClasses(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined);
@@ -150,7 +168,7 @@ export class InlineAnchorWidget extends Disposable {
 					console.error(e);
 				}
 
-				if (this._isDisposed) {
+				if (this._store.isDisposed) {
 					return;
 				}
 
@@ -196,13 +214,14 @@ export class InlineAnchorWidget extends Disposable {
 		}
 	}
 
-	override dispose(): void {
-		this._isDisposed = true;
-		super.dispose();
-	}
-
 	getHTMLElement(): HTMLElement {
 		return this.element;
+	}
+
+	private getCellIndex(location: URI) {
+		const notebook = this.notebookDocumentService.getNotebook(location);
+		const index = notebook?.getCellIndex(location) ?? -1;
+		return index >= 0 ? ` ${index + 1}` : '';
 	}
 }
 
@@ -360,7 +379,7 @@ registerAction2(class GoToDefinitionAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
+	override async run(accessor: ServicesAccessor, location: Location): Promise<unknown> {
 		const editorService = accessor.get(ICodeEditorService);
 		const instantiationService = accessor.get(IInstantiationService);
 

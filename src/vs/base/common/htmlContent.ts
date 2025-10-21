@@ -118,7 +118,7 @@ export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownStri
 	}
 }
 
-export function isMarkdownString(thing: any): thing is IMarkdownString {
+export function isMarkdownString(thing: unknown): thing is IMarkdownString {
 	if (thing instanceof MarkdownString) {
 		return true;
 	} else if (thing && typeof thing === 'object') {
@@ -199,12 +199,15 @@ export function parseHrefAndDimensions(href: string): { href: string; dimensions
 	return { href, dimensions };
 }
 
-export function markdownCommandLink(command: { title: string; id: string; arguments?: unknown[] }): string {
-	const uri = URI.from({
-		scheme: Schemas.command,
-		path: command.id,
-		query: command.arguments?.length ? encodeURIComponent(JSON.stringify(command.arguments)) : undefined,
-	}).toString();
+export function markdownCommandLink(command: { title: string; id: string; arguments?: unknown[]; tooltip?: string }, escapeTokens = true): string {
+	const uri = createCommandUri(command.id, ...(command.arguments || [])).toString();
+	return `[${escapeTokens ? escapeMarkdownSyntaxTokens(command.title) : command.title}](${uri}${command.tooltip ? ` "${escapeMarkdownSyntaxTokens(command.tooltip)}"` : ''})`;
+}
 
-	return `[${escapeMarkdownSyntaxTokens(command.title)}](${uri})`;
+export function createCommandUri(commandId: string, ...commandArgs: unknown[]): URI {
+	return URI.from({
+		scheme: Schemas.command,
+		path: commandId,
+		query: commandArgs.length ? encodeURIComponent(JSON.stringify(commandArgs)) : undefined,
+	});
 }

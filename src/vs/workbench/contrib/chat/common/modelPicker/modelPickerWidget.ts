@@ -5,4 +5,4 @@
 
 import { localize } from '../../../../../nls.js';
 
-export const DEFAULT_MODEL_PICKER_CATEGORY = { label: localize('chat.modelPicker.other', "Other Models") };
+export const DEFAULT_MODEL_PICKER_CATEGORY = { label: localize('chat.modelPicker.other', "Other Models"), order: Number.MAX_SAFE_INTEGER };

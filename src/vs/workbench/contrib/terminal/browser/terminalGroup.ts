@@ -251,6 +251,9 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 
 	get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
+	private _hadFocusOnExit: boolean = false;
+	get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
+
 	private _initialRelativeSizes: number[] | undefined;
 	private _visible: boolean = false;
 
@@ -358,8 +361,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 				this._setActiveInstance(instance);
 				this._onDidFocusInstance.fire(instance);
 			}),
-			instance.capabilities.onDidAddCapabilityType(() => this._onDidChangeInstanceCapability.fire(instance)),
-			instance.capabilities.onDidRemoveCapabilityType(() => this._onDidChangeInstanceCapability.fire(instance)),
+			instance.capabilities.onDidChangeCapabilities(() => this._onDidChangeInstanceCapability.fire(instance)),
 		]);
 	}
 
@@ -395,6 +397,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 
 		// Fire events and dispose group if it was the last instance
 		if (this._terminalInstances.length === 0) {
+			this._hadFocusOnExit = instance.hadFocusOnExit;
 			this._onDisposed.fire(this);
 			this.dispose();
 		} else {

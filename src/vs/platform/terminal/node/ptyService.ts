@@ -12,7 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { getSystemShell } from '../../../base/node/shell.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { RequestStore } from '../common/requestStore.js';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement, type IPtyServiceContribution } from '../common/terminal.js';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement, type IPtyServiceContribution, PosixShellType, ITerminalLaunchResult } from '../common/terminal.js';
 import { TerminalDataBufferer } from '../common/terminalDataBuffering.js';
 import { escapeNonWindowsPath } from '../common/terminalEnvironment.js';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from '@xterm/addon-serialize';
@@ -27,7 +27,7 @@ import { ShellIntegrationAddon } from '../common/xterm/shellIntegrationAddon.js'
 import { formatMessageForTerminal } from '../common/terminalStrings.js';
 import { IPtyHostProcessReplayEvent } from '../common/capabilities/capabilities.js';
 import { IProductService } from '../../product/common/productService.js';
-import { join } from 'path';
+import { join } from '../../../base/common/path.js';
 import { memoize } from '../../../base/common/decorators.js';
 import * as performance from '../../../base/common/performance.js';
 import pkg from '@xterm/headless';
@@ -42,14 +42,14 @@ export function traceRpc(_target: any, key: string, descriptor: any) {
 	}
 	const fnKey = 'value';
 	const fn = descriptor.value;
-	descriptor[fnKey] = async function (...args: any[]) {
+	descriptor[fnKey] = async function (...args: unknown[]) {
 		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
 			this.traceRpcArgs.logService.trace(`[RPC Request] PtyService#${fn.name}(${args.map(e => JSON.stringify(e)).join(', ')})`);
 		}
 		if (this.traceRpcArgs.simulatedLatency) {
 			await timeout(this.traceRpcArgs.simulatedLatency);
 		}
-		let result: any;
+		let result: unknown;
 		try {
 			result = await fn.apply(this, args);
 		} catch (e) {
@@ -78,7 +78,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	// #region Pty service contribution RPC calls
 
-	private readonly _autoRepliesContribution = new AutoRepliesPtyServiceContribution(this._logService);
+	private readonly _autoRepliesContribution: AutoRepliesPtyServiceContribution;
 	@traceRpc
 	async installAutoReply(match: string, reply: string) {
 		await this._autoRepliesContribution.installAutoReply(match, reply);
@@ -90,9 +90,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	// #endregion
 
-	private readonly _contributions: IPtyServiceContribution[] = [
-		this._autoRepliesContribution
-	];
+	private readonly _contributions: IPtyServiceContribution[];
 
 	private _lastPtyId: number = 0;
 
@@ -148,6 +146,11 @@ export class PtyService extends Disposable implements IPtyService {
 
 		this._detachInstanceRequestStore = this._register(new RequestStore(undefined, this._logService));
 		this._detachInstanceRequestStore.onCreateRequest(this._onDidRequestDetach.fire, this._onDidRequestDetach);
+
+		this._autoRepliesContribution = new AutoRepliesPtyServiceContribution(this._logService);
+
+		this._contributions = [this._autoRepliesContribution];
+
 	}
 
 	@traceRpc
@@ -398,7 +401,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	@traceRpc
-	async start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	async start(id: number): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		const pty = this._ptys.get(id);
 		return pty ? pty.start() : { message: `Could not find pty with id "${id}"` };
 	}
@@ -417,6 +420,10 @@ export class PtyService extends Disposable implements IPtyService {
 			}
 			pty.input(data);
 		}
+	}
+	@traceRpc
+	async sendSignal(id: number, signal: string): Promise<void> {
+		return this._throwIfNoPty(id).sendSignal(signal);
 	}
 	@traceRpc
 	async processBinary(id: number, data: string): Promise<void> {
@@ -482,7 +489,7 @@ export class PtyService extends Disposable implements IPtyService {
 			}
 			return new Promise<string>(c => {
 				const proc = execFile(wslExecutable, ['-e', 'wslpath', original], {}, (error, stdout, stderr) => {
-					c(error ? original : escapeNonWindowsPath(stdout.trim()));
+					c(error ? original : escapeNonWindowsPath(stdout.trim(), PosixShellType.Bash));
 				});
 				proc.stdin!.end();
 			});
@@ -543,8 +550,9 @@ export class PtyService extends Disposable implements IPtyService {
 			const doneSet: Set<number> = new Set();
 			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(args.workspaceId, tab, doneSet)));
 			const tabs = expandedTabs.filter(t => t.terminals.length > 0);
+			const expandedBackground = (await Promise.all(layout.background?.map(b => this._expandTerminalInstance(args.workspaceId, b, doneSet)) ?? [])).filter(b => b.terminal !== null).map(b => b.terminal);
 			performance.mark('code/didGetTerminalLayoutInfo');
-			return { tabs };
+			return { tabs, background: expandedBackground };
 		}
 		performance.mark('code/didGetTerminalLayoutInfo');
 		return undefined;
@@ -560,22 +568,24 @@ export class PtyService extends Disposable implements IPtyService {
 		};
 	}
 
-	private async _expandTerminalInstance(workspaceId: string, t: ITerminalInstanceLayoutInfoById, doneSet: Set<number>): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
+	private async _expandTerminalInstance(workspaceId: string, t: ITerminalInstanceLayoutInfoById | number, doneSet: Set<number>): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
+		const hasLayout = typeof t !== 'number';
+		const ptyId = hasLayout ? t.terminal : t;
 		try {
-			const oldId = this._getRevivingProcessId(workspaceId, t.terminal);
+			const oldId = this._getRevivingProcessId(workspaceId, ptyId);
 			const revivedPtyId = this._revivedPtyIdMap.get(oldId)?.newId;
 			this._logService.info(`Expanding terminal instance, old id ${oldId} -> new id ${revivedPtyId}`);
 			this._revivedPtyIdMap.delete(oldId);
-			const persistentProcessId = revivedPtyId ?? t.terminal;
+			const persistentProcessId = revivedPtyId ?? ptyId;
 			if (doneSet.has(persistentProcessId)) {
 				throw new Error(`Terminal ${persistentProcessId} has already been expanded`);
 			}
 			doneSet.add(persistentProcessId);
 			const persistentProcess = this._throwIfNoPty(persistentProcessId);
-			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess, revivedPtyId !== undefined);
+			const processDetails = persistentProcess && await this._buildProcessDetails(ptyId, persistentProcess, revivedPtyId !== undefined);
 			return {
 				terminal: { ...processDetails, id: persistentProcessId },
-				relativeSize: t.relativeSize
+				relativeSize: hasLayout ? t.relativeSize : 0
 			};
 		} catch (e) {
 			this._logService.warn(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
@@ -585,7 +595,7 @@ export class PtyService extends Disposable implements IPtyService {
 			// this will be filtered out and not reconnected
 			return {
 				terminal: null,
-				relativeSize: t.relativeSize
+				relativeSize: hasLayout ? t.relativeSize : 0
 			};
 		}
 	}
@@ -814,7 +824,7 @@ class PersistentTerminalProcess extends Disposable {
 		}
 	}
 
-	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		if (!this._isStarted) {
 			const result = await this._terminalProcess.start();
 			if (result && 'message' in result) {
@@ -852,6 +862,12 @@ class PersistentTerminalProcess extends Disposable {
 			return;
 		}
 		return this._terminalProcess.input(data);
+	}
+	sendSignal(signal: string): void {
+		if (this._inReplay) {
+			return;
+		}
+		return this._terminalProcess.sendSignal(signal);
 	}
 	writeBinary(data: string): Promise<void> {
 		return this._terminalProcess.processBinary(data);
@@ -1002,7 +1018,7 @@ class XtermSerializer implements ITerminalSerializer {
 			this._xterm.writeln(reviveBufferWithRestoreMessage);
 		}
 		this.setUnicodeVersion(unicodeVersion);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, true, undefined, logService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, true, undefined, undefined, logService);
 		this._xterm.loadAddon(this._shellIntegrationAddon);
 	}
 

@@ -62,7 +62,7 @@ async function initMicrosoftSovereignCloudAuthProvider(context: vscode.Extension
 		createSession: async (scopes: string[]) => {
 			try {
 				/* __GDPR__
-					"login" : {
+					"loginMicrosoftSovereignCloud" : {
 						"owner": "TylerLeonhardt",
 						"comment": "Used to determine the usage of the Microsoft Sovereign Cloud Auth Provider.",
 						"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." }
@@ -76,7 +76,7 @@ async function initMicrosoftSovereignCloudAuthProvider(context: vscode.Extension
 				return await aadService.createSession(scopes);
 			} catch (e) {
 				/* __GDPR__
-					"loginFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users run into issues with the login flow." }
+					"loginMicrosoftSovereignCloudFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users run into issues with the login flow." }
 				*/
 				telemetryReporter.sendTelemetryEvent('loginMicrosoftSovereignCloudFailed');
 
@@ -86,14 +86,14 @@ async function initMicrosoftSovereignCloudAuthProvider(context: vscode.Extension
 		removeSession: async (id: string) => {
 			try {
 				/* __GDPR__
-					"logout" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users log out." }
+					"logoutMicrosoftSovereignCloud" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users log out." }
 				*/
 				telemetryReporter.sendTelemetryEvent('logoutMicrosoftSovereignCloud');
 
 				await aadService.removeSessionById(id);
 			} catch (e) {
 				/* __GDPR__
-					"logoutFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often fail to log out." }
+					"logoutMicrosoftSovereignCloudFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often fail to log out." }
 				*/
 				telemetryReporter.sendTelemetryEvent('logoutMicrosoftSovereignCloudFailed');
 			}
@@ -122,49 +122,60 @@ export async function activate(context: vscode.ExtensionContext, telemetryReport
 		Environment.AzureCloud);
 	await loginService.initialize();
 
-	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('microsoft', 'Microsoft', {
-		onDidChangeSessions: loginService.onDidChangeSessions,
-		getSessions: (scopes: string[], options?: vscode.AuthenticationProviderSessionOptions) => loginService.getSessions(scopes, options?.account),
-		createSession: async (scopes: string[], options?: vscode.AuthenticationProviderSessionOptions) => {
-			try {
-				/* __GDPR__
-					"login" : {
-						"owner": "TylerLeonhardt",
-						"comment": "Used to determine the usage of the Microsoft Auth Provider.",
-						"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." }
-					}
-				*/
-				telemetryReporter.sendTelemetryEvent('login', {
-					// Get rid of guids from telemetry.
-					scopes: JSON.stringify(scopes.map(s => s.replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/i, '{guid}'))),
-				});
+	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider(
+		'microsoft',
+		'Microsoft',
+		{
+			onDidChangeSessions: loginService.onDidChangeSessions,
+			getSessions: (scopes: string[], options?: vscode.AuthenticationProviderSessionOptions) => loginService.getSessions(scopes, options),
+			createSession: async (scopes: string[], options?: vscode.AuthenticationProviderSessionOptions) => {
+				try {
+					/* __GDPR__
+						"login" : {
+							"owner": "TylerLeonhardt",
+							"comment": "Used to determine the usage of the Microsoft Auth Provider.",
+							"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." }
+						}
+					*/
+					telemetryReporter.sendTelemetryEvent('login', {
+						// Get rid of guids from telemetry.
+						scopes: JSON.stringify(scopes.map(s => s.replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/i, '{guid}'))),
+					});
 
-				return await loginService.createSession(scopes, options?.account);
-			} catch (e) {
-				/* __GDPR__
-					"loginFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users run into issues with the login flow." }
-				*/
-				telemetryReporter.sendTelemetryEvent('loginFailed');
+					return await loginService.createSession(scopes, options);
+				} catch (e) {
+					/* __GDPR__
+						"loginFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users run into issues with the login flow." }
+					*/
+					telemetryReporter.sendTelemetryEvent('loginFailed');
 
-				throw e;
+					throw e;
+				}
+			},
+			removeSession: async (id: string) => {
+				try {
+					/* __GDPR__
+						"logout" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users log out." }
+					*/
+					telemetryReporter.sendTelemetryEvent('logout');
+
+					await loginService.removeSessionById(id);
+				} catch (e) {
+					/* __GDPR__
+						"logoutFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often fail to log out." }
+					*/
+					telemetryReporter.sendTelemetryEvent('logoutFailed');
+				}
 			}
 		},
-		removeSession: async (id: string) => {
-			try {
-				/* __GDPR__
-					"logout" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users log out." }
-				*/
-				telemetryReporter.sendTelemetryEvent('logout');
-
-				await loginService.removeSessionById(id);
-			} catch (e) {
-				/* __GDPR__
-					"logoutFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often fail to log out." }
-				*/
-				telemetryReporter.sendTelemetryEvent('logoutFailed');
-			}
+		{
+			supportsMultipleAccounts: true,
+			supportedAuthorizationServers: [
+				vscode.Uri.parse('https://login.microsoftonline.com/*'),
+				vscode.Uri.parse('https://login.microsoftonline.com/*/v2.0')
+			]
 		}
-	}, { supportsMultipleAccounts: true }));
+	));
 
 	let microsoftSovereignCloudAuthProviderDisposable = await initMicrosoftSovereignCloudAuthProvider(context, telemetryReporter, uriHandler, betterSecretStorage);
 

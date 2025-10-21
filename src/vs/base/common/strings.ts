@@ -102,7 +102,7 @@ export function count(value: string, substr: string): number {
 	return result;
 }
 
-export function truncate(value: string, maxLength: number, suffix = '…'): string {
+export function truncate(value: string, maxLength: number, suffix = Ellipsis): string {
 	if (value.length <= maxLength) {
 		return value;
 	}
@@ -110,7 +110,7 @@ export function truncate(value: string, maxLength: number, suffix = '…'): stri
 	return `${value.substr(0, maxLength)}${suffix}`;
 }
 
-export function truncateMiddle(value: string, maxLength: number, suffix = '…'): string {
+export function truncateMiddle(value: string, maxLength: number, suffix = Ellipsis): string {
 	if (value.length <= maxLength) {
 		return value;
 	}
@@ -190,10 +190,6 @@ export function rtrim(haystack: string, needle: string): string {
 
 export function convertSimple2RegExpPattern(pattern: string): string {
 	return pattern.replace(/[\-\\\{\}\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&').replace(/[\*]/g, '.*');
-}
-
-export function stripWildcards(pattern: string): string {
-	return pattern.replace(/\*/g, '');
 }
 
 export interface RegExpOptions {
@@ -782,34 +778,6 @@ export function lcut(text: string, n: number, prefix = ''): string {
 	return prefix + trimmed.substring(i).trimStart();
 }
 
-/**
- * Given a string and a max length returns a shorted version. Shorting
- * happens at favorable positions - such as whitespace or punctuation characters.
- * The return value can be longer than the given value of `n`. Trailing whitespace is always trimmed.
- */
-export function rcut(text: string, n: number, suffix = ''): string {
-	const trimmed = text.trimEnd();
-
-	if (trimmed.length < n) {
-		return trimmed;
-	}
-
-	const parts = text.split(/\b/);
-	let result = '';
-	for (const part of parts) {
-		if (result.length > 0 && result.length + part.length > n) {
-			break;
-		}
-		result += part;
-	}
-
-	if (result === trimmed) {
-		return result;
-	}
-
-	return result.trim().replace(/b$/, '') + suffix;
-}
-
 // Defacto standard: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 const CSI_SEQUENCE = /(?:\x1b\[|\x9b)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~]/;
 const OSC_SEQUENCE = /(?:\x1b\]|\x9d).*?(?:\x1b\\|\x07|\x9c)/;
@@ -1358,4 +1326,33 @@ export class InvisibleCharacters {
 	public static get codePoints(): ReadonlySet<number> {
 		return InvisibleCharacters.getData();
 	}
+}
+
+export const Ellipsis = '\u2026';
+
+/**
+ * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
+ *
+ * From https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/btoa
+ */
+function toBinary(str: string): string {
+	const codeUnits = new Uint16Array(str.length);
+	for (let i = 0; i < codeUnits.length; i++) {
+		codeUnits[i] = str.charCodeAt(i);
+	}
+	let binary = '';
+	const uint8array = new Uint8Array(codeUnits.buffer);
+	for (let i = 0; i < uint8array.length; i++) {
+		binary += String.fromCharCode(uint8array[i]);
+	}
+	return binary;
+}
+
+/**
+ * Version of the global `btoa` function that handles multi-byte characters instead
+ * of throwing an exception.
+ */
+
+export function multibyteAwareBtoa(str: string): string {
+	return btoa(toBinary(str));
 }

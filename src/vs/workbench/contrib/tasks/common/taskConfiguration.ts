@@ -136,12 +136,18 @@ export interface IPresentationOptionsConfig {
 	 * Note that if the terminal process exits with a non-zero exit code, it will not close.
 	 */
 	close?: boolean;
+
+	/**
+	 * Controls whether to preserve the task name in the terminal after task completion.
+	 */
+	preserveTerminalName?: boolean;
 }
 
 export interface IRunOptionsConfig {
 	reevaluateOnRerun?: boolean;
 	runOn?: string;
 	instanceLimit?: number;
+	instancePolicy?: Tasks.InstancePolicy;
 }
 
 export interface ITaskIdentifier {
@@ -708,12 +714,13 @@ export namespace RunOnOptions {
 }
 
 export namespace RunOptions {
-	const properties: IMetaData<Tasks.IRunOptions, void>[] = [{ property: 'reevaluateOnRerun' }, { property: 'runOn' }, { property: 'instanceLimit' }];
+	const properties: IMetaData<Tasks.IRunOptions, void>[] = [{ property: 'reevaluateOnRerun' }, { property: 'runOn' }, { property: 'instanceLimit' }, { property: 'instancePolicy' }];
 	export function fromConfiguration(value: IRunOptionsConfig | undefined): Tasks.IRunOptions {
 		return {
 			reevaluateOnRerun: value ? value.reevaluateOnRerun : true,
 			runOn: value ? RunOnOptions.fromString(value.runOn) : Tasks.RunOnOptions.default,
-			instanceLimit: value ? value.instanceLimit : 1
+			instanceLimit: value?.instanceLimit ? Math.max(value.instanceLimit, 1) : 1,
+			instancePolicy: value ? InstancePolicy.fromString(value.instancePolicy) : Tasks.InstancePolicy.prompt
 		};
 	}
 
@@ -723,6 +730,27 @@ export namespace RunOptions {
 
 	export function fillProperties(target: Tasks.IRunOptions, source: Tasks.IRunOptions | undefined): Tasks.IRunOptions {
 		return _fillProperties(target, source, properties)!;
+	}
+}
+
+export namespace InstancePolicy {
+	export function fromString(value: string | undefined): Tasks.InstancePolicy {
+		if (!value) {
+			return Tasks.InstancePolicy.prompt;
+		}
+		switch (value.toLowerCase()) {
+			case 'terminatenewest':
+				return Tasks.InstancePolicy.terminateNewest;
+			case 'terminateoldest':
+				return Tasks.InstancePolicy.terminateOldest;
+			case 'warn':
+				return Tasks.InstancePolicy.warn;
+			case 'silent':
+				return Tasks.InstancePolicy.silent;
+			case 'prompt':
+			default:
+				return Tasks.InstancePolicy.prompt;
+		}
 	}
 }
 
@@ -856,7 +884,7 @@ namespace CommandOptions {
 namespace CommandConfiguration {
 
 	export namespace PresentationOptions {
-		const properties: IMetaData<Tasks.IPresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'revealProblems' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }, { property: 'group' }, { property: 'close' }];
+		const properties: IMetaData<Tasks.IPresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'revealProblems' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }, { property: 'group' }, { property: 'close' }, { property: 'preserveTerminalName' }];
 
 		interface IPresentationOptionsShape extends ILegacyCommandProperties {
 			presentation?: IPresentationOptionsConfig;
@@ -872,6 +900,7 @@ namespace CommandConfiguration {
 			let clear: boolean;
 			let group: string | undefined;
 			let close: boolean | undefined;
+			let preserveTerminalName: boolean | undefined;
 			let hasProps = false;
 			if (Types.isBoolean(config.echoCommand)) {
 				echo = config.echoCommand;
@@ -910,12 +939,15 @@ namespace CommandConfiguration {
 				if (Types.isBoolean(presentation.close)) {
 					close = presentation.close;
 				}
+				if (Types.isBoolean(presentation.preserveTerminalName)) {
+					preserveTerminalName = presentation.preserveTerminalName;
+				}
 				hasProps = true;
 			}
 			if (!hasProps) {
 				return undefined;
 			}
-			return { echo: echo!, reveal: reveal!, revealProblems: revealProblems!, focus: focus!, panel: panel!, showReuseMessage: showReuseMessage!, clear: clear!, group, close: close };
+			return { echo: echo!, reveal: reveal!, revealProblems: revealProblems!, focus: focus!, panel: panel!, showReuseMessage: showReuseMessage!, clear: clear!, group, close: close, preserveTerminalName };
 		}
 
 		export function assignProperties(target: Tasks.IPresentationOptions, source: Tasks.IPresentationOptions | undefined): Tasks.IPresentationOptions | undefined {
@@ -928,7 +960,7 @@ namespace CommandConfiguration {
 
 		export function fillDefaults(value: Tasks.IPresentationOptions, context: IParseContext): Tasks.IPresentationOptions | undefined {
 			const defaultEcho = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
-			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false }, properties, context);
+			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false, preserveTerminalName: false }, properties, context);
 		}
 
 		export function freeze(value: Tasks.IPresentationOptions): Readonly<Tasks.IPresentationOptions> | undefined {
@@ -1685,6 +1717,7 @@ export namespace TaskParser {
 
 	function isCustomTask(value: ICustomTask | IConfiguringTask): value is ICustomTask {
 		const type = value.type;
+		// eslint-disable-next-line local/code-no-any-casts
 		const customize = (value as any).customize;
 		return customize === undefined && (type === undefined || type === null || type === Tasks.CUSTOMIZED_TASK_TYPE || type === 'shell' || type === 'process');
 	}

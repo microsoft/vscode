@@ -3,38 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType } from '../../../../../base/browser/dom.js';
+import { $, append } from '../../../../../base/browser/dom.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { localize } from '../../../../../nls.js';
+import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatProgressMessage, IChatTask } from '../../common/chatService.js';
-import { IChatRendererContent, IChatWorkingProgress, isResponseVM } from '../../common/chatViewModel.js';
+import { localize } from '../../../../../nls.js';
+import { IChatProgressMessage, IChatTask, IChatTaskSerialized } from '../../common/chatService.js';
+import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
-import { InlineAnchorWidget } from '../chatInlineAnchorWidget.js';
+import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
 	private readonly showSpinner: boolean;
 	private readonly isHidden: boolean;
+	private readonly renderedMessage = this._register(new MutableDisposable<IRenderedMarkdown>());
 
 	constructor(
-		progress: IChatProgressMessage | IChatTask,
-		renderer: MarkdownRenderer,
+		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized,
+		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
 		context: IChatContentPartRenderContext,
 		forceShowSpinner: boolean | undefined,
 		forceShowMessage: boolean | undefined,
 		icon: ThemeIcon | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -47,36 +51,42 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			return;
 		}
 
-		if (this.showSpinner) {
+		if (this.showSpinner && !this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
 			// TODO@roblourens is this the right place for this?
 			// this step is in progress, communicate it to SR users
 			alert(progress.content.value);
 		}
 		const codicon = icon ? icon : this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.check;
-		const result = this._register(renderer.render(progress.content));
+		const result = this.chatContentMarkdownRenderer.render(progress.content);
 		result.element.classList.add('progress-step');
-		this.renderFileWidgets(result.element);
+		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 
 		this.domNode = $('.progress-container');
 		const iconElement = $('div');
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(codicon));
 		append(this.domNode, iconElement);
 		append(this.domNode, result.element);
+		this.renderedMessage.value = result;
 	}
 
-	private renderFileWidgets(element: HTMLElement): void {
-		const links = element.querySelectorAll('a');
-		links.forEach(a => {
-			// Empty link text -> render file widget
-			if (!a.textContent?.trim()) {
-				const href = a.getAttribute('data-href');
-				const uri = href ? URI.parse(href) : undefined;
-				if (uri?.scheme) {
-					const widget = this._register(this.instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }));
-					this._register(this.chatMarkdownAnchorService.register(widget));
-				}
-			}
-		});
+	updateMessage(content: MarkdownString): void {
+		if (this.isHidden) {
+			return;
+		}
+
+		// Render the new message
+		const result = this._register(this.chatContentMarkdownRenderer.render(content));
+		result.element.classList.add('progress-step');
+		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+
+		// Replace the old message container with the new one
+		if (this.renderedMessage.value) {
+			this.renderedMessage.value.element.replaceWith(result.element);
+		} else {
+			this.domNode.appendChild(result.element);
+		}
+
+		this.renderedMessage.value = result;
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
@@ -96,35 +106,6 @@ function shouldShowSpinner(followingContent: IChatRendererContent[], element: Ch
 	return isResponseVM(element) && !element.isComplete && followingContent.length === 0;
 }
 
-export class ChatWorkingProgressContentPart extends ChatProgressContentPart implements IChatContentPart {
-	constructor(
-		private readonly workingProgress: IChatWorkingProgress,
-		renderer: MarkdownRenderer,
-		context: IChatContentPartRenderContext,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IChatMarkdownAnchorService chatMarkdownAnchorService: IChatMarkdownAnchorService,
-	) {
-		const progressMessage: IChatProgressMessage = {
-			kind: 'progressMessage',
-			content: workingProgress.isPaused ?
-				new MarkdownString().appendText(localize('pausedMessage', "Paused")) :
-				new MarkdownString().appendText(localize('workingMessage', "Working..."))
-		};
-		super(progressMessage, renderer, context, undefined, undefined, workingProgress.isPaused ? Codicon.debugPause : undefined, instantiationService, chatMarkdownAnchorService);
-
-		if (workingProgress.isPaused) {
-			this.domNode.style.cursor = 'pointer';
-			this.domNode.title = localize('resume', "Click to resume");
-			this._register(addDisposableListener(this.domNode, EventType.CLICK, () => {
-				workingProgress.setPaused(false);
-			}));
-		}
-	}
-
-	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'working' && this.workingProgress.isPaused === other.isPaused;
-	}
-}
 
 export class ChatCustomProgressPart {
 	public readonly domNode: HTMLElement;
@@ -140,5 +121,26 @@ export class ChatCustomProgressPart {
 
 		messageElement.classList.add('progress-step');
 		append(this.domNode, messageElement);
+	}
+}
+
+export class ChatWorkingProgressContentPart extends ChatProgressContentPart implements IChatContentPart {
+	constructor(
+		_workingProgress: { kind: 'working' },
+		chatContentMarkdownRenderer: IMarkdownRenderer,
+		context: IChatContentPartRenderContext,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatMarkdownAnchorService chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		const progressMessage: IChatProgressMessage = {
+			kind: 'progressMessage',
+			content: new MarkdownString().appendText(localize('workingMessage', "Working..."))
+		};
+		super(progressMessage, chatContentMarkdownRenderer, context, undefined, undefined, undefined, instantiationService, chatMarkdownAnchorService, configurationService);
+	}
+
+	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		return other.kind === 'working';
 	}
 }

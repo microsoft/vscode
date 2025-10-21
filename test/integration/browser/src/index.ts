@@ -57,8 +57,8 @@ if (args.help) {
 	process.exit(1);
 }
 
-const width = 1200;
-const height = 800;
+const width = 1440;
+const height = 900;
 
 type BrowserType = 'chromium' | 'firefox' | 'webkit';
 type BrowserChannel = 'msedge' | 'chrome';
@@ -169,7 +169,7 @@ async function launchServer(browserType: BrowserType, browserChannel: BrowserCha
 		...process.env
 	};
 
-	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
+	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--disable-experiments', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {

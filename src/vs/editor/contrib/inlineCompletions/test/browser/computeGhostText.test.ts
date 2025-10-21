@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { computeGhostText } from '../../browser/model/computeGhostText.js';
 
@@ -20,9 +20,10 @@ suite('computeGhostText', () => {
 		const tempModel = createTextModel(cleanedText);
 		const range = Range.fromPositions(tempModel.getPositionAt(rangeStartOffset), tempModel.getPositionAt(rangeEndOffset));
 		const options = ['prefix', 'subword'] as const;
+		// eslint-disable-next-line local/code-no-any-casts
 		const result = {} as any;
 		for (const option of options) {
-			result[option] = computeGhostText(new SingleTextEdit(range, suggestion), tempModel, option)?.render(cleanedText, true);
+			result[option] = computeGhostText(new TextReplacement(range, suggestion), tempModel, option)?.render(cleanedText, true);
 		}
 
 		tempModel.dispose();
@@ -85,8 +86,8 @@ suite('computeGhostText', () => {
 	});
 
 	test('Multi Part Diffing 2', () => {
-		assert.deepStrictEqual(getOutput('[)]', '())'), ({ prefix: undefined, subword: "[(])[)]" }));
-		assert.deepStrictEqual(getOutput('[))]', '(())'), ({ prefix: undefined, subword: "[((]))" }));
+		assert.deepStrictEqual(getOutput('[)]', '())'), ({ prefix: undefined, subword: '[(])[)]' }));
+		assert.deepStrictEqual(getOutput('[))]', '(())'), ({ prefix: undefined, subword: '[((]))' }));
 	});
 
 	test('Parenthesis Matching', () => {

@@ -150,7 +150,7 @@ export interface IConfigurationUpdateOptions {
 export interface IConfigurationService {
 	readonly _serviceBrand: undefined;
 
-	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
+	readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 
 	getConfigurationData(): IConfigurationData | null;
 
@@ -347,5 +347,8 @@ export function merge(base: any, add: any, overwrite: boolean): void {
 }
 
 export function getLanguageTagSettingPlainKey(settingKey: string) {
-	return settingKey.replace(/[\[\]]/g, '');
+	return settingKey
+		.replace(/^\[/, '')
+		.replace(/]$/g, '')
+		.replace(/\]\[/g, ', ');
 }

@@ -72,17 +72,17 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		}));
 		this._register(this._themeService.onDidColorThemeChange(() => this._refreshStyles(true)));
 		this._updateDecorationVisibility();
-		this._register(this._capabilities.onDidAddCapabilityType(c => this._createCapabilityDisposables(c)));
-		this._register(this._capabilities.onDidRemoveCapabilityType(c => this._removeCapabilityDisposables(c)));
+		this._register(this._capabilities.onDidAddCapability(c => this._createCapabilityDisposables(c.id)));
+		this._register(this._capabilities.onDidRemoveCapability(c => this._removeCapabilityDisposables(c.id)));
 		this._register(lifecycleService.onWillShutdown(() => this._disposeAllDecorations()));
 	}
 
 	private _createCapabilityDisposables(c: TerminalCapability): void {
-		const store = new DisposableStore();
 		const capability = this._capabilities.get(c);
 		if (!capability || this._capabilityDisposables.has(c)) {
 			return;
 		}
+		const store = new DisposableStore();
 		switch (capability.type) {
 			case TerminalCapability.BufferMarkDetection:
 				store.add(capability.onMarkAdded(mark => this.registerMarkDecoration(mark)));
@@ -221,7 +221,20 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 			this.registerCommandDecoration(command);
 		}
 		commandDetectionListeners.push(capability.onCommandFinished(command => {
-			this.registerCommandDecoration(command);
+			const buffer = this._terminal?.buffer?.active;
+			const marker = command.promptStartMarker;
+
+			// Edge case: Handle case where tsc watch commands clears buffer, but decoration of that tsc command re-appears
+			const shouldRegisterDecoration = (
+				command.exitCode === undefined ||
+				// Only register decoration if the cursor is at or below the promptStart marker.
+				(buffer && marker && buffer.baseY + buffer.cursorY >= marker.line)
+			);
+
+			if (shouldRegisterDecoration) {
+				this.registerCommandDecoration(command);
+			}
+
 			if (command.exitCode) {
 				this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandFailed);
 			} else {

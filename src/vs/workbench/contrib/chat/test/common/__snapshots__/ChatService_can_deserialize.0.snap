@@ -60,6 +60,7 @@
       responseId: undefined,
       shouldBeRemovedOnSend: undefined,
       result: { metadata: { metadataKey: "value" } },
+      responseMarkdownInfo: undefined,
       followups: undefined,
       isCanceled: false,
       vote: undefined,
@@ -102,7 +103,8 @@
       codeCitations: [  ],
       timestamp: undefined,
       confirmation: undefined,
-      editedFileEvents: undefined
+      editedFileEvents: undefined,
+      modelId: undefined
     }
   ]
 }

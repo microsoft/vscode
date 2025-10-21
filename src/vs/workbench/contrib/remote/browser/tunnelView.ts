@@ -36,7 +36,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isAllInterfaces, isLocalhost, ITunnelService, RemoteTunnel, TunnelPrivacyId, TunnelProtocol } from '../../../../platform/tunnel/common/tunnel.js';
+import { isAllInterfaces, isLocalhost, isRemoteTunnel, ITunnelService, RemoteTunnel, TunnelPrivacyId, TunnelProtocol } from '../../../../platform/tunnel/common/tunnel.js';
 import { TunnelPrivacy } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -559,7 +559,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		});
 	}
 
-	disposeElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData, height: number | undefined) {
+	disposeElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData) {
 		templateData.elementDisposable.dispose();
 	}
 
@@ -1326,7 +1326,7 @@ export namespace OpenPortInBrowserAction {
 			let key: string | undefined;
 			if (isITunnelItem(arg)) {
 				key = makeAddress(arg.remoteHost, arg.remotePort);
-			} else if (arg.tunnelRemoteHost && arg.tunnelRemotePort) {
+			} else if (isRemoteTunnel(arg)) {
 				key = makeAddress(arg.tunnelRemoteHost, arg.tunnelRemotePort);
 			}
 			if (key) {
@@ -1355,7 +1355,7 @@ export namespace OpenPortInPreviewAction {
 			let key: string | undefined;
 			if (isITunnelItem(arg)) {
 				key = makeAddress(arg.remoteHost, arg.remotePort);
-			} else if (arg.tunnelRemoteHost && arg.tunnelRemotePort) {
+			} else if (isRemoteTunnel(arg)) {
 				key = makeAddress(arg.tunnelRemoteHost, arg.tunnelRemotePort);
 			}
 			if (key) {

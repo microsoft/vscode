@@ -9,9 +9,9 @@ import { derived, IObservable, ISettableObservable } from '../../../../../../bas
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
-import { LineRange } from '../../../../../common/core/lineRange.js';
+import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { Range } from '../../../../../common/core/range.js';
-import { SingleTextEdit, TextEdit } from '../../../../../common/core/textEdit.js';
+import { TextReplacement, TextEdit } from '../../../../../common/core/edits/textEdit.js';
 import { TextModelText } from '../../../../../common/model/textModelText.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineEdit } from '../../model/inlineEdit.js';
@@ -21,7 +21,7 @@ import { InlineEditsView } from './inlineEditsView.js';
 import { InlineEditTabAction } from './inlineEditsViewInterface.js';
 
 export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This class is no longer a diff producer. Rename it or get rid of it
-	public static readonly hot = createHotClass(InlineEditsViewAndDiffProducer);
+	public static readonly hot = createHotClass(this);
 
 	private readonly _editorObs: ObservableCodeEditor;
 
@@ -33,21 +33,21 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const textModel = this._editor.getModel();
 		if (!textModel) { return undefined; }
 
-		const editOffset = model.inlineEditState.get()?.inlineCompletion.updatedEdit;
+		const editOffset = model.inlineEditState.read(undefined)?.inlineCompletion.updatedEdit;
 		if (!editOffset) { return undefined; }
 
-		const edits = editOffset.edits.map(e => {
+		const edits = editOffset.replacements.map(e => {
 			const innerEditRange = Range.fromPositions(
 				textModel.getPositionAt(e.replaceRange.start),
 				textModel.getPositionAt(e.replaceRange.endExclusive)
 			);
-			return new SingleTextEdit(innerEditRange, e.newText);
+			return new TextReplacement(innerEditRange, e.newText);
 		});
 
 		const diffEdits = new TextEdit(edits);
 		const text = new TextModelText(textModel);
 
-		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.get(), inlineEdit.commands, inlineEdit.inlineCompletion);
+		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.read(undefined), model.allPositions.read(undefined), inlineEdit.commands, inlineEdit.inlineCompletion);
 	});
 
 	private readonly _inlineEditModel = derived<InlineEditModel | undefined>(this, reader => {
@@ -57,6 +57,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		if (!edit) { return undefined; }
 
 		const tabAction = derived<InlineEditTabAction>(this, reader => {
+			/** @description tabAction */
 			if (this._editorObs.isFocused.read(reader)) {
 				if (model.tabShouldJumpToInlineEdit.read(reader)) { return InlineEditTabAction.Jump; }
 				if (model.tabShouldAcceptInlineEdit.read(reader)) { return InlineEditTabAction.Accept; }

@@ -16,7 +16,7 @@ function clearContainer(container: HTMLElement) {
 }
 
 function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable {
-	const blob = new Blob([outputInfo.data()], { type: outputInfo.mime });
+	const blob = new Blob([outputInfo.data() as Uint8Array<ArrayBuffer>], { type: outputInfo.mime });
 	const src = URL.createObjectURL(blob);
 	const disposable = {
 		dispose: () => {
@@ -65,6 +65,7 @@ const domEval = (container: Element) => {
 		for (const key of preservedScriptAttributes) {
 			const val = node[key] || node.getAttribute && node.getAttribute(key);
 			if (val) {
+				// eslint-disable-next-line local/code-no-any-casts
 				scriptTag.setAttribute(key, val as any);
 			}
 		}
@@ -190,7 +191,7 @@ function renderError(
 		const minimalError = ctx.settings.minimalError && !!headerMessage?.length;
 		outputElement.classList.add('traceback');
 
-		const { formattedStack, errorLocation } = formatStackTrace(err.stack);
+		const { formattedStack, errorLocation } = formatStackTrace(err.stack, trustHtml);
 
 		const outputScrolling = !minimalError && scrollingEnabled(outputInfo, ctx.settings);
 		const lineLimit = minimalError ? 1000 : ctx.settings.lineLimit;

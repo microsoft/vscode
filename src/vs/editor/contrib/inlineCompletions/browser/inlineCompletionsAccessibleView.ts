@@ -14,8 +14,8 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { InlineCompletionsModel } from './model/inlineCompletionsModel.js';
-import { TextEdit } from '../../../common/core/textEdit.js';
-import { LineEdit } from '../../../common/core/lineEdit.js';
+import { TextEdit } from '../../../common/core/edits/textEdit.js';
+import { LineEdit } from '../../../common/core/edits/lineEdit.js';
 import { TextModelText } from '../../../common/model/textModelText.js';
 
 export class InlineCompletionsAccessibleView implements IAccessibleViewImplementation {
@@ -42,16 +42,17 @@ export class InlineCompletionsAccessibleView implements IAccessibleViewImplement
 class InlineCompletionsAccessibleViewContentProvider extends Disposable implements IAccessibleViewContentProvider {
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+	public readonly options: { language: string | undefined; type: AccessibleViewType.View };
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _model: InlineCompletionsModel,
 	) {
 		super();
+		this.options = { language: this._editor.getModel()?.getLanguageId() ?? undefined, type: AccessibleViewType.View };
 	}
 
 	public readonly id = AccessibleViewProviderId.InlineCompletions;
 	public readonly verbositySettingKey = 'accessibility.verbosity.inlineCompletions';
-	public readonly options = { language: this._editor.getModel()?.getLanguageId() ?? undefined, type: AccessibleViewType.View };
 
 	public provideContent(): string {
 		const state = this._model.state.get();

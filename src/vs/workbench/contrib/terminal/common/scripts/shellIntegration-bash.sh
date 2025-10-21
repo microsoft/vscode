@@ -15,7 +15,7 @@ vsc_env_values=()
 use_associative_array=0
 bash_major_version=${BASH_VERSINFO[0]}
 
-__vscode_shell_env_reporting="$VSCODE_SHELL_ENV_REPORTING"
+__vscode_shell_env_reporting="${VSCODE_SHELL_ENV_REPORTING:-}"
 unset VSCODE_SHELL_ENV_REPORTING
 
 envVarsToReport=()
@@ -66,8 +66,8 @@ fi
 if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"
 	for ITEM in "${ADDR[@]}"; do
-		VARNAME="${ITEM%%=*}"
-		VALUE="${ITEM#*=}"
+		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
 		export $VARNAME="$VALUE"
 	done
 	builtin unset VSCODE_ENV_REPLACE
@@ -75,8 +75,8 @@ fi
 if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_PREPEND"
 	for ITEM in "${ADDR[@]}"; do
-		VARNAME="${ITEM%%=*}"
-		VALUE="${ITEM#*=}"
+		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
 		export $VARNAME="$VALUE${!VARNAME}"
 	done
 	builtin unset VSCODE_ENV_PREPEND
@@ -84,11 +84,24 @@ fi
 if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_APPEND"
 	for ITEM in "${ADDR[@]}"; do
-		VARNAME="${ITEM%%=*}"
-		VALUE="${ITEM#*=}"
+		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
 		export $VARNAME="${!VARNAME}$VALUE"
 	done
 	builtin unset VSCODE_ENV_APPEND
+fi
+
+# Register Python shell activate hooks
+# Prevent multiple activation with guard
+if [ -z "${VSCODE_PYTHON_AUTOACTIVATE_GUARD:-}" ]; then
+	export VSCODE_PYTHON_AUTOACTIVATE_GUARD=1
+	if [ -n "${VSCODE_PYTHON_BASH_ACTIVATE:-}" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
+		# Prevent crashing by negating exit code
+		if ! builtin eval "$VSCODE_PYTHON_BASH_ACTIVATE"; then
+			__vsc_activation_status=$?
+			builtin printf '\x1b[0m\x1b[7m * \x1b[0;103m VS Code Python bash activation failed with exit code %d \x1b[0m' "$__vsc_activation_status"
+		fi
+	fi
 fi
 
 __vsc_get_trap() {
@@ -171,7 +184,7 @@ fi
 # Allow verifying $BASH_COMMAND doesn't have aliases resolved via history when the right HISTCONTROL
 # configuration is used
 __vsc_regex_histcontrol=".*(erasedups|ignoreboth|ignoredups).*"
-if [[ "$HISTCONTROL" =~ $__vsc_regex_histcontrol ]]; then
+if [[ "${HISTCONTROL:-}" =~ $__vsc_regex_histcontrol ]]; then
 	__vsc_history_verify=0
 else
 	__vsc_history_verify=1

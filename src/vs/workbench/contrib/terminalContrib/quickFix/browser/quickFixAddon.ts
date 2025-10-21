@@ -81,6 +81,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	readonly onDidUpdateQuickFixes = this._onDidUpdateQuickFixes.event;
 
 	constructor(
+		private readonly _sessionId: string,
 		private readonly _aliases: string[][] | undefined,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
@@ -98,10 +99,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (commandDetectionCapability) {
 			this._registerCommandHandlers();
 		} else {
-			this._register(this._capabilities.onDidAddCapabilityType(c => {
-				if (c === TerminalCapability.CommandDetection) {
-					this._registerCommandHandlers();
-				}
+			this._register(this._capabilities.onDidAddCommandDetectionCapability(() => {
+				this._registerCommandHandlers();
 			}));
 		}
 		this._register(this._quickFixService.onDidRegisterProvider(result => this.registerCommandFinishedListener(convertToQuickFixOptions(result))));
@@ -224,16 +223,19 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		type QuickFixResultTelemetryEvent = {
 			quickFixId: string;
 			ranQuickFix: boolean;
+			terminalSessionId: string;
 		};
 		type QuickFixClassification = {
 			owner: 'meganrogge';
 			quickFixId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The quick fix ID' };
 			ranQuickFix: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the quick fix was run' };
+			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The terminal session ID' };
 			comment: 'Terminal quick fixes';
 		};
 		this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>('terminal/quick-fix', {
 			quickFixId: id,
-			ranQuickFix: this._didRun
+			ranQuickFix: this._didRun,
+			terminalSessionId: this._sessionId
 		});
 		this._decoration.clear();
 		this._decorationDisposables.clear();

@@ -21,6 +21,8 @@ import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { ErrorHandler } from '../../common/extensionHostMain.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { ProxyIdentifier, Proxied } from '../../../services/extensions/common/proxyIdentifier.js';
+import { IExtHostApiDeprecationService, NullApiDeprecationService } from '../../common/extHostApiDeprecationService.js';
+import { ExtensionDescriptionRegistry, IActivationEventsReader } from '../../../services/extensions/common/extensionDescriptionRegistry.js';
 
 
 suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slowdown and eventual stack overflow #184926 ', function () {
@@ -36,6 +38,12 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 		}
 		$onUnexpectedError(err: any | SerializedError): void {
 
+		}
+	};
+
+	const basicActivationEventsReader: IActivationEventsReader = {
+		readActivationEvents: (extensionDescription: IExtensionDescription): string[] => {
+			return [];
 		}
 	};
 
@@ -58,13 +66,22 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 
 				}(extensionsIndex);
 			}
+			getExtensionRegistry() {
+				return new class extends ExtensionDescriptionRegistry {
+					override getExtensionDescription(extensionId: ExtensionIdentifier | string): IExtensionDescription | undefined {
+						return nullExtensionDescription;
+					}
+				}(basicActivationEventsReader, []);
+			}
 		}],
 		[IExtHostRpcService, new class extends mock<IExtHostRpcService>() {
 			declare readonly _serviceBrand: undefined;
 			override getProxy<T>(identifier: ProxyIdentifier<T>): Proxied<T> {
+				// eslint-disable-next-line local/code-no-any-casts
 				return <any>mainThreadExtensionsService;
 			}
-		}]
+		}],
+		[IExtHostApiDeprecationService, NullApiDeprecationService],
 	);
 
 	const originalPrepareStackTrace = Error.prepareStackTrace;
@@ -174,7 +191,7 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 
 	suite('https://gist.github.com/thecrypticace/f0f2e182082072efdaf0f8e1537d2cce', function () {
 
-		test("Restored, separate operations", () => {
+		test('Restored, separate operations', () => {
 			// Actual Test
 			let original;
 
@@ -212,7 +229,7 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 			assert.strictEqual(findSubstrCount, 4);
 		});
 
-		test("Never restored, separate operations", () => {
+		test('Never restored, separate operations', () => {
 			// Operation 1
 			for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
 			assert.ok(new Error().stack);
@@ -230,7 +247,7 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 			assert.ok(new Error().stack);
 		});
 
-		test("Restored, too many uses before restoration", async () => {
+		test('Restored, too many uses before restoration', async () => {
 			const original = Error.prepareStackTrace;
 			Error.prepareStackTrace = (_, stack) => stack;
 

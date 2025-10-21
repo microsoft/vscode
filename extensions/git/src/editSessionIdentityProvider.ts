@@ -16,7 +16,13 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 		this.providerRegistration = vscode.Disposable.from(
 			vscode.workspace.registerEditSessionIdentityProvider('file', this),
 			vscode.workspace.onWillCreateEditSessionIdentity((e) => {
-				e.waitUntil(this._onWillCreateEditSessionIdentity(e.workspaceFolder));
+				e.waitUntil(
+					this._onWillCreateEditSessionIdentity(e.workspaceFolder).catch(err => {
+						if (err instanceof vscode.CancellationError) {
+							throw err;
+						}
+					})
+				);
 			})
 		);
 	}

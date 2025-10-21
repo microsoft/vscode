@@ -10,22 +10,24 @@ import { findFirstMin } from '../../../../../../../base/common/arraysFind.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableValue, transaction } from '../../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../../base/common/platform.js';
-import { getIndentationLength, splitLines } from '../../../../../../../base/common/strings.js';
+import { splitLines } from '../../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { MenuEntryActionViewItem } from '../../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../browser/point.js';
-import { Rect } from '../../../../../../browser/rect.js';
+import { Point } from '../../../../../../common/core/2d/point.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../../common/core/lineRange.js';
-import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
+import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
-import { SingleTextEdit, TextEdit } from '../../../../../../common/core/textEdit.js';
+import { TextReplacement, TextEdit } from '../../../../../../common/core/edits/textEdit.js';
 import { RangeMapping } from '../../../../../../common/diff/rangeMapping.js';
 import { ITextModel } from '../../../../../../common/model.js';
 import { indentOfLine } from '../../../../../../common/model/textModel.js';
+import { CharCode } from '../../../../../../../base/common/charCode.js';
+import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 
 export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader | undefined): number {
 	editor.layoutInfo.read(reader);
@@ -104,6 +106,26 @@ export function getContentRenderWidth(content: string, editor: ICodeEditor, text
 	return numNoneTabs * w + numTabs * tabSize;
 }
 
+export function getEditorValidOverlayRect(editor: ObservableCodeEditor): IObservable<Rect> {
+	const contentLeft = editor.layoutInfoContentLeft;
+
+	const width = derived({ name: 'editor.validOverlay.width' }, r => {
+		const hasMinimapOnTheRight = editor.layoutInfoMinimap.read(r).minimapLeft !== 0;
+		const editorWidth = editor.layoutInfoWidth.read(r) - contentLeft.read(r);
+
+		if (hasMinimapOnTheRight) {
+			const minimapAndScrollbarWidth = editor.layoutInfoMinimap.read(r).minimapWidth + editor.layoutInfoVerticalScrollbarWidth.read(r);
+			return editorWidth - minimapAndScrollbarWidth;
+		}
+
+		return editorWidth;
+	});
+
+	const height = derived({ name: 'editor.validOverlay.height' }, r => editor.layoutInfoHeight.read(r) + editor.contentHeight.read(r));
+
+	return derived({ name: 'editor.validOverlay' }, r => Rect.fromLeftTopWidthHeight(contentLeft.read(r), 0, width.read(r), height.read(r)));
+}
+
 export class StatusBarViewItem extends MenuEntryActionViewItem {
 	protected readonly _updateLabelListener = this._register(this._contextKeyService.onDidChangeContext(() => {
 		this.updateLabel();
@@ -163,12 +185,51 @@ function offsetRangeToRange(columnOffsetRange: OffsetRange, startPos: Position):
 	);
 }
 
-export function createReindentEdit(text: string, range: LineRange): TextEdit {
+/**
+ * Calculates the indentation size (in spaces) of a given line,
+ * interpreting tabs as the specified tab size.
+ */
+function getIndentationSize(line: string, tabSize: number): number {
+	let currentSize = 0;
+	loop: for (let i = 0, len = line.length; i < len; i++) {
+		switch (line.charCodeAt(i)) {
+			case CharCode.Tab: currentSize += tabSize; break;
+			case CharCode.Space: currentSize++; break;
+			default: break loop;
+		}
+	}
+	// if currentSize % tabSize !== 0,
+	// then there are spaces which are not part of the indentation
+	return currentSize - (currentSize % tabSize);
+}
+
+/**
+ * Calculates the number of characters at the start of a line that correspond to a given indentation size,
+ * taking into account both tabs and spaces.
+ */
+function indentSizeToIndentLength(line: string, indentSize: number, tabSize: number): number {
+	let remainingSize = indentSize - (indentSize % tabSize);
+	let i = 0;
+	for (; i < line.length; i++) {
+		if (remainingSize === 0) {
+			break;
+		}
+		switch (line.charCodeAt(i)) {
+			case CharCode.Tab: remainingSize -= tabSize; break;
+			case CharCode.Space: remainingSize--; break;
+			default: throw new BugIndicatingError('Unexpected character found while calculating indent length');
+		}
+	}
+	return i;
+}
+
+export function createReindentEdit(text: string, range: LineRange, tabSize: number): TextEdit {
 	const newLines = splitLines(text);
-	const edits: SingleTextEdit[] = [];
-	const minIndent = findFirstMin(range.mapToLineArray(l => getIndentationLength(newLines[l - 1])), numberComparator)!;
+	const edits: TextReplacement[] = [];
+	const minIndentSize = findFirstMin(range.mapToLineArray(l => getIndentationSize(newLines[l - 1], tabSize)), numberComparator)!;
 	range.forEach(lineNumber => {
-		edits.push(new SingleTextEdit(offsetRangeToRange(new OffsetRange(0, minIndent), new Position(lineNumber, 1)), ''));
+		const indentLength = indentSizeToIndentLength(newLines[lineNumber - 1], minIndentSize, tabSize);
+		edits.push(new TextReplacement(offsetRangeToRange(new OffsetRange(0, indentLength), new Position(lineNumber, 1)), ''));
 	});
 	return new TextEdit(edits);
 }
@@ -333,10 +394,10 @@ export function observeElementPosition(element: HTMLElement, store: DisposableSt
 
 export function rectToProps(fn: (reader: IReader) => Rect) {
 	return {
-		left: derived(reader => /** @description left */ fn(reader).left),
-		top: derived(reader => /** @description top */ fn(reader).top),
-		width: derived(reader => /** @description width */ fn(reader).right - fn(reader).left),
-		height: derived(reader => /** @description height */ fn(reader).bottom - fn(reader).top),
+		left: derived({ name: 'editor.validOverlay.left' }, reader => /** @description left */ fn(reader).left),
+		top: derived({ name: 'editor.validOverlay.top' }, reader => /** @description top */ fn(reader).top),
+		width: derived({ name: 'editor.validOverlay.width' }, reader => /** @description width */ fn(reader).right - fn(reader).left),
+		height: derived({ name: 'editor.validOverlay.height' }, reader => /** @description height */ fn(reader).bottom - fn(reader).top),
 	};
 }
 

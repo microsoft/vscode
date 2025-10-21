@@ -5,6 +5,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../editor/common/core/position.js';
@@ -41,10 +42,10 @@ export interface IInlineChatSession2 {
 export interface IInlineChatSessionService {
 	_serviceBrand: undefined;
 
-	onWillStartSession: Event<IActiveCodeEditor>;
-	onDidMoveSession: Event<IInlineChatSessionEvent>;
-	onDidStashSession: Event<IInlineChatSessionEvent>;
-	onDidEndSession: Event<IInlineChatSessionEndEvent>;
+	readonly onWillStartSession: Event<IActiveCodeEditor>;
+	readonly onDidMoveSession: Event<IInlineChatSessionEvent>;
+	readonly onDidStashSession: Event<IInlineChatSessionEvent>;
+	readonly onDidEndSession: Event<IInlineChatSessionEndEvent>;
 
 	createSession(editor: IActiveCodeEditor, options: { wholeRange?: IRange; session?: Session; headless?: boolean }, token: CancellationToken): Promise<Session | undefined>;
 
@@ -63,7 +64,9 @@ export interface IInlineChatSessionService {
 	dispose(): void;
 
 
+	hideOnRequest: IObservable<boolean>;
+
 	createSession2(editor: ICodeEditor, uri: URI, token: CancellationToken): Promise<IInlineChatSession2>;
 	getSession2(uri: URI): IInlineChatSession2 | undefined;
-	onDidChangeSessions: Event<this>;
+	readonly onDidChangeSessions: Event<this>;
 }

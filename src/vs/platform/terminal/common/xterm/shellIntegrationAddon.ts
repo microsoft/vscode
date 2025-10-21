@@ -8,17 +8,18 @@ import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base
 import { TerminalCapabilityStore } from '../capabilities/terminalCapabilityStore.js';
 import { CommandDetectionCapability } from '../capabilities/commandDetectionCapability.js';
 import { CwdDetectionCapability } from '../capabilities/cwdDetectionCapability.js';
-import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, ISerializedCommandDetectionCapability, IShellEnvDetectionCapability, TerminalCapability } from '../capabilities/capabilities.js';
+import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, IPromptTypeDetectionCapability, ISerializedCommandDetectionCapability, IShellEnvDetectionCapability, TerminalCapability } from '../capabilities/capabilities.js';
 import { PartialCommandDetectionCapability } from '../capabilities/partialCommandDetectionCapability.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { BufferMarkCapability } from '../capabilities/bufferMarkCapability.js';
 import type { ITerminalAddon, Terminal } from '@xterm/headless';
 import { URI } from '../../../../base/common/uri.js';
 import { sanitizeCwd } from '../terminalEnvironment.js';
 import { removeAnsiEscapeCodesFromPrompt } from '../../../../base/common/strings.js';
 import { ShellEnvDetectionCapability } from '../capabilities/shellEnvDetectionCapability.js';
+import { PromptTypeDetectionCapability } from '../capabilities/promptTypeDetectionCapability.js';
 
 
 /**
@@ -325,7 +326,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _terminal?: Terminal;
 	readonly capabilities = this._register(new TerminalCapabilityStore());
 	private _hasUpdatedTelemetry: boolean = false;
-	private _activationTimeout: any;
+	private _activationTimeout: Timeout | undefined;
 	private _commonProtocolDisposables: IDisposable[] = [];
 
 	private _seenSequences: Set<string> = new Set();
@@ -342,6 +343,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	constructor(
 		private _nonce: string,
 		private readonly _disableTelemetry: boolean | undefined,
+		private _onDidExecuteText: Event<void> | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
 		private readonly _logService: ILogService
 	) {
@@ -359,7 +361,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 	activate(xterm: Terminal) {
 		this._terminal = xterm;
-		this.capabilities.add(TerminalCapability.PartialCommandDetection, this._register(new PartialCommandDetectionCapability(this._terminal)));
+		this.capabilities.add(TerminalCapability.PartialCommandDetection, this._register(new PartialCommandDetectionCapability(this._terminal, this._onDidExecuteText)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._doHandleITermSequence(data)));
 		this._commonProtocolDisposables.push(
@@ -584,7 +586,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						return true;
 					}
 					case 'PromptType': {
-						this._createOrGetCommandDetection(this._terminal).setPromptType(value);
+						this._createOrGetPromptTypeDetection().setPromptType(value);
 						return true;
 					}
 					case 'Task': {
@@ -766,6 +768,15 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			this.capabilities.add(TerminalCapability.ShellEnvDetection, shellEnvDetection);
 		}
 		return shellEnvDetection;
+	}
+
+	protected _createOrGetPromptTypeDetection(): IPromptTypeDetectionCapability {
+		let promptTypeDetection = this.capabilities.get(TerminalCapability.PromptTypeDetection);
+		if (!promptTypeDetection) {
+			promptTypeDetection = this._register(new PromptTypeDetectionCapability());
+			this.capabilities.add(TerminalCapability.PromptTypeDetection, promptTypeDetection);
+		}
+		return promptTypeDetection;
 	}
 }
 

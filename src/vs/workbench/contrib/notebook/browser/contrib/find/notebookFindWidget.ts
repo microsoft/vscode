@@ -76,6 +76,22 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 	replace(searchString: string | undefined) {
 		return this._widget.value.replace(searchString);
 	}
+
+	isVisible(): boolean {
+		return this._widget.rawValue?.isVisible ?? false;
+	}
+
+	findNext(): void {
+		if (this._widget.rawValue) {
+			this._widget.value.findNext();
+		}
+	}
+
+	findPrevious(): void {
+		if (this._widget.rawValue) {
+			this._widget.value.findPrevious();
+		}
+	}
 }
 
 class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
@@ -183,6 +199,14 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		this._findModel.find({ previous });
 	}
 
+	public findNext(): void {
+		this.find(false);
+	}
+
+	public findPrevious(): void {
+		this.find(true);
+	}
+
 	protected replaceOne() {
 		if (!this._notebookEditor.hasModel()) {
 			return;
@@ -275,7 +299,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 				await this._findModel.research();
 			}
 			this.findIndex(options.matchIndex);
-		} else {
+		} else if (options?.focus !== false) {
 			this._findInput.select();
 		}
 
@@ -364,7 +388,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 			return;
 		}
 
-		this._matchesCount.style.width = MAX_MATCHES_COUNT_WIDTH + 'px';
+		this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
 		this._matchesCount.title = '';
 
 		// remove previous content
