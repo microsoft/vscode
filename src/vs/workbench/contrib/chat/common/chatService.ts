@@ -8,7 +8,8 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { autorunSelfDisposable, IObservable } from '../../../../base/common/observable.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun, autorunSelfDisposable, IObservable, IReader } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
@@ -339,28 +340,151 @@ export type ConfirmedReason =
 	| { type: ToolConfirmKind.Skipped };
 
 export interface IChatToolInvocation {
-	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
-	/** Presence of this property says that confirmation is required */
-	confirmationMessages?: IToolConfirmationMessages;
-	confirmed: DeferredPromise<ConfirmedReason>;
-	/** undefined=don't know yet. */
-	isConfirmed: ConfirmedReason | undefined;
-	originMessage: string | IMarkdownString | undefined;
-	invocationMessage: string | IMarkdownString;
-	pastTenseMessage: string | IMarkdownString | undefined;
-	resultDetails: IToolResult['toolResultDetails'];
-	source: ToolDataSource;
-	progress: IObservable<{ message?: string | IMarkdownString; progress: number | undefined }>;
+	readonly presentation: IPreparedToolInvocation['presentation'];
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
+	readonly confirmationMessages?: IToolConfirmationMessages;
+	readonly originMessage: string | IMarkdownString | undefined;
+	readonly invocationMessage: string | IMarkdownString;
+	readonly pastTenseMessage: string | IMarkdownString | undefined;
+	readonly source: ToolDataSource;
 	readonly toolId: string;
 	readonly toolCallId: string;
 	readonly fromSubAgent?: boolean;
+	readonly state: IObservable<IChatToolInvocation.State>;
 
-	isCompletePromise: Promise<void>;
-	isComplete: boolean;
-	complete(result: IToolResult): void;
 	kind: 'toolInvocation';
 }
+
+export namespace IChatToolInvocation {
+	export const enum StateKind {
+		WaitingForConfirmation,
+		Executing,
+		WaitingForPostApproval,
+		Completed,
+		Cancelled,
+	}
+
+	interface IChatToolInvocationStateBase {
+		type: StateKind;
+	}
+
+	interface IChatToolInvocationWaitingForConfirmationState extends IChatToolInvocationStateBase {
+		type: StateKind.WaitingForConfirmation;
+		confirm(reason: ConfirmedReason): void;
+	}
+
+	interface IChatToolInvocationPostConfirmState {
+		confirmed: ConfirmedReason;
+	}
+
+	interface IChatToolInvocationExecutingState extends IChatToolInvocationStateBase, IChatToolInvocationPostConfirmState {
+		type: StateKind.Executing;
+		progress: IObservable<{ message?: string | IMarkdownString; progress: number | undefined }>;
+	}
+
+	interface IChatToolInvocationPostExecuteState extends IChatToolInvocationPostConfirmState {
+		resultDetails: IToolResult['toolResultDetails'];
+	}
+
+	interface IChatToolWaitingForPostApprovalState extends IChatToolInvocationStateBase, IChatToolInvocationPostExecuteState {
+		type: StateKind.WaitingForPostApproval;
+		postConfirm(reason: ConfirmedReason): void;
+	}
+
+	interface IChatToolInvocationCompleteState extends IChatToolInvocationStateBase, IChatToolInvocationPostExecuteState {
+		type: StateKind.Completed;
+		postConfirmed: ConfirmedReason | undefined;
+	}
+
+	interface IChatToolInvocationCancelledState extends IChatToolInvocationStateBase {
+		type: StateKind.Cancelled;
+		reason: ToolConfirmKind.Denied | ToolConfirmKind.Skipped;
+	}
+
+	export type State =
+		| IChatToolInvocationWaitingForConfirmationState
+		| IChatToolInvocationExecutingState
+		| IChatToolWaitingForPostApprovalState
+		| IChatToolInvocationCompleteState
+		| IChatToolInvocationCancelledState;
+
+	export function isConfirmed(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): ConfirmedReason | undefined {
+		if (invocation.kind === 'toolInvocationSerialized') {
+			if (invocation.isConfirmed === undefined || typeof invocation.isConfirmed === 'boolean') {
+				return { type: invocation.isConfirmed ? ToolConfirmKind.UserAction : ToolConfirmKind.Denied };
+			}
+			return invocation.isConfirmed;
+		}
+
+		const state = invocation.state.read(reader);
+		if (state.type === StateKind.WaitingForConfirmation) {
+			return undefined; // don't know yet
+		}
+		if (state.type === StateKind.Cancelled) {
+			return { type: state.reason };
+		}
+
+		return state.confirmed;
+	}
+
+	export function awaitConfirmation(invocation: IChatToolInvocation, token?: CancellationToken): Promise<ConfirmedReason> {
+		const reason = isConfirmed(invocation);
+		if (reason) {
+			return Promise.resolve(reason);
+		}
+
+		const store = new DisposableStore();
+		return new Promise<ConfirmedReason>(resolve => {
+			if (token) {
+				store.add(token.onCancellationRequested(() => {
+					resolve({ type: ToolConfirmKind.Denied });
+				}));
+			}
+
+			store.add(autorun(reader => {
+				const reason = isConfirmed(invocation, reader);
+				if (reason) {
+					store.dispose();
+					resolve(reason);
+				}
+			}));
+		}).finally(() => {
+			store.dispose();
+		});
+	}
+
+	export function confirmWith(invocation: IChatToolInvocation | undefined, reason: ConfirmedReason) {
+		const state = invocation?.state.get();
+		if (state?.type === StateKind.WaitingForConfirmation) {
+			state.confirm(reason);
+			return true;
+		}
+		return false;
+	}
+
+	export function resultDetails(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader) {
+		if (invocation.kind === 'toolInvocationSerialized') {
+			return invocation.resultDetails;
+		}
+
+		const state = invocation.state.read(reader);
+		if (state.type === StateKind.Completed || state.type === StateKind.WaitingForPostApproval) {
+			return state.resultDetails;
+		}
+
+		return undefined;
+	}
+
+	export function isComplete(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
+		if ('isComplete' in invocation) { // serialized
+			return true; // always cancelled or complete
+		}
+
+		const state = invocation.state.read(reader);
+		return state.type === StateKind.Completed || state.type === StateKind.Cancelled;
+	}
+}
+
 
 export interface IToolResultOutputDetailsSerialized {
 	output: {

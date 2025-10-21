@@ -25,13 +25,13 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
+import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
 import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
-import { getPromptsTypeForLanguageId, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, AGENT_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { NewPromptsParser, ParsedPromptFile } from './newPromptsParser.js';
-import { IChatModeSource, IChatPromptSlashCommand, ICustomChatMode, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, promptPathToChatModeSource, PromptsStorage } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, PromptsStorage } from './promptsService.js';
 
 /**
  * Provides prompt services.
@@ -45,9 +45,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly fileLocator: PromptFilesLocator;
 
 	/**
-	 * Cached custom modes. Caching only happens if the `onDidChangeCustomChatModes` event is used.
+	 * Cached custom agents. Caching only happens if the `onDidChangeCustomAgents` event is used.
 	 */
-	private cachedCustomChatModes: Promise<readonly ICustomChatMode[]> | undefined;
+	private cachedCustomAgents: Promise<readonly ICustomAgent[]> | undefined;
 
 
 	private parsedPromptFileCache = new ResourceMap<[number, ParsedPromptFile]>();
@@ -58,13 +58,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly contributedFiles = {
 		[PromptsType.prompt]: new ResourceMap<Promise<IExtensionPromptPath>>(),
 		[PromptsType.instructions]: new ResourceMap<Promise<IExtensionPromptPath>>(),
-		[PromptsType.mode]: new ResourceMap<Promise<IExtensionPromptPath>>(),
+		[PromptsType.agent]: new ResourceMap<Promise<IExtensionPromptPath>>(),
 	};
 
 	/**
-	 * Lazily created event that is fired when the custom chat modes change.
+	 * Lazily created event that is fired when the custom agents change.
 	 */
-	private onDidChangeCustomChatModesEmitter: Emitter<void> | undefined;
+	private onDidChangeCustomAgentsEmitter: Emitter<void> | undefined;
 
 	constructor(
 		@ILogService public readonly logger: ILogService,
@@ -87,18 +87,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	/**
-	 * Emitter for the custom chat modes change event.
+	 * Emitter for the custom agents change event.
 	 */
-	public get onDidChangeCustomChatModes(): Event<void> {
-		if (!this.onDidChangeCustomChatModesEmitter) {
-			const emitter = this.onDidChangeCustomChatModesEmitter = this._register(new Emitter<void>());
-			const chatModelTracker = this._register(new ChatModeUpdateTracker(this.fileLocator, this.modelService));
-			this._register(chatModelTracker.onDidChangeContent(() => {
-				this.cachedCustomChatModes = undefined; // reset cached custom chat modes
+	public get onDidChangeCustomAgents(): Event<void> {
+		if (!this.onDidChangeCustomAgentsEmitter) {
+			const emitter = this.onDidChangeCustomAgentsEmitter = this._register(new Emitter<void>());
+			const updateTracker = this._register(new UpdateTracker(this.fileLocator, PromptsType.agent, this.modelService));
+			this._register(updateTracker.onDidChangeContent(() => {
+				this.cachedCustomAgents = undefined; // reset cached custom agents
 				emitter.fire();
 			}));
 		}
-		return this.onDidChangeCustomChatModesEmitter.event;
+		return this.onDidChangeCustomAgentsEmitter.event;
 	}
 
 	public getPromptFileType(uri: URI): PromptsType | undefined {
@@ -162,9 +162,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		const result: IPromptPath[] = [];
 
-		for (const uri of this.fileLocator.getConfigBasedSourceFolders(type)) {
-			result.push({ uri, storage: PromptsStorage.local, type });
+		if (type === PromptsType.agent) {
+			const folders = this.fileLocator.getAgentSourceFolder();
+			for (const uri of folders) {
+				result.push({ uri, storage: PromptsStorage.local, type });
+			}
+		} else {
+			for (const uri of this.fileLocator.getConfigBasedSourceFolders(type)) {
+				result.push({ uri, storage: PromptsStorage.local, type });
+			}
 		}
+
 		const userHome = this.userDataService.currentProfile.promptsHome;
 		result.push({ uri: userHome, storage: PromptsStorage.user, type });
 
@@ -231,23 +239,23 @@ export class PromptsService extends Disposable implements IPromptsService {
 		});
 	}
 
-	public async getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
-		if (!this.cachedCustomChatModes) {
-			const customChatModes = this.computeCustomChatModes(token);
-			if (!this.onDidChangeCustomChatModesEmitter) {
-				return customChatModes;
+	public async getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]> {
+		if (!this.cachedCustomAgents) {
+			const customAgents = this.computeCustomAgents(token);
+			if (!this.onDidChangeCustomAgentsEmitter) {
+				return customAgents;
 			}
-			this.cachedCustomChatModes = customChatModes;
+			this.cachedCustomAgents = customAgents;
 		}
-		return this.cachedCustomChatModes;
+		return this.cachedCustomAgents;
 	}
 
-	private async computeCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
-		const modeFiles = await this.listPromptFiles(PromptsType.mode, token);
+	private async computeCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]> {
+		const agentFiles = await this.listPromptFiles(PromptsType.agent, token);
 
-		const customChatModes = await Promise.all(
-			modeFiles.map(async (promptPath): Promise<ICustomChatMode> => {
-				const { uri, name: modeName } = promptPath;
+		const customAgents = await Promise.all(
+			agentFiles.map(async (promptPath): Promise<ICustomAgent> => {
+				const { uri, name: agentName } = promptPath;
 				const ast = await this.parseNew(uri, token);
 
 				let metadata: any | undefined;
@@ -273,24 +281,24 @@ export class PromptsService extends Disposable implements IPromptsService {
 					}
 				}
 
-				const modeInstructions = {
+				const agentInstructions = {
 					content: ast.body?.getContent() ?? '',
 					toolReferences,
 					metadata,
-				} satisfies IChatModeInstructions;
+				} satisfies IAgentInstructions;
 
-				const name = modeName ?? getCleanPromptName(uri);
+				const name = agentName ?? getCleanPromptName(uri);
 
-				const source: IChatModeSource = promptPathToChatModeSource(promptPath);
+				const source: IAgentSource = IAgentSource.fromPromptPath(promptPath);
 				if (!ast.header) {
-					return { uri, name, modeInstructions, source };
+					return { uri, name, agentInstructions, source };
 				}
 				const { description, model, tools, handOffs } = ast.header;
-				return { uri, name, description, model, tools, handOffs, modeInstructions, source };
+				return { uri, name, description, model, tools, handOffs, agentInstructions, source };
 
 			})
 		);
-		return customChatModes;
+		return customAgents;
 	}
 
 	public async parseNew(uri: URI, token: CancellationToken): Promise<ParsedPromptFile> {
@@ -322,17 +330,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 		})();
 		bucket.set(uri, entryPromise);
 
-		const updateModesIfRequired = () => {
-			if (type === PromptsType.mode) {
-				this.cachedCustomChatModes = undefined;
-				this.onDidChangeCustomChatModesEmitter?.fire();
+		const updateAgentsIfRequired = () => {
+			if (type === PromptsType.agent) {
+				this.cachedCustomAgents = undefined;
+				this.onDidChangeCustomAgentsEmitter?.fire();
 			}
 		};
-		updateModesIfRequired();
+		updateAgentsIfRequired();
 		return {
 			dispose: () => {
 				bucket.delete(uri);
-				updateModesIfRequired();
+				updateAgentsIfRequired();
 			}
 		};
 	}
@@ -351,6 +359,26 @@ export class PromptsService extends Disposable implements IPromptsService {
 	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
 		return this.fileLocator.findAgentMDsInWorkspace(token);
 	}
+
+	public async listAgentMDs(token: CancellationToken, includeNested: boolean): Promise<URI[]> {
+		const useAgentMD = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);
+		if (!useAgentMD) {
+			return [];
+		}
+		if (includeNested) {
+			return await this.fileLocator.findAgentMDsInWorkspace(token);
+		} else {
+			return await this.fileLocator.findAgentMDsInWorkspaceRoots(token);
+		}
+	}
+
+	public async listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]> {
+		const useCopilotInstructionsFiles = this.configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
+		if (!useCopilotInstructionsFiles) {
+			return [];
+		}
+		return await this.fileLocator.findCopilotInstructionsMDsInWorkspace(token);
+	}
 }
 
 function getCommandNameFromPromptPath(promptPath: IPromptPath): string {
@@ -361,36 +389,37 @@ function getCommandNameFromURI(uri: URI): string {
 	return basename(uri.fsPath, PROMPT_FILE_EXTENSION);
 }
 
-export class ChatModeUpdateTracker extends Disposable {
+export class UpdateTracker extends Disposable {
 
-	private static readonly CHAT_MODE_UPDATE_DELAY_MS = 200;
+	private static readonly CHAT_AGENT_UPDATE_DELAY_MS = 200;
 
 	private readonly listeners = new ResourceMap<IDisposable>();
-	private readonly onDidChatModeModelChange: Emitter<void>;
+	private readonly onDidChangeContentEmitter: Emitter<void>;
 
 	public get onDidChangeContent(): Event<void> {
-		return this.onDidChatModeModelChange.event;
+		return this.onDidChangeContentEmitter.event;
 	}
 
 	constructor(
 		fileLocator: PromptFilesLocator,
+		promptTypes: PromptsType,
 		@IModelService modelService: IModelService,
 	) {
 		super();
-		this.onDidChatModeModelChange = this._register(new Emitter<void>());
-		const delayer = this._register(new Delayer<void>(ChatModeUpdateTracker.CHAT_MODE_UPDATE_DELAY_MS));
-		const trigger = () => delayer.trigger(() => this.onDidChatModeModelChange.fire());
+		this.onDidChangeContentEmitter = this._register(new Emitter<void>());
+		const delayer = this._register(new Delayer<void>(UpdateTracker.CHAT_AGENT_UPDATE_DELAY_MS));
+		const trigger = () => delayer.trigger(() => this.onDidChangeContentEmitter.fire());
 
-		const filesUpdatedEventRegistration = this._register(fileLocator.createFilesUpdatedEvent(PromptsType.mode));
+		const filesUpdatedEventRegistration = this._register(fileLocator.createFilesUpdatedEvent(promptTypes));
 		this._register(filesUpdatedEventRegistration.event(() => trigger()));
 
 		const onAdd = (model: ITextModel) => {
-			if (model.getLanguageId() === MODE_LANGUAGE_ID) {
+			if (model.getLanguageId() === AGENT_LANGUAGE_ID) {
 				this.listeners.set(model.uri, model.onDidChangeContent(() => trigger()));
 			}
 		};
 		const onRemove = (languageId: string, uri: URI) => {
-			if (languageId === MODE_LANGUAGE_ID) {
+			if (languageId === AGENT_LANGUAGE_ID) {
 				this.listeners.get(uri)?.dispose();
 				this.listeners.delete(uri);
 				trigger();
@@ -411,3 +440,19 @@ export class ChatModeUpdateTracker extends Disposable {
 	}
 
 }
+
+namespace IAgentSource {
+	export function fromPromptPath(promptPath: IPromptPath): IAgentSource {
+		if (promptPath.storage === PromptsStorage.extension) {
+			return {
+				storage: PromptsStorage.extension,
+				extensionId: promptPath.extension.identifier
+			};
+		} else {
+			return {
+				storage: promptPath.storage
+			};
+		}
+	}
+}
+
