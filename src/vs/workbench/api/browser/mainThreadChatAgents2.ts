@@ -169,7 +169,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			invoke: async (request, progress, history, token) => {
 				this._pendingProgress.set(request.requestId, progress);
 				try {
-					return await this._proxy.$invokeAgent(handle, request, { history }, token) ?? {};
+					const chatSessionContext = this._chatService.getChatSessionFromInternalId(request.sessionId);
+					return await this._proxy.$invokeAgent(handle, request, {
+						history,
+						chatSessionContext,
+						chatSummary: request.chatSummary
+					}, token) ?? {};
 				} finally {
 					this._pendingProgress.delete(request.requestId);
 				}
@@ -357,7 +362,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						kind: CompletionItemKind.Text,
 						detail: v.detail,
 						documentation: v.documentation,
-						command: { id: AddDynamicVariableAction.ID, title: '', arguments: [{ id: v.id, widget, range: rangeAfterInsert, variableData: revive(v.value) as any, command: v.command } satisfies IAddDynamicVariableContext] }
+						command: { id: AddDynamicVariableAction.ID, title: '', arguments: [{ id: v.id, widget, range: rangeAfterInsert, variableData: revive(v.value), command: v.command } satisfies IAddDynamicVariableContext] }
 					} satisfies CompletionItem;
 				});
 

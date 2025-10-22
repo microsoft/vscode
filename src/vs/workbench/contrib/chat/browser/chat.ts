@@ -17,8 +17,9 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
 import { IChatResponseModel } from '../common/chatModel.js';
+import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService.js';
@@ -179,6 +180,7 @@ export interface IChatWidgetViewOptions {
 	enableWorkingSet?: 'explicit' | 'implicit';
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
+	defaultMode?: IChatMode;
 }
 
 export interface IChatViewViewContext {
@@ -212,6 +214,7 @@ export interface IChatWidget {
 	readonly viewModel: IChatViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
 	readonly supportsFileReferences: boolean;
+	readonly attachmentCapabilities: IChatAgentAttachmentCapabilities;
 	readonly parsedInput: IParsedChatRequest;
 	readonly lockedAgentId: string | undefined;
 	lastSelectedAgent: IChatAgentData | undefined;
@@ -237,7 +240,11 @@ export interface IChatWidget {
 	rerunLastRequest(): Promise<void>;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;
-	focusLastMessage(): void;
+	/**
+	 * Focuses the response item in the list.
+	 * @param lastFocused Focuses the most recently focused response. Otherwise, focuses the last response.
+	 */
+	focusResponseItem(lastFocused?: boolean): void;
 	focusInput(): void;
 	hasInputFocus(): boolean;
 	getModeRequestOptions(): Partial<IChatSendRequestOptions>;
@@ -255,6 +262,7 @@ export interface IChatWidget {
 	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
+	toggleHistoryVisibility(): void;
 }
 
 

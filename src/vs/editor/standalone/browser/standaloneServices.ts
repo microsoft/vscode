@@ -382,7 +382,7 @@ export class StandaloneCommandService implements ICommandService {
 		this._instantiationService = instantiationService;
 	}
 
-	public executeCommand<T>(id: string, ...args: any[]): Promise<T> {
+	public executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
 		const command = CommandsRegistry.getCommand(id);
 		if (!command) {
 			return Promise.reject(new Error(`command '${id}' not found`));
@@ -1009,7 +1009,7 @@ class StandaloneWorkspaceTrustManagementService implements IWorkspaceTrustManage
 
 	private _neverEmitter = new Emitter<never>();
 	public readonly onDidChangeTrust: Event<boolean> = this._neverEmitter.event;
-	onDidChangeTrustedFolders: Event<void> = this._neverEmitter.event;
+	readonly onDidChangeTrustedFolders: Event<void> = this._neverEmitter.event;
 	public readonly workspaceResolved = Promise.resolve();
 	public readonly workspaceTrustInitialized = Promise.resolve();
 	public readonly acceptsOutOfWorkspaceFiles = true;

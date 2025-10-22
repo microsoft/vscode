@@ -82,6 +82,11 @@ export namespace PromptsConfig {
 	export const USE_AGENT_MD = 'chat.useAgentsMdFile';
 
 	/**
+	 * Configuration key for nested AGENTS.md files.
+	 */
+	export const USE_NESTED_AGENT_MD = 'chat.useNestedAgentsMdFiles';
+
+	/**
 	 * Checks if the feature is enabled.
 	 * @see {@link PromptsConfig.KEY}.
 	 */
@@ -222,7 +227,7 @@ export function getPromptFileLocationsConfigKey(type: PromptsType): string {
 			return PromptsConfig.INSTRUCTIONS_LOCATION_KEY;
 		case PromptsType.prompt:
 			return PromptsConfig.PROMPT_LOCATIONS_KEY;
-		case PromptsType.mode:
+		case PromptsType.agent:
 			return PromptsConfig.MODE_LOCATION_KEY;
 		default:
 			throw new Error('Unknown prompt type');

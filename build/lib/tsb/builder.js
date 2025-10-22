@@ -95,7 +95,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
         }
     }
     function isExternalModule(sourceFile) {
-        return sourceFile.externalModuleIndicator
+        return !!sourceFile.externalModuleIndicator
             || /declare\s+module\s+('|")(.+)\1/.test(sourceFile.getText());
     }
     function build(out, onError, token = CancellationToken.None) {
@@ -402,7 +402,9 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                         messageText: `CYCLIC dependency: ${error}`
                     });
                 }
+                delete oldErrors[filename];
                 newErrors[filename] = cyclicDepErrors;
+                cyclicDepErrors.forEach(d => onError(d));
             }
         }).then(() => {
             // store the build versions to not rebuilt the next time

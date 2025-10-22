@@ -255,17 +255,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 		return links;
 	}
-
-	private _isDirectoryInsideWorkspace(uri: URI) {
-		const folders = this._workspaceContextService.getWorkspace().folders;
-		for (let i = 0; i < folders.length; i++) {
-			if (this._uriIdentityService.extUri.isEqualOrParent(uri, folders[i].uri)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	private async _validateLinkCandidates(linkCandidates: string[]): Promise<ResolvedLink | undefined> {
 		for (const link of linkCandidates) {
 			let uri: URI | undefined;
@@ -288,16 +277,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	private async _validateAndGetLink(linkText: string | undefined, bufferRange: IBufferRange, linkCandidates: string[], trimRangeMap?: Map<string, number>): Promise<ITerminalSimpleLink | undefined> {
 		const linkStat = await this._validateLinkCandidates(linkCandidates);
 		if (linkStat) {
-			let type: TerminalBuiltinLinkType;
-			if (linkStat.isDirectory) {
-				if (this._isDirectoryInsideWorkspace(linkStat.uri)) {
-					type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
-				} else {
-					type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
-				}
-			} else {
-				type = TerminalBuiltinLinkType.LocalFile;
-			}
+			const type = getTerminalLinkType(linkStat.uri, linkStat.isDirectory, this._uriIdentityService, this._workspaceContextService);
 
 			// Offset the buffer range if the link range was trimmed
 			const trimRange = trimRangeMap?.get(linkStat.link);
@@ -317,5 +297,25 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			};
 		}
 		return undefined;
+	}
+}
+
+export function getTerminalLinkType(
+	uri: URI,
+	isDirectory: boolean,
+	uriIdentityService: IUriIdentityService,
+	workspaceContextService: IWorkspaceContextService
+): TerminalBuiltinLinkType {
+	if (isDirectory) {
+		// Check if directory is inside workspace
+		const folders = workspaceContextService.getWorkspace().folders;
+		for (let i = 0; i < folders.length; i++) {
+			if (uriIdentityService.extUri.isEqualOrParent(uri, folders[i].uri)) {
+				return TerminalBuiltinLinkType.LocalFolderInWorkspace;
+			}
+		}
+		return TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
+	} else {
+		return TerminalBuiltinLinkType.LocalFile;
 	}
 }

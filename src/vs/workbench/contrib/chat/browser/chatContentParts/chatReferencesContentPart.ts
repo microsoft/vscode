@@ -31,10 +31,10 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IResourceLabel, IResourceLabelProps, ResourceLabels } from '../../../../browser/labels.js';
-import { ColorScheme } from '../../../../browser/web.api.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
@@ -336,7 +336,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		if (ThemeIcon.isThemeIcon(data.iconPath)) {
 			return data.iconPath;
 		} else {
-			return this.themeService.getColorTheme().type === ColorScheme.DARK && data.iconPath?.dark
+			return isDark(this.themeService.getColorTheme().type) && data.iconPath?.dark
 				? data.iconPath?.dark
 				: data.iconPath?.light;
 		}

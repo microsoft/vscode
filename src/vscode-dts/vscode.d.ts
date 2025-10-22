@@ -1666,7 +1666,7 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event} which fires upon cancellation.
 		 */
-		onCancellationRequested: Event<any>;
+		readonly onCancellationRequested: Event<any>;
 	}
 
 	/**
@@ -4464,6 +4464,12 @@ declare module 'vscode' {
 	 * semantic tokens.
 	 */
 	export interface DocumentRangeSemanticTokensProvider {
+
+		/**
+		 * An optional event to signal that the semantic tokens from this provider have changed.
+		 */
+		onDidChangeSemanticTokens?: Event<void>;
+
 		/**
 		 * @see {@link DocumentSemanticTokensProvider.provideDocumentSemanticTokens provideDocumentSemanticTokens}.
 		 */
@@ -8608,7 +8614,7 @@ declare module 'vscode' {
 		/**
 		 * Fires when a secret is stored or deleted.
 		 */
-		onDidChange: Event<SecretStorageChangeEvent>;
+		readonly onDidChange: Event<SecretStorageChangeEvent>;
 	}
 
 	/**
@@ -13074,7 +13080,7 @@ declare module 'vscode' {
 		 * (Examples include: an explicit call to {@link QuickInput.hide},
 		 * the user pressing Esc, some other input UI opening, etc.)
 		 */
-		onDidHide: Event<void>;
+		readonly onDidHide: Event<void>;
 
 		/**
 		 * Dispose of this input UI and any associated resources. If it is still
@@ -13868,6 +13874,14 @@ declare module 'vscode' {
 		 *
 		 * To stop listening to events the watcher must be disposed.
 		 *
+		 * *Note* that file events from deleting a folder may not include events for the contained files.
+		 * For example, when a folder is moved to the trash, only one event is reported because technically
+		 * this is a rename/move operation and not a delete operation for each files within.
+		 * On top of that, performance optimisations are in place to fold multiple events that all belong
+		 * to the same parent operation (e.g. delete folder) into one event for that parent. As such, if
+		 * you need to know about all deleted files, you have to watch with `**` and deal with all file
+		 * events yourself.
+		 *
 		 * *Note* that file events from recursive file watchers may be excluded based on user configuration.
 		 * The setting `files.watcherExclude` helps to reduce the overhead of file events from folders
 		 * that are known to produce many file changes at once (such as `.git` folders). As such,
@@ -13887,9 +13901,6 @@ declare module 'vscode' {
 		 *   path that was provided for watching
 		 * In the same way, symbolic links are preserved, i.e. the file event will report the path of the
 		 * symbolic link as it was provided for watching and not the target.
-		 *
-		 * *Note* that file events from deleting a folder may not include events for contained files. If possible
-		 * events will be aggregated to reduce the overal number of emitted events.
 		 *
 		 * ### Examples
 		 *
@@ -18223,7 +18234,7 @@ declare module 'vscode' {
 		 * Fired when a user has changed whether this is a default profile. The
 		 * event contains the new value of {@link isDefault}
 		 */
-		onDidChangeDefault: Event<boolean>;
+		readonly onDidChangeDefault: Event<boolean>;
 
 		/**
 		 * Whether this profile supports continuous running of requests. If so,
@@ -18602,7 +18613,7 @@ declare module 'vscode' {
 		 * An event fired when the editor is no longer interested in data
 		 * associated with the test run.
 		 */
-		onDidDispose: Event<void>;
+		readonly onDidDispose: Event<void>;
 	}
 
 	/**
@@ -19678,7 +19689,7 @@ declare module 'vscode' {
 		 * The passed {@link ChatResultFeedback.result result} is guaranteed to have the same properties as the result that was
 		 * previously returned from this chat participant's handler.
 		 */
-		onDidReceiveFeedback: Event<ChatResultFeedback>;
+		readonly onDidReceiveFeedback: Event<ChatResultFeedback>;
 
 		/**
 		 * Dispose this participant and free resources.
@@ -20015,7 +20026,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static User(content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart>, name?: string): LanguageModelChatMessage;
+		static User(content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelDataPart>, name?: string): LanguageModelChatMessage;
 
 		/**
 		 * Utility to create a new assistant message.
@@ -20023,7 +20034,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static Assistant(content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart>, name?: string): LanguageModelChatMessage;
+		static Assistant(content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart>, name?: string): LanguageModelChatMessage;
 
 		/**
 		 * The role of this message.
@@ -20089,7 +20100,7 @@ declare module 'vscode' {
 		 * }
 		 * ```
 		 */
-		stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart | unknown>;
+		stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | unknown>;
 
 		/**
 		 * This is equivalent to filtering everything except for text parts from a {@link LanguageModelChatResponse.stream}.
@@ -20493,20 +20504,24 @@ declare module 'vscode' {
 		/**
 		 * Various features that the model supports such as tool calling or image input.
 		 */
-		readonly capabilities: {
+		readonly capabilities: LanguageModelChatCapabilities;
+	}
 
-			/**
-			 * Whether image input is supported by the model.
-			 * Common supported images are jpg and png, but each model will vary in supported mimetypes.
-			 */
-			readonly imageInput?: boolean;
+	/**
+	 * Various features that the {@link LanguageModelChatInformation} supports such as tool calling or image input.
+	 */
+	export interface LanguageModelChatCapabilities {
+		/**
+		 * Whether image input is supported by the model.
+		 * Common supported images are jpg and png, but each model will vary in supported mimetypes.
+		 */
+		readonly imageInput?: boolean;
 
-			/**
-			 * Whether tool calling is supported by the model.
-			 * If a number is provided, that is the maximum number of tools that can be provided in a request to the model.
-			 */
-			readonly toolCalling?: boolean | number;
-		};
+		/**
+		 * Whether tool calling is supported by the model.
+		 * If a number is provided, that is the maximum number of tools that can be provided in a request to the model.
+		 */
+		readonly toolCalling?: boolean | number;
 	}
 
 	/**
@@ -20533,12 +20548,12 @@ declare module 'vscode' {
 	/**
 	 * The various message types which a {@linkcode LanguageModelChatProvider} can emit in the chat response stream
 	 */
-	export type LanguageModelResponsePart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart;
+	export type LanguageModelResponsePart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart;
 
 	/**
 	 * The various message types which can be sent via {@linkcode LanguageModelChat.sendRequest } and processed by a {@linkcode LanguageModelChatProvider}
 	 */
-	export type LanguageModelInputPart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart;
+	export type LanguageModelInputPart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart;
 
 	/**
 	 * A LanguageModelChatProvider implements access to language models, which users can then use through the chat view, or through extension API by acquiring a LanguageModelChat.
@@ -20717,7 +20732,7 @@ declare module 'vscode' {
 		/**
 		 * An event that fires when access information changes.
 		 */
-		onDidChange: Event<void>;
+		readonly onDidChange: Event<void>;
 
 		/**
 		 * Checks if a request can be made to a language model.
@@ -20813,13 +20828,13 @@ declare module 'vscode' {
 		/**
 		 * The value of the tool result.
 		 */
-		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>;
+		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>;
 
 		/**
 		 * @param callId The ID of the tool call.
 		 * @param content The content of the tool result.
 		 */
-		constructor(callId: string, content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>);
+		constructor(callId: string, content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>);
 	}
 
 	/**
@@ -20864,13 +20879,62 @@ declare module 'vscode' {
 		 * the future.
 		 * @see {@link lm.invokeTool}.
 		 */
-		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>;
+		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>;
 
 		/**
 		 * Create a LanguageModelToolResult
 		 * @param content A list of tool result content parts
 		 */
-		constructor(content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart>);
+		constructor(content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>);
+	}
+
+	/**
+	 * A language model response part containing arbitrary data, returned from a {@link LanguageModelChatResponse}.
+	 */
+	export class LanguageModelDataPart {
+		/**
+		 * Create a new {@linkcode LanguageModelDataPart} for an image.
+		 * @param data Binary image data
+		 * @param mimeType The MIME type of the image. Common values are `image/png` and `image/jpeg`.
+		 */
+		static image(data: Uint8Array, mime: string): LanguageModelDataPart;
+
+		/**
+		 * Create a new {@linkcode LanguageModelDataPart} for a json.
+		 *
+		 * *Note* that this function is not expecting "stringified JSON" but
+		 * an object that can be stringified. This function will throw an error
+		 * when the passed value cannot be JSON-stringified.
+		 * @param value  A JSON-stringifyable value.
+		 * @param mimeType Optional MIME type, defaults to `application/json`
+		 */
+		static json(value: any, mime?: string): LanguageModelDataPart;
+
+		/**
+		 * Create a new {@linkcode LanguageModelDataPart} for text.
+		 *
+		 * *Note* that an UTF-8 encoder is used to create bytes for the string.
+		 * @param value Text data
+		 * @param mimeType The MIME type if any. Common values are `text/plain` and `text/markdown`.
+		 */
+		static text(value: string, mime?: string): LanguageModelDataPart;
+
+		/**
+		 * The mime type which determines how the data property is interpreted.
+		 */
+		mimeType: string;
+
+		/**
+		 * The byte data for this part.
+		 */
+		data: Uint8Array;
+
+		/**
+		 * Construct a generic data part with the given content.
+		 * @param data The byte data for this part.
+		 * @param mimeType The mime type of the data.
+		 */
+		constructor(data: Uint8Array, mimeType: string);
 	}
 
 	/**

@@ -13,6 +13,7 @@ import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatErrorDetailsPart, IChatRendererContent } from '../../common/chatViewModel.js';
 import { IChatContentPart } from './chatContentParts.js';
 
@@ -22,30 +23,31 @@ export class ChatAnonymousRateLimitedPart extends Disposable implements IChatCon
 
 	constructor(
 		private readonly content: IChatErrorDetailsPart,
-		@ICommandService private readonly commandService: ICommandService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ICommandService commandService: ICommandService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService
 	) {
 		super();
 
-		this.domNode = $('.chat-rate-limited-error-widget');
+		this.domNode = $('.chat-rate-limited-widget');
 
 		const icon = append(this.domNode, $('span'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
 
-		const messageContainer = append(this.domNode, $('.chat-rate-limited-error-message'));
+		const messageContainer = append(this.domNode, $('.chat-rate-limited-message'));
 
 		const message = append(messageContainer, $('div'));
-		message.textContent = localize('anonymousRateLimited', "You've reached the chat limit without signing in. Sign in to access your benefits, or create a free account for 50 premium requests each month, with access to more models and AI features");
+		message.textContent = localize('anonymousRateLimited', "Continue the conversation by signing in. Your free account gets 50 premium requests a month plus access to more models and AI features.");
 
 		const signInButton = this._register(new Button(messageContainer, { ...defaultButtonStyles, supportIcons: true }));
-		signInButton.label = localize('signInToContinue', "Sign in to Continue");
-		signInButton.element.classList.add('chat-rate-limited-error-button');
+		signInButton.label = localize('enableMoreAIFeatures', "Enable more AI features");
+		signInButton.element.classList.add('chat-rate-limited-button');
 
 		this._register(signInButton.onDidClick(async () => {
 			const commandId = 'workbench.action.chat.triggerSetup';
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-response' });
+			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-response' });
 
-			await this.commandService.executeCommand(commandId);
+			await commandService.executeCommand(commandId);
 		}));
 	}
 

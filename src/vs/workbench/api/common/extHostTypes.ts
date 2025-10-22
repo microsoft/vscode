@@ -21,37 +21,34 @@ import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/ex
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '../../../platform/files/common/files.js';
 import { RemoteAuthorityResolverErrorCode } from '../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IRelativePatternDto } from './extHost.protocol.js';
-import { Position } from './extHostTypes/position.js';
-import { es5ClassCompat } from './extHostTypes/es5ClassCompat.js';
-import { Range } from './extHostTypes/range.js';
 import { CodeActionKind } from './extHostTypes/codeActionKind.js';
-import { Location } from './extHostTypes/location.js';
 import { Diagnostic } from './extHostTypes/diagnostic.js';
+import { es5ClassCompat } from './extHostTypes/es5ClassCompat.js';
+import { Location } from './extHostTypes/location.js';
+import { MarkdownString } from './extHostTypes/markdownString.js';
+import { Position } from './extHostTypes/position.js';
+import { Range } from './extHostTypes/range.js';
+import { SnippetString } from './extHostTypes/snippetString.js';
+import { SymbolKind, SymbolTag } from './extHostTypes/symbolInformation.js';
 import { TextEdit } from './extHostTypes/textEdit.js';
 import { WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
-import { SnippetString } from './extHostTypes/snippetString.js';
-import { MarkdownString } from './extHostTypes/markdownString.js';
-import { SymbolKind, SymbolTag } from './extHostTypes/symbolInformation.js';
 
-export { Position } from './extHostTypes/position.js';
-export { Range } from './extHostTypes/range.js';
-export { Selection } from './extHostTypes/selection.js';
 export { CodeActionKind } from './extHostTypes/codeActionKind.js';
-export { Location } from './extHostTypes/location.js';
 export {
 	Diagnostic, DiagnosticRelatedInformation,
 	DiagnosticSeverity, DiagnosticTag
 } from './extHostTypes/diagnostic.js';
-export { EndOfLine, TextEdit } from './extHostTypes/textEdit.js';
-export { FileEditType, WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
+export { Location } from './extHostTypes/location.js';
+export { MarkdownString } from './extHostTypes/markdownString.js';
+export { NotebookCellData, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData, NotebookEdit, NotebookRange } from './extHostTypes/notebooks.js';
+export { Position } from './extHostTypes/position.js';
+export { Range } from './extHostTypes/range.js';
+export { Selection } from './extHostTypes/selection.js';
 export { SnippetString } from './extHostTypes/snippetString.js';
 export { SnippetTextEdit } from './extHostTypes/snippetTextEdit.js';
-export {
-	NotebookCellKind, NotebookRange, NotebookCellData, NotebookCellOutput,
-	NotebookData, NotebookEdit, NotebookCellOutputItem
-} from './extHostTypes/notebooks.js';
-export { MarkdownString } from './extHostTypes/markdownString.js';
-export { SymbolKind, SymbolTag, SymbolInformation } from './extHostTypes/symbolInformation.js';
+export { SymbolInformation, SymbolKind, SymbolTag } from './extHostTypes/symbolInformation.js';
+export { EndOfLine, TextEdit } from './extHostTypes/textEdit.js';
+export { FileEditType, WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
 
 export enum TerminalOutputAnchor {
 	Top = 0,
@@ -932,11 +929,11 @@ export enum TerminalCompletionItemKind {
 	Flag = 7,
 	SymbolicLinkFile = 8,
 	SymbolicLinkFolder = 9,
-	Commit = 10,
-	Branch = 11,
-	Tag = 12,
-	Stash = 13,
-	Remote = 14,
+	ScmCommit = 10,
+	ScmBranch = 11,
+	ScmTag = 12,
+	ScmStash = 13,
+	ScmRemote = 14,
 	PullRequest = 15,
 	PullRequestDone = 16,
 }
@@ -974,7 +971,7 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 	/**
 	 * Resources should be shown in the completions list
 	 */
-	resourceRequestConfig?: TerminalResourceRequestConfig;
+	resourceOptions?: TerminalCompletionResourceOptions;
 
 	/**
 	 * The completion items.
@@ -987,15 +984,15 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 	 * @param items The completion items.
 	 * @param isIncomplete The list is not complete.
 	 */
-	constructor(items?: T[], resourceRequestConfig?: TerminalResourceRequestConfig) {
+	constructor(items?: T[], resourceOptions?: TerminalCompletionResourceOptions) {
 		this.items = items ?? [];
-		this.resourceRequestConfig = resourceRequestConfig;
+		this.resourceOptions = resourceOptions;
 	}
 }
 
-export interface TerminalResourceRequestConfig {
-	filesRequested?: boolean;
-	foldersRequested?: boolean;
+export interface TerminalCompletionResourceOptions {
+	showFiles?: boolean;
+	showFolders?: boolean;
 	fileExtensions?: string[];
 	cwd?: vscode.Uri;
 }
@@ -2547,7 +2544,8 @@ export class DebugVisualization {
 
 export enum QuickInputButtonLocation {
 	Title = 1,
-	Inline = 2
+	Inline = 2,
+	Input = 3
 }
 
 @es5ClassCompat
@@ -3161,9 +3159,11 @@ export class ChatResponseFileTreePart {
 export class ChatResponseMultiDiffPart {
 	value: vscode.ChatResponseDiffEntry[];
 	title: string;
-	constructor(value: vscode.ChatResponseDiffEntry[], title: string) {
+	readOnly?: boolean;
+	constructor(value: vscode.ChatResponseDiffEntry[], title: string, readOnly?: boolean) {
 		this.value = value;
 		this.title = title;
+		this.readOnly = readOnly;
 	}
 }
 
@@ -3175,6 +3175,7 @@ export class ChatResponseAnchorPart implements vscode.ChatResponseAnchorPart {
 	resolve?(token: vscode.CancellationToken): Thenable<void>;
 
 	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
+		// eslint-disable-next-line local/code-no-any-casts
 		this.value = value as any;
 		this.value2 = value;
 		this.title = title;
@@ -3354,6 +3355,7 @@ export class ChatToolInvocationPart {
 	isConfirmed?: boolean;
 	isComplete?: boolean;
 	toolSpecificData?: ChatTerminalToolInvocationData2;
+	fromSubAgent?: boolean;
 
 	constructor(toolName: string,
 		toolCallId: string,
@@ -3468,15 +3470,6 @@ export class LanguageModelToolResultPart implements vscode.LanguageModelToolResu
 	}
 }
 
-export class LanguageModelToolResultPart2 extends LanguageModelToolResultPart implements vscode.LanguageModelToolResultPart2 {
-
-	declare content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown)[];
-
-	constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown)[], isError?: boolean) {
-		super(callId, content, isError);
-		this.content = content;
-	}
-}
 
 export enum ChatErrorLevel {
 	Info = 0,
@@ -3486,19 +3479,19 @@ export enum ChatErrorLevel {
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
-	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
+	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage {
 		return new LanguageModelChatMessage(LanguageModelChatMessageRole.User, content, name);
 	}
 
-	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
+	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage {
 		return new LanguageModelChatMessage(LanguageModelChatMessageRole.Assistant, content, name);
 	}
 
 	role: vscode.LanguageModelChatMessageRole;
 
-	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[] = [];
+	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[] = [];
 
-	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[]) {
+	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[]) {
 		if (typeof value === 'string') {
 			// we changed this and still support setting content with a string property. this keep the API runtime stable
 			// despite the breaking change in the type definition.
@@ -3508,13 +3501,13 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 		}
 	}
 
-	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[] {
+	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[] {
 		return this._content;
 	}
 
 	name: string | undefined;
 
-	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string) {
+	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string) {
 		this.role = role;
 		this.content = content;
 		this.name = name;
@@ -3523,19 +3516,19 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessage2 {
 
-	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage2 {
+	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage2 {
 		return new LanguageModelChatMessage2(LanguageModelChatMessageRole.User, content, name);
 	}
 
-	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage2 {
+	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage2 {
 		return new LanguageModelChatMessage2(LanguageModelChatMessageRole.Assistant, content, name);
 	}
 
 	role: vscode.LanguageModelChatMessageRole;
 
-	private _content: (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[] = [];
+	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[] = [];
 
-	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[]) {
+	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[]) {
 		if (typeof value === 'string') {
 			// we changed this and still support setting content with a string property. this keep the API runtime stable
 			// despite the breaking change in the type definition.
@@ -3545,12 +3538,12 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 		}
 	}
 
-	get content(): (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[] {
+	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[] {
 		return this._content;
 	}
 
 	// Temp to avoid breaking changes
-	set content2(value: (string | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart)[] | undefined) {
+	set content2(value: (string | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[] | undefined) {
 		if (value) {
 			this.content = value.map(part => {
 				if (typeof part === 'string') {
@@ -3561,7 +3554,7 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 		}
 	}
 
-	get content2(): (string | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[] | undefined {
+	get content2(): (string | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[] | undefined {
 		return this.content.map(part => {
 			if (part instanceof LanguageModelTextPart) {
 				return part.value;
@@ -3572,7 +3565,7 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 
 	name: string | undefined;
 
-	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[], name?: string) {
+	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[], name?: string) {
 		this.role = role;
 		this.content = content;
 		this.name = name;
@@ -3628,8 +3621,8 @@ export class LanguageModelDataPart implements vscode.LanguageModelDataPart2 {
 		this.audience = audience;
 	}
 
-	static image(data: Uint8Array<ArrayBufferLike>, mimeType: ChatImageMimeType): vscode.LanguageModelDataPart {
-		return new LanguageModelDataPart(data, mimeType as string);
+	static image(data: Uint8Array<ArrayBufferLike>, mimeType: string): vscode.LanguageModelDataPart {
+		return new LanguageModelDataPart(data, mimeType);
 	}
 
 	static json(value: object, mime: string = 'text/x-json'): vscode.LanguageModelDataPart {
@@ -3768,7 +3761,7 @@ export class LanguageModelError extends Error {
 }
 
 export class LanguageModelToolResult {
-	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[]) { }
+	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart)[]) { }
 
 	toJSON() {
 		return {
@@ -3790,6 +3783,9 @@ export class LanguageModelToolResult2 {
 }
 
 export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
+	toolResultMessage?: string | MarkdownString;
+	toolResultDetails?: Array<URI | Location>;
+	toolMetadata?: unknown;
 }
 
 export enum LanguageModelChatToolMode {
@@ -3848,6 +3844,11 @@ export enum KeywordRecognitionStatus {
 //#endregion
 
 //#region MCP
+export enum McpToolAvailability {
+	Initial = 0,
+	Dynamic = 1,
+}
+
 export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition {
 	cwd?: URI;
 
@@ -3857,6 +3858,7 @@ export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition
 		public args: string[],
 		public env: Record<string, string | number | null> = {},
 		public version?: string,
+		public metadata?: vscode.McpServerMetadata,
 	) { }
 }
 
@@ -3866,6 +3868,7 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 		public uri: URI,
 		public headers: Record<string, string> = {},
 		public version?: string,
+		public metadata?: vscode.McpServerMetadata,
 	) { }
 }
 //#endregion

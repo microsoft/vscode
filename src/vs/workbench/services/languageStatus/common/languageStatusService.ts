@@ -39,7 +39,7 @@ export interface ILanguageStatusService {
 
 	_serviceBrand: undefined;
 
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 
 	addStatus(status: ILanguageStatus): IDisposable;
 

@@ -7,11 +7,12 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import type { IStringDictionary } from '../../../../base/common/collections.js';
 import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { TerminalLocationString, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalLocationConfigValue, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { terminalColorSchema, terminalIconSchema } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchExtensions } from '../../../common/configuration.js';
 import { terminalContribConfiguration, TerminalContribSettingId } from '../terminalContribExports.js';
@@ -115,7 +116,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.DefaultLocation]: {
 		type: 'string',
-		enum: [TerminalLocationString.Editor, TerminalLocationString.TerminalView],
+		enum: [TerminalLocationConfigValue.Editor, TerminalLocationConfigValue.TerminalView],
 		enumDescriptions: [
 			localize('terminal.integrated.defaultLocation.editor', "Create terminals in the editor"),
 			localize('terminal.integrated.defaultLocation.view', "Create terminals in the terminal view")
@@ -458,17 +459,6 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		},
 		default: {}
 	},
-	[TerminalSettingId.EnvironmentChangesIndicator]: {
-		markdownDescription: localize('terminal.integrated.environmentChangesIndicator', "Whether to display the environment changes indicator on each terminal which explains whether extensions have made, or want to make changes to the terminal's environment."),
-		type: 'string',
-		enum: ['off', 'on', 'warnonly'],
-		enumDescriptions: [
-			localize('terminal.integrated.environmentChangesIndicator.off', "Disable the indicator."),
-			localize('terminal.integrated.environmentChangesIndicator.on', "Enable the indicator."),
-			localize('terminal.integrated.environmentChangesIndicator.warnonly', "Only show the warning indicator when a terminal's environment is 'stale', not the information indicator that shows a terminal has had its environment modified by an extension."),
-		],
-		default: 'warnonly'
-	},
 	[TerminalSettingId.EnvironmentChangesRelaunch]: {
 		markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extensions want to contribute to their environment and have not been interacted with yet."),
 		type: 'boolean',
@@ -604,6 +594,12 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		],
 		default: 'both'
 	},
+	[TerminalSettingId.ShellIntegrationQuickFixEnabled]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.shellIntegration.quickFixEnabled', "When shell integration is enabled, enables quick fixes for terminal commands that appear as a lightbulb or sparkle icon to the left of the prompt."),
+		type: 'boolean',
+		default: true
+	},
 	[TerminalSettingId.ShellIntegrationEnvironmentReporting]: {
 		markdownDescription: localize('terminal.integrated.shellIntegration.environmentReporting', "Controls whether to report the shell environment, enabling its use in features such as {0}. This may cause a slowdown when printing your shell's prompt.", `\`#${TerminalContribSettingId.SuggestEnabled}#\``),
 		type: 'boolean',
@@ -656,7 +652,14 @@ export async function registerTerminalConfiguration(getFontSnippets: () => Promi
 				default: true,
 				policy: {
 					name: 'ChatToolsTerminalEnableAutoApprove',
+					category: PolicyCategory.IntegratedTerminal,
 					minimumVersion: '1.104',
+					localization: {
+						description: {
+							key: 'autoApproveMode.description',
+							value: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
+						}
+					}
 				}
 			}
 		}

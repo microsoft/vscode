@@ -22,6 +22,8 @@ export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
 	selectedAgent?: IChatAgentData;
 	mode?: ChatModeKind;
+	/** Parse as this agent, even when it does not appear in the query text */
+	forcedAgent?: IChatAgentData;
 }
 
 export class ChatRequestParser {
@@ -204,9 +206,10 @@ export class ChatRequestParser {
 		const slashRange = new OffsetRange(offset, offset + full.length);
 		const slashEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
-		const usedAgent = parts.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+		const usedAgent = parts.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart)?.agent ??
+			(context?.forcedAgent ? context.forcedAgent : undefined);
 		if (usedAgent) {
-			const subCommand = usedAgent.agent.slashCommands.find(c => c.name === command);
+			const subCommand = usedAgent.slashCommands.find(c => c.name === command);
 			if (subCommand) {
 				// Valid agent subcommand
 				return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);

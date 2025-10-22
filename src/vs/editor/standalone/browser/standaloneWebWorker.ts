@@ -68,7 +68,7 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 					if (typeof prop !== 'string') {
 						throw new Error(`Not supported`);
 					}
-					return (...args: any[]) => {
+					return (...args: unknown[]) => {
 						return proxy.$fmr(prop, args);
 					};
 				}
@@ -77,7 +77,7 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 	}
 
 	// foreign host request
-	public override fhr(method: string, args: any[]): Promise<any> {
+	public override fhr(method: string, args: unknown[]): Promise<any> {
 		if (!this._foreignModuleHost || typeof this._foreignModuleHost[method] !== 'function') {
 			return Promise.reject(new Error('Missing method ' + method + ' or missing main thread foreign host.'));
 		}

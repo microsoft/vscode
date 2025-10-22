@@ -30,7 +30,7 @@ import { registerNotificationCommands } from './parts/notifications/notification
 import { NotificationsToasts } from './parts/notifications/notificationsToasts.js';
 import { setARIAContainer } from '../../base/browser/ui/aria/aria.js';
 import { FontMeasurements } from '../../editor/browser/config/fontMeasurements.js';
-import { BareFontInfo } from '../../editor/common/config/fontInfo.js';
+import { createBareFontInfoFromRawSettings } from '../../editor/common/config/fontInfoFromSettings.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { WorkbenchContextKeysHandler } from './contextkeys.js';
@@ -48,6 +48,8 @@ import { AccessibilityProgressSignalScheduler } from '../../platform/accessibili
 import { setProgressAcccessibilitySignalScheduler } from '../../base/browser/ui/progressbar/progressAccessibilitySignal.js';
 import { AccessibleViewRegistry } from '../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { NotificationAccessibleView } from './parts/notifications/notificationAccessibleView.js';
+import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
+import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 
 export interface IWorkbenchOptions {
 
@@ -138,6 +140,10 @@ export class Workbench extends Layout {
 				const hoverService = accessor.get(IHoverService);
 				const dialogService = accessor.get(IDialogService);
 				const notificationService = accessor.get(INotificationService) as NotificationService;
+				const markdownRendererService = accessor.get(IMarkdownRendererService);
+
+				// Set code block renderer for markdown rendering
+				markdownRendererService.setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 				// Default Hover Delegate must be registered before creating any workbench/layout components
 				// as these possibly will use the default hover delegate
@@ -205,9 +211,9 @@ export class Workbench extends Layout {
 			const lifecycleService = accessor.get(ILifecycleService);
 
 			// TODO@Sandeep debt around cyclic dependencies
-			const configurationService = accessor.get(IConfigurationService) as any;
-			if (typeof configurationService.acquireInstantiationService === 'function') {
-				configurationService.acquireInstantiationService(instantiationService);
+			const configurationService = accessor.get(IConfigurationService);
+			if (configurationService && 'acquireInstantiationService' in configurationService) {
+				(configurationService as { acquireInstantiationService: (instantiationService: unknown) => void }).acquireInstantiationService(instantiationService);
 			}
 
 			// Signal to lifecycle that services are set
@@ -296,7 +302,7 @@ export class Workbench extends Layout {
 			}
 		}
 
-		FontMeasurements.readFontInfo(mainWindow, BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), PixelRatio.getInstance(mainWindow).value));
+		FontMeasurements.readFontInfo(mainWindow, createBareFontInfoFromRawSettings(configurationService.getValue('editor'), PixelRatio.getInstance(mainWindow).value));
 	}
 
 	private storeFontInfo(storageService: IStorageService): void {
