@@ -28,7 +28,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
-import { ChatConfiguration, VIEWLET_ID } from '../../common/constants.js';
+import { ChatConfiguration, AGENT_SESSIONS_VIEWLET_ID } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -36,15 +36,6 @@ import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSe
 import { ChatViewPane } from '../chatViewPane.js';
 import { ACTION_ID_OPEN_CHAT, CHAT_CATEGORY } from './chatActions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-
-export interface IChatSessionContext {
-	sessionId: string;
-	sessionType: 'editor' | 'widget';
-	currentTitle: string;
-	editorInput?: any;
-	editorGroup?: any;
-	widget?: any;
-}
 
 interface IMarshalledChatSessionContext {
 	$mid: MarshalledId.ChatSessionContext;
@@ -176,7 +167,7 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenChatSessionInNewWindowAction.id,
-			title: localize('chat.openSessionInNewWindow.label', "Open Chat in New Window"),
+			title: localize('chat.openSessionInNewWindow.label', "Move Chat into New Window"),
 			category: CHAT_CATEGORY,
 			f1: false,
 		});
@@ -233,7 +224,7 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenChatSessionInNewEditorGroupAction.id,
-			title: localize('chat.openSessionInNewEditorGroup.label', "Open Chat to the Side"),
+			title: localize('chat.openSessionInNewEditorGroup.label', "Move Chat to the Side"),
 			category: CHAT_CATEGORY,
 			f1: false,
 		});
@@ -290,7 +281,7 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenChatSessionInSidebarAction.id,
-			title: localize('chat.openSessionInSidebar.label', "Open Chat in Sidebar"),
+			title: localize('chat.openSessionInSidebar.label', "Move Chat into Side Bar"),
 			category: CHAT_CATEGORY,
 			f1: false,
 		});
@@ -486,7 +477,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 	},
 	group: '1_config',
 	order: 1,
-	when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
+	when: ContextKeyExpr.equals('viewContainer', AGENT_SESSIONS_VIEWLET_ID),
 });
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
@@ -497,5 +488,5 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	},
 	group: 'navigation',
 	order: 1,
-	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+	when: ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.local`),
 });

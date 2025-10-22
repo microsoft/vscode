@@ -15,8 +15,9 @@ import { IChatModeService } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
-import { PromptHeader } from '../service/newPromptsParser.js';
+import { PromptHeader } from '../promptFileParser.js';
 import { getValidAttributeNames } from './promptValidator.js';
+import { localize } from '../../../../../../nls.js';
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	/**
@@ -132,14 +133,13 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			return undefined;
 		}
 
-		if (promptType === PromptsType.prompt || promptType === PromptsType.mode) {
+		if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
 			// if the position is inside the tools metadata, we provide tool name completions
 			const result = this.provideToolCompletions(model, position, header);
 			if (result) {
 				return result;
 			}
 		}
-
 
 		const bracketIndex = lineContent.indexOf('[');
 		if (bracketIndex !== -1 && bracketIndex <= position.column - 1) {
@@ -152,6 +152,22 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		for (const value of values) {
 			const item: CompletionItem = {
 				label: value,
+				kind: CompletionItemKind.Value,
+				insertText: whilespaceAfterColon === 0 ? ` ${value}` : value,
+				range: new Range(position.lineNumber, colonPosition.column + whilespaceAfterColon + 1, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
+			};
+			suggestions.push(item);
+		}
+		if (property === 'handoffs' && (promptType === PromptsType.agent)) {
+			const value = [
+				'',
+				'  - label: Start Implementation',
+				'    agent: agent',
+				'    prompt: Implement the plan',
+				'    send: true'
+			].join('\n');
+			const item: CompletionItem = {
+				label: localize('promptHeaderAutocompletion.handoffsExample', "Handoff Example"),
 				kind: CompletionItemKind.Value,
 				insertText: whilespaceAfterColon === 0 ? ` ${value}` : value,
 				range: new Range(position.lineNumber, colonPosition.column + whilespaceAfterColon + 1, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
@@ -178,21 +194,22 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		if (promptType === PromptsType.instructions && property === 'applyTo') {
 			return [`'**'`, `'**/*.ts, **/*.js'`, `'**/*.php'`, `'**/*.py'`];
 		}
-		if (promptType === PromptsType.prompt && property === 'mode') {
-			// Get all available modes (builtin + custom)
-			const modes = this.chatModeService.getModes();
+		if (promptType === PromptsType.prompt && (property === 'agent' || property === 'mode')) {
+			// Get all available agents (builtin + custom)
+			const agents = this.chatModeService.getModes();
 			const suggestions: string[] = [];
-			for (const mode of Iterable.concat(modes.builtin, modes.custom)) {
-				suggestions.push(mode.name);
+			for (const agent of Iterable.concat(agents.builtin, agents.custom)) {
+				suggestions.push(agent.name);
 			}
 			return suggestions;
 		}
-		if (property === 'tools' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
+		if (property === 'tools' && (promptType === PromptsType.prompt || promptType === PromptsType.agent)) {
 			return ['[]', `['search', 'edit', 'fetch']`];
 		}
-		if (property === 'model' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
-			return this.getModelNames(promptType === PromptsType.mode);
+		if (property === 'model' && (promptType === PromptsType.prompt || promptType === PromptsType.agent)) {
+			return this.getModelNames(promptType === PromptsType.agent);
 		}
+
 		return [];
 	}
 

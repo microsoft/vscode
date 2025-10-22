@@ -321,7 +321,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let toolsModelReady = false;
 
 		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind)?.then(() => agentReady = true);
-		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService)?.then(() => languageModelReady = true);
+		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService, requestModel.modelId)?.then(() => languageModelReady = true);
 		const whenToolsModelReady = this.whenToolsModelReady(languageModelToolsService, requestModel)?.then(() => toolsModelReady = true);
 
 		if (whenLanguageModelReady instanceof Promise || whenAgentReady instanceof Promise || whenToolsModelReady instanceof Promise) {
@@ -383,21 +383,27 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		});
 	}
 
-	private whenLanguageModelReady(languageModelsService: ILanguageModelsService): Promise<unknown> | void {
-		const hasDefaultModel = () => {
+	private whenLanguageModelReady(languageModelsService: ILanguageModelsService, modelId: string | undefined): Promise<unknown> | void {
+		const hasModelForRequest = () => {
+			if (modelId) {
+				return !!languageModelsService.lookupLanguageModel(modelId);
+			}
+
 			for (const id of languageModelsService.getLanguageModelIds()) {
 				const model = languageModelsService.lookupLanguageModel(id);
 				if (model && model.isDefault) {
-					return true; // we have language models!
+					return true;
 				}
 			}
+
 			return false;
 		};
-		if (hasDefaultModel()) {
-			return; // we have language models!
+
+		if (hasModelForRequest()) {
+			return;
 		}
 
-		return Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, () => hasDefaultModel() ?? false));
+		return Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, () => hasModelForRequest()));
 	}
 
 	private whenToolsModelReady(languageModelToolsService: ILanguageModelToolsService, requestModel: IChatRequestModel): Promise<unknown> | void {
@@ -1262,25 +1268,24 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const params = new URLSearchParams(url.query);
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'url', detail: params.get('referrer') ?? undefined });
 
-				const modeParam = params.get('mode');
-				let modeToUse: ChatModeKind | string | undefined;
-				if (modeParam) {
-					// check if the given param is a valid mode ID
-					let foundMode = this.chatModeService.findModeById(modeParam);
-					if (!foundMode) {
-						// if not, check if the given param is a valid mode name, note the name is case insensitive
-						foundMode = this.chatModeService.findModeByName(modeParam);
-					}
+				const agentParam = params.get('agent') ?? params.get('mode');
+				if (agentParam) {
+					const agents = this.chatModeService.getModes();
+					const allAgents = [...agents.builtin, ...agents.custom];
 
-					if (foundMode) {
-						modeToUse = foundMode.id;
+					// check if the given param is a valid mode ID
+					let foundAgent = allAgents.find(agent => agent.id === agentParam);
+					if (!foundAgent) {
+						// if not, check if the given param is a valid mode name, note the parameter as name is case insensitive
+						const nameLower = agentParam.toLowerCase();
+						foundAgent = allAgents.find(agent => agent.name.toLowerCase() === nameLower);
 					}
+					// execute the command to change the mode in panel, note that the command only supports mode IDs, not names
+					await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, foundAgent?.id);
+					return true;
 				}
 
-				// execute the command to change the mode in panel, note that the command only supports mode IDs, not names
-				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, modeToUse);
-
-				return true;
+				return false;
 			}
 		}));
 	}
@@ -1427,10 +1432,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 					title: ChatSetupHideAction.TITLE,
 					f1: true,
 					category: CHAT_CATEGORY,
-					precondition: ContextKeyExpr.and(
-						ChatContextKeys.Setup.hidden.negate(),
-						ChatContextKeys.Setup.installed.negate()
-					),
+					precondition: ChatContextKeys.Setup.hidden.negate(),
 					menu: {
 						id: MenuId.ChatTitleBarMenu,
 						group: 'z_hide',

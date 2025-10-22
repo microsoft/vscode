@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from '../../../../../../base/common/iterator.js';
-import { dirname, joinPath } from '../../../../../../base/common/resources.js';
-import { splitLinesIncludeSeparators } from '../../../../../../base/common/strings.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { parse, YamlNode, YamlParseError, Position as YamlPosition } from '../../../../../../base/common/yaml.js';
-import { Range } from '../../../../../../editor/common/core/range.js';
-import { chatVariableLeader } from '../../chatParserTypes.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
+import { dirname, joinPath } from '../../../../../base/common/resources.js';
+import { splitLinesIncludeSeparators } from '../../../../../base/common/strings.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { parse, YamlNode, YamlParseError, Position as YamlPosition } from '../../../../../base/common/yaml.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 
-export class NewPromptsParser {
+export class PromptFileParser {
 	constructor() {
 	}
 
@@ -60,6 +59,17 @@ interface ParsedHeader {
 	readonly node: YamlNode | undefined;
 	readonly errors: ParseError[];
 	readonly attributes: IHeaderAttribute[];
+}
+
+export namespace PromptHeaderAttributes {
+	export const description = 'description';
+	export const agent = 'agent';
+	export const mode = 'mode';
+	export const model = 'model';
+	export const applyTo = 'applyTo';
+	export const tools = 'tools';
+	export const handOffs = 'handoffs';
+	export const advancedOptions = 'advancedOptions';
 }
 
 export class PromptHeader {
@@ -137,23 +147,23 @@ export class PromptHeader {
 	}
 
 	public get description(): string | undefined {
-		return this.getStringAttribute('description');
+		return this.getStringAttribute(PromptHeaderAttributes.description);
 	}
 
-	public get mode(): string | undefined {
-		return this.getStringAttribute('mode');
+	public get agent(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.agent) ?? this.getStringAttribute(PromptHeaderAttributes.mode);
 	}
 
 	public get model(): string | undefined {
-		return this.getStringAttribute('model');
+		return this.getStringAttribute(PromptHeaderAttributes.model);
 	}
 
 	public get applyTo(): string | undefined {
-		return this.getStringAttribute('applyTo');
+		return this.getStringAttribute(PromptHeaderAttributes.applyTo);
 	}
 
 	public get tools(): string[] | undefined {
-		const toolsAttribute = this._parsedHeader.attributes.find(attr => attr.key === 'tools');
+		const toolsAttribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.tools);
 		if (!toolsAttribute) {
 			return undefined;
 		}
@@ -180,7 +190,43 @@ export class PromptHeader {
 		return undefined;
 	}
 
+	public get handOffs(): IHandOff[] | undefined {
+		const handoffsAttribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.handOffs);
+		if (!handoffsAttribute) {
+			return undefined;
+		}
+		if (handoffsAttribute.value.type === 'array') {
+			// Array format: list of objects: { agent, label, prompt, send? }
+			const handoffs: IHandOff[] = [];
+			for (const item of handoffsAttribute.value.items) {
+				if (item.type === 'object') {
+					let agent: string | undefined;
+					let label: string | undefined;
+					let prompt: string | undefined;
+					let send: boolean | undefined;
+					for (const prop of item.properties) {
+						if (prop.key.value === 'agent' && prop.value.type === 'string') {
+							agent = prop.value.value;
+						} else if (prop.key.value === 'label' && prop.value.type === 'string') {
+							label = prop.value.value;
+						} else if (prop.key.value === 'prompt' && prop.value.type === 'string') {
+							prompt = prop.value.value;
+						} else if (prop.key.value === 'send' && prop.value.type === 'boolean') {
+							send = prop.value.value;
+						}
+					}
+					if (agent && label && prompt !== undefined) {
+						handoffs.push({ agent, label, prompt, send });
+					}
+				}
+			}
+			return handoffs;
+		}
+		return undefined;
+	}
 }
+
+export interface IHandOff { readonly agent: string; readonly label: string; readonly prompt: string; readonly send?: boolean }
 
 export interface IHeaderAttribute {
 	readonly range: Range;
@@ -248,7 +294,7 @@ export class PromptBody {
 					fileReferences.push({ content: match[2], range, isMarkdownLink: true });
 					markdownLinkRanges.push(new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1));
 				}
-				const reg = new RegExp(`${chatVariableLeader}([\\w]+:)?([^\\s#]+)`, 'g');
+				const reg = new RegExp(`#([\\w]+:)?([^\\s#]+)`, 'g');
 				const matches = line.matchAll(reg);
 				for (const match of matches) {
 					const fullRange = new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1);

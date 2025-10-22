@@ -11,6 +11,7 @@ import { ApplicationService } from './application';
 import { createInMemoryTransportPair } from './inMemoryTransport';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { Application } from '../../automation';
+import { opts } from './options';
 
 interface SubServerConfig {
 	subServer: Client;
@@ -81,6 +82,9 @@ export async function getServer(): Promise<Server> {
 		}
 	});
 
+	if (opts.autostart) {
+		await appService.getOrCreateApplication();
+	}
 	return multiplexServer.server;
 }
 
