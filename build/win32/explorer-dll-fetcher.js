@@ -37,12 +37,12 @@ async function downloadExplorerDll(outDir, quality = 'stable', targetArch = 'x64
     d(`downloading ${fileName}`);
     const artifact = await (0, get_1.downloadArtifact)({
         isGeneric: true,
-        version: 'v4.0.0-350164',
+        version: 'v4.0.0-355426',
         artifactName: fileName,
         checksums,
         mirrorOptions: {
             mirror: 'https://github.com/microsoft/vscode-explorer-command/releases/download/',
-            customDir: 'v4.0.0-350164',
+            customDir: 'v4.0.0-355426',
             customFilename: fileName
         }
     });

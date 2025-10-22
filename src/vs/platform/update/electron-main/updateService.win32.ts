@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import * as fs from 'fs';
+import { existsSync, unlinkSync } from 'fs';
+import { mkdir, readFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
+import { app } from 'electron';
 import { timeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
@@ -40,7 +42,7 @@ interface IAvailableUpdate {
 let _updateType: UpdateType | undefined = undefined;
 function getUpdateType(): UpdateType {
 	if (typeof _updateType === 'undefined') {
-		_updateType = fs.existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))
+		_updateType = existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))
 			? UpdateType.Setup
 			: UpdateType.Archive;
 	}
@@ -55,7 +57,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	@memoize
 	get cachePath(): Promise<string> {
 		const result = path.join(tmpdir(), `vscode-${this.productService.quality}-${this.productService.target}-${process.arch}`);
-		return fs.promises.mkdir(result, { recursive: true }).then(() => result);
+		return mkdir(result, { recursive: true }).then(() => result);
 	}
 
 	constructor(
@@ -96,6 +98,12 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			return;
 		}
 
+		const cachePath = await this.cachePath;
+		app.setPath('appUpdate', cachePath);
+		try {
+			await unlink(path.join(cachePath, 'session-ending.flag'));
+		} catch { }
+
 		await super.initialize();
 	}
 
@@ -112,7 +120,39 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected doCheckForUpdates(explicit: boolean): void {
-		if (!this.url) {
+		if (!this.url || this.state.type === StateType.Updating) {
+			return;
+		}
+
+		// Check for pending update from previous session
+		// This can happen if the app is quit right after the update has been
+		// downloaded and before the update has been applied.
+		const exePath = app.getPath('exe');
+		const exeDir = path.dirname(exePath);
+		const updatingVersionPath = path.join(exeDir, 'updating_version');
+		if (existsSync(updatingVersionPath)) {
+			readFile(updatingVersionPath, 'utf8').then(updatingVersion => {
+				updatingVersion = updatingVersion.trim();
+				this.logService.info(`update#doCheckForUpdates - application was updating to version ${updatingVersion}`);
+				// NB: the following promises are not connected to the parent since
+				// we don't care about the result of update from this path and unlink the updating_version
+				// to only run this path once. Any error in the update flow will be fixed in the next update check.
+				this.getUpdatePackagePath(updatingVersion).then(updatePackagePath => {
+					pfs.Promises.exists(updatePackagePath).then(exists => {
+						if (exists) {
+							this._applySpecificUpdate(updatePackagePath).then(async _ => {
+								this.logService.info(`update#doCheckForUpdates - successfully applied update to version ${updatingVersion}`);
+							});
+						}
+					});
+				});
+			}).catch(e => {
+				this.logService.error(`update#doCheckForUpdates - could not read ${updatingVersionPath}`, e);
+			}).finally(async () => {
+				try {
+					await unlink(updatingVersionPath);
+				} catch { }
+			});
 			return;
 		}
 
@@ -196,7 +236,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		const promises = versions.filter(filter).map(async one => {
 			try {
-				await fs.promises.unlink(path.join(cachePath, one));
+				await unlink(path.join(cachePath, one));
 			} catch (err) {
 				// ignore
 			}
@@ -218,11 +258,12 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.setState(State.Updating(update));
 
 		const cachePath = await this.cachePath;
+		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
 
 		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
 
 		await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
-		const child = spawn(this.availableUpdate.packagePath, ['/verysilent', '/log', `/update="${this.availableUpdate.updateFilePath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
+		const child = spawn(this.availableUpdate.packagePath, ['/verysilent', '/log', `/update="${this.availableUpdate.updateFilePath}"`, `/sessionend="${sessionEndFlagPath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 			detached: true,
 			stdio: ['ignore', 'ignore', 'ignore'],
 			windowsVerbatimArguments: true
@@ -249,7 +290,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		if (this.availableUpdate.updateFilePath) {
-			fs.unlinkSync(this.availableUpdate.updateFilePath);
+			unlinkSync(this.availableUpdate.updateFilePath);
 		} else {
 			spawn(this.availableUpdate.packagePath, ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 				detached: true,

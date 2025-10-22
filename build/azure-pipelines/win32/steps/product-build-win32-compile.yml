@@ -190,7 +190,8 @@ steps:
         $ErrorActionPreference = "Stop"
         $ArtifactName = (gci -Path "$(Build.ArtifactStagingDirectory)/cli" | Select-Object -last 1).FullName
         Expand-Archive -Path $ArtifactName -DestinationPath "$(Build.ArtifactStagingDirectory)/cli"
-        $AppProductJson = Get-Content -Raw -Path "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\resources\app\product.json" | ConvertFrom-Json
+        $ProductJsonPath = (Get-ChildItem -Path "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)" -Name "product.json" -Recurse | Select-Object -First 1)
+        $AppProductJson = Get-Content -Raw -Path "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\$ProductJsonPath" | ConvertFrom-Json
         $CliAppName = $AppProductJson.tunnelApplicationName
         $AppName = $AppProductJson.applicationName
         Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/$AppName.exe" -Destination "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
@@ -247,7 +248,8 @@ steps:
     - powershell: |
         $ErrorActionPreference = "Stop"
 
-        $PackageJson = Get-Content -Raw -Path ..\VSCode-win32-$(VSCODE_ARCH)\resources\app\package.json | ConvertFrom-Json
+        $PackageJsonPath = (Get-ChildItem -Path "..\VSCode-win32-$(VSCODE_ARCH)" -Name "package.json" -Recurse | Select-Object -First 1)
+        $PackageJson = Get-Content -Raw -Path ..\VSCode-win32-$(VSCODE_ARCH)\$PackageJsonPath | ConvertFrom-Json
         $Version = $PackageJson.version
 
         mkdir $(Build.ArtifactStagingDirectory)\out\system-setup -Force
@@ -257,7 +259,7 @@ steps:
         mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $(Build.ArtifactStagingDirectory)\out\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$Version.exe
 
         mkdir $(Build.ArtifactStagingDirectory)\out\archive -Force
-        mv .build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH)-$Version.zip $(Build.ArtifactStagingDirectory)\out\archive\VSCode-win32-$(VSCODE_ARCH)-$Version.zip
+        mv .build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH).zip $(Build.ArtifactStagingDirectory)\out\archive\VSCode-win32-$(VSCODE_ARCH)-$Version.zip
 
         mkdir $(Build.ArtifactStagingDirectory)\out\server -Force
         mv .build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip $(Build.ArtifactStagingDirectory)\out\server\vscode-server-win32-$(VSCODE_ARCH).zip
