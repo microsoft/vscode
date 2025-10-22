@@ -23,7 +23,7 @@ import { ViewPaneContainer } from '../../browser/parts/views/viewPaneContainer.j
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
 import { ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../common/views.js';
 import { ChatContextKeyExprs } from '../../contrib/chat/common/chatContextKeys.js';
-import { VIEWLET_ID as CHAT_SESSIONS } from '../../contrib/chat/common/constants.js';
+import { AGENT_SESSIONS_VIEWLET_ID as CHAT_SESSIONS } from '../../contrib/chat/common/constants.js';
 import { VIEWLET_ID as DEBUG } from '../../contrib/debug/common/debug.js';
 import { VIEWLET_ID as EXPLORER } from '../../contrib/files/common/files.js';
 import { VIEWLET_ID as REMOTE } from '../../contrib/remote/browser/remoteExplorer.js';
