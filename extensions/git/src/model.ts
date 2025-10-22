@@ -1278,11 +1278,11 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			items.push(cloneAgain);
 			const placeHolder = l10n.t('Open Existing Repository Clone');
 			const pick = await window.showQuickPick(items, { placeHolder, canPickMany: false });
-			if (!pick?.item) {
-				return undefined;
-			}
 			if (pick === cloneAgain) {
 				return (await this.cloneRepository(url, parentPath, { ref, postCloneAction })) ?? undefined;
+			}
+			if (!pick?.item) {
+				return undefined;
 			}
 			return pick.item.workspacePath;
 		} catch {
