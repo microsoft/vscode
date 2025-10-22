@@ -36,10 +36,13 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 
 	private localProvider: LocalChatSessionsProvider | undefined;
 	private readonly sessionTracker: ChatSessionTracker;
+	private readonly registeredViewDescriptors: Map<string, IViewDescriptor> = new Map();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ILogService private readonly logService: ILogService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -53,6 +56,15 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 
 		// Initial check
 		this.registerViewContainer();
+		void this.updateViewRegistration();
+
+		this._register(this.chatSessionsService.onDidChangeItemsProviders(() => {
+			void this.updateViewRegistration();
+		}));
+
+		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
+			void this.updateViewRegistration();
+		}));
 	}
 
 	private setupEditorTracking(): void {
@@ -72,86 +84,9 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 				order: 6
 			}, ViewContainerLocation.Sidebar);
 	}
-}
-
-// Chat sessions container
-class ChatSessionsViewPaneContainer extends ViewPaneContainer {
-	private registeredViewDescriptors: Map<string, IViewDescriptor> = new Map();
-
-	constructor(
-		private readonly sessionTracker: ChatSessionTracker,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IExtensionService extensionService: IExtensionService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@ILogService logService: ILogService,
-		@IProductService private readonly productService: IProductService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-	) {
-		super(
-			VIEWLET_ID,
-			{
-				mergeViewWithContainerWhenSingleView: false,
-			},
-			instantiationService,
-			configurationService,
-			layoutService,
-			contextMenuService,
-			telemetryService,
-			extensionService,
-			themeService,
-			storageService,
-			contextService,
-			viewDescriptorService,
-			logService
-		);
-
-		this.updateViewRegistration();
-
-		// Listen for provider changes and register/unregister views accordingly
-		this._register(this.chatSessionsService.onDidChangeItemsProviders(() => {
-			this.updateViewRegistration();
-		}));
-
-		// Listen for session items changes and refresh the appropriate provider tree
-		this._register(this.chatSessionsService.onDidChangeSessionItems((chatSessionType) => {
-			this.refreshProviderTree(chatSessionType);
-		}));
-
-		// Listen for contribution availability changes and update view registration
-		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
-			this.updateViewRegistration();
-		}));
-	}
-
-	override getTitle(): string {
-		const title = nls.localize('chat.agent.sessions.title', "Agent Sessions");
-		return title;
-	}
 
 	private getAllChatSessionItemProviders(): IChatSessionItemProvider[] {
 		return Array.from(this.chatSessionsService.getAllChatSessionItemProviders());
-	}
-
-	private refreshProviderTree(chatSessionType: string): void {
-		// Find the provider with the matching chatSessionType
-		const providers = this.getAllChatSessionItemProviders();
-		const targetProvider = providers.find(provider => provider.chatSessionType === chatSessionType);
-
-		if (targetProvider) {
-			// Find the corresponding view and refresh its tree
-			const viewId = `${VIEWLET_ID}.${chatSessionType}`;
-			const view = this.getView(viewId) as SessionsViewPane | undefined;
-			if (view) {
-				view.refreshTree();
-			}
-		}
 	}
 
 	private async updateViewRegistration(): Promise<void> {
@@ -289,5 +224,66 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		}
 
 		super.dispose();
+	}
+}
+
+// Chat sessions container
+class ChatSessionsViewPaneContainer extends ViewPaneContainer {
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IExtensionService extensionService: IExtensionService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@ILogService logService: ILogService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+	) {
+		super(
+			VIEWLET_ID,
+			{
+				mergeViewWithContainerWhenSingleView: false,
+			},
+			instantiationService,
+			configurationService,
+			layoutService,
+			contextMenuService,
+			telemetryService,
+			extensionService,
+			themeService,
+			storageService,
+			contextService,
+			viewDescriptorService,
+			logService
+		);
+
+		// Listen for session items changes and refresh the appropriate provider tree
+		this._register(this.chatSessionsService.onDidChangeSessionItems((chatSessionType) => {
+			this.refreshProviderTree(chatSessionType);
+		}));
+	}
+
+	override getTitle(): string {
+		const title = nls.localize('chat.agent.sessions.title', "Agent Sessions");
+		return title;
+	}
+
+	private refreshProviderTree(chatSessionType: string): void {
+		// Find the provider with the matching chatSessionType
+		const providers = Array.from(this.chatSessionsService.getAllChatSessionItemProviders());
+		const targetProvider = providers.find(provider => provider.chatSessionType === chatSessionType);
+
+		if (targetProvider) {
+			// Find the corresponding view and refresh its tree
+			const viewId = `${VIEWLET_ID}.${chatSessionType}`;
+			const view = this.getView(viewId) as SessionsViewPane | undefined;
+			if (view) {
+				view.refreshTree();
+			}
+		}
 	}
 }
