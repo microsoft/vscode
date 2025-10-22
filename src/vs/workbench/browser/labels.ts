@@ -641,6 +641,7 @@ class ResourceLabelWidget extends IconLabel {
 			disabledCommand: this.options?.disabledCommand,
 			labelEscapeNewLines: this.options?.labelEscapeNewLines,
 			descriptionTitle: this.options?.descriptionTitle,
+			supportIcons: this.options?.supportIcons,
 		};
 
 		const resource = toResource(this.label);

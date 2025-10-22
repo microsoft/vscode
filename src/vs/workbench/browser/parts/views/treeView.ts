@@ -226,7 +226,6 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private _messageValue: string | { element: HTMLElement; disposables: DisposableStore } | undefined;
 	private _canSelectMany: boolean = false;
 	private _manuallyManageCheckboxes: boolean = false;
-	private _renderLabelIcons: boolean = false;
 	private messageElement: HTMLElement | undefined;
 	private tree: Tree | undefined;
 	private treeLabels: ResourceLabels | undefined;
@@ -523,14 +522,6 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this._manuallyManageCheckboxes = manuallyManageCheckboxes;
 	}
 
-	get renderLabelIcons(): boolean {
-		return this._renderLabelIcons;
-	}
-
-	set renderLabelIcons(renderLabelIcons: boolean) {
-		this._renderLabelIcons = renderLabelIcons;
-	}
-
 	get hasIconForParentNode(): boolean {
 		return this._hasIconForParentNode;
 	}
@@ -704,7 +695,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
 		const aligner = this.treeDisposables.add(new Aligner(this.themeService));
 		const checkboxStateHandler = this.treeDisposables.add(new CheckboxStateHandler());
-		const renderer = this.treeDisposables.add(this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, () => this.manuallyManageCheckboxes, () => this.renderLabelIcons));
+		const renderer = this.treeDisposables.add(this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, () => this.manuallyManageCheckboxes));
 		this.treeDisposables.add(renderer.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e)));
 
 		const widgetAriaLabel = this._title;
@@ -728,7 +719,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 						}
 						let buildAriaLabel: string = '';
 						if (element.label) {
-							buildAriaLabel += element.label.label + ' ';
+							const labelText = isMarkdownString(element.label.label) ? element.label.label.value : element.label.label;
+							buildAriaLabel += labelText + ' ';
 						}
 						if (element.description) {
 							buildAriaLabel += element.description;
@@ -745,7 +737,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			},
 			keyboardNavigationLabelProvider: {
 				getKeyboardNavigationLabel: (item: ITreeItem) => {
-					return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
+					if (item.label) {
+						return isMarkdownString(item.label.label) ? item.label.label.value : item.label.label;
+					}
+					return item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined;
 				}
 			},
 			expandOnlyOnTwistieClick: (e: ITreeItem) => {
@@ -1266,7 +1261,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		private aligner: Aligner,
 		private checkboxStateHandler: CheckboxStateHandler,
 		private readonly manuallyManageCheckboxes: () => boolean,
-		private readonly renderLabelIcons: () => boolean,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -1296,7 +1290,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		container.classList.add('custom-view-tree-node-item');
 
 		const checkboxContainer = DOM.append(container, DOM.$(''));
-		const resourceLabel = this.labels.create(container, { supportHighlights: true, supportIcons: this.renderLabelIcons(), hoverDelegate: this._hoverDelegate });
+		const resourceLabel = this.labels.create(container, { supportHighlights: true, hoverDelegate: this._hoverDelegate });
 		const icon = DOM.prepend(resourceLabel.element, DOM.$('.custom-view-tree-node-item-icon'));
 		const actionsContainer = DOM.append(resourceLabel.element, DOM.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
@@ -1306,12 +1300,16 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		return { resourceLabel, icon, checkboxContainer, actionBar, container };
 	}
 
-	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | IManagedHoverTooltipMarkdownString | undefined {
+	private getHover(label: string | IMarkdownString | undefined, resource: URI | null, node: ITreeItem): string | IManagedHoverTooltipMarkdownString | undefined {
 		if (!(node instanceof ResolvableTreeItem) || !node.hasResolve) {
 			if (resource && !node.tooltip) {
 				return undefined;
 			} else if (node.tooltip === undefined) {
-				return label;
+				if (isMarkdownString(label)) {
+					return { markdown: label, markdownNotSupportedFallback: label.value };
+				} else {
+					return label;
+				}
 			} else if (!isString(node.tooltip)) {
 				return { markdown: node.tooltip, markdownNotSupportedFallback: resource ? undefined : renderAsPlaintext(node.tooltip) }; // Passing undefined as the fallback for a resource falls back to the old native hover
 			} else if (node.tooltip !== '') {
@@ -1328,8 +1326,44 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 						node.resolve(token).then(() => resolve(node.tooltip));
 					});
 				},
-			markdownNotSupportedFallback: resource ? undefined : (label ?? '') // Passing undefined as the fallback for a resource falls back to the old native hover
+			markdownNotSupportedFallback: resource ? undefined : (label ? (isMarkdownString(label) ? label.value : label) : '') // Passing undefined as the fallback for a resource falls back to the old native hover
 		};
+	}
+
+	private extractLabelProperties(label: string | IMarkdownString | undefined): { label: string | undefined; italic: boolean; strikethrough: boolean; supportIcons: boolean | undefined } {
+		if (isMarkdownString(label)) {
+			let text = label.value.trim();
+			let italic = false;
+			let strikethrough = false;
+
+			function checkStrikethrough() {
+				if (text.startsWith('~~') && text.endsWith('~~')) {
+					strikethrough = true;
+					text = text.substring(2, text.length - 2);
+				}
+			}
+
+			function checkItalic() {
+				if (text.startsWith('*') && text.endsWith('*') || text.startsWith('_') && text.endsWith('_')) {
+					italic = true;
+					text = text.substring(1, text.length - 1);
+				}
+			}
+
+			// Support both ~~_abc_~~ and _~~abc~~_.
+			checkStrikethrough();
+			checkItalic();
+			checkStrikethrough();
+
+			return {
+				label: text,
+				italic,
+				strikethrough,
+				supportIcons: label.supportThemeIcons
+			};
+		} else {
+			return { label, italic: false, strikethrough: false, supportIcons: undefined };
+		}
 	}
 
 	renderElement(element: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
@@ -1337,7 +1371,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const treeItemLabel: ITreeItemLabel | undefined = node.label ? node.label : (resource ? { label: basename(resource) } : undefined);
 		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : undefined;
-		const label = treeItemLabel ? treeItemLabel.label : undefined;
+		const { label, italic, strikethrough, supportIcons } = this.extractLabelProperties(treeItemLabel?.label);
 		const matches = (treeItemLabel?.highlights && label) ? treeItemLabel.highlights.map(([start, end]) => {
 			if (start < 0) {
 				start = label.length + start;
@@ -1357,7 +1391,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}) : undefined;
 		const icon = !isDark(this.themeService.getColorTheme().type) ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : undefined;
-		const title = this.getHover(label, resource, node);
+		const title = this.getHover(treeItemLabel?.label, resource, node);
 
 		// reset
 		templateData.actionBar.clear();
@@ -1380,10 +1414,12 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				fileDecorations,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
-				strikethrough: treeItemLabel?.strikethrough,
+				italic,
+				strikethrough,
 				disabledCommand: !commandEnabled,
 				labelEscapeNewLines: true,
-				forceLabel: !!node.label
+				forceLabel: !!node.label,
+				supportIcons
 			});
 		} else {
 			templateData.resourceLabel.setResource({ name: label, description }, {
@@ -1391,9 +1427,11 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				hideIcon: true,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
-				strikethrough: treeItemLabel?.strikethrough,
+				italic,
+				strikethrough,
 				disabledCommand: !commandEnabled,
-				labelEscapeNewLines: true
+				labelEscapeNewLines: true,
+				supportIcons
 			});
 		}
 
@@ -1965,7 +2003,10 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			return String(elements.length);
 		}
 		const element = elements[0];
-		return element.label ? element.label.label : (element.resourceUri ? this.labelService.getUriLabel(URI.revive(element.resourceUri)) : undefined);
+		if (element.label) {
+			return isMarkdownString(element.label.label) ? element.label.label.value : element.label.label;
+		}
+		return element.resourceUri ? this.labelService.getUriLabel(URI.revive(element.resourceUri)) : undefined;
 	}
 
 	async drop(data: IDragAndDropData, targetNode: ITreeItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): Promise<void> {

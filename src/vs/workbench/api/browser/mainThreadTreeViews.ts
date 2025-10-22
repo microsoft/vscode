@@ -39,7 +39,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
 	}
 
-	async $registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: string[]; dragMimeTypes: string[]; hasHandleDrag: boolean; hasHandleDrop: boolean; manuallyManageCheckboxes: boolean; renderLabelIcons: boolean }): Promise<void> {
+	async $registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: string[]; dragMimeTypes: string[]; hasHandleDrag: boolean; hasHandleDrop: boolean; manuallyManageCheckboxes: boolean }): Promise<void> {
 		this.logService.trace('MainThreadTreeViews#$registerTreeViewDataProvider', treeViewId, options);
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
@@ -55,7 +55,6 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 				viewer.showCollapseAllAction = options.showCollapseAll;
 				viewer.canSelectMany = options.canSelectMany;
 				viewer.manuallyManageCheckboxes = options.manuallyManageCheckboxes;
-				viewer.renderLabelIcons = options.renderLabelIcons;
 				viewer.dragAndDropController = dndController;
 				if (dndController) {
 					this._dndControllers.set(treeViewId, dndController);

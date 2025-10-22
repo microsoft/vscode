@@ -32,15 +32,25 @@ function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeIte
 		return { label };
 	}
 
+	if (extHostTypes.MarkdownString.isMarkdownString(label)) {
+		// checkProposedApiEnabled(extension, 'treeItemMarkdownLabel');
+		return { label: MarkdownString.from(label) };
+	}
+
 	if (label
 		&& typeof label === 'object'
-		&& typeof label.label === 'string') {
+		&& (typeof label.label === 'string' || extHostTypes.MarkdownString.isMarkdownString(label.label))) {
 		let highlights: [number, number][] | undefined = undefined;
 		if (Array.isArray(label.highlights)) {
 			highlights = (<[number, number][]>label.highlights).filter((highlight => highlight.length === 2 && typeof highlight[0] === 'number' && typeof highlight[1] === 'number'));
 			highlights = highlights.length ? highlights : undefined;
 		}
-		return { label: label.label, highlights };
+		if (extHostTypes.MarkdownString.isMarkdownString(label.label)) {
+			// checkProposedApiEnabled(extension, 'treeItemMarkdownLabel');
+			return { label: MarkdownString.from(label.label), highlights };
+		} else {
+			return { label: label.label, highlights };
+		}
 	}
 
 	return undefined;
@@ -92,11 +102,7 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 		const hasHandleDrag = !!options.dragAndDropController?.handleDrag;
 		const hasHandleDrop = !!options.dragAndDropController?.handleDrop;
 		const treeView = this._createExtHostTreeView(viewId, options, extension);
-		const renderLabelIcons = options.renderLabelIcons ?? false;
-		if (options.renderLabelIcons !== undefined) {
-			checkProposedApiEnabled(extension, 'treeViewRenderLabelIcons');
-		}
-		const proxyOptions = { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag, hasHandleDrop, manuallyManageCheckboxes: !!options.manageCheckboxStateManually, renderLabelIcons };
+		const proxyOptions = { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag, hasHandleDrop, manuallyManageCheckboxes: !!options.manageCheckboxStateManually };
 		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, proxyOptions);
 		const view = {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
@@ -929,7 +935,15 @@ class ExtHostTreeView<T> extends Disposable {
 
 		const treeItemLabel = toTreeItemLabel(label, this._extension);
 		const prefix: string = parent ? parent.item.handle : ExtHostTreeView.LABEL_HANDLE_PREFIX;
-		let elementId = treeItemLabel ? treeItemLabel.label : resourceUri ? basename(resourceUri) : '';
+		let labelValue = '';
+		if (treeItemLabel) {
+			if (isMarkdownString(treeItemLabel.label)) {
+				labelValue = treeItemLabel.label.value;
+			} else {
+				labelValue = treeItemLabel.label;
+			}
+		}
+		let elementId = labelValue || (resourceUri ? basename(resourceUri) : '');
 		elementId = elementId.indexOf('/') !== -1 ? elementId.replace('/', '//') : elementId;
 		const existingHandle = this._nodes.has(element) ? this._nodes.get(element)!.item.handle : undefined;
 		const childrenNodes = (this._getChildrenNodes(parent) || []);
