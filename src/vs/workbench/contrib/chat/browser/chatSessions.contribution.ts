@@ -44,8 +44,9 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					type: 'string',
 				},
 				name: {
-					description: localize('chatSessionsExtPoint.name', 'Name shown in the chat widget. (eg: @agent)'),
+					description: localize('chatSessionsExtPoint.name', 'Name of the dynamically registered chat participant (eg: @agent). Must not contain whitespace.'),
 					type: 'string',
+					pattern: '^[\\w-]+$'
 				},
 				displayName: {
 					description: localize('chatSessionsExtPoint.displayName', 'A longer name for this item which is used for display in menus.'),
