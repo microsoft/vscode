@@ -663,12 +663,12 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return result;
 	}
 
-	private async prepareHistoryTurns(extension: Readonly<IRelaxedExtensionDescription>, agentId: string, context: { history: IChatAgentHistoryEntryDto[] }): Promise<(vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]> {
+	private async prepareHistoryTurns(extension: Readonly<IRelaxedExtensionDescription>, agentId: string, context: { history: IChatAgentHistoryEntryDto[]; canAccessAllHistory?: boolean }): Promise<(vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]> {
 		const res: (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[] = [];
 
 		for (const h of context.history) {
 			const ehResult = typeConvert.ChatAgentResult.to(h.result);
-			const result: vscode.ChatResult = agentId === h.request.agentId ?
+			const result: vscode.ChatResult = agentId === h.request.agentId || context.canAccessAllHistory ?
 				ehResult :
 				{ ...ehResult, metadata: undefined };
 
@@ -790,23 +790,23 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return items.map((i) => typeConvert.ChatAgentCompletionItem.from(i, this._commands.converter, disposables));
 	}
 
-	async $provideChatTitle(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined> {
+	async $provideChatTitle(handle: number, context: IChatAgentHistoryEntryDto[], canAccessAllHistory: boolean, token: CancellationToken): Promise<string | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
 		}
 
-		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context });
+		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context, canAccessAllHistory });
 		return await agent.provideTitle({ history }, token);
 	}
 
-	async $provideChatSummary(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined> {
+	async $provideChatSummary(handle: number, context: IChatAgentHistoryEntryDto[], canAccessAllHistory: boolean, token: CancellationToken): Promise<string | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
 		}
 
-		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context });
+		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context, canAccessAllHistory });
 		return await agent.provideSummary({ history }, token);
 	}
 }

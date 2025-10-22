@@ -532,6 +532,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			isDefault: false,
 			isCore: false,
 			isDynamic: true,
+			canAccessAllHistory: true,
 			slashCommands: contribution.commands ?? [],
 			locations: [ChatAgentLocation.Chat],
 			modes: [ChatModeKind.Agent, ChatModeKind.Ask],

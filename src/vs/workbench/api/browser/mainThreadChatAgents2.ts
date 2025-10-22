@@ -169,11 +169,13 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			invoke: async (request, progress, history, token) => {
 				this._pendingProgress.set(request.requestId, progress);
 				try {
+					const agent = this._chatAgentService.getAgent(id);
 					const chatSessionContext = this._chatService.getChatSessionFromInternalId(request.sessionId);
 					return await this._proxy.$invokeAgent(handle, request, {
 						history,
 						chatSessionContext,
-						chatSummary: request.chatSummary
+						chatSummary: request.chatSummary,
+						canAccessAllHistory: agent?.canAccessAllHistory
 					}, token) ?? {};
 				} finally {
 					this._pendingProgress.delete(request.requestId);
@@ -187,13 +189,16 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return [];
 				}
 
-				return this._proxy.$provideFollowups(request, handle, result, { history }, token);
+				const agent = this._chatAgentService.getAgent(id);
+				return this._proxy.$provideFollowups(request, handle, result, { history, canAccessAllHistory: agent?.canAccessAllHistory }, token);
 			},
 			provideChatTitle: (history, token) => {
-				return this._proxy.$provideChatTitle(handle, history, token);
+				const agent = this._chatAgentService.getAgent(id);
+				return this._proxy.$provideChatTitle(handle, history, agent?.canAccessAllHistory ?? false, token);
 			},
 			provideChatSummary: (history, token) => {
-				return this._proxy.$provideChatSummary(handle, history, token);
+				const agent = this._chatAgentService.getAgent(id);
+				return this._proxy.$provideChatSummary(handle, history, agent?.canAccessAllHistory ?? false, token);
 			},
 		};
 

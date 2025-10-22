@@ -69,6 +69,8 @@ export interface IChatAgentData {
 	isDynamic?: boolean;
 	/** This agent is contributed from core and not from an extension */
 	isCore?: boolean;
+	/** This agent can access all chat history entries from the model, not just entries from this agent */
+	canAccessAllHistory?: boolean;
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
