@@ -323,6 +323,14 @@ export class AgentSessionsView extends FilterViewPane {
 	override focus(): void {
 		super.focus();
 
+		if (this.list?.getFocus().length) {
+			this.list.domFocus();
+		} else {
+			this.filterWidget.focus();
+		}
+	}
+
+	protected override focusBodyContent(): void {
 		this.list?.domFocus();
 	}
 }
