@@ -32,24 +32,17 @@ function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeIte
 		return { label };
 	}
 
-	if (extHostTypes.MarkdownString.isMarkdownString(label)) {
-		// checkProposedApiEnabled(extension, 'treeItemMarkdownLabel');
-		return { label: MarkdownString.from(label) };
-	}
-
-	if (label
-		&& typeof label === 'object'
-		&& (typeof label.label === 'string' || extHostTypes.MarkdownString.isMarkdownString(label.label))) {
+	if (label && typeof label === 'object' && label.label) {
 		let highlights: [number, number][] | undefined = undefined;
 		if (Array.isArray(label.highlights)) {
 			highlights = (<[number, number][]>label.highlights).filter((highlight => highlight.length === 2 && typeof highlight[0] === 'number' && typeof highlight[1] === 'number'));
 			highlights = highlights.length ? highlights : undefined;
 		}
-		if (extHostTypes.MarkdownString.isMarkdownString(label.label)) {
-			// checkProposedApiEnabled(extension, 'treeItemMarkdownLabel');
-			return { label: MarkdownString.from(label.label), highlights };
-		} else {
+		if (isString(label.label)) {
 			return { label: label.label, highlights };
+		} else if (extHostTypes.MarkdownString.isMarkdownString(label.label)) {
+			checkProposedApiEnabled(extension, 'treeItemMarkdownLabel');
+			return { label: MarkdownString.from(label.label), highlights };
 		}
 	}
 

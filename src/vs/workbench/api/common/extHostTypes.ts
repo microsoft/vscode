@@ -1571,7 +1571,7 @@ export namespace ViewBadge {
 @es5ClassCompat
 export class TreeItem {
 
-	label?: string | vscode.MarkdownString | vscode.TreeItemLabel;
+	label?: string | vscode.TreeItemLabel;
 	resourceUri?: URI;
 	iconPath?: string | URI | { light: string | URI; dark: string | URI } | ThemeIcon;
 	command?: vscode.Command;
@@ -1596,9 +1596,7 @@ export class TreeItem {
 			return true;
 		}
 
-		if (treeItemThing.label !== undefined &&
-			!(isString(treeItemThing.label) || MarkdownString.isMarkdownString(treeItemThing.label)) &&
-			!(isString(treeItemThing.label.label) || MarkdownString.isMarkdownString(treeItemThing.label.label))) {
+		if (treeItemThing.label !== undefined && !isString(treeItemThing.label) && !(treeItemThing.label?.label)) {
 			console.log('INVALID tree item, invalid label', treeItemThing.label);
 			return false;
 		}
@@ -1645,9 +1643,9 @@ export class TreeItem {
 		return true;
 	}
 
-	constructor(label: string | vscode.MarkdownString | vscode.TreeItemLabel, collapsibleState?: vscode.TreeItemCollapsibleState);
+	constructor(label: string | vscode.TreeItemLabel, collapsibleState?: vscode.TreeItemCollapsibleState);
 	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState);
-	constructor(arg1: string | vscode.TreeItemLabel | vscode.MarkdownString | URI, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
+	constructor(arg1: string | vscode.TreeItemLabel | URI, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
 		if (URI.isUri(arg1)) {
 			this.resourceUri = arg1;
 		} else {

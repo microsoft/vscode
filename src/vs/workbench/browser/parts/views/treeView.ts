@@ -1330,23 +1330,42 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		};
 	}
 
-	private extractLabelProperties(label: string | IMarkdownString | undefined): { label: string | undefined; italic: boolean; strikethrough: boolean; supportIcons: boolean | undefined } {
+	private processLabel(label: string | IMarkdownString | undefined, matches: { start: number; end: number }[] | undefined): { label: string | undefined; italic: boolean; strikethrough: boolean; supportIcons: boolean | undefined } {
 		if (isMarkdownString(label)) {
 			let text = label.value.trim();
 			let italic = false;
 			let strikethrough = false;
 
+			function moveMatches(offset: number) {
+				if (matches) {
+					for (const match of matches) {
+						match.start -= offset;
+						match.end -= offset;
+					}
+				}
+			}
+
 			function checkStrikethrough() {
+				// If there is a match within the strikethrough markers, do not process
+				if (matches && matches.some(match => match.start < 2 || match.end > text.length - 2)) {
+					return;
+				}
 				if (text.startsWith('~~') && text.endsWith('~~')) {
 					strikethrough = true;
 					text = text.substring(2, text.length - 2);
+					moveMatches(2);
 				}
 			}
 
 			function checkItalic() {
+				// If there is a match within the italic markers, do not process
+				if (matches && matches.some(match => match.start < 1 || match.end > text.length - 1)) {
+					return;
+				}
 				if (text.startsWith('*') && text.endsWith('*') || text.startsWith('_') && text.endsWith('_')) {
 					italic = true;
 					text = text.substring(1, text.length - 1);
+					moveMatches(1);
 				}
 			}
 
@@ -1371,15 +1390,15 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const treeItemLabel: ITreeItemLabel | undefined = node.label ? node.label : (resource ? { label: basename(resource) } : undefined);
 		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : undefined;
-		const { label, italic, strikethrough, supportIcons } = this.extractLabelProperties(treeItemLabel?.label);
-		const matches = (treeItemLabel?.highlights && label) ? treeItemLabel.highlights.map(([start, end]) => {
+		const labelStr = treeItemLabel ? isMarkdownString(treeItemLabel.label) ? treeItemLabel.label.value : treeItemLabel.label : undefined;
+		const matches = (treeItemLabel?.highlights && labelStr) ? treeItemLabel.highlights.map(([start, end]) => {
 			if (start < 0) {
-				start = label.length + start;
+				start = labelStr.length + start;
 			}
 			if (end < 0) {
-				end = label.length + end;
+				end = labelStr.length + end;
 			}
-			if ((start >= label.length) || (end > label.length)) {
+			if ((start >= labelStr.length) || (end > labelStr.length)) {
 				return ({ start: 0, end: 0 });
 			}
 			if (start > end) {
@@ -1389,6 +1408,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			}
 			return ({ start, end });
 		}) : undefined;
+		const { label, italic, strikethrough, supportIcons } = this.processLabel(treeItemLabel?.label, matches);
 		const icon = !isDark(this.themeService.getColorTheme().type) ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : undefined;
 		const title = this.getHover(treeItemLabel?.label, resource, node);
