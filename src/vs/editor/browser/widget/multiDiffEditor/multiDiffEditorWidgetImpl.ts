@@ -372,6 +372,12 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		}
 
 		const activeViewItem = viewItems[activeViewItemIndex];
+
+		// Ensure the current file is expanded before navigating
+		if (activeViewItem.viewModel.collapsed.get()) {
+			activeViewItem.viewModel.collapsed.set(false, undefined);
+		}
+
 		const template = activeViewItem.template.get();
 		if (!template) {
 			return;
