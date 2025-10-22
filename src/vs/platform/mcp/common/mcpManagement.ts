@@ -244,9 +244,16 @@ export interface IAllowedMcpServersService {
 }
 
 export const mcpAccessConfig = 'chat.mcp.access';
+export const mcpGalleryConfig = 'chat.mcp.gallery';
 export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
 export const mcpGalleryServiceEnablementConfig = 'chat.mcp.gallery.enabled';
 export const mcpAutoStartConfig = 'chat.mcp.autostart';
+
+export interface IMcpGalleryConfig {
+	serviceUrl?: string;
+	version?: string;
+	enabled?: boolean;
+}
 
 export const enum McpAutoStartValue {
 	Never = 'never',

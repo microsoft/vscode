@@ -11,7 +11,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
-import { mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpGalleryConfig, mcpGalleryConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestService implements IMcpGalleryManifestService {
@@ -65,13 +65,9 @@ export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestServic
 	}
 
 	private async getAndUpdateMcpGalleryManifest(): Promise<void> {
-		const value = this.configurationService.getValue<string | { url: string; version: string } | undefined>(mcpGalleryServiceUrlConfig);
-		if (value) {
-			if (typeof value === 'string') {
-				this.update(this.createMcpGalleryManifest(value, 'v0.1'));
-			} else {
-				this.update(this.createMcpGalleryManifest(value.url, value.version));
-			}
+		const value = this.configurationService.getValue<IMcpGalleryConfig | undefined>(mcpGalleryConfig);
+		if (value?.serviceUrl) {
+			this.update(this.createMcpGalleryManifest(value.serviceUrl, value.version ?? 'v0.1'));
 		} else {
 			this.update(await super.getMcpGalleryManifest());
 		}
