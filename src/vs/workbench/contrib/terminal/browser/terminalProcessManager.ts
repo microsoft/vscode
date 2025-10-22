@@ -80,7 +80,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	backend: ITerminalBackend | undefined;
 	readonly capabilities = this._register(new TerminalCapabilityStore());
 	readonly shellIntegrationNonce: string;
-	processReadyTime: number | undefined;
+	processReadyTimestamp: number = 0;
 
 	private _isDisposed: boolean = false;
 	private _process: ITerminalChildProcess | null = null;
@@ -371,7 +371,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this._processTraits = e;
 				this.shellProcessId = e.pid;
 				this._initialCwd = e.cwd;
-				this.processReadyTime = Date.now();
+				this.processReadyTimestamp = Date.now();
 				this._onDidChangeProperty.fire({ type: ProcessPropertyType.InitialCwd, value: this._initialCwd });
 				this._onProcessReady.fire(e);
 

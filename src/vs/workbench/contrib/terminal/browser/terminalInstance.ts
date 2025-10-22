@@ -924,7 +924,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._configurationService,
 			siInjectionEnabled,
 			this.isRemote,
-			this._processManager.processReadyTime
+			this._processManager.processReadyTimestamp
 		);
 
 		if (!commandDetection || commandDetection.promptInputModel.state !== PromptInputState.Input) {
@@ -2819,7 +2819,7 @@ export function getShellIntegrationTimeout(
 	configurationService: IConfigurationService,
 	siInjectionEnabled: boolean,
 	isRemote: boolean,
-	processReadyTime?: number
+	processReadyTimestamp?: number
 ): number {
 	const timeoutValue = configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
 	let timeoutMs: number;
@@ -2831,8 +2831,8 @@ export function getShellIntegrationTimeout(
 	}
 
 	// Adjust timeout based on how long the process has already been running
-	if (processReadyTime !== undefined) {
-		const elapsed = Date.now() - processReadyTime;
+	if (processReadyTimestamp !== undefined) {
+		const elapsed = Date.now() - processReadyTimestamp;
 		timeoutMs = Math.max(0, timeoutMs - elapsed);
 	}
 

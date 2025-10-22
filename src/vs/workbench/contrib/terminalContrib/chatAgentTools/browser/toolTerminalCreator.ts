@@ -56,11 +56,11 @@ export class ToolTerminalCreator {
 			instance,
 			shellIntegrationQuality: ShellIntegrationQuality.None,
 		};
-		let processReadyTime = 0;
+		let processReadyTimestamp = 0;
 
 		// Ensure the shell process launches successfully
 		const initResult = await Promise.any([
-			instance.processReady.then(() => processReadyTime = Date.now()),
+			instance.processReady.then(() => processReadyTimestamp = Date.now()),
 			Event.toPromise(instance.onExit),
 		]);
 		if (!isNumber(initResult) && isObject(initResult) && 'message' in initResult) {
@@ -77,7 +77,7 @@ export class ToolTerminalCreator {
 			this._configurationService,
 			siInjectionEnabled,
 			instance.isRemote,
-			processReadyTime
+			processReadyTimestamp
 		);
 
 		if (
