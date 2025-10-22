@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
-import { CountTokensCallback, IToolData, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
 
 export const ConfirmTerminalCommandToolData: IToolData = {
@@ -57,6 +57,13 @@ export const ConfirmTerminalCommandToolData: IToolData = {
 };
 
 export class ConfirmTerminalCommandTool extends RunInTerminalTool {
+	override async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const preparedInvocation = await super.prepareToolInvocation(context, token);
+		if (preparedInvocation) {
+			preparedInvocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
+		}
+		return preparedInvocation;
+	}
 	override async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		// This is a confirmation-only tool - just return success
 		return {
