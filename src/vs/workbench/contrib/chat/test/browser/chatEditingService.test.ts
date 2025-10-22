@@ -302,4 +302,56 @@ suite('ChatEditingService', function () {
 		assert.ok(original.getValue().includes('FooBar'));
 	});
 
+	test('sequential edits - second edit should be based on first edit result', async function () {
+		assert.ok(editingService);
+
+		// Create initial file with 3 distinct lines, repeated 10 times
+		// Initial content will be: "line1\nline2\nline3\n" repeated 10 times
+		const uri = URI.from({ scheme: 'test', path: 'line1\nline2\nline3\n' });
+
+		const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
+		const session = await model.editingSessionObs?.promise;
+		assertType(session, 'session not created');
+
+		// First edit: Replace the first occurrence of "line2" with "EDITED_LINE2"
+		// This is at line 2 in the original file
+		const firstEdit = [{ range: new Range(2, 1, 2, 6), text: 'EDITED_LINE2' }];
+		const entry1 = await idleAfterEdit(session, model, uri, firstEdit);
+		const modified1 = store.add(await textModelService.createModelReference(entry1.modifiedURI)).object.textEditorModel;
+
+		// Verify first edit was applied correctly
+		const valueAfterFirst = modified1.getValue();
+		assert.ok(valueAfterFirst.includes('EDITED_LINE2'), 'First edit should be applied');
+		assert.ok(valueAfterFirst.includes('line1'), 'Original content should still exist');
+
+		// Second edit: Replace the first occurrence of "line3" with "EDITED_LINE3"
+		// In the original file this is at line 3, but we need to make sure it's
+		// applied correctly even though the file has been modified
+		const secondEdit = [{ range: new Range(3, 1, 3, 6), text: 'EDITED_LINE3' }];
+		
+		// Simulate a second edit operation in the same session
+		const chatRequest2 = model.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
+		assertType(chatRequest2.response);
+		chatRequest2.response.updateContent({ kind: 'textEdit', uri, edits: secondEdit, done: true });
+		chatRequest2.response.complete();
+
+		// Wait for the edit to complete
+		const isIdle = waitForState(session.state.map(s => s === ChatEditingSessionState.Idle), Boolean);
+		await isIdle;
+
+		// After second edit, both edits should be present
+		const modified2 = store.add(await textModelService.createModelReference(entry1.modifiedURI)).object.textEditorModel;
+		const finalValue = modified2.getValue();
+
+		// Verify both edits are present in the final content
+		assert.ok(finalValue.includes('EDITED_LINE2'), 'First edit should still be present after second edit');
+		assert.ok(finalValue.includes('EDITED_LINE3'), 'Second edit should be applied correctly');
+		
+		// Verify the structure is correct: both edits should be applied to adjacent lines
+		const lines = finalValue.split('\n');
+		assert.strictEqual(lines[1], 'EDITED_LINE2', 'Line 2 should contain first edit');
+		assert.strictEqual(lines[2], 'EDITED_LINE3', 'Line 3 should contain second edit');
+		assert.strictEqual(lines[0], 'line1', 'Line 1 should remain unchanged');
+	});
+
 });
