@@ -1075,7 +1075,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const inputState = this.getInputState();
 			const entry = this.getFilteredEntry(userQuery, inputState);
 			this.history.replaceLast(entry);
-			this.history.add({ text: '' });
+			this.history.add({ text: '', state: this.getInputState() });
 		}
 
 		// Clear attached context, fire event to clear input state, and clear the input editor
