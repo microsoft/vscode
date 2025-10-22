@@ -51,9 +51,9 @@ import { ILanguageModelsService, LanguageModelsService } from '../common/languag
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, MODE_DEFAULT_SOURCE_FOLDER, MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
+import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
 import { PromptLanguageFeaturesProvider } from '../common/promptSyntax/promptFileContributions.js';
-import { INSTRUCTIONS_DOCUMENTATION_URL, MODE_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
+import { INSTRUCTIONS_DOCUMENTATION_URL, AGENT_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
@@ -196,7 +196,7 @@ configurationRegistry.registerConfiguration({
 		'chat.implicitContext.suggestedContext': {
 			type: 'boolean',
 			tags: ['experimental'],
-			markdownDescription: nls.localize('chat.implicitContext.suggestedContext', "Controls whether the new implicit context flow is shown. In Ask and Edit modes, the context will automatically be included. In Agent mode context will be suggested as an attachment. Selections are always included as context."),
+			markdownDescription: nls.localize('chat.implicitContext.suggestedContext', "Controls whether the new implicit context flow is shown. In Ask and Edit modes, the context will automatically be included. When using an agent, context will be suggested as an attachment. Selections are always included as context."),
 			default: true,
 		},
 		'chat.editing.autoAcceptDelay': {
@@ -613,22 +613,23 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize(
 				'chat.mode.config.locations.description',
 				"Specify location(s) of custom chat mode files (`*{0}`). [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
-				MODE_FILE_EXTENSION,
-				MODE_DOCUMENTATION_URL,
+				LEGACY_MODE_FILE_EXTENSION,
+				AGENT_DOCUMENTATION_URL,
 			),
 			default: {
-				[MODE_DEFAULT_SOURCE_FOLDER]: true,
+				[LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true,
 			},
+			deprecationMessage: nls.localize('chat.mode.config.locations.deprecated', "This setting is deprecated and will be removed in future releases. Chat modes are now called custom agents and are located in `.github/agents`"),
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
 			restricted: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			examples: [
 				{
-					[MODE_DEFAULT_SOURCE_FOLDER]: true,
+					[LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true,
 				},
 				{
-					[MODE_DEFAULT_SOURCE_FOLDER]: true,
+					[LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true,
 					'/Users/vscode/repos/chatmodes': true,
 				},
 			],
@@ -741,7 +742,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.disableAIFeatures': {
 			type: 'boolean',
-			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat, code completions and next edit suggestions."),
+			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
 			default: false,
 			scope: ConfigurationScope.WINDOW
 		},
@@ -751,11 +752,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 
-		},
-		[ChatConfiguration.DelegateToCodingAgentInSecondaryMenu]: {
-			type: 'boolean',
-			description: nls.localize('chat.delegateToCodingAgentInSecondaryMenu', "Controls whether the 'Delegate to Coding Agent' action appears in the secondary send menu instead of the primary toolbar."),
-			default: false,
 		},
 		[ChatConfiguration.ShowAgentSessionsViewDescription]: {
 			type: 'boolean',
@@ -861,7 +857,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 					properties: {
 						'chat.agent.maxRequests': {
 							type: 'number',
-							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow per-turn in agent mode. When the limit is reached, will ask to confirm to continue."),
+							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow per-turn when using an agent. When the limit is reached, will ask to confirm to continue."),
 							default: defaultValue,
 						},
 					}

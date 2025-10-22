@@ -756,6 +756,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	max-width: 100%;
 }
 
+/* When suggest-next widget is present above input, remove top border-radius for connected appearance */
+.interactive-session .chat-suggest-next-widget ~ .interactive-input-part .chat-input-container {
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
+}
+
 .interactive-session .chat-editing-session {
 	margin-bottom: -4px; /* reset the 4px gap of the container for editing sessions */
 	width: 100%;
@@ -1190,6 +1196,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars .monaco-action-bar .actions-container {
 	display: flex;
 	gap: 4px;
+}
+
+.interactive-session .chat-input-toolbars .chat-sessionPicker-container {
+	display: flex;
 }
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {
@@ -2707,7 +2717,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-todo-list-widget .todo-item > .todo-status-icon.codicon {
 	flex-shrink: 0;
-	font-size: var(--vscode-chat-font-size-body-l);
+	font-size: 16px;
 }
 
 .chat-todo-list-widget .todo-content {
@@ -2717,6 +2727,26 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	min-width: 0;
+}
+
+/* Chat Suggest Next Widget */
+/* Suggested Actions widget - reuses chat-welcome-view-suggested-prompts styling */
+
+.interactive-session > .chat-suggest-next-widget {
+	/* Override positioning from welcome view styles (relative instead of absolute) */
+	position: relative;
+	bottom: auto;
+	left: auto;
+	right: auto;
+	margin: 0 0 0 0;
+	/* Keep standard padding with space for title */
+	padding: 32px 16px 8px 16px;
+	/* Left align buttons to match standard welcome view */
+	justify-content: flex-start;
+	/* Ensure flex layout is properly applied */
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
 }
 
 .interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {

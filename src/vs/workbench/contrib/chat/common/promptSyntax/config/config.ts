@@ -227,7 +227,7 @@ export function getPromptFileLocationsConfigKey(type: PromptsType): string {
 			return PromptsConfig.INSTRUCTIONS_LOCATION_KEY;
 		case PromptsType.prompt:
 			return PromptsConfig.PROMPT_LOCATIONS_KEY;
-		case PromptsType.mode:
+		case PromptsType.agent:
 			return PromptsConfig.MODE_LOCATION_KEY;
 		default:
 			throw new Error('Unknown prompt type');
