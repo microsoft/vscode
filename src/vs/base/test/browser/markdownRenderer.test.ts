@@ -222,7 +222,7 @@ suite('MarkdownRenderer', () => {
 
 	suite('Alerts', () => {
 		test('Should render alert with data-severity attribute and icon', () => {
-			const markdown = new MarkdownString('> [!NOTE]\n> This is a note alert', { supportAlerts: true });
+			const markdown = new MarkdownString('> [!NOTE]\n> This is a note alert', { supportAlertSyntax: true });
 			const result = store.add(renderMarkdown(markdown)).element;
 
 			const blockquote = result.querySelector('blockquote[data-severity="note"]');
@@ -231,7 +231,7 @@ suite('MarkdownRenderer', () => {
 			assert.ok(result.innerHTML.includes('codicon-info'), 'Should contain info icon');
 		});
 
-		test('Should render regular blockquote when supportAlerts is disabled', () => {
+		test('Should render regular blockquote when supportAlertSyntax is disabled', () => {
 			const markdown = new MarkdownString('> [!NOTE]\n> This should be a regular blockquote');
 			const result = store.add(renderMarkdown(markdown)).element;
 
@@ -242,7 +242,7 @@ suite('MarkdownRenderer', () => {
 		});
 
 		test('Should not transform blockquotes without alert syntax', () => {
-			const markdown = new MarkdownString('> This is a regular blockquote', { supportAlerts: true });
+			const markdown = new MarkdownString('> This is a regular blockquote', { supportAlertSyntax: true });
 			const result = store.add(renderMarkdown(markdown)).element;
 
 			const blockquote = result.querySelector('blockquote');

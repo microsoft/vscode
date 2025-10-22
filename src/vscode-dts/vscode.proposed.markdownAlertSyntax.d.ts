@@ -12,7 +12,7 @@ declare module 'vscode' {
 		/**
 		 * Indicates that this markdown string can contain alert syntax. Defaults to `false`.
 		 *
-		 * When `supportAlerts` is true, the markdown renderer will parse GitHub-style alert syntax:
+		 * When `supportAlertSyntax` is true, the markdown renderer will parse GitHub-style alert syntax:
 		 *
 		 * ```markdown
 		 * > [!NOTE]
@@ -24,6 +24,6 @@ declare module 'vscode' {
 		 *
 		 * Supported alert types: `NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`.
 		 */
-		supportAlerts?: boolean;
+		supportAlertSyntax?: boolean;
 	}
 }

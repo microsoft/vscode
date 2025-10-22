@@ -180,7 +180,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		renderedMarkdown = elements.map(e => typeof e === 'string' ? e : e.outerHTML).join('');
 	}
 
-	if (markdown.supportAlerts) {
+	if (markdown.supportAlertSyntax) {
 		renderedMarkdown = processAlertsHtml(renderedMarkdown);
 	}
 
