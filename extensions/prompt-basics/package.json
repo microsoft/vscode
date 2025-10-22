@@ -70,7 +70,7 @@
         ]
       },
       {
-        "language": "chatmode",
+        "language": "agent",
         "path": "./syntaxes/prompt.tmLanguage.json",
         "scopeName": "text.html.markdown.prompt",
         "unbalancedBracketScopes": [
@@ -102,7 +102,7 @@
           "other": "off"
         }
       },
-      "[chatmode]": {
+      "[agent]": {
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false,
