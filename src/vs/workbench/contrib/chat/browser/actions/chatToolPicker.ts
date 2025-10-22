@@ -26,7 +26,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 
-const enum BucketOrdinal { User, BuiltIn, Mcp, Extension }
+const enum BucketOrdinal { BuiltIn, User, Contributed }
 
 // Legacy QuickPick types (existing implementation)
 type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; toolset?: ToolSet; children: (ToolPick | ToolSetPick)[] };
@@ -309,7 +309,7 @@ export async function showToolsPicker(
 				}
 				const bucket: IBucketTreeItem = {
 					itemType: 'bucket',
-					ordinal: BucketOrdinal.Mcp,
+					ordinal: BucketOrdinal.Contributed,
 					id: key,
 					label: source.label,
 					checked: undefined,
@@ -327,7 +327,7 @@ export async function showToolsPicker(
 			} else if (source.type === 'extension') {
 				return {
 					itemType: 'bucket',
-					ordinal: BucketOrdinal.Extension,
+					ordinal: BucketOrdinal.Contributed,
 					id: key,
 					label: source.label,
 					checked: undefined,

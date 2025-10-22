@@ -95,14 +95,18 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 		}
 
 		items.sort((a, b) => {
-			let res = a.toolInfo.ordinal - b.toolInfo.ordinal;
-			if (res === 0) {
-				res = a.toolInfo.label.localeCompare(b.toolInfo.label);
+			// Primary sort: by ordinal (Built-In=0, User=1, MCP/Extension=2)
+			const ordinalDiff = a.toolInfo.ordinal - b.toolInfo.ordinal;
+			if (ordinalDiff !== 0) {
+				return ordinalDiff;
 			}
-			if (res === 0) {
-				res = a.label.localeCompare(b.label);
+			// Secondary sort: by source label (within same ordinal group)
+			const labelComp = a.toolInfo.label.localeCompare(b.toolInfo.label);
+			if (labelComp !== 0) {
+				return labelComp;
 			}
-			return res;
+			// Tertiary sort: by tool name (within same source)
+			return a.label.localeCompare(b.label);
 		});
 
 		let lastGroupLabel: string | undefined;

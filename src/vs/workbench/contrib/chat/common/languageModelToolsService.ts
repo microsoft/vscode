@@ -105,13 +105,13 @@ export namespace ToolDataSource {
 
 	export function classify(source: ToolDataSource): { readonly ordinal: number; readonly label: string } {
 		if (source.type === 'internal') {
-			return { ordinal: 1, label: localize('builtin', 'Built-In') };
+			return { ordinal: 0, label: localize('builtin', 'Built-In') };
 		} else if (source.type === 'mcp') {
 			return { ordinal: 2, label: source.label };
 		} else if (source.type === 'user') {
-			return { ordinal: 0, label: localize('user', 'User Defined') };
+			return { ordinal: 1, label: localize('user', 'User Defined') };
 		} else {
-			return { ordinal: 3, label: source.label };
+			return { ordinal: 2, label: source.label };
 		}
 	}
 }
