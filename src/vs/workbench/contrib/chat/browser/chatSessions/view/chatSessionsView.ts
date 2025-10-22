@@ -231,12 +231,12 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		if (container && providers.length > 0) {
 			const viewDescriptorsToRegister: IViewDescriptor[] = [];
 
-			// Separate providers by type and prepare display names with groups
+			// Separate providers by type and prepare display names with order
 			const localProvider = providers.find(p => p.chatSessionType === 'local');
 			const historyProvider = providers.find(p => p.chatSessionType === 'history');
 			const otherProviders = providers.filter(p => p.chatSessionType !== 'local' && p.chatSessionType !== 'history');
 
-			// Sort other providers by group, then alphabetically by display name
+			// Sort other providers by order, then alphabetically by display name
 			const providersWithDisplayNames = otherProviders.map(provider => {
 				const extContribution = extensionPointContributions.find(c => c.type === provider.chatSessionType);
 				if (!extContribution) {
@@ -246,33 +246,33 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 				return {
 					provider,
 					displayName: extContribution.displayName,
-					group: extContribution.group
+					order: extContribution.order
 				};
-			}).filter(item => item !== null) as Array<{ provider: IChatSessionItemProvider; displayName: string; group: string | undefined }>;
+			}).filter(item => item !== null) as Array<{ provider: IChatSessionItemProvider; displayName: string; order: number | undefined }>;
 
 			providersWithDisplayNames.sort((a, b) => {
-				// Both have no group - sort by display name
-				if (!a.group && !b.group) {
+				// Both have no order - sort by display name
+				if (a.order === undefined && b.order === undefined) {
 					return a.displayName.localeCompare(b.displayName);
 				}
 
-				// Only a has no group - push it to the end
-				if (!a.group) {
+				// Only a has no order - push it to the end
+				if (a.order === undefined) {
 					return 1;
 				}
 
-				// Only b has no group - push it to the end
-				if (!b.group) {
+				// Only b has no order - push it to the end
+				if (b.order === undefined) {
 					return -1;
 				}
 
-				// Both have groups - use numeric-aware comparison for groups like "builtin@1", "builtin@2"
-				const groupCompare = a.group.localeCompare(b.group, undefined, { numeric: true, sensitivity: 'base' });
-				if (groupCompare !== 0) {
-					return groupCompare;
+				// Both have orders - compare numerically
+				const orderCompare = a.order - b.order;
+				if (orderCompare !== 0) {
+					return orderCompare;
 				}
 
-				// Same group - sort by display name
+				// Same order - sort by display name
 				return a.displayName.localeCompare(b.displayName);
 			});
 

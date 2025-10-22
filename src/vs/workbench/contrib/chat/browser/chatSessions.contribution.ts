@@ -63,9 +63,9 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					description: localize('chatSessionsExtPoint.icon', 'Icon identifier (codicon ID) for the chat session editor tab. For example, "$(github)" or "$(cloud)".'),
 					type: 'string'
 				},
-				group: {
-					description: localize('chatSessionsExtPoint.group', 'Group into which this item belongs for ordering purposes.'),
-					type: 'string'
+				order: {
+					description: localize('chatSessionsExtPoint.order', 'Order in which this item should be displayed.'),
+					type: 'integer'
 				},
 				welcomeTitle: {
 					description: localize('chatSessionsExtPoint.welcomeTitle', 'Title text to display in the chat welcome view for this session type.'),
@@ -248,7 +248,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						welcomeMessage: contribution.welcomeMessage,
 						welcomeTips: contribution.welcomeTips,
 						inputPlaceholder: contribution.inputPlaceholder,
-						group: contribution.group,
+						order: contribution.order,
 						capabilities: contribution.capabilities,
 						extensionDescription: ext.description,
 						commands: contribution.commands
