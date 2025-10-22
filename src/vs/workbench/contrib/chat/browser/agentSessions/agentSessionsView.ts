@@ -53,9 +53,6 @@ export class AgentSessionsView extends FilterViewPane {
 
 	private static FILTER_FOCUS_CONTEXT_KEY = new RawContextKey<boolean>('agentSessionsViewFilterFocus', false);
 
-	private list: WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore> | undefined;
-	private filter: AgentSessionsFilter | undefined;
-
 	private sessionsViewModel: IAgentSessionsViewModel | undefined;
 
 	constructor(
@@ -255,14 +252,18 @@ export class AgentSessionsView extends FilterViewPane {
 
 	//#region Sessions List
 
+	private listContainer: HTMLElement | undefined;
+	private list: WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore> | undefined;
+	private filter: AgentSessionsFilter | undefined;
+
 	private createList(container: HTMLElement): void {
-		const listContainer = append(container, $('.agent-sessions-viewer'));
+		this.listContainer = append(container, $('.agent-sessions-viewer'));
 
 		this.filter = this._register(new AgentSessionsFilter());
 
 		this.list = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
-			listContainer,
+			this.listContainer,
 			new AgentSessionsListDelegate(),
 			new AgentSessionsCompressionDelegate(),
 			[
@@ -310,9 +311,7 @@ export class AgentSessionsView extends FilterViewPane {
 
 		let treeHeight = height;
 		treeHeight -= this.filterContainer?.offsetHeight ?? 0;
-		if (this.newSessionContainer) {
-			treeHeight -= this.newSessionContainer.offsetHeight;
-		}
+		treeHeight -= this.newSessionContainer?.offsetHeight ?? 0;
 
 		this.list?.layout(treeHeight, width);
 	}
