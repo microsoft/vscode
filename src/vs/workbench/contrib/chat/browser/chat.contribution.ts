@@ -735,7 +735,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.UseCloudButtonV2]: {
 			type: 'boolean',
 			description: nls.localize('chat.useCloudButtonV2', "Experimental implementation of 'cloud button'"),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 
 		},
