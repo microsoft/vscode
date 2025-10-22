@@ -346,6 +346,8 @@ export abstract class AbstractMcpResourceAccessPick {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatWidgetService protected readonly _chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly _viewsService: IViewsService,
+		@IFileService private readonly _fileService: IFileService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) { }
 
 	protected applyToPick(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions) {
@@ -377,6 +379,8 @@ export abstract class AbstractMcpResourceAccessPick {
 		});
 
 		const store = new DisposableStore();
+		let isDirectoryMode = false;
+
 		store.add(picker.onDidTriggerItemButton(event => {
 			if (event.button.tooltip === attachButton) {
 				picker.busy = true;
@@ -391,21 +395,45 @@ export abstract class AbstractMcpResourceAccessPick {
 		}));
 
 		store.add(picker.onDidAccept(async event => {
-			if (!event.inBackground) {
-				picker.hide(); // hide picker unless we accept in background
-			}
-
-			if (runOptions?.handleAccept) {
-				runOptions.handleAccept?.(picker.activeItems[0], event.inBackground);
-			} else {
-				const [item] = picker.selectedItems;
-				const uri = await helper.toURI((item as ResourceQuickPickItem).resource);
-				if (uri) {
-					this._editorService.openEditor({ resource: uri, options: { preserveFocus: event.inBackground } });
+			try {
+				picker.busy = true;
+				if (runOptions?.handleAccept) {
+					runOptions.handleAccept?.(picker.activeItems[0], event.inBackground);
+				} else {
+					const [item] = picker.selectedItems;
+					let uri: URI | undefined;
+					if (isDirectoryMode) {
+						uri = URI.parse((item as IQuickPickItem).id!);
+					} else {
+						uri = await helper.toURI((item as ResourceQuickPickItem).resource);
+					}
+					// If the URI is a directory, we need to read its contents and show them in the picker.
+					// directory URIs end with a `/`
+					if (uri?.path.toString().endsWith('/')) {
+						try {
+							const stat = await this._fileService.resolve(uri, { resolveMetadata: false });
+							if (stat.children) {
+								isDirectoryMode = true;
+								const directoryItems: IQuickPickItem[] = stat.children.map((child) => ({
+									id: child.resource.toString(),
+									label: child.name,
+									description: child.isDirectory ? localize('mcp.directory', 'Directory') : '',
+								}));
+								picker.items = directoryItems;
+								picker.show();
+							}
+						} catch (error) {
+							this._notificationService.error(localize('mcp.readDirError', "Unable to read directory '{0}'", uri.toString()));
+						}
+					} else if (uri) {
+						picker.hide();
+						this._editorService.openEditor({ resource: uri, options: { preserveFocus: event.inBackground } });
+					}
 				}
+			} finally {
+				picker.busy = false;
 			}
 		}));
-
 		return store;
 	}
 }
@@ -417,9 +445,11 @@ export class McpResourceQuickPick extends AbstractMcpResourceAccessPick {
 		@IEditorService editorService: IEditorService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IViewsService viewsService: IViewsService,
+		@IFileService fileService: IFileService,
+		@INotificationService notificationService: INotificationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 	) {
-		super(scopeTo, instantiationService, editorService, chatWidgetService, viewsService);
+		super(scopeTo, instantiationService, editorService, chatWidgetService, viewsService, fileService, notificationService);
 	}
 
 	public async pick(token = CancellationToken.None) {
@@ -443,8 +473,10 @@ export class McpResourceQuickAccess extends AbstractMcpResourceAccessPick implem
 		@IEditorService editorService: IEditorService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IViewsService viewsService: IViewsService,
+		@IFileService fileService: IFileService,
+		@INotificationService notificationService: INotificationService,
 	) {
-		super(undefined, instantiationService, editorService, chatWidgetService, viewsService);
+		super(undefined, instantiationService, editorService, chatWidgetService, viewsService, fileService, notificationService);
 	}
 
 	provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
