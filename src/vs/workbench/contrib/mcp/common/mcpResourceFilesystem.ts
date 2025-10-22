@@ -31,6 +31,16 @@ interface IReadData {
 	forSameURI: (MCP.TextResourceContents | MCP.BlobResourceContents)[];
 }
 
+/**
+ * Helper function to check if a resource path represents a directory.
+ * Works cross-platform by checking if the path ends with a forward slash.
+ * @param path The resource path to check
+ * @returns true if the path represents a directory, false otherwise
+ */
+function isDirectoryPath(path: string): boolean {
+	return path.endsWith('/');
+}
+
 export class McpResourceFilesystem extends Disposable implements IWorkbenchContribution,
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithFileAtomicReadCapability,
@@ -155,16 +165,15 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 			ctime: 0,
 			mtime: 0,
 			size: sumBy(contents, c => contentToBuffer(c).byteLength),
-			type: contents.length > 1 ? FileType.Directory : FileType.File,
+			type: isDirectoryPath(resource.path) ? FileType.Directory : FileType.File,
 		};
 	}
 
 	public async readdir(resource: URI): Promise<[string, FileType][]> {
 		const { contents, resourceURI } = await this._readURI(resource);
-		if (contents.length <= 1) {
+		if (!isDirectoryPath(resource.path)) {
 			throw createFileSystemProviderError(`File is not a directory`, FileSystemProviderErrorCode.FileNotADirectory);
 		}
-
 		const resourcePathParts = resourceURI.pathname.split('/');
 
 		const output = new Map<string, FileType>();
@@ -277,7 +286,7 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 		return {
 			contents: res.contents,
 			resourceURI,
-			forSameURI: res.contents?.length > 1 ? res.contents : res.contents.filter(c => equalsUrlPath(c.uri, resourceURI))
+			forSameURI: res.contents.filter(c => equalsUrlPath(c.uri, resourceURI))
 		};
 	}
 }
