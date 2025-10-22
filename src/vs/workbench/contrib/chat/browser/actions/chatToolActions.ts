@@ -42,6 +42,8 @@ type SelectedToolClassification = {
 
 export const AcceptToolConfirmationActionId = 'workbench.action.chat.acceptTool';
 export const SkipToolConfirmationActionId = 'workbench.action.chat.skipTool';
+export const AcceptToolPostConfirmationActionId = 'workbench.action.chat.acceptToolPostExecution';
+export const SkipToolPostConfirmationActionId = 'workbench.action.chat.skipToolPostExecution';
 
 abstract class ToolConfirmationAction extends Action2 {
 	protected abstract getReason(): ConfirmedReason;
@@ -56,7 +58,7 @@ abstract class ToolConfirmationAction extends Action2 {
 
 		for (const item of lastItem.model.response.value) {
 			const state = item.kind === 'toolInvocation' ? item.state.get() : undefined;
-			if (state?.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			if (state?.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state?.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 				state.confirm(this.getReason());
 				break;
 			}
@@ -122,9 +124,9 @@ class ConfigureToolsAction extends Action2 {
 			precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			menu: [{
 				when: ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ChatContextKeys.lockedToCodingAgent.negate()),
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 1,
+				order: 100,
 			}]
 		});
 	}
@@ -189,7 +191,7 @@ class ConfigureToolsActionRendering implements IWorkbenchContribution {
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 	) {
-		const disposable = actionViewItemService.register(MenuId.ChatExecute, ConfigureToolsAction.ID, (action, _opts, instantiationService) => {
+		const disposable = actionViewItemService.register(MenuId.ChatInput, ConfigureToolsAction.ID, (action, _opts, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}

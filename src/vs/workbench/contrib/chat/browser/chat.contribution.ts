@@ -120,6 +120,7 @@ import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesCon
 import { LanguageModelToolsService, globalAutoApproveDescription } from './languageModelToolsService.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
+import './agentSessions/agentSessionsView.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
@@ -476,7 +477,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
-			enum: ['disabled', 'view'],
+			enum: ['disabled', 'view', 'single-view'],
 			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
 			default: 'disabled',
 			tags: ['experimental'],
@@ -689,25 +690,10 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		[ChatConfiguration.TodoList]: {
-			type: 'object',
-			description: nls.localize('chat.agent.todoList', "Configures the todo list widget in chat."),
-			properties: {
-				position: {
-					type: 'string',
-					default: 'default',
-					enum: ['default', 'off', 'chat-input'],
-					enumDescriptions: [
-						nls.localize('chat.agent.todoList.position.default', "Show todo list in the top of the chat panel."),
-						nls.localize('chat.agent.todoList.position.off', "Hide the todo list (still shows the tool calls for tracking todo progress)."),
-						nls.localize('chat.agent.todoList.position.chatInput', "Show todo list above the chat input.")
-					],
-					description: nls.localize('chat.agent.todoList.position', "Controls the position of the todo list in the chat view, which opens when the agent has created todo items and updates as it makes progress.")
-				}
-			},
-			default: {
-				position: 'default'
-			},
+		[ChatConfiguration.TodosShowWidget]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.tools.todos.showWidget', "Controls whether to show the todo list widget above the chat input. When enabled, the widget displays todo items created by the agent and updates as progress is made."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'

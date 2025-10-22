@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -25,7 +25,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentRequest, IC
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
-import { ChatAgentLocation, ChatModeKind, VIEWLET_ID } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, AGENT_SESSIONS_VIEWLET_ID } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from './chatSessions/common.js';
@@ -44,8 +44,9 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					type: 'string',
 				},
 				name: {
-					description: localize('chatSessionsExtPoint.name', 'Name shown in the chat widget. (eg: @agent)'),
+					description: localize('chatSessionsExtPoint.name', 'Name of the dynamically registered chat participant (eg: @agent). Must not contain whitespace.'),
 					type: 'string',
+					pattern: '^[\\w-]+$'
 				},
 				displayName: {
 					description: localize('chatSessionsExtPoint.displayName', 'A longer name for this item which is used for display in menus.'),
@@ -62,6 +63,10 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 				icon: {
 					description: localize('chatSessionsExtPoint.icon', 'Icon identifier (codicon ID) for the chat session editor tab. For example, "$(github)" or "$(cloud)".'),
 					type: 'string'
+				},
+				order: {
+					description: localize('chatSessionsExtPoint.order', 'Order in which this item should be displayed.'),
+					type: 'integer'
 				},
 				welcomeTitle: {
 					description: localize('chatSessionsExtPoint.welcomeTitle', 'Title text to display in the chat welcome view for this session type.'),
@@ -222,6 +227,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IMenuService private readonly _menuService: IMenuService,
 	) {
 		super();
 		this._register(extensionPoint.setHandler(extensions => {
@@ -244,6 +250,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						welcomeMessage: contribution.welcomeMessage,
 						welcomeTips: contribution.welcomeTips,
 						inputPlaceholder: contribution.inputPlaceholder,
+						order: contribution.order,
 						capabilities: contribution.capabilities,
 						extensionDescription: ext.description,
 						commands: contribution.commands
@@ -368,22 +375,43 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private _registerMenuItems(contribution: IChatSessionsExtensionPoint): IDisposable {
-		return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-			command: {
-				id: `${NEW_CHAT_SESSION_ACTION_ID}.${contribution.type}`,
-				title: localize('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
+		// If provider registers anything for the create submenu, let it fully control the creation
+		const contextKeyService = this._contextKeyService.createOverlay([
+			['chatSessionType', contribution.type]
+		]);
+
+		const menuActions = this._menuService.getMenuActions(MenuId.ChatSessionsCreateSubMenu, contextKeyService);
+		if (menuActions?.length) {
+			return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+				group: 'navigation',
+				title: localize('interactiveSession.chatSessionSubMenuTitle', "Create chat session"),
 				icon: Codicon.plus,
-				source: {
-					id: contribution.extensionDescription.identifier.value,
-					title: contribution.extensionDescription.displayName || contribution.extensionDescription.name,
-				}
-			},
-			group: 'navigation',
-			order: 1,
-			when: ContextKeyExpr.and(
-				ContextKeyExpr.equals('view', `${VIEWLET_ID}.${contribution.type}`)
-			),
-		});
+				order: 1,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.${contribution.type}`)
+				),
+				submenu: MenuId.ChatSessionsCreateSubMenu,
+				isSplitButton: true
+			});
+		} else {
+			// We control creation instead
+			return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+				command: {
+					id: `${NEW_CHAT_SESSION_ACTION_ID}.${contribution.type}`,
+					title: localize('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
+					icon: Codicon.plus,
+					source: {
+						id: contribution.extensionDescription.identifier.value,
+						title: contribution.extensionDescription.displayName || contribution.extensionDescription.name,
+					}
+				},
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.${contribution.type}`)
+				),
+			});
+		}
 	}
 
 	private _registerCommands(contribution: IChatSessionsExtensionPoint): IDisposable {

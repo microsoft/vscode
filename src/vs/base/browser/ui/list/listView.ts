@@ -58,11 +58,13 @@ export const enum ListViewTargetSector {
 	BOTTOM = 3				// [75%-100%)
 }
 
+export type CheckBoxAccessibleState = boolean | 'mixed';
+
 export interface IListViewAccessibilityProvider<T> {
 	getSetSize?(element: T, index: number, listLength: number): number;
 	getPosInSet?(element: T, index: number): number;
 	getRole?(element: T): AriaRole | undefined;
-	isChecked?(element: T): boolean | IValueWithChangeEvent<boolean> | undefined;
+	isChecked?(element: T): CheckBoxAccessibleState | IValueWithChangeEvent<CheckBoxAccessibleState> | undefined;
 }
 
 export interface IListViewOptionsUpdate {
@@ -197,7 +199,7 @@ class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilit
 	readonly getSetSize: (element: T, index: number, listLength: number) => number;
 	readonly getPosInSet: (element: T, index: number) => number;
 	readonly getRole: (element: T) => AriaRole | undefined;
-	readonly isChecked: (element: T) => boolean | IValueWithChangeEvent<boolean> | undefined;
+	readonly isChecked: (element: T) => CheckBoxAccessibleState | IValueWithChangeEvent<CheckBoxAccessibleState> | undefined;
 
 	constructor(accessibilityProvider?: IListViewAccessibilityProvider<T>) {
 		if (accessibilityProvider?.getSetSize) {
@@ -959,11 +961,12 @@ export class ListView<T> implements IListView<T> {
 		item.row.domNode.setAttribute('role', role);
 
 		const checked = this.accessibilityProvider.isChecked(item.element);
+		const toAriaState = (value: CheckBoxAccessibleState) => value === 'mixed' ? 'mixed' : String(!!value);
 
-		if (typeof checked === 'boolean') {
-			item.row.domNode.setAttribute('aria-checked', String(!!checked));
+		if (typeof checked === 'boolean' || checked === 'mixed') {
+			item.row.domNode.setAttribute('aria-checked', toAriaState(checked));
 		} else if (checked) {
-			const update = (checked: boolean) => item.row!.domNode.setAttribute('aria-checked', String(!!checked));
+			const update = (value: CheckBoxAccessibleState) => item.row!.domNode.setAttribute('aria-checked', toAriaState(value));
 			update(checked.value);
 			item.checkedDisposable = checked.onDidChange(() => update(checked.value));
 		}

@@ -23,7 +23,7 @@ import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatResponseResource, getAttachableImageExtension } from '../../chat/common/chatModel.js';
 import { LanguageModelPartAudience } from '../../chat/common/languageModels.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpResourceURI, McpToolResourceLinkMimeType } from './mcpTypes.js';
 import { mcpServerToSourceData } from './mcpTypesUtils.js';
@@ -175,17 +175,22 @@ class McpToolImplementation implements IToolImpl {
 			this._productService.nameShort
 		);
 
-		const needsConfirmation = !tool.definition.annotations?.readOnlyHint || !!tool.definition.annotations.openWorldHint;
 		// duplicative: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/813
 		const title = tool.definition.annotations?.title || tool.definition.title || ('`' + tool.definition.name + '`');
 
+		const confirm: IToolConfirmationMessages = {};
+		if (!tool.definition.annotations?.readOnlyHint) {
+			confirm.title = new MarkdownString(localize('msg.title', "Run {0}", title));
+			confirm.message = new MarkdownString(tool.definition.description, { supportThemeIcons: true });
+			confirm.disclaimer = mcpToolWarning;
+			confirm.allowAutoConfirm = true;
+		}
+		if (tool.definition.annotations?.openWorldHint) {
+			confirm.confirmResults = true;
+		}
+
 		return {
-			confirmationMessages: needsConfirmation ? {
-				title: new MarkdownString(localize('msg.title', "Run {0}", title)),
-				message: new MarkdownString(tool.definition.description, { supportThemeIcons: true }),
-				disclaimer: mcpToolWarning,
-				allowAutoConfirm: true,
-			} : undefined,
+			confirmationMessages: confirm,
 			invocationMessage: new MarkdownString(localize('msg.run', "Running {0}", title)),
 			pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran {0} ", title)),
 			originMessage: localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
