@@ -744,7 +744,7 @@ export abstract class FilterViewPane extends ViewPane {
 
 	readonly filterWidget: FilterWidget;
 	private dimension: Dimension | undefined;
-	private filterContainer: HTMLElement | undefined;
+	protected filterContainer: HTMLElement | undefined;
 
 	constructor(
 		options: IFilterViewPaneOptions,
