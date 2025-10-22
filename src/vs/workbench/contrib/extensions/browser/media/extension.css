@@ -28,7 +28,8 @@
 
 .extension-list-item > .icon-container .extension-badge {
 	position: absolute;
-	bottom: 5px;
+	bottom: 10px;
+	left: -8px;
 }
 
 .extension-list-item > .icon-container .extension-badge.extension-icon-badge {

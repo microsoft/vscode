@@ -231,12 +231,12 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		if (container && providers.length > 0) {
 			const viewDescriptorsToRegister: IViewDescriptor[] = [];
 
-			// Separate providers by type and prepare display names
+			// Separate providers by type and prepare display names with order
 			const localProvider = providers.find(p => p.chatSessionType === 'local');
 			const historyProvider = providers.find(p => p.chatSessionType === 'history');
 			const otherProviders = providers.filter(p => p.chatSessionType !== 'local' && p.chatSessionType !== 'history');
 
-			// Sort other providers alphabetically by display name
+			// Sort other providers by order, then alphabetically by display name
 			const providersWithDisplayNames = otherProviders.map(provider => {
 				const extContribution = extensionPointContributions.find(c => c.type === provider.chatSessionType);
 				if (!extContribution) {
@@ -245,16 +245,40 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 				}
 				return {
 					provider,
-					displayName: extContribution.displayName
+					displayName: extContribution.displayName,
+					order: extContribution.order
 				};
-			}).filter(item => item !== null) as Array<{ provider: IChatSessionItemProvider; displayName: string }>;
+			}).filter(item => item !== null) as Array<{ provider: IChatSessionItemProvider; displayName: string; order: number | undefined }>;
 
-			// Sort alphabetically by display name
-			providersWithDisplayNames.sort((a, b) => a.displayName.localeCompare(b.displayName));
+			providersWithDisplayNames.sort((a, b) => {
+				// Both have no order - sort by display name
+				if (a.order === undefined && b.order === undefined) {
+					return a.displayName.localeCompare(b.displayName);
+				}
+
+				// Only a has no order - push it to the end
+				if (a.order === undefined) {
+					return 1;
+				}
+
+				// Only b has no order - push it to the end
+				if (b.order === undefined) {
+					return -1;
+				}
+
+				// Both have orders - compare numerically
+				const orderCompare = a.order - b.order;
+				if (orderCompare !== 0) {
+					return orderCompare;
+				}
+
+				// Same order - sort by display name
+				return a.displayName.localeCompare(b.displayName);
+			});
 
 			// Register views in priority order: local, history, then alphabetically sorted others
 			const orderedProviders = [
-				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Sessions', baseOrder: 0 }] : []),
+				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Agent', baseOrder: 0 }] : []),
 				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1, when: undefined }] : []),
 				...providersWithDisplayNames.map((item, index) => ({
 					...item,
@@ -286,7 +310,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 					if (provider.chatSessionType === 'local') {
 						const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 						this._register(viewsRegistry.registerViewWelcomeContent(viewDescriptor.id, {
-							content: nls.localize('chatSessions.noResults', "No local chat sessions\n[Start a Chat](command:{0})", ACTION_ID_OPEN_CHAT),
+							content: nls.localize('chatSessions.noResults', "No local chat agent sessions\n[Start an Agent Session](command:{0})", ACTION_ID_OPEN_CHAT),
 						}));
 					}
 				}

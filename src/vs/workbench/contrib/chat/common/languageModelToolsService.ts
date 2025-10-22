@@ -107,11 +107,11 @@ export namespace ToolDataSource {
 		if (source.type === 'internal') {
 			return { ordinal: 1, label: localize('builtin', 'Built-In') };
 		} else if (source.type === 'mcp') {
-			return { ordinal: 2, label: localize('mcp', 'MCP Server: {0}', source.label) };
+			return { ordinal: 2, label: source.label };
 		} else if (source.type === 'user') {
 			return { ordinal: 0, label: localize('user', 'User Defined') };
 		} else {
-			return { ordinal: 3, label: localize('ext', 'Extension: {0}', source.label) };
+			return { ordinal: 3, label: source.label };
 		}
 	}
 }

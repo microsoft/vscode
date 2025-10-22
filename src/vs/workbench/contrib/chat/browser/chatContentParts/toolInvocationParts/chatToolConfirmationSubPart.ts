@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
+import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService } from '../../../common/languageModelToolsService.js';
 import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../actions/chatToolActions.js';
@@ -34,6 +34,7 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { autorunSelfDisposable } from '../../../../../../base/common/observable.js';
 
 const SHOW_MORE_MESSAGE_HEIGHT_TRIGGER = 45;
 
@@ -314,8 +315,13 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		this._register(confirmWidget.onDidClick(button => {
 			const confirmAndSave = (kind: 'profile' | 'workspace' | 'session') => {
 				this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, kind);
-				toolInvocation.confirmed.complete({ type: ToolConfirmKind.LmServicePerTool, scope: kind });
+				confirm({ type: ToolConfirmKind.LmServicePerTool, scope: kind });
 			};
+
+			const confirm = (reason: ConfirmedReason) => {
+				IChatToolInvocation.confirmWith(toolInvocation, reason);
+			};
+
 
 			switch (button.data as ConfirmationOutcome) {
 				case ConfirmationOutcome.AllowGlobally:
@@ -328,10 +334,10 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 					confirmAndSave('session');
 					break;
 				case ConfirmationOutcome.Allow:
-					toolInvocation.confirmed.complete({ type: ToolConfirmKind.UserAction });
+					confirm({ type: ToolConfirmKind.UserAction });
 					break;
 				case ConfirmationOutcome.Skip:
-					toolInvocation.confirmed.complete({ type: ToolConfirmKind.Skipped });
+					confirm({ type: ToolConfirmKind.Skipped });
 					break;
 			}
 
@@ -339,10 +345,13 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._register(toDisposable(() => hasToolConfirmation.reset()));
-		toolInvocation.confirmed.p.then(() => {
-			hasToolConfirmation.reset();
-			this._onNeedsRerender.fire();
-		});
+		this._register(autorunSelfDisposable(reader => {
+			if (IChatToolInvocation.isConfirmed(toolInvocation, reader)) {
+				reader.dispose();
+				hasToolConfirmation.reset();
+				this._onNeedsRerender.fire();
+			}
+		}));
 		this.domNode = confirmWidget.domNode;
 	}
 
