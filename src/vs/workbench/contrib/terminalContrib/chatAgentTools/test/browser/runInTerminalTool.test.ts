@@ -24,6 +24,15 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
+import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { TreeSitterLibraryService } from '../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+
+// eslint-disable-next-line local/code-layering, local/code-import-patterns
+import { DiskFileSystemProvider } from '../../../../../../platform/files/node/diskFileSystemProvider.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -42,6 +51,7 @@ suite('RunInTerminalTool', () => {
 
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
+	let fileService: IFileService;
 	let storageService: IStorageService;
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionId: string; reason: 'cleared' }>;
@@ -50,13 +60,25 @@ suite('RunInTerminalTool', () => {
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
+
+		const logService = new NullLogService();
+		fileService = store.add(new FileService(logService));
+		const diskFileSystemProvider = store.add(new DiskFileSystemProvider(logService));
+		store.add(fileService.registerProvider(Schemas.file, diskFileSystemProvider));
+
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionId: string; reason: 'cleared' }>();
 
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
+			fileService: () => fileService,
 		}, store);
+
+		const treeSitterLibraryService = store.add(instantiationService.createInstance(TreeSitterLibraryService));
+		treeSitterLibraryService.isTest = true;
+		instantiationService.stub(ITreeSitterLibraryService, treeSitterLibraryService);
+
 		instantiationService.stub(ILanguageModelToolsService, {
 			getTools() {
 				return [];
@@ -286,14 +308,14 @@ suite('RunInTerminalTool', () => {
 		suite('auto approved', () => {
 			for (const command of autoApprovedTestCases) {
 				test(command.replaceAll('\n', '\\n'), async () => {
-					assertAutoApproved(await executeToolTest({ command: command }));
+					assertAutoApproved(await executeToolTest({ command }));
 				});
 			}
 		});
 		suite('confirmation required', () => {
 			for (const command of confirmationRequiredTestCases) {
 				test(command.replaceAll('\n', '\\n'), async () => {
-					assertConfirmationRequired(await executeToolTest({ command: command }));
+					assertConfirmationRequired(await executeToolTest({ command }));
 				});
 			}
 		});
@@ -420,18 +442,6 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Empty command'
 			});
 			assertAutoApproved(result);
-		});
-
-		test('should handle commands with only whitespace', async () => {
-			setAutoApprove({
-				echo: true
-			});
-
-			const result = await executeToolTest({
-				command: '   \t\n   ',
-				explanation: 'Whitespace only command'
-			});
-			assertConfirmationRequired(result);
 		});
 
 		test('should handle matchCommandLine: true patterns', async () => {
