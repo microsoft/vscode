@@ -48,6 +48,7 @@ import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
 import { ChatSessionUri } from '../../../common/chatUri.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -282,7 +283,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				templateData.elementDisposable.add(
 					this.hoverService.setupDelayedHover(templateData.container, () => ({
 						content: tooltipContent,
-						appearance: { showPointer: true },
+						style: HoverStyle.Pointer,
 						position: { hoverPosition: this.getHoverPosition() }
 					}), { groupId: 'chat.sessions' })
 				);
@@ -290,7 +291,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				templateData.elementDisposable.add(
 					this.hoverService.setupDelayedHover(templateData.container, () => ({
 						content: tooltipContent.markdown,
-						appearance: { showPointer: true },
+						style: HoverStyle.Pointer,
 						position: { hoverPosition: this.getHoverPosition() }
 					}), { groupId: 'chat.sessions' })
 				);
@@ -311,7 +312,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				templateData.elementDisposable.add(
 					this.hoverService.setupDelayedHover(templateData.timestamp, () => ({
 						content: nls.localize('chat.sessions.lastActivity', 'Last Activity: {0}', fullDateTime),
-						appearance: { showPointer: true },
+						style: HoverStyle.Pointer,
 						position: { hoverPosition: this.getHoverPosition() }
 					}), { groupId: 'chat.sessions' })
 				);
