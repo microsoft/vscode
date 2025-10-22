@@ -42,6 +42,8 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { openTerminalSettingsLinkCommandId } from './chatTerminalToolProgressPart.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
+import { autorunSelfDisposable } from '../../../../../../base/common/observable.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
 	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
@@ -95,7 +97,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			context.container.classList.add('from-sub-agent');
 		}
 
-		if (!toolInvocation.confirmationMessages) {
+		if (!toolInvocation.confirmationMessages?.title) {
 			throw new Error('Confirmation messages are missing');
 		}
 
@@ -183,9 +185,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		]);
 		append(elements.editor, editor.object.element);
 		this._register(hoverService.setupDelayedHover(elements.editor, {
-			content: message,
+			content: message || '',
+			style: HoverStyle.Pointer,
 			position: { hoverPosition: HoverPosition.LEFT },
-			appearance: { showPointer: true },
 		}));
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,
@@ -297,16 +299,20 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 					}
 				}
 			}
+
 			if (doComplete) {
-				toolInvocation.confirmed.complete({ type: toolConfirmKind });
+				IChatToolInvocation.confirmWith(toolInvocation, { type: toolConfirmKind });
 				this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.focusInput();
 			}
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		toolInvocation.confirmed.p.then(() => {
-			ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(false);
-			this._onNeedsRerender.fire();
-		});
+		this._register(autorunSelfDisposable(reader => {
+			if (IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, reader)) {
+				reader.dispose();
+				ChatContextKeys.Editing.hasToolConfirmation.bindTo(contextKeyService).set(false);
+				this._onNeedsRerender.fire();
+			}
+		}));
 
 		this.domNode = confirmWidget.domNode;
 	}

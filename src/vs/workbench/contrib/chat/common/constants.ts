@@ -16,16 +16,15 @@ export enum ChatConfiguration {
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
-	TodoList = 'chat.agent.todoList',
+	TodosShowWidget = 'chat.tools.todos.showWidget',
 	UseCloudButtonV2 = 'chat.useCloudButtonV2',
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
-	DelegateToCodingAgentInSecondaryMenu = 'chat.delegateToCodingAgentInSecondaryMenu',
 }
 
 /**
- * The "kind" of the chat mode- "Agent" for custom modes.
+ * The "kind" of agents for custom agents.
  */
 export enum ChatModeKind {
 	Ask = 'ask',
@@ -87,6 +86,6 @@ export namespace ChatAgentLocation {
 
 export const ChatUnsupportedFileSchemes = new Set([Schemas.vscodeChatEditor, Schemas.walkThrough, Schemas.vscodeChatSession, 'ccreq']);
 
-export const VIEWLET_ID = 'workbench.view.chat.sessions';
+export const AGENT_SESSIONS_VIEWLET_ID = 'workbench.view.chat.sessions'; // TODO@bpasero clear once settled
 
 export const ChatEditorTitleMaxLength = 30;

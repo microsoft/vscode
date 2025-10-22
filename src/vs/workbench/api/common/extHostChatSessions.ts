@@ -276,36 +276,19 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				this._proxy.$handleProgressComplete(handle, id, 'ongoing');
 			});
 		}
-		const { capabilities, extension } = provider;
+		const { capabilities } = provider;
 		return {
 			id: sessionId + '',
 			resource: URI.revive(resource),
 			hasActiveResponseCallback: !!session.activeResponseCallback,
 			hasRequestHandler: !!session.requestHandler,
 			supportsInterruption: !!capabilities?.supportsInterruptions,
-			options: {
-				...(session.options?.model && {
-					model: {
-						...session.options.model,
-						extension: extension.identifier,
-						vendor: 'contributed',
-						modelPickerCategory: undefined,
-						capabilities: {},
-					}
-				})
-			},
+			options: session.options,
 			history: session.history.map(turn => {
 				if (turn instanceof extHostTypes.ChatRequestTurn) {
-					return { type: 'request' as const, prompt: turn.prompt, participant: turn.participant };
+					return this.convertRequestTurn(turn);
 				} else {
-					const responseTurn = turn as extHostTypes.ChatResponseTurn2;
-					const parts = coalesce(responseTurn.response.map(r => typeConvert.ChatResponsePart.from(r, this.commands.converter, sessionDisposables)));
-
-					return {
-						type: 'response' as const,
-						parts,
-						participant: responseTurn.participant
-					};
+					return this.convertResponseTurn(turn as extHostTypes.ChatResponseTurn2, sessionDisposables);
 				}
 			})
 		};
@@ -343,24 +326,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 
 		try {
-			const extOptions = await provider.provideChatSessionProviderOptions(token);
-			if (!extOptions) {
+			const { optionGroups } = await provider.provideChatSessionProviderOptions(token);
+			if (!optionGroups) {
 				return;
 			}
-
-			const { models } = extOptions;
-			if (!models || models.length === 0) {
-				return {};
-			}
 			return {
-				models: models.map(m => ({
-					...m,
-					extension: entry.extension.identifier,
-					vendor: 'contributed',
-					modelPickerCategory: undefined,
-					capabilities: {},
-
-				}))
+				optionGroups,
 			};
 		} catch (error) {
 			this._logService.error(`Error calling provideChatSessionProviderOptions for handle ${handle}:`, error);
@@ -415,5 +386,41 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 
 		return model;
+	}
+
+	private convertRequestTurn(turn: extHostTypes.ChatRequestTurn) {
+		const variables = turn.references.map(ref => this.convertReferenceToVariable(ref));
+		return {
+			type: 'request' as const,
+			prompt: turn.prompt,
+			participant: turn.participant,
+			command: turn.command,
+			variableData: variables.length > 0 ? { variables } : undefined
+		};
+	}
+
+	private convertReferenceToVariable(ref: vscode.ChatPromptReference) {
+		const value = ref.value && typeof ref.value === 'object' && 'uri' in ref.value && 'range' in ref.value
+			? typeConvert.Location.from(ref.value as vscode.Location)
+			: ref.value;
+		const range = ref.range ? { start: ref.range[0], endExclusive: ref.range[1] } : undefined;
+		const isFile = URI.isUri(value) || (value && typeof value === 'object' && 'uri' in value);
+		return {
+			id: ref.id,
+			name: ref.id,
+			value,
+			modelDescription: ref.modelDescription,
+			range,
+			kind: isFile ? 'file' as const : 'generic' as const
+		};
+	}
+
+	private convertResponseTurn(turn: extHostTypes.ChatResponseTurn2, sessionDisposables: DisposableStore) {
+		const parts = coalesce(turn.response.map(r => typeConvert.ChatResponsePart.from(r, this.commands.converter, sessionDisposables)));
+		return {
+			type: 'response' as const,
+			parts,
+			participant: turn.participant
+		};
 	}
 }

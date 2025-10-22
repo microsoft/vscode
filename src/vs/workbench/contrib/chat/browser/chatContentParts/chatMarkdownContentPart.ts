@@ -59,6 +59,7 @@ import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
 import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../../platform/editor/browser/editor.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 
 const $ = dom.$;
 
@@ -584,14 +585,12 @@ export class CollapsedCodeBlock extends Disposable {
 		this.tooltip = tooltip;
 
 		if (!this.hover.value) {
-			this.hover.value = this.hoverService.setupDelayedHover(this.element, () => (
-				{
-					content: this.tooltip!,
-					appearance: { compact: true, showPointer: true },
-					position: { hoverPosition: HoverPosition.BELOW },
-					persistence: { hideOnKeyDown: true },
-				}
-			));
+			this.hover.value = this.hoverService.setupDelayedHover(this.element, () => ({
+				content: this.tooltip!,
+				style: HoverStyle.Pointer,
+				position: { hoverPosition: HoverPosition.BELOW },
+				persistence: { hideOnKeyDown: true },
+			}));
 		}
 	}
 }

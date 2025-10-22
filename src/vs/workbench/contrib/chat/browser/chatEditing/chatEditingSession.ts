@@ -514,13 +514,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			get result() { return responseModel.result; }
 			get applyCodeBlockSuggestionId() { return responseModel.request?.modeInfo?.applyCodeBlockSuggestionId; }
 
-			get feature(): string {
+			get feature(): 'sideBarChat' | 'inlineChat' | undefined {
 				if (responseModel.session.initialLocation === ChatAgentLocation.Chat) {
 					return 'sideBarChat';
 				} else if (responseModel.session.initialLocation === ChatAgentLocation.EditorInline) {
 					return 'inlineChat';
 				}
-				return responseModel.session.initialLocation;
+				return undefined;
 			}
 		};
 	}

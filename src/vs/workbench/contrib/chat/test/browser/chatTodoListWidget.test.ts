@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatTodoListWidget } from '../../browser/chatContentParts/chatTodoListWidget.js';
 import { IChatTodo, IChatTodoListService } from '../../common/chatTodoListService.js';
@@ -27,6 +28,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 		// Mock the todo list service
 		mockTodoListService = {
 			_serviceBrand: undefined,
+			onDidUpdateTodos: Event.None,
 			getTodos: (sessionId: string) => sampleTodos,
 			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
 		};
@@ -137,6 +139,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 		// Create a new mock service with empty todos
 		const emptyTodoListService: IChatTodoListService = {
 			_serviceBrand: undefined,
+			onDidUpdateTodos: Event.None,
 			getTodos: (sessionId: string) => [],
 			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
 		};

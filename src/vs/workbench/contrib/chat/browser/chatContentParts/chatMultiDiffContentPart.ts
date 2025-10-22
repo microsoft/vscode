@@ -50,6 +50,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 
 	private list!: WorkbenchList<IChatMultiDiffItem>;
 	private isCollapsed: boolean = false;
+	private readonly readOnly: boolean;
 
 	constructor(
 		private readonly content: IChatMultiDiffData,
@@ -61,6 +62,8 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
+
+		this.readOnly = content.readOnly ?? false;
 
 		const headerDomNode = $('.checkpoint-file-changes-summary-header');
 		this.domNode = $('.checkpoint-file-changes-summary', undefined, headerDomNode);
@@ -92,7 +95,9 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			this.isCollapsed = !this.isCollapsed;
 			setExpansionState();
 		}));
-		disposables.add(this.renderViewAllFileChangesButton(viewListButton.element));
+		if (!this.readOnly) {
+			disposables.add(this.renderViewAllFileChangesButton(viewListButton.element));
+		}
 		disposables.add(this.renderContributedButtons(viewListButton.element));
 		return toDisposable(() => disposables.dispose());
 	}
@@ -180,7 +185,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 				setRowLineHeight: true,
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
-				mouseSupport: true,
+				mouseSupport: !this.readOnly,
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
 					getAriaLabel: (element: IChatMultiDiffItem) => element.uri.path,
@@ -217,24 +222,26 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		this.list.layout(height);
 		listContainer.style.height = `${height}px`;
 
-		store.add(this.list.onDidOpen((e) => {
-			if (!e.element) {
-				return;
-			}
+		if (!this.readOnly) {
+			store.add(this.list.onDidOpen((e) => {
+				if (!e.element) {
+					return;
+				}
 
-			if (e.element.diff) {
-				this.editorService.openEditor({
-					original: { resource: e.element.diff.originalURI },
-					modified: { resource: e.element.diff.modifiedURI },
-					options: { preserveFocus: true }
-				});
-			} else {
-				this.editorService.openEditor({
-					resource: e.element.uri,
-					options: { preserveFocus: true }
-				});
-			}
-		}));
+				if (e.element.diff) {
+					this.editorService.openEditor({
+						original: { resource: e.element.diff.originalURI },
+						modified: { resource: e.element.diff.modifiedURI },
+						options: { preserveFocus: true }
+					});
+				} else {
+					this.editorService.openEditor({
+						resource: e.element.uri,
+						options: { preserveFocus: true }
+					});
+				}
+			}));
+		}
 
 		return store;
 	}
