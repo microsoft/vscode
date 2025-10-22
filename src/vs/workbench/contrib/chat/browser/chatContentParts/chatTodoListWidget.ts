@@ -118,24 +118,16 @@ export class ChatTodoListWidget extends Disposable {
 	public render(sessionId: string | undefined): void {
 		if (!sessionId) {
 			this.domNode.style.display = 'none';
+			this._onDidChangeHeight.fire();
 			return;
 		}
 
 		if (this._currentSessionId !== sessionId) {
 			this._userHasScrolledManually = false;
 			this._userManuallyExpanded = false;
+			this._currentSessionId = sessionId;
 		}
 
-		const todoList = this.chatTodoListService.getTodos(sessionId);
-		if (todoList.length > 2) {
-			this.renderTodoList(todoList);
-			this.domNode.style.display = 'block';
-		} else {
-			this.domNode.style.display = 'none';
-			return;
-		}
-
-		this._currentSessionId = sessionId;
 		this.updateTodoDisplay();
 	}
 
@@ -144,7 +136,6 @@ export class ChatTodoListWidget extends Disposable {
 			return;
 		}
 
-		this.domNode.style.display = 'none';
 		const currentTodos = this.chatTodoListService.getTodos(sessionId);
 		const shouldClear = force || !currentTodos.some(todo => todo.status !== 'completed');
 		if (shouldClear) {
@@ -154,20 +145,18 @@ export class ChatTodoListWidget extends Disposable {
 
 	private updateTodoDisplay(): void {
 		if (!this._currentSessionId) {
-			this.domNode.style.display = 'none';
-			this._onDidChangeHeight.fire();
 			return;
 		}
 
 		const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
+		const shouldShow = todoList.length > 2;
 
-		if (todoList.length > 0) {
-			this.renderTodoList(todoList);
-			this.domNode.style.display = 'block';
-		} else {
-			this.domNode.style.display = 'none';
+		if (!shouldShow) {
+			return;
 		}
 
+		this.renderTodoList(todoList);
+		this.domNode.style.display = 'block';
 		this._onDidChangeHeight.fire();
 	}
 
