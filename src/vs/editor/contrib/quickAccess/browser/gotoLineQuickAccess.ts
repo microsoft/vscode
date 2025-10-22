@@ -139,7 +139,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		};
 	}
 
-	private parsePosition(editor: IEditor, value: string): IPosition {
+	protected parsePosition(editor: IEditor, value: string): IPosition {
 		const model = this.getModel(editor);
 
 		// Support ::<offset> notation to navigate to a specific offset in the model.
