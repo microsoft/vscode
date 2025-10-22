@@ -9,7 +9,6 @@ import { Remote } from './api/git';
 import { isDescendant } from './util';
 
 export interface RepositoryCacheInfo {
-	repoRootPath: string; // root path of the local repo clone associated with this workspace folder/workspace file
 	workspacePath: string; // path of the workspace folder or workspace file
 }
 
@@ -18,7 +17,7 @@ function isRepositoryCacheInfo(obj: unknown): obj is RepositoryCacheInfo {
 		return false;
 	}
 	const rec = obj as Record<string, unknown>;
-	return typeof rec.repoRootPath === 'string' && typeof rec.workspacePath === 'string';
+	return typeof rec.workspacePath === 'string';
 }
 
 export class RepositoryCache {
@@ -61,7 +60,6 @@ export class RepositoryCache {
 		}
 
 		foldersLru.set(folderPathOrWorkspaceFile, {
-			repoRootPath: rootPath,
 			workspacePath: folderPathOrWorkspaceFile
 		}); // touch entry
 		this.lru.set(repoUrl, foldersLru);

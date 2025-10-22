@@ -27,7 +27,6 @@ import { GitPostCommitCommandsProvider } from './postCommitCommands';
 import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
 import { GitBlameController } from './blame';
-import { RepositoryCache } from './repositoryCache';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -37,7 +36,7 @@ export async function deactivate(): Promise<any> {
 	}
 }
 
-async function createModel(context: ExtensionContext, logger: LogOutputChannel, telemetryReporter: TelemetryReporter, repositoryCache: RepositoryCache, disposables: Disposable[]): Promise<Model> {
+async function createModel(context: ExtensionContext, logger: LogOutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
 	const pathValue = workspace.getConfiguration('git').get<string | string[]>('path');
 	let pathHints = Array.isArray(pathValue) ? pathValue : pathValue ? [pathValue] : [];
 
@@ -89,7 +88,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		version: info.version,
 		env: environment,
 	});
-	const model = new Model(git, askpass, context.globalState, context.workspaceState, logger, telemetryReporter, repositoryCache);
+	const model = new Model(git, askpass, context.globalState, context.workspaceState, logger, telemetryReporter);
 	disposables.push(model);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
@@ -205,19 +204,18 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 
 	const config = workspace.getConfiguration('git', null);
 	const enabled = config.get<boolean>('enabled');
-	const repositoryCache = new RepositoryCache(context.globalState, logger);
 
 	if (!enabled) {
 		const onConfigChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git'));
 		const onEnabled = filterEvent(onConfigChange, () => workspace.getConfiguration('git', null).get<boolean>('enabled') === true);
 		const result = new GitExtensionImpl();
 
-		eventToPromise(onEnabled).then(async () => result.model = await createModel(context, logger, telemetryReporter, repositoryCache, disposables));
+		eventToPromise(onEnabled).then(async () => result.model = await createModel(context, logger, telemetryReporter, disposables));
 		return result;
 	}
 
 	try {
-		const model = await createModel(context, logger, telemetryReporter, repositoryCache, disposables);
+		const model = await createModel(context, logger, telemetryReporter, disposables);
 		return new GitExtensionImpl(model);
 	} catch (err) {
 		console.warn(err.message);

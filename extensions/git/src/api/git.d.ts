@@ -184,16 +184,14 @@ export interface InitOptions {
 }
 
 export interface CloneOptions {
+	parentPath?: Uri;
 	/**
-	 * If set to a URI, the repository will be cloned into this directory.
-	 * If not set, or set to `false`, and if we already know about an exiting clone of this repo,
-	 * we will open that clone instead of creating a new one.
-	 * If set to `true`, the user will be prompt to choose a directory to clone into.
+	 * ref is only used if the repository cache is missed
 	 */
-	parentPath?: Uri | boolean;
 	ref?: string;
 	recursive?: boolean;
-	openFolder?: boolean;
+	postCloneAction?: 'none' | 'open' | 'prompt';
+	skipCache?: boolean;
 }
 
 export interface RefQuery {

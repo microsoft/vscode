@@ -1015,7 +1015,7 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(url?: string, parentPath?: string, options?: { ref?: string; openFolder?: boolean }): Promise<void> {
+	async clone(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
 		await this.model.clone(url, { parentPath, ...options });
 	}
 
