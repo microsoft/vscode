@@ -922,9 +922,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const timeoutValue = this._configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
 		let timeoutMs: number;
 
-		if (timeoutValue === undefined || !isNumber(timeoutValue) || timeoutValue < 0) {
+		if (!isNumber(timeoutValue) || timeoutValue < 0) {
 			const siEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
-			// Discuss: This default from copilot chat setting feels pretty slow..
 			timeoutMs = siEnabled ? 5000 : (this.isRemote ? 3000 : 2000);
 		} else {
 			timeoutMs = Math.max(timeoutValue, 500);
@@ -938,7 +937,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				timeoutMs = Math.max(0, timeoutMs - elapsed);
 			}
 
-			// Discuss: Talk about, get clarification one more time.
 			await Promise.race([
 				new Promise<void>(r => {
 					store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
@@ -954,7 +952,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}),
 				timeout(timeoutMs)
 			]);
-
 			store.dispose();
 		}
 
