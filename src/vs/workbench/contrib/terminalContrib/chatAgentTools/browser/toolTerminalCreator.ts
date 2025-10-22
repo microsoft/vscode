@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, raceTimeout } from '../../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isNumber, isObject } from '../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -16,6 +16,7 @@ import { TerminalCapability } from '../../../../../platform/terminal/common/capa
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { ITerminalLogService, ITerminalProfile, TerminalSettingId, type IShellLaunchConfig } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { getShellIntegrationTimeout } from '../../../terminal/browser/terminalInstance.js';
 
 const enum ShellLaunchType {
 	Unknown = 0,
@@ -55,74 +56,51 @@ export class ToolTerminalCreator {
 			instance,
 			shellIntegrationQuality: ShellIntegrationQuality.None,
 		};
-		let processReadyTime: number | undefined;
-		const store = new DisposableStore();
-		const processReadyListener = store.add(instance.onProcessIdReady(() => {
-			processReadyTime = Date.now();
-		}));
-		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
-		const timeoutValue = this._configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
-		let commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
-		let timeoutMs: number;
-
-		if (!isNumber(timeoutValue) || timeoutValue < 0) {
-			timeoutMs = siInjectionEnabled ? 5000 : (instance.isRemote ? 3000 : 2000);
-		} else {
-			timeoutMs = Math.max(timeoutValue, 500);
-		}
+		let processReadyTime = 0;
 
 		// Ensure the shell process launches successfully
 		const initResult = await Promise.any([
-			instance.processReady, // Question: Should I just `then` on `processReady` instead of listening to `onProcessIdReady earlier?`
+			instance.processReady.then(() => processReadyTime = Date.now()),
 			Event.toPromise(instance.onExit),
 		]);
-
 		if (!isNumber(initResult) && isObject(initResult) && 'message' in initResult) {
-			processReadyListener.dispose();
 			throw new Error(initResult.message);
 		}
+
+		// Wait for shell integration when the fallback case has not been hit or when shell
+		// integration injection is enabled. Note that it's possible for the fallback case to happen
+		// and then for SI to activate again later in the session.
+		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
+
+		// Get the configurable timeout to wait for shell integration
+		const waitTime = getShellIntegrationTimeout(
+			this._configurationService,
+			siInjectionEnabled,
+			instance.isRemote,
+			processReadyTime
+		);
+
 		if (
 			ToolTerminalCreator._lastSuccessfulShell !== ShellLaunchType.Fallback ||
 			siInjectionEnabled
 		) {
-			// Question: Not sure if this exact if conditions are valid for both runCommand for for Copilot terminals.
-			if (!commandDetection || commandDetection.promptInputModel.state !== PromptInputState.Input) {
-				if (processReadyTime) {
-					const elapsed = Date.now() - processReadyTime;
-					timeoutMs = Math.max(0, timeoutMs - elapsed);
-				}
-
-				await Promise.race([
-					new Promise<void>(r => {
-						store.add(instance.capabilities.onDidAddCommandDetectionCapability(e => {
-							commandDetection = e;
-							if (commandDetection.promptInputModel.state === PromptInputState.Input) {
-								r();
-							} else {
-								store.add(commandDetection.promptInputModel.onDidStartInput(() => {
-									r();
-								}));
-							}
-						}));
-					}),
-					timeout(timeoutMs)
-				]);
-				// Question: Considering removing `store.dispose() -> If I call processReadyListener.dispose() afterwards, would it throw error?
-				store.dispose();
-			}
-
+			this._logService.info(`ToolTerminalCreator#createTerminal: Waiting ${waitTime}ms for shell integration`);
+			const shellIntegrationQuality = await this._waitForShellIntegration(instance, waitTime);
 			if (token.isCancellationRequested) {
-				processReadyListener.dispose();
 				instance.dispose();
 				throw new CancellationError();
 			}
 
-			processReadyListener.dispose();
-			const shellIntegrationQuality = commandDetection?.hasRichCommandDetection
-				? ShellIntegrationQuality.Rich
-				: commandDetection
-					? ShellIntegrationQuality.Basic
-					: ShellIntegrationQuality.None;
+			// If SI is rich, wait for the prompt state to change. This prevents an issue with pwsh
+			// in particular where shell startup can swallow `\r` input events, preventing the
+			// command from executing.
+			if (shellIntegrationQuality === ShellIntegrationQuality.Rich) {
+				const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
+				if (commandDetection?.promptInputModel.state === PromptInputState.Unknown) {
+					this._logService.info(`ToolTerminalCreator#createTerminal: Waiting up to 2s for PromptInputModel state to change`);
+					await raceTimeout(Event.toPromise(commandDetection.onCommandStarted), 2000);
+				}
+			}
 
 			if (shellIntegrationQuality !== ShellIntegrationQuality.None) {
 				ToolTerminalCreator._lastSuccessfulShell = ShellLaunchType.Default;
@@ -182,5 +160,66 @@ export class ToolTerminalCreator {
 		}
 
 		return this._terminalService.createTerminal({ config });
+	}
+
+	private _waitForShellIntegration(
+		instance: ITerminalInstance,
+		timeoutMs: number
+	): Promise<ShellIntegrationQuality> {
+		const store = new DisposableStore();
+		const result = new DeferredPromise<ShellIntegrationQuality>();
+
+		const siNoneTimer = store.add(new MutableDisposable());
+		siNoneTimer.value = disposableTimeout(() => {
+			this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Timed out ${timeoutMs}ms, using no SI`);
+			result.complete(ShellIntegrationQuality.None);
+		}, timeoutMs);
+
+		if (instance.capabilities.get(TerminalCapability.CommandDetection)?.hasRichCommandDetection) {
+			// Rich command detection is available immediately.
+			siNoneTimer.clear();
+			this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Rich SI available immediately`);
+			result.complete(ShellIntegrationQuality.Rich);
+		} else {
+			const onSetRichCommandDetection = store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onSetRichCommandDetection));
+			store.add(onSetRichCommandDetection.event((e) => {
+				if (e.instance !== instance) {
+					return;
+				}
+				siNoneTimer.clear();
+				// Rich command detection becomes available some time after the terminal is created.
+				this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Rich SI available eventually`);
+				result.complete(ShellIntegrationQuality.Rich);
+			}));
+
+			const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
+			if (commandDetection) {
+				siNoneTimer.clear();
+				// When SI lights up, allow up to 200ms for the rich command
+				// detection sequence to come in before declaring it as basic shell integration.
+				store.add(disposableTimeout(() => {
+					this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Timed out 200ms, using basic SI`);
+					result.complete(ShellIntegrationQuality.Basic);
+				}, 200));
+			} else {
+				store.add(instance.capabilities.onDidAddCommandDetectionCapability(e => {
+					siNoneTimer.clear();
+					// When command detection lights up, allow up to 200ms for the rich command
+					// detection sequence to come in before declaring it as basic shell
+					// integration.
+					store.add(disposableTimeout(() => {
+						this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Timed out 200ms, using basic SI (via listener)`);
+						result.complete(ShellIntegrationQuality.Basic);
+					}, 200));
+				}));
+			}
+		}
+
+		result.p.finally(() => {
+			this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Promise complete, disposing store`);
+			store.dispose();
+		});
+
+		return result.p;
 	}
 }

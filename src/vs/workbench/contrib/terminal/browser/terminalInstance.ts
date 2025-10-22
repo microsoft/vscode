@@ -92,8 +92,8 @@ import { TerminalContribCommandId } from '../terminalContribExports.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { isNumber } from '../../../../base/common/types.js';
 import { PromptInputState } from '../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
+import { isNumber } from '../../../../base/common/types.js';
 
 const enum Constants {
 	/**
@@ -919,23 +919,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-		const timeoutValue = this._configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
-		let timeoutMs: number;
-
-		if (!isNumber(timeoutValue) || timeoutValue < 0) {
-			const siEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
-			timeoutMs = siEnabled ? 5000 : (this.isRemote ? 3000 : 2000);
-		} else {
-			timeoutMs = Math.max(timeoutValue, 500);
-		}
+		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
+		const timeoutMs = getShellIntegrationTimeout(
+			this._configurationService,
+			siInjectionEnabled,
+			this.isRemote,
+			this._processManager.processReadyTime
+		);
 
 		if (!commandDetection || commandDetection.promptInputModel.state !== PromptInputState.Input) {
 			const store = new DisposableStore();
-			const processReadyTime = this._processManager.processReadyTime;
-			if (processReadyTime) {
-				const elapsed = Date.now() - processReadyTime;
-				timeoutMs = Math.max(0, timeoutMs - elapsed);
-			}
 
 			await Promise.race([
 				new Promise<void>(r => {
@@ -2820,4 +2813,28 @@ function guessShellTypeFromExecutable(os: OperatingSystem, executable: string): 
 		}
 	}
 	return undefined;
+}
+
+export function getShellIntegrationTimeout(
+	configurationService: IConfigurationService,
+	siInjectionEnabled: boolean,
+	isRemote: boolean,
+	processReadyTime?: number
+): number {
+	const timeoutValue = configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
+	let timeoutMs: number;
+
+	if (!isNumber(timeoutValue) || timeoutValue < 0) {
+		timeoutMs = siInjectionEnabled ? 5000 : (isRemote ? 3000 : 2000);
+	} else {
+		timeoutMs = Math.max(timeoutValue, 500);
+	}
+
+	// Adjust timeout based on how long the process has already been running
+	if (processReadyTime !== undefined) {
+		const elapsed = Date.now() - processReadyTime;
+		timeoutMs = Math.max(0, timeoutMs - elapsed);
+	}
+
+	return timeoutMs;
 }
