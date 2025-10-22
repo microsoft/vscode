@@ -502,7 +502,7 @@ export class ChatService extends Disposable implements IChatService {
 						? this.chatAgentService.getAgent(message.participant) // TODO(jospicer): Remove and always hardcode?
 						: this.chatAgentService.getAgent(chatSessionType);
 				lastRequest = model.addRequest(parsedRequest,
-					{ variables: [] }, // variableData
+					message.variableData ?? { variables: [] },
 					0, // attempt
 					undefined,
 					agent,

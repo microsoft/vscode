@@ -197,7 +197,7 @@ configurationRegistry.registerConfiguration({
 		'chat.implicitContext.suggestedContext': {
 			type: 'boolean',
 			tags: ['experimental'],
-			markdownDescription: nls.localize('chat.implicitContext.suggestedContext', "Controls whether the new implicit context flow is shown. In Ask and Edit modes, the context will automatically be included. In Agent mode context will be suggested as an attachment. Selections are always included as context."),
+			markdownDescription: nls.localize('chat.implicitContext.suggestedContext', "Controls whether the new implicit context flow is shown. In Ask and Edit modes, the context will automatically be included. When using an agent, context will be suggested as an attachment. Selections are always included as context."),
 			default: true,
 		},
 		'chat.editing.autoAcceptDelay': {
@@ -620,7 +620,7 @@ configurationRegistry.registerConfiguration({
 			default: {
 				[LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true,
 			},
-			deprecationMessage: nls.localize('chat.mode.config.locations.deprecated', "This setting is deprecated and will be removed in future releases. Chat modes are now called agents and are located in `.github/agents`"),
+			deprecationMessage: nls.localize('chat.mode.config.locations.deprecated', "This setting is deprecated and will be removed in future releases. Chat modes are now called custom agents and are located in `.github/agents`"),
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
 			restricted: true,
@@ -690,25 +690,10 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		[ChatConfiguration.TodoList]: {
-			type: 'object',
-			description: nls.localize('chat.agent.todoList', "Configures the todo list widget in chat."),
-			properties: {
-				position: {
-					type: 'string',
-					default: 'default',
-					enum: ['default', 'off', 'chat-input'],
-					enumDescriptions: [
-						nls.localize('chat.agent.todoList.position.default', "Show todo list in the top of the chat panel."),
-						nls.localize('chat.agent.todoList.position.off', "Hide the todo list (still shows the tool calls for tracking todo progress)."),
-						nls.localize('chat.agent.todoList.position.chatInput', "Show todo list above the chat input.")
-					],
-					description: nls.localize('chat.agent.todoList.position', "Controls the position of the todo list in the chat view, which opens when the agent has created todo items and updates as it makes progress.")
-				}
-			},
-			default: {
-				position: 'default'
-			},
+		[ChatConfiguration.TodosShowWidget]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.tools.todos.showWidget', "Controls whether to show the todo list widget above the chat input. When enabled, the widget displays todo items created by the agent and updates as progress is made."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -877,7 +862,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 					properties: {
 						'chat.agent.maxRequests': {
 							type: 'number',
-							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow per-turn in agent mode. When the limit is reached, will ask to confirm to continue."),
+							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow per-turn when using an agent. When the limit is reached, will ask to confirm to continue."),
 							default: defaultValue,
 						},
 					}
