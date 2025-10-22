@@ -44,7 +44,7 @@ export function getInstanceHoverInfo(instance: ITerminalInstance, storageService
 	});
 
 	const shellProcessString = getShellProcessTooltip(instance, !!showDetailed);
-	const content = new MarkdownString(instance.title + shellProcessString + statusString, { supportThemeIcons: true });
+	const content = new MarkdownString(instance.title + shellProcessString + statusString, { supportThemeIcons: true, supportHtml: true });
 
 	return { content, actions };
 }
