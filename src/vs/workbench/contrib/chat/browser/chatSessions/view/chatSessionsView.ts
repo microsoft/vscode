@@ -20,30 +20,26 @@ import { IThemeService } from '../../../../../../platform/theme/common/themeServ
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ViewPaneContainer } from '../../../../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
-import { ViewContainer, IViewContainersRegistry, Extensions, ViewContainerLocation, IViewsRegistry, IViewDescriptor, IViewDescriptorService } from '../../../../../common/views.js';
-import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { Extensions, IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, ViewContainerLocation } from '../../../../../common/views.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
-import { IChatSessionsService, IChatSessionItemProvider, IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
-import { ChatConfiguration, VIEWLET_ID } from '../../../common/constants.js';
+import { ChatContextKeyExprs } from '../../../common/chatContextKeys.js';
+import { IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { VIEWLET_ID } from '../../../common/constants.js';
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { SessionsViewPane } from './sessionsViewPane.js';
 
-export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
+export class ChatSessionsViewContrib extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatSessions';
 
-	private isViewContainerRegistered = false;
 	private localProvider: LocalChatSessionsProvider | undefined;
 	private readonly sessionTracker: ChatSessionTracker;
-	private viewContainer: ViewContainer | undefined;
 
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
@@ -56,17 +52,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 		this._register(this.chatSessionsService.registerChatSessionItemProvider(this.localProvider));
 
 		// Initial check
-		this.updateViewContainerRegistration();
-
-		// Listen for configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentSessionsViewLocation)) {
-				this.updateViewContainerRegistration();
-			}
-		}));
-		this._register(this.chatEntitlementService.onDidChangeSentiment(e => {
-			this.updateViewContainerRegistration();
-		}));
+		this.registerViewContainer();
 	}
 
 	private setupEditorTracking(): void {
@@ -75,44 +61,16 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 		}));
 	}
 
-	private updateViewContainerRegistration(): void {
-		const location = this.configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
-		const sentiment = this.chatEntitlementService.sentiment;
-		if (sentiment.disabled || sentiment.hidden || (location !== 'view' && this.isViewContainerRegistered)) {
-			this.deregisterViewContainer();
-		} else if (location === 'view' && !this.isViewContainerRegistered) {
-			this.registerViewContainer();
-		}
-	}
-
 	private registerViewContainer(): void {
-		if (this.isViewContainerRegistered) {
-			return;
-		}
-
-		this.viewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+		Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: VIEWLET_ID,
 				title: nls.localize2('chat.agent.sessions', "Agent Sessions"),
 				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer, [this.sessionTracker]),
-				hideIfEmpty: false,
+				hideIfEmpty: true,
 				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View'),
 				order: 6
 			}, ViewContainerLocation.Sidebar);
-		this.isViewContainerRegistered = true;
-	}
-
-	private deregisterViewContainer(): void {
-		if (this.viewContainer) {
-			const allViews = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer);
-			if (allViews.length > 0) {
-				Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).deregisterViews(allViews, this.viewContainer);
-			}
-
-			Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).deregisterViewContainer(this.viewContainer);
-			this.viewContainer = undefined;
-			this.isViewContainerRegistered = false;
-		}
 	}
 }
 
@@ -254,12 +212,12 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 
 			// Register views in priority order: local, history, then alphabetically sorted others
 			const orderedProviders = [
-				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Agent', baseOrder: 0 }] : []),
-				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1, when: undefined }] : []),
+				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Agent', baseOrder: 0, when: ChatContextKeyExprs.agentViewWhen }] : []),
+				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1, when: ChatContextKeyExprs.agentViewWhen }] : []),
 				...providersWithDisplayNames.map((item, index) => ({
 					...item,
 					baseOrder: 2 + index, // Start from 2 for other providers
-					when: undefined,
+					when: ChatContextKeyExprs.agentViewWhen,
 				}))
 			];
 
@@ -307,6 +265,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 					canMoveView: true,
 					order: 1000,
 					collapsed: !!otherProviders.length,
+					when: ChatContextKeyExprs.agentViewWhen
 				};
 				viewDescriptorsToRegister.push(gettingStartedDescriptor);
 				this.registeredViewDescriptors.set('gettingStarted', gettingStartedDescriptor);
