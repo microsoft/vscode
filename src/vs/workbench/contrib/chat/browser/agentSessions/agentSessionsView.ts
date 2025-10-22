@@ -228,15 +228,15 @@ export class AgentSessionsView extends FilterViewPane {
 			actions: {
 				getActions: () => {
 					const actions: IAction[] = [];
-					for (const provider of this.chatSessionsService.getAllChatSessionItemProviders()) {
-						if (provider.chatSessionType === LOCAL_AGENT_SESSION_TYPE) {
+					for (const provider of this.chatSessionsService.getAllChatSessionContributions()) {
+						if (provider.type === LOCAL_AGENT_SESSION_TYPE) {
 							continue; // local is the primary action
 						}
 
 						actions.push(toAction({
-							id: `newChatSessionFromProvider.${provider.chatSessionType}`,
-							label: localize('newChatSessionFromProvider', "New Session ({0})", provider.chatSessionType),
-							run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${provider.chatSessionType}`)
+							id: `newChatSessionFromProvider.${provider.type}`,
+							label: localize('newChatSessionFromProvider', "New Session ({0})", provider.displayName),
+							run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${provider.type}`)
 						}));
 					}
 					return actions;
