@@ -50,6 +50,7 @@ export interface IChatSessionsExtensionPoint {
 	readonly extensionDescription: IRelaxedExtensionDescription;
 	readonly when?: string;
 	readonly icon?: string;
+	readonly order?: number;
 	readonly welcomeTitle?: string;
 	readonly welcomeMessage?: string;
 	readonly welcomeTips?: string;
