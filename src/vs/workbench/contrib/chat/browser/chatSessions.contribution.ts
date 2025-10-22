@@ -25,7 +25,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentRequest, IC
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
-import { ChatAgentLocation, ChatModeKind, VIEWLET_ID } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, AGENT_SESSIONS_VIEWLET_ID } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from './chatSessions/common.js';
@@ -387,7 +387,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			group: 'navigation',
 			order: 1,
 			when: ContextKeyExpr.and(
-				ContextKeyExpr.equals('view', `${VIEWLET_ID}.${contribution.type}`)
+				ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.${contribution.type}`)
 			),
 		});
 	}
