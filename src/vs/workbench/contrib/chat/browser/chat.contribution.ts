@@ -688,7 +688,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agent.thinkingMode.none', "Do not show the thinking"),
 				nls.localize('chat.agent.thinkingMode.collapsedPerItem', "Each thinking subsection is individually collapsible and collapsed by default inside the thinking block."),
 				nls.localize('chat.agent.thinkingMode.fixedScrolling', "Show thinking in a fixed-height streaming panel that auto-scrolls; click header to expand to full height."),
-				nls.localize('chat.agent.thinkingMode.fixedScrollingTools', "Experimental: fixed scrolling with focused tool call updates."),
+				nls.localize('chat.agent.thinkingMode.fixedScrollingTools', "Show thinking and certain tool calls in a fixed-height streaming panel that auto-scrolls; click header to expand to full height."),
 			],
 			description: nls.localize('chat.agent.thinkingStyle', "Controls how thinking is rendered."),
 			tags: ['experimental'],

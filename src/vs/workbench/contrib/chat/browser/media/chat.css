@@ -767,8 +767,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session {
-	margin-bottom: -4px;
-	/* reset the 4px gap of the container for editing sessions */
+	margin-bottom: -4px; /* reset the 4px gap of the container for editing sessions */
 	width: 100%;
 	position: relative;
 }
@@ -3039,8 +3038,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 				margin-left: 6px;
 			}
 		}
-
-
 
 		.chat-thinking-item.markdown-content {
 			padding: 3px 12px 3px 24px;
