@@ -12,6 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -25,7 +26,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentRequest, IC
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
-import { ChatAgentLocation, ChatModeKind, AGENT_SESSIONS_VIEWLET_ID } from '../common/constants.js';
+import { AGENT_SESSIONS_VIEWLET_ID, ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from './chatSessions/common.js';
@@ -228,6 +229,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(extensionPoint.setHandler(extensions => {
@@ -239,6 +241,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					continue;
 				}
 				for (const contribution of ext.value) {
+					if (contribution.type === 'openai-codex' && !this._configurationService.getValue<boolean>('chat.experimental.codex.enabled')) {
+						continue;
+					}
+
 					const c: IChatSessionsExtensionPoint = {
 						type: contribution.type,
 						name: contribution.name,
