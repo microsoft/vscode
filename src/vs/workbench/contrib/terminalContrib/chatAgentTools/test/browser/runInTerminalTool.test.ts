@@ -974,7 +974,7 @@ suite('RunInTerminalTool', () => {
 
 				const result = await runInTerminalTool.profileFetcher.getCopilotProfile();
 				strictEqual(typeof result, 'object');
-				strictEqual((result as ITerminalProfile).path, 'pwsh');
+				strictEqual((result as ITerminalProfile).path, 'bash');
 			});
 		});
 	});
