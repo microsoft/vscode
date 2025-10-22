@@ -145,15 +145,8 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		return query;
 	}
 
-	async createQuery(languageId: string, querySource: string): Promise<Query> {
-		const [
-			language,
-			treeSitter
-		] = await Promise.all([
-			this._languagesCache.get(languageId).promise,
-			this._treeSitterImport.value,
-		]);
-
+	async createQuery(language: Language, querySource: string): Promise<Query> {
+		const treeSitter = await this._treeSitterImport.value;
 		return new treeSitter.Query(language, querySource);
 	}
 }

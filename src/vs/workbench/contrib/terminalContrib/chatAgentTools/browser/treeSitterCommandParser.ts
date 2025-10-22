@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
-import { Lazy } from '../../../../../base/common/lazy.js';
 import { derived, waitForState } from '../../../../../base/common/observable.js';
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-import type { Parser, Query } from '@vscode/tree-sitter-wasm';
+import type { Language, Parser, Query } from '@vscode/tree-sitter-wasm';
 
 export const enum TreeSitterCommandParserLanguage {
 	Bash = 'bash',
@@ -16,15 +15,7 @@ export const enum TreeSitterCommandParserLanguage {
 
 export class TreeSitterCommandParser {
 	private readonly _parser: Promise<Parser>;
-
-	private readonly _languageToQueryMap = {
-		[TreeSitterCommandParserLanguage.Bash]: new Lazy(() => {
-			return this._treeSitterLibraryService.createQuery(TreeSitterCommandParserLanguage.Bash, '(command) @command');
-		}),
-		[TreeSitterCommandParserLanguage.PowerShell]: new Lazy(() => {
-			return this._treeSitterLibraryService.createQuery(TreeSitterCommandParserLanguage.PowerShell, '(command\ncommand_name: (command_name) @function)');
-		}),
-	} satisfies { [K in TreeSitterCommandParserLanguage]: Lazy<Promise<Query>> };
+	private readonly _queries: Map<Language, Query> = new Map();
 
 	constructor(
 		@ITreeSitterLibraryService private readonly _treeSitterLibraryService: ITreeSitterLibraryService
@@ -44,7 +35,7 @@ export class TreeSitterCommandParser {
 			throw new BugIndicatingError('Failed to parse tree');
 		}
 
-		const query = await this._languageToQueryMap[languageId].value;
+		const query = await this._getQuery(language);
 		if (!query) {
 			throw new BugIndicatingError('Failed to create tree sitter query');
 		}
@@ -52,5 +43,14 @@ export class TreeSitterCommandParser {
 		const captures = query.captures(tree.rootNode);
 		const subCommands = captures.map(e => e.node.text);
 		return subCommands;
+	}
+
+	private async _getQuery(language: Language): Promise<Query> {
+		let query = this._queries.get(language);
+		if (!query) {
+			query = await this._treeSitterLibraryService.createQuery(language, '(command) @command');
+			this._queries.set(language, query);
+		}
+		return query;
 	}
 }

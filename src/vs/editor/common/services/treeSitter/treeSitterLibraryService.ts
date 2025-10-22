@@ -50,8 +50,8 @@ export interface ITreeSitterLibraryService {
 
 	/**
 	 * Creates a one-off custom query for a language.
-	 * @param languageId The language identifier to create the query for.
+	 * @param language The Language to create the query for.
 	 * @param querySource The query source string to compile.
 	 */
-	createQuery(languageId: string, querySource: string): Promise<Query>;
+	createQuery(language: Language, querySource: string): Promise<Query>;
 }

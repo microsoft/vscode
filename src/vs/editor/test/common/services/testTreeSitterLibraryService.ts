@@ -30,7 +30,7 @@ export class TestTreeSitterLibraryService implements ITreeSitterLibraryService {
 		return null;
 	}
 
-	async createQuery(languageId: string, querySource: string): Promise<Query> {
+	async createQuery(language: Language, querySource: string): Promise<Query> {
 		throw new Error('not implemented in TestTreeSitterLibraryService');
 	}
 }
