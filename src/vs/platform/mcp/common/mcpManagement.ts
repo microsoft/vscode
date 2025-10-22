@@ -23,6 +23,7 @@ export interface ILocalMcpServer {
 	readonly displayName?: string;
 	readonly description?: string;
 	readonly galleryUrl?: string;
+	readonly galleryId?: string;
 	readonly repositoryUrl?: string;
 	readonly readmeUrl?: URI;
 	readonly publisher?: string;
@@ -132,6 +133,7 @@ export interface IGalleryMcpServer {
 	readonly version: string;
 	readonly isLatest: boolean;
 	readonly status: GalleryMcpServerStatus;
+	readonly id?: string;
 	readonly galleryUrl?: string;
 	readonly webUrl?: string;
 	readonly codicon?: string;
@@ -166,7 +168,7 @@ export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IGalleryMcpServer>>;
-	getMcpServersFromGallery(urls: string[]): Promise<IGalleryMcpServer[]>;
+	getMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<IGalleryMcpServer[]>;
 	getMcpServer(url: string): Promise<IGalleryMcpServer | undefined>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }
