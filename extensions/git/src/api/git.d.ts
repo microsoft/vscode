@@ -186,10 +186,13 @@ export interface InitOptions {
 export interface CloneOptions {
 	parentPath?: Uri;
 	/**
-	 * ref is only used if the repository cache is missed
+	 * ref is only used if the repository cache is missed.
 	 */
 	ref?: string;
 	recursive?: boolean;
+	/**
+	 * If no postCloneAction is provided, then the users setting for git.openAfterClone is used.
+	 */
 	postCloneAction?: 'none' | 'open' | 'prompt';
 	skipCache?: boolean;
 }
