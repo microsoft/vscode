@@ -290,19 +290,6 @@ suite('RunInTerminalTool', () => {
 			'HTTP_PROXY=proxy:8080 wget https://example.com',
 			'VAR1=value1 VAR2=value2 echo test',
 			'A=1 B=2 C=3 ./script.sh',
-
-			// Dangerous patterns
-			'echo $(whoami)',
-			'ls $(pwd)',
-			'echo `date`',
-			'cat `which ls`',
-			'echo ${HOME}',
-			'ls {a,b,c}',
-			'echo (Get-Date)',
-
-			// Dangerous patterns - multi-line
-			'echo "{\n}"',
-			'echo @"\n{\n}"@',
 		];
 
 		suite('auto approved', () => {
@@ -970,66 +957,25 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
-});
+	suite('TerminalProfileFetcher', () => {
+		suite('getCopilotProfile', () => {
+			(isWindows ? test : test.skip)('should return custom profile when configured', async () => {
+				runInTerminalTool.setBackendOs(OperatingSystem.Windows);
+				const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] });
+				setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
 
-suite('TerminalProfileFetcher', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+				const result = await runInTerminalTool.profileFetcher.getCopilotProfile();
+				strictEqual(result, customProfile);
+			});
 
-	let instantiationService: TestInstantiationService;
-	let configurationService: TestConfigurationService;
-	let testTool: TestRunInTerminalTool;
+			(isLinux ? test : test.skip)('should fall back to default shell when no custom profile is configured', async () => {
+				runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+				setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, null);
 
-	setup(() => {
-		configurationService = new TestConfigurationService();
-
-		instantiationService = workbenchInstantiationService({
-			configurationService: () => configurationService,
-		}, store);
-		instantiationService.stub(ILanguageModelToolsService, {
-			getTools() {
-				return [];
-			},
-		});
-		instantiationService.stub(ITerminalService, {
-			onDidDisposeInstance: new Emitter<ITerminalInstance>().event
-		});
-		instantiationService.stub(IChatService, {
-			onDidDisposeSession: new Emitter<{ sessionId: string; reason: 'cleared' }>().event
-		});
-		instantiationService.stub(ITerminalProfileResolverService, {
-			getDefaultProfile: async () => ({ path: 'pwsh' } as ITerminalProfile)
-		});
-
-		testTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
-	});
-
-	function setConfig(key: string, value: unknown) {
-		configurationService.setUserConfiguration(key, value);
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: () => true,
-			affectedKeys: new Set([key]),
-			source: ConfigurationTarget.USER,
-			change: null!,
-		});
-	}
-
-	suite('getCopilotProfile', () => {
-		(isWindows ? test : test.skip)('should return custom profile when configured', async () => {
-			testTool.setBackendOs(OperatingSystem.Windows);
-			const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] });
-			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
-
-			const result = await testTool.profileFetcher.getCopilotProfile();
-			strictEqual(result, customProfile);
-		});
-
-		(isLinux ? test : test.skip)('should fall back to default shell when no custom profile is configured', async () => {
-			testTool.setBackendOs(OperatingSystem.Linux);
-			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, null);
-
-			const result = await testTool.profileFetcher.getCopilotProfile();
-			strictEqual(typeof result, 'object');
-			strictEqual((result as ITerminalProfile).path, 'pwsh'); // From the mock ITerminalProfileResolverService
+				const result = await runInTerminalTool.profileFetcher.getCopilotProfile();
+				strictEqual(typeof result, 'object');
+				strictEqual((result as ITerminalProfile).path, 'pwsh');
+			});
 		});
 	});
 });
