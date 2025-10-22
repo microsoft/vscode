@@ -229,14 +229,18 @@ suite('ChatService', () => {
 		await assertSnapshot(toSnapshotExportData(model));
 	});
 
-	test('history', async () => {
-		const historyLengthAgent: IChatAgentImplementation = {
+	function getHistoryLengthAgent(): IChatAgentImplementation {
+		return {
 			async invoke(request, progress, history, token) {
 				return {
 					metadata: { historyLength: history.length }
 				};
 			},
 		};
+	}
+
+	test('history', async () => {
+		const historyLengthAgent = getHistoryLengthAgent();
 
 		testDisposables.add(chatAgentService.registerAgent('defaultAgent', { ...getAgentData('defaultAgent'), isDefault: true }));
 		testDisposables.add(chatAgentService.registerAgent('agent2', getAgentData('agent2')));
@@ -269,13 +273,7 @@ suite('ChatService', () => {
 	});
 
 	test('history - canAccessAllHistory', async () => {
-		const historyLengthAgent: IChatAgentImplementation = {
-			async invoke(request, progress, history, token) {
-				return {
-					metadata: { historyLength: history.length }
-				};
-			},
-		};
+		const historyLengthAgent = getHistoryLengthAgent();
 
 		testDisposables.add(chatAgentService.registerAgent('defaultAgent', { ...getAgentData('defaultAgent'), isDefault: true }));
 		testDisposables.add(chatAgentService.registerAgent('agent2', getAgentData('agent2')));
