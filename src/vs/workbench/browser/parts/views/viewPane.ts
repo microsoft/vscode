@@ -762,7 +762,7 @@ export abstract class FilterViewPane extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService, accessibleViewService);
 		const childInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		this.filterWidget = this._register(childInstantiationService.createInstance(FilterWidget, options.filterOptions));
-		this._register(this.filterWidget.onDidAcceptFilterText(() => this.focus()));
+		this._register(this.filterWidget.onDidAcceptFilterText(() => this.focusBodyContent()));
 	}
 
 	override getFilterWidget(): FilterWidget {
@@ -802,6 +802,9 @@ export abstract class FilterViewPane extends ViewPane {
 
 	protected abstract layoutBodyContent(height: number, width: number): void;
 
+	protected focusBodyContent(): void {
+		this.focus();
+	}
 }
 
 export interface IViewPaneLocationColors {
