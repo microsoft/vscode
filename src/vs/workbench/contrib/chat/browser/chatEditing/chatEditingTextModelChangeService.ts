@@ -14,8 +14,7 @@ import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
-import { StringEdit, StringReplacement } from '../../../../../editor/common/core/edits/stringEdit.js';
-import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
@@ -163,63 +162,10 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return diff ? diff.identical : false;
 	}
 
-	/**
-	 * Converts TextEdit[] to StringEdit based on the original model state.
-	 * The TextEdit ranges are in positions, which we convert to offsets in the original model.
-	 * 
-	 * This is used when incoming edits need to be rebased on top of accumulated edits.
-	 * The incoming edits are always expressed relative to the original document state,
-	 * but we need to apply them to the modified document state.
-	 */
-	private _textEditsToStringEdit(textEdits: TextEdit[]): StringEdit {
-		const replacements: StringReplacement[] = [];
-		for (const edit of textEdits) {
-			const range = Range.lift(edit.range);
-			const startOffset = this.originalModel.getOffsetAt(range.getStartPosition());
-			const endOffset = this.originalModel.getOffsetAt(range.getEndPosition());
-			replacements.push(new StringReplacement(new OffsetRange(startOffset, endOffset), edit.text));
-		}
-		return new StringEdit(replacements);
-	}
-
 	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<{ rewriteRatio: number; maxLineNumber: number }> {
 
 		assertType(textEdits.every(TextEdit.isTextEdit), 'INVALID args, can only handle text edits');
 		assert(isEqual(resource, this.modifiedModel.uri), ' INVALID args, can only edit THIS document');
-
-		// IMPORTANT: Fix for sequential edit corruption issue
-		// 
-		// When multiple edit operations come in sequence (e.g., from a code mapper or language model),
-		// each batch of edits is expressed relative to the ORIGINAL document state, not the current
-		// modified state. This causes problems when the first edit adds/removes lines, because the
-		// second edit's line numbers will be wrong.
-		//
-		// For example:
-		// 1. First edit adds a class at line 13 (adds 14 lines)
-		// 2. Second edit tries to modify a class that was originally at line 29
-		// 3. Without rebasing, the second edit will modify line 29, which is now the wrong line
-		//    (the correct line is now 29 + 14 = 43)
-		//
-		// The fix: If we have accumulated edits, rebase the incoming edits on top of them.
-		let editsToApply = textEdits as TextEdit[];
-		if (!this._originalToModifiedEdit.isEmpty()) {
-			// Convert TextEdit[] to StringEdit based on original model positions
-			const incomingEdit = this._textEditsToStringEdit(textEdits as TextEdit[]);
-
-			// Rebase the incoming edit on top of the accumulated edits
-			// This adjusts the edit offsets to account for previous changes
-			const rebasedEdit = incomingEdit.tryRebase(this._originalToModifiedEdit);
-
-			if (rebasedEdit) {
-				// Convert the rebased StringEdit back to TextEdit[] for the modified model
-				editsToApply = offsetEditToEditOperations(rebasedEdit, this.modifiedModel).map(op => ({
-					range: op.range,
-					text: op.text ?? ''
-				}));
-			}
-			// If rebasing failed (rebasedEdit is undefined), fall back to applying original edits
-			// This maintains backward compatibility in case of conflicts
-		}
 
 		const isAtomicEdits = textEdits.length > 0 && isLastEdits;
 		let maxLineNumber = 0;
@@ -243,7 +189,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 		if (isAtomicEdits) {
 			// EDIT and DONE
-			const minimalEdits = await this._editorWorkerService.computeMoreMinimalEdits(this.modifiedModel.uri, editsToApply) ?? editsToApply;
+			const minimalEdits = await this._editorWorkerService.computeMoreMinimalEdits(this.modifiedModel.uri, textEdits) ?? textEdits;
 			const ops = minimalEdits.map(TextEdit.asEditOperation);
 			const undoEdits = this._applyEdits(ops, source);
 
@@ -280,7 +226,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 		} else {
 			// EDIT a bit, then DONE
-			const ops = editsToApply.map(TextEdit.asEditOperation);
+			const ops = textEdits.map(TextEdit.asEditOperation);
 			const undoEdits = this._applyEdits(ops, source);
 			maxLineNumber = undoEdits.reduce((max, op) => Math.max(max, op.range.startLineNumber), 0);
 			rewriteRatio = Math.min(1, maxLineNumber / this.modifiedModel.getLineCount());
