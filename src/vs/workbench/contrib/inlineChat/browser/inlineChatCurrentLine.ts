@@ -35,9 +35,9 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { MODE_FILE_EXTENSION } from '../../chat/common/promptSyntax/config/promptFileLocations.js';
+import { AGENT_FILE_EXTENSION, LEGACY_MODE_FILE_EXTENSION } from '../../chat/common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../chat/common/promptSyntax/promptTypes.js';
-import { ACTION_START, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { ACTION_START, CTX_INLINE_CHAT_V1_ENABLED, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { AbstractInline1ChatAction } from './inlineChatActions.js';
 import { InlineChatController } from './inlineChatController.js';
 import './media/inlineChat.css';
@@ -51,7 +51,8 @@ const IGNORED_LANGUAGE_IDS = new Set([
 	'search-result',
 	INSTRUCTIONS_LANGUAGE_ID,
 	PROMPT_LANGUAGE_ID,
-	MODE_FILE_EXTENSION
+	LEGACY_MODE_FILE_EXTENSION,
+	AGENT_FILE_EXTENSION
 ]);
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));
@@ -66,7 +67,7 @@ export class InlineChatExpandLineAction extends EditorAction2 {
 			category: AbstractInline1ChatAction.category,
 			title: localize2('startWithCurrentLine', "Start in Editor with Current Line"),
 			f1: true,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate(), CTX_INLINE_CHAT_HAS_AGENT, EditorContextKeys.writable),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate(), CTX_INLINE_CHAT_V1_ENABLED, EditorContextKeys.writable),
 			keybinding: [{
 				when: CTX_INLINE_CHAT_SHOWING_HINT,
 				weight: KeybindingWeight.WorkbenchContrib + 1,
@@ -119,11 +120,11 @@ export class ShowInlineChatHintAction extends EditorAction2 {
 			category: AbstractInline1ChatAction.category,
 			title: localize2('showHint', "Show Inline Chat Hint"),
 			f1: false,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate(), CTX_INLINE_CHAT_HAS_AGENT, EditorContextKeys.writable),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate(), CTX_INLINE_CHAT_V1_ENABLED, EditorContextKeys.writable),
 		});
 	}
 
-	override async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: [uri: URI, position: IPosition, ...rest: any[]]) {
+	override async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: [uri: URI, position: IPosition, ...rest: unknown[]]) {
 		if (!editor.hasModel()) {
 			return;
 		}

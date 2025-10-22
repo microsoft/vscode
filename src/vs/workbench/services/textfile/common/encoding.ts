@@ -117,7 +117,7 @@ class DecoderStream implements IDecoderStream {
 }
 
 export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeStreamOptions): Promise<IDecodeStreamResult> {
-	const minBytesRequiredForDetection = options.minBytesRequiredForDetection ?? options.guessEncoding ? AUTO_ENCODING_GUESS_MIN_BYTES : NO_ENCODING_GUESS_MIN_BYTES;
+	const minBytesRequiredForDetection = options.minBytesRequiredForDetection ?? (options.guessEncoding ? AUTO_ENCODING_GUESS_MIN_BYTES : NO_ENCODING_GUESS_MIN_BYTES);
 
 	return new Promise<IDecodeStreamResult>((resolve, reject) => {
 		const target = newWriteableStream<string>(strings => strings.join(''));

@@ -25,12 +25,11 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { IChatSessionsService, IChatSessionItemProvider, IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, VIEWLET_ID } from '../../../common/constants.js';
+import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { SessionsViewPane } from './sessionsViewPane.js';
-
-export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
 export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatSessions';
@@ -94,10 +93,10 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 		this.viewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: VIEWLET_ID,
-				title: nls.localize2('chat.sessions', "Chat Sessions"),
+				title: nls.localize2('chat.agent.sessions', "Agent Sessions"),
 				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer, [this.sessionTracker]),
 				hideIfEmpty: false,
-				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Chat Sessions View'),
+				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View'),
 				order: 6
 			}, ViewContainerLocation.Sidebar);
 		this.isViewContainerRegistered = true;
@@ -174,7 +173,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 	}
 
 	override getTitle(): string {
-		const title = nls.localize('chat.sessions.title', "Chat Sessions");
+		const title = nls.localize('chat.agent.sessions.title', "Agent Sessions");
 		return title;
 	}
 
@@ -232,12 +231,12 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		if (container && providers.length > 0) {
 			const viewDescriptorsToRegister: IViewDescriptor[] = [];
 
-			// Separate providers by type and prepare display names
+			// Separate providers by type and prepare display names with order
 			const localProvider = providers.find(p => p.chatSessionType === 'local');
 			const historyProvider = providers.find(p => p.chatSessionType === 'history');
 			const otherProviders = providers.filter(p => p.chatSessionType !== 'local' && p.chatSessionType !== 'history');
 
-			// Sort other providers alphabetically by display name
+			// Sort other providers by order, then alphabetically by display name
 			const providersWithDisplayNames = otherProviders.map(provider => {
 				const extContribution = extensionPointContributions.find(c => c.type === provider.chatSessionType);
 				if (!extContribution) {
@@ -246,16 +245,40 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 				}
 				return {
 					provider,
-					displayName: extContribution.displayName
+					displayName: extContribution.displayName,
+					order: extContribution.order
 				};
-			}).filter(item => item !== null) as Array<{ provider: IChatSessionItemProvider; displayName: string }>;
+			}).filter(item => item !== null) as Array<{ provider: IChatSessionItemProvider; displayName: string; order: number | undefined }>;
 
-			// Sort alphabetically by display name
-			providersWithDisplayNames.sort((a, b) => a.displayName.localeCompare(b.displayName));
+			providersWithDisplayNames.sort((a, b) => {
+				// Both have no order - sort by display name
+				if (a.order === undefined && b.order === undefined) {
+					return a.displayName.localeCompare(b.displayName);
+				}
+
+				// Only a has no order - push it to the end
+				if (a.order === undefined) {
+					return 1;
+				}
+
+				// Only b has no order - push it to the end
+				if (b.order === undefined) {
+					return -1;
+				}
+
+				// Both have orders - compare numerically
+				const orderCompare = a.order - b.order;
+				if (orderCompare !== 0) {
+					return orderCompare;
+				}
+
+				// Same order - sort by display name
+				return a.displayName.localeCompare(b.displayName);
+			});
 
 			// Register views in priority order: local, history, then alphabetically sorted others
 			const orderedProviders = [
-				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Sessions', baseOrder: 0 }] : []),
+				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Agent', baseOrder: 0 }] : []),
 				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1, when: undefined }] : []),
 				...providersWithDisplayNames.map((item, index) => ({
 					...item,
@@ -267,13 +290,14 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 			orderedProviders.forEach(({ provider, displayName, baseOrder, when }) => {
 				// Only register if not already registered
 				if (!this.registeredViewDescriptors.has(provider.chatSessionType)) {
+					const viewId = `${VIEWLET_ID}.${provider.chatSessionType}`;
 					const viewDescriptor: IViewDescriptor = {
-						id: `${VIEWLET_ID}.${provider.chatSessionType}`,
+						id: viewId,
 						name: {
 							value: displayName,
 							original: displayName,
 						},
-						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, this.sessionTracker]),
+						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, this.sessionTracker, viewId]),
 						canToggleVisibility: true,
 						canMoveView: true,
 						order: baseOrder, // Use computed order based on priority and alphabetical sorting
@@ -286,7 +310,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 					if (provider.chatSessionType === 'local') {
 						const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 						this._register(viewsRegistry.registerViewWelcomeContent(viewDescriptor.id, {
-							content: nls.localize('chatSessions.noResults', "No local chat sessions\n[Start a Chat](command:workbench.action.openChat)"),
+							content: nls.localize('chatSessions.noResults', "No local chat agent sessions\n[Start an Agent Session](command:{0})", ACTION_ID_OPEN_CHAT),
 						}));
 					}
 				}
@@ -302,7 +326,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 						value: nls.localize('chat.sessions.gettingStarted', "Getting Started"),
 						original: 'Getting Started',
 					},
-					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [null, this.sessionTracker]),
+					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [null, this.sessionTracker, gettingStartedViewId]),
 					canToggleVisibility: true,
 					canMoveView: true,
 					order: 1000,

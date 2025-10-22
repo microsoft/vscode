@@ -43,11 +43,17 @@ suite('ExtHostDocumentData', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('readonly-ness', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (data as any).document.uri = null);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (data as any).document.fileName = 'foofile');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (data as any).document.isDirty = false);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (data as any).document.isUntitled = false);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (data as any).document.languageId = 'dddd');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (data as any).document.lineCount = 9);
 	});
 

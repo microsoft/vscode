@@ -458,6 +458,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 	};
 
 	// For calling compileAction later on
+	// eslint-disable-next-line local/code-no-any-casts
 	const lexerMin: monarchCommon.ILexerMin = <any>json;
 	lexerMin.languageId = languageId;
 	lexerMin.includeLF = lexer.includeLF;
@@ -535,6 +536,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 		throw monarchCommon.createError(lexer, 'a language definition must define the \'tokenizer\' attribute as an object');
 	}
 
+	// eslint-disable-next-line local/code-no-any-casts
 	lexer.tokenizer = <any>[];
 	for (const key in json.tokenizer) {
 		if (json.tokenizer.hasOwnProperty(key)) {
@@ -551,6 +553,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 
 	// Set simple brackets
 	if (json.brackets) {
+		// eslint-disable-next-line local/code-no-any-casts
 		if (!(Array.isArray(<any>json.brackets))) {
 			throw monarchCommon.createError(lexer, 'the \'brackets\' attribute must be defined as an array');
 		}

@@ -46,34 +46,32 @@ export function startServerByFilter(mcpService: IMcpService, filter: (s: IMcpSer
  * true/false whether this happened successfully.
  */
 export async function startServerAndWaitForLiveTools(server: IMcpServer, opts?: IMcpServerStartOpts, token?: CancellationToken): Promise<boolean> {
+	const r = await server.start(opts);
+
 	const store = new DisposableStore();
-
 	const ok = await new Promise<boolean>(resolve => {
-		server.start(opts).catch(() => undefined).then(r => {
-			if (token?.isCancellationRequested || !r || r.state === McpConnectionState.Kind.Error || r.state === McpConnectionState.Kind.Stopped) {
-				return resolve(false);
-			}
+		if (token?.isCancellationRequested || r.state === McpConnectionState.Kind.Error || r.state === McpConnectionState.Kind.Stopped) {
+			return resolve(false);
+		}
 
-			if (token) {
-				store.add(token.onCancellationRequested(() => {
-					resolve(false);
-				}));
-			}
-
-			store.add(autorun(reader => {
-				const connState = server.connectionState.read(reader).state;
-				if (connState === McpConnectionState.Kind.Error || connState === McpConnectionState.Kind.Stopped) {
-					resolve(false); // some error, don't block the request
-				}
-
-				const toolState = server.cacheState.read(reader);
-				if (toolState === McpServerCacheState.Live) {
-					resolve(true); // got tools, all done
-				}
+		if (token) {
+			store.add(token.onCancellationRequested(() => {
+				resolve(false);
 			}));
-		});
+		}
+
+		store.add(autorun(reader => {
+			const connState = server.connectionState.read(reader).state;
+			if (connState === McpConnectionState.Kind.Error || connState === McpConnectionState.Kind.Stopped) {
+				resolve(false); // some error, don't block the request
+			}
+
+			const toolState = server.cacheState.read(reader);
+			if (toolState === McpServerCacheState.Live) {
+				resolve(true); // got tools, all done
+			}
+		}));
 	});
-	store.dispose();
 
 	if (ok) {
 		await timeout(0); // let the tools register in the language model contribution

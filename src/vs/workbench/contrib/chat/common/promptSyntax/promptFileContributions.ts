@@ -3,52 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigMigration } from './config/configMigration.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
-import { IWorkbenchContributionsRegistry, Extensions, IWorkbenchContribution } from '../../../../common/contributions.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { PromptLinkProvider } from './languageProviders/promptLinkProvider.js';
-import { PromptLinkDiagnosticsInstanceManager } from './languageProviders/promptLinkDiagnosticsProvider.js';
-import { PromptHeaderDiagnosticsInstanceManager } from './languageProviders/promptHeaderDiagnosticsProvider.js';
 import { PromptBodyAutocompletion } from './languageProviders/promptBodyAutocompletion.js';
 import { PromptHeaderAutocompletion } from './languageProviders/promptHeaderAutocompletion.js';
-import { PromptHeaderHoverProvider } from './languageProviders/promptHeaderHovers.js';
+import { PromptHoverProvider } from './languageProviders/promptHovers.js';
 import { PromptHeaderDefinitionProvider } from './languageProviders/PromptHeaderDefinitionProvider.js';
+import { PromptValidatorContribution } from './languageProviders/promptValidator.js';
+import { PromptDocumentSemanticTokensProvider } from './languageProviders/promptDocumentSemanticTokensProvider.js';
+import { PromptCodeActionProvider } from './languageProviders/promptCodeActions.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ALL_PROMPTS_LANGUAGE_SELECTOR } from './promptTypes.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
+export class PromptLanguageFeaturesProvider extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'chat.promptLanguageFeatures';
 
-/**
- * Function that registers all prompt-file related contributions.
- */
-export function registerPromptFileContributions(): void {
+	constructor(
+		@ILanguageFeaturesService languageService: ILanguageFeaturesService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
 
-	// all language constributions
+		this._register(languageService.linkProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, instantiationService.createInstance(PromptLinkProvider)));
+		this._register(languageService.completionProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, instantiationService.createInstance(PromptBodyAutocompletion)));
+		this._register(languageService.completionProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, instantiationService.createInstance(PromptHeaderAutocompletion)));
+		this._register(languageService.hoverProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, instantiationService.createInstance(PromptHoverProvider)));
+		this._register(languageService.definitionProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, instantiationService.createInstance(PromptHeaderDefinitionProvider)));
+		this._register(languageService.documentSemanticTokensProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, instantiationService.createInstance(PromptDocumentSemanticTokensProvider)));
+		this._register(languageService.codeActionProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, instantiationService.createInstance(PromptCodeActionProvider)));
 
-	registerContribution(PromptLinkProvider);
-	registerContribution(PromptLinkDiagnosticsInstanceManager);
-	registerContribution(PromptHeaderDiagnosticsInstanceManager);
-	/**
-	 * PromptDecorationsProviderInstanceManager is currently disabled because the only currently
-	 * available decoration is the Front Matter header, which we decided to disable for now.
-	 * Add it back when more decorations are needed.
-	 */
-	// registerContribution(PromptDecorationsProviderInstanceManager); ,
-
-
-	registerContribution(PromptBodyAutocompletion);
-	registerContribution(PromptHeaderAutocompletion);
-	registerContribution(PromptHeaderHoverProvider);
-	registerContribution(PromptHeaderDefinitionProvider);
-	registerContribution(ConfigMigration);
-}
-
-/**
- * Type for a generic workbench contribution.
- */
-export type TContribution = new (...args: any[]) => IWorkbenchContribution;
-
-/**
- * Register a specific workbench contribution.
- */
-function registerContribution(contribution: TContribution): void {
-	Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(contribution, LifecyclePhase.Eventually);
+		this._register(instantiationService.createInstance(PromptValidatorContribution));
+	}
 }

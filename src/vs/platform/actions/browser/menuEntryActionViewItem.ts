@@ -9,7 +9,7 @@ import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, SelectActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from '../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
-import { ActionRunner, IAction, IRunEvent, Separator, SubmenuAction } from '../../../base/common/actions.js';
+import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator, SubmenuAction } from '../../../base/common/actions.js';
 import { Event } from '../../../base/common/event.js';
 import { UILabelProvider } from '../../../base/common/keybindingLabels.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
@@ -425,7 +425,7 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 
 export interface IDropdownWithDefaultActionViewItemOptions extends IDropdownMenuActionViewItemOptions {
 	renderKeybindingWithDefaultActionLabel?: boolean;
-	persistLastActionId?: boolean;
+	togglePrimaryAction?: boolean;
 }
 
 export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
@@ -456,7 +456,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		// determine default action
 		let defaultAction: IAction | undefined;
-		const defaultActionId = options?.persistLastActionId ? _storageService.get(this._storageKey, StorageScope.WORKSPACE) : undefined;
+		const defaultActionId = options?.togglePrimaryAction ? _storageService.get(this._storageKey, StorageScope.WORKSPACE) : undefined;
 		if (defaultActionId) {
 			defaultAction = submenuAction.actions.find(a => defaultActionId === a.id);
 		}
@@ -475,15 +475,17 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		};
 
 		this._dropdown = this._register(new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, dropdownOptions));
-		this._register(this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
-			if (e.action instanceof MenuItemAction) {
-				this.update(e.action);
-			}
-		}));
+		if (options?.togglePrimaryAction) {
+			this._register(this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
+				if (e.action instanceof MenuItemAction) {
+					this.update(e.action);
+				}
+			}));
+		}
 	}
 
 	private update(lastAction: MenuItemAction): void {
-		if (this._options?.persistLastActionId) {
+		if (this._options?.togglePrimaryAction) {
 			this._storageService.store(this._storageKey, lastAction.id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 
@@ -515,6 +517,17 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		super.setActionContext(newContext);
 		this._defaultAction.setActionContext(newContext);
 		this._dropdown.setActionContext(newContext);
+	}
+
+	override set actionRunner(actionRunner: IActionRunner) {
+		super.actionRunner = actionRunner;
+
+		this._defaultAction.actionRunner = actionRunner;
+		this._dropdown.actionRunner = actionRunner;
+	}
+
+	override get actionRunner(): IActionRunner {
+		return super.actionRunner;
 	}
 
 	override render(container: HTMLElement): void {
@@ -609,12 +622,13 @@ export function createActionViewItem(instaService: IInstantiationService, action
 	} else if (action instanceof SubmenuItemAction) {
 		if (action.item.isSelection) {
 			return instaService.createInstance(SubmenuEntrySelectActionViewItem, action);
+		} else if (action.item.isSplitButton) {
+			return instaService.createInstance(DropdownWithDefaultActionViewItem, action, {
+				...options,
+				togglePrimaryAction: typeof action.item.isSplitButton !== 'boolean' ? action.item.isSplitButton.togglePrimaryAction : false,
+			});
 		} else {
-			if (action.item.rememberDefaultAction) {
-				return instaService.createInstance(DropdownWithDefaultActionViewItem, action, { ...options, persistLastActionId: true });
-			} else {
-				return instaService.createInstance(SubmenuEntryActionViewItem, action, options);
-			}
+			return instaService.createInstance(SubmenuEntryActionViewItem, action, options);
 		}
 	} else {
 		return undefined;

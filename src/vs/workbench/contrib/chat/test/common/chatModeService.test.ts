@@ -17,7 +17,7 @@ import { TestStorageService } from '../../../../test/common/workbenchTestService
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatMode, ChatModeService } from '../../common/chatModes.js';
 import { ChatModeKind } from '../../common/constants.js';
-import { ICustomChatMode, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from './mockPromptsService.js';
 
 class TestChatAgentService implements Partial<IChatAgentService> {
@@ -40,6 +40,8 @@ class TestChatAgentService implements Partial<IChatAgentService> {
 
 suite('ChatModeService', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const workspaceSource: IAgentSource = { storage: PromptsStorage.local };
 
 	let instantiationService: TestInstantiationService;
 	let promptsService: MockPromptsService;
@@ -79,17 +81,17 @@ suite('ChatModeService', () => {
 	test('should adjust builtin modes based on tools agent availability', () => {
 		// With tools agent
 		chatAgentService.setHasToolsAgent(true);
-		let modes = chatModeService.getModes();
-		assert.ok(modes.builtin.find(mode => mode.id === ChatModeKind.Agent));
+		let agents = chatModeService.getModes();
+		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Agent));
 
 		// Without tools agent - Agent mode should not be present
 		chatAgentService.setHasToolsAgent(false);
-		modes = chatModeService.getModes();
-		assert.strictEqual(modes.builtin.find(mode => mode.id === ChatModeKind.Agent), undefined);
+		agents = chatModeService.getModes();
+		assert.strictEqual(agents.builtin.find(agent => agent.id === ChatModeKind.Agent), undefined);
 
 		// But Ask and Edit modes should always be present
-		assert.ok(modes.builtin.find(mode => mode.id === ChatModeKind.Ask));
-		assert.ok(modes.builtin.find(mode => mode.id === ChatModeKind.Edit));
+		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Ask));
+		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Edit));
 	});
 
 	test('should find builtin modes by id', () => {
@@ -105,13 +107,13 @@ suite('ChatModeService', () => {
 	});
 
 	test('should handle custom modes from prompts service', async () => {
-		const customMode: ICustomChatMode = {
+		const customMode: ICustomAgent = {
 			uri: URI.parse('file:///test/custom-mode.md'),
 			name: 'Test Mode',
 			description: 'A test custom mode',
 			tools: ['tool1', 'tool2'],
-			body: 'Custom mode body',
-			variableReferences: []
+			agentInstructions: { content: 'Custom mode body', toolReferences: [] },
+			source: workspaceSource
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -129,8 +131,10 @@ suite('ChatModeService', () => {
 		assert.strictEqual(testMode.description.get(), customMode.description);
 		assert.strictEqual(testMode.kind, ChatModeKind.Agent);
 		assert.deepStrictEqual(testMode.customTools?.get(), customMode.tools);
-		assert.strictEqual(testMode.body?.get(), customMode.body);
+		assert.deepStrictEqual(testMode.modeInstructions?.get(), customMode.agentInstructions);
+		assert.deepStrictEqual(testMode.handOffs?.get(), customMode.handOffs);
 		assert.strictEqual(testMode.uri?.get().toString(), customMode.uri.toString());
+		assert.deepStrictEqual(testMode.source, workspaceSource);
 	});
 
 	test('should fire change event when custom modes are updated', async () => {
@@ -139,13 +143,13 @@ suite('ChatModeService', () => {
 			eventFired = true;
 		}));
 
-		const customMode: ICustomChatMode = {
+		const customMode: ICustomAgent = {
 			uri: URI.parse('file:///test/custom-mode.md'),
 			name: 'Test Mode',
 			description: 'A test custom mode',
 			tools: [],
-			body: 'Custom mode body',
-			variableReferences: []
+			agentInstructions: { content: 'Custom mode body', toolReferences: [] },
+			source: workspaceSource,
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -157,13 +161,13 @@ suite('ChatModeService', () => {
 	});
 
 	test('should find custom modes by id', async () => {
-		const customMode: ICustomChatMode = {
+		const customMode: ICustomAgent = {
 			uri: URI.parse('file:///test/findable-mode.md'),
 			name: 'Findable Mode',
 			description: 'A findable custom mode',
 			tools: [],
-			body: 'Findable mode body',
-			variableReferences: []
+			agentInstructions: { content: 'Findable mode body', toolReferences: [] },
+			source: workspaceSource,
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -180,14 +184,14 @@ suite('ChatModeService', () => {
 
 	test('should update existing custom mode instances when data changes', async () => {
 		const uri = URI.parse('file:///test/updateable-mode.md');
-		const initialMode: ICustomChatMode = {
+		const initialMode: ICustomAgent = {
 			uri,
 			name: 'Initial Mode',
 			description: 'Initial description',
 			tools: ['tool1'],
-			body: 'Initial body',
+			agentInstructions: { content: 'Initial body', toolReferences: [] },
 			model: 'gpt-4',
-			variableReferences: []
+			source: workspaceSource,
 		};
 
 		promptsService.setCustomModes([initialMode]);
@@ -198,11 +202,11 @@ suite('ChatModeService', () => {
 		assert.strictEqual(initialCustomMode.description.get(), 'Initial description');
 
 		// Update the mode data
-		const updatedMode: ICustomChatMode = {
+		const updatedMode: ICustomAgent = {
 			...initialMode,
 			description: 'Updated description',
 			tools: ['tool1', 'tool2'],
-			body: 'Updated body',
+			agentInstructions: { content: 'Updated body', toolReferences: [] },
 			model: 'Updated model'
 		};
 
@@ -218,27 +222,28 @@ suite('ChatModeService', () => {
 		// But the observable properties should be updated
 		assert.strictEqual(updatedCustomMode.description.get(), 'Updated description');
 		assert.deepStrictEqual(updatedCustomMode.customTools?.get(), ['tool1', 'tool2']);
-		assert.strictEqual(updatedCustomMode.body?.get(), 'Updated body');
+		assert.deepStrictEqual(updatedCustomMode.modeInstructions?.get(), { content: 'Updated body', toolReferences: [] });
 		assert.strictEqual(updatedCustomMode.model?.get(), 'Updated model');
+		assert.deepStrictEqual(updatedCustomMode.source, workspaceSource);
 	});
 
 	test('should remove custom modes that no longer exist', async () => {
-		const mode1: ICustomChatMode = {
+		const mode1: ICustomAgent = {
 			uri: URI.parse('file:///test/mode1.md'),
 			name: 'Mode 1',
 			description: 'First mode',
 			tools: [],
-			body: 'Mode 1 body',
-			variableReferences: []
+			agentInstructions: { content: 'Mode 1 body', toolReferences: [] },
+			source: workspaceSource,
 		};
 
-		const mode2: ICustomChatMode = {
+		const mode2: ICustomAgent = {
 			uri: URI.parse('file:///test/mode2.md'),
 			name: 'Mode 2',
 			description: 'Second mode',
 			tools: [],
-			body: 'Mode 2 body',
-			variableReferences: []
+			agentInstructions: { content: 'Mode 2 body', toolReferences: [] },
+			source: workspaceSource,
 		};
 
 		// Add both modes

@@ -44,8 +44,9 @@ export function connectProxyResolver(
 	const fallbackToLocalKerberos = useHostProxyDefault;
 	const loadLocalCertificates = useHostProxyDefault;
 	const isUseHostProxyEnabled = () => !isRemote || configProvider.getConfiguration('http').get<boolean>('useLocalProxyConfiguration', useHostProxyDefault);
+	const timedResolveProxy = createTimedResolveProxy(extHostWorkspace, mainThreadTelemetry);
 	const params: ProxyAgentParams = {
-		resolveProxy: url => extHostWorkspace.resolveProxy(url),
+		resolveProxy: timedResolveProxy,
 		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostWorkspace, extHostLogService, mainThreadTelemetry, configProvider, {}, {}, initData.remote.isRemote, fallbackToLocalKerberos),
 		getProxyURL: () => getExtHostConfigValue<string>(configProvider, isRemote, 'http.proxy'),
 		getProxySupport: () => getExtHostConfigValue<ProxySupportSetting>(configProvider, isRemote, 'http.proxySupport') || 'off',
@@ -72,6 +73,10 @@ export function connectProxyResolver(
 		},
 		proxyResolveTelemetry: () => { },
 		isUseHostProxyEnabled,
+		getNetworkInterfaceCheckInterval: () => {
+			const intervalSeconds = getExtHostConfigValue<number>(configProvider, isRemote, 'http.experimental.networkInterfaceCheckInterval', 300);
+			return intervalSeconds * 1000;
+		},
 		loadAdditionalCertificates: async () => {
 			const promises: Promise<string[]>[] = [];
 			if (initData.remote.isRemote) {
@@ -84,8 +89,10 @@ export function connectProxyResolver(
 				promises.push(certs);
 			}
 			// Using https.globalAgent because it is shared with proxy.test.ts and mutable.
+			// eslint-disable-next-line local/code-no-any-casts
 			if (initData.environment.extensionTestsLocationURI && (https.globalAgent as any).testCertificates?.length) {
 				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading test certificates');
+				// eslint-disable-next-line local/code-no-any-casts
 				promises.push(Promise.resolve((https.globalAgent as any).testCertificates as string[]));
 			}
 			return (await Promise.all(promises)).flat();
@@ -93,6 +100,7 @@ export function connectProxyResolver(
 		env: process.env,
 	};
 	const { resolveProxyWithRequest, resolveProxyURL } = createProxyResolver(params);
+	// eslint-disable-next-line local/code-no-any-casts
 	const target = (proxyAgent as any).default || proxyAgent;
 	target.resolveProxyURL = resolveProxyURL;
 
@@ -115,10 +123,13 @@ const unsafeHeaders = [
 ];
 
 function patchGlobalFetch(params: ProxyAgentParams, configProvider: ExtHostConfigProvider, mainThreadTelemetry: MainThreadTelemetryShape, initData: IExtensionHostInitData, resolveProxyURL: (url: string) => Promise<string | undefined>, disposables: DisposableStore) {
+	// eslint-disable-next-line local/code-no-any-casts
 	if (!(globalThis as any).__vscodeOriginalFetch) {
 		const originalFetch = globalThis.fetch;
+		// eslint-disable-next-line local/code-no-any-casts
 		(globalThis as any).__vscodeOriginalFetch = originalFetch;
 		const patchedFetch = proxyAgent.createFetchPatch(params, originalFetch, resolveProxyURL);
+		// eslint-disable-next-line local/code-no-any-casts
 		(globalThis as any).__vscodePatchedFetch = patchedFetch;
 		let useElectronFetch = false;
 		if (!initData.remote.isRemote) {
@@ -236,6 +247,74 @@ function recordFetchFeatureUse(mainThreadTelemetry: MainThreadTelemetryShape, fe
 	}
 }
 
+type ProxyResolveStatsClassification = {
+	owner: 'chrmarti';
+	comment: 'Performance statistics for proxy resolution';
+	count: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Number of proxy resolution calls' };
+	totalDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Total time spent in proxy resolution (ms)' };
+	minDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Minimum resolution time (ms)' };
+	maxDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Maximum resolution time (ms)' };
+	avgDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Average resolution time (ms)' };
+};
+
+type ProxyResolveStatsEvent = {
+	count: number;
+	totalDuration: number;
+	minDuration: number;
+	maxDuration: number;
+	avgDuration: number;
+};
+
+const proxyResolveStats = {
+	count: 0,
+	totalDuration: 0,
+	minDuration: Number.MAX_SAFE_INTEGER,
+	maxDuration: 0,
+	lastSentTime: 0,
+};
+
+const telemetryInterval = 60 * 60 * 1000; // 1 hour
+
+function sendProxyResolveStats(mainThreadTelemetry: MainThreadTelemetryShape) {
+	if (proxyResolveStats.count > 0) {
+		const avgDuration = proxyResolveStats.totalDuration / proxyResolveStats.count;
+		mainThreadTelemetry.$publicLog2<ProxyResolveStatsEvent, ProxyResolveStatsClassification>('proxyResolveStats', {
+			count: proxyResolveStats.count,
+			totalDuration: proxyResolveStats.totalDuration,
+			minDuration: proxyResolveStats.minDuration,
+			maxDuration: proxyResolveStats.maxDuration,
+			avgDuration,
+		});
+		// Reset stats after sending
+		proxyResolveStats.count = 0;
+		proxyResolveStats.totalDuration = 0;
+		proxyResolveStats.minDuration = Number.MAX_SAFE_INTEGER;
+		proxyResolveStats.maxDuration = 0;
+	}
+	proxyResolveStats.lastSentTime = Date.now();
+}
+
+function createTimedResolveProxy(extHostWorkspace: IExtHostWorkspaceProvider, mainThreadTelemetry: MainThreadTelemetryShape) {
+	return async (url: string): Promise<string | undefined> => {
+		const startTime = performance.now();
+		try {
+			return await extHostWorkspace.resolveProxy(url);
+		} finally {
+			const duration = performance.now() - startTime;
+			proxyResolveStats.count++;
+			proxyResolveStats.totalDuration += duration;
+			proxyResolveStats.minDuration = Math.min(proxyResolveStats.minDuration, duration);
+			proxyResolveStats.maxDuration = Math.max(proxyResolveStats.maxDuration, duration);
+
+			// Send telemetry if at least an hour has passed since last send
+			const now = Date.now();
+			if (now - proxyResolveStats.lastSentTime >= telemetryInterval) {
+				sendProxyResolveStats(mainThreadTelemetry);
+			}
+		}
+	};
+}
+
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ResolveProxyWithRequest) {
 
 	function mergeModules(module: any, patch: any) {
@@ -291,6 +370,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 						cache[request] = undici;
 					} else {
 						const mod = lookup[request];
+						// eslint-disable-next-line local/code-no-any-casts
 						cache[request] = <any>{ ...mod }; // Copy to work around #93167.
 					}
 				}

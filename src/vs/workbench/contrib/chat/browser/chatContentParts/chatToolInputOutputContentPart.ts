@@ -14,7 +14,6 @@ import { basename, joinPath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -103,6 +102,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._currentWidth = width;
@@ -119,7 +119,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			titleEl.root,
 			title,
 			subtitle,
-			_instantiationService.createInstance(MarkdownRenderer, {}),
 		));
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
@@ -220,19 +219,30 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			dom.h('.chat-collapsible-io-resource-actions@actions'),
 		]);
 
-		const entries = parts.map((part): IChatRequestVariableEntry => {
+		this.fillInResourceGroup(parts, el.items, el.actions).then(() => this._onDidChangeHeight.fire());
+
+		container.appendChild(el.root);
+		return el.root;
+	}
+
+	private async fillInResourceGroup(parts: IChatCollapsibleIODataPart[], itemsContainer: HTMLElement, actionsContainer: HTMLElement) {
+		const entries = await Promise.all(parts.map(async (part): Promise<IChatRequestVariableEntry> => {
 			if (part.mimeType && getAttachableImageExtension(part.mimeType)) {
-				return { kind: 'image', id: generateUuid(), name: basename(part.uri), value: part.value, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
+				const value = part.value ?? await this._fileService.readFile(part.uri).then(f => f.value.buffer, () => undefined);
+				return { kind: 'image', id: generateUuid(), name: basename(part.uri), value, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
 			} else {
 				return { kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri };
 			}
-		});
+		}));
 
 		const attachments = this._register(this._instantiationService.createInstance(
 			ChatAttachmentsContentPart,
-			entries,
-			undefined,
-			undefined,
+			{
+				variables: entries,
+				limit: 5,
+				contentReferences: undefined,
+				domNode: undefined
+			}
 		));
 
 		attachments.contextMenuHandler = (attachment, event) => {
@@ -251,18 +261,16 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			}
 		};
 
-		el.items.appendChild(attachments.domNode!);
+		itemsContainer.appendChild(attachments.domNode!);
 
-		const toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, el.actions, MenuId.ChatToolOutputResourceToolbar, {
+		const toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, MenuId.ChatToolOutputResourceToolbar, {
 			menuOptions: {
 				shouldForwardArgs: true,
 			},
 		}));
 		toolbar.context = { parts } satisfies IChatToolOutputResourceToolbarContext;
-
-		container.appendChild(el.root);
-		return el.root;
 	}
+
 
 	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
 		const data: ICodeBlockData = {

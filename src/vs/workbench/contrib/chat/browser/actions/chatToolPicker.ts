@@ -307,23 +307,29 @@ export async function showToolsPicker(
 						},
 					});
 				}
-				return {
+				const bucket: IBucketTreeItem = {
 					itemType: 'bucket',
 					ordinal: BucketOrdinal.Mcp,
 					id: key,
-					label: localize('mcplabel', "MCP Server: {0}", source.label),
+					label: source.label,
 					checked: undefined,
 					collapsed,
 					children,
 					buttons,
-					iconClass: ThemeIcon.asClassName(Codicon.mcp)
 				};
+				const iconPath = mcpServer.serverMetadata.get()?.icons.getUrl(22);
+				if (iconPath) {
+					bucket.iconPath = iconPath;
+				} else {
+					bucket.iconClass = ThemeIcon.asClassName(Codicon.mcp);
+				}
+				return bucket;
 			} else if (source.type === 'extension') {
 				return {
 					itemType: 'bucket',
 					ordinal: BucketOrdinal.Extension,
 					id: key,
-					label: localize('ext', 'Extension: {0}', source.label),
+					label: source.label,
 					checked: undefined,
 					children: [],
 					buttons: [],
@@ -495,7 +501,7 @@ export async function showToolsPicker(
 						traverse(item.children);
 					}
 				} else if (isToolTreeItem(item)) {
-					result.set(item.tool, item.checked);
+					result.set(item.tool, item.checked || result.get(item.tool) === true); // tools can be in user tool sets and other buckets
 				}
 			}
 		};

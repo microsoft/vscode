@@ -71,7 +71,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 
 		if (dragData.type === 'view') {
 			const viewToMove = this.viewDescriptorService.getViewDescriptorById(dragData.id)!;
-			if (viewToMove && viewToMove.canMoveView) {
+			if (viewToMove.canMoveView) {
 				this.viewDescriptorService.moveViewToLocation(viewToMove, this.targetContainerLocation, 'dnd');
 
 				const newContainer = this.viewDescriptorService.getViewContainerByViewId(viewToMove.id)!;

@@ -34,7 +34,7 @@ import { isIOS } from '../../../../base/common/platform.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { isDefined, isUndefinedOrNull } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { localize } from '../../../../nls.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -69,7 +69,7 @@ import { settingsNumberInputBackground, settingsNumberInputBorder, settingsNumbe
 import { settingsMoreActionIcon } from './preferencesIcons.js';
 import { SettingsTarget } from './preferencesWidgets.js';
 import { ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel, getIndicatorsLabelAriaLabel } from './settingsEditorSettingIndicators.js';
-import { ITOCEntry } from './settingsLayout.js';
+import { ITOCEntry, ITOCFilter } from './settingsLayout.js';
 import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, inspectSetting, objectSettingSupportsRemoveDefaultValue, settingKeyToDisplayFormat } from './settingsTreeModels.js';
 import { ExcludeSettingWidget, IBoolObjectDataItem, IIncludeExcludeDataItem, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue, SettingListEvent } from './settingsWidgets.js';
 
@@ -459,10 +459,10 @@ function getShowAddButtonList(dataElement: SettingsTreeSettingElement, listDispl
 	}
 }
 
-export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGroups: ISettingsGroup[], logService: ILogService): { tree: ITOCEntry<ISetting>; leftoverSettings: Set<ISetting> } {
+export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGroups: ISettingsGroup[], filter: ITOCFilter | undefined, logService: ILogService): { tree: ITOCEntry<ISetting>; leftoverSettings: Set<ISetting> } {
 	const allSettings = getFlatSettings(coreSettingsGroups);
 	return {
-		tree: _resolveSettingsTree(tocData, allSettings, logService),
+		tree: _resolveSettingsTree(tocData, allSettings, filter, logService),
 		leftoverSettings: allSettings
 	};
 }
@@ -472,7 +472,7 @@ export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], tar
 	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, languageFilter, configurationService).isConfigured);
 }
 
-export async function createTocTreeForExtensionSettings(extensionService: IExtensionService, groups: ISettingsGroup[]): Promise<ITOCEntry<ISetting>> {
+export async function createTocTreeForExtensionSettings(extensionService: IExtensionService, groups: ISettingsGroup[], filter: ITOCFilter | undefined): Promise<ITOCEntry<ISetting>> {
 	const extGroupTree = new Map<string, ITOCEntry<ISetting>>();
 	const addEntryToTree = (extensionId: string, extensionName: string, childEntry: ITOCEntry<ISetting>) => {
 		if (!extGroupTree.has(extensionId)) {
@@ -487,6 +487,7 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 	};
 	const processGroupEntry = async (group: ISettingsGroup) => {
 		const flatSettings = group.sections.map(section => section.settings).flat();
+		const settings = filter ? getMatchingSettings(new Set(flatSettings), filter) : flatSettings;
 
 		const extensionId = group.extensionInfo!.id;
 		const extension = await extensionService.getExtension(extensionId);
@@ -502,7 +503,7 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 			id: settingGroupId,
 			label: group.title,
 			order: group.order,
-			settings: flatSettings
+			settings
 		};
 		addEntryToTree(extensionId, extensionName, childEntry);
 	};
@@ -564,18 +565,24 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 	});
 }
 
-function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISetting>, logService: ILogService): ITOCEntry<ISetting> {
+function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISetting>, filter: ITOCFilter | undefined, logService: ILogService): ITOCEntry<ISetting> {
 	let children: ITOCEntry<ISetting>[] | undefined;
 	if (tocData.children) {
 		children = tocData.children
 			.filter(child => child.hide !== true)
-			.map(child => _resolveSettingsTree(child, allSettings, logService))
+			.map(child => _resolveSettingsTree(child, allSettings, filter, logService))
 			.filter(child => child.children?.length || child.settings?.length);
 	}
 
 	let settings: ISetting[] | undefined;
-	if (tocData.settings) {
-		settings = tocData.settings.map(pattern => getMatchingSettings(allSettings, pattern, logService)).flat();
+	if (filter || tocData.settings) {
+		settings = getMatchingSettings(allSettings, {
+			include: {
+				keyPatterns: [...filter?.include?.keyPatterns ?? [], ...tocData.settings ?? []],
+				tags: filter?.include?.tags ? [...filter.include.tags] : []
+			},
+			exclude: filter?.exclude ?? {}
+		});
 	}
 
 	if (!children && !settings) {
@@ -590,25 +597,53 @@ function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISett
 	};
 }
 
-const knownDynamicSettingGroups = [
-	/^settingsSync\..*/,
-	/^sync\..*/,
-	/^workbench.fontAliasing$/,
-];
-
-function getMatchingSettings(allSettings: Set<ISetting>, pattern: string, logService: ILogService): ISetting[] {
+function getMatchingSettings(allSettings: Set<ISetting>, filter: ITOCFilter): ISetting[] {
 	const result: ISetting[] = [];
 
-	allSettings.forEach(s => {
-		if (settingMatches(s, pattern)) {
-			result.push(s);
-			allSettings.delete(s);
+	allSettings.forEach(setting => {
+		let shouldInclude = false;
+		let shouldExclude = false;
+
+		// Check include filters
+		if (filter.include?.keyPatterns) {
+			shouldInclude = filter.include.keyPatterns.some(pattern => {
+				if (pattern.startsWith('@tag:')) {
+					const tagName = pattern.substring(5);
+					return setting.tags?.includes(tagName);
+				} else {
+					return settingMatches(setting, pattern);
+				}
+			});
+		} else {
+			shouldInclude = true;
+		}
+
+		if (shouldInclude && filter.include?.tags?.length) {
+			shouldInclude = filter.include.tags.some(tag => setting.tags?.includes(tag));
+		}
+
+		// Check exclude filters (takes precedence)
+		if (filter.exclude?.keyPatterns) {
+			shouldExclude = filter.exclude.keyPatterns.some(pattern => {
+				if (pattern.startsWith('@tag:')) {
+					const tagName = pattern.substring(5);
+					return setting.tags?.includes(tagName);
+				} else {
+					return settingMatches(setting, pattern);
+				}
+			});
+		}
+
+		if (!shouldExclude && filter.exclude?.tags?.length) {
+			shouldExclude = filter.exclude.tags.some(tag => setting.tags?.includes(tag));
+		}
+
+		// Include if matches include filter and doesn't match exclude filter
+		if (shouldInclude && !shouldExclude) {
+			result.push(setting);
+			allSettings.delete(setting);
 		}
 	});
-
-	if (!result.length && !knownDynamicSettingGroups.some(r => r.test(pattern))) {
-		logService.warn(`Settings pattern "${pattern}" doesn't match any settings`);
-	}
 
 	return result.sort((a, b) => a.key.localeCompare(b.key));
 }
@@ -824,8 +859,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected readonly _onApplyFilter = this._register(new Emitter<string>());
 	readonly onApplyFilter: Event<string> = this._onApplyFilter.event;
 
-	private readonly markdownRenderer: MarkdownRenderer;
-
 	constructor(
 		private readonly settingActions: IAction[],
 		private readonly disposableActionFactory: (setting: ISetting, settingTarget: SettingsTarget) => IAction[],
@@ -842,10 +875,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		@IProductService protected readonly _productService: IProductService,
 		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
 		@IHoverService protected readonly _hoverService: IHoverService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
-
-		this.markdownRenderer = _instantiationService.createInstance(MarkdownRenderer, {});
 
 		this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
 		this._register(this._configService.onDidChangeConfiguration(e => {
@@ -1029,7 +1061,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		// Rewrite `#editor.fontSize#` to link format
 		text = fixSettingLinks(text);
 
-		const renderedMarkdown = disposables.add(this.markdownRenderer.render({ value: text, isTrusted: true }, {
+		const renderedMarkdown = disposables.add(this._markdownRendererService.render({ value: text, isTrusted: true }, {
 			actionHandler: (content: string) => {
 				if (content.startsWith('#')) {
 					const e: ISettingLinkClickEvent = {
@@ -2619,7 +2651,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 		}));
 	}
 
-	protected override createModel(user: string, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
+	protected override createModel(user: string, options: IObjectTreeOptions<SettingsTreeElement | null, void>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
 		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(user, options);
 	}
 }

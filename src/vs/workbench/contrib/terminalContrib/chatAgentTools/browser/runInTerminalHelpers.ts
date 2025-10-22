@@ -7,7 +7,7 @@ import { Separator } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { posix as pathPosix, win32 as pathWin32 } from '../../../../../base/common/path.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
-import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
+import { escapeRegExpCharacters, removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import { localize } from '../../../../../nls.js';
 import type { TerminalNewAutoApproveButtonData } from '../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import type { ToolConfirmationAction } from '../../../chat/common/languageModelToolsService.js';
@@ -19,6 +19,24 @@ export function isPowerShell(envShell: string, os: OperatingSystem): boolean {
 
 	}
 	return /^(?:powershell|pwsh)(?:-preview)?$/.test(pathPosix.basename(envShell));
+}
+
+export function isWindowsPowerShell(envShell: string): boolean {
+	return envShell.endsWith('System32\\WindowsPowerShell\\v1.0\\powershell.exe');
+}
+
+export function isZsh(envShell: string, os: OperatingSystem): boolean {
+	if (os === OperatingSystem.Windows) {
+		return /^zsh(?:\.exe)?$/i.test(pathWin32.basename(envShell));
+	}
+	return /^zsh$/.test(pathPosix.basename(envShell));
+}
+
+export function isFish(envShell: string, os: OperatingSystem): boolean {
+	if (os === OperatingSystem.Windows) {
+		return /^fish(?:\.exe)?$/i.test(pathWin32.basename(envShell));
+	}
+	return /^fish$/.test(pathPosix.basename(envShell));
 }
 
 // Maximum output length to prevent context overflow
@@ -134,14 +152,16 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		if (
 			firstSubcommandFirstWord !== commandLine &&
 			!commandsWithSubcommands.has(commandLine) &&
-			!commandsWithSubSubCommands.has(commandLine)
+			!commandsWithSubSubCommands.has(commandLine) &&
+			autoApproveResult.commandLineResult.result !== 'denied' &&
+			autoApproveResult.subCommandResults.every(e => e.result !== 'denied')
 		) {
 			actions.push({
 				label: localize('autoApprove.exactCommand', 'Always Allow Exact Command Line'),
 				data: {
 					type: 'newRule',
 					rule: {
-						key: commandLine,
+						key: `/^${escapeRegExpCharacters(commandLine)}$/`,
 						value: {
 							approve: true,
 							matchCommandLine: true

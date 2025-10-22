@@ -119,6 +119,7 @@ export class ReleaseNotesManager extends Disposable {
 				},
 				'releaseNotes',
 				title,
+				undefined,
 				{ group: ACTIVE_GROUP, preserveFocus: false });
 
 			const disposables = new DisposableStore();
@@ -626,8 +627,10 @@ export async function renderReleaseNotesMarkdown(
 		sanitizerConfig: {
 			allowRelativeMediaPaths: true,
 			allowedLinkProtocols: {
-				override: [Schemas.http, Schemas.https, Schemas.command]
-			}
+				override: [Schemas.http, Schemas.https, Schemas.command, Schemas.codeSetting]
+			},
+			allowedTags: { augment: ['nav', 'svg', 'path'] },
+			allowedAttributes: { augment: ['aria-role', 'viewBox', 'fill', 'xmlns', 'd'] }
 		},
 		markedExtensions: [{
 			renderer: {
