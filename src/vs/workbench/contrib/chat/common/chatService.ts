@@ -167,6 +167,7 @@ export interface IChatMultiDiffData {
 		}>;
 	};
 	kind: 'multiDiffData';
+	readOnly?: boolean;
 }
 
 export interface IChatProgressMessage {

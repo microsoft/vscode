@@ -2691,7 +2691,8 @@ export namespace ChatResponseMultiDiffPart {
 					added: entry.added,
 					removed: entry.removed,
 				}))
-			}
+			},
+			readOnly: part.readOnly
 		};
 	}
 	export function to(part: Dto<IChatMultiDiffData>): vscode.ChatResponseMultiDiffPart {
@@ -2702,7 +2703,7 @@ export namespace ChatResponseMultiDiffPart {
 			added: resource.added,
 			removed: resource.removed,
 		}));
-		return new types.ChatResponseMultiDiffPart(resources, part.multiDiffData.title);
+		return new types.ChatResponseMultiDiffPart(resources, part.multiDiffData.title, part.readOnly);
 	}
 }
 
