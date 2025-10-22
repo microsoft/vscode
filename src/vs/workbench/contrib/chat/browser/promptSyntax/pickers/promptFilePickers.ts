@@ -144,7 +144,7 @@ const NEW_AGENT_FILE_OPTION: IPromptPickerQuickPickItem = Object.freeze({
 	type: 'item',
 	label: `$(plus) ${localize(
 		'commands.new-agentfile.select-dialog.label',
-		'Create new agent file...',
+		'Create new custom agent...',
 	)}`,
 	value: URI.parse(AGENT_DOCUMENTATION_URL),
 	pickable: false,

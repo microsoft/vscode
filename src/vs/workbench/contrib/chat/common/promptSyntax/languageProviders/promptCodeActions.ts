@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { CodeAction, CodeActionContext, CodeActionList, CodeActionProvider, IWorkspaceTextEdit, ProviderResult, TextEdit } from '../../../../../../editor/common/languages.js';
+import { CodeAction, CodeActionContext, CodeActionList, CodeActionProvider, IWorkspaceFileEdit, IWorkspaceTextEdit, TextEdit } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { localize } from '../../../../../../nls.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
@@ -14,6 +14,9 @@ import { IPromptsService } from '../service/promptsService.js';
 import { ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { Selection } from '../../../../../../editor/common/core/selection.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
+import { LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 export class PromptCodeActionProvider implements CodeActionProvider {
 	/**
@@ -23,11 +26,12 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 	}
 
-	provideCodeActions(model: ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList> {
+	async provideCodeActions(model: ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): Promise<CodeActionList | undefined> {
 		const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
 		if (!promptType || promptType === PromptsType.instructions) {
 			// if the model is not a prompt, we don't provide any code actions
@@ -40,6 +44,7 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 		switch (promptType) {
 			case PromptsType.agent:
 				this.getUpdateToolsCodeActions(parser, model, range, result);
+				await this.getMigrateModeFileCodeActions(model.uri, result);
 				break;
 			case PromptsType.prompt:
 				this.getUpdateModeCodeActions(parser, model, range, result);
@@ -69,6 +74,21 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 				edits: [asWorkspaceTextEdit(model, { range: keyRange, text: 'agent' })]
 			}
 		});
+	}
+
+	private async getMigrateModeFileCodeActions(uri: URI, result: CodeAction[]): Promise<void> {
+		if (uri.path.endsWith(LEGACY_MODE_FILE_EXTENSION)) {
+			const location = this.promptsService.getAgentFileURIFromModeFile(uri);
+			if (location && await this.fileService.canMove(uri, location)) {
+				const edit: IWorkspaceFileEdit = { oldResource: uri, newResource: location, options: { overwrite: false, copy: false } };
+				result.push({
+					title: localize('migrateToAgent', "Migrate to custom agent file"),
+					edit: {
+						edits: [edit]
+					}
+				});
+			}
+		}
 	}
 
 	private getUpdateToolsCodeActions(promptFile: ParsedPromptFile, model: ITextModel, range: Range, result: CodeAction[]): void {

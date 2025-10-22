@@ -86,7 +86,7 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
-import { ChatOpenModelPickerActionId, ChatSessionOpenModelPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenModePickerAction } from './actions/chatExecuteActions.js';
+import { ChatOpenModelPickerActionId, ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenModePickerAction } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
@@ -295,7 +295,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
 	private chatSessionPickerWidgets: Map<string, ChatSessionPickerActionItem> = new Map();
-	private additionalSessionPickerContainers: HTMLElement[] = [];
+	private chatSessionPickerContainer: HTMLElement | undefined;
+	private _lastSessionPickerAction: MenuItemAction | undefined;
 	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
 	private _onDidChangeCurrentLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier> = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
 	private readonly _chatSessionOptionEmitters: Map<string, Emitter<IChatSessionProviderOptionItem>> = new Map();
@@ -621,15 +622,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public openChatSessionPicker(): void {
+		// Open the first available picker widget
 		const firstWidget = this.chatSessionPickerWidgets?.values()?.next().value;
 		firstWidget?.show();
 	}
 
 	/**
-	 * Create picker widgets for all registered option groups for the current session type.
-	 * Returns an array of all created widgets.
+	 * Create picker widgets for all option groups available for the current session type.
 	 */
 	private createChatSessionPickerWidgets(action: MenuItemAction): ChatSessionPickerActionItem[] {
+		this._lastSessionPickerAction = action;
+
 		// Helper to resolve chat session context
 		const resolveChatSessionContext = () => {
 			const sessionId = this._widget?.viewModel?.model.sessionId;
@@ -1072,7 +1075,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const inputState = this.getInputState();
 			const entry = this.getFilteredEntry(userQuery, inputState);
 			this.history.replaceLast(entry);
-			this.history.add({ text: '' });
+			this.history.add({ text: '', state: this.getInputState() });
 		}
 
 		// Clear attached context, fire event to clear input state, and clear the input editor
@@ -1164,12 +1167,29 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.chatSessionHasOptions.set(true);
 
-		// Session dictates which option groups are shown
-		for (const [optionGroupId, widget] of this.chatSessionPickerWidgets.entries()) {
-			const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionId, optionGroupId);
-			if (widget.element) {
-				widget.element.style.display = currentOption ? '' : 'none';
+		const currentWidgetGroupIds = new Set(this.chatSessionPickerWidgets.keys());
+		const requiredGroupIds = new Set(optionGroups.map(g => g.id));
+
+		const needsRecreation =
+			currentWidgetGroupIds.size !== requiredGroupIds.size ||
+			!Array.from(requiredGroupIds).every(id => currentWidgetGroupIds.has(id));
+
+		if (needsRecreation && this._lastSessionPickerAction && this.chatSessionPickerContainer) {
+			const widgets = this.createChatSessionPickerWidgets(this._lastSessionPickerAction);
+			dom.clearNode(this.chatSessionPickerContainer);
+			for (const widget of widgets) {
+				const container = dom.$('.action-item.chat-sessionPicker-item');
+				widget.render(container);
+				this.chatSessionPickerContainer.appendChild(container);
 			}
+		}
+
+		if (this.chatSessionPickerContainer) {
+			this.chatSessionPickerContainer.style.display = '';
+		}
+
+		for (const [optionGroupId] of this.chatSessionPickerWidgets.entries()) {
+			const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionId, optionGroupId);
 			if (currentOption) {
 				const optionGroup = optionGroups.find(g => g.id === optionGroupId);
 				if (optionGroup) {
@@ -1180,23 +1200,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 			}
 		}
-		for (const container of this.additionalSessionPickerContainers) {
-			const optionGroupId = container.getAttribute('data-option-group-id');
-			if (optionGroupId) {
-				const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionId, optionGroupId);
-				container.style.display = currentOption ? '' : 'none';
-			}
-		}
 	}
 
 	private hideAllSessionPickerWidgets(): void {
-		for (const widget of this.chatSessionPickerWidgets.values()) {
-			if (widget.element) {
-				widget.element.style.display = 'none';
-			}
-		}
-		for (const container of this.additionalSessionPickerContainers) {
-			container.style.display = 'none';
+		if (this.chatSessionPickerContainer) {
+			this.chatSessionPickerContainer.style.display = 'none';
 		}
 	}
 
@@ -1205,10 +1213,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			widget.dispose();
 		}
 		this.chatSessionPickerWidgets.clear();
-		for (const container of this.additionalSessionPickerContainers) {
-			container.remove();
-		}
-		this.additionalSessionPickerContainers = [];
 	}
 
 	/**
@@ -1291,6 +1295,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const attachmentToolbarContainer = elements.attachmentToolbar;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
+
 		if (this.options.enableImplicitContext) {
 			this._implicitContext = this._register(
 				this.instantiationService.createInstance(ChatImplicitContext),
@@ -1445,13 +1450,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						currentMode: this._currentModeObservable
 					};
 					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
-				} else if (action.id === ChatSessionOpenModelPickerAction.ID && action instanceof MenuItemAction) {
-					// Dynamically create pickers for all registered option groups
+				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
+					// Create all pickers and return a container action view item
 					const widgets = this.createChatSessionPickerWidgets(action);
-					// Return the first widget, but note: we need a different approach to show all
-					// The toolbar's actionViewItemProvider can only return one item per action
-					// We'll need to render additional widgets separately
-					return widgets[0];
+					if (widgets.length === 0) {
+						return undefined;
+					}
+					// Create a container to hold all picker widgets
+					return this.instantiationService.createInstance(ChatSessionPickersContainerActionItem, action, widgets);
 				}
 				return undefined;
 			}
@@ -1459,35 +1465,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputActionsToolbar.getElement().classList.add('chat-input-toolbar');
 		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
-			// Clean up any previously rendered additional pickers
-			for (const container of this.additionalSessionPickerContainers) {
-				container.remove();
-			}
-			this.additionalSessionPickerContainers = [];
-			if (this.chatSessionPickerWidgets.size > 1) {
-				const toolbarElement = this.inputActionsToolbar.getElement();
-				// Find where the first session picker is rendered
-				const firstPickerElement = toolbarElement.querySelector('.chat-sessionPicker-item');
-				if (firstPickerElement && firstPickerElement.parentElement) {
-					// Get all widgets except the first one (which is already rendered by the toolbar)
-					const widgetEntries = Array.from(this.chatSessionPickerWidgets.entries()).slice(1);
-					let insertAfter = firstPickerElement;
-					for (const [optionGroupId, widget] of widgetEntries) {
-						// Create a container for this widget
-						const container = dom.$('.action-item');
-						container.setAttribute('data-option-group-id', optionGroupId);
-						widget.render(container);
-						// Insert after the previous picker
-						if (insertAfter.nextSibling) {
-							insertAfter.parentElement!.insertBefore(container, insertAfter.nextSibling);
-						} else {
-							insertAfter.parentElement!.appendChild(container);
-						}
-						this.additionalSessionPickerContainers.push(container);
-						insertAfter = container;
-					}
-				}
-			}
+			// Update container reference for the pickers
+			const toolbarElement = this.inputActionsToolbar.getElement();
+			const container = toolbarElement.querySelector('.chat-sessionPicker-container');
+			this.chatSessionPickerContainer = container as HTMLElement | undefined;
 
 			if (this.cachedDimensions && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
 				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
@@ -1817,7 +1798,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
-		// Render the widget with the current session
 		this._chatInputTodoListWidget.value.render(chatSessionId);
 	}
 
@@ -2084,7 +2064,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get contentHeight(): number {
 		const data = this.getLayoutData();
-		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight;
+		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight + data.todoListWidgetContainerHeight;
 	}
 
 	layout(height: number, width: number) {
@@ -2096,7 +2076,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private previousInputEditorDimension: IDimension | undefined;
 	private _layout(height: number, width: number, allowRecurse = true): void {
 		const data = this.getLayoutData();
-		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.attachmentsHeight - data.inputPartVerticalPadding - data.toolbarsHeight);
+		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.attachmentsHeight - data.inputPartVerticalPadding - data.toolbarsHeight - data.chatEditingStateHeight - data.todoListWidgetContainerHeight);
 
 		const followupsWidth = width - data.inputPartHorizontalPadding;
 		this.followupsContainer.style.width = `${followupsWidth}px`;
@@ -2165,6 +2145,32 @@ function getLastPosition(model: ITextModel): IPosition {
 
 const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
+
+class ChatSessionPickersContainerActionItem extends ActionViewItem {
+	constructor(
+		action: IAction,
+		private readonly widgets: ChatSessionPickerActionItem[],
+		options?: IActionViewItemOptions
+	) {
+		super(null, action, options ?? {});
+	}
+
+	override render(container: HTMLElement): void {
+		container.classList.add('chat-sessionPicker-container');
+		for (const widget of this.widgets) {
+			const itemContainer = dom.$('.action-item.chat-sessionPicker-item');
+			widget.render(itemContainer);
+			container.appendChild(itemContainer);
+		}
+	}
+
+	override dispose(): void {
+		for (const widget of this.widgets) {
+			widget.dispose();
+		}
+		super.dispose();
+	}
+}
 
 class AddFilesButton extends ActionViewItem {
 	private showLabel: boolean | undefined;

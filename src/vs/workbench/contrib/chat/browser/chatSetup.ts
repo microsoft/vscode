@@ -1268,21 +1268,20 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const params = new URLSearchParams(url.query);
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'url', detail: params.get('referrer') ?? undefined });
 
-				const modeParam = params.get('agent') ?? params.get('mode');
-				let modeToUse: ChatModeKind | string | undefined;
-				if (modeParam) {
-					// check if the given param is a valid mode ID
-					let foundMode = this.chatModeService.findModeById(modeParam);
-					if (!foundMode) {
-						// if not, check if the given param is a valid mode name, note the name is case insensitive
-						foundMode = this.chatModeService.findModeByName(modeParam);
-					}
+				const agentParam = params.get('agent') ?? params.get('mode');
+				if (agentParam) {
+					const agents = this.chatModeService.getModes();
+					const allAgents = [...agents.builtin, ...agents.custom];
 
-					if (foundMode) {
-						modeToUse = foundMode.id;
+					// check if the given param is a valid mode ID
+					let foundAgent = allAgents.find(agent => agent.id === agentParam);
+					if (!foundAgent) {
+						// if not, check if the given param is a valid mode name, note the parameter as name is case insensitive
+						const nameLower = agentParam.toLowerCase();
+						foundAgent = allAgents.find(agent => agent.name.toLowerCase() === nameLower);
 					}
 					// execute the command to change the mode in panel, note that the command only supports mode IDs, not names
-					await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, modeToUse);
+					await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, foundAgent?.id);
 					return true;
 				}
 
@@ -1433,10 +1432,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 					title: ChatSetupHideAction.TITLE,
 					f1: true,
 					category: CHAT_CATEGORY,
-					precondition: ContextKeyExpr.and(
-						ChatContextKeys.Setup.hidden.negate(),
-						ChatContextKeys.Setup.installed.negate()
-					),
+					precondition: ChatContextKeys.Setup.hidden.negate(),
 					menu: {
 						id: MenuId.ChatTitleBarMenu,
 						group: 'z_hide',

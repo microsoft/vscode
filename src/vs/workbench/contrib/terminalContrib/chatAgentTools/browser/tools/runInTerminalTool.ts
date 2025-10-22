@@ -41,7 +41,7 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { dedupeRules, generateAutoApproveActions, isFish, isPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import { dedupeRules, generateAutoApproveActions, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
@@ -51,8 +51,9 @@ import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../tre
 // #region Tool data
 
 function createPowerShellModelDescription(shell: string): string {
+	const isWinPwsh = isWindowsPowerShell(shell);
 	return [
-		'This tool allows you to execute PowerShell commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.',
+		`This tool allows you to execute ${isWinPwsh ? 'Windows PowerShell 5.1' : 'PowerShell'} commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.`,
 		'',
 		'Command Execution:',
 		'- Does NOT support multi-line commands',
