@@ -409,7 +409,7 @@ export abstract class AbstractMcpResourceAccessPick {
 					}
 					// If the URI is a directory, we need to read its contents and show them in the picker.
 					// directory URIs end with a `/`
-					if (uri?.path.toString().endsWith('/')) {
+					if (uri?.path.endsWith('/')) {
 						try {
 							const stat = await this._fileService.resolve(uri, { resolveMetadata: false });
 							if (stat.children) {
