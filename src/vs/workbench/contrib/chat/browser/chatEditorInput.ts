@@ -194,7 +194,8 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	override getTitle(verbosity?: Verbosity): string {
 		const name = this.getName();
 
-		// For LONG verbosity (used in tooltips), append session type
+		// For SHORT and MEDIUM verbosity, return just the name
+		// For LONG verbosity (used in tooltips), append session type if available
 		if (verbosity === Verbosity.LONG) {
 			const sessionType = this.getSessionType();
 			const sessionTypeDisplayName = this.getSessionTypeDisplayName(sessionType);
@@ -203,6 +204,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			}
 		}
 
+		// Default: return name for SHORT, MEDIUM, or when no session type display name
 		return name;
 	}
 
