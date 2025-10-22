@@ -1112,7 +1112,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		return this.cloneRepository(url, options.parentPath, options);
 	}
 
-	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string; postCloneAction?: PostCloneAction } = {}): Promise<void> {
+	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string; postCloneAction?: PostCloneAction } = {}): Promise<string | undefined> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource({
 				providerLabel: provider => l10n.t('Clone from {0}', provider.name),
@@ -1233,6 +1233,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			} else if (action === PostCloneAction.OpenNewWindow) {
 				commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
 			}
+
+			return repositoryPath;
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
 				/* __GDPR__
@@ -1288,7 +1290,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 	}
 
-	private async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, postCloneAction?: PostCloneAction, parentPath?: string, ref?: string): Promise<Repository | undefined> {
+	private async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, postCloneAction?: PostCloneAction, parentPath?: string, ref?: string): Promise<string | undefined> {
 		// Gather existing folders/workspace files (ignore ones that no longer exist)
 		const existingCachedRepositories: RepositoryCacheInfo[] = (await Promise.all<RepositoryCacheInfo | undefined>(cachedRepository.map(async folder => {
 			const stat = await fs.promises.stat(folder.workspacePath).catch(() => undefined);
@@ -1310,17 +1312,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		});
 
 		if (matchingInCurrentWorkspace) {
-			let repo: Repository | undefined;
-			// Find which repo matches our remote url so that we can return it.
-			const urlLower = url.toLowerCase();
-			for (const openRepo of this.openRepositories) {
-				const remotes = openRepo.repository.remotes;
-				if (remotes.some(remote => remote.fetchUrl?.toLowerCase() === urlLower)) {
-					repo = openRepo.repository;
-					break;
-				}
-			}
-			return repo;
+			return matchingInCurrentWorkspace.workspacePath;
 		}
 
 		let repoForWorkspace: string | undefined = (existingCachedRepositories.length === 1 ? existingCachedRepositories[0].workspacePath : undefined);

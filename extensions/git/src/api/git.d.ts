@@ -380,8 +380,11 @@ export interface API {
 	getRepository(uri: Uri): Repository | null;
 	getRepositoryRoot(uri: Uri): Promise<Uri | null>;
 	init(root: Uri, options?: InitOptions): Promise<Repository | null>;
-	clone(uri: Uri, options?: CloneOptions): Promise<Repository | null>;
-	openRepository(root: Uri): Promise<Repository | null>
+	/**
+	 * @returns The URI of either the cloned repository, or the workspace file or folder which contains the cloned repository.
+	 */
+	clone(uri: Uri, options?: CloneOptions): Promise<Uri | null>;
+	openRepository(root: Uri): Promise<Repository | null>;
 
 	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;

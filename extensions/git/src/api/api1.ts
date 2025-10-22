@@ -399,10 +399,10 @@ export class ApiImpl implements API {
 		return this.getRepository(root) || null;
 	}
 
-	async clone(uri: Uri, options?: CloneOptions): Promise<Repository | null> {
+	async clone(uri: Uri, options?: CloneOptions): Promise<Uri | null> {
 		const parentPath = options?.parentPath?.fsPath;
 		const result = await this.#model.clone(uri.toString(), { parentPath, recursive: options?.recursive, ref: options?.ref, postCloneAction: options?.postCloneAction, skipCache: options?.skipCache });
-		return result ? new ApiRepository(result) : null;
+		return result ? Uri.file(result) : null;
 	}
 
 	async openRepository(root: Uri): Promise<Repository | null> {
