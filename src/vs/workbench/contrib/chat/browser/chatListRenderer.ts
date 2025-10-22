@@ -1027,7 +1027,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const thinkingStyle = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
 			const shouldPin = (thinkingStyle === ThinkingDisplayMode.FixedScrollingTools || (thinkingStyle === ThinkingDisplayMode.Default && element.model.request?.modelId?.toLowerCase().includes('codex')));
 
-			if (this._currentThinkingPart && (partToRender.kind === 'toolInvocation' || partToRender.kind === 'toolInvocationSerialized') && shouldPin) {
+			if (this._currentThinkingPart && (partToRender.kind === 'toolInvocation' || partToRender.kind === 'toolInvocationSerialized') && shouldPin && this.shouldPinPart(partToRender, element)) {
 				const newPart = this.renderChatContentPart(partToRender, templateData, context);
 				if (newPart) {
 					renderedParts[contentIndex] = newPart;
@@ -1253,7 +1253,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const isCodex = isResponseVM(context.element) && context.element.model.request?.modelId?.toLowerCase().includes('codex');
 				const allowToolStreaming = thinkingStyle === ThinkingDisplayMode.FixedScrollingTools || (thinkingStyle === ThinkingDisplayMode.Default && isCodex);
 				const isThinkingContent = content.kind === 'working' || content.kind === 'thinking';
-				const isToolStreamingContent = allowToolStreaming && (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized' || content.kind === 'prepareToolInvocation');
+				const isToolStreamingContent = this.shouldPinPart(content, isResponseVM(context.element) ? context.element : undefined) && allowToolStreaming && (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized' || content.kind === 'prepareToolInvocation');
 				if (this._currentThinkingPart && !this._streamingThinking && !isThinkingContent && !isToolStreamingContent) {
 					this.finalizeCurrentThinkingPart();
 				}
