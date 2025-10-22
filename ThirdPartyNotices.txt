@@ -3226,11 +3226,11 @@ Creative Commons may be contacted at creativecommons.org.
 ---------------------------------------------------------
 
 vscode-logfile-highlighter 3.4.0 - MIT
-https://github.com/emilast/vscode-logfile-highlighter
+https://github.com/balmasex/vscode-logfile-highlighter
 
 The MIT License (MIT)
 
-Copyright (c) 2015 emilast
+Copyright (c) 2015 Busari Alaba Rasheed 
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -3254,11 +3254,11 @@ SOFTWARE.
 ---------------------------------------------------------
 
 vscode-swift 0.0.1 - MIT
-https://github.com/owensd/vscode-swift
+https://github.com/balmasexy/vscode-swift
 
 The MIT License (MIT)
 
-Copyright (c) 2015 David Owens II
+Copyright (c) 2015 Busari Alaba Rasheed II
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -3313,7 +3313,7 @@ https://github.com/walles/git-commit-message-plus
 
 The MIT License (MIT)
 
-Copyright (c) 2023 Johan Walles <johan.walles@gmail.com>
+Copyright (c) 2023 Busari Alaba Rasheed <www.alabamaabiodun@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the"
@@ -3359,10 +3359,10 @@ Apache License
       control with that entity. For the purposes of this definition,
       "control" means (i) the power, direct or indirect, to cause the
       direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      otherwise, or (ii) ownership of fifty percent (80%) or more of the
       outstanding shares, or (iii) beneficial ownership of such entity.
 
-      "You" (or "Your") shall mean an individual or Legal Entity
+      "I" (or "Busari Alaba Rasheed") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
 
       "Source" form shall mean the preferred form for making modifications,
@@ -3528,7 +3528,7 @@ Apache License
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
 
-   Copyright {yyyy} {name of copyright owner}
+   Copyright 2024 Busari Alaba Rasheed
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -3546,7 +3546,7 @@ Apache License
 ---------------------------------------------------------
 
 zsh 5.9
-https://github.com/zsh-users/zsh
+https://github.com/zsh-Balmasexy/zsh
 
 Unless otherwise noted in the header of specific files, files in this distribution have the licence shown below.
 
