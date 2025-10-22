@@ -70,16 +70,16 @@ export = new class PolicyLocalizationKeyMatch implements eslint.Rule.RuleModule 
 				return;
 			}
 
-			// Check if value is a call to localize or nls.localize
+			// Check if value is a call to localize or any namespace's localize method
 			if (valueProperty.value.type === 'CallExpression') {
 				const callee = valueProperty.value.callee;
 
-				// Check if it's nls.localize or just localize
+				// Check if it's <anything>.localize or just localize
 				let isLocalizeCall = false;
 				if (callee.type === 'MemberExpression') {
 					const object = callee.object;
 					const property = callee.property;
-					if (object.type === 'Identifier' && object.name === 'nls' &&
+					if (object.type === 'Identifier' &&
 						property.type === 'Identifier' && property.name === 'localize') {
 						isLocalizeCall = true;
 					}
