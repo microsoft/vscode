@@ -203,10 +203,18 @@ async function darwinMain(policies, translations) {
         await fs_1.promises.writeFile(path_1.default.join(languagePath, `${bundleIdentifier}.plist`), contents.replace(/\r?\n/g, '\n'));
     }
 }
+async function linuxMain(policies) {
+    const root = '.build/policies/linux';
+    const policyFileContents = JSON.stringify((0, render_1.renderJsonPolicies)(policies), undefined, 4);
+    await fs_1.promises.rm(root, { recursive: true, force: true });
+    await fs_1.promises.mkdir(root, { recursive: true });
+    const jsonPath = path_1.default.join(root, `policy.json`);
+    await fs_1.promises.writeFile(jsonPath, policyFileContents.replace(/\r?\n/g, '\n'));
+}
 async function main() {
     const args = (0, minimist_1.default)(process.argv.slice(2));
     if (args._.length !== 2) {
-        console.error(`Usage: node build/lib/policies <policy-data-file> <darwin|win32>`);
+        console.error(`Usage: node build/lib/policies <policy-data-file> <darwin|win32|linux>`);
         process.exit(1);
     }
     const policyDataFile = args._[0];
@@ -218,8 +226,11 @@ async function main() {
     else if (platform === 'win32') {
         await windowsMain(policies, translations);
     }
+    else if (platform === 'linux') {
+        await linuxMain(policies);
+    }
     else {
-        console.error(`Usage: node build/lib/policies <policy-data-file> <darwin|win32>`);
+        console.error(`Usage: node build/lib/policies <policy-data-file> <darwin|win32|linux>`);
         process.exit(1);
     }
 }

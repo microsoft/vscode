@@ -14,7 +14,7 @@ import { ObjectPolicy } from './objectPolicy';
 import { StringEnumPolicy } from './stringEnumPolicy';
 import { StringPolicy } from './stringPolicy';
 import { Version, LanguageTranslations, Policy, Translations, Languages, ProductJson } from './types';
-import { renderGP, renderMacOSPolicy } from './render';
+import { renderGP, renderJsonPolicies, renderMacOSPolicy } from './render';
 
 const product = require('../../../product.json') as ProductJson;
 const packageJson = require('../../../package.json');
@@ -202,10 +202,21 @@ async function darwinMain(policies: Policy[], translations: Translations) {
 	}
 }
 
+async function linuxMain(policies: Policy[]) {
+	const root = '.build/policies/linux';
+	const policyFileContents = JSON.stringify(renderJsonPolicies(policies), undefined, 4);
+
+	await fs.rm(root, { recursive: true, force: true });
+	await fs.mkdir(root, { recursive: true });
+
+	const jsonPath = path.join(root, `policy.json`);
+	await fs.writeFile(jsonPath, policyFileContents.replace(/\r?\n/g, '\n'));
+}
+
 async function main() {
 	const args = minimist(process.argv.slice(2));
 	if (args._.length !== 2) {
-		console.error(`Usage: node build/lib/policies <policy-data-file> <darwin|win32>`);
+		console.error(`Usage: node build/lib/policies <policy-data-file> <darwin|win32|linux>`);
 		process.exit(1);
 	}
 
@@ -217,8 +228,10 @@ async function main() {
 		await darwinMain(policies, translations);
 	} else if (platform === 'win32') {
 		await windowsMain(policies, translations);
+	} else if (platform === 'linux') {
+		await linuxMain(policies);
 	} else {
-		console.error(`Usage: node build/lib/policies <policy-data-file> <darwin|win32>`);
+		console.error(`Usage: node build/lib/policies <policy-data-file> <darwin|win32|linux>`);
 		process.exit(1);
 	}
 }
