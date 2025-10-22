@@ -352,8 +352,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// commands that would be auto approved if it were enabled.
 			const actualCommand = toolEditedCommand ?? args.command;
 
-			const treeSitterLanguage = isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash;
-
 			let disclaimer: IMarkdownString | undefined;
 			let customActions: ToolConfirmationAction[] | undefined;
 
@@ -363,6 +361,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let isAutoApproved = false;
 
 			let subCommands: string[] | undefined;
+			const treeSitterLanguage = isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash;
 			try {
 				subCommands = await this._treeSitterCommandParser.extractSubCommands(treeSitterLanguage, actualCommand);
 				this._logService.info(`RunInTerminalTool: autoApprove: Parsed sub-commands via ${treeSitterLanguage} grammar`, subCommands);

@@ -18,19 +18,15 @@ export class TestTreeSitterLibraryService implements ITreeSitterLibraryService {
 		return false;
 	}
 
-	async getLanguage(languageId: string): Promise<Language> {
-		throw new Error('not implemented in TestTreeSitterLibraryService');
-	}
-
-	getLanguageSync(languageId: string, reader: IReader | undefined): Language | undefined {
+	getLanguage(languageId: string, ignoreSupportsCheck: boolean, reader: IReader | undefined): Language | undefined {
 		return undefined;
 	}
 
-	getInjectionQueriesSync(languageId: string, reader: IReader | undefined): Query | null | undefined {
+	getInjectionQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		return null;
 	}
 
-	getHighlightingQueriesSync(languageId: string, reader: IReader | undefined): Query | null | undefined {
+	getHighlightingQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		return null;
 	}
 

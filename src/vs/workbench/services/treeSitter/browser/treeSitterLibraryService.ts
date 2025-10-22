@@ -121,19 +121,15 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		return treeSitter.Parser;
 	}
 
-	async getLanguage(languageId: string): Promise<Language> {
-		return this._languagesCache.get(languageId).promise;
-	}
-
-	getLanguageSync(languageId: string, reader: IReader | undefined): Language | undefined {
-		if (!this.supportsLanguage(languageId, reader)) {
+	getLanguage(languageId: string, ignoreSupportsCheck: boolean, reader: IReader | undefined): Language | undefined {
+		if (!ignoreSupportsCheck && !this.supportsLanguage(languageId, reader)) {
 			return undefined;
 		}
 		const lang = this._languagesCache.get(languageId).resolvedValue.read(reader);
 		return lang;
 	}
 
-	getInjectionQueriesSync(languageId: string, reader: IReader | undefined): Query | null | undefined {
+	getInjectionQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		if (!this.supportsLanguage(languageId, reader)) {
 			return undefined;
 		}
@@ -141,7 +137,7 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		return query;
 	}
 
-	getHighlightingQueriesSync(languageId: string, reader: IReader | undefined): Query | null | undefined {
+	getHighlightingQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		if (!this.supportsLanguage(languageId, reader)) {
 			return undefined;
 		}

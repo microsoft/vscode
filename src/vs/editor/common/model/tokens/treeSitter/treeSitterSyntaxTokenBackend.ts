@@ -54,7 +54,7 @@ export class TreeSitterSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 			}
 
 			const currentLanguage = this._languageIdObs.read(reader);
-			const treeSitterLang = this._treeSitterLibraryService.getLanguageSync(currentLanguage, reader);
+			const treeSitterLang = this._treeSitterLibraryService.getLanguage(currentLanguage, false, reader);
 			if (!treeSitterLang) {
 				return undefined;
 			}
@@ -65,7 +65,7 @@ export class TreeSitterSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 			}));
 			parser.setLanguage(treeSitterLang);
 
-			const queries = this._treeSitterLibraryService.getInjectionQueriesSync(currentLanguage, reader);
+			const queries = this._treeSitterLibraryService.getInjectionQueries(currentLanguage, reader);
 			if (queries === undefined) {
 				return undefined;
 			}
@@ -80,7 +80,7 @@ export class TreeSitterSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 				return undefined;
 			}
 
-			const queries = this._treeSitterLibraryService.getHighlightingQueriesSync(treeModel.languageId, reader);
+			const queries = this._treeSitterLibraryService.getHighlightingQueries(treeModel.languageId, reader);
 			if (!queries) {
 				return undefined;
 			}

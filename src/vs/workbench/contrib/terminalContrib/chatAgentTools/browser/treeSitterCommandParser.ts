@@ -5,6 +5,7 @@
 
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
+import { derived, waitForState } from '../../../../../base/common/observable.js';
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import type { Parser, Query } from '@vscode/tree-sitter-wasm';
 
@@ -33,7 +34,10 @@ export class TreeSitterCommandParser {
 
 	async extractSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
 		const parser = await this._parser;
-		parser.setLanguage(await this._treeSitterLibraryService.getLanguage(languageId));
+		const language = await waitForState(derived(reader => {
+			return this._treeSitterLibraryService.getLanguage(languageId, true, reader);
+		}));
+		parser.setLanguage(language);
 
 		const tree = parser.parse(commandLine);
 		if (!tree) {
