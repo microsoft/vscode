@@ -193,26 +193,20 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	override getTitle(verbosity?: Verbosity): string {
 		const name = this.getName();
-
-		// For SHORT and MEDIUM verbosity, return just the name
-		// For LONG verbosity (used in tooltips), append session type if available
-		if (verbosity === Verbosity.LONG) {
+		if (verbosity === Verbosity.LONG) { // Verbosity LONG is used for tooltips
 			const sessionType = this.getSessionType();
 			const sessionTypeDisplayName = this.getSessionTypeDisplayName(sessionType);
 			if (sessionTypeDisplayName) {
 				return `${name} | ${sessionTypeDisplayName}`;
 			}
 		}
-
-		// Default: return name for SHORT, MEDIUM, or when no session type display name
 		return name;
 	}
 
 	private getSessionTypeDisplayName(sessionType: string): string | undefined {
 		if (sessionType === 'local') {
-			return undefined; // Don't show type for local sessions
+			return;
 		}
-
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
 		const contribution = contributions.find(c => c.type === sessionType);
 		return contribution?.displayName;
