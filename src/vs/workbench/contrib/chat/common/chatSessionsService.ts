@@ -14,6 +14,7 @@ import { IRelaxedExtensionDescription } from '../../../../platform/extensions/co
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditableData } from '../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './chatAgents.js';
+import { IChatRequestVariableData } from './chatModel.js';
 import { IChatProgress } from './chatService.js';
 
 export const enum ChatSessionStatus {
@@ -75,7 +76,17 @@ export interface IChatSessionItem {
 
 }
 
-export type IChatSessionHistoryItem = { type: 'request'; prompt: string; participant: string } | { type: 'response'; parts: IChatProgress[]; participant: string };
+export type IChatSessionHistoryItem = {
+	type: 'request';
+	prompt: string;
+	participant: string;
+	command?: string;
+	variableData?: IChatRequestVariableData;
+} | {
+	type: 'response';
+	parts: IChatProgress[];
+	participant: string;
+};
 
 export interface ChatSession extends IDisposable {
 	readonly sessionId: string;
