@@ -31,7 +31,8 @@ import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress, type IToolConfirmationMessages, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance, ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
-import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
+import { ITerminalProfileResolverService, TERMINAL_VIEW_ID } from '../../../../terminal/common/terminal.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
 import { CommandLineAutoApprover, type IAutoApproveRule, type ICommandApprovalResult, type ICommandApprovalResultWithReason } from '../commandLineAutoApprover.js';
@@ -285,7 +286,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@IChatService private readonly _chatService: IChatService
+		@IChatService private readonly _chatService: IChatService,
+		@IViewsService private readonly _viewsService: IViewsService
 	) {
 		super();
 
@@ -730,8 +732,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private _handleTerminalVisibility(toolTerminal: IToolTerminal) {
 		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation) === 'terminal') {
-			this._terminalService.setActiveInstance(toolTerminal.instance);
-			this._terminalService.revealTerminal(toolTerminal.instance, true);
+			const isTerminalVisible = this._viewsService.isViewVisible(TERMINAL_VIEW_ID);
+			if (isTerminalVisible) {
+				this._terminalService.setActiveInstance(toolTerminal.instance);
+				this._terminalService.revealTerminal(toolTerminal.instance, true);
+			}
 		}
 	}
 
