@@ -70,11 +70,6 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 		return localize('approveToolResult', "Approve Tool Result");
 	}
 
-	protected shouldDismiss(toolInvocation: IChatToolInvocation, reader: IReader): boolean {
-		const currentState = toolInvocation.state.read(reader);
-		return currentState.type !== IChatToolInvocation.StateKind.WaitingForPostApproval;
-	}
-
 	protected override additionalPrimaryActions() {
 		const actions = super.additionalPrimaryActions();
 		actions.push(

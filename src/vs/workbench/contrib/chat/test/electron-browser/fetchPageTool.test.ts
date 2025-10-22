@@ -13,6 +13,7 @@ import { IFileContent, IReadFileOptions } from '../../../../../platform/files/co
 import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { FetchWebPageTool } from '../../electron-browser/tools/fetchPageTool.js';
 import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
+import { MockTrustedDomainService } from '../../../url/test/browser/mockTrustedDomainService.js';
 
 class TestWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;
@@ -81,7 +82,8 @@ suite('FetchWebPageTool', () => {
 
 		const tool = new FetchWebPageTool(
 			new TestWebContentExtractorService(webContentMap),
-			new ExtendedTestFileService(fileContentMap)
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService(),
 		);
 
 		const testUrls = [
@@ -128,7 +130,8 @@ suite('FetchWebPageTool', () => {
 	test('should handle empty and undefined URLs', async () => {
 		const tool = new FetchWebPageTool(
 			new TestWebContentExtractorService(new ResourceMap<string>()),
-			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>())
+			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+			new MockTrustedDomainService([]),
 		);
 
 		// Test empty array
@@ -175,7 +178,8 @@ suite('FetchWebPageTool', () => {
 
 		const tool = new FetchWebPageTool(
 			new TestWebContentExtractorService(webContentMap),
-			new ExtendedTestFileService(fileContentMap)
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService(),
 		);
 
 		const preparation = await tool.prepareToolInvocation(
@@ -202,7 +206,8 @@ suite('FetchWebPageTool', () => {
 
 		const tool = new FetchWebPageTool(
 			new TestWebContentExtractorService(new ResourceMap<string>()),
-			new ExtendedTestFileService(fileContentMap)
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService(),
 		);
 
 		const result = await tool.invoke(
@@ -248,7 +253,8 @@ suite('FetchWebPageTool', () => {
 
 		const tool = new FetchWebPageTool(
 			new TestWebContentExtractorService(new ResourceMap<string>()),
-			new ExtendedTestFileService(fileContentMap)
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService(),
 		);
 
 		const result = await tool.invoke(
@@ -287,7 +293,8 @@ suite('FetchWebPageTool', () => {
 
 		const tool = new FetchWebPageTool(
 			new TestWebContentExtractorService(new ResourceMap<string>()),
-			new ExtendedTestFileService(fileContentMap)
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService(),
 		);
 
 		const result = await tool.invoke(
@@ -332,7 +339,8 @@ suite('FetchWebPageTool', () => {
 
 		const tool = new FetchWebPageTool(
 			new TestWebContentExtractorService(new ResourceMap<string>()),
-			new ExtendedTestFileService(fileContentMap)
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService(),
 		);
 
 		const result = await tool.invoke(
@@ -396,7 +404,8 @@ suite('FetchWebPageTool', () => {
 
 		const tool = new FetchWebPageTool(
 			new TestWebContentExtractorService(new ResourceMap<string>()),
-			new ExtendedTestFileService(fileContentMap)
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService(),
 		);
 
 		const result = await tool.invoke(
@@ -434,7 +443,8 @@ suite('FetchWebPageTool', () => {
 
 		const tool = new FetchWebPageTool(
 			new TestWebContentExtractorService(new ResourceMap<string>()),
-			new ExtendedTestFileService(fileContentMap)
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService(),
 		);
 
 		const result = await tool.invoke(
@@ -476,7 +486,8 @@ suite('FetchWebPageTool', () => {
 
 			const tool = new FetchWebPageTool(
 				new TestWebContentExtractorService(webContentMap),
-				new ExtendedTestFileService(fileContentMap)
+				new ExtendedTestFileService(fileContentMap),
+				new MockTrustedDomainService(),
 			);
 
 			const testUrls = [
@@ -533,7 +544,8 @@ suite('FetchWebPageTool', () => {
 
 			const tool = new FetchWebPageTool(
 				new TestWebContentExtractorService(webContentMap),
-				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>())
+				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+				new MockTrustedDomainService([]),
 			);
 
 			const testUrls = [
@@ -567,7 +579,8 @@ suite('FetchWebPageTool', () => {
 
 			const tool = new FetchWebPageTool(
 				new TestWebContentExtractorService(new ResourceMap<string>()),
-				new ExtendedTestFileService(fileContentMap)
+				new ExtendedTestFileService(fileContentMap),
+				new MockTrustedDomainService(),
 			);
 
 			const testUrls = [
@@ -607,7 +620,8 @@ suite('FetchWebPageTool', () => {
 
 			const tool = new FetchWebPageTool(
 				new TestWebContentExtractorService(webContentMap),
-				new ExtendedTestFileService(fileContentMap)
+				new ExtendedTestFileService(fileContentMap),
+				new MockTrustedDomainService(),
 			);
 
 			const testUrls = [
@@ -653,7 +667,8 @@ suite('FetchWebPageTool', () => {
 		test('should return empty toolResultDetails when all requests fail', async () => {
 			const tool = new FetchWebPageTool(
 				new TestWebContentExtractorService(new ResourceMap<string>()), // Empty - all web requests fail
-				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()) // Empty - all file requests fail
+				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()), // Empty - all file ,
+				new MockTrustedDomainService([]),
 			);
 
 			const testUrls = [
@@ -685,7 +700,8 @@ suite('FetchWebPageTool', () => {
 		test('should handle empty URL array', async () => {
 			const tool = new FetchWebPageTool(
 				new TestWebContentExtractorService(new ResourceMap<string>()),
-				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>())
+				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+				new MockTrustedDomainService([]),
 			);
 
 			const result = await tool.invoke(
@@ -709,7 +725,8 @@ suite('FetchWebPageTool', () => {
 
 			const tool = new FetchWebPageTool(
 				new TestWebContentExtractorService(new ResourceMap<string>()),
-				new ExtendedTestFileService(fileContentMap)
+				new ExtendedTestFileService(fileContentMap),
+				new MockTrustedDomainService(),
 			);
 
 			const result = await tool.invoke(

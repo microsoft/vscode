@@ -11,6 +11,7 @@ import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { detectEncodingFromBuffer } from '../../../../services/textfile/common/encoding.js';
+import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
 import { ChatImageMimeType } from '../../common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
@@ -41,6 +42,7 @@ export class FetchWebPageTool implements IToolImpl {
 	constructor(
 		@IWebContentExtractorService private readonly _readerModeService: IWebContentExtractorService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -188,9 +190,11 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 		const result: IPreparedToolInvocation = { invocationMessage, pastTenseMessage };
-		if (urlsNeedingConfirmation.length) {
-			let confirmationTitle: string;
-			let confirmationMessage: string | MarkdownString;
+		const allDomainsTrusted = urlsNeedingConfirmation.every(u => this._trustedDomainService.isValid(u));
+		let confirmationTitle: string | undefined;
+		let confirmationMessage: string | MarkdownString | undefined;
+
+		if (urlsNeedingConfirmation.length && !allDomainsTrusted) {
 			if (urlsNeedingConfirmation.length === 1) {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.singular', 'Fetch web page?');
 				confirmationMessage = new MarkdownString(
@@ -204,13 +208,14 @@ export class FetchWebPageTool implements IToolImpl {
 					{ supportThemeIcons: true }
 				);
 			}
-			result.confirmationMessages = {
-				title: confirmationTitle,
-				message: confirmationMessage,
-				allowAutoConfirm: true,
-				disclaimer: new MarkdownString('$(info) ' + localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true })
-			};
 		}
+		result.confirmationMessages = {
+			title: confirmationTitle,
+			message: confirmationMessage,
+			confirmResults: urlsNeedingConfirmation.length > 0,
+			allowAutoConfirm: true,
+			disclaimer: new MarkdownString('$(info) ' + localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true })
+		};
 		return result;
 	}
 
