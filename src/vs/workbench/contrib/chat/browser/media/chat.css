@@ -1088,7 +1088,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget {
-	padding: 6px 8px 6px 12px;
+	padding: 4px 8px 4px 12px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-editor-background);
@@ -1137,21 +1137,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container .monaco-button {
-	padding: 2px;
-	margin-right: 2px;
-	min-width: unset;
 	background-color: transparent;
+	border-color: transparent;
 	color: var(--vscode-foreground);
-	border: none;
-	border-radius: 3px;
-	height: 14px;
-	width: 14px;
-	display: flex;
+	cursor: pointer;
+	height: 16px;
+	padding: 2px;
+	border-radius: 2px;
+	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	cursor: pointer;
+	min-width: unset;
+	width: 14px;
+	margin-right: 2px;
 }
 
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container .monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container .monaco-button:focus {
 	outline: 1px solid var(--vscode-focusBorder);
