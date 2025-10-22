@@ -12,8 +12,8 @@ import { IRequestService, isSuccess } from '../../request/common/request.js';
 import { McpGalleryResourceType, IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from './mcpGalleryManifest.js';
 
 const SUPPORTED_VERSIONS = [
-	'v0.1', // First version is preferred
-	'v0'
+	'v0',
+	'v0.1',
 ];
 
 export class McpGalleryManifestService extends Disposable implements IMcpGalleryManifestService {
@@ -103,6 +103,13 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 			resources.push({
 				id: this.productService.mcpGallery.reportUrl,
 				type: McpGalleryResourceType.ReportUri
+			});
+		}
+
+		if (version === 'v0') {
+			resources.push({
+				id: `${serversUrl}/{id}`,
+				type: McpGalleryResourceType.McpServerIdUri
 			});
 		}
 
