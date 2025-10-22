@@ -221,7 +221,7 @@ suite('AgentSessionsViewModel', () => {
 		if (session.description instanceof MarkdownString) {
 			assert.strictEqual(session.description.value, '**Bold** description');
 		}
-		assert.strictEqual(session.status, 1); // ChatSessionStatus.Completed
+		assert.strictEqual(session.status, ChatSessionStatus.Completed);
 		assert.strictEqual(session.timing.startTime, startTime);
 		assert.strictEqual(session.timing.endTime, endTime);
 		assert.deepStrictEqual(session.statistics, { insertions: 10, deletions: 5 });
@@ -552,9 +552,9 @@ suite('AgentSessionsViewModel', () => {
 		await viewModel.resolve(undefined);
 
 		assert.strictEqual(viewModel.sessions.length, 3);
-		assert.strictEqual(viewModel.sessions[0].status, 0); // Failed
-		assert.strictEqual(viewModel.sessions[1].status, 1); // Completed
-		assert.strictEqual(viewModel.sessions[2].status, 2); // InProgress
+		assert.strictEqual(viewModel.sessions[0].status, ChatSessionStatus.Failed);
+		assert.strictEqual(viewModel.sessions[1].status, ChatSessionStatus.Completed);
+		assert.strictEqual(viewModel.sessions[2].status, ChatSessionStatus.InProgress);
 	});
 
 	test('should replace sessions on re-resolve', async () => {

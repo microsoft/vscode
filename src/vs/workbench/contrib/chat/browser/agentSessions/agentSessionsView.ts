@@ -116,13 +116,6 @@ export class AgentSessionsView extends FilterViewPane {
 			}
 		}));
 
-		this._register(this.filterWidget.onDidAcceptFilterText(() => {
-			list.domFocus();
-			if (list.getFocus().length === 0) {
-				list.focusFirst();
-			}
-		}));
-
 		// Sessions List
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible || this.sessionsViewModel) {
@@ -331,11 +324,7 @@ export class AgentSessionsView extends FilterViewPane {
 	override focus(): void {
 		super.focus();
 
-		if (this.list?.getFocus().length) {
-			this.list?.domFocus();
-		} else {
-			this.filterWidget.focus();
-		}
+		this.list?.domFocus();
 	}
 }
 
@@ -355,7 +344,7 @@ const agentSessionsViewContainer = Registry.as<IViewContainersRegistry>(ViewExte
 	storageId: AGENT_SESSIONS_VIEW_CONTAINER_ID,
 	hideIfEmpty: true,
 	order: 6,
-}, ViewContainerLocation.Sidebar);
+}, ViewContainerLocation.AuxiliaryBar);
 
 const agentSessionsViewDescriptor: IViewDescriptor = {
 	id: AGENT_SESSIONS_VIEW_ID,

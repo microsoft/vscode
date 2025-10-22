@@ -762,6 +762,7 @@ export abstract class FilterViewPane extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService, accessibleViewService);
 		const childInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		this.filterWidget = this._register(childInstantiationService.createInstance(FilterWidget, options.filterOptions));
+		this._register(this.filterWidget.onDidAcceptFilterText(() => this.focus()));
 	}
 
 	override getFilterWidget(): FilterWidget {
