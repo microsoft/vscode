@@ -25,7 +25,7 @@ export const LEGACY_MODE_FILE_EXTENSION = '.chatmode.md';
 /**
  * File extension for the agent files.
  */
-export const AGENT_FILE_EXTENSION = '.vscode-agent.md';
+export const AGENT_FILE_EXTENSION = '.agent.md';
 
 /**
  * Copilot custom instructions file name.

@@ -168,6 +168,18 @@ export interface IPromptsService extends IDisposable {
 	resolvePromptSlashCommand(data: IChatPromptSlashCommand, _token: CancellationToken): Promise<ParsedPromptFile | undefined>;
 
 	/**
+	 * Gets the prompt file for a slash command from cache if available.
+	 * @param command - name of the prompt command without slash
+	 */
+	resolvePromptSlashCommandFromCache(command: string): ParsedPromptFile | undefined;
+
+	/**
+	 * Event that is triggered when slash command -> ParsedPromptFile cache is updated.
+	 * Event handler can call resolvePromptSlashCommandFromCache in case there is new value populated.
+	 */
+	readonly onDidChangeParsedPromptFilesCache: Event<void>;
+
+	/**
 	 * Returns a prompt command if the command name is valid.
 	 */
 	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]>;

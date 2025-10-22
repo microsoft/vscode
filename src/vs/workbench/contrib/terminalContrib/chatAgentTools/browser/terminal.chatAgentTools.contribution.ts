@@ -22,6 +22,7 @@ import { TerminalChatAgentToolsCommandId } from '../common/terminal.chatAgentToo
 import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
 import { GetTerminalSelectionTool, GetTerminalSelectionToolData } from './tools/getTerminalSelectionTool.js';
+import { ConfirmTerminalCommandTool, ConfirmTerminalCommandToolData } from './tools/runInTerminalConfirmationTool.js';
 import { RunInTerminalTool, createRunInTerminalToolData } from './tools/runInTerminalTool.js';
 import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/createAndRunTaskTool.js';
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
@@ -41,6 +42,8 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 
 		// #region Terminal
 
+		const confirmTerminalCommandTool = instantiationService.createInstance(ConfirmTerminalCommandTool);
+		this._register(toolsService.registerTool(ConfirmTerminalCommandToolData, confirmTerminalCommandTool));
 		const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
 		this._register(toolsService.registerTool(GetTerminalOutputToolData, getTerminalOutputTool));
 

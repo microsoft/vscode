@@ -26,6 +26,7 @@ import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
+import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
 
 export class ObservableChatSession extends Disposable implements ChatSession {
@@ -117,7 +118,21 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 			this.history.length = 0;
 			this.history.push(...sessionContent.history.map((turn: IChatSessionHistoryItemDto) => {
 				if (turn.type === 'request') {
-					return { type: 'request' as const, prompt: turn.prompt, participant: turn.participant };
+					const variables = turn.variableData?.variables.map(v => {
+						const entry = {
+							...v,
+							value: revive(v.value)
+						};
+						return entry as IChatRequestVariableEntry;
+					});
+
+					return {
+						type: 'request' as const,
+						prompt: turn.prompt,
+						participant: turn.participant,
+						command: turn.command,
+						variableData: variables ? { variables } : undefined
+					};
 				}
 
 				return {
