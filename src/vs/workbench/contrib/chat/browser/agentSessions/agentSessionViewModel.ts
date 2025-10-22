@@ -132,7 +132,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 						label: history.title,
 						provider: provider,
 						timing: {
-							startTime: history.lastMessageDate ?? Date.now() /* BAD */
+							startTime: history.lastMessageDate ?? Date.now() /* TODO@bpasero BAD */
 						},
 						description: new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`),
 					});
