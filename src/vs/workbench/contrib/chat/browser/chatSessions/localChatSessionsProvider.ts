@@ -205,6 +205,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			description: nls.localize('chat.sessions.chatView.description', "Chat View"),
 			iconPath: Codicon.chatSparkle,
 			status,
+			timing: { startTime: chatWidget?.viewModel?.model.getRequests().at(0)?.timestamp || 0 },
 			provider: this
 		};
 		sessions.push(widgetSession);
@@ -251,6 +252,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			id: LocalChatSessionsProvider.HISTORY_NODE_ID,
 			resource: URI.parse(`${Schemas.vscodeChatSession}://history`),
 			label: nls.localize('chat.sessions.showHistory', "History"),
+			timing: { startTime: 0 }
 		};
 
 		// Add "Show history..." node at the end

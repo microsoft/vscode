@@ -26,6 +26,7 @@ import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js'
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
+import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
@@ -98,7 +99,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	}
 
 	private get autoApproveMessageContent() {
-		const reason = IChatToolInvocation.isConfirmed(this.toolInvocation);
+		const reason = IChatToolInvocation.executionConfirmedOrDenied(this.toolInvocation);
 		if (!reason || typeof reason === 'boolean') {
 			return;
 		}
@@ -146,12 +147,16 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			if (this.toolInvocation.toolSpecificData?.kind === 'extensions') {
 				return this.instantiationService.createInstance(ExtensionsInstallConfirmationWidgetSubPart, this.toolInvocation, this.context);
 			}
-			if (this.toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			const state = this.toolInvocation.state.get();
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 				if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
 					return this.instantiationService.createInstance(ChatTerminalToolConfirmationSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
 				} else {
 					return this.instantiationService.createInstance(ToolConfirmationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
 				}
+			}
+			if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				return this.instantiationService.createInstance(ChatToolPostExecuteConfirmationPart, this.toolInvocation, this.context, this.editorPool, this.currentWidthDelegate);
 			}
 		}
 

@@ -44,7 +44,7 @@ const chatViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(Vi
 	order: 1,
 }, ViewContainerLocation.AuxiliaryBar, { isDefault: true, doNotRegisterOpenCommand: true });
 
-const chatViewDescriptor: IViewDescriptor[] = [{
+const chatViewDescriptor: IViewDescriptor = {
 	id: ChatViewId,
 	containerIcon: chatViewContainer.icon,
 	containerTitle: chatViewContainer.title.value,
@@ -73,8 +73,8 @@ const chatViewDescriptor: IViewDescriptor[] = [{
 		ChatContextKeys.panelParticipantRegistered,
 		ChatContextKeys.extensionInvalid
 	)
-}];
-Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(chatViewDescriptor, chatViewContainer);
+};
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([chatViewDescriptor], chatViewContainer);
 
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',

@@ -967,6 +967,17 @@ export class ProviderId {
 		}
 		return result;
 	}
+
+	toStringWithoutVersion(): string {
+		let result = '';
+		if (this.extensionId) {
+			result += this.extensionId;
+		}
+		if (this.providerId) {
+			result += `:${this.providerId}`;
+		}
+		return result;
+	}
 }
 
 /** @internal */
