@@ -91,7 +91,7 @@ suite('RunInTerminalTool', () => {
 			onDidDisposeSession: chatServiceDisposeEmitter.event
 		});
 		instantiationService.stub(ITerminalProfileResolverService, {
-			getDefaultProfile: async () => ({ path: 'pwsh' } as ITerminalProfile)
+			getDefaultProfile: async () => ({ path: 'bash' } as ITerminalProfile)
 		});
 
 		storageService = instantiationService.get(IStorageService);
@@ -341,7 +341,7 @@ suite('RunInTerminalTool', () => {
 				command: 'rm file.txt',
 				explanation: 'Remove a file'
 			});
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 		});
 
 		test('should require confirmation for commands in deny list even if in allow list', async () => {
@@ -354,7 +354,7 @@ suite('RunInTerminalTool', () => {
 				command: 'rm dangerous-file.txt',
 				explanation: 'Remove a dangerous file'
 			});
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 		});
 
 		test('should handle background commands with confirmation', async () => {
@@ -367,7 +367,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Start watching for file changes',
 				isBackground: true
 			});
-			assertConfirmationRequired(result, 'Run `pwsh` command? (background terminal)');
+			assertConfirmationRequired(result, 'Run `bash` command? (background terminal)');
 		});
 
 		test('should auto-approve background commands in allow list', async () => {
@@ -514,7 +514,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Build the project'
 			});
 
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
 				{ subCommand: 'npm run build' },
 				'commandLine',
@@ -558,7 +558,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Build the project'
 			});
 
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
 				'configure',
 			]);
@@ -570,7 +570,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Install dependencies and build'
 			});
 
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
 				{ subCommand: ['npm install', 'npm run build'] },
 				'commandLine',
@@ -588,7 +588,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Run foo command and show first 20 lines'
 			});
 
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
 				{ subCommand: 'foo' },
 				'commandLine',
@@ -620,7 +620,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Run multiple piped commands'
 			});
 
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
 				{ subCommand: ['foo', 'bar'] },
 				'commandLine',
@@ -931,7 +931,7 @@ suite('RunInTerminalTool', () => {
 
 			clearAutoApproveWarningAcceptedState();
 
-			assertConfirmationRequired(await executeToolTest({ command: 'echo hello world' }), 'Run `pwsh` command?');
+			assertConfirmationRequired(await executeToolTest({ command: 'echo hello world' }), 'Run `bash` command?');
 		});
 
 		test('should auto-approve commands when both auto-approve enabled and warning accepted', async () => {
@@ -950,7 +950,7 @@ suite('RunInTerminalTool', () => {
 			});
 
 			const result = await executeToolTest({ command: 'echo hello world' });
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 		});
 	});
 

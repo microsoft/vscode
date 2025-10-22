@@ -59,7 +59,7 @@ function createPowerShellModelDescription(shell: string): string {
 		'- Does NOT support multi-line commands',
 		// Even for pwsh 7+ we want to use `;` to chain commands since the tree sitter grammar
 		// doesn't parse `&&`
-		'- Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly',
+		// '- Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly',
 		'- Prefer pipelines | for object-based data flow',
 		'',
 		'Directory Management:',
@@ -414,7 +414,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 				// Log detailed auto approval reasoning
 				for (const reason of autoApproveReasons) {
-					this._logService.info(`- ${reason}`);
+					this._logService.info(`RunInTerminalTool: autoApprove: - ${reason}`);
 				}
 
 				// Apply auto approval or force it off depending on enablement/opt-in state
@@ -1001,7 +1001,7 @@ class BackgroundTerminalExecution extends Disposable {
 	}
 }
 
-class TerminalProfileFetcher {
+export class TerminalProfileFetcher {
 
 	readonly osBackend: Promise<OperatingSystem>;
 
