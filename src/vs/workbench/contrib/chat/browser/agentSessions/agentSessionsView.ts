@@ -325,7 +325,7 @@ export class AgentSessionsView extends FilterViewPane {
 		super.focus();
 
 		if (this.list?.getFocus().length) {
-			this.list?.domFocus();
+			this.list.domFocus();
 		} else {
 			this.filterWidget.focus();
 		}
