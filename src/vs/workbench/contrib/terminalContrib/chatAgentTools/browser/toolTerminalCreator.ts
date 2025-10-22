@@ -107,7 +107,7 @@ export class ToolTerminalCreator {
 					}),
 					timeout(timeoutMs)
 				]);
-				// Question: I should remove this store.dispose(). If I call processReadyListener.dispose() afterwards, would it throw error?
+				// Question: Considering removing `store.dispose() -> If I call processReadyListener.dispose() afterwards, would it throw error?
 				store.dispose();
 			}
 
