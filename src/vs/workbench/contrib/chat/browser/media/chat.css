@@ -1437,15 +1437,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		height: fit-content;
 		border-radius: 100%;
 
-		.chat-mcp-state-new {
+		&.chat-mcp-state-new {
 			color: var(--vscode-button-foreground);
 		}
 
-		.chat-mcp-state-error {
+		&.chat-mcp-state-error {
 			color: var(--vscode-problemsErrorIcon-foreground);
 		}
 
-		.chat-mcp-state-refreshing {
+		&.chat-mcp-state-refreshing {
 			color: var(--vscode-button-foreground);
 		}
 	}
