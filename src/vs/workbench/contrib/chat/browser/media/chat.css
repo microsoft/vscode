@@ -1082,6 +1082,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* Chat Todo List Widget Container - mirrors chat-editing-session styling */
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container {
+	margin-bottom: -4px; /* reset the 4px gap of the container for editing sessions */
 	width: 100%;
 	position: relative;
 }
