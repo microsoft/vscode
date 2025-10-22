@@ -39,7 +39,7 @@ export class WebviewInput extends EditorInput {
 
 	private readonly _resourceId = generateUuid();
 
-	private _name: string;
+	private _webviewTitle: string;
 	private _iconPath?: WebviewIcons;
 	private _group?: GroupIdentifier;
 
@@ -67,7 +67,7 @@ export class WebviewInput extends EditorInput {
 		this.viewType = init.viewType;
 		this.providedId = init.providedId;
 
-		this._name = init.name;
+		this._webviewTitle = init.name;
 		this._iconPath = init.iconPath;
 		this._webview = webview;
 
@@ -87,7 +87,7 @@ export class WebviewInput extends EditorInput {
 	}
 
 	public override getName(): string {
-		return this._name;
+		return this._webviewTitle;
 	}
 
 	public override getTitle(_verbosity?: Verbosity): string {
@@ -98,10 +98,14 @@ export class WebviewInput extends EditorInput {
 		return undefined;
 	}
 
-	public setName(value: string): void {
-		this._name = value;
+	public setWebviewTitle(value: string): void {
+		this._webviewTitle = value;
 		this.webview.setTitle(value);
 		this._onDidChangeLabel.fire();
+	}
+
+	public getWebviewTitle(): string | undefined {
+		return this._webviewTitle;
 	}
 
 	public get webview(): IOverlayWebview {
