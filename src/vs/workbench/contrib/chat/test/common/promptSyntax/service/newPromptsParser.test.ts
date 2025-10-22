@@ -8,13 +8,13 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { NewPromptsParser } from '../../../../common/promptSyntax/service/newPromptsParser.js';
+import { PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
 
 suite('NewPromptsParser', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('agent', async () => {
-		const uri = URI.parse('file:///test/test.vscode-agent.md');
+		const uri = URI.parse('file:///test/test.agent.md');
 		const content = [
 			/* 01 */'---',
 			/* 02 */`description: "Agent test"`,
@@ -24,7 +24,7 @@ suite('NewPromptsParser', () => {
 			/* 06 */'This is an agent test.',
 			/* 07 */'Here is a #tool1 variable and a #file:./reference1.md as well as a [reference](./reference2.md).',
 		].join('\n');
-		const result = new NewPromptsParser().parse(uri, content);
+		const result = new PromptFileParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
 		assert.ok(result.header);
 		assert.ok(result.body);
@@ -58,7 +58,7 @@ suite('NewPromptsParser', () => {
 	});
 
 	test('mode with handoff', async () => {
-		const uri = URI.parse('file:///test/test.vscode-agent.md');
+		const uri = URI.parse('file:///test/test.agent.md');
 		const content = [
 			/* 01 */'---',
 			/* 02 */`description: "Agent test"`,
@@ -74,7 +74,7 @@ suite('NewPromptsParser', () => {
 			/* 12 */'    send: true',
 			/* 13 */'---',
 		].join('\n');
-		const result = new NewPromptsParser().parse(uri, content);
+		const result = new PromptFileParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
 		assert.ok(result.header);
 		assert.deepEqual(result.header.range, { startLineNumber: 2, startColumn: 1, endLineNumber: 13, endColumn: 1 });
@@ -126,7 +126,7 @@ suite('NewPromptsParser', () => {
 			/* 04 */'---',
 			/* 05 */'Follow my companies coding guidlines at [mycomp-ts-guidelines](https://mycomp/guidelines#typescript.md)',
 		].join('\n');
-		const result = new NewPromptsParser().parse(uri, content);
+		const result = new PromptFileParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
 		assert.ok(result.header);
 		assert.ok(result.body);
@@ -158,7 +158,7 @@ suite('NewPromptsParser', () => {
 			/* 06 */'---',
 			/* 07 */'This is a prompt file body referencing #search and [docs](https://example.com/docs).',
 		].join('\n');
-		const result = new NewPromptsParser().parse(uri, content);
+		const result = new PromptFileParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
 		assert.ok(result.header);
 		assert.ok(result.body);
@@ -206,7 +206,7 @@ suite('NewPromptsParser', () => {
 			/* 10 */'      copilotCodingAgent: false',
 			/* 11 */'---',
 		].join('\n');
-		const result = new NewPromptsParser().parse(uri, content);
+		const result = new PromptFileParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
 		assert.ok(result.header);
 		assert.ok(!result.body);
