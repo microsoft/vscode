@@ -36,27 +36,21 @@ function extractTitleFromThinkingContent(content: string): string | undefined {
 }
 
 /**
- * gpt-5          => fixedScrolling
- * gpt-5-codex    => collapsed
- * gemini         => collapsed
- * all others     => collapsed
+ * everything     => fixedScrolling
+ * gpt-5-codex    => collapsed with special grouping
  */
 function resolvePerModelDefaultThinkingStyle(modelId: string | undefined): ThinkingDisplayMode {
 	if (!modelId) {
-		return ThinkingDisplayMode.Collapsed;
+		return ThinkingDisplayMode.FixedScrolling;
 	}
 	const id = modelId.toLowerCase();
 
 	// TODO @justschen: could have additional styles specific to gemini/codex besides collapased.
-	if (id.includes('gpt-5-codex') || id.includes('gemini')) {
-		return ThinkingDisplayMode.Collapsed;
+	if (id.includes('gpt-5-codex')) {
+		return ThinkingDisplayMode.FixedScrollingTools;
 	}
 
-	if (id.includes('gpt-5')) {
-		return ThinkingDisplayMode.FixedScrolling;
-	}
-
-	return ThinkingDisplayMode.Collapsed;
+	return ThinkingDisplayMode.FixedScrolling;
 }
 
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
@@ -106,14 +100,14 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		this.perItemCollapsedMode = effectiveMode === ThinkingDisplayMode.CollapsedPerItem;
-		this.fixedScrollingMode = effectiveMode === ThinkingDisplayMode.FixedScrolling;
+		this.fixedScrollingMode = effectiveMode === ThinkingDisplayMode.FixedScrolling || effectiveMode === ThinkingDisplayMode.FixedScrollingTools;
 
 		this.currentTitle = extractedTitle;
 		if (extractedTitle !== this.defaultTitle) {
 			this.lastExtractedTitle = extractedTitle;
 		}
 		this.currentThinkingValue = this.parseContent(initialText);
-		if (effectiveMode === ThinkingDisplayMode.Expanded || effectiveMode === ThinkingDisplayMode.CollapsedPreview || effectiveMode === ThinkingDisplayMode.FixedScrolling) {
+		if (effectiveMode === ThinkingDisplayMode.Expanded || effectiveMode === ThinkingDisplayMode.CollapsedPreview || effectiveMode === ThinkingDisplayMode.FixedScrolling || effectiveMode === ThinkingDisplayMode.FixedScrollingTools) {
 			this.setExpanded(true);
 		} else if (effectiveMode === ThinkingDisplayMode.Collapsed) {
 			this.setExpanded(false);
@@ -343,6 +337,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	public appendItem(content: HTMLElement): void {
 		this.wrapper.appendChild(content);
+		if (this.fixedScrollingMode) {
+			const container = this.fixedScrollViewport ?? this.textContainer;
+			if (container) {
+				container.scrollTop = container.scrollHeight;
+			}
+		}
 	}
 
 	// makes a new text container. when we update, we now update this container.

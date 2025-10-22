@@ -772,8 +772,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const thinkingStyle = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
 		const defaultScrolling = thinkingStyle === ThinkingDisplayMode.Default && element.model.request?.modelId?.toLowerCase().includes('gpt-5');
+		const defaultCodex = thinkingStyle === ThinkingDisplayMode.Default && element.model.request?.modelId?.toLowerCase().includes('codex');
 		if ((thinkingStyle === ThinkingDisplayMode.FixedScrolling || defaultScrolling) && lastPart?.kind === 'thinking') {
 			return false;
+		}
+
+		if (thinkingStyle === ThinkingDisplayMode.FixedScrollingTools || defaultCodex) {
+			return lastPart?.kind !== 'thinking' && lastPart?.kind !== 'toolInvocation' && lastPart?.kind !== 'prepareToolInvocation';
 		}
 
 		if (
@@ -1019,7 +1024,22 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				contentIndex: contentIndex,
 				container: templateData.rowContainer,
 			};
-			const newPart = this.renderChatContentPart(partToRender, templateData, context, element);
+
+			const thinkingStyle = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
+			const shouldPin = (thinkingStyle === ThinkingDisplayMode.FixedScrollingTools || (thinkingStyle === ThinkingDisplayMode.Default && element.model.request?.modelId?.toLowerCase().includes('codex')));
+
+			if (this._currentThinkingPart && (partToRender.kind === 'toolInvocation' || partToRender.kind === 'toolInvocationSerialized') && shouldPin) {
+				const newPart = this.renderChatContentPart(partToRender, templateData, context);
+				if (newPart) {
+					renderedParts[contentIndex] = newPart;
+					if (alreadyRenderedPart instanceof ChatWorkingProgressContentPart && alreadyRenderedPart?.domNode) {
+						alreadyRenderedPart.domNode.remove();
+					}
+				}
+				return;
+			}
+
+			const newPart = this.renderChatContentPart(partToRender, templateData, context);
 			if (newPart) {
 				renderedParts[contentIndex] = newPart;
 				// Maybe the part can't be rendered in this context, but this shouldn't really happen
@@ -1184,27 +1204,27 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	// put thinking parts inside a pinned part. commented out for now.
-	// private shouldPinPart(part: IChatRendererContent, element?: IChatResponseViewModel): boolean {
+	private shouldPinPart(part: IChatRendererContent, element?: IChatResponseViewModel): boolean {
 
-	// 	if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && element) {
-	// 		// Explicit set of tools that should be pinned when there has been thinking
-	// 		const specialToolIds = new Set<string>([
-	// 			'copilot_searchCodebase',
-	// 			'copilot_searchWorkspaceSymbols',
-	// 			'copilot_listCodeUsages',
-	// 			'copilot_think',
-	// 			'copilot_findFiles',
-	// 			'copilot_findTextInFiles',
-	// 			'copilot_readFile',
-	// 			'copilot_listDirectory',
-	// 			'copilot_getChangedFiles',
-	// 		]);
-	// 		const isSpecialTool = specialToolIds.has(part.toolId);
-	// 		return isSpecialTool && this._hasHitThinking;
-	// 	}
+		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && element) {
+			// Explicit set of tools that should be pinned when there has been thinking
+			const specialToolIds = new Set<string>([
+				'copilot_searchCodebase',
+				'copilot_searchWorkspaceSymbols',
+				'copilot_listCodeUsages',
+				'copilot_think',
+				'copilot_findFiles',
+				'copilot_findTextInFiles',
+				'copilot_readFile',
+				'copilot_listDirectory',
+				'copilot_getChangedFiles',
+			]);
+			const isSpecialTool = specialToolIds.has(part.toolId);
+			return isSpecialTool;
+		}
 
-	// 	return false;
-	// }
+		return false;
+	}
 
 	private finalizeCurrentThinkingPart(): void {
 		if (!this._currentThinkingPart) {
@@ -1219,7 +1239,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._currentThinkingPart = undefined;
 	}
 
-	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext, element?: IChatResponseViewModel): IChatContentPart | undefined {
+	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
 		try {
 
 			if (this.shouldShowThinkingPart()) {
@@ -1230,16 +1250,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					return this.renderNoContent(other => content.kind === other.kind);
 				}
 
-				const isNonThinkingContent = content.kind !== 'working' && content.kind !== 'thinking';
-				if (element) {
-					const modelId = element.model.request?.modelId?.toLowerCase();
-					if (modelId?.includes('gemini') && this._currentThinkingPart && isNonThinkingContent) {
+				if (isResponseVM(context.element) && (this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') === ThinkingDisplayMode.FixedScrollingTools || (this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') === ThinkingDisplayMode.Default && context.element.model.request?.modelId?.toLowerCase().includes('codex')))) {
+					const isNonThinkingContent = content.kind !== 'working' && content.kind !== 'thinking' && content.kind !== 'toolInvocation' && content.kind !== 'toolInvocationSerialized' && content.kind !== 'prepareToolInvocation';
+					if (this._currentThinkingPart && isNonThinkingContent && !this._streamingThinking) {
 						this.finalizeCurrentThinkingPart();
 					}
-				}
 
-				if (this._currentThinkingPart && isNonThinkingContent && !this._streamingThinking) {
-					this.finalizeCurrentThinkingPart();
+				} else {
+					const isNonThinkingContent = content.kind !== 'working' && content.kind !== 'thinking';
+					if (this._currentThinkingPart && isNonThinkingContent && !this._streamingThinking) {
+						this.finalizeCurrentThinkingPart();
+					}
 				}
 			}
 
@@ -1446,6 +1467,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.updateItemHeight(templateData);
 		}));
 		this.handleRenderedCodeblocks(context.element, part, codeBlockStartIndex);
+
+		const thinkingStyle = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
+		const isCodex = isResponseVM(context.element) && context.element.model.request?.modelId?.toLowerCase().includes('codex');
+		if (isCodex && (thinkingStyle === ThinkingDisplayMode.FixedScrollingTools || (thinkingStyle === ThinkingDisplayMode.Default))) {
+			if (this.shouldPinPart(toolInvocation, context.element)) {
+				if (this._currentThinkingPart && part?.domNode) {
+					this._currentThinkingPart.appendItem(part?.domNode);
+				}
+			}
+		}
+
 		return part;
 	}
 
