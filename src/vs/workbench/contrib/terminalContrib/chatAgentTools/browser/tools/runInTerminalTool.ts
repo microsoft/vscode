@@ -19,7 +19,7 @@ import type { SingleOrMany } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
@@ -41,12 +41,183 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { dedupeRules, generateAutoApproveActions, isPowerShell } from '../runInTerminalHelpers.js';
+import { dedupeRules, generateAutoApproveActions, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { splitCommandLineIntoSubCommands } from '../subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
+
+// #region Tool data
+
+function createPowerShellModelDescription(shell: string): string {
+	const isWinPwsh = isWindowsPowerShell(shell);
+	return [
+		`This tool allows you to execute ${isWinPwsh ? 'Windows PowerShell 5.1' : 'PowerShell'} commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.`,
+		'',
+		'Command Execution:',
+		'- Does NOT support multi-line commands',
+		`- ${isWinPwsh
+			? 'Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly'
+			: 'Use && to chain simple commands on one line'}`,
+		'- Prefer pipelines | for object-based data flow',
+		'',
+		'Directory Management:',
+		'- Must use absolute paths to avoid navigation issues',
+		'- Use $PWD or Get-Location for current directory',
+		'- Use Push-Location/Pop-Location for directory stack',
+		'',
+		'Program Execution:',
+		'- Supports .NET, Python, Node.js, and other executables',
+		'- Install modules via Install-Module, Install-Package',
+		'- Use Get-Command to verify cmdlet/function availability',
+		'',
+		'Background Processes:',
+		'- For long-running tasks (e.g., servers), set isBackground=true',
+		'- Returns a terminal ID for checking status and runtime later',
+		'- Use Start-Job for background PowerShell jobs',
+		'',
+		'Output Management:',
+		'- Output is automatically truncated if longer than 60KB to prevent context overflow',
+		'- Use Select-Object, Where-Object, Format-Table to filter output',
+		'- Use -First/-Last parameters to limit results',
+		'- For pager commands, add | Out-String or | Format-List',
+		'',
+		'Best Practices:',
+		'- Use proper cmdlet names instead of aliases in scripts',
+		'- Quote paths with spaces: "C:\\Path With Spaces"',
+		'- Prefer PowerShell cmdlets over external commands when available',
+		'- Prefer idiomatic PowerShell like Get-ChildItem instead of dir or ls for file listings',
+		'- Use Test-Path to check file/directory existence',
+		'- Be specific with Select-Object properties to avoid excessive output'
+	].join('\n');
+}
+
+const genericDescription = `
+Command Execution:
+- Does NOT support multi-line commands
+- Use && to chain simple commands on one line
+- Prefer pipelines | over temporary files for data flow
+
+Directory Management:
+- Must use absolute paths to avoid navigation issues
+- Use $PWD for current directory references
+- Consider using pushd/popd for directory stack management
+- Supports directory shortcuts like ~ and -
+
+Program Execution:
+- Supports Python, Node.js, and other executables
+- Install packages via package managers (brew, apt, etc.)
+- Use which or command -v to verify command availability
+
+Background Processes:
+- For long-running tasks (e.g., servers), set isBackground=true
+- Returns a terminal ID for checking status and runtime later
+
+Output Management:
+- Output is automatically truncated if longer than 60KB to prevent context overflow
+- Use head, tail, grep, awk to filter and limit output size
+- For pager commands, disable paging: git --no-pager or add | cat
+- Use wc -l to count lines before displaying large outputs
+
+Best Practices:
+- Quote variables: "$var" instead of $var to handle spaces
+- Use find with -exec or xargs for file operations
+- Be specific with commands to avoid excessive output`;
+
+function createBashModelDescription(): string {
+	return [
+		'This tool allows you to execute shell commands in a persistent bash terminal session, preserving environment variables, working directory, and other context across multiple commands.',
+		genericDescription,
+		'- Use [[ ]] for conditional tests instead of [ ]',
+		'- Prefer $() over backticks for command substitution',
+		'- Use set -e at start of complex commands to exit on errors'
+	].join('\n');
+}
+
+function createZshModelDescription(): string {
+	return [
+		'This tool allows you to execute shell commands in a persistent zsh terminal session, preserving environment variables, working directory, and other context across multiple commands.',
+		genericDescription,
+		'- Use type to check command type (builtin, function, alias)',
+		'- Use jobs, fg, bg for job control',
+		'- Use [[ ]] for conditional tests instead of [ ]',
+		'- Prefer $() over backticks for command substitution',
+		'- Use setopt errexit for strict error handling',
+		'- Take advantage of zsh globbing features (**, extended globs)'
+	].join('\n');
+}
+
+function createFishModelDescription(): string {
+	return [
+		'This tool allows you to execute shell commands in a persistent fish terminal session, preserving environment variables, working directory, and other context across multiple commands.',
+		genericDescription,
+		'- Use type to check command type (builtin, function, alias)',
+		'- Use jobs, fg, bg for job control',
+		'- Use test expressions for conditionals (no [[ ]] syntax)',
+		'- Prefer command substitution with () syntax',
+		'- Variables are arrays by default, use $var[1] for first element',
+		'- Use set -e for strict error handling',
+		'- Take advantage of fish\'s autosuggestions and completions'
+	].join('\n');
+}
+
+export async function createRunInTerminalToolData(
+	accessor: ServicesAccessor
+): Promise<IToolData> {
+	const instantiationService = accessor.get(IInstantiationService);
+
+	const profileFetcher = instantiationService.createInstance(TerminalProfileFetcher);
+	const shell = await profileFetcher.getCopilotShell();
+	const os = await profileFetcher.osBackend;
+
+	let modelDescription: string;
+	if (shell && os && isPowerShell(shell, os)) {
+		modelDescription = createPowerShellModelDescription(shell);
+	} else if (shell && os && isZsh(shell, os)) {
+		modelDescription = createZshModelDescription();
+	} else if (shell && os && isFish(shell, os)) {
+		modelDescription = createFishModelDescription();
+	} else {
+		modelDescription = createBashModelDescription();
+	}
+
+	return {
+		id: 'run_in_terminal',
+		toolReferenceName: 'runInTerminal',
+		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
+		modelDescription,
+		userDescription: localize('runInTerminalTool.userDescription', 'Tool for running commands in the terminal'),
+		source: ToolDataSource.Internal,
+		icon: Codicon.terminal,
+		inputSchema: {
+			type: 'object',
+			properties: {
+				command: {
+					type: 'string',
+					description: 'The command to run in the terminal.'
+				},
+				explanation: {
+					type: 'string',
+					description: 'A one-sentence description of what the command does. This will be shown to the user before the command is run.'
+				},
+				isBackground: {
+					type: 'boolean',
+					description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output.'
+				},
+			},
+			required: [
+				'command',
+				'explanation',
+				'isBackground',
+			]
+		}
+	};
+}
+
+// #endregion
+
+// #region Tool implementation
 
 const enum TerminalToolStorageKeysInternal {
 	TerminalSession = 'chat.terminalSessions'
@@ -58,66 +229,6 @@ interface IStoredTerminalAssociation {
 	shellIntegrationQuality: ShellIntegrationQuality;
 	isBackground?: boolean;
 }
-
-export const RunInTerminalToolData: IToolData = {
-	id: 'run_in_terminal',
-	toolReferenceName: 'runInTerminal',
-	displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
-	modelDescription: [
-		'This tool allows you to execute shell commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		'',
-		'Command Execution:',
-		// TODO: Multi-line command execution does work, but it requires AST parsing to pull
-		// sub-commands out reliably https://github.com/microsoft/vscode/issues/261794
-		'- Does NOT support multi-line commands',
-		'',
-		'Directory Management:',
-		'- Must use absolute paths to avoid navigation issues.',
-		'',
-		'Program Execution:',
-		'- Supports Python, Node.js, and other executables.',
-		'- Install dependencies via pip, npm, etc.',
-		'',
-		'Background Processes:',
-		'- For long-running tasks (e.g., servers), set isBackground=true.',
-		'- Returns a terminal ID for checking status and runtime later.',
-		'',
-		'Output Management:',
-		'- Output is automatically truncated if longer than 60KB to prevent context overflow',
-		'- Use filters like \'head\', \'tail\', \'grep\' to limit output size',
-		'- For pager commands, disable paging: use \'git --no-pager\' or add \'| cat\'',
-		'',
-		'Best Practices:',
-		'- Be specific with commands to avoid excessive output',
-		'- Use targeted queries instead of broad scans',
-		'- Consider using \'wc -l\' to count before listing many items'
-	].join('\n'),
-	userDescription: localize('runInTerminalTool.userDescription', 'Tool for running commands in the terminal'),
-	source: ToolDataSource.Internal,
-	icon: Codicon.terminal,
-	inputSchema: {
-		type: 'object',
-		properties: {
-			command: {
-				type: 'string',
-				description: 'The command to run in the terminal.'
-			},
-			explanation: {
-				type: 'string',
-				description: 'A one-sentence description of what the command does. This will be shown to the user before the command is run.'
-			},
-			isBackground: {
-				type: 'boolean',
-				description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output.'
-			},
-		},
-		required: [
-			'command',
-			'explanation',
-			'isBackground',
-		]
-	}
-};
 
 export interface IRunInTerminalInputParams {
 	command: string;
@@ -148,6 +259,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private readonly _terminalToolCreator: ToolTerminalCreator;
 	private readonly _commandSimplifier: CommandSimplifier;
+	protected readonly _profileFetcher: TerminalProfileFetcher;
 	private readonly _telemetry: RunInTerminalToolTelemetry;
 	protected readonly _commandLineAutoApprover: CommandLineAutoApprover;
 	protected readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
@@ -170,7 +282,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
-		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -182,6 +293,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		this._terminalToolCreator = _instantiationService.createInstance(ToolTerminalCreator);
 		this._commandSimplifier = _instantiationService.createInstance(CommandSimplifier, this._osBackend);
+		this._profileFetcher = _instantiationService.createInstance(TerminalProfileFetcher);
 		this._telemetry = _instantiationService.createInstance(RunInTerminalToolTelemetry);
 		this._commandLineAutoApprover = this._register(_instantiationService.createInstance(CommandLineAutoApprover));
 
@@ -217,7 +329,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const presentation = alternativeRecommendation ? ToolInvocationPresentation.Hidden : undefined;
 
 		const os = await this._osBackend;
-		const shell = await this._getCopilotShell();
+		const shell = await this._profileFetcher.getCopilotShell();
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
@@ -625,74 +737,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	// #region Terminal init
 
-	protected async _getCopilotProfile(): Promise<ITerminalProfile> {
-		const os = await this._osBackend;
-
-		// Check for chat agent terminal profile first
-		const customChatAgentProfile = this._getChatTerminalProfile(os);
-		if (customChatAgentProfile) {
-			return customChatAgentProfile;
-		}
-
-		// When setting is null, use the previous behavior
-		const defaultProfile = await this._terminalProfileResolverService.getDefaultProfile({
-			os,
-			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
-		});
-
-		// Force pwsh over cmd as cmd doesn't have shell integration
-		if (basename(defaultProfile.path) === 'cmd.exe') {
-			return {
-				...defaultProfile,
-				path: 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
-				profileName: 'PowerShell'
-			};
-		}
-
-		// Setting icon: undefined allows the system to use the default Copilot terminal icon (not overridden or removed)
-		return { ...defaultProfile, icon: undefined };
-	}
-
-	private async _getCopilotShell(): Promise<string> {
-		return (await this._getCopilotProfile()).path;
-	}
-
-	private _getChatTerminalProfile(os: OperatingSystem): ITerminalProfile | undefined {
-		let profileSetting: string;
-		switch (os) {
-			case OperatingSystem.Windows:
-				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileWindows;
-				break;
-			case OperatingSystem.Macintosh:
-				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileMacOs;
-				break;
-			case OperatingSystem.Linux:
-			default:
-				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileLinux;
-				break;
-		}
-
-		const profile = this._configurationService.getValue(profileSetting);
-		if (this._isValidChatAgentTerminalProfile(profile)) {
-			return profile;
-		}
-
-		return undefined;
-	}
-
-	private _isValidChatAgentTerminalProfile(profile: unknown): profile is ITerminalProfile {
-		if (profile === null || profile === undefined || typeof profile !== 'object') {
-			return false;
-		}
-		if ('path' in profile && typeof (profile as { path: unknown }).path === 'string') {
-			return true;
-		}
-		return false;
-	}
-
 	private async _initBackgroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
 		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
-		const profile = await this._getCopilotProfile();
+		const profile = await this._profileFetcher.getCopilotProfile();
 		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
 		this._registerInputListener(toolTerminal);
@@ -713,7 +760,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance);
 			return cachedTerminal;
 		}
-		const profile = await this._getCopilotProfile();
+		const profile = await this._profileFetcher.getCopilotProfile();
 		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
 		this._registerInputListener(toolTerminal);
@@ -937,3 +984,83 @@ class BackgroundTerminalExecution extends Disposable {
 		return getOutput(this.instance, marker ?? this._startMarker);
 	}
 }
+
+class TerminalProfileFetcher {
+
+	readonly osBackend: Promise<OperatingSystem>;
+
+	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+	) {
+		this.osBackend = this._remoteAgentService.getEnvironment().then(remoteEnv => remoteEnv?.os ?? OS);
+	}
+
+	async getCopilotProfile(): Promise<ITerminalProfile> {
+		const os = await this.osBackend;
+
+		// Check for chat agent terminal profile first
+		const customChatAgentProfile = this._getChatTerminalProfile(os);
+		if (customChatAgentProfile) {
+			return customChatAgentProfile;
+		}
+
+		// When setting is null, use the previous behavior
+		const defaultProfile = await this._terminalProfileResolverService.getDefaultProfile({
+			os,
+			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
+		});
+
+		// Force pwsh over cmd as cmd doesn't have shell integration
+		if (basename(defaultProfile.path) === 'cmd.exe') {
+			return {
+				...defaultProfile,
+				path: 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+				profileName: 'PowerShell'
+			};
+		}
+
+		// Setting icon: undefined allows the system to use the default Copilot terminal icon (not overridden or removed)
+		return { ...defaultProfile, icon: undefined };
+	}
+
+	async getCopilotShell(): Promise<string> {
+		return (await this.getCopilotProfile()).path;
+	}
+
+	private _getChatTerminalProfile(os: OperatingSystem): ITerminalProfile | undefined {
+		let profileSetting: string;
+		switch (os) {
+			case OperatingSystem.Windows:
+				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileWindows;
+				break;
+			case OperatingSystem.Macintosh:
+				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileMacOs;
+				break;
+			case OperatingSystem.Linux:
+			default:
+				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileLinux;
+				break;
+		}
+
+		const profile = this._configurationService.getValue(profileSetting);
+		if (this._isValidChatAgentTerminalProfile(profile)) {
+			return profile;
+		}
+
+		return undefined;
+	}
+
+	private _isValidChatAgentTerminalProfile(profile: unknown): profile is ITerminalProfile {
+		if (profile === null || profile === undefined || typeof profile !== 'object') {
+			return false;
+		}
+		if ('path' in profile && typeof (profile as { path: unknown }).path === 'string') {
+			return true;
+		}
+		return false;
+	}
+}
+
+// #endregion

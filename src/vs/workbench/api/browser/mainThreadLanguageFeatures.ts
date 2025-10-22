@@ -719,7 +719,6 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 
 				const endOfLifeSummary: InlineCompletionEndOfLifeEvent = {
-					id: lifetimeSummary.requestUuid,
 					opportunityId: lifetimeSummary.requestUuid,
 					correlationId: lifetimeSummary.correlationId,
 					shown: lifetimeSummary.shown,
