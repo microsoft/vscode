@@ -1075,7 +1075,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const inputState = this.getInputState();
 			const entry = this.getFilteredEntry(userQuery, inputState);
 			this.history.replaceLast(entry);
-			this.history.add({ text: '' });
+			this.history.add({ text: '', state: this.getInputState() });
 		}
 
 		// Clear attached context, fire event to clear input state, and clear the input editor
@@ -1295,6 +1295,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const attachmentToolbarContainer = elements.attachmentToolbar;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
+
 		if (this.options.enableImplicitContext) {
 			this._implicitContext = this._register(
 				this.instantiationService.createInstance(ChatImplicitContext),
@@ -1797,7 +1798,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
-		// Render the widget with the current session
 		this._chatInputTodoListWidget.value.render(chatSessionId);
 	}
 
@@ -2064,7 +2064,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get contentHeight(): number {
 		const data = this.getLayoutData();
-		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight;
+		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight + data.todoListWidgetContainerHeight;
 	}
 
 	layout(height: number, width: number) {
@@ -2076,7 +2076,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private previousInputEditorDimension: IDimension | undefined;
 	private _layout(height: number, width: number, allowRecurse = true): void {
 		const data = this.getLayoutData();
-		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.attachmentsHeight - data.inputPartVerticalPadding - data.toolbarsHeight);
+		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.attachmentsHeight - data.inputPartVerticalPadding - data.toolbarsHeight - data.chatEditingStateHeight - data.todoListWidgetContainerHeight);
 
 		const followupsWidth = width - data.inputPartHorizontalPadding;
 		this.followupsContainer.style.width = `${followupsWidth}px`;
