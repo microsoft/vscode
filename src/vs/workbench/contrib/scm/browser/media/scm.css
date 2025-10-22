@@ -51,6 +51,7 @@
 
 .scm-view .scm-provider > .monaco-icon-label {
 	flex: 1;
+	overflow: unset;
 }
 
 .scm-view .scm-provider .monaco-highlighted-label {
@@ -76,6 +77,23 @@
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:nth-child(1) {
 	min-width: 20px;
+	padding-left: 0px;
+	flex: 1;
+	overflow: hidden;
+}
+
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:nth-child(1) > .action-label {
+	margin-top: 1px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+	display: block;
+}
+
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:nth-child(1) > .action-label > .codicon {
+	display: inline-block;
+	vertical-align: middle;
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label,
