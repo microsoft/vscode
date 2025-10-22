@@ -37,7 +37,6 @@ import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { findExistingChatEditorByUri, NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
 import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
-import { Event } from '../../../../../base/common/event.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
 import { IChatEditorOptions } from '../chatEditor.js';
@@ -46,6 +45,9 @@ import { ChatEditorInput } from '../chatEditorInput.js';
 import { assertReturnsDefined } from '../../../../../base/common/types.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
+import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 
 export class AgentSessionsView extends FilterViewPane {
 
@@ -127,16 +129,8 @@ export class AgentSessionsView extends FilterViewPane {
 				return;
 			}
 
-			this.sessionsViewModel = this._register(this.instantiationService.createInstance(AgentSessionsViewModel));
-			list.setInput(this.sessionsViewModel);
+			this.createViewModel();
 		}));
-
-		this._register(Event.debounce(Event.any(
-			this.chatSessionsService.onDidChangeItemsProviders,
-			this.chatSessionsService.onDidChangeAvailability,
-			this.chatSessionsService.onDidChangeSessionItems,
-			this.chatSessionsService.onDidChangeInProgress
-		), () => undefined, 500)(() => this.refreshList({ fromEvent: true })));
 
 		this._register(list.onDidOpen(e => {
 			this.openAgentSession(e);
@@ -216,7 +210,7 @@ export class AgentSessionsView extends FilterViewPane {
 				});
 			}
 			runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
-				view.refreshList({ fromEvent: false });
+				view.sessionsViewModel?.resolve(undefined);
 			}
 		}));
 	}
@@ -294,21 +288,26 @@ export class AgentSessionsView extends FilterViewPane {
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore>;
 	}
 
-	private async refreshList({ fromEvent }: { fromEvent: boolean }): Promise<void> {
-		if (this.sessionsViewModel?.sessions.length === 0 || !fromEvent) {
-			await this.progressService.withProgress(
+	private createViewModel(): void {
+		const sessionsViewModel = this.sessionsViewModel = this._register(this.instantiationService.createInstance(AgentSessionsViewModel));
+		this.list?.setInput(sessionsViewModel);
+
+		this._register(sessionsViewModel.onDidChangeSessions(() => this.list?.updateChildren()));
+
+		const didResolveDisposable = this._register(new MutableDisposable());
+		this._register(sessionsViewModel.onWillResolve(() => {
+			const didResolve = new DeferredPromise<void>();
+			didResolveDisposable.value = Event.once(sessionsViewModel.onDidResolve)(() => didResolve.complete());
+
+			this.progressService.withProgress(
 				{
 					location: this.id,
 					title: localize('agentSessions.refreshing', 'Refreshing agent sessions...'),
-					delay: fromEvent ? 800 : undefined
+					delay: 500
 				},
-				async () => {
-					await this.list?.updateChildren();
-				}
+				() => didResolve.p
 			);
-		} else {
-			await this.list?.updateChildren();
-		}
+		}));
 	}
 
 	//#endregion
