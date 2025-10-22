@@ -35,14 +35,16 @@ class ShellIntegrationTimeoutMigrationContribution extends Disposable implements
 	static readonly ID = 'terminal.shellIntegrationTimeoutMigration';
 
 	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		const newSettingValue = this._configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
-		const deprecatedSettingValue = this._configurationService.getValue<unknown>(TerminalChatAgentToolsSettingId.ShellIntegrationTimeout);
-
-		if (!isNumber(newSettingValue) && isNumber(deprecatedSettingValue)) {
-			this._configurationService.updateValue(TerminalSettingId.ShellIntegrationTimeout, deprecatedSettingValue);
+		const deprecatedSettingValue = configurationService.getValue<unknown>(TerminalChatAgentToolsSettingId.ShellIntegrationTimeout);
+		if (!isNumber(deprecatedSettingValue)) {
+			return;
+		}
+		const newSettingValue = configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
+		if (!isNumber(newSettingValue)) {
+			configurationService.updateValue(TerminalSettingId.ShellIntegrationTimeout, deprecatedSettingValue);
 		}
 	}
 }
