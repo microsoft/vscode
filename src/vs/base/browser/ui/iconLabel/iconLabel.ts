@@ -31,6 +31,7 @@ export interface IIconLabelValueOptions {
 	suffix?: string;
 	hideIcon?: boolean;
 	extraClasses?: readonly string[];
+	bold?: boolean;
 	italic?: boolean;
 	strikethrough?: boolean;
 	matches?: readonly IMatch[];
@@ -141,6 +142,10 @@ export class IconLabel extends Disposable {
 		if (options) {
 			if (options.extraClasses) {
 				labelClasses.push(...options.extraClasses);
+			}
+
+			if (options.bold) {
+				labelClasses.push('bold');
 			}
 
 			if (options.italic) {

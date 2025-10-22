@@ -1330,9 +1330,10 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		};
 	}
 
-	private processLabel(label: string | IMarkdownString | undefined, matches: { start: number; end: number }[] | undefined): { label: string | undefined; italic: boolean; strikethrough: boolean; supportIcons: boolean | undefined } {
+	private processLabel(label: string | IMarkdownString | undefined, matches: { start: number; end: number }[] | undefined): { label: string | undefined; bold: boolean; italic: boolean; strikethrough: boolean; supportIcons: boolean | undefined } {
 		if (isMarkdownString(label)) {
 			let text = label.value.trim();
+			let bold = false;
 			let italic = false;
 			let strikethrough = false;
 
@@ -1345,43 +1346,47 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				}
 			}
 
-			function checkStrikethrough() {
-				// If there is a match within the strikethrough markers, do not process
-				if (matches && matches.some(match => match.start < 2 || match.end > text.length - 2)) {
-					return;
+			const syntaxes = [
+				{ open: '~~', close: '~~', mark: () => { strikethrough = true; } },
+				{ open: '**', close: '**', mark: () => { bold = true; } },
+				{ open: '*', close: '*', mark: () => { italic = true; } },
+				{ open: '_', close: '_', mark: () => { italic = true; } }
+			];
+
+			function checkSyntaxes(): boolean {
+				let didChange = false;
+				for (const syntax of syntaxes) {
+					if (text.startsWith(syntax.open) && text.endsWith(syntax.close)) {
+						// If there is a match within the markers, stop processing
+						if (matches && matches.some(match => match.start < syntax.open.length || match.end > text.length - syntax.close.length)) {
+							return false;
+						}
+
+						syntax.mark();
+						text = text.substring(syntax.open.length, text.length - syntax.close.length);
+						moveMatches(syntax.open.length);
+						didChange = true;
+					}
 				}
-				if (text.startsWith('~~') && text.endsWith('~~')) {
-					strikethrough = true;
-					text = text.substring(2, text.length - 2);
-					moveMatches(2);
-				}
+				return didChange;
 			}
 
-			function checkItalic() {
-				// If there is a match within the italic markers, do not process
-				if (matches && matches.some(match => match.start < 1 || match.end > text.length - 1)) {
-					return;
-				}
-				if (text.startsWith('*') && text.endsWith('*') || text.startsWith('_') && text.endsWith('_')) {
-					italic = true;
-					text = text.substring(1, text.length - 1);
-					moveMatches(1);
+			// Arbitrary max # of iterations
+			for (let i = 0; i < 10; i++) {
+				if (!checkSyntaxes()) {
+					break;
 				}
 			}
-
-			// Support both ~~_abc_~~ and _~~abc~~_.
-			checkStrikethrough();
-			checkItalic();
-			checkStrikethrough();
 
 			return {
 				label: text,
+				bold,
 				italic,
 				strikethrough,
 				supportIcons: label.supportThemeIcons
 			};
 		} else {
-			return { label, italic: false, strikethrough: false, supportIcons: undefined };
+			return { label, bold: false, italic: false, strikethrough: false, supportIcons: undefined };
 		}
 	}
 
@@ -1408,7 +1413,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			}
 			return ({ start, end });
 		}) : undefined;
-		const { label, italic, strikethrough, supportIcons } = this.processLabel(treeItemLabel?.label, matches);
+		const { label, bold, italic, strikethrough, supportIcons } = this.processLabel(treeItemLabel?.label, matches);
 		const icon = !isDark(this.themeService.getColorTheme().type) ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : undefined;
 		const title = this.getHover(treeItemLabel?.label, resource, node);
@@ -1434,6 +1439,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				fileDecorations,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
+				bold,
 				italic,
 				strikethrough,
 				disabledCommand: !commandEnabled,
@@ -1447,6 +1453,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				hideIcon: true,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
+				bold,
 				italic,
 				strikethrough,
 				disabledCommand: !commandEnabled,
