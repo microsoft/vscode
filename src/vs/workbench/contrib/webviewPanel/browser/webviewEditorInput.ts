@@ -68,6 +68,7 @@ export class WebviewInput extends EditorInput {
 		this.providedId = init.providedId;
 
 		this._name = init.name;
+		this._iconPath = init.iconPath;
 		this._webview = webview;
 
 		this._register(_themeService.onDidColorThemeChange(() => {
