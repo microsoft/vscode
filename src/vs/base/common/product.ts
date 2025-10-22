@@ -113,6 +113,7 @@ export interface IProductConfiguration {
 
 	readonly mcpGallery?: {
 		readonly serviceUrl: string;
+		readonly version: string;
 		readonly itemWebUrl: string;
 		readonly publisherUrl: string;
 		readonly supportUrl: string;

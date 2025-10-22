@@ -65,9 +65,13 @@ export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestServic
 	}
 
 	private async getAndUpdateMcpGalleryManifest(): Promise<void> {
-		const value = this.configurationService.getValue<string>(mcpGalleryServiceUrlConfig);
+		const value = this.configurationService.getValue<string | { url: string; version: string } | undefined>(mcpGalleryServiceUrlConfig);
 		if (value) {
-			this.update(this.createMcpGalleryManifest(value));
+			if (typeof value === 'string') {
+				this.update(this.createMcpGalleryManifest(value, 'v0.1'));
+			} else {
+				this.update(this.createMcpGalleryManifest(value.url, value.version));
+			}
 		} else {
 			this.update(await super.getMcpGalleryManifest());
 		}

@@ -28,13 +28,12 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 		if (!this.productService.mcpGallery) {
 			return null;
 		}
-		return this.createMcpGalleryManifest(this.productService.mcpGallery.serviceUrl);
+		return this.createMcpGalleryManifest(this.productService.mcpGallery.serviceUrl, this.productService.mcpGallery.version);
 	}
 
-	protected createMcpGalleryManifest(url: string): IMcpGalleryManifest {
+	protected createMcpGalleryManifest(url: string, version: string): IMcpGalleryManifest {
 		url = url.endsWith('/') ? url.slice(0, -1) : url;
 		const isProductGalleryUrl = this.productService.mcpGallery?.serviceUrl === url;
-		const version = 'v0.1';
 		const serversUrl = `${url}/${version}/servers`;
 		const resources = [
 			{
