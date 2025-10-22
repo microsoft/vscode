@@ -34,7 +34,7 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 	protected createMcpGalleryManifest(url: string): IMcpGalleryManifest {
 		url = url.endsWith('/') ? url.slice(0, -1) : url;
 		const isProductGalleryUrl = this.productService.mcpGallery?.serviceUrl === url;
-		const version = 'v0';
+		const version = 'v0.1';
 		const serversUrl = `${url}/${version}/servers`;
 		const resources = [
 			{
@@ -52,10 +52,6 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 		];
 
 		if (isProductGalleryUrl) {
-			resources.push({
-				id: `${serversUrl}/search`,
-				type: McpGalleryResourceType.McpServersSearchService
-			});
 			resources.push({
 				id: `${serversUrl}/by-name/{name}`,
 				type: McpGalleryResourceType.McpServerNamedResourceUri
