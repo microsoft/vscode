@@ -2544,7 +2544,8 @@ export class DebugVisualization {
 
 export enum QuickInputButtonLocation {
 	Title = 1,
-	Inline = 2
+	Inline = 2,
+	Input = 3
 }
 
 @es5ClassCompat
@@ -3158,9 +3159,11 @@ export class ChatResponseFileTreePart {
 export class ChatResponseMultiDiffPart {
 	value: vscode.ChatResponseDiffEntry[];
 	title: string;
-	constructor(value: vscode.ChatResponseDiffEntry[], title: string) {
+	readOnly?: boolean;
+	constructor(value: vscode.ChatResponseDiffEntry[], title: string, readOnly?: boolean) {
 		this.value = value;
 		this.title = title;
+		this.readOnly = readOnly;
 	}
 }
 
