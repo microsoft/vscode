@@ -595,7 +595,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.ShellIntegrationTimeout]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration to be detected when the terminal launches or when extension APIs like {0} are called. Set to {1} to wait the minimum time (500ms), the default value {2} means the wait time is variable based on whether shell integration injection is enabled and whether it's a remote window. A large value can be useful if your shell starts very slowly.", '`executeCommand`', '`0`', '`-1`'),
+		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. Set to {0} to wait the minimum time (500ms), the default value {1} means the wait time is variable based on whether shell integration injection is enabled and whether it's a remote window. Consider setting this to a small value if you intentionally disabled shell integration, or a large value if your shell starts very slowly.", '`0`', '`-1`'),
 		type: 'integer',
 		minimum: -1,
 		maximum: 60000,
