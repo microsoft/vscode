@@ -944,7 +944,7 @@ export class CommandCenter {
 		}
 	}
 
-	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string } = {}): Promise<void> {
+	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string; postCloneAction?: PostCloneAction } = {}): Promise<string | undefined> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource({
 				providerLabel: provider => l10n.t('Clone from {0}', provider.name),
@@ -1009,15 +1009,23 @@ export class CommandCenter {
 			const config = workspace.getConfiguration('git');
 			const openAfterClone = config.get<'always' | 'alwaysNewWindow' | 'whenNoFolderOpen' | 'prompt'>('openAfterClone');
 
-			enum PostCloneAction { Open, OpenNewWindow, AddToWorkspace }
+			enum PostCloneAction { Open, OpenNewWindow, AddToWorkspace, None }
 			let action: PostCloneAction | undefined = undefined;
 
-			if (openAfterClone === 'always') {
-				action = PostCloneAction.Open;
-			} else if (openAfterClone === 'alwaysNewWindow') {
-				action = PostCloneAction.OpenNewWindow;
-			} else if (openAfterClone === 'whenNoFolderOpen' && !workspace.workspaceFolders) {
-				action = PostCloneAction.Open;
+			if (options.postCloneAction) {
+				if (options.postCloneAction === 'open') {
+					action = PostCloneAction.Open;
+				} else if (options.postCloneAction === 'none') {
+					action = PostCloneAction.None;
+				}
+			} else {
+				if (openAfterClone === 'always') {
+					action = PostCloneAction.Open;
+				} else if (openAfterClone === 'alwaysNewWindow') {
+					action = PostCloneAction.OpenNewWindow;
+				} else if (openAfterClone === 'whenNoFolderOpen' && !workspace.workspaceFolders) {
+					action = PostCloneAction.Open;
+				}
 			}
 
 			if (action === undefined) {
@@ -1057,6 +1065,8 @@ export class CommandCenter {
 			} else if (action === PostCloneAction.OpenNewWindow) {
 				commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
 			}
+
+			return repositoryPath;
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
 				/* __GDPR__
