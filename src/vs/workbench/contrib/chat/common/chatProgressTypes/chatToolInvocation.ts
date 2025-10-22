@@ -7,7 +7,7 @@ import { encodeBase64 } from '../../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
-import { IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../chatService.js';
+import { ConfirmedReason, IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../chatService.js';
 import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult, ToolDataSource } from '../languageModelToolsService.js';
 
 export class ChatToolInvocation implements IChatToolInvocation {
@@ -45,7 +45,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this.source = toolData.source;
 		this.fromSubAgent = fromSubAgent;
 
-		if (!this.confirmationMessages) {
+		if (!this.confirmationMessages?.title) {
 			this._state = observableValue(this, { type: IChatToolInvocation.StateKind.Executing, confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded }, progress: this._progress });
 		} else {
 			this._state = observableValue(this, {
@@ -61,19 +61,41 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		}
 	}
 
-	public complete(result: IToolResult | undefined): void {
+	private _setCompleted(result: IToolResult | undefined, postConfirmed?: ConfirmedReason | undefined) {
+		if (postConfirmed && (postConfirmed.type === ToolConfirmKind.Denied || postConfirmed.type === ToolConfirmKind.Skipped)) {
+			this._state.set({ type: IChatToolInvocation.StateKind.Cancelled, reason: postConfirmed.type }, undefined);
+			return;
+		}
+
+		this._state.set({
+			type: IChatToolInvocation.StateKind.Completed,
+			confirmed: IChatToolInvocation.executionConfirmedOrDenied(this) || { type: ToolConfirmKind.ConfirmationNotNeeded },
+			resultDetails: result?.toolResultDetails,
+			postConfirmed,
+			contentForModel: result?.content || [],
+		}, undefined);
+	}
+
+	public didExecuteTool(result: IToolResult | undefined, final?: boolean): IChatToolInvocation.State {
 		if (result?.toolResultMessage) {
 			this.pastTenseMessage = result.toolResultMessage;
 		} else if (this._progress.get().message) {
 			this.pastTenseMessage = this._progress.get().message;
 		}
 
-		this._state.set({
-			type: IChatToolInvocation.StateKind.Completed,
-			confirmed: IChatToolInvocation.isConfirmed(this) || { type: ToolConfirmKind.UserAction },
-			resultDetails: result?.toolResultDetails,
-			postConfirmed: undefined,
-		}, undefined);
+		if (this.confirmationMessages?.confirmResults && !result?.toolResultError && !final) {
+			this._state.set({
+				type: IChatToolInvocation.StateKind.WaitingForPostApproval,
+				confirmed: IChatToolInvocation.executionConfirmedOrDenied(this) || { type: ToolConfirmKind.ConfirmationNotNeeded },
+				resultDetails: result?.toolResultDetails,
+				contentForModel: result?.content || [],
+				confirm: reason => this._setCompleted(result, reason),
+			}, undefined);
+		} else {
+			this._setCompleted(result);
+		}
+
+		return this._state.get();
 	}
 
 	public acceptProgress(step: IToolProgressStep) {
@@ -85,14 +107,17 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 	public toJSON(): IChatToolInvocationSerialized {
-		const details = IChatToolInvocation.resultDetails(this);
+		// persist the serialized call as 'skipped' if we were waiting for postapproval
+		const waitingForPostApproval = this.state.get().type === IChatToolInvocation.StateKind.WaitingForPostApproval;
+		const details = waitingForPostApproval ? undefined : IChatToolInvocation.resultDetails(this);
+
 		return {
 			kind: 'toolInvocationSerialized',
 			presentation: this.presentation,
 			invocationMessage: this.invocationMessage,
 			pastTenseMessage: this.pastTenseMessage,
 			originMessage: this.originMessage,
-			isConfirmed: IChatToolInvocation.isConfirmed(this),
+			isConfirmed: waitingForPostApproval ? { type: ToolConfirmKind.Skipped } : IChatToolInvocation.executionConfirmedOrDenied(this),
 			isComplete: true,
 			source: this.source,
 			resultDetails: isToolResultOutputDetails(details)

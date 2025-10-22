@@ -84,9 +84,9 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			});
 			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
 			for (const toolInvocation of toolInvocations) {
-				if (toolInvocation.confirmationMessages && toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+				if (toolInvocation.confirmationMessages?.title && toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 					const title = typeof toolInvocation.confirmationMessages.title === 'string' ? toolInvocation.confirmationMessages.title : toolInvocation.confirmationMessages.title.value;
-					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderAsPlaintext(toolInvocation.confirmationMessages.message));
+					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderAsPlaintext(toolInvocation.confirmationMessages.message!));
 					let input = '';
 					if (toolInvocation.toolSpecificData) {
 						if (toolInvocation.toolSpecificData?.kind === 'terminal') {
