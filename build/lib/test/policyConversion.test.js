@@ -451,5 +451,15 @@ suite('Policy E2E conversion', () => {
         // Compare the rendered ADML with the fixture
         assert_1.default.strictEqual(frFrAdml.contents, expectedContent, 'Windows fr-fr ADML should match the fixture');
     });
+    test('should render Linux policy JSON from policies list', async () => {
+        const parsedPolicies = parsePolicies(policies);
+        const result = (0, render_1.renderJsonPolicies)(parsedPolicies);
+        // Load the expected fixture file
+        const fixturePath = path_1.default.join(__dirname, 'fixtures', 'policies', 'linux', 'policy.json');
+        const expectedContent = await fs_1.promises.readFile(fixturePath, 'utf-8');
+        const expectedJson = JSON.parse(expectedContent);
+        // Compare the rendered JSON with the fixture
+        assert_1.default.deepStrictEqual(result, expectedJson, 'Linux policy JSON should match the fixture');
+    });
 });
 //# sourceMappingURL=policyConversion.test.js.map
