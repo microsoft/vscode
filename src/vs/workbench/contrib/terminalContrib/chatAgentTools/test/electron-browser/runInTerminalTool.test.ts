@@ -31,6 +31,8 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
+// HACK: This test lives in electron-browser/ to ensure this node import works if the test is run in
+// web tests https://github.com/microsoft/vscode/issues/272777
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
 import { DiskFileSystemProvider } from '../../../../../../platform/files/node/diskFileSystemProvider.js';
 
