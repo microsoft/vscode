@@ -12,7 +12,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
-import { getCurrentAuthenticationSessionInfo } from '../../../../services/authentication/browser/authenticationService.js';
+import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from '../../../../services/authentication/browser/authenticationService.js';
 import { IAuthenticationProvider, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 
 export class ManageAccountsAction extends Action2 {
@@ -42,8 +42,6 @@ interface AccountActionQuickPickItem extends IQuickPickItem {
 }
 
 class ManageAccountsActionImpl {
-	private activeSession = new Lazy(() => getCurrentAuthenticationSessionInfo(this.secretStorageService, this.productService));
-
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
@@ -70,6 +68,7 @@ class ManageAccountsActionImpl {
 	}
 
 	private async listAccounts(): Promise<AccountQuickPickItem[]> {
+		const activeSession = new Lazy(() => getCurrentAuthenticationSessionInfo(this.secretStorageService, this.productService));
 		const accounts: AccountQuickPickItem[] = [];
 		for (const providerId of this.authenticationService.getProviderIds()) {
 			const provider = this.authenticationService.getProvider(providerId);
@@ -79,15 +78,14 @@ class ManageAccountsActionImpl {
 					description: provider.label,
 					providerId,
 					canUseMcp: !!provider.authorizationServers?.length,
-					canSignOut: () => this.canSignOut(provider, id)
+					canSignOut: async () => this.canSignOut(provider, id, await activeSession.value)
 				});
 			}
 		}
 		return accounts;
 	}
 
-	private async canSignOut(provider: IAuthenticationProvider, accountId: string): Promise<boolean> {
-		const session = await this.activeSession.value;
+	private async canSignOut(provider: IAuthenticationProvider, accountId: string, session?: AuthenticationSessionInfo): Promise<boolean> {
 		if (session && !session.canSignOut && session.providerId === provider.id) {
 			const sessions = await this.authenticationService.getSessions(provider.id);
 			return !sessions.some(o => o.id === session.id && o.account.id === accountId);

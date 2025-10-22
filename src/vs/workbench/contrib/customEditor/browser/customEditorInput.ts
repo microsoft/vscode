@@ -32,11 +32,14 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { WebviewIcons } from '../../webviewPanel/browser/webviewEditorInput.js';
 
 interface CustomEditorInputInitInfo {
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly customTitle: string | undefined;
+	readonly iconPath: WebviewIcons | undefined;
 }
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
@@ -87,6 +90,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		init: CustomEditorInputInitInfo,
 		webview: IOverlayWebview,
 		options: { startsDirty?: boolean; backupId?: string; untitledDocumentData?: VSBuffer; readonly oldResource?: URI },
+		@IThemeService themeService: IThemeService,
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -99,7 +103,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService,
 	) {
-		super({ providedId: init.viewType, viewType: init.viewType, name: '' }, webview, webviewWorkbenchService);
+		super({ providedId: init.viewType, viewType: init.viewType, name: '', iconPath: init.iconPath }, webview, themeService, webviewWorkbenchService);
 		this._editorResource = init.resource;
 		this.oldResource = options.oldResource;
 		this._defaultDirtyState = options.startsDirty;
@@ -290,7 +294,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public override copy(): EditorInput {
 		return CustomEditorInput.create(this.instantiationService,
-			{ resource: this.resource, viewType: this.viewType, customTitle: this._customTitle },
+			{ resource: this.resource, viewType: this.viewType, customTitle: this._customTitle, iconPath: this.iconPath, },
 			this.group,
 			this.webview.options);
 	}

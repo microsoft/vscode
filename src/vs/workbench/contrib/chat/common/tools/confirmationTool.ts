@@ -78,7 +78,7 @@ export class ConfirmationTool implements IToolImpl {
 			confirmationMessages: {
 				title: parameters.title,
 				message: new MarkdownString(parameters.message),
-				allowAutoConfirm: false
+				allowAutoConfirm: true
 			},
 			toolSpecificData,
 			presentation: ToolInvocationPresentation.HiddenAfterComplete
