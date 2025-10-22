@@ -20,6 +20,7 @@ import { IAuthenticationUsageService } from '../../../services/authentication/br
 import { ManageAccountPreferencesForMcpServerAction } from './actions/manageAccountPreferencesForMcpServerAction.js';
 import { ManageTrustedMcpServersForAccountAction } from './actions/manageTrustedMcpServersForAccountAction.js';
 import { RemoveDynamicAuthenticationProvidersAction } from './actions/manageDynamicAuthenticationProvidersAction.js';
+import { ManageAccountsAction } from './actions/manageAccountsAction.js';
 import { IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
 import { IMcpRegistry } from '../../mcp/common/mcpRegistryTypes.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -92,6 +93,7 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 	}
 
 	private _registerActions(): void {
+		this._register(registerAction2(ManageAccountsAction));
 		this._register(registerAction2(SignOutOfAccountAction));
 		this._register(registerAction2(ManageTrustedExtensionsForAccountAction));
 		this._register(registerAction2(ManageAccountPreferencesForExtensionAction));

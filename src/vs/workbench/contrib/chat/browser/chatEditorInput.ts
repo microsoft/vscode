@@ -180,6 +180,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			}
 		}
 
+		// If a preferred title was provided in options, use it
+		if (this.options.title?.preferred) {
+			return this.options.title.preferred;
+		}
+
 		// Fall back to default naming pattern
 		const inputCountSuffix = (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
 		const defaultName = this.options.title?.fallback ?? nls.localize('chatEditorName', "Chat");
