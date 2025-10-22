@@ -257,24 +257,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 
 			// #endregion
 
-			// #region Dangerous patterns
-			//
-			// Patterns that are considered dangerous as they may lead to inline command execution.
-			// These will just get blocked outright to be on the safe side, at least until there's a
-			// real parser https://github.com/microsoft/vscode/issues/261794
-
-			// `(command)` many shells execute commands inside parentheses
-			'/\\(.+\\)/s': { approve: false, matchCommandLine: true },
-
-			// `{command}` many shells support execution inside curly braces, additionally this
-			// typically means the sub-command detection system falls over currently
-			'/\\{.+\\}/s': { approve: false, matchCommandLine: true },
-
-			// `\`command\`` many shells support execution inside backticks
-			'/`.+`/s': { approve: false, matchCommandLine: true },
-
-			// endregion
-
 			// #region Dangerous commands
 			//
 			// There are countless dangerous commands available on the command line, the defaults
