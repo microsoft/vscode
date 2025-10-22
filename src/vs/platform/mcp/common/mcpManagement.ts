@@ -248,6 +248,12 @@ export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
 export const mcpGalleryServiceEnablementConfig = 'chat.mcp.gallery.enabled';
 export const mcpAutoStartConfig = 'chat.mcp.autostart';
 
+export interface IMcpGalleryConfig {
+	readonly serviceUrl?: string;
+	readonly enabled?: boolean;
+	readonly version?: string;
+}
+
 export const enum McpAutoStartValue {
 	Never = 'never',
 	OnlyNew = 'onlyNew',
