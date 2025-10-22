@@ -222,7 +222,9 @@ export interface IToolResultDataPart {
 }
 
 export interface IToolConfirmationMessages {
+	/** Title for the confirmation. If set, the user will be asked to confirm execution of the tool */
 	title?: string | IMarkdownString;
+	/** MUST be set if `title` is also set */
 	message?: string | IMarkdownString;
 	disclaimer?: string | IMarkdownString;
 	allowAutoConfirm?: boolean;

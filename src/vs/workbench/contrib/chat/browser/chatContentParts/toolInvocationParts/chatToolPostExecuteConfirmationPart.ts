@@ -19,7 +19,8 @@ import { AcceptToolPostConfirmationActionId, SkipToolPostConfirmationActionId } 
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { EditorPool } from '../chatMarkdownContentPart.js';
-import { ChatCollapsibleInputOutputContentPart, ChatCollapsibleIOPart } from '../chatToolInputOutputContentPart.js';
+import { ChatCollapsibleIOPart } from '../chatToolInputOutputContentPart.js';
+import { ChatToolOutputContentSubPart } from '../chatToolOutputContentSubPart.js';
 import { AbstractToolConfirmationSubPart, ConfirmationOutcome } from './abstractToolConfirmationSubPart.js';
 
 export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmationSubPart {
@@ -42,13 +43,14 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super(toolInvocation, context, instantiationService, keybindingService, contextKeyService, chatWidgetService, languageModelToolsService);
+		const subtitle = toolInvocation.pastTenseMessage || toolInvocation.invocationMessage;
 		this.render({
 			allowActionId: AcceptToolPostConfirmationActionId,
 			skipActionId: SkipToolPostConfirmationActionId,
 			allowLabel: localize('allow', "Allow"),
 			skipLabel: localize('skip.post', 'Skip Results'),
 			partType: 'chatToolPostConfirmation',
-			subtitle: (toolInvocation.pastTenseMessage || toolInvocation.invocationMessage) as string,
+			subtitle: typeof subtitle === 'string' ? subtitle : subtitle?.value,
 		});
 	}
 
@@ -76,16 +78,16 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 	protected override additionalPrimaryActions() {
 		const actions = super.additionalPrimaryActions();
 		actions.push(
-			{ label: localize('allowSession', 'Allow in this Session'), data: ConfirmationOutcome.AllowSession, tooltip: localize('allowSessionTooltip', 'Allow results from this tool to be sent without confirmation in this session.') },
-			{ label: localize('allowWorkspace', 'Allow in this Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow results from this tool to be sent without confirmation in this workspace.') },
-			{ label: localize('allowGlobally', 'Always Allow'), data: ConfirmationOutcome.AllowGlobally, tooltip: localize('allowGloballyTooltip', 'Always allow results from this tool to be sent without confirmation.') },
+			{ label: localize('allowSession', 'Allow Without Review in this Session'), data: ConfirmationOutcome.AllowSession, tooltip: localize('allowSessionTooltip', 'Allow results from this tool to be sent without confirmation in this session.') },
+			{ label: localize('allowWorkspace', 'Allow Without Review in this Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow results from this tool to be sent without confirmation in this workspace.') },
+			{ label: localize('allowGlobally', 'Always Allow Without Review'), data: ConfirmationOutcome.AllowGlobally, tooltip: localize('allowGloballyTooltip', 'Always allow results from this tool to be sent without confirmation.') },
 		);
 
 		return actions;
 	}
 
 	private createResultsDisplay(toolInvocation: IChatToolInvocation, contentForModel: (IToolResultPromptTsxPart | IToolResultTextPart | IToolResultDataPart)[]): HTMLElement {
-		const container = dom.$('.tool-result-display');
+		const container = dom.$('.tool-postconfirm-display');
 
 		if (!contentForModel || contentForModel.length === 0) {
 			container.textContent = localize('noResults', 'No results to display');
@@ -244,54 +246,18 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 		}
 
 		if (parts.length > 0) {
-			// Create a simple placeholder input part
-			const placeholderModel = this._register(this.modelService.createModel(
-				'',
-				this.languageService.createById('plaintext'),
-				undefined,
-				true
-			));
-
-			const inputPart: ChatCollapsibleIOPart = {
-				kind: 'code',
-				textModel: placeholderModel,
-				languageId: 'plaintext',
-				options: {
-					hideToolbar: true,
-					reserveWidth: 0,
-					maxHeightInLines: 0,
-					verticalPadding: 0,
-					editorOptions: { readOnly: true }
-				},
-				codeBlockInfo: {
-					codeBlockIndex: -1,
-					codemapperUri: undefined,
-					elementId: this.context.element.id,
-					focus: () => { },
-					isStreaming: false,
-					ownerMarkdownPartId: this.codeblocksPartId,
-					uri: placeholderModel.uri,
-					chatSessionId: this.context.element.sessionId,
-					uriPromise: Promise.resolve(placeholderModel.uri)
-				}
-			};
-
-			const collapsiblePart = this._register(this.instantiationService.createInstance(
-				ChatCollapsibleInputOutputContentPart,
-				localize('toolResults', 'Tool Results'),
-				undefined,
+			const outputSubPart = this._register(this.instantiationService.createInstance(
+				ChatToolOutputContentSubPart,
 				this.context,
 				this.editorPool,
-				inputPart,
-				{ parts },
-				false,
-				true,
-				this.currentWidthDelegate(),
+				parts,
+				this.currentWidthDelegate()
 			));
 
-			this._codeblocks.push(...collapsiblePart.codeblocks);
-			this._register(collapsiblePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-			return collapsiblePart.domNode;
+			this._codeblocks.push(...outputSubPart.codeblocks);
+			this._register(outputSubPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+			outputSubPart.domNode.classList.add('tool-postconfirm-display');
+			return outputSubPart.domNode;
 		}
 
 		container.textContent = localize('noDisplayableResults', 'No displayable results');

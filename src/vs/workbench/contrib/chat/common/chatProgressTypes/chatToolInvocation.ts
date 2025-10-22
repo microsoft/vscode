@@ -62,6 +62,11 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 	private _setCompleted(result: IToolResult | undefined, postConfirmed?: ConfirmedReason | undefined) {
+		if (postConfirmed && (postConfirmed.type === ToolConfirmKind.Denied || postConfirmed.type === ToolConfirmKind.Skipped)) {
+			this._state.set({ type: IChatToolInvocation.StateKind.Cancelled, reason: postConfirmed.type }, undefined);
+			return;
+		}
+
 		this._state.set({
 			type: IChatToolInvocation.StateKind.Completed,
 			confirmed: IChatToolInvocation.executionConfirmedOrDenied(this) || { type: ToolConfirmKind.ConfirmationNotNeeded },
@@ -71,7 +76,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		}, undefined);
 	}
 
-	public didExecuteTool(result: IToolResult | undefined, final: boolean): IChatToolInvocation.State {
+	public didExecuteTool(result: IToolResult | undefined, final?: boolean): IChatToolInvocation.State {
 		if (result?.toolResultMessage) {
 			this.pastTenseMessage = result.toolResultMessage;
 		} else if (this._progress.get().message) {
@@ -102,14 +107,17 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 	public toJSON(): IChatToolInvocationSerialized {
-		const details = IChatToolInvocation.resultDetails(this);
+		// persist the serialized call as 'skipped' if we were waiting for postapproval
+		const waitingForPostApproval = this.state.get().type === IChatToolInvocation.StateKind.WaitingForPostApproval;
+		const details = waitingForPostApproval ? undefined : IChatToolInvocation.resultDetails(this);
+
 		return {
 			kind: 'toolInvocationSerialized',
 			presentation: this.presentation,
 			invocationMessage: this.invocationMessage,
 			pastTenseMessage: this.pastTenseMessage,
 			originMessage: this.originMessage,
-			isConfirmed: IChatToolInvocation.executionConfirmedOrDenied(this),
+			isConfirmed: waitingForPostApproval ? { type: ToolConfirmKind.Skipped } : IChatToolInvocation.executionConfirmedOrDenied(this),
 			isComplete: true,
 			source: this.source,
 			resultDetails: isToolResultOutputDetails(details)

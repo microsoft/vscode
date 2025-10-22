@@ -8,7 +8,7 @@ import { Separator } from '../../../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IReader } from '../../../../../../base/common/observable.js';
+import { IReader } from '../../../../../../base/common/observable.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { isEmptyObject } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
