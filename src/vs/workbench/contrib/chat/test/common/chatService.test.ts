@@ -268,6 +268,54 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getRequests()[2].response?.result?.metadata?.historyLength, 2);
 	});
 
+	test('history - canAccessAllHistory', async () => {
+		const historyLengthAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				return {
+					metadata: { historyLength: history.length }
+				};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('defaultAgent', { ...getAgentData('defaultAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgent('agent2', getAgentData('agent2')));
+		testDisposables.add(chatAgentService.registerAgent('agent3', { ...getAgentData('agent3'), canAccessAllHistory: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('defaultAgent', historyLengthAgent));
+		testDisposables.add(chatAgentService.registerAgentImplementation('agent2', historyLengthAgent));
+		testDisposables.add(chatAgentService.registerAgentImplementation('agent3', historyLengthAgent));
+
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
+
+		// Send a request to default agent
+		const response = await testService.sendRequest(model.sessionId, `test request`, { agentId: 'defaultAgent' });
+		assert(response);
+		await response.responseCompletePromise;
+		assert.strictEqual(model.getRequests().length, 1);
+		assert.strictEqual(model.getRequests()[0].response?.result?.metadata?.historyLength, 0);
+
+		// Send a request to agent2 - it can't see the default agent's message
+		const response2 = await testService.sendRequest(model.sessionId, `test request`, { agentId: 'agent2' });
+		assert(response2);
+		await response2.responseCompletePromise;
+		assert.strictEqual(model.getRequests().length, 2);
+		assert.strictEqual(model.getRequests()[1].response?.result?.metadata?.historyLength, 0);
+
+		// Send a request to agent3 with canAccessAllHistory - it can see all previous messages
+		const response3 = await testService.sendRequest(model.sessionId, `test request`, { agentId: 'agent3' });
+		assert(response3);
+		await response3.responseCompletePromise;
+		assert.strictEqual(model.getRequests().length, 3);
+		assert.strictEqual(model.getRequests()[2].response?.result?.metadata?.historyLength, 2);
+
+		// Send a request to agent2 again - still can't see messages from other agents
+		const response4 = await testService.sendRequest(model.sessionId, `test request`, { agentId: 'agent2' });
+		assert(response4);
+		await response4.responseCompletePromise;
+		assert.strictEqual(model.getRequests().length, 4);
+		assert.strictEqual(model.getRequests()[3].response?.result?.metadata?.historyLength, 1); // Can only see its own previous message
+	});
+
 	test('can serialize', async () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithUsedContextId, chatAgentWithUsedContext));
 		chatAgentService.updateAgent(chatAgentWithUsedContextId, { requester: { name: 'test' } });
