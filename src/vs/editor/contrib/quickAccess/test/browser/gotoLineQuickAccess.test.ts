@@ -16,7 +16,7 @@ class TestGotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvide
 	constructor(useZeroBasedOffset?: { value: boolean }) {
 		super(useZeroBasedOffset);
 	}
-	public override parsePosition(editor: IEditor, value: string) {
+	public parsePositionTest(editor: IEditor, value: string) {
 		return super.parsePosition(editor, value);
 	}
 }
@@ -33,7 +33,7 @@ suite('AbstractGotoLineQuickAccessProvider', () => {
 			'line 4',
 			'line 5'
 		], {}, (editor, _) => {
-			const { lineNumber, column } = provider.parsePosition(editor, input);
+			const { lineNumber, column } = provider.parsePositionTest(editor, input);
 			assert.strictEqual(lineNumber, expectedLine);
 			assert.strictEqual(column, expectedColumn);
 		});
