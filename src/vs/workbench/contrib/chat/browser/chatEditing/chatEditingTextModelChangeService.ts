@@ -166,6 +166,10 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	/**
 	 * Converts TextEdit[] to StringEdit based on the original model state.
 	 * The TextEdit ranges are in positions, which we convert to offsets in the original model.
+	 * 
+	 * This is used when incoming edits need to be rebased on top of accumulated edits.
+	 * The incoming edits are always expressed relative to the original document state,
+	 * but we need to apply them to the modified document state.
 	 */
 	private _textEditsToStringEdit(textEdits: TextEdit[]): StringEdit {
 		const replacements: StringReplacement[] = [];
@@ -183,15 +187,27 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		assertType(textEdits.every(TextEdit.isTextEdit), 'INVALID args, can only handle text edits');
 		assert(isEqual(resource, this.modifiedModel.uri), ' INVALID args, can only edit THIS document');
 
-		// If we have accumulated edits from previous operations, we need to rebase the incoming edits
-		// on top of those accumulated edits. This is because the incoming edits are based on the
-		// original document state, not the current modified state.
+		// IMPORTANT: Fix for sequential edit corruption issue
+		// 
+		// When multiple edit operations come in sequence (e.g., from a code mapper or language model),
+		// each batch of edits is expressed relative to the ORIGINAL document state, not the current
+		// modified state. This causes problems when the first edit adds/removes lines, because the
+		// second edit's line numbers will be wrong.
+		//
+		// For example:
+		// 1. First edit adds a class at line 13 (adds 14 lines)
+		// 2. Second edit tries to modify a class that was originally at line 29
+		// 3. Without rebasing, the second edit will modify line 29, which is now the wrong line
+		//    (the correct line is now 29 + 14 = 43)
+		//
+		// The fix: If we have accumulated edits, rebase the incoming edits on top of them.
 		let editsToApply = textEdits as TextEdit[];
 		if (!this._originalToModifiedEdit.isEmpty()) {
-			// Convert TextEdit[] to StringEdit based on original model
+			// Convert TextEdit[] to StringEdit based on original model positions
 			const incomingEdit = this._textEditsToStringEdit(textEdits as TextEdit[]);
 
 			// Rebase the incoming edit on top of the accumulated edits
+			// This adjusts the edit offsets to account for previous changes
 			const rebasedEdit = incomingEdit.tryRebase(this._originalToModifiedEdit);
 
 			if (rebasedEdit) {
