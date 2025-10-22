@@ -183,6 +183,20 @@ export interface InitOptions {
 	defaultBranch?: string;
 }
 
+export interface CloneOptions {
+	parentPath?: Uri;
+	/**
+	 * ref is only used if the repository cache is missed.
+	 */
+	ref?: string;
+	recursive?: boolean;
+	/**
+	 * If no postCloneAction is provided, then the users setting for git.openAfterClone is used.
+	 */
+	postCloneAction?: 'none' | 'open' | 'prompt';
+	skipCache?: boolean;
+}
+
 export interface RefQuery {
 	readonly contains?: string;
 	readonly count?: number;
@@ -366,7 +380,11 @@ export interface API {
 	getRepository(uri: Uri): Repository | null;
 	getRepositoryRoot(uri: Uri): Promise<Uri | null>;
 	init(root: Uri, options?: InitOptions): Promise<Repository | null>;
-	openRepository(root: Uri): Promise<Repository | null>
+	/**
+	 * @returns The URI of either the cloned repository, or the workspace file or folder which contains the cloned repository.
+	 */
+	clone(uri: Uri, options?: CloneOptions): Promise<Uri | null>;
+	openRepository(root: Uri): Promise<Repository | null>;
 
 	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;

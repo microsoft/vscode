@@ -7,7 +7,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, SourceControlHistoryItemDetailsProvider, GitErrorCodes } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, SourceControlHistoryItemDetailsProvider, GitErrorCodes, CloneOptions } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
 import { combinedDisposable, filterEvent, mapEvent } from '../util';
 import { toGitUri } from '../uri';
@@ -397,6 +397,12 @@ export class ApiImpl implements API {
 		await this.#model.git.init(path, options);
 		await this.#model.openRepository(path);
 		return this.getRepository(root) || null;
+	}
+
+	async clone(uri: Uri, options?: CloneOptions): Promise<Uri | null> {
+		const parentPath = options?.parentPath?.fsPath;
+		const result = await this.#model.clone(uri.toString(), { parentPath, recursive: options?.recursive, ref: options?.ref, postCloneAction: options?.postCloneAction, skipCache: options?.skipCache });
+		return result ? Uri.file(result) : null;
 	}
 
 	async openRepository(root: Uri): Promise<Repository | null> {
