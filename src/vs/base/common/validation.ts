@@ -32,13 +32,13 @@ export interface ValidationError {
 	message: string;
 }
 
-interface TypeOfMap {
+type TypeOfMap = {
 	string: string;
 	number: number;
 	boolean: boolean;
 	object: object;
 	null: null;
-}
+};
 
 class TypeofValidator<TKey extends keyof TypeOfMap> extends ValidatorBase<TypeOfMap[TKey]> {
 	constructor(private readonly type: TKey) {
