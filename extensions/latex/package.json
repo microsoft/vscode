@@ -66,7 +66,11 @@
       {
         "language": "tex",
         "scopeName": "text.tex",
-        "path": "./syntaxes/TeX.tmLanguage.json"
+        "path": "./syntaxes/TeX.tmLanguage.json",
+        "unbalancedBracketScopes": [
+          "keyword.control.ifnextchar.tex",
+          "punctuation.math.operator.tex"
+        ]
       },
       {
         "language": "latex",
