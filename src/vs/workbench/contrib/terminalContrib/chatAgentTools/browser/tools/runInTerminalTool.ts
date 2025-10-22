@@ -353,99 +353,107 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const actualCommand = toolEditedCommand ?? args.command;
 
 			const treeSitterLanguage = isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash;
-			// TODO: Handle throw
-			const subCommands = await this._treeSitterCommandParser.extractSubCommands(treeSitterLanguage, actualCommand);
-			this._logService.info('RunInTerminalTool: autoApprove: Parsed sub-commands', subCommands);
 
+			let disclaimer: IMarkdownString | undefined;
+			let customActions: ToolConfirmationAction[] | undefined;
 
-			// const subCommands = splitCommandLineIntoSubCommands(actualCommand, shell, os);
-			const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
-			const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(actualCommand);
-			const autoApproveReasons: string[] = [
-				...subCommandResults.map(e => e.reason),
-				commandLineResult.reason,
-			];
-
-			let isAutoApproved = false;
-			let isDenied = false;
-			let autoApproveReason: 'subCommand' | 'commandLine' | undefined;
-			let autoApproveDefault: boolean | undefined;
-
-			const deniedSubCommandResult = subCommandResults.find(e => e.result === 'denied');
-			if (deniedSubCommandResult) {
-				this._logService.info('RunInTerminalTool: autoApprove: Sub-command DENIED auto approval');
-				isDenied = true;
-				autoApproveDefault = deniedSubCommandResult.rule?.isDefaultRule;
-				autoApproveReason = 'subCommand';
-			} else if (commandLineResult.result === 'denied') {
-				this._logService.info('RunInTerminalTool: autoApprove: Command line DENIED auto approval');
-				isDenied = true;
-				autoApproveDefault = commandLineResult.rule?.isDefaultRule;
-				autoApproveReason = 'commandLine';
-			} else {
-				if (subCommandResults.every(e => e.result === 'approved')) {
-					this._logService.info('RunInTerminalTool: autoApprove: All sub-commands auto-approved');
-					autoApproveReason = 'subCommand';
-					isAutoApproved = true;
-					autoApproveDefault = subCommandResults.every(e => e.rule?.isDefaultRule);
-				} else {
-					this._logService.info('RunInTerminalTool: autoApprove: All sub-commands NOT auto-approved');
-					if (commandLineResult.result === 'approved') {
-						this._logService.info('RunInTerminalTool: autoApprove: Command line auto-approved');
-						autoApproveReason = 'commandLine';
-						isAutoApproved = true;
-						autoApproveDefault = commandLineResult.rule?.isDefaultRule;
-					} else {
-						this._logService.info('RunInTerminalTool: autoApprove: Command line NOT auto-approved');
-					}
-				}
-			}
-
-			// Log detailed auto approval reasoning
-			for (const reason of autoApproveReasons) {
-				this._logService.info(`- ${reason}`);
-			}
-
-			// Apply auto approval or force it off depending on enablement/opt-in state
 			const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
 			const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
 			const isAutoApproveAllowed = isAutoApproveEnabled && isAutoApproveWarningAccepted;
-			if (isAutoApproveEnabled) {
-				autoApproveInfo = this._createAutoApproveInfo(
-					isAutoApproved,
-					isDenied,
+			let isAutoApproved = false;
+
+			let subCommands: string[] | undefined;
+			try {
+				subCommands = await this._treeSitterCommandParser.extractSubCommands(treeSitterLanguage, actualCommand);
+				this._logService.info(`RunInTerminalTool: autoApprove: Parsed sub-commands via ${treeSitterLanguage} grammar`, subCommands);
+			} catch (e) {
+				console.error(e);
+				this._logService.info(`RunInTerminalTool: autoApprove: Failed to parse sub-commands via ${treeSitterLanguage} grammar`);
+			}
+
+			if (subCommands) {
+				const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
+				const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(actualCommand);
+				const autoApproveReasons: string[] = [
+					...subCommandResults.map(e => e.reason),
+					commandLineResult.reason,
+				];
+
+				let isDenied = false;
+				let autoApproveReason: 'subCommand' | 'commandLine' | undefined;
+				let autoApproveDefault: boolean | undefined;
+
+				const deniedSubCommandResult = subCommandResults.find(e => e.result === 'denied');
+				if (deniedSubCommandResult) {
+					this._logService.info('RunInTerminalTool: autoApprove: Sub-command DENIED auto approval');
+					isDenied = true;
+					autoApproveDefault = deniedSubCommandResult.rule?.isDefaultRule;
+					autoApproveReason = 'subCommand';
+				} else if (commandLineResult.result === 'denied') {
+					this._logService.info('RunInTerminalTool: autoApprove: Command line DENIED auto approval');
+					isDenied = true;
+					autoApproveDefault = commandLineResult.rule?.isDefaultRule;
+					autoApproveReason = 'commandLine';
+				} else {
+					if (subCommandResults.every(e => e.result === 'approved')) {
+						this._logService.info('RunInTerminalTool: autoApprove: All sub-commands auto-approved');
+						autoApproveReason = 'subCommand';
+						isAutoApproved = true;
+						autoApproveDefault = subCommandResults.every(e => e.rule?.isDefaultRule);
+					} else {
+						this._logService.info('RunInTerminalTool: autoApprove: All sub-commands NOT auto-approved');
+						if (commandLineResult.result === 'approved') {
+							this._logService.info('RunInTerminalTool: autoApprove: Command line auto-approved');
+							autoApproveReason = 'commandLine';
+							isAutoApproved = true;
+							autoApproveDefault = commandLineResult.rule?.isDefaultRule;
+						} else {
+							this._logService.info('RunInTerminalTool: autoApprove: Command line NOT auto-approved');
+						}
+					}
+				}
+
+				// Log detailed auto approval reasoning
+				for (const reason of autoApproveReasons) {
+					this._logService.info(`- ${reason}`);
+				}
+
+				// Apply auto approval or force it off depending on enablement/opt-in state
+				if (isAutoApproveEnabled) {
+					autoApproveInfo = this._createAutoApproveInfo(
+						isAutoApproved,
+						isDenied,
+						autoApproveReason,
+						subCommandResults,
+						commandLineResult,
+					);
+				} else {
+					isAutoApproved = false;
+				}
+
+				// Send telemetry about auto approval process
+				this._telemetry.logPrepare({
+					terminalToolSessionId,
+					subCommands,
+					autoApproveAllowed: !isAutoApproveEnabled ? 'off' : isAutoApproveWarningAccepted ? 'allowed' : 'needsOptIn',
+					autoApproveResult: isAutoApproved ? 'approved' : isDenied ? 'denied' : 'manual',
 					autoApproveReason,
-					subCommandResults,
-					commandLineResult,
-				);
-			} else {
-				isAutoApproved = false;
-			}
+					autoApproveDefault
+				});
 
-			// Send telemetry about auto approval process
-			this._telemetry.logPrepare({
-				terminalToolSessionId,
-				subCommands,
-				autoApproveAllowed: !isAutoApproveEnabled ? 'off' : isAutoApproveWarningAccepted ? 'allowed' : 'needsOptIn',
-				autoApproveResult: isAutoApproved ? 'approved' : isDenied ? 'denied' : 'manual',
-				autoApproveReason,
-				autoApproveDefault
-			});
+				// Add a disclaimer warning about prompt injection for common commands that return
+				// content from the web
+				const subCommandsLowerFirstWordOnly = subCommands.map(command => command.split(' ')[0].toLowerCase());
+				if (!isAutoApproved && (
+					subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLower.includes(command)) ||
+					(isPowerShell(shell, os) && subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLowerPwshOnly.includes(command)))
+				)) {
+					disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + localize('runInTerminal.promptInjectionDisclaimer', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true });
+				}
 
-			// Add a disclaimer warning about prompt injection for common commands that return
-			// content from the web
-			let disclaimer: IMarkdownString | undefined;
-			const subCommandsLowerFirstWordOnly = subCommands.map(command => command.split(' ')[0].toLowerCase());
-			if (!isAutoApproved && (
-				subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLower.includes(command)) ||
-				(isPowerShell(shell, os) && subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLowerPwshOnly.includes(command)))
-			)) {
-				disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + localize('runInTerminal.promptInjectionDisclaimer', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true });
-			}
-
-			let customActions: ToolConfirmationAction[] | undefined;
-			if (!isAutoApproved && isAutoApproveEnabled) {
-				customActions = generateAutoApproveActions(actualCommand, subCommands, { subCommandResults, commandLineResult });
+				if (!isAutoApproved && isAutoApproveEnabled) {
+					customActions = generateAutoApproveActions(actualCommand, subCommands, { subCommandResults, commandLineResult });
+				}
 			}
 
 			let shellType = basename(shell, '.exe');
