@@ -56,10 +56,9 @@ function createPowerShellModelDescription(shell: string): string {
 		`This tool allows you to execute ${isWinPwsh ? 'Windows PowerShell 5.1' : 'PowerShell'} commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.`,
 		'',
 		'Command Execution:',
-		'- Does NOT support multi-line commands',
 		// Even for pwsh 7+ we want to use `;` to chain commands since the tree sitter grammar
-		// doesn't parse `&&`
-		// '- Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly',
+		// doesn't parse `&&`. See https://github.com/airbus-cert/tree-sitter-powershell/issues/27
+		'- Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly',
 		'- Prefer pipelines | for object-based data flow',
 		'',
 		'Directory Management:',
