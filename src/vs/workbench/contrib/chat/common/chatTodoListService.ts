@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -24,6 +25,7 @@ export const IChatTodoListService = createDecorator<IChatTodoListService>('chatT
 
 export interface IChatTodoListService {
 	readonly _serviceBrand: undefined;
+	readonly onDidUpdateTodos: Event<string>;
 	getTodos(sessionId: string): IChatTodo[];
 	setTodos(sessionId: string, todos: IChatTodo[]): void;
 }
@@ -58,6 +60,9 @@ export class ChatTodoListStorage implements IChatTodoListStorage {
 export class ChatTodoListService extends Disposable implements IChatTodoListService {
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _onDidUpdateTodos = this._register(new Emitter<string>());
+	readonly onDidUpdateTodos: Event<string> = this._onDidUpdateTodos.event;
+
 	private todoListStorage: IChatTodoListStorage;
 
 	constructor(@IStorageService storageService: IStorageService) {
@@ -71,5 +76,6 @@ export class ChatTodoListService extends Disposable implements IChatTodoListServ
 
 	setTodos(sessionId: string, todos: IChatTodo[]): void {
 		this.todoListStorage.setTodoList(sessionId, todos);
+		this._onDidUpdateTodos.fire(sessionId);
 	}
 }

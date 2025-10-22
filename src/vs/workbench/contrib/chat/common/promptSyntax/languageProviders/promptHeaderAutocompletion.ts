@@ -15,7 +15,7 @@ import { IChatModeService } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
-import { PromptHeader } from '../service/newPromptsParser.js';
+import { PromptHeader } from '../promptFileParser.js';
 import { getValidAttributeNames } from './promptValidator.js';
 import { localize } from '../../../../../../nls.js';
 

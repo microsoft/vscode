@@ -222,7 +222,7 @@ export class SnoozeInlineCompletion extends Action2 {
 		];
 
 		const picked = await quickInputService.pick(items, {
-			placeHolder: localize('snooze.placeholder', "Select snooze duration for Code completions and NES"),
+			placeHolder: localize('snooze.placeholder', "Select snooze duration for Inline Suggestions"),
 			activeItem: items.find(item => item.value === lastSelectedDuration),
 		});
 

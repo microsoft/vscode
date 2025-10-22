@@ -3159,9 +3159,11 @@ export class ChatResponseFileTreePart {
 export class ChatResponseMultiDiffPart {
 	value: vscode.ChatResponseDiffEntry[];
 	title: string;
-	constructor(value: vscode.ChatResponseDiffEntry[], title: string) {
+	readOnly?: boolean;
+	constructor(value: vscode.ChatResponseDiffEntry[], title: string, readOnly?: boolean) {
 		this.value = value;
 		this.title = title;
+		this.readOnly = readOnly;
 	}
 }
 

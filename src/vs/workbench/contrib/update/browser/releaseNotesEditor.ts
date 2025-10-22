@@ -119,6 +119,7 @@ export class ReleaseNotesManager extends Disposable {
 				},
 				'releaseNotes',
 				title,
+				undefined,
 				{ group: ACTIVE_GROUP, preserveFocus: false });
 
 			const disposables = new DisposableStore();
