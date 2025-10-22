@@ -12,8 +12,8 @@ import { IRequestService, isSuccess } from '../../request/common/request.js';
 import { McpGalleryResourceType, IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from './mcpGalleryManifest.js';
 
 const SUPPORTED_VERSIONS = [
-	'v0',
 	'v0.1',
+	'v0',
 ];
 
 export class McpGalleryManifestService extends Disposable implements IMcpGalleryManifestService {
