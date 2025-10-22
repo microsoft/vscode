@@ -771,9 +771,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
 
 		const thinkingStyle = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
-		const defaultScrolling = thinkingStyle === ThinkingDisplayMode.Default && element.model.request?.modelId?.toLowerCase().includes('gpt-5');
 		const defaultCodex = thinkingStyle === ThinkingDisplayMode.Default && element.model.request?.modelId?.toLowerCase().includes('codex');
-		if ((thinkingStyle === ThinkingDisplayMode.FixedScrolling || defaultScrolling) && lastPart?.kind === 'thinking') {
+		if ((thinkingStyle === ThinkingDisplayMode.FixedScrolling || thinkingStyle === ThinkingDisplayMode.Default) && lastPart?.kind === 'thinking') {
 			return false;
 		}
 
@@ -1250,17 +1249,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					return this.renderNoContent(other => content.kind === other.kind);
 				}
 
-				if (isResponseVM(context.element) && (this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') === ThinkingDisplayMode.FixedScrollingTools || (this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') === ThinkingDisplayMode.Default && context.element.model.request?.modelId?.toLowerCase().includes('codex')))) {
-					const isNonThinkingContent = content.kind !== 'working' && content.kind !== 'thinking' && content.kind !== 'toolInvocation' && content.kind !== 'toolInvocationSerialized' && content.kind !== 'prepareToolInvocation';
-					if (this._currentThinkingPart && isNonThinkingContent && !this._streamingThinking) {
-						this.finalizeCurrentThinkingPart();
-					}
-
-				} else {
-					const isNonThinkingContent = content.kind !== 'working' && content.kind !== 'thinking';
-					if (this._currentThinkingPart && isNonThinkingContent && !this._streamingThinking) {
-						this.finalizeCurrentThinkingPart();
-					}
+				const thinkingStyle = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
+				const isCodex = isResponseVM(context.element) && context.element.model.request?.modelId?.toLowerCase().includes('codex');
+				const allowToolStreaming = thinkingStyle === ThinkingDisplayMode.FixedScrollingTools || (thinkingStyle === ThinkingDisplayMode.Default && isCodex);
+				const isThinkingContent = content.kind === 'working' || content.kind === 'thinking';
+				const isToolStreamingContent = allowToolStreaming && (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized' || content.kind === 'prepareToolInvocation');
+				if (this._currentThinkingPart && !this._streamingThinking && !isThinkingContent && !isToolStreamingContent) {
+					this.finalizeCurrentThinkingPart();
 				}
 			}
 
@@ -1469,8 +1464,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.handleRenderedCodeblocks(context.element, part, codeBlockStartIndex);
 
 		const thinkingStyle = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
-		const isCodex = isResponseVM(context.element) && context.element.model.request?.modelId?.toLowerCase().includes('codex');
-		if (isCodex && (thinkingStyle === ThinkingDisplayMode.FixedScrollingTools || (thinkingStyle === ThinkingDisplayMode.Default))) {
+		if (isResponseVM(context.element) && (thinkingStyle === ThinkingDisplayMode.FixedScrollingTools || (thinkingStyle === ThinkingDisplayMode.Default && context.element.model.request?.modelId?.toLowerCase().includes('codex')))) {
 			if (this.shouldPinPart(toolInvocation, context.element)) {
 				if (this._currentThinkingPart && part?.domNode) {
 					this._currentThinkingPart.appendItem(part?.domNode);

@@ -107,10 +107,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.lastExtractedTitle = extractedTitle;
 		}
 		this.currentThinkingValue = this.parseContent(initialText);
-		if (effectiveMode === ThinkingDisplayMode.Expanded || effectiveMode === ThinkingDisplayMode.CollapsedPreview || effectiveMode === ThinkingDisplayMode.FixedScrolling || effectiveMode === ThinkingDisplayMode.FixedScrollingTools) {
-			this.setExpanded(true);
-		} else if (effectiveMode === ThinkingDisplayMode.Collapsed) {
+
+		if (effectiveMode === ThinkingDisplayMode.Collapsed) {
 			this.setExpanded(false);
+		} else {
+			this.setExpanded(true);
 		}
 
 		if (this.perItemCollapsedMode) {
