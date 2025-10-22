@@ -117,7 +117,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			}, template.description));
 		}
 
-		template.timestamp.textContent = fromNow(session.element.timing.startTime, true, false, true);
+		template.timestamp.textContent = fromNow(session.element.timing.startTime);
 	}
 
 	private statusToIcon(status?: AgentSessionStatus): ThemeIcon {
