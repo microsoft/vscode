@@ -158,7 +158,6 @@ export class ChatToolInvocation implements IChatToolInvocation {
 				? { output: { type: 'data', mimeType: details.output.mimeType, base64Data: encodeBase64(details.output.value) } }
 				: details,
 			toolSpecificData: this.toolSpecificData,
-			toolMetadata: this._toolMetadata,
 			toolCallId: this.toolCallId,
 			toolId: this.toolId,
 			fromSubAgent: this.fromSubAgent,

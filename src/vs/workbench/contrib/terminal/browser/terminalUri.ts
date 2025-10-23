@@ -11,7 +11,6 @@ export interface ITerminalUriMetadata {
 	title?: string;
 	commandId?: string;
 	commandLine?: string;
-	output?: string;
 }
 
 export function parseTerminalUri(resource: URI): ITerminalIdentifier {
