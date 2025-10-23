@@ -1088,7 +1088,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget {
-	padding: 6px 8px 6px 12px;
+	padding: 4px 8px 4px 12px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-editor-background);
@@ -1123,11 +1123,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	align-content: center;
+	line-height: 16px;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand .todo-list-title-section .codicon {
 	font-size: 16px;
+	line-height: 16px;
+	flex-shrink: 0;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container {
@@ -1137,21 +1139,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container .monaco-button {
-	padding: 2px;
-	margin-right: 2px;
-	min-width: unset;
 	background-color: transparent;
+	border-color: transparent;
 	color: var(--vscode-foreground);
-	border: none;
-	border-radius: 3px;
-	height: 14px;
-	width: 14px;
-	display: flex;
+	cursor: pointer;
+	height: 16px;
+	padding: 2px;
+	border-radius: 2px;
+	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	cursor: pointer;
+	min-width: unset;
+	width: 14px;
+	margin-right: 2px;
 }
 
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container .monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container .monaco-button:focus {
 	outline: 1px solid var(--vscode-focusBorder);
@@ -1180,8 +1185,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* 6.5 items to show half-line affordance */
 	overflow-y: auto;
 	overscroll-behavior: contain;
-	scrollbar-width: thin;
-	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
 	scroll-behavior: smooth;
 	scroll-padding-top: 24px;
 	/* Half item height to show partial next item */
@@ -1189,25 +1192,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* Half item height to show partial previous item */
 }
 
-/* Modern scrollbar styling for WebKit browsers */
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-container::-webkit-scrollbar {
-	width: 8px;
-}
-
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-container::-webkit-scrollbar-track {
-	background: transparent;
-}
-
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-container::-webkit-scrollbar-thumb {
-	background-color: var(--vscode-scrollbarSlider-background);
-	border-radius: 4px;
-	border: 2px solid transparent;
-	background-clip: content-box;
-}
-
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-container::-webkit-scrollbar-thumb:hover {
-	background-color: var(--vscode-scrollbarSlider-hoverBackground);
-}
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list {
 	display: flex;
@@ -1223,16 +1207,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	scroll-snap-align: start;
 	min-height: 22px;
 	font-size: var(--vscode-chat-font-size-body-m);
+	padding: 0px 3px;
+	border-radius: 2px;
+	cursor: pointer;
 }
+
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-item:focus {
 	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 1px;
-	background-color: var(--vscode-list-focusBackground);
+	outline-offset: -1px;
 }
 
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-item:hover {
-	background-color: var(--vscode-list-hoverBackground);
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-item.focused {
+	background-color: var(--vscode-list-focusBackground);
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-item > .todo-status-icon.codicon {
@@ -1308,9 +1295,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars .tool-warning-indicator {
 	position: absolute;
-	bottom: 1px;
-	right: 1px;
-	font-size: 9px !important;
+	bottom: 0;
+	right: 0;
+	font-size: 12px !important;
 	color: var(--vscode-problemsWarningIcon-foreground);
 	background: var(--vscode-input-background);
 	width: fit-content;
@@ -1602,9 +1589,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.chat-mcp-state-indicator {
 		position: absolute;
-		bottom: 1px;
-		right: 1px;
-		font-size: 9px !important;
+		bottom: 0;
+		right: 0;
+		font-size: 12px !important;
 		background: var(--vscode-input-background);
 		width: fit-content;
 		height: fit-content;

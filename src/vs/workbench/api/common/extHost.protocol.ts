@@ -2505,7 +2505,6 @@ export interface ITerminalCommandDto {
 export interface ITerminalCompletionContextDto {
 	commandLine: string;
 	cursorIndex: number;
-	allowFallbackCompletions: boolean;
 }
 
 export interface ITerminalCompletionItemDto {
@@ -2516,8 +2515,7 @@ export interface ITerminalCompletionItemDto {
 	isFile?: boolean | undefined;
 	isDirectory?: boolean | undefined;
 	isKeyword?: boolean | undefined;
-	replacementIndex: number;
-	replacementLength: number;
+	replacementRange: readonly [number, number];
 }
 
 export interface ITerminalCompletionProvider {

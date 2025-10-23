@@ -142,9 +142,11 @@ class InputEditorDecorations extends Disposable {
 
 		if (!inputValue) {
 			const mode = this.widget.input.currentModeObs.get();
-			let description = mode.description.get();
+			let placeholder;
 			if (this.configurationService.getValue<boolean>('chat.emptyChatState.enabled')) {
-				description = localize('chatPlaceholderHint', "Add context (#), extensions (@), commands (/)");
+				placeholder = localize('chatPlaceholderHint', "Add context (#), extensions (@), commands (/)");
+			} else {
+				placeholder = mode.description.get() ?? '';
 			}
 
 			const decoration: IDecorationOptions[] = [
@@ -157,7 +159,7 @@ class InputEditorDecorations extends Disposable {
 					},
 					renderOptions: {
 						after: {
-							contentText: viewModel.inputPlaceholder || (description ?? ''),
+							contentText: viewModel.inputPlaceholder || placeholder,
 							color: this.getPlaceholderColor()
 						}
 					}

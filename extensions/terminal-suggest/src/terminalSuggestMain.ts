@@ -5,6 +5,7 @@
 
 import { ExecOptionsWithStringEncoding } from 'child_process';
 import * as vscode from 'vscode';
+import azdSpec from './completions/azd';
 import cdSpec from './completions/cd';
 import codeCompletionSpec from './completions/code';
 import codeInsidersCompletionSpec from './completions/code-insiders';
@@ -58,6 +59,7 @@ function getCacheKey(machineId: string, remoteAuthority: string | undefined, she
 }
 
 export const availableSpecs: Fig.Spec[] = [
+	azdSpec,
 	cdSpec,
 	codeInsidersCompletionSpec,
 	codeCompletionSpec,
@@ -493,13 +495,9 @@ export async function getCompletionItemsFromSpecs(
 		}
 		showFiles = true;
 		showFolders = true;
-	}
-	// For arguments when no fig suggestions are found these are fallback suggestions
-	else if (!items.length && !showFiles && !showFolders && !hasCurrentArg) {
-		if (terminalContext.allowFallbackCompletions) {
-			showFiles = true;
-			showFolders = true;
-		}
+	} else if (!items.length && !showFiles && !showFolders && !hasCurrentArg) {
+		showFiles = true;
+		showFolders = true;
 	}
 
 	let cwd: vscode.Uri | undefined;
@@ -507,7 +505,7 @@ export async function getCompletionItemsFromSpecs(
 		cwd = await resolveCwdFromCurrentCommandString(currentCommandString, shellIntegrationCwd);
 	}
 
-	return { items, showFiles: showFiles, showFolders: showFolders, fileExtensions, cwd };
+	return { items, showFiles, showFolders, fileExtensions, cwd };
 }
 
 function getEnvAsRecord(shellIntegrationEnv: ITerminalEnvironment): Record<string, string> {

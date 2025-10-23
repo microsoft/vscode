@@ -940,25 +940,23 @@ export enum TerminalCompletionItemKind {
 
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	label: string | CompletionItemLabel;
+	replacementRange: readonly [number, number];
 	icon?: ThemeIcon | undefined;
 	detail?: string | undefined;
 	documentation?: string | vscode.MarkdownString | undefined;
 	isFile?: boolean | undefined;
 	isDirectory?: boolean | undefined;
 	isKeyword?: boolean | undefined;
-	replacementIndex: number;
-	replacementLength: number;
 
-	constructor(label: string | CompletionItemLabel, icon?: ThemeIcon, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, replacementIndex?: number, replacementLength?: number) {
+	constructor(label: string | CompletionItemLabel, replacementRange: readonly [number, number], icon?: ThemeIcon, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean) {
 		this.label = label;
+		this.replacementRange = replacementRange;
 		this.icon = icon;
 		this.detail = detail;
 		this.documentation = documentation;
 		this.isFile = isFile;
 		this.isDirectory = isDirectory;
 		this.isKeyword = isKeyword;
-		this.replacementIndex = replacementIndex ?? 0;
-		this.replacementLength = replacementLength ?? 0;
 	}
 }
 

@@ -69,6 +69,13 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					description: localize('chatSessionsExtPoint.order', 'Order in which this item should be displayed.'),
 					type: 'integer'
 				},
+				alternativeIds: {
+					description: localize('chatSessionsExtPoint.alternativeIds', 'Alternative identifiers for backward compatibility.'),
+					type: 'array',
+					items: {
+						type: 'string'
+					}
+				},
 				welcomeTitle: {
 					description: localize('chatSessionsExtPoint.welcomeTitle', 'Title text to display in the chat welcome view for this session type.'),
 					type: 'string'
@@ -203,13 +210,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	readonly _serviceBrand: undefined;
 
 	private readonly _itemsProviders: Map<string, IChatSessionItemProvider> = new Map();
+	private readonly _contentProviders: Map</* scheme */ string, IChatSessionContentProvider> = new Map();
+	private readonly _contributions: Map</* scheme */ string, IChatSessionsExtensionPoint> = new Map();
+	private readonly _alternativeIdMap: Map</* alternativeId */ string, /* primaryType */ string> = new Map();
+	private readonly _disposableStores: Map<string, DisposableStore> = new Map();
+	private readonly _contextKeys = new Set<string>();
 
 	private readonly _onDidChangeItemsProviders = this._register(new Emitter<IChatSessionItemProvider>());
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider> = this._onDidChangeItemsProviders.event;
-	private readonly _contentProviders: Map</* scheme */ string, IChatSessionContentProvider> = new Map();
-	private readonly _contributions: Map</* scheme */ string, IChatSessionsExtensionPoint> = new Map();
-	private readonly _disposableStores: Map<string, DisposableStore> = new Map();
-	private readonly _contextKeys = new Set<string>();
 
 	private readonly _onDidChangeSessionItems = this._register(new Emitter<string>());
 	readonly onDidChangeSessionItems: Event<string> = this._onDidChangeSessionItems.event;
@@ -263,6 +271,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						description: contribution.description,
 						when: contribution.when,
 						icon: contribution.icon,
+						alternativeIds: contribution.alternativeIds,
 						welcomeTitle: contribution.welcomeTitle,
 						welcomeMessage: contribution.welcomeMessage,
 						welcomeTips: contribution.welcomeTips,
@@ -336,6 +345,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		this._contributions.set(contribution.type, contribution);
 
+		// Register alternative IDs if provided
+		if (contribution.alternativeIds) {
+			for (const altId of contribution.alternativeIds) {
+				if (this._alternativeIdMap.has(altId)) {
+					this._logService.warn(`Alternative ID '${altId}' is already mapped to '${this._alternativeIdMap.get(altId)}'. Remapping to '${contribution.type}'.`);
+				}
+				this._alternativeIdMap.set(altId, contribution.type);
+			}
+		}
+
 		// Store icon mapping if provided
 		let icon: ThemeIcon | undefined;
 
@@ -369,6 +388,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return {
 			dispose: () => {
 				this._contributions.delete(contribution.type);
+				// Remove alternative ID mappings
+				if (contribution.alternativeIds) {
+					for (const altId of contribution.alternativeIds) {
+						if (this._alternativeIdMap.get(altId) === contribution.type) {
+							this._alternativeIdMap.delete(altId);
+						}
+					}
+				}
 				this._sessionTypeIcons.delete(contribution.type);
 				this._sessionTypeWelcomeTitles.delete(contribution.type);
 				this._sessionTypeWelcomeMessages.delete(contribution.type);
@@ -389,6 +416,35 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 		const whenExpr = ContextKeyExpr.deserialize(contribution.when);
 		return !whenExpr || this._contextKeyService.contextMatchesRules(whenExpr);
+	}
+
+	/**
+	 * Resolves a session type to its primary type, checking for alternative IDs.
+	 * @param sessionType The session type or alternative ID to resolve
+	 * @returns The primary session type, or undefined if not found or not available
+	 */
+	private _resolveToPrimaryType(sessionType: string): string | undefined {
+		// Try to find the primary type first
+		const contribution = this._contributions.get(sessionType);
+		if (contribution) {
+			// If the contribution is available, use it
+			if (this._isContributionAvailable(contribution)) {
+				return sessionType;
+			}
+			// If not available, fall through to check for alternatives
+		}
+
+		// Check if this is an alternative ID, or if the primary type is not available
+		const primaryType = this._alternativeIdMap.get(sessionType);
+		if (primaryType) {
+			const altContribution = this._contributions.get(primaryType);
+			if (altContribution && this._isContributionAvailable(altContribution)) {
+				this._logService.info(`Resolving chat session type '${sessionType}' to alternative type '${primaryType}'`);
+				return primaryType;
+			}
+		}
+
+		return undefined;
 	}
 
 	private _registerMenuItems(contribution: IChatSessionsExtensionPoint): IDisposable {
@@ -577,6 +633,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	async canResolveItemProvider(chatViewType: string): Promise<boolean> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
+		const resolvedType = this._resolveToPrimaryType(chatViewType);
+		if (resolvedType) {
+			chatViewType = resolvedType;
+		}
+
 		const contribution = this._contributions.get(chatViewType);
 		if (contribution && !this._isContributionAvailable(contribution)) {
 			return false;
@@ -593,7 +654,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	async canResolveChatSession(chatSessionResource: URI) {
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		const contribution = this._contributions.get(chatSessionResource.scheme);
+		const resolvedType = this._resolveToPrimaryType(chatSessionResource.scheme) || chatSessionResource.scheme;
+		const contribution = this._contributions.get(resolvedType);
 		if (contribution && !this._isContributionAvailable(contribution)) {
 			return false;
 		}
@@ -611,8 +673,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			return [];
 		}
 
-		const provider = this._itemsProviders.get(chatSessionType);
+		const resolvedType = this._resolveToPrimaryType(chatSessionType);
+		if (resolvedType) {
+			chatSessionType = resolvedType;
+		}
 
+		const provider = this._itemsProviders.get(chatSessionType);
 		if (provider?.provideChatSessionItems) {
 			const sessions = await provider.provideChatSessionItems(token);
 			return sessions;
@@ -688,6 +754,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			throw Error(`Cannot find provider for ${chatSessionType}`);
 		}
 
+		const resolvedType = this._resolveToPrimaryType(chatSessionType);
+		if (resolvedType) {
+			chatSessionType = resolvedType;
+		}
+
+
 		const provider = this._itemsProviders.get(chatSessionType);
 		if (!provider?.provideNewChatSessionItem) {
 			throw Error(`Provider for ${chatSessionType} does not support creating sessions`);
@@ -701,8 +773,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		if (!(await this.canResolveChatSession(sessionResource))) {
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}
-
-		const provider = this._contentProviders.get(sessionResource.scheme);
+		const resolvedType = this._resolveToPrimaryType(sessionResource.scheme) || sessionResource.scheme;
+		const provider = this._contentProviders.get(resolvedType);
 		if (!provider) {
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}

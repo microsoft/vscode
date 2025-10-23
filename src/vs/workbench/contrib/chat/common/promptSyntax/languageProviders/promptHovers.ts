@@ -82,6 +82,10 @@ export class PromptHoverProvider implements HoverProvider {
 			if (descriptionRange?.containsPosition(position)) {
 				return this.createHover(localize('promptHeader.agent.description', 'The description of the custom agent, what it does and when to use it.'), descriptionRange);
 			}
+			const argumentHintRange = header.getAttribute(PromptHeaderAttributes.argumentHint)?.range;
+			if (argumentHintRange?.containsPosition(position)) {
+				return this.createHover('The argument-hint describes what inputs the custom agent expects or supports', argumentHintRange);
+			}
 			const model = header.getAttribute(PromptHeaderAttributes.model);
 			if (model?.range.containsPosition(position)) {
 				return this.getModelHover(model, model.range, localize('promptHeader.agent.model', 'Specify the model that runs this custom agent.'));
@@ -94,6 +98,10 @@ export class PromptHoverProvider implements HoverProvider {
 			const descriptionRange = header.getAttribute(PromptHeaderAttributes.description)?.range;
 			if (descriptionRange?.containsPosition(position)) {
 				return this.createHover(localize('promptHeader.prompt.description', 'The description of the reusable prompt, what it does and when to use it.'), descriptionRange);
+			}
+			const argumentHintRange = header.getAttribute(PromptHeaderAttributes.argumentHint)?.range;
+			if (argumentHintRange?.containsPosition(position)) {
+				return this.createHover('The argument-hint describes what inputs the prompt expects or supports', argumentHintRange);
 			}
 			const model = header.getAttribute(PromptHeaderAttributes.model);
 			if (model?.range.containsPosition(position)) {

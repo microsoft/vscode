@@ -10,7 +10,7 @@ import { DisposableStore, IDisposable, dispose } from '../../../../base/common/l
 import './media/scm.css';
 import { localize } from '../../../../nls.js';
 import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IMenu, IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -345,14 +345,7 @@ export class SCMMenus implements ISCMMenus, IDisposable {
 
 			this.repositoryMenuDisposables.clear();
 			for (const menuItem of MenuRegistry.getMenuItems(MenuId.SCMTitle)) {
-				// In order to keep the Repositories view clean, we hide the
-				// primary actions by default. Users can always promote actions
-				// from the `...` menu to inline actions.
-				let itemToAppend = menuItem;
-				if (isIMenuItem(menuItem) && menuItem.group === 'navigation') {
-					itemToAppend = { ...menuItem, isHiddenByDefault: true };
-				}
-				this.repositoryMenuDisposables.add(MenuRegistry.appendMenuItem(MenuId.SCMSourceControlInline, itemToAppend));
+				this.repositoryMenuDisposables.add(MenuRegistry.appendMenuItem(MenuId.SCMSourceControlInline, menuItem));
 			}
 		}));
 	}
