@@ -785,6 +785,7 @@ suite('PromptsService', () => {
 						metadata: undefined
 					},
 					model: undefined,
+					argumentHint: undefined,
 					tools: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -848,6 +849,7 @@ suite('PromptsService', () => {
 					},
 					handOffs: undefined,
 					model: undefined,
+					argumentHint: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local },
 				},
@@ -870,6 +872,88 @@ suite('PromptsService', () => {
 				result,
 				expected,
 				'Must get custom agents.',
+			);
+		});
+
+		test('header with argumentHint', async () => {
+			const rootFolderName = 'custom-agents-with-argument-hint';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/agents',
+							children: [
+								{
+									name: 'agent1.agent.md',
+									contents: [
+										'---',
+										'description: \'Code review agent.\'',
+										'argument-hint: \'Provide file path or code snippet to review\'',
+										'tools: [ code-analyzer, linter ]',
+										'---',
+										'I will help review your code for best practices.',
+									],
+								},
+								{
+									name: 'agent2.agent.md',
+									contents: [
+										'---',
+										'description: \'Documentation generator.\'',
+										'argument-hint: \'Specify function or class name to document\'',
+										'---',
+										'I generate comprehensive documentation.',
+									],
+								}
+							],
+
+						},
+					],
+				}])).mock();
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
+				{
+					name: 'agent1',
+					description: 'Code review agent.',
+					argumentHint: 'Provide file path or code snippet to review',
+					tools: ['code-analyzer', 'linter'],
+					agentInstructions: {
+						content: 'I will help review your code for best practices.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+				{
+					name: 'agent2',
+					description: 'Documentation generator.',
+					argumentHint: 'Specify function or class name to document',
+					agentInstructions: {
+						content: 'I generate comprehensive documentation.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					tools: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Must get custom agents with argumentHint.',
 			);
 		});
 	});
