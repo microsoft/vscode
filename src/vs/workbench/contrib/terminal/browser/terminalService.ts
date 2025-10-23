@@ -1018,9 +1018,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 		} else {
 			instance = this._createTerminal(shellLaunchConfig, location, options);
 		}
-		if (instance.shellType) {
-			this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`);
-		}
 
 		if (shellLaunchConfig.hideFromUser) {
 			this._backgroundedTerminalInstances.push({ instance, terminalLocationOptions: options?.location });
@@ -1033,6 +1030,10 @@ export class TerminalService extends Disposable implements ITerminalService {
 					this._onDidDisposeInstance.fire(instance);
 				})
 			]);
+		}
+
+		if (instance.shellType) {
+			this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`);
 		}
 
 		return instance;
