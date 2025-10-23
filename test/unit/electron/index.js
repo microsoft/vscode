@@ -262,7 +262,13 @@ app.on('ready', () => {
 		const resolvedPath = path.resolve(filePath);
 		const normalizedRoot = path.resolve(projectRoot);
 
-		if (!resolvedPath.startsWith(normalizedRoot + path.sep) && resolvedPath !== normalizedRoot) {
+		// On Windows, paths are case-insensitive
+		const isWindows = process.platform === 'win32';
+		const rel = path.relative(
+			isWindows ? normalizedRoot.toLowerCase() : normalizedRoot,
+			isWindows ? resolvedPath.toLowerCase() : resolvedPath
+		);
+		if (rel.startsWith('..') || path.isAbsolute(rel)) {
 			const error = new Error(`Access denied: Path '${filePath}' is outside the project root`);
 			console.error(error.message);
 			throw error;
