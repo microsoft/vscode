@@ -654,6 +654,11 @@ export class QuickInputController extends Disposable {
 		ui.list.matchOnDetail = false;
 		ui.list.matchOnLabel = true;
 		ui.list.sortByLabel = true;
+		ui.tree.updateFilterOptions({
+			matchOnDescription: false,
+			matchOnLabel: true
+		});
+		ui.tree.sortByLabel = true;
 		ui.ignoreFocusOut = false;
 		ui.inputBox.toggles = undefined;
 
