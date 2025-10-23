@@ -329,7 +329,7 @@ export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchC
 		super();
 
 		// It may be better to have some generic UI for this, for any extension that is incompatible,
-		// but this is only enabled for Copilot Chat now and it needs to be obvious.
+		// but this is only enabled for Chat now and it needs to be obvious.
 		const isInvalid = ChatContextKeys.extensionInvalid.bindTo(contextKeyService);
 		this._register(Event.runAndSubscribe(
 			extensionsWorkbenchService.onDidChangeExtensionsNotification,

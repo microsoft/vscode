@@ -28,6 +28,7 @@ import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
+import { IChatEditorOptions } from '../../contrib/chat/browser/chatEditor.js';
 
 export class ObservableChatSession extends Disposable implements ChatSession {
 	static generateSessionKey(providerHandle: number, sessionId: string) {
@@ -396,6 +397,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		const originalResource = ChatSessionUri.forSession(chatSessionType, original.id);
 		const modifiedResource = ChatSessionUri.forSession(chatSessionType, modified.id);
 		const originalEditor = this._editorService.editors.find(editor => editor.resource?.toString() === originalResource.toString());
+		const contribution = this._chatSessionsService.getAllChatSessionContributions().find(c => c.type === chatSessionType);
 
 		// Find the group containing the original editor
 		let originalGroup: IEditorGroup | undefined;
@@ -409,6 +411,13 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			originalGroup = this.editorGroupService.activeGroup;
 		}
 
+		const options: IChatEditorOptions = {
+			title: {
+				preferred: originalEditor?.getName() || undefined,
+				fallback: localize('chatEditorContributionName', "{0}", contribution?.displayName),
+			}
+		};
+
 		if (originalEditor) {
 			// Prefetch the chat session content to make the subsequent editor swap quick
 			this._chatSessionsService.provideChatSessionContent(
@@ -421,7 +430,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					editor: originalEditor,
 					replacement: {
 						resource: modifiedResource,
-						options: {}
+						options,
 					},
 				}], originalGroup);
 			});

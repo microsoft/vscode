@@ -70,7 +70,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, AGENT_SESSIONS_VIEW
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -193,6 +193,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		const viewsService = accessor.get(IViewsService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const hostService = accessor.get(IHostService);
 		const chatAgentService = accessor.get(IChatAgentService);
 		const instaService = accessor.get(IInstantiationService);
@@ -206,7 +207,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
 		// Otherwise, open the view.
 		if (!this.mode || !chatWidget || !isAncestorOfActiveElement(chatWidget.domNode)) {
-			chatWidget = await showChatView(viewsService);
+			chatWidget = await showChatView(viewsService, layoutService);
 		}
 
 		if (!chatWidget) {
@@ -480,7 +481,7 @@ export function registerChatActions() {
 				this.updatePartVisibility(layoutService, chatLocation, false);
 			} else {
 				this.updatePartVisibility(layoutService, chatLocation, true);
-				(await showCopilotView(viewsService, layoutService))?.focusInput();
+				(await showChatView(viewsService, layoutService))?.focusInput();
 			}
 		}
 
@@ -1158,9 +1159,10 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor) {
 			const viewsService = accessor.get(IViewsService);
+			const layoutService = accessor.get(IWorkbenchLayoutService);
 
 			// Open the chat view in the sidebar and get the widget
-			const chatWidget = await showChatView(viewsService);
+			const chatWidget = await showChatView(viewsService, layoutService);
 
 			if (chatWidget) {
 				// Clear the current chat to start a new one

@@ -51,6 +51,7 @@ export interface IChatSessionsExtensionPoint {
 	readonly when?: string;
 	readonly icon?: string;
 	readonly order?: number;
+	readonly alternativeIds?: string[];
 	readonly welcomeTitle?: string;
 	readonly welcomeMessage?: string;
 	readonly welcomeTips?: string;
@@ -182,6 +183,7 @@ export interface IChatSessionsService {
 	// Notify providers about session items changes
 	notifySessionItemsChanged(chatSessionType: string): void;
 
+	hasAnySessionOptions(chatSessionType: string, sessionId: string): boolean;
 	getSessionOption(chatSessionType: string, sessionId: string, optionId: string): string | undefined;
 	setSessionOption(chatSessionType: string, sessionId: string, optionId: string, value: string): boolean;
 

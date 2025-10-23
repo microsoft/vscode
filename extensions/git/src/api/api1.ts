@@ -15,6 +15,7 @@ import { GitExtensionImpl } from './extension';
 import { GitBaseApi } from '../git-base';
 import { PickRemoteSourceOptions } from '../typings/git-base';
 import { OperationKind, OperationResult } from '../operation';
+import { CloneManager } from '../cloneManager';
 
 class ApiInputBox implements InputBox {
 	#inputBox: SourceControlInputBox;
@@ -331,10 +332,12 @@ export class ApiGit implements Git {
 
 export class ApiImpl implements API {
 	#model: Model;
+	#cloneManager: CloneManager;
 	readonly git: ApiGit;
 
-	constructor(model: Model) {
-		this.#model = model;
+	constructor(privates: { model: Model; cloneManager: CloneManager }) {
+		this.#model = privates.model;
+		this.#cloneManager = privates.cloneManager;
 		this.git = new ApiGit(this.#model);
 	}
 
@@ -392,6 +395,11 @@ export class ApiImpl implements API {
 		}
 	}
 
+	async getRepositoryWorkspace(uri: Uri): Promise<Uri[] | null> {
+		const workspaces = this.#model.repositoryCache.get(uri.toString());
+		return workspaces ? workspaces.map(r => Uri.file(r.workspacePath)) : null;
+	}
+
 	async init(root: Uri, options?: InitOptions): Promise<Repository | null> {
 		const path = root.fsPath;
 		await this.#model.git.init(path, options);
@@ -401,7 +409,7 @@ export class ApiImpl implements API {
 
 	async clone(uri: Uri, options?: CloneOptions): Promise<Uri | null> {
 		const parentPath = options?.parentPath?.fsPath;
-		const result = await this.#model.clone(uri.toString(), { parentPath, recursive: options?.recursive, ref: options?.ref, postCloneAction: options?.postCloneAction, skipCache: options?.skipCache });
+		const result = await this.#cloneManager.clone(uri.toString(), { parentPath, recursive: options?.recursive, ref: options?.ref, postCloneAction: options?.postCloneAction });
 		return result ? Uri.file(result) : null;
 	}
 

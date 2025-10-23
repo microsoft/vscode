@@ -38,6 +38,10 @@ export class ObjectPolicy extends BasePolicy {
 		return `<multiTextBox refId="${this.name}" />`;
 	}
 
+	renderJsonValue() {
+		return '';
+	}
+
 	renderProfileValue(): string {
 		return `<string></string>`;
 	}

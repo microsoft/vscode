@@ -156,20 +156,6 @@
             "default": true
         },
         {
-            "key": "chat.promptFiles",
-            "name": "ChatPromptFiles",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.99",
-            "localization": {
-                "description": {
-                    "key": "chat.promptFiles.policy",
-                    "value": "Enables reusable prompt and instruction files in Chat sessions."
-                }
-            },
-            "type": "boolean",
-            "default": true
-        },
-        {
             "key": "chat.tools.terminal.enableAutoApprove",
             "name": "ChatToolsTerminalEnableAutoApprove",
             "category": "IntegratedTerminal",
