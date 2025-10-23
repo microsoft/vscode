@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, IReader, ITransaction, ISettableObservable, IObservableWithChange } from '../base.js';
+import { IObservable, IReader, ITransaction, ISettableObservable, IObservableWithChange, IObservableWithOptionalChange } from '../base.js';
 import { IChangeTracker } from '../changeTracker.js';
 import { DisposableStore, EqualityComparer, IDisposable, strictEquals } from '../commonFacade/deps.js';
 import { DebugLocation } from '../debugLocation.js';
@@ -17,8 +17,8 @@ import { IDerivedReader, Derived, DerivedWithSetter } from './derivedImpl.js';
  *
  * {@link computeFn} should start with a JS Doc using `@description` to name the derived.
  */
-export function derived<T, TChange = void>(computeFn: (reader: IDerivedReader<TChange>) => T): IObservableWithChange<T, TChange>;
-export function derived<T, TChange = void>(owner: DebugOwner, computeFn: (reader: IDerivedReader<TChange>) => T): IObservableWithChange<T, TChange>;
+export function derived<T, TChange = void>(computeFn: (reader: IDerivedReader<TChange>) => T): IObservableWithOptionalChange<T, TChange>;
+export function derived<T, TChange = void>(owner: DebugOwner, computeFn: (reader: IDerivedReader<TChange>) => T): IObservableWithOptionalChange<T, TChange>;
 export function derived<T, TChange = void>(
 	computeFnOrOwner: ((reader: IDerivedReader<TChange>) => T) | DebugOwner,
 	computeFn?: ((reader: IDerivedReader<TChange>) => T) | undefined,
