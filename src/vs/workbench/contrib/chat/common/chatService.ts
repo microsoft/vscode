@@ -341,6 +341,8 @@ export type ConfirmedReason =
 export interface IChatToolInvocation {
 	presentation: IPreparedToolInvocation['presentation'];
 	toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
+	/** Arbitrary metadata returned by the tool's result (eg, structured command info). */
+	toolMetadata?: unknown;
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
 	confirmed: DeferredPromise<ConfirmedReason>;
@@ -376,6 +378,7 @@ export interface IToolResultOutputDetailsSerialized {
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
+	toolMetadata?: unknown;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;

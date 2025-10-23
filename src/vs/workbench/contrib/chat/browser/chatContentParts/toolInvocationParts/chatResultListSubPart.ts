@@ -10,13 +10,12 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Location } from '../../../../../../editor/common/languages.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
-import { toTerminalCommandVariableEntry } from '../../../common/chatVariableEntries.js';
+import { toTerminalCommandVariableEntry, toTerminalCommandVariableEntryFromData } from '../../../common/chatVariableEntries.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { ChatAttachmentsContentPart } from '../chatAttachmentsContentPart.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCollapsibleListContentPart, CollapsibleListPool, IChatCollapsibleListItem } from '../chatReferencesContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
-import '../media/chatResultListSubPart.css';
 
 export class ChatResultListSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -45,9 +44,23 @@ export class ChatResultListSubPart extends BaseChatToolInvocationSubPart {
 		}
 
 		if (terminalReferences.length) {
-			const attachmentEntries = terminalReferences.map(toTerminalCommandVariableEntry);
+			let attachmentEntries;
+			const meta = toolInvocation.toolMetadata;
+			if (typeof meta === 'object' && meta) {
+				const terminalMeta = 'terminalCommand' in meta ? meta.terminalCommand : undefined;
+				if (terminalMeta && typeof terminalMeta === 'object' && 'commandId' in terminalMeta && 'commandLine' in terminalMeta && 'output' in terminalMeta) {
+					attachmentEntries = terminalReferences.map(uri => toTerminalCommandVariableEntryFromData(
+						uri,
+						typeof terminalMeta.commandId === 'string' ? terminalMeta.commandId : undefined,
+						typeof terminalMeta.commandLine === 'string' ? terminalMeta.commandLine : undefined,
+						typeof terminalMeta.output === 'string' ? terminalMeta.output : ''
+					));
+				}
+			} else {
+				attachmentEntries = terminalReferences.map(toTerminalCommandVariableEntry);
+			}
 			const attachmentsPart = this._register(instantiationService.createInstance(ChatAttachmentsContentPart, {
-				variables: attachmentEntries,
+				variables: attachmentEntries ?? [],
 			}));
 			if (attachmentsPart.domNode) {
 				attachmentsPart.domNode.classList.add('chat-result-terminal-attachments');

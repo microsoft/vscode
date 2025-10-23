@@ -38,6 +38,11 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		return this._resultDetails;
 	}
 
+	private _toolMetadata: unknown;
+	public get toolMetadata(): unknown {
+		return this._toolMetadata;
+	}
+
 	public readonly invocationMessage: string | IMarkdownString;
 	public readonly originMessage: string | IMarkdownString | undefined;
 	public pastTenseMessage: string | IMarkdownString | undefined;
@@ -84,6 +89,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		}
 
 		this._resultDetails = result?.toolResultDetails;
+		this._toolMetadata = result?.toolMetadata;
 		this._isCompleteDeferred.complete();
 	}
 
@@ -113,6 +119,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 				? { output: { type: 'data', mimeType: this._resultDetails.output.mimeType, base64Data: encodeBase64(this._resultDetails.output.value) } }
 				: this._resultDetails,
 			toolSpecificData: this.toolSpecificData,
+			toolMetadata: this._toolMetadata,
 			toolCallId: this.toolCallId,
 			toolId: this.toolId,
 			fromSubAgent: this.fromSubAgent,

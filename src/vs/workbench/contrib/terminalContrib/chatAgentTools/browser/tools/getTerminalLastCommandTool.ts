@@ -115,15 +115,22 @@ export class GetTerminalLastCommandTool extends Disposable implements IToolImpl 
 		}
 
 		const workspace = this._workspaceContextService.getWorkspace();
-		const workspaceId = workspace?.id ?? 'workspace';
-		const terminalUri = getTerminalUri(workspaceId, activeInstance.instanceId, { title: activeInstance.title, commandId: lastCommand.id, commandLine: lastCommand.command, output: lastCommand.getOutput ? lastCommand.getOutput() : '' });
+		const workspaceId = workspace?.id;
+		const terminalUri = getTerminalUri(workspaceId, activeInstance.instanceId, { title: activeInstance.title, commandId: lastCommand.id });
 
 		return {
 			content: [{
 				kind: 'text',
 				value: userPrompt.join('\n')
-			},
-			], toolResultDetails: [terminalUri]
+			}],
+			toolResultDetails: [terminalUri],
+			toolMetadata: {
+				terminalCommand: {
+					commandId: lastCommand.id,
+					commandLine: lastCommand.command,
+					output: lastCommand.getOutput ? lastCommand.getOutput() ?? '' : ''
+				}
+			}
 		};
 	}
 }

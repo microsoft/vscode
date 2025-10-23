@@ -266,10 +266,23 @@ export function toTerminalCommandVariableEntry(uri: URI): ITerminalCommandVariab
 	const query = uri.query ?? '';
 	const params = new URLSearchParams(query);
 	const commandId = params.get('command') ?? undefined;
-	const commandLine = params.get('commandLine') ?? undefined;
-	const output = params.get('output') ?? '';
 	const fragment = uri.fragment ?? undefined;
-	const label = commandLine?.split('\n')[0] || fragment || localize('chat.terminalCommandAttachment.defaultName', "Terminal Command");
+	const label = fragment || localize('chat.terminalCommandAttachment.defaultName', "Terminal Command");
+	return {
+		id: uri.toString(true),
+		name: label,
+		kind: 'terminalCommand',
+		value: uri,
+		commandId,
+		commandLine: undefined,
+		output: '',
+		fullName: undefined,
+		icon: Codicon.terminal
+	};
+}
+
+export function toTerminalCommandVariableEntryFromData(uri: URI, commandId?: string, commandLine?: string, output: string = ''): ITerminalCommandVariableEntry {
+	const label = commandLine?.split('\n')[0] || uri.fragment || localize('chat.terminalCommandAttachment.defaultName', "Terminal Command");
 	return {
 		id: uri.toString(true),
 		name: label,
