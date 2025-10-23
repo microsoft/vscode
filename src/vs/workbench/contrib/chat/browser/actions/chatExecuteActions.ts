@@ -397,7 +397,7 @@ class OpenModelPickerAction extends Action2 {
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Period,
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ChatContextKeys.inChatInput
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.lockedToCodingAgent.negate()),
 			},
 			precondition: ChatContextKeys.enabled,
 			menu: {
