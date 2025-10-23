@@ -623,11 +623,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	async canResolveItemProvider(chatViewType: string): Promise<boolean> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		const resolvedType = this._resolveToPrimaryType(chatViewType);
-		if (!resolvedType) {
-			return false;
+		if (resolvedType) {
+			chatViewType = resolvedType;
 		}
 
-		chatViewType = resolvedType;
 		const contribution = this._contributions.get(chatViewType);
 		if (contribution && !this._isContributionAvailable(contribution)) {
 			return false;
@@ -645,11 +644,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	async canResolveContentProvider(chatViewType: string) {
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		const resolvedType = this._resolveToPrimaryType(chatViewType);
-		if (!resolvedType) {
-			return false;
+		if (resolvedType) {
+			chatViewType = resolvedType;
 		}
-
-		chatViewType = resolvedType;
 
 		const contribution = this._contributions.get(chatViewType);
 		if (contribution && !this._isContributionAvailable(contribution)) {
@@ -671,11 +668,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		const resolvedType = this._resolveToPrimaryType(chatSessionType);
-		if (!resolvedType) {
-			return [];
+		if (resolvedType) {
+			chatSessionType = resolvedType;
 		}
 
-		const provider = this._itemsProviders.get(resolvedType);
+		const provider = this._itemsProviders.get(chatSessionType);
 		if (provider?.provideChatSessionItems) {
 			const sessions = await provider.provideChatSessionItems(token);
 			return sessions;
@@ -749,11 +746,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		const resolvedType = this._resolveToPrimaryType(chatSessionType);
-		if (!resolvedType) {
-			throw Error(`Cannot find provider for ${chatSessionType}`);
+		if (resolvedType) {
+			chatSessionType = resolvedType;
 		}
 
-		chatSessionType = resolvedType;
 
 		const provider = this._itemsProviders.get(chatSessionType);
 		if (!provider?.provideNewChatSessionItem) {
@@ -766,19 +762,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public async provideChatSessionContent(chatSessionType: string, id: string, resource: URI, token: CancellationToken): Promise<ChatSession> {
 		if (!(await this.canResolveContentProvider(chatSessionType))) {
-			throw Error(`Cannot find provider for ${chatSessionType}`);
+			throw Error(`Can not find provider for ${chatSessionType}`);
 		}
 
 		const resolvedType = this._resolveToPrimaryType(chatSessionType);
-		if (!resolvedType) {
-			throw Error(`Cannot find provider for ${chatSessionType}`);
+		if (resolvedType) {
+			chatSessionType = resolvedType;
 		}
 
-		chatSessionType = resolvedType;
 
 		const provider = this._contentProviders.get(chatSessionType);
 		if (!provider) {
-			throw Error(`Cannot find provider for ${chatSessionType}`);
+			throw Error(`Can not find provider for ${chatSessionType}`);
 		}
 
 		const sessionKey = `${chatSessionType}_${id}`;
