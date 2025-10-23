@@ -27,6 +27,9 @@ export class MockChatSessionsService implements IChatSessionsService {
 	private readonly _onDidChangeInProgress = new Emitter<void>();
 	readonly onDidChangeInProgress = this._onDidChangeInProgress.event;
 
+	private readonly _onDidChangeContentProviderSchemes = new Emitter<{ readonly added: string[]; readonly removed: string[] }>();
+	readonly onDidChangeContentProviderSchemes = this._onDidChangeContentProviderSchemes.event;
+
 	private providers = new Map<string, IChatSessionItemProvider>();
 	private contentProviders = new Map<string, IChatSessionContentProvider>();
 	private contributions: IChatSessionsExtensionPoint[] = [];
@@ -59,6 +62,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 				this.providers.delete(provider.chatSessionType);
 			}
 		};
+	}
+
+	canResolveChatSession(chatSessionResource: URI): Promise<boolean> {
+		throw Error('Not implemented');
 	}
 
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[] {
@@ -136,12 +143,12 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contentProviders.has(chatSessionType);
 	}
 
-	async provideChatSessionContent(chatSessionType: string, id: string, sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
-		const provider = this.contentProviders.get(chatSessionType);
+	async provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
+		const provider = this.contentProviders.get(sessionResource.scheme);
 		if (!provider) {
-			throw new Error(`No content provider for ${chatSessionType}`);
+			throw new Error(`No content provider for ${sessionResource.scheme}`);
 		}
-		return provider.provideChatSessionContent(id, sessionResource, token);
+		return provider.provideChatSessionContent(sessionResource, token);
 	}
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined {
@@ -156,45 +163,46 @@ export class MockChatSessionsService implements IChatSessionsService {
 		}
 	}
 
-	private optionsChangeCallback?: (chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>;
+	private optionsChangeCallback?: (chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>;
 
-	setOptionsChangeCallback(callback: (chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>): void {
+	setOptionsChangeCallback(callback: (chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>): void {
 		this.optionsChangeCallback = callback;
 	}
 
-	async notifySessionOptionsChange(chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void> {
+	async notifySessionOptionsChange(chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void> {
 		if (this.optionsChangeCallback) {
-			await this.optionsChangeCallback(chatSessionType, sessionId, updates);
+			await this.optionsChangeCallback(chatSessionType, sessionResource, updates);
 		}
 	}
 
-	async setEditableSession(sessionId: string, data: IEditableData | null): Promise<void> {
+	async setEditableSession(sessionResource: URI, data: IEditableData | null): Promise<void> {
+		const sessionKey = sessionResource.toString();
 		if (data) {
-			this.editableData.set(sessionId, data);
+			this.editableData.set(sessionKey, data);
 		} else {
-			this.editableData.delete(sessionId);
+			this.editableData.delete(sessionKey);
 		}
 	}
 
-	getEditableData(sessionId: string): IEditableData | undefined {
-		return this.editableData.get(sessionId);
+	getEditableData(sessionResource: URI): IEditableData | undefined {
+		return this.editableData.get(sessionResource.toString());
 	}
 
-	isEditable(sessionId: string): boolean {
-		return this.editableData.has(sessionId);
+	isEditable(sessionResource: URI): boolean {
+		return this.editableData.has(sessionResource.toString());
 	}
 
 	notifySessionItemsChanged(chatSessionType: string): void {
 		this._onDidChangeSessionItems.fire(chatSessionType);
 	}
 
-	getSessionOption(chatSessionType: string, sessionId: string, optionId: string): string | undefined {
-		const sessionKey = `${chatSessionType}:${sessionId}`;
+	getSessionOption(chatSessionType: string, sessionResource: URI, optionId: string): string | undefined {
+		const sessionKey = `${chatSessionType}:${sessionResource.toString()}`;
 		return this.sessionOptions.get(sessionKey)?.get(optionId);
 	}
 
-	setSessionOption(chatSessionType: string, sessionId: string, optionId: string, value: string): boolean {
-		const sessionKey = `${chatSessionType}:${sessionId}`;
+	setSessionOption(chatSessionType: string, sessionResource: URI, optionId: string, value: string): boolean {
+		const sessionKey = `${chatSessionType}:${sessionResource.toString()}`;
 		if (!this.sessionOptions.has(sessionKey)) {
 			this.sessionOptions.set(sessionKey, new Map());
 		}
