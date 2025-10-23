@@ -28,7 +28,7 @@ import { IUserDataProfileService } from '../../../../../services/userDataProfile
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
 import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
-import { getPromptsTypeForLanguageId, AGENT_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, AGENT_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType, getLanguageIdForPromptsType } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, PromptsStorage } from './promptsService.js';
@@ -458,7 +458,7 @@ export class UpdateTracker extends Disposable {
 
 	constructor(
 		fileLocator: PromptFilesLocator,
-		promptTypes: PromptsType,
+		promptType: PromptsType,
 		@IModelService modelService: IModelService,
 	) {
 		super();
@@ -466,11 +466,11 @@ export class UpdateTracker extends Disposable {
 		const delayer = this._register(new Delayer<void>(UpdateTracker.CHAT_AGENT_UPDATE_DELAY_MS));
 		const trigger = () => delayer.trigger(() => this.onDidChangeContentEmitter.fire());
 
-		const filesUpdatedEventRegistration = this._register(fileLocator.createFilesUpdatedEvent(promptTypes));
+		const filesUpdatedEventRegistration = this._register(fileLocator.createFilesUpdatedEvent(promptType));
 		this._register(filesUpdatedEventRegistration.event(() => trigger()));
 
 		const onAdd = (model: ITextModel) => {
-			if (model.getLanguageId() === AGENT_LANGUAGE_ID) {
+			if (model.getLanguageId() === getLanguageIdForPromptsType(promptType)) {
 				this.listeners.set(model.uri, model.onDidChangeContent(() => trigger()));
 			}
 		};
