@@ -832,6 +832,8 @@ export interface ITestItemContext {
 	$mid: MarshalledId.TestItemContext;
 	/** Tests and parents from the root to the current items */
 	tests: InternalTestItem.Serialized[];
+	/** Optional task name to refer to the test run */
+	taskName?: string;
 }
 
 /**
