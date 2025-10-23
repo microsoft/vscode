@@ -29,6 +29,34 @@ if (!process.env['VSCODE_HANDLES_SIGPIPE']) {
 	});
 }
 
+/**
+ * Helper to enable ASAR support.
+ */
+function enableASARSupport(): void {
+	if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
+		const Module = require('node:module');
+		const NODE_MODULES_PATH = path.join(import.meta.dirname, '../node_modules');
+		const NODE_MODULES_ASAR_PATH = path.join(import.meta.dirname, '../node_modules.asar');
+		// @ts-ignore
+		const originalResolveLookupPaths = Module._resolveLookupPaths;
+		// @ts-ignore
+		Module._resolveLookupPaths = function (request, parent) {
+			const paths = originalResolveLookupPaths(request, parent);
+			if (Array.isArray(paths)) {
+				for (let i = 0, len = paths.length; i < len; i++) {
+					if (paths[i] === NODE_MODULES_PATH) {
+						paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
+						break;
+					}
+				}
+			}
+			return paths;
+		};
+	}
+}
+
+enableASARSupport();
+
 // Setup current working directory in all our node & electron processes
 // - Windows: call `process.chdir()` to always set application folder as cwd
 // -  all OS: store the `process.cwd()` inside `VSCODE_CWD` for consistent lookups
