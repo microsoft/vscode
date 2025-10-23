@@ -200,7 +200,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _onDidChangeItemsProviders = this._register(new Emitter<IChatSessionItemProvider>());
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider> = this._onDidChangeItemsProviders.event;
 	private readonly _contentProviders: Map<string, IChatSessionContentProvider> = new Map();
-	private readonly _contributions: Map<string, IChatSessionsExtensionPoint> = new Map();
+	private readonly _contentProvidersBySessionType: Map<string, Map<number, IChatSessionContentProvider>> = new Map();
+	private readonly _contributions: Map<string, IChatSessionsExtensionPoint[]> = new Map();
 	private readonly _disposableStores: Map<string, DisposableStore> = new Map();
 	private readonly _contextKeys = new Set<string>();
 	private readonly _onDidChangeSessionItems = this._register(new Emitter<string>());
@@ -216,6 +217,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _sessionTypeWelcomeMessages: Map<string, string> = new Map();
 	private readonly _sessionTypeWelcomeTips: Map<string, string> = new Map();
 	private readonly _sessionTypeInputPlaceholders: Map<string, string> = new Map();
+	private _activatingSessionTypes = new Set<string>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -271,7 +273,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		if (chatSessionType === 'local') {
 			displayName = 'Local Chat Agent';
 		} else {
-			displayName = this._contributions.get(chatSessionType)?.displayName;
+			displayName = this._getActiveContribution(chatSessionType)?.displayName;
 		}
 
 		if (displayName) {
@@ -295,10 +297,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
-		if (this._contributions.has(contribution.type)) {
-			this._logService.warn(`Chat session contribution with id '${contribution.type}' is already registered.`);
-			return { dispose: () => { } };
-		}
+		const extensionId = contribution.extensionDescription.identifier.value;
+		const contributionKey = `${extensionId}.${contribution.type}`;
 
 		// Track context keys from the when condition
 		if (contribution.when) {
@@ -310,7 +310,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}
 
-		this._contributions.set(contribution.type, contribution);
+		if (!this._contributions.has(contribution.type)) {
+			this._contributions.set(contribution.type, []);
+		}
+		this._contributions.get(contribution.type)!.push(contribution);
 
 		// Store icon mapping if provided
 		let icon: ThemeIcon | undefined;
@@ -344,17 +347,30 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		return {
 			dispose: () => {
-				this._contributions.delete(contribution.type);
-				this._sessionTypeIcons.delete(contribution.type);
-				this._sessionTypeWelcomeTitles.delete(contribution.type);
-				this._sessionTypeWelcomeMessages.delete(contribution.type);
-				this._sessionTypeWelcomeTips.delete(contribution.type);
-				this._sessionTypeInputPlaceholders.delete(contribution.type);
-				const store = this._disposableStores.get(contribution.type);
+				const contributions = this._contributions.get(contribution.type);
+				if (contributions) {
+					const index = contributions.findIndex(c => c.extensionDescription.identifier.value === extensionId);
+					if (index >= 0) {
+						contributions.splice(index, 1);
+						if (contributions.length === 0) {
+							this._contributions.delete(contribution.type);
+							// Clean up associated data when no contributions remain for this type
+							this._sessionTypeIcons.delete(contribution.type);
+							this._sessionTypeWelcomeTitles.delete(contribution.type);
+							this._sessionTypeWelcomeMessages.delete(contribution.type);
+							this._sessionTypeWelcomeTips.delete(contribution.type);
+							this._sessionTypeInputPlaceholders.delete(contribution.type);
+						}
+					}
+				}
+
+				const store = this._disposableStores.get(contributionKey);
 				if (store) {
 					store.dispose();
-					this._disposableStores.delete(contribution.type);
+					this._disposableStores.delete(contributionKey);
 				}
+
+				this._evaluateAvailability();
 			}
 		};
 	}
@@ -365,6 +381,26 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 		const whenExpr = ContextKeyExpr.deserialize(contribution.when);
 		return !whenExpr || this._contextKeyService.contextMatchesRules(whenExpr);
+	}
+
+	/**
+	 * Get the active contribution for a session type. If multiple contributions are available,
+	 * return the first one that matches its when condition.
+	 */
+	private _getActiveContribution(sessionType: string): IChatSessionsExtensionPoint | undefined {
+		const contributions = this._contributions.get(sessionType);
+		if (!contributions || contributions.length === 0) {
+			return undefined;
+		}
+
+		// Return the first available contribution
+		for (const contribution of contributions) {
+			if (this._isContributionAvailable(contribution)) {
+				return contribution;
+			}
+		}
+
+		return undefined;
 	}
 
 	private _registerMenuItems(contribution: IChatSessionsExtensionPoint): IDisposable {
@@ -427,39 +463,78 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private _evaluateAvailability(): void {
 		let hasChanges = false;
-		for (const contribution of this._contributions.values()) {
-			const isCurrentlyRegistered = this._disposableStores.has(contribution.type);
-			const shouldBeRegistered = this._isContributionAvailable(contribution);
-			if (isCurrentlyRegistered && !shouldBeRegistered) {
-				// Disable the contribution by disposing its disposable store
-				const store = this._disposableStores.get(contribution.type);
-				if (store) {
-					store.dispose();
-					this._disposableStores.delete(contribution.type);
-				}
-				// Also dispose any cached sessions for this contribution
-				this._disposeSessionsForContribution(contribution.type);
-				hasChanges = true;
-			} else if (!isCurrentlyRegistered && shouldBeRegistered) {
-				// Enable the contribution by registering it
-				this._enableContribution(contribution);
-				hasChanges = true;
+
+		// Track which session types need to be processed
+		const sessionTypesToProcess = new Set<string>();
+
+		// Collect all session types from contributions
+		for (const sessionType of this._contributions.keys()) {
+			sessionTypesToProcess.add(sessionType);
+		}
+
+		// Also check session types that might have disposed contributions
+		for (const sessionType of this._disposableStores.keys()) {
+			const parts = sessionType.split('.');
+			if (parts.length >= 2) {
+				const type = parts.slice(1).join('.'); // Remove extension id prefix
+				sessionTypesToProcess.add(type);
 			}
 		}
+
+		for (const sessionType of sessionTypesToProcess) {
+			const activeContribution = this._getActiveContribution(sessionType);
+			const contributionKey = activeContribution ? `${activeContribution.extensionDescription.identifier.value}.${sessionType}` : null;
+			const isCurrentlyRegistered = contributionKey && this._disposableStores.has(contributionKey);
+			const shouldBeRegistered = !!activeContribution;
+
+			if (isCurrentlyRegistered && !shouldBeRegistered) {
+				// Disable the contribution by disposing its disposable store
+				const store = this._disposableStores.get(contributionKey!);
+				if (store) {
+					store.dispose();
+					this._disposableStores.delete(contributionKey!);
+				}
+				// Also dispose any cached sessions for this contribution
+				this._disposeSessionsForContribution(sessionType);
+				hasChanges = true;
+			} else if (!isCurrentlyRegistered && shouldBeRegistered && activeContribution) {
+				// Enable the contribution by registering it
+				this._enableContribution(activeContribution);
+				hasChanges = true;
+			} else if (isCurrentlyRegistered && shouldBeRegistered && activeContribution) {
+				// Check if we need to switch to a different active contribution
+				const currentActiveKey = Array.from(this._disposableStores.keys())
+					.find(key => key.endsWith(`.${sessionType}`));
+				const expectedKey = `${activeContribution.extensionDescription.identifier.value}.${sessionType}`;
+
+				if (currentActiveKey && currentActiveKey !== expectedKey) {
+					// Dispose current and enable new
+					const store = this._disposableStores.get(currentActiveKey);
+					if (store) {
+						store.dispose();
+						this._disposableStores.delete(currentActiveKey);
+					}
+					this._enableContribution(activeContribution);
+					hasChanges = true;
+				}
+			}
+		}
+
 		if (hasChanges) {
 			this._onDidChangeAvailability.fire();
 			for (const provider of this._itemsProviders.values()) {
 				this._onDidChangeItemsProviders.fire(provider);
 			}
-			for (const contribution of this._contributions.values()) {
-				this._onDidChangeSessionItems.fire(contribution.type);
+			for (const sessionType of sessionTypesToProcess) {
+				this._onDidChangeSessionItems.fire(sessionType);
 			}
 		}
 	}
 
 	private _enableContribution(contribution: IChatSessionsExtensionPoint): void {
+		const contributionKey = `${contribution.extensionDescription.identifier.value}.${contribution.type}`;
 		const disposableStore = new DisposableStore();
-		this._disposableStores.set(contribution.type, disposableStore);
+		this._disposableStores.set(contributionKey, disposableStore);
 
 		disposableStore.add(this._registerAgent(contribution));
 		disposableStore.add(this._registerCommands(contribution));
@@ -517,23 +592,31 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[] {
-		return Array.from(this._contributions.values()).filter(contribution =>
-			this._isContributionAvailable(contribution)
-		);
+		const activeContributions: IChatSessionsExtensionPoint[] = [];
+		for (const sessionType of this._contributions.keys()) {
+			const activeContribution = this._getActiveContribution(sessionType);
+			if (activeContribution) {
+				activeContributions.push(activeContribution);
+			}
+		}
+		return activeContributions;
 	}
 
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[] {
 		return [...this._itemsProviders.values()].filter(provider => {
 			// Check if the provider's corresponding contribution is available
-			const contribution = this._contributions.get(provider.chatSessionType);
-			return !contribution || this._isContributionAvailable(contribution);
+			const activeContribution = this._getActiveContribution(provider.chatSessionType);
+			return !!activeContribution;
 		});
 	}
 
 	async canResolveItemProvider(chatViewType: string): Promise<boolean> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		const contribution = this._contributions.get(chatViewType);
-		if (contribution && !this._isContributionAvailable(contribution)) {
+
+		// Check if any contribution exists for this type (even if not currently active)
+		// This is important for session restoration when when clauses might not be evaluated yet
+		const hasContributions = this._contributions.has(chatViewType);
+		if (!hasContributions) {
 			return false;
 		}
 
@@ -541,25 +624,45 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			return true;
 		}
 
-		await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
+		// Prevent duplicate activation attempts for the same session type
+		if (!this._activatingSessionTypes.has(chatViewType)) {
+			this._activatingSessionTypes.add(chatViewType);
+			try {
+				await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
+			} finally {
+				this._activatingSessionTypes.delete(chatViewType);
+			}
+		}
 
 		return this._itemsProviders.has(chatViewType);
 	}
 
 	async canResolveContentProvider(chatViewType: string) {
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		const contribution = this._contributions.get(chatViewType);
-		if (contribution && !this._isContributionAvailable(contribution)) {
+
+		// Check if any contribution exists for this type (even if not currently active)
+		// This is important for session restoration when when clauses might not be evaluated yet
+		const hasContributions = this._contributions.has(chatViewType);
+		if (!hasContributions) {
 			return false;
 		}
 
-		if (this._contentProviders.has(chatViewType)) {
+		// Check both provider maps
+		if (this._contentProviders.has(chatViewType) || this._contentProvidersBySessionType.has(chatViewType)) {
 			return true;
 		}
 
-		await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
+		// Prevent duplicate activation attempts for the same session type
+		if (!this._activatingSessionTypes.has(chatViewType)) {
+			this._activatingSessionTypes.add(chatViewType);
+			try {
+				await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
+			} finally {
+				this._activatingSessionTypes.delete(chatViewType);
+			}
+		}
 
-		return this._contentProviders.has(chatViewType);
+		return this._contentProviders.has(chatViewType) || this._contentProvidersBySessionType.has(chatViewType);
 	}
 
 	public async provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
@@ -605,16 +708,39 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable {
+		// Generate a unique handle for this provider registration
+		const handle = Date.now() + Math.random();
+
+		// Keep the legacy single provider map for backward compatibility
 		this._contentProviders.set(chatSessionType, provider);
+
+		// Also store by handle to support multiple providers
+		if (!this._contentProvidersBySessionType.has(chatSessionType)) {
+			this._contentProvidersBySessionType.set(chatSessionType, new Map());
+		}
+		this._contentProvidersBySessionType.get(chatSessionType)!.set(handle, provider);
+
 		return {
 			dispose: () => {
-				this._contentProviders.delete(chatSessionType);
+				// Remove from multi-provider map
+				const providers = this._contentProvidersBySessionType.get(chatSessionType);
+				if (providers) {
+					providers.delete(handle);
+					if (providers.size === 0) {
+						this._contentProvidersBySessionType.delete(chatSessionType);
+					}
+				}
 
-				// Remove all sessions that were created by this provider
-				for (const [key, session] of this._sessions) {
-					if (session.chatSessionType === chatSessionType) {
-						session.dispose();
-						this._sessions.delete(key);
+				// Only delete from legacy map if this was the last provider
+				if (!this._contentProvidersBySessionType.has(chatSessionType)) {
+					this._contentProviders.delete(chatSessionType);
+
+					// Remove all sessions that were created by this provider
+					for (const [key, session] of this._sessions) {
+						if (session.chatSessionType === chatSessionType) {
+							session.dispose();
+							this._sessions.delete(key);
+						}
 					}
 				}
 			}
@@ -655,7 +781,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			throw Error(`Can not find provider for ${chatSessionType}`);
 		}
 
-		const provider = this._contentProviders.get(chatSessionType);
+		// Try to get provider from the multi-provider map first, then fall back to legacy single provider
+		let provider: IChatSessionContentProvider | undefined;
+		const providers = this._contentProvidersBySessionType.get(chatSessionType);
+		if (providers && providers.size > 0) {
+			// Use the first available provider (any provider can restore the session)
+			provider = Array.from(providers.values())[0];
+		} else {
+			provider = this._contentProviders.get(chatSessionType);
+		}
+
 		if (!provider) {
 			throw Error(`Can not find provider for ${chatSessionType}`);
 		}
@@ -788,8 +923,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 * Get the capabilities for a specific session type
 	 */
 	public getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined {
-		const contribution = this._contributions.get(chatSessionType);
-		return contribution?.capabilities;
+		const activeContribution = this._getActiveContribution(chatSessionType);
+		return activeContribution?.capabilities;
 	}
 
 	/**
