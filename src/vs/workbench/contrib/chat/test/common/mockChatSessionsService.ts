@@ -202,6 +202,12 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return true;
 	}
 
+	hasAnySessionOptions(chatSessionType: string, sessionId: string): boolean {
+		const sessionKey = `${chatSessionType}:${sessionId}`;
+		const options = this.sessionOptions.get(sessionKey);
+		return options !== undefined && options.size > 0;
+	}
+
 	getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined {
 		return this.contributions.find(c => c.type === chatSessionType)?.capabilities;
 	}

@@ -795,6 +795,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._sessions.delete(sessionKey);
 	}
 
+	public hasAnySessionOptions(chatSessionType: string, id: string): boolean {
+		const sessionKey = `${chatSessionType}_${id}`;
+		const session = this._sessions.get(sessionKey);
+		return !!session && !!session.options && Object.keys(session.options).length > 0;
+	}
+
+
 	public getSessionOption(chatSessionType: string, id: string, optionId: string): string | undefined {
 		const sessionKey = `${chatSessionType}_${id}`;
 		const session = this._sessions.get(sessionKey);
