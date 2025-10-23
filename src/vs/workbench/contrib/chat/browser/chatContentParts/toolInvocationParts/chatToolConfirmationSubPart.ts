@@ -8,7 +8,6 @@ import { Separator } from '../../../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IReader } from '../../../../../../base/common/observable.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { isEmptyObject } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -282,10 +281,6 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 	protected getTitle(): string {
 		const { title } = this.toolInvocation.confirmationMessages!;
 		return typeof title === 'string' ? title : title!.value;
-	}
-
-	protected shouldDismiss(toolInvocation: IChatToolInvocation, reader: IReader): boolean {
-		return !!IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, reader);
 	}
 
 	private _makeMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {

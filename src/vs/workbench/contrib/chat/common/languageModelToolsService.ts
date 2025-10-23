@@ -191,6 +191,8 @@ export interface IToolResult {
 	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails;
 	toolResultError?: string;
 	toolMetadata?: unknown;
+	/** Whether to ask the user to confirm these tool results. Overrides {@link IToolConfirmationMessages.confirmResults}. */
+	confirmResults?: boolean;
 }
 
 export function toolResultHasBuffers(result: IToolResult): boolean {

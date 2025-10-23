@@ -828,7 +828,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	initForNewChatModel(state: IChatViewState, modelIsEmpty: boolean): void {
+	initForNewChatModel(state: IChatViewState, chatSessionIsEmpty: boolean): void {
 		this.history = this.loadHistory();
 		this.history.add({
 			text: state.inputValue ?? this.history.current().text,
@@ -858,61 +858,31 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// TODO@roblourens This is for an experiment which will be obsolete in a month or two and can then be removed.
-		if (modelIsEmpty) {
+		if (chatSessionIsEmpty) {
 			const storageKey = this.getDefaultModeExperimentStorageKey();
 			const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
 			if (!hasSetDefaultMode) {
 				const isAnonymous = this.entitlementService.anonymous;
-				Promise.all([
-					this.experimentService.getTreatment('chat.defaultMode'),
-					this.experimentService.getTreatment('chat.defaultLanguageModel'),
-				]).then(([defaultModeTreatment, defaultLanguageModelTreatment]) => {
-					if (isAnonymous) {
-						// be deterministic for anonymous users
-						// to support agentic flows with default
-						// model.
-						defaultModeTreatment = ChatModeKind.Agent;
-						defaultLanguageModelTreatment = undefined;
-					}
-
-					if (typeof defaultModeTreatment === 'string') {
-						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-						const defaultMode = validateChatMode(defaultModeTreatment);
-						if (defaultMode) {
-							this.logService.trace(`Applying default mode from experiment: ${defaultMode}`);
-							this.setChatMode(defaultMode, false);
-							this.checkModelSupported();
+				this.experimentService.getTreatment('chat.defaultMode')
+					.then((defaultModeTreatment => {
+						if (isAnonymous) {
+							// be deterministic for anonymous users
+							// to support agentic flows with default
+							// model.
+							defaultModeTreatment = ChatModeKind.Agent;
 						}
-					}
 
-					if (typeof defaultLanguageModelTreatment === 'string') {
-						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-						this.logService.trace(`Applying default language model from experiment: ${defaultLanguageModelTreatment}`);
-						this.setExpModelOrWait(defaultLanguageModelTreatment);
-					}
-				});
+						if (typeof defaultModeTreatment === 'string') {
+							this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+							const defaultMode = validateChatMode(defaultModeTreatment);
+							if (defaultMode) {
+								this.logService.trace(`Applying default mode from experiment: ${defaultMode}`);
+								this.setChatMode(defaultMode, false);
+								this.checkModelSupported();
+							}
+						}
+					}));
 			}
-		}
-	}
-
-	private setExpModelOrWait(modelId: string) {
-		const model = this.languageModelsService.lookupLanguageModel(modelId);
-		if (model) {
-			this.setCurrentLanguageModel({ metadata: model, identifier: modelId });
-			this.checkModelSupported();
-			this._waitForPersistedLanguageModel.clear();
-		} else {
-			this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(() => {
-				const model = this.languageModelsService.lookupLanguageModel(modelId);
-				if (model) {
-					this._waitForPersistedLanguageModel.clear();
-
-					if (model.isUserSelectable) {
-						this.setCurrentLanguageModel({ metadata: model, identifier: modelId });
-						this.checkModelSupported();
-					}
-				}
-			});
 		}
 	}
 
@@ -1166,6 +1136,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		const optionGroups = this.chatSessionsService.getOptionGroupsForSessionType(ctx.chatSessionType);
 		if (!optionGroups || optionGroups.length === 0) {
+			return hideAll();
+		}
+
+		if (!this.chatSessionsService.hasAnySessionOptions(ctx.chatSessionType, ctx.chatSessionId)) {
 			return hideAll();
 		}
 

@@ -100,6 +100,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						description: cachedMode.description,
 						tools: cachedMode.customTools,
 						model: cachedMode.model,
+						argumentHint: cachedMode.argumentHint,
 						agentInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 						handOffs: cachedMode.handOffs,
 						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local }
@@ -203,6 +204,7 @@ export interface IChatModeData {
 	readonly kind: ChatModeKind;
 	readonly customTools?: readonly string[];
 	readonly model?: string;
+	readonly argumentHint?: string;
 	readonly modeInstructions?: IChatModeInstructions;
 	readonly body?: string; /* deprecated */
 	readonly handOffs?: readonly IHandOff[];
@@ -220,6 +222,7 @@ export interface IChatMode {
 	readonly customTools?: IObservable<readonly string[] | undefined>;
 	readonly handOffs?: IObservable<readonly IHandOff[] | undefined>;
 	readonly model?: IObservable<string | undefined>;
+	readonly argumentHint?: IObservable<string | undefined>;
 	readonly modeInstructions?: IObservable<IChatModeInstructions>;
 	readonly uri?: IObservable<URI>;
 	readonly source?: IAgentSource;
@@ -249,6 +252,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.customTools === undefined || Array.isArray(mode.customTools)) &&
 		(mode.modeInstructions === undefined || (typeof mode.modeInstructions === 'object' && mode.modeInstructions !== null)) &&
 		(mode.model === undefined || typeof mode.model === 'string') &&
+		(mode.argumentHint === undefined || typeof mode.argumentHint === 'string') &&
 		(mode.handOffs === undefined || Array.isArray(mode.handOffs)) &&
 		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null)) &&
 		(mode.source === undefined || isChatModeSourceData(mode.source));
@@ -260,6 +264,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _modeInstructions: ISettableObservable<IChatModeInstructions>;
 	private readonly _uriObservable: ISettableObservable<URI>;
 	private readonly _modelObservable: ISettableObservable<string | undefined>;
+	private readonly _argumentHintObservable: ISettableObservable<string | undefined>;
 	private readonly _handoffsObservable: ISettableObservable<readonly IHandOff[] | undefined>;
 	private _source: IAgentSource;
 
@@ -280,6 +285,10 @@ export class CustomChatMode implements IChatMode {
 
 	get model(): IObservable<string | undefined> {
 		return this._modelObservable;
+	}
+
+	get argumentHint(): IObservable<string | undefined> {
+		return this._argumentHintObservable;
 	}
 
 	get modeInstructions(): IObservable<IChatModeInstructions> {
@@ -312,6 +321,7 @@ export class CustomChatMode implements IChatMode {
 		this._descriptionObservable = observableValue('description', customChatMode.description);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);
 		this._modelObservable = observableValue('model', customChatMode.model);
+		this._argumentHintObservable = observableValue('argumentHint', customChatMode.argumentHint);
 		this._handoffsObservable = observableValue('handOffs', customChatMode.handOffs);
 		this._modeInstructions = observableValue('_modeInstructions', customChatMode.agentInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
@@ -327,6 +337,7 @@ export class CustomChatMode implements IChatMode {
 			this._descriptionObservable.set(newData.description, tx);
 			this._customToolsObservable.set(newData.tools, tx);
 			this._modelObservable.set(newData.model, tx);
+			this._argumentHintObservable.set(newData.argumentHint, tx);
 			this._handoffsObservable.set(newData.handOffs, tx);
 			this._modeInstructions.set(newData.agentInstructions, tx);
 			this._uriObservable.set(newData.uri, tx);
@@ -342,6 +353,7 @@ export class CustomChatMode implements IChatMode {
 			kind: this.kind,
 			customTools: this.customTools.get(),
 			model: this.model.get(),
+			argumentHint: this.argumentHint.get(),
 			modeInstructions: this.modeInstructions.get(),
 			uri: this.uri.get(),
 			handOffs: this.handOffs.get(),

@@ -495,13 +495,9 @@ export async function getCompletionItemsFromSpecs(
 		}
 		showFiles = true;
 		showFolders = true;
-	}
-	// For arguments when no fig suggestions are found these are fallback suggestions
-	else if (!items.length && !showFiles && !showFolders && !hasCurrentArg) {
-		if (terminalContext.allowFallbackCompletions) {
-			showFiles = true;
-			showFolders = true;
-		}
+	} else if (!items.length && !showFiles && !showFolders && !hasCurrentArg) {
+		showFiles = true;
+		showFolders = true;
 	}
 
 	let cwd: vscode.Uri | undefined;
@@ -509,7 +505,7 @@ export async function getCompletionItemsFromSpecs(
 		cwd = await resolveCwdFromCurrentCommandString(currentCommandString, shellIntegrationCwd);
 	}
 
-	return { items, showFiles: showFiles, showFolders: showFolders, fileExtensions, cwd };
+	return { items, showFiles, showFolders, fileExtensions, cwd };
 }
 
 function getEnvAsRecord(shellIntegrationEnv: ITerminalEnvironment): Record<string, string> {

@@ -16,7 +16,7 @@ import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { IArrayValue, IHeaderAttribute, ParsedPromptFile } from '../promptFileParser.js';
+import { IArrayValue, IHeaderAttribute, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
@@ -136,6 +136,7 @@ export class PromptValidator {
 			}
 		}
 		this.validateDescription(attributes, report);
+		this.validateArgumentHint(attributes, report);
 		switch (promptType) {
 			case PromptsType.prompt: {
 				const agent = this.validateAgent(attributes, report);
@@ -158,7 +159,7 @@ export class PromptValidator {
 	}
 
 	private validateDescription(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
-		const descriptionAttribute = attributes.find(attr => attr.key === 'description');
+		const descriptionAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.description);
 		if (!descriptionAttribute) {
 			return;
 		}
@@ -172,9 +173,23 @@ export class PromptValidator {
 		}
 	}
 
+	private validateArgumentHint(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
+		const argumentHintAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.argumentHint);
+		if (!argumentHintAttribute) {
+			return;
+		}
+		if (argumentHintAttribute.value.type !== 'string') {
+			report(toMarker(localize('promptValidator.argumentHintMustBeString', "The 'argument-hint' attribute must be a string."), argumentHintAttribute.range, MarkerSeverity.Error));
+			return;
+		}
+		if (argumentHintAttribute.value.value.trim().length === 0) {
+			report(toMarker(localize('promptValidator.argumentHintShouldNotBeEmpty', "The 'argument-hint' attribute should not be empty."), argumentHintAttribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+	}
 
 	private validateModel(attributes: IHeaderAttribute[], agentKind: ChatModeKind, report: (markers: IMarkerData) => void): void {
-		const attribute = attributes.find(attr => attr.key === 'model');
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.model);
 		if (!attribute) {
 			return;
 		}
@@ -213,8 +228,8 @@ export class PromptValidator {
 	}
 
 	private validateAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): IChatMode | undefined {
-		const agentAttribute = attributes.find(attr => attr.key === 'agent');
-		const modeAttribute = attributes.find(attr => attr.key === 'mode');
+		const agentAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.agent);
+		const modeAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.mode);
 		if (modeAttribute) {
 			if (agentAttribute) {
 				report(toMarker(localize('promptValidator.modeDeprecated', "The 'mode' attribute has been deprecated. The 'agent' attribute is used instead."), modeAttribute.range, MarkerSeverity.Warning));
@@ -223,7 +238,7 @@ export class PromptValidator {
 			}
 		}
 
-		const attribute = attributes.find(attr => attr.key === 'agent') ?? modeAttribute;
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.agent) ?? modeAttribute;
 		if (!attribute) {
 			return undefined; // default agent for prompts is Agent
 		}
@@ -254,7 +269,7 @@ export class PromptValidator {
 	}
 
 	private validateTools(attributes: IHeaderAttribute[], agentKind: ChatModeKind, report: (markers: IMarkerData) => void): undefined {
-		const attribute = attributes.find(attr => attr.key === 'tools');
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.tools);
 		if (!attribute) {
 			return;
 		}
@@ -291,7 +306,7 @@ export class PromptValidator {
 	}
 
 	private validateApplyTo(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
-		const attribute = attributes.find(attr => attr.key === 'applyTo');
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.applyTo);
 		if (!attribute) {
 			return;
 		}
@@ -319,7 +334,7 @@ export class PromptValidator {
 	}
 
 	private validateExcludeAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
-		const attribute = attributes.find(attr => attr.key === 'excludeAgent');
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.excludeAgent);
 		if (!attribute) {
 			return;
 		}
@@ -330,7 +345,7 @@ export class PromptValidator {
 	}
 
 	private validateHandoffs(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
-		const attribute = attributes.find(attr => attr.key === 'handoffs');
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.handOffs);
 		if (!attribute) {
 			return;
 		}
@@ -379,9 +394,9 @@ export class PromptValidator {
 }
 
 const allAttributeNames = {
-	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode', 'agent'],
-	[PromptsType.instructions]: ['description', 'applyTo', 'excludeAgent'],
-	[PromptsType.agent]: ['description', 'model', 'tools', 'advancedOptions', 'handoffs']
+	[PromptsType.prompt]: [PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
+	[PromptsType.instructions]: [PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
+	[PromptsType.agent]: [PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint]
 };
 const recommendedAttributeNames = {
 	[PromptsType.prompt]: allAttributeNames[PromptsType.prompt].filter(name => !isNonRecommendedAttribute(name)),
@@ -394,7 +409,7 @@ export function getValidAttributeNames(promptType: PromptsType, includeNonRecomm
 }
 
 export function isNonRecommendedAttribute(attributeName: string): boolean {
-	return attributeName === 'advancedOptions' || attributeName === 'excludeAgent' || attributeName === 'mode';
+	return attributeName === PromptHeaderAttributes.advancedOptions || attributeName === PromptHeaderAttributes.excludeAgent || attributeName === PromptHeaderAttributes.mode;
 }
 
 function toMarker(message: string, range: Range, severity = MarkerSeverity.Error): IMarkerData {
