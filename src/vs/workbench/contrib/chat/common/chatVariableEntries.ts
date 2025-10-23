@@ -117,6 +117,7 @@ export interface ITerminalCommandVariableEntry extends IBaseChatRequestVariableE
 	readonly value: URI;
 	readonly commandId?: string;
 	readonly commandLine?: string;
+	readonly output: string;
 }
 
 export interface IDiagnosticVariableEntryFilterData {
@@ -266,6 +267,7 @@ export function toTerminalCommandVariableEntry(uri: URI): ITerminalCommandVariab
 	const params = new URLSearchParams(query);
 	const commandId = params.get('command') ?? undefined;
 	const commandLine = params.get('commandLine') ?? undefined;
+	const output = params.get('output') ?? '';
 	const fragment = uri.fragment ?? undefined;
 	const label = commandLine?.split('\n')[0] || fragment || localize('chat.terminalCommandAttachment.defaultName', "Terminal Command");
 	return {
@@ -275,6 +277,7 @@ export function toTerminalCommandVariableEntry(uri: URI): ITerminalCommandVariab
 		value: uri,
 		commandId,
 		commandLine,
+		output,
 		fullName: commandLine,
 		icon: Codicon.terminal
 	};
