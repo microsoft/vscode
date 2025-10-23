@@ -119,7 +119,11 @@ export class AgentSessionsView extends FilterViewPane {
 				return;
 			}
 
-			this.createViewModel();
+			if (!this.sessionsViewModel) {
+				this.createViewModel();
+			} else {
+				this.list?.updateChildren();
+			}
 		}));
 
 		this._register(list.onDidOpen(e => {
@@ -286,7 +290,11 @@ export class AgentSessionsView extends FilterViewPane {
 		const sessionsViewModel = this.sessionsViewModel = this._register(this.instantiationService.createInstance(AgentSessionsViewModel));
 		this.list?.setInput(sessionsViewModel);
 
-		this._register(sessionsViewModel.onDidChangeSessions(() => this.list?.updateChildren()));
+		this._register(sessionsViewModel.onDidChangeSessions(() => {
+			if (this.isBodyVisible()) {
+				this.list?.updateChildren();
+			}
+		}));
 
 		const didResolveDisposable = this._register(new MutableDisposable());
 		this._register(sessionsViewModel.onWillResolve(() => {
