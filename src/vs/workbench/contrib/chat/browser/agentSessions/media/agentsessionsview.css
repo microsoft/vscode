@@ -10,6 +10,7 @@
 
 		.agent-sessions-viewer {
 			flex: 1 1 auto !important;
+			min-height: 0;
 		}
 
 		.viewpane-filter-container,

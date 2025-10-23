@@ -69,6 +69,10 @@ export class StringEnumPolicy extends BasePolicy {
 		return `<dropdownList refId="${this.name}" />`;
 	}
 
+	renderJsonValue() {
+		return this.enum_[0];
+	}
+
 	renderProfileValue() {
 		return `<string>${this.enum_[0]}</string>`;
 	}

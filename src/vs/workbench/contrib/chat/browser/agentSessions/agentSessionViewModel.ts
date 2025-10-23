@@ -79,7 +79,7 @@ export function isAgentSessionsViewModel(obj: IAgentSessionsViewModel | IAgentSe
 
 //#endregion
 
-const INCLUDE_HISTORY = false; // TODO@bpasero figure out how to best support history
+const INCLUDE_HISTORY = false;
 export class AgentSessionsViewModel extends Disposable implements IAgentSessionsViewModel {
 
 	readonly sessions: IAgentSessionViewModel[] = [];
@@ -172,14 +172,17 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 			}
 
 			if (INCLUDE_HISTORY && provider.chatSessionType === LOCAL_AGENT_SESSION_TYPE) {
-				for (const history of await this.chatService.getHistory()) { // TODO@bpasero this needs to come from the local provider
+				// TODO@bpasero this needs to come from the local provider:
+				// - do we want to show history or not and how
+				// - can we support all properties including `startTime` properly
+				for (const history of await this.chatService.getHistory()) {
 					newSessions.push({
 						id: history.sessionId,
 						resource: ChatSessionUri.forSession(LOCAL_AGENT_SESSION_TYPE, history.sessionId),
 						label: history.title,
 						provider: provider,
 						timing: {
-							startTime: history.lastMessageDate ?? Date.now() /* TODO@bpasero BAD */
+							startTime: history.lastMessageDate ?? Date.now()
 						},
 						description: new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`),
 					});

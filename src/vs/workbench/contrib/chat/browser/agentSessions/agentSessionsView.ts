@@ -53,9 +53,6 @@ export class AgentSessionsView extends FilterViewPane {
 
 	private static FILTER_FOCUS_CONTEXT_KEY = new RawContextKey<boolean>('agentSessionsViewFilterFocus', false);
 
-	private list: WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore> | undefined;
-	private filter: AgentSessionsFilter | undefined;
-
 	private sessionsViewModel: IAgentSessionsViewModel | undefined;
 
 	constructor(
@@ -228,15 +225,15 @@ export class AgentSessionsView extends FilterViewPane {
 			actions: {
 				getActions: () => {
 					const actions: IAction[] = [];
-					for (const provider of this.chatSessionsService.getAllChatSessionItemProviders()) {
-						if (provider.chatSessionType === LOCAL_AGENT_SESSION_TYPE) {
+					for (const provider of this.chatSessionsService.getAllChatSessionContributions()) {
+						if (provider.type === LOCAL_AGENT_SESSION_TYPE) {
 							continue; // local is the primary action
 						}
 
 						actions.push(toAction({
-							id: `newChatSessionFromProvider.${provider.chatSessionType}`,
-							label: localize('newChatSessionFromProvider', "New Session ({0})", provider.chatSessionType),
-							run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${provider.chatSessionType}`)
+							id: `newChatSessionFromProvider.${provider.type}`,
+							label: localize('newChatSessionFromProvider', "New Session ({0})", provider.displayName),
+							run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${provider.type}`)
 						}));
 					}
 					return actions;
@@ -255,14 +252,18 @@ export class AgentSessionsView extends FilterViewPane {
 
 	//#region Sessions List
 
+	private listContainer: HTMLElement | undefined;
+	private list: WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore> | undefined;
+	private filter: AgentSessionsFilter | undefined;
+
 	private createList(container: HTMLElement): void {
-		const listContainer = append(container, $('.agent-sessions-viewer'));
+		this.listContainer = append(container, $('.agent-sessions-viewer'));
 
 		this.filter = this._register(new AgentSessionsFilter());
 
 		this.list = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
-			listContainer,
+			this.listContainer,
 			new AgentSessionsListDelegate(),
 			new AgentSessionsCompressionDelegate(),
 			[
@@ -310,9 +311,7 @@ export class AgentSessionsView extends FilterViewPane {
 
 		let treeHeight = height;
 		treeHeight -= this.filterContainer?.offsetHeight ?? 0;
-		if (this.newSessionContainer) {
-			treeHeight -= this.newSessionContainer.offsetHeight;
-		}
+		treeHeight -= this.newSessionContainer?.offsetHeight ?? 0;
 
 		this.list?.layout(treeHeight, width);
 	}
@@ -324,6 +323,14 @@ export class AgentSessionsView extends FilterViewPane {
 	override focus(): void {
 		super.focus();
 
+		if (this.list?.getFocus().length) {
+			this.list.domFocus();
+		} else {
+			this.filterWidget.focus();
+		}
+	}
+
+	protected override focusBodyContent(): void {
 		this.list?.domFocus();
 	}
 }
