@@ -8,7 +8,7 @@
  */
 
 import * as path from '../../../../base/common/path.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, uriToFsPath } from '../../../../base/common/uri.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { sanitizeProcessEnvironment } from '../../../../base/common/processes.js';
@@ -314,7 +314,7 @@ export async function createTerminalEnvironment(
  * @param backend The backend for the terminal.
  * @param isWindowsFrontend Whether the frontend is Windows, this is only exposed for injection via
  * tests.
- * @returns An escaped version of the path to be execuded in the terminal.
+ * @returns An escaped version of the path to be executed in the terminal.
  */
 export async function preparePathForShell(resource: string | URI, executable: string | undefined, title: string, shellType: TerminalShellType | undefined, backend: Pick<ITerminalBackend, 'getWslPath'> | undefined, os: OperatingSystem | undefined, isWindowsFrontend: boolean = isWindows): Promise<string> {
 	let originalPath: string;
@@ -389,4 +389,24 @@ export function getWorkspaceForTerminal(cwd: URI | string | undefined, workspace
 		workspaceFolder = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 	}
 	return workspaceFolder;
+}
+
+export async function formatUriForShellDisplay(uri: URI, shellType?: TerminalShellType, os?: OperatingSystem, backend?: Pick<ITerminalBackend, 'getWslPath'>): Promise<string> {
+	if (os === OperatingSystem.Windows) {
+		if (shellType === WindowsShellType.Wsl) {
+			const path = uri.fsPath;
+			return backend?.getWslPath(path, 'win-to-unix') ?? path.replace(/\\/g, '/');
+		} else if (shellType === WindowsShellType.GitBash) {
+			// Convert \ to / and replace 'c:\' with '/c/'.
+			return uri.fsPath.replace(/\\/g, '/').replace(/^([a-zA-Z]):\//, '/$1/');
+		} else {
+			// If the frontend is not Windows but the terminal is, convert / to \.
+			const path = uriToFsPath(uri, true);
+			return !isWindows ? path.replace(/\//g, '\\') : path;
+		}
+	} else {
+		// If the frontend is Windows but the terminal is not, convert \ to /.
+		const path = uri.fsPath;
+		return isWindows ? path.replace(/\\/g, '/') : path;
+	}
 }
