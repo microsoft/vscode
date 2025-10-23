@@ -5,6 +5,7 @@
 
 import { ExecOptionsWithStringEncoding } from 'child_process';
 import * as vscode from 'vscode';
+import azdSpec from './completions/azd';
 import cdSpec from './completions/cd';
 import codeCompletionSpec from './completions/code';
 import codeInsidersCompletionSpec from './completions/code-insiders';
@@ -58,6 +59,7 @@ function getCacheKey(machineId: string, remoteAuthority: string | undefined, she
 }
 
 export const availableSpecs: Fig.Spec[] = [
+	azdSpec,
 	cdSpec,
 	codeInsidersCompletionSpec,
 	codeCompletionSpec,
