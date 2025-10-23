@@ -289,7 +289,8 @@ export class TerminalContext implements IChatContextValueItem {
 			value: this._resource,
 			name: command.command,
 			command: command.command,
-			output: command.getOutput()
+			output: command.getOutput(),
+			exitCode: command.exitCode
 		};
 		const cleanup = new DisposableStore();
 		let disposed = false;

@@ -233,6 +233,7 @@ export interface ITerminalVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly value: URI;
 	readonly command: string;
 	readonly output?: string;
+	readonly exitCode?: number;
 }
 
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
