@@ -504,7 +504,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('mcp.gallery.serviceUrl', "Configure the MCP Gallery service URL to connect to"),
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['usesOnlineServices'],
+			tags: ['usesOnlineServices', 'advanced'],
 			included: false,
 			policy: {
 				name: 'McpGalleryServiceUrl',
