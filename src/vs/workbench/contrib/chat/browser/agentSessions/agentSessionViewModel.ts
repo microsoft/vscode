@@ -103,10 +103,12 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		super();
 
 		this.registerListeners();
+
+		this.resolve(undefined);
 	}
 
 	private registerListeners(): void {
-		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType }) => this.resolve(chatSessionType)));
+		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType: provider }) => this.resolve(provider)));
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.resolve(undefined)));
 		this._register(this.chatSessionsService.onDidChangeSessionItems(provider => this.resolve(provider)));
 	}

@@ -72,7 +72,7 @@ import { IChatRequestToolEntry } from '../common/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from './actions/chatActions.js';
-import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
+import { ChatViewId, IChatWidgetService, showChatView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { chatViewsWelcomeRegistry } from './viewsWelcome/chatViewsWelcome.js';
@@ -145,7 +145,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 					break;
 			}
 
-			return SetupAgent.doRegisterAgent(instantiationService, chatAgentService, id, `${defaultChat.provider.default.name} Copilot`, true, description, location, mode, context, controller);
+			return SetupAgent.doRegisterAgent(instantiationService, chatAgentService, id, `${defaultChat.provider.default.name} Copilot` /* Do NOT change, this hides the username altogether in Chat */, true, description, location, mode, context, controller);
 		});
 	}
 
@@ -277,14 +277,14 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 			content: new MarkdownString(localize('waitingChat', "Getting chat ready...")),
 		});
 
-		await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
+		await this.forwardRequestToChat(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 
 		return {};
 	}
 
-	private async forwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
+	private async forwardRequestToChat(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
 		try {
-			await this.doForwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
+			await this.doForwardRequestToChat(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 		} catch (error) {
 			progress({
 				kind: 'warning',
@@ -293,12 +293,12 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}
 	}
 
-	private async doForwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
+	private async doForwardRequestToChat(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
 		if (this.pendingForwardedRequests.has(requestModel.session.sessionId)) {
 			throw new Error('Request already in progress');
 		}
 
-		const forwardRequest = this.doForwardRequestToCopilotWhenReady(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
+		const forwardRequest = this.doForwardRequestToChatWhenReady(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 		this.pendingForwardedRequests.set(requestModel.session.sessionId, forwardRequest);
 
 		try {
@@ -308,12 +308,12 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}
 	}
 
-	private async doForwardRequestToCopilotWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
+	private async doForwardRequestToChatWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
 		const widget = chatWidgetService.getWidgetBySessionId(requestModel.session.sessionId);
 		const modeInfo = widget?.input.currentModeInfo;
 
 		// We need a signal to know when we can resend the request to
-		// Copilot. Waiting for the registration of the agent is not
+		// Chat. Waiting for the registration of the agent is not
 		// enough, we also need a language/tools model to be available.
 
 		let agentReady = false;
@@ -366,7 +366,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 						content: new MarkdownString(warningMessage)
 					});
 
-					// This means Copilot is unhealthy and we cannot retry the
+					// This means Chat is unhealthy and we cannot retry the
 					// request. Signal this to the outside via an event.
 					this._onUnresolvableError.fire();
 					return;
@@ -489,10 +489,10 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 				if (result.dialogSkipped) {
 					widget?.clear(); // make room for the Chat welcome experience
 				} else if (requestModel) {
-					let newRequest = this.replaceAgentInRequestModel(requestModel, chatAgentService); 	// Replace agent part with the actual Copilot agent...
-					newRequest = this.replaceToolInRequestModel(newRequest); 							// ...then replace any tool parts with the actual Copilot tools
+					let newRequest = this.replaceAgentInRequestModel(requestModel, chatAgentService); 	// Replace agent part with the actual Chat agent...
+					newRequest = this.replaceToolInRequestModel(newRequest); 							// ...then replace any tool parts with the actual Chat tools
 
-					await this.forwardRequestToCopilot(newRequest, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
+					await this.forwardRequestToChat(newRequest, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 				}
 			} else {
 				progress({
@@ -766,7 +766,7 @@ class ChatSetup {
 		if (setupStrategy !== ChatSetupStrategy.Canceled && !options?.disableChatViewReveal) {
 			// Show the chat view now to better indicate progress
 			// while installing the extension or returning from sign in
-			showCopilotView(this.viewsService, this.layoutService);
+			showChatView(this.viewsService, this.layoutService);
 		}
 
 		let success: ChatSetupResultValue = undefined;
@@ -860,7 +860,7 @@ class ChatSetup {
 				]);
 			}
 		} else {
-			buttons = [[localize('setupCopilotButton', "Set up Copilot"), ChatSetupStrategy.DefaultSetup, undefined]];
+			buttons = [[localize('setupAIButton', "Use AI Features"), ChatSetupStrategy.DefaultSetup, undefined]];
 		}
 
 		buttons.push([localize('skipForNow', "Skip for now"), ChatSetupStrategy.Canceled, styleButton('link-button', 'skip-button')]);
@@ -871,17 +871,17 @@ class ChatSetup {
 	private getDialogTitle(options?: { forceSignInDialog?: boolean; forceAnonymous?: ChatSetupAnonymous }): string {
 		if (this.chatEntitlementService.anonymous) {
 			if (options?.forceAnonymous) {
-				return localize('startUsing', "Start using GitHub Copilot");
+				return localize('startUsing', "Start using AI Features");
 			} else {
 				return localize('enableMore', "Enable more AI features");
 			}
 		}
 
 		if (this.context.state.entitlement === ChatEntitlement.Unknown || options?.forceSignInDialog) {
-			return localize('signIn', "Sign in to use GitHub Copilot");
+			return localize('signIn', "Sign in to use AI Features");
 		}
 
-		return localize('startUsing', "Start using GitHub Copilot");
+		return localize('startUsing', "Start using AI Features");
 	}
 
 	private createDialogFooter(disposables: DisposableStore, options?: { forceAnonymous?: ChatSetupAnonymous }): HTMLElement {
@@ -964,11 +964,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 								const panelAgentHasGuidance = chatViewsWelcomeRegistry.get().some(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
 								if (panelAgentHasGuidance) {
 									// An unresolvable error from our agent registrations means that
-									// Copilot is unhealthy for some reason. We clear our panel
-									// registration to give Copilot a chance to show a custom message
+									// Chat is unhealthy for some reason. We clear our panel
+									// registration to give Chat a chance to show a custom message
 									// to the user from the views and stop pretending as if there was
 									// a functional agent.
-									this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
+									this.logService.error('[chat setup] Unresolvable error from Chat agent registration, clearing registration.');
 									panelAgentDisposables.dispose();
 								}
 							}));
@@ -1045,7 +1045,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				configurationService.updateValue(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY, false);
 
 				if (mode) {
-					const chatWidget = await showCopilotView(viewsService, layoutService);
+					const chatWidget = await showChatView(viewsService, layoutService);
 					chatWidget?.input.setChatMode(mode);
 				}
 
