@@ -19,6 +19,7 @@ import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
 import { RemoteSourceAction } from './typings/git-base';
+import { CloneUtil } from './clone';
 
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
@@ -1016,12 +1017,12 @@ export class CommandCenter {
 
 	@command('git.clone')
 	async clone(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
-		await this.model.clone(url, { parentPath, ...options });
+		await CloneUtil.clone(this.model.git, this.telemetryReporter, this.model.repositoryCache, url, { parentPath, ...options });
 	}
 
 	@command('git.cloneRecursive')
 	async cloneRecursive(url?: string, parentPath?: string): Promise<void> {
-		await this.model.clone(url, { parentPath, recursive: true });
+		await CloneUtil.clone(this.model.git, this.telemetryReporter, this.model.repositoryCache, url, { parentPath, recursive: true });
 	}
 
 	@command('git.init')
