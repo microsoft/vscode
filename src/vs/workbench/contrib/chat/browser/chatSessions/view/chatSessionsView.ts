@@ -20,29 +20,30 @@ import { IThemeService } from '../../../../../../platform/theme/common/themeServ
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ViewPaneContainer } from '../../../../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
-import { Extensions, IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, ViewContainerLocation } from '../../../../../common/views.js';
+import { ViewContainer, IViewContainersRegistry, Extensions, ViewContainerLocation, IViewsRegistry, IViewDescriptor, IViewDescriptorService } from '../../../../../common/views.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
-import { ChatContextKeyExprs } from '../../../common/chatContextKeys.js';
-import { IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../../../common/chatSessionsService.js';
-import { AGENT_SESSIONS_VIEWLET_ID } from '../../../common/constants.js';
+import { IChatSessionsService, IChatSessionItemProvider, IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
+import { ChatConfiguration, AGENT_SESSIONS_VIEWLET_ID } from '../../../common/constants.js';
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { SessionsViewPane } from './sessionsViewPane.js';
 
-export class ChatSessionsViewContrib extends Disposable implements IWorkbenchContribution {
+export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatSessions';
 
+	private isViewContainerRegistered = false;
 	private localProvider: LocalChatSessionsProvider | undefined;
 	private readonly sessionTracker: ChatSessionTracker;
-	private readonly registeredViewDescriptors: Map<string, IViewDescriptor> = new Map();
+	private viewContainer: ViewContainer | undefined;
 
 	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@ILogService private readonly logService: ILogService,
-		@IProductService private readonly productService: IProductService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
@@ -55,15 +56,16 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 		this._register(this.chatSessionsService.registerChatSessionItemProvider(this.localProvider));
 
 		// Initial check
-		this.registerViewContainer();
-		void this.updateViewRegistration();
+		this.updateViewContainerRegistration();
 
-		this._register(this.chatSessionsService.onDidChangeItemsProviders(() => {
-			void this.updateViewRegistration();
+		// Listen for configuration changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.AgentSessionsViewLocation)) {
+				this.updateViewContainerRegistration();
+			}
 		}));
-
-		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
-			void this.updateViewRegistration();
+		this._register(this.chatEntitlementService.onDidChangeSentiment(e => {
+			this.updateViewContainerRegistration();
 		}));
 	}
 
@@ -73,20 +75,125 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 		}));
 	}
 
+	private updateViewContainerRegistration(): void {
+		const location = this.configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
+		const sentiment = this.chatEntitlementService.sentiment;
+		if (sentiment.disabled || sentiment.hidden || (location !== 'view' && this.isViewContainerRegistered)) {
+			this.deregisterViewContainer();
+		} else if (location === 'view' && !this.isViewContainerRegistered) {
+			this.registerViewContainer();
+		}
+	}
+
 	private registerViewContainer(): void {
-		Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+		if (this.isViewContainerRegistered) {
+			return;
+		}
+
+		this.viewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: AGENT_SESSIONS_VIEWLET_ID,
 				title: nls.localize2('chat.agent.sessions', "Agent Sessions"),
 				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer, [this.sessionTracker]),
-				hideIfEmpty: true,
+				hideIfEmpty: false,
 				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View'),
 				order: 6
 			}, ViewContainerLocation.Sidebar);
+		this.isViewContainerRegistered = true;
+	}
+
+	private deregisterViewContainer(): void {
+		if (this.viewContainer) {
+			const allViews = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer);
+			if (allViews.length > 0) {
+				Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).deregisterViews(allViews, this.viewContainer);
+			}
+
+			Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).deregisterViewContainer(this.viewContainer);
+			this.viewContainer = undefined;
+			this.isViewContainerRegistered = false;
+		}
+	}
+}
+
+// Chat sessions container
+class ChatSessionsViewPaneContainer extends ViewPaneContainer {
+	private registeredViewDescriptors: Map<string, IViewDescriptor> = new Map();
+
+	constructor(
+		private readonly sessionTracker: ChatSessionTracker,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IExtensionService extensionService: IExtensionService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@ILogService logService: ILogService,
+		@IProductService private readonly productService: IProductService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+	) {
+		super(
+			AGENT_SESSIONS_VIEWLET_ID,
+			{
+				mergeViewWithContainerWhenSingleView: false,
+			},
+			instantiationService,
+			configurationService,
+			layoutService,
+			contextMenuService,
+			telemetryService,
+			extensionService,
+			themeService,
+			storageService,
+			contextService,
+			viewDescriptorService,
+			logService
+		);
+
+		this.updateViewRegistration();
+
+		// Listen for provider changes and register/unregister views accordingly
+		this._register(this.chatSessionsService.onDidChangeItemsProviders(() => {
+			this.updateViewRegistration();
+		}));
+
+		// Listen for session items changes and refresh the appropriate provider tree
+		this._register(this.chatSessionsService.onDidChangeSessionItems((chatSessionType) => {
+			this.refreshProviderTree(chatSessionType);
+		}));
+
+		// Listen for contribution availability changes and update view registration
+		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
+			this.updateViewRegistration();
+		}));
+	}
+
+	override getTitle(): string {
+		const title = nls.localize('chat.agent.sessions.title', "Agent Sessions");
+		return title;
 	}
 
 	private getAllChatSessionItemProviders(): IChatSessionItemProvider[] {
 		return Array.from(this.chatSessionsService.getAllChatSessionItemProviders());
+	}
+
+	private refreshProviderTree(chatSessionType: string): void {
+		// Find the provider with the matching chatSessionType
+		const providers = this.getAllChatSessionItemProviders();
+		const targetProvider = providers.find(provider => provider.chatSessionType === chatSessionType);
+
+		if (targetProvider) {
+			// Find the corresponding view and refresh its tree
+			const viewId = `${AGENT_SESSIONS_VIEWLET_ID}.${chatSessionType}`;
+			const view = this.getView(viewId) as SessionsViewPane | undefined;
+			if (view) {
+				view.refreshTree();
+			}
+		}
 	}
 
 	private async updateViewRegistration(): Promise<void> {
@@ -171,12 +278,12 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 
 			// Register views in priority order: local, history, then alphabetically sorted others
 			const orderedProviders = [
-				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Agent', baseOrder: 0, when: ChatContextKeyExprs.agentViewWhen }] : []),
-				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1, when: ChatContextKeyExprs.agentViewWhen }] : []),
+				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Agent', baseOrder: 0 }] : []),
+				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1, when: undefined }] : []),
 				...providersWithDisplayNames.map((item, index) => ({
 					...item,
 					baseOrder: 2 + index, // Start from 2 for other providers
-					when: ChatContextKeyExprs.agentViewWhen,
+					when: undefined,
 				}))
 			];
 
@@ -224,7 +331,6 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 					canMoveView: true,
 					order: 1000,
 					collapsed: !!otherProviders.length,
-					when: ChatContextKeyExprs.agentViewWhen
 				};
 				viewDescriptorsToRegister.push(gettingStartedDescriptor);
 				this.registeredViewDescriptors.set('gettingStarted', gettingStartedDescriptor);
@@ -248,66 +354,5 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 		}
 
 		super.dispose();
-	}
-}
-
-// Chat sessions container
-class ChatSessionsViewPaneContainer extends ViewPaneContainer {
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IExtensionService extensionService: IExtensionService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@ILogService logService: ILogService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-	) {
-		super(
-			AGENT_SESSIONS_VIEWLET_ID,
-			{
-				mergeViewWithContainerWhenSingleView: false,
-			},
-			instantiationService,
-			configurationService,
-			layoutService,
-			contextMenuService,
-			telemetryService,
-			extensionService,
-			themeService,
-			storageService,
-			contextService,
-			viewDescriptorService,
-			logService
-		);
-
-		// Listen for session items changes and refresh the appropriate provider tree
-		this._register(this.chatSessionsService.onDidChangeSessionItems((chatSessionType) => {
-			this.refreshProviderTree(chatSessionType);
-		}));
-	}
-
-	override getTitle(): string {
-		const title = nls.localize('chat.agent.sessions.title', "Agent Sessions");
-		return title;
-	}
-
-	private refreshProviderTree(chatSessionType: string): void {
-		// Find the provider with the matching chatSessionType
-		const providers = Array.from(this.chatSessionsService.getAllChatSessionItemProviders());
-		const targetProvider = providers.find(provider => provider.chatSessionType === chatSessionType);
-
-		if (targetProvider) {
-			// Find the corresponding view and refresh its tree
-			const viewId = `${AGENT_SESSIONS_VIEWLET_ID}.${chatSessionType}`;
-			const view = this.getView(viewId) as SessionsViewPane | undefined;
-			if (view) {
-				view.refreshTree();
-			}
-		}
 	}
 }
