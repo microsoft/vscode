@@ -10,23 +10,24 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileContent, IReadFileOptions } from '../../../../../platform/files/common/files.js';
-import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { IWebContentExtractorService, WebContentExtractResult } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { FetchWebPageTool } from '../../electron-browser/tools/fetchPageTool.js';
 import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { MockTrustedDomainService } from '../../../url/test/browser/mockTrustedDomainService.js';
+import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
 
 class TestWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;
 
 	constructor(private uriToContentMap: ResourceMap<string>) { }
 
-	async extract(uris: URI[]): Promise<string[]> {
+	async extract(uris: URI[]): Promise<WebContentExtractResult[]> {
 		return uris.map(uri => {
 			const content = this.uriToContentMap.get(uri);
 			if (content === undefined) {
 				throw new Error(`No content configured for URI: ${uri.toString()}`);
 			}
-			return content;
+			return { status: 'ok', result: content };
 		});
 	}
 }
@@ -747,6 +748,119 @@ suite('FetchWebPageTool', () => {
 			// Check content types
 			assert.strictEqual(result.content[0].kind, 'data', 'Image should be data part');
 			assert.strictEqual(result.content[1].kind, 'text', 'Text file should be text part');
+		});
+
+		test('confirmResults is false when all web contents are errors or redirects', async () => {
+			const webContentMap = new ResourceMap<string>();
+
+			const tool = new FetchWebPageTool(
+				new class extends TestWebContentExtractorService {
+					constructor() {
+						super(webContentMap);
+					}
+					override async extract(uris: URI[]): Promise<WebContentExtractResult[]> {
+						return uris.map(() => ({ status: 'error', error: 'Failed to fetch' }));
+					}
+				}(),
+				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+				new MockTrustedDomainService(),
+			);
+
+			const result = await tool.invoke(
+				{ callId: 'test-call', toolId: 'fetch-page', parameters: { urls: ['https://example.com'] }, context: undefined },
+				() => Promise.resolve(0),
+				{ report: () => { } },
+				CancellationToken.None
+			);
+
+			assert.strictEqual(result.confirmResults, false, 'confirmResults should be false when all results are errors');
+		});
+
+		test('confirmResults is false when all web contents are redirects', async () => {
+			const webContentMap = new ResourceMap<string>();
+
+			const tool = new FetchWebPageTool(
+				new class extends TestWebContentExtractorService {
+					constructor() {
+						super(webContentMap);
+					}
+					override async extract(uris: URI[]): Promise<WebContentExtractResult[]> {
+						return uris.map(() => ({ status: 'redirect', toURI: URI.parse('https://redirected.com') }));
+					}
+				}(),
+				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+				new MockTrustedDomainService(),
+			);
+
+			const result = await tool.invoke(
+				{ callId: 'test-call', toolId: 'fetch-page', parameters: { urls: ['https://example.com'] }, context: undefined },
+				() => Promise.resolve(0),
+				{ report: () => { } },
+				CancellationToken.None
+			);
+
+			assert.strictEqual(result.confirmResults, false, 'confirmResults should be false when all results are redirects');
+		});
+
+		test('confirmResults is undefined when at least one web content succeeds', async () => {
+			const webContentMap = new ResourceMap<string>([
+				[URI.parse('https://success.com'), 'Success content']
+			]);
+
+			const tool = new FetchWebPageTool(
+				new class extends TestWebContentExtractorService {
+					constructor() {
+						super(webContentMap);
+					}
+					override async extract(uris: URI[]): Promise<WebContentExtractResult[]> {
+						return [
+							{ status: 'ok', result: 'Success content' },
+							{ status: 'error', error: 'Failed' }
+						];
+					}
+				}(),
+				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+				new MockTrustedDomainService(),
+			);
+
+			const result = await tool.invoke(
+				{ callId: 'test-call', toolId: 'fetch-page', parameters: { urls: ['https://success.com', 'https://error.com'] }, context: undefined },
+				() => Promise.resolve(0),
+				{ report: () => { } },
+				CancellationToken.None
+			);
+
+			assert.strictEqual(result.confirmResults, undefined, 'confirmResults should be undefined when at least one result succeeds');
+		});
+
+		test('redirect result provides correct message with new URL', async () => {
+			const redirectURI = URI.parse('https://redirected.com/page');
+			const tool = new FetchWebPageTool(
+				new class extends TestWebContentExtractorService {
+					constructor() {
+						super(new ResourceMap<string>());
+					}
+					override async extract(uris: URI[]): Promise<WebContentExtractResult[]> {
+						return [{ status: 'redirect', toURI: redirectURI }];
+					}
+				}(),
+				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+				new MockTrustedDomainService(),
+			);
+
+			const result = await tool.invoke(
+				{ callId: 'test-call', toolId: 'fetch-page', parameters: { urls: ['https://example.com'] }, context: undefined },
+				() => Promise.resolve(0),
+				{ report: () => { } },
+				CancellationToken.None
+			);
+
+			assert.strictEqual(result.content.length, 1);
+			assert.strictEqual(result.content[0].kind, 'text');
+			if (result.content[0].kind === 'text') {
+				assert.ok(result.content[0].value.includes(redirectURI.toString(true)), 'Redirect message should include target URL');
+				assert.ok(result.content[0].value.includes(InternalFetchWebPageToolId), 'Redirect message should suggest using tool again');
+			}
 		});
 	});
 });
