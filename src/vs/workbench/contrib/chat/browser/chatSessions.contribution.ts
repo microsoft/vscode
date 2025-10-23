@@ -625,9 +625,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const resolvedType = this._resolveToPrimaryType(chatViewType);
 		if (!resolvedType) {
 			return false;
-		} else {
-			chatViewType = resolvedType;
 		}
+
+		chatViewType = resolvedType;
 
 		if (this._itemsProviders.has(chatViewType)) {
 			return true;
@@ -643,9 +643,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const resolvedType = this._resolveToPrimaryType(chatViewType);
 		if (!resolvedType) {
 			return false;
-		} else {
-			chatViewType = resolvedType;
 		}
+
+		chatViewType = resolvedType;
 
 		if (this._contentProviders.has(chatViewType)) {
 			return true;
@@ -742,9 +742,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const resolvedType = this._resolveToPrimaryType(chatSessionType);
 		if (!resolvedType) {
 			throw Error(`Cannot find provider for ${chatSessionType}`);
-		} else {
-			chatSessionType = resolvedType;
 		}
+
+		chatSessionType = resolvedType;
 
 		const provider = this._itemsProviders.get(chatSessionType);
 		if (!provider?.provideNewChatSessionItem) {
@@ -757,19 +757,19 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public async provideChatSessionContent(chatSessionType: string, id: string, resource: URI, token: CancellationToken): Promise<ChatSession> {
 		if (!(await this.canResolveContentProvider(chatSessionType))) {
-			throw Error(`Can not find provider for ${chatSessionType}`);
+			throw Error(`Cannot find provider for ${chatSessionType}`);
 		}
 
 		const resolvedType = this._resolveToPrimaryType(chatSessionType);
 		if (!resolvedType) {
-			throw Error(`Can not find provider for ${chatSessionType}`);
-		} else {
-			chatSessionType = resolvedType;
+			throw Error(`Cannot find provider for ${chatSessionType}`);
 		}
+
+		chatSessionType = resolvedType;
 
 		const provider = this._contentProviders.get(chatSessionType);
 		if (!provider) {
-			throw Error(`Can not find provider for ${chatSessionType}`);
+			throw Error(`Cannot find provider for ${chatSessionType}`);
 		}
 
 		const sessionKey = `${chatSessionType}_${id}`;
