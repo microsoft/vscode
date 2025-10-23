@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $ } from '../../../../../../base/browser/dom.js';
 import { equalsIfDefined, itemEquals } from '../../../../../../base/common/equals.js';
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -12,10 +13,10 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
+import { TextReplacement } from '../../../../../common/core/edits/textEdit.js';
 import { Position } from '../../../../../common/core/position.js';
 import { Range } from '../../../../../common/core/range.js';
-import { TextReplacement } from '../../../../../common/core/edits/textEdit.js';
+import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { AbstractText, StringText } from '../../../../../common/core/text/abstractText.js';
 import { TextLength } from '../../../../../common/core/text/textLength.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
@@ -35,7 +36,6 @@ import { InlineEditsWordReplacementView } from './inlineEditsViews/inlineEditsWo
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineEditsViews/originalEditorInlineDiffView.js';
 import { applyEditToModifiedRangeMappings, createReindentEdit } from './utils/utils.js';
 import './view.css';
-import { $ } from '../../../../../../base/browser/dom.js';
 
 
 export class InlineEditsView extends Disposable {
@@ -497,9 +497,9 @@ export class InlineEditsView extends Disposable {
 		}));
 
 		const cursorPosition = inlineEdit.cursorPosition;
-		const startsWithEOL = stringChanges[0].modified.startsWith(textModel.getEOL());
+		const startsWithEOL = stringChanges.length === 0 ? false : stringChanges[0].modified.startsWith(textModel.getEOL());
 		const viewData: InlineCompletionViewData = {
-			cursorColumnDistance: inlineEdit.edit.replacements[0].range.getStartPosition().column - cursorPosition.column,
+			cursorColumnDistance: inlineEdit.edit.replacements.length === 0 ? 0 : inlineEdit.edit.replacements[0].range.getStartPosition().column - cursorPosition.column,
 			cursorLineDistance: inlineEdit.lineEdit.lineRange.startLineNumber - cursorPosition.lineNumber + (startsWithEOL && inlineEdit.lineEdit.lineRange.startLineNumber >= cursorPosition.lineNumber ? 1 : 0),
 			lineCountOriginal: inlineEdit.lineEdit.lineRange.length,
 			lineCountModified: inlineEdit.lineEdit.newLines.length,

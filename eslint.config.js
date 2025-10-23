@@ -1824,6 +1824,7 @@ export default tseslint.config(
 						// terminalContrib is one extra folder deep
 						'vs/workbench/contrib/terminalContrib/*/~',
 						'vscode-notebook-renderer', // Type only import
+						'@vscode/tree-sitter-wasm', // type import
 						{
 							'when': 'hasBrowser',
 							'pattern': '@xterm/xterm'

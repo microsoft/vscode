@@ -412,6 +412,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	keys(): {
 		default: string[];
+		policy: string[];
 		user: string[];
 		workspace: string[];
 		workspaceFolder: string[];

@@ -6,8 +6,8 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
-import { RunInTerminalToolConfirmationHelper } from './runInTerminalTool.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
+import { RunInTerminalTool } from './runInTerminalTool.js';
 
 export const ConfirmTerminalCommandToolData: IToolData = {
 	id: 'vscode_get_terminal_confirmation',
@@ -56,18 +56,15 @@ export const ConfirmTerminalCommandToolData: IToolData = {
 	}
 };
 
-export class ConfirmTerminalCommandTool implements IToolImpl {
-	constructor(private readonly _terminalCommandConfirmationHelper: RunInTerminalToolConfirmationHelper,
-	) { }
-	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		const preparedInvocation = await this._terminalCommandConfirmationHelper.prepareToolInvocation(context, undefined, token);
+export class ConfirmTerminalCommandTool extends RunInTerminalTool {
+	override async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const preparedInvocation = await super.prepareToolInvocation(context, token);
 		if (preparedInvocation) {
 			preparedInvocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
 		}
 		return preparedInvocation;
 	}
-
-	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
+	override async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		// This is a confirmation-only tool - just return success
 		return {
 			content: [{

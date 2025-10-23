@@ -62,6 +62,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IC
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
+import { IChatTodoListService } from '../common/chatTodoListService.js';
 import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
 import { ChatMode, IChatModeService } from '../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
@@ -85,7 +86,6 @@ import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilitySe
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
-import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
@@ -331,7 +331,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly welcomeContextMenuDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private readonly historyViewStore = this._register(new DisposableStore());
-	private readonly chatTodoListWidget: ChatTodoListWidget;
 	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
 	private historyList: WorkbenchList<IChatHistoryListItem> | undefined;
 
@@ -502,6 +501,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -583,7 +583,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection, undefined));
-		this.chatTodoListWidget = this._register(this.instantiationService.createInstance(ChatTodoListWidget));
 		this.chatSuggestNextWidget = this._register(this.instantiationService.createInstance(ChatSuggestNextWidget));
 
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
@@ -703,6 +702,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.resetWelcomeViewInput();
 			}
 		}));
+		this._register(this.chatTodoListService.onDidUpdateTodos((sessionId) => {
+			if (this.viewModel?.sessionId === sessionId) {
+				this.inputPart.renderChatTodoListWidget(sessionId);
+			}
+		}));
 	}
 
 	private resetWelcomeViewInput(): void {
@@ -766,7 +770,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	get contentHeight(): number {
-		return this.input.contentHeight + this.tree.contentHeight + this.chatTodoListWidget.height + this.chatSuggestNextWidget.height;
+		return this.input.contentHeight + this.tree.contentHeight + this.chatSuggestNextWidget.height;
 	}
 
 	get attachmentModel(): ChatAttachmentModel {
@@ -800,12 +804,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view-container', { style: 'display: none' }));
 		this._register(dom.addStandardDisposableListener(this.welcomeMessageContainer, dom.EventType.CLICK, () => this.focusInput()));
 
-		dom.append(this.container, this.chatTodoListWidget.domNode);
-		this._register(this.chatTodoListWidget.onDidChangeHeight(() => {
-			if (this.bodyDimension) {
-				this.layout(this.bodyDimension.height, this.bodyDimension.width);
-			}
-		}));
 		this._register(this.chatSuggestNextWidget.onDidChangeHeight(() => {
 			if (this.bodyDimension) {
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
@@ -971,7 +969,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.unlockFromCodingAgent();
 		}
 
-		this.clearTodoListWidget(this.viewModel?.sessionId);
+		this.inputPart.clearTodoListWidget(this.viewModel?.sessionId, true);
 		// Cancel any pending widget render and hide the widget BEFORE firing onDidClear
 		// This prevents the widget from being re-shown by any handlers triggered by the clear event
 		this._chatSuggestNextScheduler.cancel();
@@ -1014,7 +1012,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			if (treeItems.length > 0) {
 				this.updateChatViewVisibility();
-				this.renderChatTodoListWidget();
 			} else {
 				this._welcomeRenderScheduler.schedule();
 			}
@@ -1317,38 +1314,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		const historyItems = await this.computeHistoryItems();
 		this.renderHistoryItems(historyItems);
-	}
-
-	private renderChatTodoListWidget(): void {
-		const sessionId = this.viewModel?.sessionId;
-		if (!sessionId || !this._isReady) {
-			return;
-		}
-
-		const todoListConfig = this.configurationService.getValue<{ position?: string }>(ChatConfiguration.TodoList);
-		const todoListWidgetPosition = todoListConfig?.position || 'default';
-
-		// Handle 'off' - hide the widget and return
-		if (todoListWidgetPosition === 'off') {
-			this.chatTodoListWidget.domNode.style.display = 'none';
-			this._onDidChangeContentHeight.fire();
-			return;
-		}
-
-		// Handle 'chat-input' - hide the standalone widget to avoid duplication
-		if (todoListWidgetPosition === 'chat-input') {
-			this.chatTodoListWidget.domNode.style.display = 'none';
-			this.inputPart.renderChatTodoListWidget(sessionId);
-			this._onDidChangeContentHeight.fire();
-			return;
-		}
-
-		this.chatTodoListWidget.render(sessionId);
-	}
-
-	private clearTodoListWidget(sessionId: string | undefined, force: boolean = false): void {
-		this.chatTodoListWidget.clear(sessionId, force);
-		this.inputPart.clearTodoListWidget(sessionId, force);
 	}
 
 	private _getGenerateInstructionsMessage(): IMarkdownString {
@@ -2416,11 +2381,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._updateAgentCapabilitiesContextKeys(e.agent);
 			}
 			if (e.kind === 'addRequest') {
-				this.clearTodoListWidget(model.sessionId, false);
+				this.inputPart.clearTodoListWidget(this.viewModel?.sessionId, false);
 			}
 			// Hide widget on request removal
 			if (e.kind === 'removeRequest') {
-				this.clearTodoListWidget(model.sessionId, true);
+				this.inputPart.clearTodoListWidget(this.viewModel?.sessionId, true);
 				this.chatSuggestNextWidget.hide();
 			}
 			// Show next steps widget when response completes (not when request starts)
@@ -2437,6 +2402,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.renderer.updateViewModel(this.viewModel);
 		this.updateChatInputContext();
+		this.input.renderChatTodoListWidget(this.viewModel.sessionId);
 	}
 
 	getFocus(): ChatTreeItem | undefined {
@@ -2571,11 +2537,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<void> {
-		if (!PromptsConfig.enabled(this.configurationService)) {
-			// if prompts are not enabled, we don't need to do anything
-			return undefined;
-		}
-
 		let parseResult: ParsedPromptFile | undefined;
 
 		// first check if the input has a prompt slash command
@@ -2800,12 +2761,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const inputHeight = this.inputPart.inputPartHeight;
-		const chatTodoListWidgetHeight = this.chatTodoListWidget.height;
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
 		const lastItem = this.viewModel?.getItems().at(-1);
 
-		const contentHeight = Math.max(0, height - inputHeight - chatTodoListWidgetHeight - chatSuggestNextWidgetHeight);
+		const contentHeight = Math.max(0, height - inputHeight - chatSuggestNextWidgetHeight);
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
 			this.listContainer.style.removeProperty('--chat-current-response-min-height');
 		} else {
@@ -2817,7 +2777,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.layout(contentHeight, width);
 
 		// Push the welcome message down so it doesn't change position
-		// when followups, attachments, working set, or suggest next widget appear
+		// when followups, attachments, working set, todo list, or suggest next widget appear
 		let welcomeOffset = 100;
 		if (this.viewOptions.renderFollowups) {
 			welcomeOffset = Math.max(welcomeOffset - this.input.followupsHeight, 0);
@@ -2825,6 +2785,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewOptions.enableWorkingSet) {
 			welcomeOffset = Math.max(welcomeOffset - this.input.editSessionWidgetHeight, 0);
 		}
+		welcomeOffset = Math.max(welcomeOffset - this.input.todoListWidgetHeight, 0);
 		welcomeOffset = Math.max(welcomeOffset - this.input.attachmentsHeight, 0);
 		this.welcomeMessageContainer.style.height = `${contentHeight - welcomeOffset}px`;
 		this.welcomeMessageContainer.style.paddingBottom = `${welcomeOffset}px`;
@@ -2871,10 +2832,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const width = this.bodyDimension?.width ?? this.container.offsetWidth;
 				this.input.layout(possibleMaxHeight, width);
 				const inputPartHeight = this.input.inputPartHeight;
-				const chatTodoListWidgetHeight = this.chatTodoListWidget.height;
 				const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
-				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight - chatTodoListWidgetHeight - chatSuggestNextWidgetHeight);
-				this.layout(newHeight + inputPartHeight + chatTodoListWidgetHeight + chatSuggestNextWidgetHeight, width);
+				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight - chatSuggestNextWidgetHeight);
+				this.layout(newHeight + inputPartHeight + chatSuggestNextWidgetHeight, width);
 			});
 		}));
 	}
@@ -2917,7 +2877,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const width = this.bodyDimension?.width ?? this.container.offsetWidth;
 		this.input.layout(this._dynamicMessageLayoutData.maxHeight, width);
 		const inputHeight = this.input.inputPartHeight;
-		const chatTodoListWidgetHeight = this.chatTodoListWidget.height;
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 
 		const totalMessages = this.viewModel.getItems();
@@ -2932,7 +2891,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.layout(
 			Math.min(
 				// we add an additional 18px in order to show that there is scrollable content
-				inputHeight + chatTodoListWidgetHeight + chatSuggestNextWidgetHeight + listHeight + (totalMessages.length > 2 ? 18 : 0),
+				inputHeight + chatSuggestNextWidgetHeight + listHeight + (totalMessages.length > 2 ? 18 : 0),
 				this._dynamicMessageLayoutData.maxHeight
 			),
 			width
@@ -3011,16 +2970,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * - instructions referenced in an already included instruction file
 	 */
 	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
-		const promptsConfigEnabled = PromptsConfig.enabled(this.configurationService);
-		this.logService.debug(`ChatWidget#_autoAttachInstructions: ${PromptsConfig.KEY}: ${promptsConfigEnabled}`);
+		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are always enabled`);
 
-		if (promptsConfigEnabled) {
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this._getReadTool());
-			await computer.collect(attachedContext, CancellationToken.None);
-		} else {
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, undefined);
-			await computer.collectAgentInstructionsOnly(attachedContext, CancellationToken.None);
-		}
+		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this._getReadTool());
+		await computer.collect(attachedContext, CancellationToken.None);
 	}
 
 	private _getReadTool(): IToolData | undefined {

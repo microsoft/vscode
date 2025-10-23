@@ -78,6 +78,12 @@ suite('StringPolicy', () => {
         const presentation = policy.renderADMLPresentation();
         assert_1.default.strictEqual(presentation, '<presentation id="TestStringPolicy"><textBox refId="TestStringPolicy"><label>TestStringPolicy:</label></textBox></presentation>');
     });
+    test('should render JSON value correctly', () => {
+        const policy = stringPolicy_js_1.StringPolicy.from(mockCategory, mockPolicy);
+        assert_1.default.ok(policy);
+        const jsonValue = policy.renderJsonValue();
+        assert_1.default.strictEqual(jsonValue, '');
+    });
     test('should render profile value correctly', () => {
         const policy = stringPolicy_js_1.StringPolicy.from(mockCategory, mockPolicy);
         assert_1.default.ok(policy);
