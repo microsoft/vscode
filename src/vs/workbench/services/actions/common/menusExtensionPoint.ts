@@ -451,9 +451,17 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatParticipantPrivate'
 	},
 	{
+		// TODO: rename this to something like: `chatSessions/item/inline`
 		key: 'chat/chatSessions',
 		id: MenuId.ChatSessionsMenu,
 		description: localize('menus.chatSessions', "The Chat Sessions menu."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'chatSessions/newSession',
+		id: MenuId.ChatSessionsCreateSubMenu,
+		description: localize('menus.chatSessionsNewSession', "Menu for new chat sessions."),
 		supportsSubmenus: false,
 		proposed: 'chatSessionsProvider'
 	},

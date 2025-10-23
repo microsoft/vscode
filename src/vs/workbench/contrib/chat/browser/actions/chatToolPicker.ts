@@ -311,7 +311,7 @@ export async function showToolsPicker(
 					itemType: 'bucket',
 					ordinal: BucketOrdinal.Mcp,
 					id: key,
-					label: localize('mcplabel', "MCP Server: {0}", source.label),
+					label: source.label,
 					checked: undefined,
 					collapsed,
 					children,
@@ -329,7 +329,7 @@ export async function showToolsPicker(
 					itemType: 'bucket',
 					ordinal: BucketOrdinal.Extension,
 					id: key,
-					label: localize('ext', 'Extension: {0}', source.label),
+					label: source.label,
 					checked: undefined,
 					children: [],
 					buttons: [],
@@ -445,7 +445,7 @@ export async function showToolsPicker(
 	treePicker.description = description;
 	treePicker.matchOnDescription = true;
 	treePicker.matchOnLabel = true;
-
+	treePicker.sortByLabel = false;
 
 	computeItems();
 

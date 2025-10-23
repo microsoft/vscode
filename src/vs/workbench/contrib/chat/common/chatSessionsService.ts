@@ -13,7 +13,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditableData } from '../../../common/views.js';
-import { IChatAgentRequest } from './chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './chatAgents.js';
+import { IChatRequestVariableData } from './chatModel.js';
 import { IChatProgress } from './chatService.js';
 
 export const enum ChatSessionStatus {
@@ -49,16 +50,13 @@ export interface IChatSessionsExtensionPoint {
 	readonly extensionDescription: IRelaxedExtensionDescription;
 	readonly when?: string;
 	readonly icon?: string;
+	readonly order?: number;
+	readonly alternativeIds?: string[];
 	readonly welcomeTitle?: string;
 	readonly welcomeMessage?: string;
 	readonly welcomeTips?: string;
 	readonly inputPlaceholder?: string;
-	readonly capabilities?: {
-		supportsFileAttachments?: boolean;
-		supportsToolAttachments?: boolean;
-		supportsMCPAttachments?: boolean;
-		supportsImageAttachments?: boolean;
-	};
+	readonly capabilities?: IChatAgentAttachmentCapabilities;
 	readonly commands?: IChatSessionCommandContribution[];
 }
 export interface IChatSessionItem {
@@ -69,7 +67,7 @@ export interface IChatSessionItem {
 	description?: string | IMarkdownString;
 	status?: ChatSessionStatus;
 	tooltip?: string | IMarkdownString;
-	timing?: {
+	timing: {
 		startTime: number;
 		endTime?: number;
 	};
@@ -80,7 +78,17 @@ export interface IChatSessionItem {
 
 }
 
-export type IChatSessionHistoryItem = { type: 'request'; prompt: string; participant: string } | { type: 'response'; parts: IChatProgress[]; participant: string };
+export type IChatSessionHistoryItem = {
+	type: 'request';
+	prompt: string;
+	participant: string;
+	command?: string;
+	variableData?: IChatRequestVariableData;
+} | {
+	type: 'response';
+	parts: IChatProgress[];
+	participant: string;
+};
 
 export interface ChatSession extends IDisposable {
 	readonly sessionId: string;
@@ -175,18 +183,14 @@ export interface IChatSessionsService {
 	// Notify providers about session items changes
 	notifySessionItemsChanged(chatSessionType: string): void;
 
+	hasAnySessionOptions(chatSessionType: string, sessionId: string): boolean;
 	getSessionOption(chatSessionType: string, sessionId: string, optionId: string): string | undefined;
 	setSessionOption(chatSessionType: string, sessionId: string, optionId: string, value: string): boolean;
 
 	/**
 	 * Get the capabilities for a specific session type
 	 */
-	getCapabilitiesForSessionType(chatSessionType: string): {
-		supportsFileAttachments?: boolean;
-		supportsToolAttachments?: boolean;
-		supportsMCPAttachments?: boolean;
-		supportsImageAttachments?: boolean;
-	} | undefined;
+	getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');

@@ -23,6 +23,7 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 	private readonly _placeholder = observableValue<string | undefined>('placeholder', undefined);
 	private readonly _matchOnDescription = observableValue('matchOnDescription', false);
 	private readonly _matchOnLabel = observableValue('matchOnLabel', true);
+	private readonly _sortByLabel = observableValue('sortByLabel', true);
 	private readonly _activeItems = observableValue<readonly T[]>('activeItems', []);
 	private readonly _itemTree = observableValue<ReadonlyArray<T>>('itemTree', []);
 
@@ -59,6 +60,9 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 
 	get matchOnLabel(): boolean { return this._matchOnLabel.get(); }
 	set matchOnLabel(matchOnLabel: boolean) { this._matchOnLabel.set(matchOnLabel, undefined); }
+
+	get sortByLabel(): boolean { return this._sortByLabel.get(); }
+	set sortByLabel(sortByLabel: boolean) { this._sortByLabel.set(sortByLabel, undefined); }
 
 	get activeItems(): readonly T[] { return this._activeItems.get(); }
 	set activeItems(activeItems: readonly T[]) { this._activeItems.set(activeItems, undefined); }
@@ -205,6 +209,10 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 			const matchOnLabel = this._matchOnLabel.read(reader);
 			const matchOnDescription = this._matchOnDescription.read(reader);
 			this.ui.tree.updateFilterOptions({ matchOnLabel, matchOnDescription });
+		});
+		this.registerVisibleAutorun((reader) => {
+			const sortByLabel = this._sortByLabel.read(reader);
+			this.ui.tree.sortByLabel = sortByLabel;
 		});
 		this.registerVisibleAutorun((reader) => {
 			const itemTree = this._itemTree.read(reader);

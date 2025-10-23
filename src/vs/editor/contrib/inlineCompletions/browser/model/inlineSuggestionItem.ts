@@ -5,26 +5,26 @@
 
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { matchesSubString } from '../../../../../base/common/filters.js';
-import { observableSignal, IObservable } from '../../../../../base/common/observable.js';
+import { IObservable, observableSignal } from '../../../../../base/common/observable.js';
 import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../../../base/common/strings.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { applyEditsToRanges, StringEdit, StringReplacement } from '../../../../common/core/edits/stringEdit.js';
-import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
+import { TextEdit, TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { Position } from '../../../../common/core/position.js';
-import { PositionOffsetTransformerBase } from '../../../../common/core/text/positionToOffset.js';
 import { Range } from '../../../../common/core/range.js';
-import { TextReplacement, TextEdit } from '../../../../common/core/edits/textEdit.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { StringText } from '../../../../common/core/text/abstractText.js';
+import { getPositionOffsetTransformerFromTextModel } from '../../../../common/core/text/getPositionOffsetTransformerFromTextModel.js';
+import { PositionOffsetTransformerBase } from '../../../../common/core/text/positionToOffset.js';
 import { TextLength } from '../../../../common/core/text/textLength.js';
 import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.js';
-import { InlineCompletion, InlineCompletionTriggerKind, Command, InlineCompletionWarning, PartialAcceptInfo, InlineCompletionEndOfLifeReason, InlineCompletionDisplayLocationKind } from '../../../../common/languages.js';
-import { ITextModel, EndOfLinePreference } from '../../../../common/model.js';
+import { Command, InlineCompletion, InlineCompletionDisplayLocationKind, InlineCompletionEndOfLifeReason, InlineCompletionTriggerKind, InlineCompletionWarning, PartialAcceptInfo } from '../../../../common/languages.js';
+import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
+import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { IDisplayLocation, InlineSuggestData, InlineSuggestionList, PartialAcceptance, SnippetInfo } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
-import { getPositionOffsetTransformerFromTextModel } from '../../../../common/core/text/getPositionOffsetTransformerFromTextModel.js';
-import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 
 export type InlineSuggestionItem = InlineEditItem | InlineCompletionItem;
 
@@ -343,7 +343,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 		const offsetEdit = getStringEdit(textModel, data.range, data.insertText);
 		const text = new TextModelText(textModel);
 		const textEdit = TextEdit.fromStringEdit(offsetEdit, text);
-		const singleTextEdit = textEdit.toReplacement(text);
+		const singleTextEdit = offsetEdit.isEmpty() ? new TextReplacement(new Range(1, 1, 1, 1), '') : textEdit.toReplacement(text); // FIXME: .toReplacement() can throw because offsetEdit is empty because we get an empty diff in getStringEdit after diffing
 		const identity = new InlineSuggestionIdentity();
 
 		const edits = offsetEdit.replacements.map(edit => {

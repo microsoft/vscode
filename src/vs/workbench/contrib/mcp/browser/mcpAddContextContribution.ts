@@ -40,7 +40,7 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 			label: localize('mcp.addContext', "MCP Resources..."),
 			icon: Codicon.mcp,
 			isEnabled(widget) {
-				return widget.supportsMCPAttachments;
+				return !!widget.attachmentCapabilities.supportsMCPAttachments;
 			},
 			asPicker: () => ({
 				placeholder: localize('mcp.addContext.placeholder', "Select MCP Resource..."),
