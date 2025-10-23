@@ -5,13 +5,129 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IChatTodoListService, IChatTodo } from '../../common/chatTodoListService.js';
 import { TodoListToolDescriptionFieldSettingId } from '../../common/tools/manageTodoListTool.js';
+
+class TodoListDelegate implements IListVirtualDelegate<IChatTodo> {
+	getHeight(element: IChatTodo): number {
+		return 22;
+	}
+
+	getTemplateId(element: IChatTodo): string {
+		return TodoListRenderer.TEMPLATE_ID;
+	}
+}
+
+interface ITodoListTemplate {
+	readonly templateDisposables: DisposableStore;
+	readonly todoElement: HTMLElement;
+	readonly statusIcon: HTMLElement;
+	readonly iconLabel: IconLabel;
+	readonly statusElement: HTMLElement;
+}
+
+class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
+	static TEMPLATE_ID = 'todoListRenderer';
+	readonly templateId: string = TodoListRenderer.TEMPLATE_ID;
+
+	constructor(
+		private readonly configurationService: IConfigurationService
+	) { }
+
+	renderTemplate(container: HTMLElement): ITodoListTemplate {
+		const templateDisposables = new DisposableStore();
+		const todoElement = dom.append(container, dom.$('li.todo-item'));
+		todoElement.setAttribute('role', 'listitem');
+
+		const statusIcon = dom.append(todoElement, dom.$('.todo-status-icon.codicon'));
+		statusIcon.setAttribute('aria-hidden', 'true');
+
+		const todoContent = dom.append(todoElement, dom.$('.todo-content'));
+		const iconLabel = templateDisposables.add(new IconLabel(todoContent, { supportIcons: false }));
+		const statusElement = dom.append(todoContent, dom.$('.todo-status-text'));
+		statusElement.style.position = 'absolute';
+		statusElement.style.left = '-10000px';
+		statusElement.style.width = '1px';
+		statusElement.style.height = '1px';
+		statusElement.style.overflow = 'hidden';
+
+		return { templateDisposables, todoElement, statusIcon, iconLabel, statusElement };
+	}
+
+	renderElement(todo: IChatTodo, index: number, templateData: ITodoListTemplate): void {
+		const { todoElement, statusIcon, iconLabel, statusElement } = templateData;
+
+		// Update status icon
+		statusIcon.className = 'todo-status-icon codicon ' + this.getStatusIconClass(todo.status);
+		statusIcon.style.color = this.getStatusIconColor(todo.status);
+
+		// Update title with tooltip if description exists and description field is enabled
+		const includeDescription = this.configurationService.getValue<boolean>(TodoListToolDescriptionFieldSettingId) !== false;
+		const title = includeDescription && todo.description && todo.description.trim() ? todo.description : undefined;
+		iconLabel.setLabel(todo.title, undefined, { title });
+
+		// Update hidden status text for screen readers
+		const statusText = this.getStatusText(todo.status);
+		statusElement.id = `todo-status-${index}`;
+		statusElement.textContent = statusText;
+
+		// Update aria-label
+		const ariaLabel = includeDescription && todo.description && todo.description.trim()
+			? localize('chat.todoList.itemWithDescription', '{0}, {1}, {2}', todo.title, statusText, todo.description)
+			: localize('chat.todoList.item', '{0}, {1}', todo.title, statusText);
+		todoElement.setAttribute('aria-label', ariaLabel);
+		todoElement.setAttribute('aria-describedby', `todo-status-${index}`);
+	}
+
+	disposeTemplate(templateData: ITodoListTemplate): void {
+		templateData.templateDisposables.dispose();
+	}
+
+	private getStatusText(status: string): string {
+		switch (status) {
+			case 'completed':
+				return localize('chat.todoList.status.completed', 'completed');
+			case 'in-progress':
+				return localize('chat.todoList.status.inProgress', 'in progress');
+			case 'not-started':
+			default:
+				return localize('chat.todoList.status.notStarted', 'not started');
+		}
+	}
+
+	private getStatusIconClass(status: string): string {
+		switch (status) {
+			case 'completed':
+				return 'codicon-check';
+			case 'in-progress':
+				return 'codicon-record';
+			case 'not-started':
+			default:
+				return 'codicon-circle-large-outline';
+		}
+	}
+
+	private getStatusIconColor(status: string): string {
+		switch (status) {
+			case 'completed':
+				return 'var(--vscode-charts-green)';
+			case 'in-progress':
+				return 'var(--vscode-charts-blue)';
+			case 'not-started':
+			default:
+				return 'var(--vscode-foreground)';
+		}
+	}
+}
 
 export class ChatTodoListWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -27,10 +143,13 @@ export class ChatTodoListWidget extends Disposable {
 	private clearButton!: Button;
 	private _currentSessionId: string | undefined;
 	private _userHasScrolledManually: boolean = false;
+	private _todoList: WorkbenchList<IChatTodo> | undefined;
+	private readonly _listDisposables = this._register(new DisposableStore());
 
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -161,8 +280,6 @@ export class ChatTodoListWidget extends Disposable {
 	}
 
 	private renderTodoList(todoList: IChatTodo[]): void {
-		this.todoListContainer.textContent = '';
-
 		const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
 		if (titleElement) {
 			this.updateTitleElement(titleElement, todoList);
@@ -178,52 +295,8 @@ export class ChatTodoListWidget extends Disposable {
 		let firstCompletedIndex = -1;
 		let firstPendingAfterCompletedIndex = -1;
 
+		// Track indices for smart scrolling
 		todoList.forEach((todo, index) => {
-			const todoElement = dom.$('li.todo-item');
-			todoElement.setAttribute('role', 'listitem');
-			todoElement.setAttribute('tabindex', '0');
-
-			// Add tooltip if description exists and description field is enabled
-			const includeDescription = this.configurationService.getValue<boolean>(TodoListToolDescriptionFieldSettingId) !== false;
-			if (includeDescription && todo.description && todo.description.trim()) {
-				todoElement.title = todo.description;
-			}
-
-			const statusIcon = dom.$('.todo-status-icon.codicon');
-			statusIcon.classList.add(this.getStatusIconClass(todo.status));
-			statusIcon.style.color = this.getStatusIconColor(todo.status);
-			// Hide decorative icon from screen readers
-			statusIcon.setAttribute('aria-hidden', 'true');
-
-			const titleElement = dom.$('.todo-title');
-			titleElement.textContent = todo.title;
-
-			// Add hidden status text for screen readers
-			const statusText = this.getStatusText(todo.status);
-			const statusElement = dom.$('.todo-status-text');
-			statusElement.id = `todo-status-${index}`;
-			statusElement.textContent = statusText;
-			statusElement.style.position = 'absolute';
-			statusElement.style.left = '-10000px';
-			statusElement.style.width = '1px';
-			statusElement.style.height = '1px';
-			statusElement.style.overflow = 'hidden';
-
-			const todoContent = dom.$('.todo-content');
-			todoContent.appendChild(titleElement);
-			todoContent.appendChild(statusElement);
-
-			const ariaLabel = includeDescription && todo.description && todo.description.trim()
-				? localize('chat.todoList.itemWithDescription', '{0}, {1}, {2}', todo.title, statusText, todo.description)
-				: localize('chat.todoList.item', '{0}, {1}', todo.title, statusText);
-			todoElement.setAttribute('aria-label', ariaLabel);
-			todoElement.setAttribute('aria-describedby', `todo-status-${index}`);
-			todoElement.appendChild(statusIcon);
-			todoElement.appendChild(todoContent);
-
-			this.todoListContainer.appendChild(todoElement);
-
-			// Track indices for smart scrolling
 			if (todo.status === 'completed' && firstCompletedIndex === -1) {
 				firstCompletedIndex = index;
 			}
@@ -234,6 +307,40 @@ export class ChatTodoListWidget extends Disposable {
 				firstPendingAfterCompletedIndex = index;
 			}
 		});
+
+		// Create or update the WorkbenchList
+		if (!this._todoList) {
+			this._todoList = this.instantiationService.createInstance(
+				WorkbenchList<IChatTodo>,
+				'ChatTodoListRenderer',
+				this.todoListContainer,
+				new TodoListDelegate(),
+				[new TodoListRenderer(this.configurationService)],
+				{
+					alwaysConsumeMouseWheel: false,
+					accessibilityProvider: {
+						getAriaLabel: (todo: IChatTodo) => {
+							const statusText = this.getStatusText(todo.status);
+							const includeDescription = this.configurationService.getValue<boolean>(TodoListToolDescriptionFieldSettingId) !== false;
+							return includeDescription && todo.description && todo.description.trim()
+								? localize('chat.todoList.itemWithDescription', '{0}, {1}, {2}', todo.title, statusText, todo.description)
+								: localize('chat.todoList.item', '{0}, {1}', todo.title, statusText);
+						},
+						getWidgetAriaLabel: () => localize('chatTodoList', 'Chat Todo List')
+					}
+				}
+			);
+
+			this._listDisposables.add(this._todoList);
+		}
+
+		// Update list contents
+		const maxItemsShown = 6;
+		const itemsShown = Math.min(todoList.length, maxItemsShown);
+		const height = itemsShown * 22;
+		this._todoList.layout(height);
+		this._todoList.getHTMLElement().style.height = `${height}px`;
+		this._todoList.splice(0, this._todoList.length, todoList);
 
 		const hasInProgressTask = todoList.some(todo => todo.status === 'in-progress');
 		const hasCompletedTask = todoList.some(todo => todo.status === 'completed');
@@ -351,12 +458,9 @@ export class ChatTodoListWidget extends Disposable {
 			: localize('chat.todoList.expandButtonWithProgress', 'Expand {0}', progressText.textContent);
 		this.expandoElement.setAttribute('aria-label', expandButtonLabel);
 		this.expandoElement.setAttribute('aria-expanded', this._isExpanded ? 'true' : 'false');
-		let title = progressText.textContent || '';
 		if (!this._isExpanded) {
-			let currentTodo: IChatTodo | undefined;
 			// Priority 1: Show first in-progress todo (matches manageTodoListTool logic)
 			if (firstInProgressTodo) {
-				currentTodo = firstInProgressTodo;
 				const separator = dom.$('span');
 				separator.textContent = ' - ';
 				titleElement.appendChild(separator);
@@ -374,8 +478,6 @@ export class ChatTodoListWidget extends Disposable {
 			}
 			// Priority 2: Show last completed todo if not all completed (matches manageTodoListTool logic)
 			else if (completedCount > 0 && completedCount < totalCount && lastCompletedTodo) {
-				currentTodo = lastCompletedTodo;
-
 				const separator = dom.$('span');
 				separator.textContent = ' - ';
 				titleElement.appendChild(separator);
@@ -391,15 +493,6 @@ export class ChatTodoListWidget extends Disposable {
 				completedText.style.verticalAlign = 'middle';
 				titleElement.appendChild(completedText);
 			}
-			const includeDescription = this.configurationService.getValue<boolean>(TodoListToolDescriptionFieldSettingId) !== false;
-			if (includeDescription && currentTodo && currentTodo.description && currentTodo.description.trim()) {
-				title = currentTodo.description;
-			}
-		}
-
-		const titleSection = this.expandoElement.querySelector('.todo-list-title-section') as HTMLElement;
-		if (titleSection) {
-			titleSection.title = title;
 		}
 	}
 
@@ -412,30 +505,6 @@ export class ChatTodoListWidget extends Disposable {
 			case 'not-started':
 			default:
 				return localize('chat.todoList.status.notStarted', 'not started');
-		}
-	}
-
-	private getStatusIconClass(status: string): string {
-		switch (status) {
-			case 'completed':
-				return 'codicon-check';
-			case 'in-progress':
-				return 'codicon-record';
-			case 'not-started':
-			default:
-				return 'codicon-circle-large-outline';
-		}
-	}
-
-	private getStatusIconColor(status: string): string {
-		switch (status) {
-			case 'completed':
-				return 'var(--vscode-charts-green)';
-			case 'in-progress':
-				return 'var(--vscode-charts-blue)';
-			case 'not-started':
-			default:
-				return 'var(--vscode-foreground)';
 		}
 	}
 }
