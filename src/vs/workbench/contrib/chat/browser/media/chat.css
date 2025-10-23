@@ -1185,8 +1185,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* 6.5 items to show half-line affordance */
 	overflow-y: auto;
 	overscroll-behavior: contain;
-	scrollbar-width: thin;
-	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
 	scroll-behavior: smooth;
 	scroll-padding-top: 24px;
 	/* Half item height to show partial next item */
@@ -1194,25 +1192,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* Half item height to show partial previous item */
 }
 
-/* Modern scrollbar styling for WebKit browsers */
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-container::-webkit-scrollbar {
-	width: 8px;
-}
-
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-container::-webkit-scrollbar-track {
-	background: transparent;
-}
-
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-container::-webkit-scrollbar-thumb {
-	background-color: var(--vscode-scrollbarSlider-background);
-	border-radius: 4px;
-	border: 2px solid transparent;
-	background-clip: content-box;
-}
-
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-container::-webkit-scrollbar-thumb:hover {
-	background-color: var(--vscode-scrollbarSlider-hoverBackground);
-}
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list {
 	display: flex;
@@ -1233,9 +1212,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: pointer;
 }
 
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-item:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-item:focus {
 	outline: 1px solid var(--vscode-focusBorder);
