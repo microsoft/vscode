@@ -1693,11 +1693,83 @@
           "when": "scmProvider == git"
         }
       ],
-      "scm/sourceControl/title": [
+      "scm/repositories/title": [
         {
           "command": "git.reopenClosedRepositories",
           "group": "navigation@1",
           "when": "git.closedRepositoryCount > 0"
+        }
+      ],
+      "scm/repository": [
+        {
+          "command": "git.pull",
+          "group": "1_header@1",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.push",
+          "group": "1_header@2",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.clone",
+          "group": "1_header@3",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.checkout",
+          "group": "1_header@4",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.fetch",
+          "group": "1_header@5",
+          "when": "scmProvider == git"
+        },
+        {
+          "submenu": "git.commit",
+          "group": "2_main@1",
+          "when": "scmProvider == git"
+        },
+        {
+          "submenu": "git.changes",
+          "group": "2_main@2",
+          "when": "scmProvider == git"
+        },
+        {
+          "submenu": "git.pullpush",
+          "group": "2_main@3",
+          "when": "scmProvider == git"
+        },
+        {
+          "submenu": "git.branch",
+          "group": "2_main@4",
+          "when": "scmProvider == git"
+        },
+        {
+          "submenu": "git.remotes",
+          "group": "2_main@5",
+          "when": "scmProvider == git"
+        },
+        {
+          "submenu": "git.stash",
+          "group": "2_main@6",
+          "when": "scmProvider == git"
+        },
+        {
+          "submenu": "git.tags",
+          "group": "2_main@7",
+          "when": "scmProvider == git"
+        },
+        {
+          "submenu": "git.worktrees",
+          "group": "2_main@8",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.showOutput",
+          "group": "3_footer",
+          "when": "scmProvider == git"
         }
       ],
       "scm/sourceControl": [

@@ -10,6 +10,7 @@ import { ChatTodoListWidget } from '../../browser/chatContentParts/chatTodoListW
 import { IChatTodo, IChatTodoListService } from '../../common/chatTodoListService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('ChatTodoListWidget Accessibility', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,7 +41,8 @@ suite('ChatTodoListWidget Accessibility', () => {
 			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
 		} as any;
 
-		widget = store.add(new ChatTodoListWidget(mockTodoListService, mockConfigurationService));
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		widget = store.add(new ChatTodoListWidget(mockTodoListService, mockConfigurationService, instantiationService));
 		mainWindow.document.body.appendChild(widget.domNode);
 	});
 
@@ -76,7 +78,6 @@ suite('ChatTodoListWidget Accessibility', () => {
 		// Check first item (not-started)
 		const firstItem = todoItems[0] as HTMLElement;
 		assert.strictEqual(firstItem.getAttribute('role'), 'listitem');
-		assert.strictEqual(firstItem.getAttribute('tabindex'), '0');
 		assert.ok(firstItem.getAttribute('aria-label')?.includes('First task'));
 		assert.ok(firstItem.getAttribute('aria-label')?.includes('not started'));
 
@@ -150,7 +151,8 @@ suite('ChatTodoListWidget Accessibility', () => {
 			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
 		} as any;
 
-		const emptyWidget = store.add(new ChatTodoListWidget(emptyTodoListService, emptyConfigurationService));
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const emptyWidget = store.add(new ChatTodoListWidget(emptyTodoListService, emptyConfigurationService, instantiationService));
 		mainWindow.document.body.appendChild(emptyWidget.domNode);
 
 		emptyWidget.render('test-session');

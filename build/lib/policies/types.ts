@@ -23,6 +23,7 @@ export interface Policy {
 	renderADMX(regKey: string): string[];
 	renderADMLStrings(translations?: LanguageTranslations): string[];
 	renderADMLPresentation(): string;
+	renderJsonValue(): string | number | boolean | object | null;
 	renderProfile(): string[];
 	// https://github.com/ProfileManifests/ProfileManifests/wiki/Manifest-Format
 	renderProfileManifest(translations?: LanguageTranslations): string;

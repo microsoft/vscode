@@ -6,11 +6,11 @@
 import './media/agentsessionsview.css';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
-import { FilterViewPane, IViewPaneOptions, ViewAction } from '../../../../browser/parts/views/viewPane.js';
+import { IViewPaneOptions, ViewAction, ViewPane } from '../../../../browser/parts/views/viewPane.js';
 import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
 import { IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewDescriptor, IViewDescriptorService } from '../../../../common/views.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -25,14 +25,12 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { $, append } from '../../../../../base/browser/dom.js';
 import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel, LOCAL_AGENT_SESSION_TYPE, isLocalAgentSessionItem } from './agentSessionViewModel.js';
-import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsFilter, AgentSessionsIdentityProvider, AgentSessionsListDelegate, AgentSessionsSorter } from './agentSessionsViewer.js';
+import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionsSorter } from './agentSessionsViewer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { findExistingChatEditorByUri, NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
@@ -49,9 +47,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 
-export class AgentSessionsView extends FilterViewPane {
-
-	private static FILTER_FOCUS_CONTEXT_KEY = new RawContextKey<boolean>('agentSessionsViewFilterFocus', false);
+export class AgentSessionsView extends ViewPane {
 
 	private sessionsViewModel: IAgentSessionsViewModel | undefined;
 
@@ -72,20 +68,9 @@ export class AgentSessionsView extends FilterViewPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
-		super({
-			...options,
-			filterOptions: {
-				placeholder: localize('agentSessions.filterPlaceholder', "Type to filter agent sessions"),
-				ariaLabel: localize('agentSessions.filterAriaLabel', "Filter Agent Sessions"),
-				focusContextKey: AgentSessionsView.FILTER_FOCUS_CONTEXT_KEY.key
-			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.registerActions();
-	}
-
-	override shouldShowFilterInHeader(): boolean {
-		return false;
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -105,21 +90,17 @@ export class AgentSessionsView extends FilterViewPane {
 	private registerListeners(): void {
 		const list = assertReturnsDefined(this.list);
 
-		// Sessions Filter
-		this._register(this.filterWidget.onDidChangeFilterText(() => {
-			if (this.filter) {
-				this.filter.pattern = this.filterWidget.getFilterText() || '';
-				list.refilter();
-			}
-		}));
-
 		// Sessions List
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible || this.sessionsViewModel) {
 				return;
 			}
 
-			this.createViewModel();
+			if (!this.sessionsViewModel) {
+				this.createViewModel();
+			} else {
+				this.list?.updateChildren();
+			}
 		}));
 
 		this._register(list.onDidOpen(e => {
@@ -167,23 +148,6 @@ export class AgentSessionsView extends FilterViewPane {
 	}
 
 	private registerActions(): void {
-		this._register(registerAction2(class extends ViewAction<AgentSessionsView> {
-			constructor() {
-				super({
-					id: 'agentSessionsView.clearFilterText',
-					title: localize('clearFiltersText', "Clear Filter"),
-					keybinding: {
-						when: AgentSessionsView.FILTER_FOCUS_CONTEXT_KEY,
-						weight: KeybindingWeight.WorkbenchContrib,
-						primary: KeyCode.Escape
-					},
-					viewId: AGENT_SESSIONS_VIEW_ID
-				});
-			}
-			runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
-				view.filterWidget?.setFilterText('');
-			}
-		}));
 
 		this._register(registerAction2(class extends ViewAction<AgentSessionsView> {
 			constructor() {
@@ -194,13 +158,34 @@ export class AgentSessionsView extends FilterViewPane {
 					menu: {
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', AGENT_SESSIONS_VIEW_ID),
-						group: 'navigation'
+						group: 'navigation',
+						order: 1
 					},
 					viewId: AGENT_SESSIONS_VIEW_ID
 				});
 			}
 			runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
 				view.sessionsViewModel?.resolve(undefined);
+			}
+		}));
+
+		this._register(registerAction2(class extends ViewAction<AgentSessionsView> {
+			constructor() {
+				super({
+					id: 'agentSessionsView.find',
+					title: localize2('find', "Find Agent Session"),
+					icon: Codicon.search,
+					menu: {
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', AGENT_SESSIONS_VIEW_ID),
+						group: 'navigation',
+						order: 2
+					},
+					viewId: AGENT_SESSIONS_VIEW_ID
+				});
+			}
+			runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
+				view.list?.openFind();
 			}
 		}));
 	}
@@ -254,12 +239,9 @@ export class AgentSessionsView extends FilterViewPane {
 
 	private listContainer: HTMLElement | undefined;
 	private list: WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore> | undefined;
-	private filter: AgentSessionsFilter | undefined;
 
 	private createList(container: HTMLElement): void {
 		this.listContainer = append(container, $('.agent-sessions-viewer'));
-
-		this.filter = this._register(new AgentSessionsFilter());
 
 		this.list = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
@@ -275,7 +257,8 @@ export class AgentSessionsView extends FilterViewPane {
 				identityProvider: new AgentSessionsIdentityProvider(),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
-				filter: this.filter,
+				findWidgetEnabled: true,
+				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				sorter: new AgentSessionsSorter(),
 				paddingBottom: AgentSessionsListDelegate.ITEM_HEIGHT
 			}
@@ -286,7 +269,11 @@ export class AgentSessionsView extends FilterViewPane {
 		const sessionsViewModel = this.sessionsViewModel = this._register(this.instantiationService.createInstance(AgentSessionsViewModel));
 		this.list?.setInput(sessionsViewModel);
 
-		this._register(sessionsViewModel.onDidChangeSessions(() => this.list?.updateChildren()));
+		this._register(sessionsViewModel.onDidChangeSessions(() => {
+			if (this.isBodyVisible()) {
+				this.list?.updateChildren();
+			}
+		}));
 
 		const didResolveDisposable = this._register(new MutableDisposable());
 		this._register(sessionsViewModel.onWillResolve(() => {
@@ -310,20 +297,17 @@ export class AgentSessionsView extends FilterViewPane {
 		super.layoutBody(height, width);
 
 		let treeHeight = height;
-		treeHeight -= this.filterContainer?.offsetHeight ?? 0;
 		treeHeight -= this.newSessionContainer?.offsetHeight ?? 0;
 
 		this.list?.layout(treeHeight, width);
 	}
 
-	protected override layoutBodyContent(height: number, width: number): void {
-		// TODO@bpasero we deal with layout in layoutBody because we heavily customize it, reconsider using view filter inheritance
-	}
-
 	override focus(): void {
 		super.focus();
 
-		this.list?.domFocus();
+		if (this.list?.getFocus().length) {
+			this.list.domFocus();
+		}
 	}
 }
 

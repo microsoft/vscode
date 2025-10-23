@@ -28,6 +28,7 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -67,6 +68,15 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			return;
 		}
 
+		if (toolInvocation.kind === 'toolInvocation') {
+			const initialState = toolInvocation.state.get().type;
+			this._register(autorun(reader => {
+				if (toolInvocation.state.read(reader).type !== initialState) {
+					render();
+				}
+			}));
+		}
+
 		// This part is a bit different, since IChatToolInvocation is not an immutable model object. So this part is able to rerender itself.
 		// If this turns out to be a typical pattern, we could come up with a more reusable pattern, like telling the list to rerender an element
 		// when the model changes, or trying to make the model immutable and swap out one content part for a new one based on user actions in the view.
@@ -82,10 +92,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			this.subPart = partStore.add(this.createToolInvocationSubPart());
 			this.domNode.appendChild(this.subPart.domNode);
 			partStore.add(this.subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-			partStore.add(this.subPart.onNeedsRerender(() => {
-				render();
-				this._onDidChangeHeight.fire();
-			}));
+			partStore.add(this.subPart.onNeedsRerender(render));
 
 			// todo@connor4312/tyriar: standardize how these are displayed
 			if (!(this.subPart instanceof ChatTerminalToolProgressPart)) {
@@ -94,6 +101,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 					this.domNode.appendChild(approval);
 				}
 			}
+
+			this._onDidChangeHeight.fire();
 		};
 		render();
 	}

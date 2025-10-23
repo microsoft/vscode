@@ -33,10 +33,10 @@ import { IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
-import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
+import { ChatSessionUri } from '../common/chatUri.js';
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
@@ -161,7 +161,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	override shouldShowWelcome(): boolean {
 		const noPersistedSessions = !this.chatService.hasSessions();
 		const hasCoreAgent = this.chatAgentService.getAgents().some(agent => agent.isCore && agent.locations.includes(this.chatOptions.location));
-		const hasDefaultAgent = this.chatAgentService.getDefaultAgent(this.chatOptions.location) !== undefined; // only false when Hide Copilot has run and unregistered the setup agents
+		const hasDefaultAgent = this.chatAgentService.getDefaultAgent(this.chatOptions.location) !== undefined; // only false when Hide AI Features has run and unregistered the setup agents
 		const shouldShow = !hasCoreAgent && (!hasDefaultAgent || !this._widget?.viewModel && noPersistedSessions);
 		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: hasCoreAgent=${hasCoreAgent} hasDefaultAgent=${hasDefaultAgent} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions}`);
 		return !!shouldShow;
@@ -256,7 +256,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (URI.isUri(sessionId) && sessionId.scheme === Schemas.vscodeChatSession) {
 			const parsed = ChatSessionUri.parse(sessionId);
 			if (parsed?.chatSessionType) {
-				await this.chatSessionsService.canResolveContentProvider(parsed.chatSessionType);
+				await this.chatSessionsService.canResolveChatSession(sessionId);
 				const contributions = this.chatSessionsService.getAllChatSessionContributions();
 				const contribution = contributions.find((c: IChatSessionsExtensionPoint) => c.type === parsed.chatSessionType);
 				if (contribution) {
