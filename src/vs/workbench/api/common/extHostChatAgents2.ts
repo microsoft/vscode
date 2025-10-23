@@ -489,7 +489,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		);
 	}
 
-	private async _createRequest(requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, extension: IExtensionDescription) {
+	private async _createRequest(requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; isDefault?: boolean }, extension: IExtensionDescription) {
 		const request = revive<IChatAgentRequest>(requestDto);
 		const convertedHistory = await this.prepareHistoryTurns(extension, request.agentId, context);
 
@@ -663,12 +663,12 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return result;
 	}
 
-	private async prepareHistoryTurns(extension: Readonly<IRelaxedExtensionDescription>, agentId: string, context: { history: IChatAgentHistoryEntryDto[] }): Promise<(vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]> {
+	private async prepareHistoryTurns(extension: Readonly<IRelaxedExtensionDescription>, agentId: string, context: { history: IChatAgentHistoryEntryDto[]; isContributedChatSession?: boolean }): Promise<(vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]> {
 		const res: (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[] = [];
 
 		for (const h of context.history) {
 			const ehResult = typeConvert.ChatAgentResult.to(h.result);
-			const result: vscode.ChatResult = agentId === h.request.agentId ?
+			const result: vscode.ChatResult = agentId === h.request.agentId || context.isContributedChatSession ?
 				ehResult :
 				{ ...ehResult, metadata: undefined };
 
