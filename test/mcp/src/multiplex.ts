@@ -11,6 +11,12 @@ import { ApplicationService } from './application';
 import { createInMemoryTransportPair } from './inMemoryTransport';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { Application } from '../../automation';
+import { opts } from './options';
+
+interface SubServerConfig {
+	subServer: Client;
+	excludeTools?: string[];
+}
 
 export async function getServer(): Promise<Server> {
 	const appService = new ApplicationService();
@@ -21,7 +27,7 @@ export async function getServer(): Promise<Server> {
 	await automationClient.connect(automationClientTransport);
 
 	const multiplexServer = new MultiplexServer(
-		[automationClient],
+		[{ subServer: automationClient }],
 		{
 			name: 'VS Code Automation + Playwright Server',
 			version: '1.0.0',
@@ -37,8 +43,18 @@ export async function getServer(): Promise<Server> {
 		await playwrightServer.connect(playwrightServerTransport);
 		await playwrightClient.connect(playwrightClientTransport);
 		await playwrightClient.notification({ method: 'notifications/initialized' });
-		// Prefixes could change in the future... be careful.
-		multiplexServer.addSubServer(playwrightClient);
+
+		// Add subserver with optional tool exclusions
+		multiplexServer.addSubServer({
+			subServer: playwrightClient,
+			excludeTools: [
+				// The page will always be opened in the context of the application,
+				// so navigation and tab management is not needed.
+				'browser_navigate',
+				'browser_navigate_back',
+				'browser_tabs'
+			]
+		});
 		multiplexServer.sendToolListChanged();
 		closables.push(
 			playwrightClient,
@@ -66,6 +82,9 @@ export async function getServer(): Promise<Server> {
 		}
 	});
 
+	if (opts.autostart) {
+		await appService.getOrCreateApplication();
+	}
 	return multiplexServer.server;
 }
 
@@ -81,9 +100,21 @@ export class MultiplexServer {
 	readonly server: Server;
 
 	private readonly _subServerToToolSet = new Map<Client, Set<string>>();
+	private readonly _subServerToExcludedTools = new Map<Client, Set<string>>();
+	private readonly _subServers: Client[];
 
-	constructor(private readonly subServers: Client[], serverInfo: Implementation, options?: ServerOptions) {
+	constructor(subServerConfigs: SubServerConfig[], serverInfo: Implementation, options?: ServerOptions) {
 		this.server = new Server(serverInfo, options);
+		this._subServers = [];
+
+		// Process configurations and set up subservers
+		for (const config of subServerConfigs) {
+			this._subServers.push(config.subServer);
+			if (config.excludeTools && config.excludeTools.length > 0) {
+				this._subServerToExcludedTools.set(config.subServer, new Set(config.excludeTools));
+			}
+		}
+
 		this.setToolRequestHandlers();
 	}
 
@@ -131,10 +162,13 @@ export class MultiplexServer {
 			ListToolsRequestSchema,
 			async (): Promise<ListToolsResult> => {
 				const tools: Tool[] = [];
-				for (const subServer of this.subServers) {
+				for (const subServer of this._subServers) {
 					const result = await subServer.listTools();
-					this._subServerToToolSet.set(subServer, new Set(result.tools.map(t => t.name)));
-					tools.push(...result.tools);
+					const allToolNames = new Set(result.tools.map(t => t.name));
+					const excludedForThisServer = this._subServerToExcludedTools.get(subServer) || new Set();
+					const filteredTools = result.tools.filter(tool => !excludedForThisServer.has(tool.name));
+					this._subServerToToolSet.set(subServer, allToolNames);
+					tools.push(...filteredTools);
 				}
 				return { tools };
 			},
@@ -144,9 +178,14 @@ export class MultiplexServer {
 			CallToolRequestSchema,
 			async (request, extra): Promise<CallToolResult> => {
 				const toolName = request.params.name;
-				for (const subServer of this.subServers) {
+				for (const subServer of this._subServers) {
 					const toolSet = this._subServerToToolSet.get(subServer);
+					const excludedForThisServer = this._subServerToExcludedTools.get(subServer) || new Set();
 					if (toolSet?.has(toolName)) {
+						// Check if tool is excluded for this specific subserver
+						if (excludedForThisServer.has(toolName)) {
+							throw new McpError(ErrorCode.InvalidParams, `Tool with ID ${toolName} is excluded`);
+						}
 						return await subServer.request(
 							{
 								method: 'tools/call',
@@ -180,16 +219,21 @@ export class MultiplexServer {
 		}
 	}
 
-	addSubServer(subServer: Client) {
-		this.subServers.push(subServer);
+	addSubServer(config: SubServerConfig) {
+		this._subServers.push(config.subServer);
+		if (config.excludeTools && config.excludeTools.length > 0) {
+			this._subServerToExcludedTools.set(config.subServer, new Set(config.excludeTools));
+		}
 		this.sendToolListChanged();
 	}
 
 	removeSubServer(subServer: Client) {
-		const index = this.subServers.indexOf(subServer);
+		const index = this._subServers.indexOf(subServer);
 		if (index >= 0) {
-			const removed = this.subServers.splice(index);
-			if (removed) {
+			const removed = this._subServers.splice(index, 1);
+			if (removed.length > 0) {
+				// Clean up excluded tools mapping
+				this._subServerToExcludedTools.delete(subServer);
 				this.sendToolListChanged();
 			}
 		} else {

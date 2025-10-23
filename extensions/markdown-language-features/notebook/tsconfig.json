@@ -3,14 +3,17 @@
 	"compilerOptions": {
 		"outDir": "./dist/",
 		"jsx": "react",
-		"moduleResolution": "Node",
-		"ignoreDeprecations": "6.0",
+		"module": "esnext",
 		"allowSyntheticDefaultImports": true,
-		"module": "es2020",
 		"lib": [
 			"ES2024",
 			"DOM",
 			"DOM.Iterable"
-		]
+		],
+		"types": [],
+		"typeRoots": [
+			"../node_modules/@types"
+		],
+		"skipLibCheck": true
 	}
 }

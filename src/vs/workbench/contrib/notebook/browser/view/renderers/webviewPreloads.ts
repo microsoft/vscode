@@ -53,7 +53,7 @@ type Listener<T> = { fn: (evt: T) => void; thisArg: unknown };
 
 interface EmitterLike<T> {
 	fire(data: T): void;
-	event: Event<T>;
+	readonly event: Event<T>;
 }
 
 interface PreloadStyles {
@@ -119,6 +119,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
+	// eslint-disable-next-line local/code-no-any-casts
 	delete (globalThis as any).acquireVsCodeApi;
 
 	const tokenizationStyle = new CSSStyleSheet();
@@ -830,7 +831,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		// Remove a highlight element created with wrapNodeInHighlight.
 		function _removeHighlight(highlightElement: Element) {
 			if (highlightElement.childNodes.length === 1) {
-				highlightElement.parentNode?.replaceChild(highlightElement.firstChild!, highlightElement);
+				highlightElement.replaceWith(highlightElement.firstChild!);
 			} else {
 				// If the highlight somehow contains multiple nodes now, move them all.
 				while (highlightElement.firstChild) {
@@ -1458,6 +1459,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			document.designMode = 'On';
 
 			while (find && matches.length < 500) {
+				// eslint-disable-next-line local/code-no-any-casts
 				find = (window as any).find(query, /* caseSensitive*/ !!options.caseSensitive,
 				/* backwards*/ false,
 				/* wrapAround*/ false,
@@ -1616,7 +1618,18 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 
 			if (image) {
-				const imageToCopy = image;
+				const ensureImageLoaded = (img: HTMLImageElement): Promise<HTMLImageElement> => {
+					return new Promise((resolve, reject) => {
+						if (img.complete && img.naturalWidth > 0) {
+							resolve(img);
+						} else {
+							img.onload = () => resolve(img);
+							img.onerror = () => reject(new Error('Failed to load image'));
+							setTimeout(() => reject(new Error('Image load timeout')), 5000);
+						}
+					});
+				};
+				const imageToCopy = await ensureImageLoaded(image);
 
 				// Build clipboard data with both image and text formats
 				const clipboardData: Record<string, any> = {

@@ -49,8 +49,8 @@ export interface IToolData {
 
 export interface IToolProgressStep {
 	readonly message: string | IMarkdownString | undefined;
-	readonly increment?: number;
-	readonly total?: number;
+	/** 0-1 progress of the tool call */
+	readonly progress?: number;
 }
 
 export type ToolProgress = IProgress<IToolProgressStep>;
@@ -107,11 +107,11 @@ export namespace ToolDataSource {
 		if (source.type === 'internal') {
 			return { ordinal: 1, label: localize('builtin', 'Built-In') };
 		} else if (source.type === 'mcp') {
-			return { ordinal: 2, label: localize('mcp', 'MCP Server: {0}', source.label) };
+			return { ordinal: 2, label: source.label };
 		} else if (source.type === 'user') {
 			return { ordinal: 0, label: localize('user', 'User Defined') };
 		} else {
-			return { ordinal: 3, label: localize('ext', 'Extension: {0}', source.label) };
+			return { ordinal: 3, label: source.label };
 		}
 	}
 }
@@ -124,6 +124,10 @@ export interface IToolInvocation {
 	context: IToolInvocationContext | undefined;
 	chatRequestId?: string;
 	chatInteractionId?: string;
+	/**
+	 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
+	 */
+	fromSubAgent?: boolean;
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 	modelId?: string;
 }
@@ -150,6 +154,8 @@ export type ToolInputOutputBase = {
 	uri?: URI;
 	/** If true, this part came in as a resource reference rather than direct data. */
 	asResource?: boolean;
+	/** Audience of the data part */
+	audience?: LanguageModelPartAudience[];
 };
 
 export type ToolInputOutputEmbedded = ToolInputOutputBase & {
@@ -184,6 +190,9 @@ export interface IToolResult {
 	toolResultMessage?: string | IMarkdownString;
 	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails;
 	toolResultError?: string;
+	toolMetadata?: unknown;
+	/** Whether to ask the user to confirm these tool results. Overrides {@link IToolConfirmationMessages.confirmResults}. */
+	confirmResults?: boolean;
 }
 
 export function toolResultHasBuffers(result: IToolResult): boolean {
@@ -215,11 +224,15 @@ export interface IToolResultDataPart {
 }
 
 export interface IToolConfirmationMessages {
-	title: string | IMarkdownString;
-	message: string | IMarkdownString;
+	/** Title for the confirmation. If set, the user will be asked to confirm execution of the tool */
+	title?: string | IMarkdownString;
+	/** MUST be set if `title` is also set */
+	message?: string | IMarkdownString;
 	disclaimer?: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
 	terminalCustomActions?: ToolConfirmationAction[];
+	/** If true, confirmation will be requested after the tool executes and before results are sent to the model */
+	confirmResults?: boolean;
 }
 
 export interface IToolConfirmationAction {
@@ -309,7 +322,7 @@ export type CountTokensCallback = (input: string, token: CancellationToken) => P
 
 export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
-	onDidChangeTools: Event<void>;
+	readonly onDidChangeTools: Event<void>;
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
@@ -320,15 +333,24 @@ export interface ILanguageModelToolsService {
 	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'session' | 'never'): void;
 	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never';
 	resetToolAutoConfirmation(): void;
+	getToolPostExecutionAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never';
 	cancelToolCallsForRequest(requestId: string): void;
-	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean>;
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap;
-	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSet(id: string): ToolSet | undefined;
 	getToolSetByName(name: string): ToolSet | undefined;
 	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
+
+	// tool names in prompt files handling ('qualified names')
+
+	getQualifiedToolNames(): Iterable<string>;
+	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined;
+	getQualifiedToolName(tool: IToolData, toolSet?: ToolSet): string;
+	getDeprecatedQualifiedToolNames(): Map<string, string>;
+
+	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap;
+	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[];
+	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
 
 export function createToolInputUri(toolOrId: IToolData | string): URI {

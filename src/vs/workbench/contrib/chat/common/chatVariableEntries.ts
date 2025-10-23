@@ -215,12 +215,25 @@ export interface ISCMHistoryItemChangeVariableEntry extends IBaseChatRequestVari
 	readonly historyItem: ISCMHistoryItem;
 }
 
+export interface ISCMHistoryItemChangeRangeVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'scmHistoryItemChangeRange';
+	readonly value: URI;
+	readonly historyItemChangeStart: {
+		readonly uri: URI;
+		readonly historyItem: ISCMHistoryItem;
+	};
+	readonly historyItemChangeEnd: {
+		readonly uri: URI;
+		readonly historyItem: ISCMHistoryItem;
+	};
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
-	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry;
+	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -287,6 +300,10 @@ export function isSCMHistoryItemVariableEntry(obj: IChatRequestVariableEntry): o
 
 export function isSCMHistoryItemChangeVariableEntry(obj: IChatRequestVariableEntry): obj is ISCMHistoryItemChangeVariableEntry {
 	return obj.kind === 'scmHistoryItemChange';
+}
+
+export function isSCMHistoryItemChangeRangeVariableEntry(obj: IChatRequestVariableEntry): obj is ISCMHistoryItemChangeRangeVariableEntry {
+	return obj.kind === 'scmHistoryItemChangeRange';
 }
 
 export enum PromptFileVariableKind {

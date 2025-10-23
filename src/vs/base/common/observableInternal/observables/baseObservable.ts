@@ -7,6 +7,7 @@ import { IObservableWithChange, IObserver, IReader, IObservable } from '../base.
 import { DisposableStore } from '../commonFacade/deps.js';
 import { DebugLocation } from '../debugLocation.js';
 import { DebugOwner, getFunctionName } from '../debugName.js';
+import { debugGetDependencyGraph } from '../logging/debugGetDependencyGraph.js';
 import { getLogger, logObservable } from '../logging/logging.js';
 import type { keepObserved, recomputeInitiallyAndOnChange } from '../utils/utils.js';
 import { derivedOpts } from './derived.js';
@@ -28,6 +29,11 @@ export function _setRecomputeInitiallyAndOnChange(recomputeInitiallyAndOnChange:
 let _keepObserved: typeof keepObserved;
 export function _setKeepObserved(keepObserved: typeof _keepObserved) {
 	_keepObserved = keepObserved;
+}
+
+let _debugGetDependencyGraph: typeof debugGetDependencyGraph;
+export function _setDebugGetDependencyGraph(debugGetDependencyGraph: typeof _debugGetDependencyGraph) {
+	_debugGetDependencyGraph = debugGetDependencyGraph;
 }
 
 export abstract class ConvenientObservable<T, TChange> implements IObservableWithChange<T, TChange> {
@@ -120,6 +126,10 @@ export abstract class ConvenientObservable<T, TChange> implements IObservableWit
 
 	protected get debugValue() {
 		return this.get();
+	}
+
+	debugGetDependencyGraph(): string {
+		return _debugGetDependencyGraph(this);
 	}
 }
 

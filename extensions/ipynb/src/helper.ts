@@ -11,13 +11,18 @@ export function deepClone<T>(obj: T): T {
 	}
 	if (obj instanceof RegExp) {
 		// See https://github.com/microsoft/TypeScript/issues/10990
+		// eslint-disable-next-line local/code-no-any-casts
 		return obj as any;
 	}
 	const result: any = Array.isArray(obj) ? [] : {};
+	// eslint-disable-next-line local/code-no-any-casts
 	Object.keys(<any>obj).forEach((key: string) => {
+		// eslint-disable-next-line local/code-no-any-casts
 		if ((<any>obj)[key] && typeof (<any>obj)[key] === 'object') {
+			// eslint-disable-next-line local/code-no-any-casts
 			result[key] = deepClone((<any>obj)[key]);
 		} else {
+			// eslint-disable-next-line local/code-no-any-casts
 			result[key] = (<any>obj)[key];
 		}
 	});

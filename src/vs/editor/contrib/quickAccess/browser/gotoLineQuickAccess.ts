@@ -3,16 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../../platform/theme/common/colors/inputColors.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { getCodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorOption, RenderLineNumbersType } from '../../../common/config/editorOptions.js';
 import { IPosition } from '../../../common/core/position.js';
 import { IRange } from '../../../common/core/range.js';
 import { IEditor, ScrollType } from '../../../common/editorCommon.js';
 import { AbstractEditorNavigationQuickAccessProvider, IQuickAccessTextEditorContext } from './editorNavigationQuickAccess.js';
-import { localize } from '../../../../nls.js';
-import { IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 
 interface IGotoLineQuickPickItem extends IQuickPickItem, Partial<IPosition> { }
 
@@ -20,7 +24,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 	static PREFIX = ':';
 
-	constructor() {
+	constructor(private useZeroBasedOffset: { value: boolean } = { value: false }) {
 		super({ canAcceptInBackground: true });
 	}
 
@@ -55,14 +59,22 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		// React to picker changes
 		const updatePickerAndEditor = () => {
-			const position = this.parsePosition(editor, picker.value.trim().substr(AbstractGotoLineQuickAccessProvider.PREFIX.length));
-			const label = this.getPickLabel(editor, position.lineNumber, position.column);
+			const inputText = picker.value.trim().substring(AbstractGotoLineQuickAccessProvider.PREFIX.length);
+			const inOffsetMode = inputText.startsWith(':');
+			const position = this.parsePosition(editor, inputText);
+			const label = this.getPickLabel(editor, position.lineNumber, position.column, inOffsetMode);
+
+			// Show toggle only when input text starts with '::'.
+			toggle.visible = inOffsetMode;
 
 			// Picker
 			picker.items = [{
 				lineNumber: position.lineNumber,
 				column: position.column,
-				label
+				label,
+				detail: inputText.length ?
+					undefined : // Don't show hint once the user has started typing.
+					localize('gotoLineQuickAccessDescription', "Use :line[:column] or ::offset to go to a position. Negative values are counted from the end.")
 			}];
 
 			// ARIA Label
@@ -81,6 +93,25 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			// Decorate
 			this.addDecorations(editor, range);
 		};
+
+		// Add a toggle to switch between 1- and 0-based offsets.
+		const toggle = new Toggle({
+			title: localize('gotoLineToggle', "Use zero-based offset"),
+			icon: Codicon.indexZero,
+			isChecked: this.useZeroBasedOffset.value,
+			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
+			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
+			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
+		});
+
+		disposables.add(
+			toggle.onChange(() => {
+				this.useZeroBasedOffset.value = !this.useZeroBasedOffset.value;
+				updatePickerAndEditor();
+			}));
+
+		picker.toggles = [toggle];
+
 		updatePickerAndEditor();
 		disposables.add(picker.onDidChangeValue(() => updatePickerAndEditor()));
 
@@ -108,19 +139,45 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		};
 	}
 
-	private parsePosition(editor: IEditor, value: string): IPosition {
+	protected parsePosition(editor: IEditor, value: string): IPosition {
+		const model = this.getModel(editor);
+
+		// Support ::<offset> notation to navigate to a specific offset in the model.
+		if (value.startsWith(':')) {
+			let offset = parseInt(value.substring(1), 10);
+			if (!isNaN(offset) && model) {
+				const reverse = offset < 0;
+				if (!this.useZeroBasedOffset.value) {
+					// Convert 1-based offset to model's 0-based.
+					offset -= Math.sign(offset);
+				}
+				if (reverse) {
+					// Offset from the end of the buffer
+					offset += model.getValueLength();
+				}
+				return model.getPositionAt(offset);
+			}
+		}
 
 		// Support line-col formats of `line,col`, `line:col`, `line#col`
-		const numbers = value.split(/,|:|#/).map(part => parseInt(part, 10)).filter(part => !isNaN(part));
-		const endLine = this.lineCount(editor) + 1;
+		let [lineNumber, column] = value.split(/,|:|#/).map(part => parseInt(part, 10)).filter(part => !isNaN(part));
 
-		return {
-			lineNumber: numbers[0] > 0 ? numbers[0] : endLine + numbers[0],
-			column: numbers[1]
-		};
+		// Handle negative line numbers and clip to valid range.
+		const maxLine = (model?.getLineCount() ?? 0) + 1;
+		lineNumber = lineNumber >= 0 ? lineNumber : maxLine + lineNumber;
+		lineNumber = Math.min(Math.max(1, lineNumber), maxLine);
+
+		// Handle negative column numbers and clip to valid range.
+		if (column !== undefined && model) {
+			const maxColumn = model.getLineMaxColumn(lineNumber);
+			column = column >= 0 ? column : maxColumn + column;
+			column = Math.min(Math.max(1, column), maxColumn);
+		}
+
+		return { lineNumber, column };
 	}
 
-	private getPickLabel(editor: IEditor, lineNumber: number, column: number | undefined): string {
+	private getPickLabel(editor: IEditor, lineNumber: number, column: number | undefined, inOffsetMode: boolean): string {
 
 		// Location valid: indicate this as picker label
 		if (this.isValidLineNumber(editor, lineNumber)) {
@@ -133,6 +190,12 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		// Location invalid: show generic label
 		const position = editor.getPosition() || { lineNumber: 1, column: 1 };
+
+		// When in offset mode, prompt for an offset.
+		if (inOffsetMode) {
+			return localize('gotoLineOffsetLabel', "Current Line: {0}, Character: {1}. Type a character offset to navigate to.", position.lineNumber, position.column);
+		}
+
 		const lineCount = this.lineCount(editor);
 		if (lineCount > 1) {
 			return localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}, Character: {1}. Type a line number between 1 and {2} to navigate to.", position.lineNumber, position.column, lineCount);

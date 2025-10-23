@@ -108,7 +108,8 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 		}
 	});
 
-	test('Interactive window has the correct kernel', async function () {
+	// https://github.com/microsoft/vscode/issues/266229
+	test.skip('Interactive window has the correct kernel', async function () {
 		// Extend timeout a bit as kernel association can be async & occasionally slow on CI
 		this.timeout(20000);
 		assert.ok(vscode.workspace.workspaceFolders);

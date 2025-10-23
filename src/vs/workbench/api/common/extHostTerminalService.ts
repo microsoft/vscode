@@ -758,14 +758,14 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public registerTerminalCompletionProvider(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable {
-		if (this._completionProviders.has(provider.id)) {
-			throw new Error(`Terminal completion provider "${provider.id}" already registered`);
+		if (this._completionProviders.has(extension.identifier.value)) {
+			throw new Error(`Terminal completion provider "${extension.identifier.value}" already registered`);
 		}
-		this._completionProviders.set(provider.id, provider);
-		this._proxy.$registerCompletionProvider(provider.id, extension.identifier.value, ...triggerCharacters);
+		this._completionProviders.set(extension.identifier.value, provider);
+		this._proxy.$registerCompletionProvider(extension.identifier.value, extension.identifier.value, ...triggerCharacters);
 		return new VSCodeDisposable(() => {
-			this._completionProviders.delete(provider.id);
-			this._proxy.$unregisterCompletionProvider(provider.id);
+			this._completionProviders.delete(extension.identifier.value);
+			this._proxy.$unregisterCompletionProvider(extension.identifier.value);
 		});
 	}
 
@@ -1284,6 +1284,7 @@ function convertMutator(mutator: IEnvironmentVariableMutator): vscode.Environmen
 	const newMutator = { ...mutator };
 	delete newMutator.scope;
 	newMutator.options = newMutator.options ?? undefined;
+	// eslint-disable-next-line local/code-no-any-casts
 	delete (newMutator as any).variable;
 	return newMutator as vscode.EnvironmentVariableMutator;
 }

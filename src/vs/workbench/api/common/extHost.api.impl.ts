@@ -27,14 +27,17 @@ import { ExtensionDescriptionRegistry } from '../../services/extensions/common/e
 import { UIKind } from '../../services/extensions/common/extensionHostProtocol.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ProxyIdentifier } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2, AISearchKeyword } from '../../services/search/common/searchExtTypes.js';
+import { AISearchKeyword, ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
 import { CandidatePortSource, ExtHostContext, ExtHostLogLevelServiceShape, MainContext } from './extHost.protocol.js';
 import { ExtHostRelatedInformation } from './extHostAiRelatedInformation.js';
+import { ExtHostAiSettingsSearch } from './extHostAiSettingsSearch.js';
 import { ExtHostApiCommands } from './extHostApiCommands.js';
 import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js';
 import { IExtHostAuthentication } from './extHostAuthentication.js';
 import { ExtHostBulkEdits } from './extHostBulkEdits.js';
 import { ExtHostChatAgents2 } from './extHostChatAgents2.js';
+import { ExtHostChatOutputRenderer } from './extHostChatOutputRenderer.js';
+import { ExtHostChatSessions } from './extHostChatSessions.js';
 import { ExtHostChatStatus } from './extHostChatStatus.js';
 import { ExtHostClipboard } from './extHostClipboard.js';
 import { ExtHostEditorInsets } from './extHostCodeInsets.js';
@@ -111,9 +114,6 @@ import { ExtHostWebviewPanels } from './extHostWebviewPanels.js';
 import { ExtHostWebviewViews } from './extHostWebviewView.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
-import { ExtHostAiSettingsSearch } from './extHostAiSettingsSearch.js';
-import { ExtHostChatSessions } from './extHostChatSessions.js';
-import { ExtHostChatOutputRenderer } from './extHostChatOutputRenderer.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -158,6 +158,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 	// register addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostFileSystemInfo, extHostFileSystemInfo);
+	// eslint-disable-next-line local/code-no-any-casts
 	rpcProtocol.set(ExtHostContext.ExtHostLogLevelServiceShape, <ExtHostLogLevelServiceShape><any>extHostLoggerService);
 	rpcProtocol.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
 	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
@@ -224,6 +225,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostChatOutputRenderer = rpcProtocol.set(ExtHostContext.ExtHostChatOutputRenderer, new ExtHostChatOutputRenderer(rpcProtocol, extHostWebviews));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
 	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol, extHostLanguageModels));
+	const extHostChatSessions = rpcProtocol.set(ExtHostContext.ExtHostChatSessions, new ExtHostChatSessions(extHostCommands, extHostLanguageModels, rpcProtocol, extHostLogService));
 	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostLanguageModels, extHostDiagnostics, extHostLanguageModelTools));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
@@ -231,7 +233,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
 	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
 	const extHostEmbeddings = rpcProtocol.set(ExtHostContext.ExtHostEmbeddings, new ExtHostEmbeddings(rpcProtocol));
-	const extHostChatSessions = rpcProtocol.set(ExtHostContext.ExtHostChatSessions, new ExtHostChatSessions(extHostCommands, extHostLanguageModels, rpcProtocol, extHostLogService));
 
 	rpcProtocol.set(ExtHostContext.ExtHostMcp, accessor.get(IExtHostMpcService));
 
@@ -301,10 +302,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		})();
 
 		const authentication: typeof vscode.authentication = {
-			getSession(providerId: string, scopesOrChallenge: readonly string[] | vscode.AuthenticationWWWAuthenticateRequest, options?: vscode.AuthenticationGetSessionOptions) {
-				if (!Array.isArray(scopesOrChallenge)) {
-					checkProposedApiEnabled(extension, 'authenticationChallenges');
-				}
+			getSession(providerId: string, scopesOrChallenge: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options?: vscode.AuthenticationGetSessionOptions) {
 				if (
 					(typeof options?.forceNewSession === 'object' && options.forceNewSession.learnMore) ||
 					(typeof options?.createIfNone === 'object' && options.createIfNone.learnMore)
@@ -314,6 +312,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (options?.authorizationServer) {
 					checkProposedApiEnabled(extension, 'authIssuers');
 				}
+				// eslint-disable-next-line local/code-no-any-casts
 				return extHostAuthentication.getSession(extension, providerId, scopesOrChallenge, options as any);
 			},
 			getAccounts(providerId: string) {
@@ -322,6 +321,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			// TODO: remove this after GHPR and Codespaces move off of it
 			async hasSession(providerId: string, scopes: readonly string[]) {
 				checkProposedApiEnabled(extension, 'authSession');
+				// eslint-disable-next-line local/code-no-any-casts
 				return !!(await extHostAuthentication.getSession(extension, providerId, scopes, { silent: true } as any));
 			},
 			get onDidChangeSessions(): vscode.Event<vscode.AuthenticationSessionsChangeEvent> {
@@ -422,9 +422,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				ExtHostTelemetryLogger.validateSender(sender);
 				return extHostTelemetry.instantiateLogger(extension, sender, options);
 			},
-			openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string }) {
+			async openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string }) {
 				return extHostWindow.openUri(uri, {
-					allowTunneling: !!initData.remote.authority,
+					allowTunneling: initData.remote.isRemote ?? (initData.remote.authority ? await extHostTunnelService.hasTunnelProvider() : false),
 					allowContributedOpeners: options?.allowContributedOpeners,
 				});
 			},
@@ -560,6 +560,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return _asExtensionEvent(extHostDiagnostics.onDidChangeDiagnostics);
 			},
 			getDiagnostics: (resource?: vscode.Uri) => {
+				// eslint-disable-next-line local/code-no-any-casts
 				return <any>extHostDiagnostics.getDiagnostics(resource);
 			},
 			getLanguages(): Thenable<string[]> {
@@ -877,7 +878,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTerminalService.registerProfileProvider(extension, id, provider);
 			},
 			registerTerminalCompletionProvider(provider: vscode.TerminalCompletionProvider<vscode.TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable {
-				checkProposedApiEnabled(extension, 'terminalCompletionProvider');
 				return extHostTerminalService.registerTerminalCompletionProvider(extension, provider, ...triggerCharacters);
 			},
 			registerTerminalQuickFixProvider(id: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
@@ -968,10 +968,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createChatStatusItem: (id: string) => {
 				checkProposedApiEnabled(extension, 'chatStatusItem');
 				return extHostChatStatus.createChatStatusItem(extension, id);
-			},
-			showChatSession: (chatSessionType: string, sessionId: string, options?: vscode.ChatSessionShowOptions) => {
-				checkProposedApiEnabled(extension, 'chatSessionsProvider');
-				return extHostChatSessions.showChatSession(extension, chatSessionType, sessionId, options);
 			},
 		};
 
@@ -1530,9 +1526,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
 				return extHostChatSessions.registerChatSessionItemProvider(extension, chatSessionType, provider);
 			},
-			registerChatSessionContentProvider(chatSessionType: string, provider: vscode.ChatSessionContentProvider, capabilities?: vscode.ChatSessionCapabilities) {
+			registerChatSessionContentProvider(scheme: string, provider: vscode.ChatSessionContentProvider, chatParticipant: vscode.ChatParticipant, capabilities?: vscode.ChatSessionCapabilities) {
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
-				return extHostChatSessions.registerChatSessionContentProvider(extension, chatSessionType, provider, capabilities);
+				return extHostChatSessions.registerChatSessionContentProvider(extension, scheme, chatParticipant, provider, capabilities);
 			},
 			registerChatOutputRenderer: (viewType: string, renderer: vscode.ChatOutputRenderer) => {
 				checkProposedApiEnabled(extension, 'chatOutputRenderer');
@@ -1550,6 +1546,22 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerLanguageModelChatProvider: (vendor, provider) => {
 				return extHostLanguageModels.registerLanguageModelChatProvider(extension, vendor, provider);
+			},
+			get isModelProxyAvailable() {
+				checkProposedApiEnabled(extension, 'languageModelProxy');
+				return extHostLanguageModels.isModelProxyAvailable;
+			},
+			onDidChangeModelProxyAvailability: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'languageModelProxy');
+				return extHostLanguageModels.onDidChangeModelProxyAvailability(listener, thisArgs, disposables);
+			},
+			getModelProxy: () => {
+				checkProposedApiEnabled(extension, 'languageModelProxy');
+				return extHostLanguageModels.getModelProxy(extension);
+			},
+			registerLanguageModelProxyProvider: (provider) => {
+				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+				return extHostLanguageModels.registerLanguageModelProxyProvider(extension, provider);
 			},
 			// --- embeddings
 			get embeddingModels() {
@@ -1891,7 +1903,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
 			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage2,
 			LanguageModelToolResultPart: extHostTypes.LanguageModelToolResultPart,
-			LanguageModelToolResultPart2: extHostTypes.LanguageModelToolResultPart2,
+			LanguageModelToolResultPart2: extHostTypes.LanguageModelToolResultPart,
 			LanguageModelTextPart: extHostTypes.LanguageModelTextPart,
 			LanguageModelTextPart2: extHostTypes.LanguageModelTextPart,
 			LanguageModelPartAudience: extHostTypes.LanguageModelPartAudience,
@@ -1918,7 +1930,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
 			ChatErrorLevel: extHostTypes.ChatErrorLevel,
 			McpHttpServerDefinition: extHostTypes.McpHttpServerDefinition,
+			McpHttpServerDefinition2: extHostTypes.McpHttpServerDefinition,
 			McpStdioServerDefinition: extHostTypes.McpStdioServerDefinition,
+			McpStdioServerDefinition2: extHostTypes.McpStdioServerDefinition,
+			McpToolAvailability: extHostTypes.McpToolAvailability,
 			SettingsSearchResultKind: extHostTypes.SettingsSearchResultKind
 		};
 	};

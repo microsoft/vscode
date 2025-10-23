@@ -149,9 +149,15 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.scmSourceControl', "The Source Control menu")
 	},
 	{
-		key: 'scm/sourceControl/title',
+		key: 'scm/repositories/title',
 		id: MenuId.SCMSourceControlTitle,
-		description: localize('menus.scmSourceControlTitle', "The Source Control title menu"),
+		description: localize('menus.scmSourceControlTitle', "The Source Control Repositories title menu"),
+		proposed: 'contribSourceControlTitleMenu'
+	},
+	{
+		key: 'scm/repository',
+		id: MenuId.SCMSourceControlInline,
+		description: localize('menus.scmSourceControlInline', "The Source Control repository menu"),
 		proposed: 'contribSourceControlTitleMenu'
 	},
 	{
@@ -190,12 +196,6 @@ const apiMenus: IAPIMenu[] = [
 		key: 'scm/historyItem/context',
 		id: MenuId.SCMHistoryItemContext,
 		description: localize('menus.historyItemContext', "The Source Control history item context menu"),
-		proposed: 'contribSourceControlHistoryItemMenu'
-	},
-	{
-		key: 'scm/historyItem/hover',
-		id: MenuId.SCMHistoryItemHover,
-		description: localize('menus.historyItemHover', "The Source Control history item hover menu"),
 		proposed: 'contribSourceControlHistoryItemMenu'
 	},
 	{
@@ -457,9 +457,17 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatParticipantPrivate'
 	},
 	{
+		// TODO: rename this to something like: `chatSessions/item/inline`
 		key: 'chat/chatSessions',
 		id: MenuId.ChatSessionsMenu,
 		description: localize('menus.chatSessions', "The Chat Sessions menu."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'chatSessions/newSession',
+		id: MenuId.ChatSessionsCreateSubMenu,
+		description: localize('menus.chatSessionsNewSession', "Menu for new chat sessions."),
 		supportsSubmenus: false,
 		proposed: 'chatSessionsProvider'
 	},
@@ -805,10 +813,10 @@ const _commandRegistrations = new DisposableStore();
 export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>({
 	extensionPoint: 'commands',
 	jsonSchema: schema.commandsContribution,
-	activationEventsGenerator: (contribs: schema.IUserFriendlyCommand[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs: readonly schema.IUserFriendlyCommand[]) {
 		for (const contrib of contribs) {
 			if (contrib.command) {
-				result.push(`onCommand:${contrib.command}`);
+				yield `onCommand:${contrib.command}`;
 			}
 		}
 	}

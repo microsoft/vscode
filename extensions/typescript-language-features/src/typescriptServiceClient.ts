@@ -108,7 +108,6 @@ interface WatchEvent {
 
 export default class TypeScriptServiceClient extends Disposable implements ITypeScriptServiceClient {
 
-
 	private readonly _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void };
 	private _configuration: TypeScriptServiceConfiguration;
 	private readonly pluginPathsProvider: TypeScriptPluginPathsProvider;
@@ -236,7 +235,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return this.apiVersion.fullVersionString;
 		});
 
-		this.diagnosticsManager = new DiagnosticsManager('typescript', this._configuration, this.telemetryReporter, onCaseInsensitiveFileSystem);
+		this.diagnosticsManager = this._register(new DiagnosticsManager('typescript', this._configuration, this.telemetryReporter, onCaseInsensitiveFileSystem));
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this._versionManager, this._nodeVersionManager, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer, this.processFactory);
 
 		this._register(this.pluginManager.onDidUpdateConfig(update => {
@@ -445,9 +444,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			typeScriptVersionSource: version.source,
 		});
 
-		handle.onError((err: Error) => {
+		handle.onError((err: unknown) => {
 			if (this.token !== mytoken) {
 				// this is coming from an old process
+				return;
+			}
+
+			if (!(err instanceof Error)) {
+				this.logger.error('TSServer got unknown error type:', err);
 				return;
 			}
 
@@ -631,6 +635,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.loadingIndicator.reset();
 
 		this.serverState = ServerState.None;
+
+		if (this.isDisposed) {
+			return;
+		}
 
 		if (restart) {
 			const diff = Date.now() - this.lastStart;
@@ -848,7 +856,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return vscode.workspace.getWorkspaceFolder(resource)?.uri;
 	}
 
-	public execute(command: keyof TypeScriptRequests, args: any, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {
+	public execute(command: keyof TypeScriptRequests, args: unknown, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {
 		let executions: Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> | undefined;
 
 		if (config?.cancelOnResourceChange) {
@@ -904,7 +912,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return executions[0]!;
 	}
 
-	public executeWithoutWaitingForResponse(command: keyof TypeScriptRequests, args: any): void {
+	public executeWithoutWaitingForResponse(command: keyof TypeScriptRequests, args: unknown): void {
 		this.executeImpl(command, args, {
 			isAsync: false,
 			token: undefined,
@@ -920,7 +928,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		})[0]!;
 	}
 
-	private executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean; token?: vscode.CancellationToken; expectsResult: boolean; lowPriority?: boolean; requireSemantic?: boolean }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
+	private executeImpl(command: keyof TypeScriptRequests, args: unknown, executeInfo: { isAsync: boolean; token?: vscode.CancellationToken; expectsResult: boolean; lowPriority?: boolean; requireSemantic?: boolean }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
 		const serverState = this.serverState;
 		if (serverState.type === ServerState.Type.Running) {
 			this.bufferSyncSupport.beforeCommand(command);
@@ -1227,7 +1235,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.telemetryReporter.logTelemetry(telemetryData.telemetryEventName, properties);
 	}
 
-	private configurePlugin(pluginName: string, configuration: {}): any {
+	private configurePlugin(pluginName: string, configuration: unknown): void {
 		this.executeWithoutWaitingForResponse('configurePlugin', { pluginName, configuration });
 	}
 }

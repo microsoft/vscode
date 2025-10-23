@@ -16,13 +16,15 @@ export enum ChatConfiguration {
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
-	UseChatSessionsForCloudButton = 'chat.useChatSessionsForCloudButton',
+	TodosShowWidget = 'chat.tools.todos.showWidget',
+	UseCloudButtonV2 = 'chat.useCloudButtonV2',
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
-	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled'
+	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
+	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 }
 
 /**
- * The "kind" of the chat mode- "Agent" for custom modes.
+ * The "kind" of agents for custom agents.
  */
 export enum ChatModeKind {
 	Ask = 'ask',
@@ -47,10 +49,14 @@ export function isChatMode(mode: unknown): mode is ChatModeKind {
 
 // Thinking display modes for pinned content
 export enum ThinkingDisplayMode {
+	Default = 'default',
 	Collapsed = 'collapsed',
 	CollapsedPreview = 'collapsedPreview',
 	Expanded = 'expanded',
-	None = 'none'
+	None = 'none',
+	CollapsedPerItem = 'collapsedPerItem',
+	FixedScrolling = 'fixedScrolling',
+	FixedScrollingTools = 'fixedScrollingTools'
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
@@ -82,3 +88,7 @@ export namespace ChatAgentLocation {
 }
 
 export const ChatUnsupportedFileSchemes = new Set([Schemas.vscodeChatEditor, Schemas.walkThrough, Schemas.vscodeChatSession, 'ccreq']);
+
+export const AGENT_SESSIONS_VIEWLET_ID = 'workbench.view.chat.sessions'; // TODO@bpasero clear once settled
+
+export const ChatEditorTitleMaxLength = 30;

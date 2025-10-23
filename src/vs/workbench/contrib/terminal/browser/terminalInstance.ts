@@ -10,7 +10,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { AutoOpenBarrier, Barrier, Promises, disposableTimeout, timeout } from '../../../../base/common/async.js';
+import { AutoOpenBarrier, Promises, disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { debounce } from '../../../../base/common/decorators.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
@@ -80,7 +80,7 @@ import { isHorizontal, IWorkbenchLayoutService } from '../../../services/layout/
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { importAMDNodeModule } from '../../../../amdX.js';
-import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
+import type { IMarker, Terminal as XTermTerminal, IBufferLine } from '@xterm/xterm';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { terminalStrings } from '../common/terminalStrings.js';
 import { TerminalIconPicker } from './terminalIconPicker.js';
@@ -200,10 +200,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private readonly _scopedContextKeyService: IContextKeyService;
 	private _resizeDebouncer?: TerminalResizeDebouncer;
-	private _pauseInputEventBarrier: Barrier | undefined;
-	pauseInputEvents(barrier: Barrier): void {
-		this._pauseInputEventBarrier = barrier;
-	}
 
 	readonly capabilities = this._register(new TerminalCapabilityStoreMultiplexer());
 	readonly statusList: ITerminalStatusList;
@@ -459,40 +455,42 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalShellIntegrationEnabledContextKey = TerminalContextKeys.terminalShellIntegrationEnabled.bindTo(scopedContextKeyService);
 
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
-		this._register(this.capabilities.onDidAddCapabilityType(e => this._logService.debug('terminalInstance added capability', e)));
-		this._register(this.capabilities.onDidRemoveCapabilityType(e => this._logService.debug('terminalInstance removed capability', e)));
+		this._register(this.capabilities.onDidAddCapability(e => this._logService.debug('terminalInstance added capability', e.id)));
+		this._register(this.capabilities.onDidRemoveCapability(e => this._logService.debug('terminalInstance removed capability', e.id)));
 
 		const capabilityListeners = this._register(new DisposableMap<TerminalCapability, IDisposable>());
-		this._register(this.capabilities.onDidAddCapabilityType(capability => {
-			capabilityListeners.get(capability)?.dispose();
-			if (capability === TerminalCapability.CwdDetection) {
-				const cwdDetection = this.capabilities.get(capability);
-				if (cwdDetection) {
-					capabilityListeners.set(capability, cwdDetection.onDidChangeCwd(e => {
+		this._register(this.capabilities.onDidAddCapability(e => {
+			capabilityListeners.get(e.id)?.dispose();
+			const refreshInfo = () => {
+				this._labelComputer?.refreshLabel(this);
+				refreshShellIntegrationInfoStatus(this);
+			};
+			switch (e.id) {
+				case TerminalCapability.CwdDetection: {
+					capabilityListeners.set(e.id, e.capability.onDidChangeCwd(e => {
 						this._cwd = e;
 						this._setTitle(this.title, TitleEventSource.Config);
 					}));
+					break;
 				}
-			}
-			if (capability === TerminalCapability.CommandDetection) {
-				const commandDetection = this.capabilities.get(capability);
-				if (commandDetection) {
-					commandDetection.promptInputModel.setShellType(this.shellType);
-					capabilityListeners.set(capability, Event.any(
-						commandDetection.onPromptTypeChanged,
-						commandDetection.promptInputModel.onDidStartInput,
-						commandDetection.promptInputModel.onDidChangeInput,
-						commandDetection.promptInputModel.onDidFinishInput
-					)(() => {
-						this._labelComputer?.refreshLabel(this);
-						refreshShellIntegrationInfoStatus(this);
-					}));
+				case TerminalCapability.CommandDetection: {
+					e.capability.promptInputModel.setShellType(this.shellType);
+					capabilityListeners.set(e.id, Event.any(
+						e.capability.promptInputModel.onDidStartInput,
+						e.capability.promptInputModel.onDidChangeInput,
+						e.capability.promptInputModel.onDidFinishInput
+					)(refreshInfo));
+					break;
+				}
+				case TerminalCapability.PromptTypeDetection: {
+					capabilityListeners.set(e.id, e.capability.onPromptTypeChanged(refreshInfo));
+					break;
 				}
 			}
 		}));
 		this._register(this.onDidChangeShellType(() => refreshShellIntegrationInfoStatus(this)));
-		this._register(this.capabilities.onDidRemoveCapabilityType(capability => {
-			capabilityListeners.get(capability)?.dispose();
+		this._register(this.capabilities.onDidRemoveCapability(e => {
+			capabilityListeners.get(e.id)?.dispose();
 		}));
 
 		// Resolve just the icon ahead of time so that it shows up immediately in the tabs. This is
@@ -650,6 +648,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	public getContribution<T extends ITerminalContribution>(id: string): T | null {
 		return this._contributions.get(id) as T | null;
+	}
+
+	private async _handleOnData(data: string): Promise<void> {
+		await this._processManager.write(data);
+		this._onDidInputData.fire(data);
 	}
 
 	private _getIcon(): TerminalIcon | undefined {
@@ -846,9 +849,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._register(this._processManager.onProcessData(e => this._onProcessData(e)));
 		this._register(xterm.raw.onData(async data => {
-			await this._pauseInputEventBarrier?.wait();
-			await this._processManager.write(data);
-			this._onDidInputData.fire(data);
+			await this._handleOnData(data);
 		}));
 		this._register(xterm.raw.onBinary(data => this._processManager.processBinary(data)));
 		// Init winpty compat and link handler after process creation as they rely on the
@@ -860,7 +861,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (processTraits?.windowsPty?.backend === 'conpty') {
 				this._register(xterm.raw.parser.registerCsiHandler({ final: 'c' }, params => {
 					if (params.length === 0 || params.length === 1 && params[0] === 0) {
-						this._processManager.write('\x1b[?61;4c');
+						this._handleOnData('\x1b[?61;4c');
 						return true;
 					}
 					return false;
@@ -896,11 +897,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._updateProcessCwd();
 				}
 			});
-			this._register(this.capabilities.onDidAddCapabilityType(e => {
-				if (e === TerminalCapability.CwdDetection) {
-					onKeyListener?.dispose();
-					onKeyListener = undefined;
-				}
+			this._register(this.capabilities.onDidAddCwdDetectionCapability(() => {
+				onKeyListener?.dispose();
+				onKeyListener = undefined;
 			}));
 		}
 
@@ -923,11 +922,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const store = new DisposableStore();
 			await Promise.race([
 				new Promise<void>(r => {
-					store.add(this.capabilities.onDidAddCapabilityType(e => {
-						if (e === TerminalCapability.CommandDetection) {
-							commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-							r();
-						}
+					store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
+						commandDetection = e;
+						r();
 					}));
 				}),
 				timeout(2000),
@@ -2141,8 +2138,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// work around for https://github.com/xtermjs/xterm.js/issues/3482
 		if (isWindows) {
 			for (let i = this.xterm.raw.buffer.active.viewportY; i < this.xterm.raw.buffer.active.length; i++) {
+				interface ILineWithInternals extends IBufferLine {
+					_line: {
+						isWrapped: boolean;
+					};
+				}
 				const line = this.xterm.raw.buffer.active.getLine(i);
-				(line as any)._line.isWrapped = false;
+				(line as ILineWithInternals)._line.isWrapped = false;
 			}
 		}
 	}
@@ -2251,11 +2253,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._processManager.updateProperty(type, value);
 	}
 
-	async rename(title?: string) {
-		this._setTitle(title, TitleEventSource.Api);
+	async rename(title?: string, source?: TitleEventSource) {
+		this._setTitle(title, source ?? TitleEventSource.Api);
 	}
 
 	private _setTitle(title: string | undefined, eventSource: TitleEventSource): void {
+		if ((this._shellLaunchConfig?.type === 'Task' || this._titleSource === TitleEventSource.Api) && eventSource === TitleEventSource.Process) {
+			return;
+		}
+
 		const reset = !title;
 		title = this._updateTitleProperties(title, eventSource);
 		const titleChanged = title !== this._title;

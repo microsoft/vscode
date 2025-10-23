@@ -11,7 +11,7 @@ import { EmbeddedDiffEditorWidget } from '../../../../editor/browser/widget/diff
 import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { InlineChatController, InlineChatController1, InlineChatController2, InlineChatRunOptions } from './inlineChatController.js';
-import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, ACTION_DISCARD_CHANGES, CTX_INLINE_CHAT_POSSIBLE, ACTION_START, CTX_INLINE_CHAT_HAS_AGENT2, MENU_INLINE_CHAT_SIDE } from '../common/inlineChat.js';
+import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, ACTION_DISCARD_CHANGES, CTX_INLINE_CHAT_POSSIBLE, ACTION_START, MENU_INLINE_CHAT_SIDE, CTX_INLINE_CHAT_V2_ENABLED, CTX_INLINE_CHAT_V1_ENABLED } from '../common/inlineChat.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession, ctxRequestCount } from '../../chat/browser/chatEditing/chatEditingEditorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IAction2Options, MenuId } from '../../../../platform/actions/common/actions.js';
@@ -49,7 +49,7 @@ export function setHoldForSpeech(holdForSpeech: IHoldForSpeech) {
 }
 
 const inlineChatContextKey = ContextKeyExpr.and(
-	ContextKeyExpr.or(CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2),
+	ContextKeyExpr.or(CTX_INLINE_CHAT_V1_ENABLED, CTX_INLINE_CHAT_V2_ENABLED),
 	CTX_INLINE_CHAT_POSSIBLE,
 	EditorContextKeys.writable,
 	EditorContextKeys.editorSimpleInput.negate()
@@ -82,7 +82,7 @@ export class StartSessionAction extends Action2 {
 			}]
 		});
 	}
-	override run(accessor: ServicesAccessor, ...args: any[]): any {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): any {
 
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const editor = codeEditorService.getActiveCodeEditor();
@@ -105,7 +105,7 @@ export class StartSessionAction extends Action2 {
 		});
 	}
 
-	private _runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+	private _runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: unknown[]) {
 
 		const ctrl = InlineChatController.get(editor);
 		if (!ctrl) {
@@ -146,7 +146,7 @@ export class FocusInlineChat extends EditorAction2 {
 		});
 	}
 
-	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: unknown[]) {
 		InlineChatController.get(editor)?.focus();
 	}
 }
@@ -167,7 +167,7 @@ export class UnstashSessionAction extends EditorAction2 {
 		});
 	}
 
-	override async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+	override async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: unknown[]) {
 		const ctrl = InlineChatController1.get(editor);
 		if (ctrl) {
 			const session = ctrl.unstashLastSession();
@@ -189,10 +189,10 @@ export abstract class AbstractInline1ChatAction extends EditorAction2 {
 		const massageMenu = (menu: IAction2Options['menu'] | undefined) => {
 			if (Array.isArray(menu)) {
 				for (const entry of menu) {
-					entry.when = ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT, entry.when);
+					entry.when = ContextKeyExpr.and(CTX_INLINE_CHAT_V1_ENABLED, entry.when);
 				}
 			} else if (menu) {
-				menu.when = ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT, menu.when);
+				menu.when = ContextKeyExpr.and(CTX_INLINE_CHAT_V1_ENABLED, menu.when);
 			}
 		};
 		if (Array.isArray(desc.menu)) {
@@ -204,11 +204,11 @@ export abstract class AbstractInline1ChatAction extends EditorAction2 {
 		super({
 			...desc,
 			category: AbstractInline1ChatAction.category,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT, desc.precondition)
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_V1_ENABLED, desc.precondition)
 		});
 	}
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: unknown[]) {
 		const editorService = accessor.get(IEditorService);
 		const logService = accessor.get(ILogService);
 
@@ -244,7 +244,7 @@ export abstract class AbstractInline1ChatAction extends EditorAction2 {
 		this.runInlineChatCommand(accessor, ctrl, editor, ..._args);
 	}
 
-	abstract runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, editor: ICodeEditor, ...args: any[]): void;
+	abstract runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, editor: ICodeEditor, ...args: unknown[]): void;
 }
 
 export class ArrowOutUpAction extends AbstractInline1ChatAction {
@@ -260,7 +260,7 @@ export class ArrowOutUpAction extends AbstractInline1ChatAction {
 		});
 	}
 
-	runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: any[]): void {
+	runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: unknown[]): void {
 		ctrl.arrowOut(true);
 	}
 }
@@ -278,7 +278,7 @@ export class ArrowOutDownAction extends AbstractInline1ChatAction {
 		});
 	}
 
-	runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: any[]): void {
+	runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: unknown[]): void {
 		ctrl.arrowOut(false);
 	}
 }
@@ -371,7 +371,7 @@ export class RerunAction extends AbstractInline1ChatAction {
 		});
 	}
 
-	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
+	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: unknown[]): Promise<void> {
 		const chatService = accessor.get(IChatService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const model = ctrl.chatWidget.viewModel?.model;
@@ -417,7 +417,7 @@ export class CloseAction extends AbstractInline1ChatAction {
 		});
 	}
 
-	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
+	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: unknown[]): Promise<void> {
 		ctrl.cancelSession();
 	}
 }
@@ -438,7 +438,7 @@ export class ConfigureInlineChatAction extends AbstractInline1ChatAction {
 		});
 	}
 
-	async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
+	async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: unknown[]): Promise<void> {
 		accessor.get(IPreferencesService).openSettings({ query: 'inlineChat' });
 	}
 }
@@ -458,7 +458,7 @@ export class MoveToNextHunk extends AbstractInline1ChatAction {
 		});
 	}
 
-	override runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, editor: ICodeEditor, ...args: any[]): void {
+	override runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, editor: ICodeEditor, ...args: unknown[]): void {
 		ctrl.moveHunk(true);
 	}
 }
@@ -478,7 +478,7 @@ export class MoveToPreviousHunk extends AbstractInline1ChatAction {
 		});
 	}
 
-	override runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, editor: ICodeEditor, ...args: any[]): void {
+	override runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, editor: ICodeEditor, ...args: unknown[]): void {
 		ctrl.moveHunk(false);
 	}
 }
@@ -512,7 +512,7 @@ export class ViewInChatAction extends AbstractInline1ChatAction {
 			}
 		});
 	}
-	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: any[]) {
+	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: unknown[]) {
 		return ctrl.viewInChat();
 	}
 }
@@ -558,10 +558,10 @@ abstract class AbstractInline2ChatAction extends EditorAction2 {
 		const massageMenu = (menu: IAction2Options['menu'] | undefined) => {
 			if (Array.isArray(menu)) {
 				for (const entry of menu) {
-					entry.when = ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT2, entry.when);
+					entry.when = ContextKeyExpr.and(CTX_INLINE_CHAT_V2_ENABLED, entry.when);
 				}
 			} else if (menu) {
-				menu.when = ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT2, menu.when);
+				menu.when = ContextKeyExpr.and(CTX_INLINE_CHAT_V2_ENABLED, menu.when);
 			}
 		};
 		if (Array.isArray(desc.menu)) {
@@ -573,11 +573,11 @@ abstract class AbstractInline2ChatAction extends EditorAction2 {
 		super({
 			...desc,
 			category: AbstractInline2ChatAction.category,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT2, desc.precondition)
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_V2_ENABLED, desc.precondition)
 		});
 	}
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: unknown[]) {
 		const editorService = accessor.get(IEditorService);
 		const logService = accessor.get(ILogService);
 
@@ -613,7 +613,7 @@ abstract class AbstractInline2ChatAction extends EditorAction2 {
 		this.runInlineChatCommand(accessor, ctrl, editor, ..._args);
 	}
 
-	abstract runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController2, editor: ICodeEditor, ...args: any[]): void;
+	abstract runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController2, editor: ICodeEditor, ...args: unknown[]): void;
 }
 
 class KeepOrUndoSessionAction extends AbstractInline2ChatAction {
@@ -637,12 +637,12 @@ class KeepOrUndoSessionAction extends AbstractInline2ChatAction {
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
 				group: '0_main',
 				order: 1,
-				when: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT2, ContextKeyExpr.greater(ctxRequestCount.key, 0), ctxHasEditorModification),
+				when: ContextKeyExpr.and(ContextKeyExpr.greater(ctxRequestCount.key, 0), ctxHasEditorModification),
 			}]
 		});
 	}
 
-	override async runInlineChatCommand(accessor: ServicesAccessor, _ctrl: InlineChatController2, editor: ICodeEditor, ..._args: any[]): Promise<void> {
+	override async runInlineChatCommand(accessor: ServicesAccessor, _ctrl: InlineChatController2, editor: ICodeEditor, ..._args: unknown[]): Promise<void> {
 		const inlineChatSessions = accessor.get(IInlineChatSessionService);
 		if (!editor.hasModel()) {
 			return;
@@ -696,17 +696,17 @@ export class CloseSessionAction2 extends AbstractInline2ChatAction {
 			menu: [{
 				id: MENU_INLINE_CHAT_SIDE,
 				group: 'navigation',
-				when: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT2, ctxRequestCount.isEqualTo(0)),
+				when: ContextKeyExpr.and(ctxRequestCount.isEqualTo(0)),
 			}, {
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
 				group: '0_main',
 				order: 1,
-				when: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT2, ctxHasEditorModification.negate()),
+				when: ContextKeyExpr.and(ctxHasEditorModification.negate()),
 			}]
 		});
 	}
 
-	runInlineChatCommand(accessor: ServicesAccessor, _ctrl: InlineChatController2, editor: ICodeEditor, ...args: any[]): void {
+	runInlineChatCommand(accessor: ServicesAccessor, _ctrl: InlineChatController2, editor: ICodeEditor, ...args: unknown[]): void {
 		const inlineChatSessions = accessor.get(IInlineChatSessionService);
 		if (editor.hasModel()) {
 			const textModel = editor.getModel();

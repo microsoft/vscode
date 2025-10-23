@@ -131,7 +131,7 @@ declare module 'vscode' {
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleListEndOfLifetime?(list: InlineCompletionList, reason: InlineCompletionsDisposeReason): void;
 
-		onDidChange?: Event<void>;
+		readonly onDidChange?: Event<void>;
 
 		// #region Deprecated methods
 
