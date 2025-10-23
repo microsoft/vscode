@@ -228,12 +228,19 @@ export interface ISCMHistoryItemChangeRangeVariableEntry extends IBaseChatReques
 	};
 }
 
+export interface ITerminalVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'terminalCommand';
+	readonly value: URI;
+	readonly command: string;
+	readonly output?: string;
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
-	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry;
+	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 

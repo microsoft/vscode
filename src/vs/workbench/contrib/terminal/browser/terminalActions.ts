@@ -511,6 +511,27 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
+		id: TerminalCommandId.RevealCommand,
+		title: terminalStrings.revealCommand,
+		precondition: sharedWhenClause.terminalAvailable,
+		run: async (c, s, resource: unknown) => {
+			if (!(resource instanceof URI)) {
+				return;
+			}
+			const instance = c.service.getInstanceFromResource(resource);
+			if (!instance) {
+				return;
+			}
+			c.service.setActiveInstance(instance);
+			focusActiveTerminal(instance, c);
+			const command = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands.find(c => c.id === resource.query);
+			if (command) {
+				instance.xterm?.markTracker.revealCommand(command);
+			}
+		}
+	});
+
+	registerTerminalAction({
 		id: TerminalCommandId.FocusTabs,
 		title: localize2('workbench.action.terminal.focus.tabsView', 'Focus Terminal Tabs View'),
 		keybinding: {

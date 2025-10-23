@@ -410,7 +410,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
 		this._shellLaunchConfig.shellIntegrationEnvironmentReporting = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnvironmentReporting);
 
-		this._resource = getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, { title: this.title });
+		this._resource = getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
 
 		if (this._shellLaunchConfig.attachPersistentProcess?.hideFromUser) {
 			this._shellLaunchConfig.hideFromUser = this._shellLaunchConfig.attachPersistentProcess.hideFromUser;
@@ -788,7 +788,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const disableShellIntegrationReporting = (this.shellLaunchConfig.executable === undefined || this.shellType === undefined) || !shellIntegrationSupportedShellTypes.includes(this.shellType);
-		const xterm = this._scopedInstantiationService.createInstance(XtermTerminal, Terminal, {
+		const xterm = this._scopedInstantiationService.createInstance(XtermTerminal, this.instanceId, Terminal, {
 			cols: this._cols,
 			rows: this._rows,
 			xtermColorProvider: this._scopedInstantiationService.createInstance(TerminalInstanceColorProvider, this._targetRef),

@@ -17,6 +17,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { basename, dirname } from '../../../../base/common/path.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -160,6 +161,14 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			return;
 		}
 
+		if (resource.scheme === Schemas.vscodeTerminal) {
+			this.element.style.cursor = 'pointer';
+			this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, () => {
+				this.commandService.executeCommand('workbench.action.terminal.revealCommand', resource);
+			}));
+			return;
+		}
+
 		// Open file in editor
 		const openTextEditorOptions: ITextEditorOptions | undefined = range ? { selection: range } : undefined;
 		const options: OpenInternalOptions = {
@@ -170,6 +179,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 				...openOptions.editorOptions
 			},
 		};
+
 		await this.openerService.open(resource, options);
 		this._onDidOpen.fire();
 		this.element.focus();

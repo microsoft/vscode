@@ -29,6 +29,9 @@ import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 
 
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
@@ -254,6 +257,39 @@ class ClipboardImageContextValuePick implements IChatContextValueItem {
 			fullName: localize('pastedImage', 'Pasted Image'),
 			value: fileBuffer,
 			kind: 'image',
+		};
+	}
+}
+
+export class TerminalContext implements IChatContextValueItem {
+
+	readonly type = 'valuePick';
+	readonly icon = Codicon.terminal;
+	readonly label = localize('terminal', 'Terminal');
+	constructor(private readonly _resource: URI, @ITerminalService private readonly _terminalService: ITerminalService) {
+
+	}
+	async isEnabled(widget: IChatWidget) {
+		const terminal = this._terminalService.getInstanceFromResource(this._resource);
+		return !!widget.attachmentCapabilities.supportsTerminalAttachments && terminal?.isDisposed === false;
+	}
+	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
+		const terminal = this._terminalService.getInstanceFromResource(this._resource);
+		if (!terminal) {
+			return;
+		}
+
+		const command = terminal.capabilities.get(TerminalCapability.CommandDetection)?.commands.find(cmd => cmd.id === this._resource.query);
+		if (!command) {
+			return;
+		}
+		return {
+			kind: 'terminalCommand',
+			id: this._resource.toString(),
+			value: this._resource,
+			name: command.command,
+			command: command.command,
+			output: command.getOutput()
 		};
 	}
 }

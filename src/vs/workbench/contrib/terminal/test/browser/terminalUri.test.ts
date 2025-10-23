@@ -59,7 +59,7 @@ suite('terminalUri', () => {
 			const instance = { resource: getTerminalUri('workspace', 2, 'title') };
 			strictEqual(
 				getInstanceFromResource([
-					{ resource: getTerminalUri('workspace', 1, { title: 'title' }) },
+					{ resource: getTerminalUri('workspace', 1, 'title') },
 					instance,
 					{ resource: getTerminalUri('workspace', 3, 'title') }
 				], getTerminalUri('workspace', 2, 'title')),

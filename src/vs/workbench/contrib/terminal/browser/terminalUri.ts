@@ -21,37 +21,16 @@ export function parseTerminalUri(resource: URI): ITerminalIdentifier {
 	return { workspaceId, instanceId: Number.parseInt(instanceId) };
 }
 
-export function getTerminalUri(workspaceId: string, instanceId: number, title?: string, commandId?: string): URI;
-export function getTerminalUri(workspaceId: string, instanceId: number, metadata?: ITerminalUriMetadata): URI;
-export function getTerminalUri(workspaceId: string, instanceId: number, arg?: string | ITerminalUriMetadata, commandIdLegacy?: string): URI {
-	let metadata: ITerminalUriMetadata | undefined;
-	if (typeof arg === 'string') {
-		metadata = { title: arg, commandId: commandIdLegacy };
-	} else {
-		metadata = arg;
-		if (commandIdLegacy) {
-			metadata = {
-				...metadata,
-				commandId: metadata?.commandId ?? commandIdLegacy
-			};
-		}
-	}
+export function getTerminalUri(workspaceId: string, instanceId: number, title?: string, commandId?: string): URI {
 
-	const title = metadata?.title;
-	const params = new URLSearchParams();
-	if (metadata?.commandId) {
-		params.set('command', metadata.commandId);
-	}
-	if (metadata?.commandLine) {
-		params.set('commandLine', metadata.commandLine);
-	}
 	return URI.from({
 		scheme: Schemas.vscodeTerminal,
 		path: `/${workspaceId}/${instanceId}`,
 		fragment: title || undefined,
-		query: params.toString() || undefined
+		query: commandId
 	});
 }
+
 
 export interface ITerminalIdentifier {
 	workspaceId: string;

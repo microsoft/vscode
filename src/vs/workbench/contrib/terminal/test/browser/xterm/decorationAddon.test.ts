@@ -54,7 +54,7 @@ suite('DecorationAddon', () => {
 		}));
 		const capabilities = store.add(new TerminalCapabilityStore());
 		capabilities.add(TerminalCapability.CommandDetection, store.add(instantiationService.createInstance(CommandDetectionCapability, xterm)));
-		decorationAddon = store.add(instantiationService.createInstance(DecorationAddon, capabilities));
+		decorationAddon = store.add(instantiationService.createInstance(DecorationAddon, 1, capabilities));
 		xterm.loadAddon(decorationAddon);
 	});
 

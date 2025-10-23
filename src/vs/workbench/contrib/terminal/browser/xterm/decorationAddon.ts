@@ -27,6 +27,13 @@ import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IChatContextPickService } from '../../../chat/browser/chatContextPickService.js';
+import { IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TerminalContext } from '../../../chat/browser/actions/chatContext.js';
+import { getTerminalUri } from '../terminalUri.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { ITerminalService } from '../terminal.js';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 
@@ -45,6 +52,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 	readonly onDidRequestCopyAsHtml = this._onDidRequestCopyAsHtml.event;
 
 	constructor(
+		private readonly _instanceId: number,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -56,7 +64,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		@ICommandService private readonly _commandService: ICommandService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IHoverService private readonly _hoverService: IHoverService
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IChatContextPickService private readonly _contextPickService: IChatContextPickService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
 		this._register(toDisposable(() => this._dispose()));
@@ -413,11 +426,18 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 	}
 
 	private async _getCommandActions(command: ITerminalCommand): Promise<IAction[]> {
+
 		const actions: IAction[] = [];
 		const registeredMenuItems = this._registeredMenuItems.get(command);
 		if (registeredMenuItems?.length) {
 			actions.push(...registeredMenuItems, new Separator());
 		}
+
+		const attachToChatAction = this._createAttachToChatAction(command);
+		if (attachToChatAction) {
+			actions.push(attachToChatAction, new Separator());
+		}
+
 		if (command.command !== '') {
 			const labelRun = localize("terminal.rerunCommand", 'Rerun Command');
 			actions.push({
@@ -500,6 +520,39 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 			run: () => this._openerService.open('https://code.visualstudio.com/docs/terminal/shell-integration')
 		});
 		return actions;
+	}
+
+	private _createAttachToChatAction(command: ITerminalCommand): IAction | undefined {
+		const labelAttachToChat = localize("terminal.attachToChat", 'Attach To Chat');
+		return {
+			class: undefined, tooltip: labelAttachToChat, id: 'terminal.attachToChat', label: labelAttachToChat, enabled: true,
+			run: async () => {
+				const workspaceId = this._workspaceContextService.getWorkspace().id;
+				const widget = this._chatWidgetService.lastFocusedWidget;
+				const terminalContext = this._instantiationService.createInstance(TerminalContext, getTerminalUri(workspaceId, this._instanceId, undefined, command.id));
+				const instance = this._terminalService.getInstanceFromId(this._instanceId);
+				if (!instance) {
+					return;
+				}
+				if (widget && widget.attachmentCapabilities.supportsTerminalAttachments) {
+					try {
+						const attachment = await terminalContext.asAttachment();
+						if (attachment) {
+							const listener = this._register(instance.onDisposed(() => {
+								widget.attachmentModel.delete(attachment.id);
+								widget.refreshParsedInput();
+								listener.dispose();
+							}));
+							widget.attachmentModel.addContext(attachment);
+							widget.focusInput();
+							return;
+						}
+					} catch (err) {
+					}
+					this._store.add(this._contextPickService.registerChatContextItem(terminalContext));
+				}
+			}
+		};
 	}
 
 	private _showToggleVisibilityQuickPick() {
