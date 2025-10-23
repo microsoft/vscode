@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../../nls.js';
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewContainerModel, IViewDescriptorService, ViewContainer } from 'vs/workbench/common/views';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { move } from 'vs/base/common/arrays';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewDescriptorService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Event } from 'vs/base/common/event';
-import { getViewsStateStorageId } from 'vs/workbench/services/views/common/viewContainerModel';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewContainerModel, IViewDescriptorService, ViewContainer } from '../../../../common/views.js';
+import { IDisposable, dispose } from '../../../../../base/common/lifecycle.js';
+import { move } from '../../../../../base/common/arrays.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ViewDescriptorService } from '../../browser/viewDescriptorService.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { Event } from '../../../../../base/common/event.js';
+import { getViewsStateStorageId } from '../../common/viewContainerModel.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const ViewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
@@ -64,12 +64,14 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('empty model', function () {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
 	});
 
 	test('register/unregister', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -97,6 +99,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('when contexts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -141,6 +144,7 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('when contexts - multiple', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -164,6 +168,7 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('when contexts - multiple 2', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -187,6 +192,7 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('setVisible', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -232,6 +238,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('move', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -262,6 +269,7 @@ suite('ViewContainerModel', () => {
 
 	test('view states', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -282,6 +290,7 @@ suite('ViewContainerModel', () => {
 
 	test('view states and when contexts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -312,6 +321,7 @@ suite('ViewContainerModel', () => {
 
 	test('view states and when contexts multiple views', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -357,6 +367,7 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('remove event is not triggered if view was hidden and removed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -387,6 +398,7 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('add event is not triggered if view was set visible (when visible) and not active', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -414,6 +426,7 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('remove event is not triggered if view was hidden and not active', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -441,6 +454,7 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('add event is not triggered if view was set visible (when not visible) and not active', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -472,6 +486,7 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('added view descriptors are in ascending order in the event', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -523,6 +538,7 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('add event is triggered only once when view is set visible while it is set active', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -554,6 +570,7 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('add event is not triggered only when view is set hidden while it is set active', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -583,6 +600,7 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('#142087: view descriptor visibility is not reset', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const viewDescriptor: IViewDescriptor = {
@@ -606,6 +624,7 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('remove event is triggered properly if multiple views are hidden at the same time', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -664,6 +683,7 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('add event is triggered properly if multiple views are hidden at the same time', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -732,6 +752,7 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('add and remove events are triggered properly if multiple views are hidden and added at the same time', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -809,6 +830,7 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('newly added view descriptor is hidden if it was toggled hidden in storage before adding', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { env } from 'vs/base/common/process';
+import { IDisposable } from './lifecycle.js';
 
 export function isHotReloadEnabled(): boolean {
-	return env && !!env['VSCODE_DEV'];
+	// return env && !!env['VSCODE_DEV_DEBUG'];
+	return false; // TODO@hediet investigate how to get hot reload
 }
 export function registerHotReloadHandler(handler: HotReloadHandler): IDisposable {
 	if (!isHotReloadEnabled()) {
@@ -41,9 +41,23 @@ function registerGlobalHotReloadHandler() {
 		g.$hotReload_applyNewExports = args => {
 			const args2 = { config: { mode: undefined }, ...args };
 
+			const results: AcceptNewExportsHandler[] = [];
 			for (const h of hotReloadHandlers!) {
 				const result = h(args2);
-				if (result) { return result; }
+				if (result) {
+					results.push(result);
+				}
+			}
+			if (results.length > 0) {
+				return newExports => {
+					let result = false;
+					for (const r of results) {
+						if (r(newExports)) {
+							result = true;
+						}
+					}
+					return result;
+				};
 			}
 			return undefined;
 		};
@@ -80,12 +94,14 @@ if (isHotReloadEnabled()) {
 					if (oldExportedItem) {
 						for (const prop of Object.getOwnPropertyNames(exportedItem.prototype)) {
 							const descriptor = Object.getOwnPropertyDescriptor(exportedItem.prototype, prop)!;
+							// eslint-disable-next-line local/code-no-any-casts
 							const oldDescriptor = Object.getOwnPropertyDescriptor((oldExportedItem as any).prototype, prop);
 
 							if (descriptor?.value?.toString() !== oldDescriptor?.value?.toString()) {
 								console.log(`[hot-reload] Patching prototype method '${key}.${prop}'`);
 							}
 
+							// eslint-disable-next-line local/code-no-any-casts
 							Object.defineProperty((oldExportedItem as any).prototype, prop, descriptor);
 						}
 						newExports[key] = oldExportedItem;

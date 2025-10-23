@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { Color } from 'vs/base/common/color';
-import * as platform from 'vs/base/common/platform';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { ColorId } from 'vs/editor/common/encodedTokenAttributes';
-import * as languages from 'vs/editor/common/languages';
-import { tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { ITextModel } from 'vs/editor/common/model';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { createTrustedTypesPolicy } from '../../../../../../base/browser/trustedTypes.js';
+import { Color } from '../../../../../../base/common/color.js';
+import * as platform from '../../../../../../base/common/platform.js';
+import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { EditorOption } from '../../../../../../editor/common/config/editorOptions.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { ColorId } from '../../../../../../editor/common/encodedTokenAttributes.js';
+import * as languages from '../../../../../../editor/common/languages.js';
+import { tokenizeLineToHTML } from '../../../../../../editor/common/languages/textToHtmlTokenizer.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { BaseCellRenderTemplate } from '../notebookRenderingCommon.js';
 
 class EditorTextRenderer {
 

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/cursor/cursorAtomicMoveOperations';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { AtomicTabMoveOperations, Direction } from '../../../common/cursor/cursorAtomicMoveOperations.js';
 
 suite('Cursor move command test', () => {
 

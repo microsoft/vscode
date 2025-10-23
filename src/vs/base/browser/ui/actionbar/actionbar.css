@@ -52,10 +52,17 @@
 	border-radius: 5px;
 }
 
-.monaco-action-bar .action-item.disabled .action-label,
-.monaco-action-bar .action-item.disabled .action-label::before,
-.monaco-action-bar .action-item.disabled .action-label:hover {
+.monaco-action-bar .action-item.disabled .action-label:not(.icon) ,
+.monaco-action-bar .action-item.disabled .action-label:not(.icon)::before,
+.monaco-action-bar .action-item.disabled .action-label:not(.icon):hover {
 	color: var(--vscode-disabledForeground);
+}
+
+/* Unable to change color of SVGs, hence opacity is used */
+.monaco-action-bar .action-item.disabled .action-label.icon ,
+.monaco-action-bar .action-item.disabled .action-label.icon::before,
+.monaco-action-bar .action-item.disabled .action-label.icon:hover {
+	opacity: 0.6;
 }
 
 /* Vertical actions */
@@ -70,7 +77,7 @@
 
 .monaco-action-bar.vertical .action-label.separator {
 	display: block;
-	border-bottom: 1px solid #bbb;
+	border-bottom: 1px solid var(--vscode-disabledForeground);
 	padding-top: 1px;
 	margin-left: .8em;
 	margin-right: .8em;
@@ -83,7 +90,7 @@
 	cursor: default;
 	min-width: 1px;
 	padding: 0;
-	background-color: #bbb;
+	background-color: var(--vscode-disabledForeground);
 }
 
 .secondary-actions .monaco-action-bar .action-label {

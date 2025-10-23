@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { BugIndicatingError } from 'vs/base/common/errors';
+import { BugIndicatingError } from './errors.js';
 
 /*
  * This file contains helper classes to manage control flow.
@@ -54,6 +54,7 @@ export class ReentrancyBarrier {
 	}
 
 	public makeExclusiveOrSkip<TFunction extends Function>(fn: TFunction): TFunction {
+		// eslint-disable-next-line local/code-no-any-casts
 		return ((...args: any[]) => {
 			if (this._isOccupied) {
 				return;

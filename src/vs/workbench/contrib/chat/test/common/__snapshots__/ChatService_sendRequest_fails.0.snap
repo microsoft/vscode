@@ -4,9 +4,9 @@
   responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
-  welcomeMessage: undefined,
   requests: [
     {
+      requestId: undefined,
       message: {
         parts: [
           {
@@ -27,12 +27,15 @@
                 value: "nullExtensionDescription",
                 _lower: "nullextensiondescription"
               },
+              extensionVersion: undefined,
               extensionPublisherId: "",
               publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
+              modes: [ "ask" ],
               metadata: {  },
-              slashCommands: [  ]
+              slashCommands: [  ],
+              disambiguation: [  ]
             },
             kind: "agent"
           },
@@ -55,10 +58,14 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
+      shouldBeRemovedOnSend: undefined,
       result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
+      responseMarkdownInfo: undefined,
       followups: undefined,
       isCanceled: false,
       vote: undefined,
+      voteDownReason: undefined,
       agent: {
         name: "ChatProviderWithUsedContext",
         id: "ChatProviderWithUsedContext",
@@ -66,16 +73,24 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionVersion: undefined,
         extensionPublisherId: "",
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: {  },
-        slashCommands: [  ]
+        slashCommands: [  ],
+        disambiguation: [  ]
       },
       slashCommand: undefined,
       usedContext: undefined,
-      contentReferences: [  ]
+      contentReferences: [  ],
+      codeCitations: [  ],
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined
     }
   ]
 }

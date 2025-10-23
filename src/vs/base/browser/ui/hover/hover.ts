@@ -3,18 +3,85 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import type { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import type { CancellationToken } from 'vs/base/common/cancellation';
-import type { IMarkdownString } from 'vs/base/common/htmlContent';
-import type { IDisposable } from 'vs/base/common/lifecycle';
+import type { IHoverDelegate } from './hoverDelegate.js';
+import type { HoverPosition } from './hoverWidget.js';
+import type { CancellationToken } from '../../../common/cancellation.js';
+import type { IMarkdownString } from '../../../common/htmlContent.js';
+import type { IDisposable } from '../../../common/lifecycle.js';
 
 /**
  * Enables the convenient display of rich markdown-based hovers in the workbench.
  */
 export interface IHoverDelegate2 {
 	/**
-	 * Shows a hover, provided a hover with the same {@link options} object is not already visible.
+	 * Shows a hover after a delay, or immediately if the {@link groupId} matches the currently
+	 * shown hover.
+	 *
+	 * Use this method when you want to:
+	 *
+	 * - Control showing the hover yourself.
+	 * - Show the hover after the standard delay.
+	 *
+	 * @param options The options of the hover.
+	 * @param groupId The group ID of the hover. If the group ID is the same as the currently shown
+	 * hover, the hover will be shown immediately, skipping the delay.
+	 */
+	showDelayedHover(
+		options: IHoverOptions,
+		lifecycleOptions: Pick<IHoverLifecycleOptions, 'groupId'>,
+	): IHoverWidget | undefined;
+
+	/**
+	 * A simple wrapper around showDelayedHover that includes listening to events on the
+	 * {@link target} element that shows the hover.
+	 *
+	 * Use this method when you want to:
+	 *
+	 * - Let the hover service handle showing the hover.
+	 * - Show the hover after the standard delay.
+	 * - Want the hover positioned beside the {@link target} element.
+	 *
+	 * @param target The target element to listener for mouseover events on.
+	 * @param hoverOptions The options of the hover.
+	 * @param lifecycleOptions The options of the hover's lifecycle.
+	 */
+	setupDelayedHover(
+		target: HTMLElement,
+		hoverOptions: (() => IDelayedHoverOptions) | IDelayedHoverOptions,
+		lifecycleOptions?: IHoverLifecycleOptions,
+	): IDisposable;
+
+	/**
+	 * A simple wrapper around showDelayedHover that includes listening to events on the
+	 * {@link target} element that shows the hover. This differs from {@link setupDelayedHover} in
+	 * that the hover will be shown at the mouse position instead of the
+	 * {@link target target} element's position, ignoring any
+	 * {@link IHoverOptions.position position options} that are passed in.
+	 *
+	 * Use this method when you want to:
+	 *
+	 * - Let the hover service handle showing the hover.
+	 * - Show the hover after the standard delay.
+	 * - Want the hover positioned beside the mouse.
+	 *
+	 * @param target The target element to listener for mouseover events on.
+	 * @param hoverOptions The options of the hover.
+	 * @param lifecycleOptions The options of the hover's lifecycle.
+	 */
+	setupDelayedHoverAtMouse(
+		target: HTMLElement,
+		hoverOptions: (() => IDelayedHoverAtMouseOptions) | IDelayedHoverAtMouseOptions,
+		lifecycleOptions?: IHoverLifecycleOptions,
+	): IDisposable;
+
+	/**
+	 * Shows a hover immediately, provided a hover with the same {@link options} object is not
+	 * already visible.
+	 *
+	 * Use this method when you want to:
+	 *
+	 * - Control showing the hover yourself.
+	 * - Show the hover immediately.
 	 *
 	 * @param options A set of options defining the characteristics of the hover.
 	 * @param focus Whether to focus the hover (useful for keyboard accessibility).
@@ -22,22 +89,22 @@ export interface IHoverDelegate2 {
 	 * @example A simple usage with a single element target.
 	 *
 	 * ```typescript
-	 * showHover({
+	 * showInstantHover({
 	 *   text: new MarkdownString('Hello world'),
 	 *   target: someElement
 	 * });
 	 * ```
 	 */
-	showHover(
+	showInstantHover(
 		options: IHoverOptions,
 		focus?: boolean
 	): IHoverWidget | undefined;
 
 	/**
-	 * Hides the hover if it was visible. This call will be ignored if the the hover is currently
-	 * "locked" via the alt/option key.
+	 * Hides the hover if it was visible. This call will be ignored if the hover is currently
+	 * "locked" via the alt/option key unless `force` is set.
 	 */
-	hideHover(): void;
+	hideHover(force?: boolean): void;
 
 	/**
 	 * This should only be used until we have the ability to show multiple context views
@@ -49,25 +116,27 @@ export interface IHoverDelegate2 {
 	 * Sets up a managed hover for the given element. A managed hover will set up listeners for
 	 * mouse events, show the hover after a delay and provide hooks to easily update the content.
 	 *
-	 * This should be used over {@link showHover} when fine-grained control is not needed. The
-	 * managed hover also does not scale well, consider using {@link showHover} when showing hovers
+	 * This should be used over {@link showInstantHover} when fine-grained control is not needed. The
+	 * managed hover also does not scale well, consider using {@link showInstantHover} when showing hovers
 	 * for many elements.
 	 *
 	 * @param hoverDelegate The hover delegate containing hooks and configuration for the hover.
 	 * @param targetElement The target element to show the hover for.
 	 * @param content The content of the hover or a factory that creates it at the time it's shown.
 	 * @param options Additional options for the managed hover.
+	 *
+	 * @deprecated Use {@link setupDelayedHover} or {@link setupDelayedHoverAtMouse} instead where
+	 * possible.
 	 */
-	// TODO: The hoverDelegate parameter should be removed in favor of just a set of options. This
-	//       will avoid confusion around IHoverDelegate/IHoverDelegate2 as well as align more with
-	//       the design of the hover service.
-	// TODO: Align prototype closer to showHover, deriving options from IHoverOptions if possible.
 	setupManagedHover(hoverDelegate: IHoverDelegate, targetElement: HTMLElement, content: IManagedHoverContentOrFactory, options?: IManagedHoverOptions): IManagedHover;
 
 	/**
 	 * Shows the hover for the given element if one has been setup.
 	 *
 	 * @param targetElement The target element of the hover, as set up in {@link setupManagedHover}.
+	 *
+	 * @deprecated Use {@link setupDelayedHover} or {@link setupDelayedHoverAtMouse} instead where
+	 * possible.
 	 */
 	showManagedHover(targetElement: HTMLElement): void;
 }
@@ -77,6 +146,17 @@ export interface IHoverWidget extends IDisposable {
 	 * Whether the hover widget has been disposed.
 	 */
 	readonly isDisposed: boolean;
+}
+
+export const enum HoverStyle {
+	/**
+	 * The hover is anchored below the element with a pointer above it pointing at the target.
+	 */
+	Pointer = 1,
+	/**
+	 * The hover is anchored to the bottom right of the cursor's location.
+	 */
+	Mouse = 2,
 }
 
 export interface IHoverOptions {
@@ -106,8 +186,11 @@ export interface IHoverOptions {
 	 * An ID to associate with the hover to be used as an equality check. Normally when calling
 	 * {@link IHoverService.showHover} the options object itself is used to determine if the hover
 	 * is the same one that is already showing, when this is set, the ID will be used instead.
+	 *
+	 * When `undefined`, this will default to a serialized version of {@link content}. In this case
+	 * it will remain `undefined` if {@link content} is a `HTMLElement`.
 	 */
-	id?: number | string;
+	id?: string;
 
 	/**
 	 * A set of actions for the hover's "status bar".
@@ -134,6 +217,11 @@ export interface IHoverOptions {
 	trapFocus?: boolean;
 
 	/**
+	 * The style of the hover, this sets default values of {@link position} and {@link appearance}:
+	 */
+	style?: HoverStyle;
+
+	/**
 	 * Options that defines where the hover is positioned.
 	 */
 	position?: IHoverPositionOptions;
@@ -149,13 +237,53 @@ export interface IHoverOptions {
 	appearance?: IHoverAppearanceOptions;
 }
 
+// `target` is ignored for delayed hover methods as it's included in the method and added
+// automatically when the hover options get resolved.
+export type IDelayedHoverOptions = Omit<IHoverOptions, 'target'>;
+
+// `position` is ignored for delayed at mouse hover methods as it's overwritten by the mouse event.
+// `showPointer` is always false when using mouse positioning
+export type IDelayedHoverAtMouseOptions = Omit<IDelayedHoverOptions, 'position' | 'appearance'> & { appearance?: Omit<IHoverAppearanceOptions, 'showPointer'> };
+
+export interface IHoverLifecycleOptions {
+	/**
+	 * The group ID of the hover. If the group ID is the same as the currently shown hover, the
+	 * hover will be shown immediately, skipping the delay.
+	 *
+	 * @example Use a UUID to set a unique `groupId` for related hovers
+	 *
+	 * ```typescript
+	 * const groupId = generateUuid();
+	 * showDelayedHover({ content: 'Button 1', target: someElement1 }, { groupId });
+	 * showDelayedHover({ content: 'Button 2', target: someElement2 }, { groupId });
+	 * ```
+	 *
+	 * @example Use a feature-specific string to set a unqiue `groupId` for related hovers
+	 *
+	 * ```typescript
+	 * showDelayedHover({ content: 'Button 1', target: someElement1 }, { groupId: 'my-feature-items' });
+	 * showDelayedHover({ content: 'Button 2', target: someElement2 }, { groupId: 'my-feature-items' });
+	 * ```
+	 */
+	groupId?: string;
+
+	/**
+	 * Whether to set up space and enter keyboard events for the hover, when these are pressed when
+	 * the hover's target is focused it will show and focus the hover.
+	 *
+	 * Typically this should _not_ be used when the space or enter events are already handled by
+	 * something else.
+	 */
+	setupKeyboardEvents?: boolean;
+}
+
 export interface IHoverPositionOptions {
 	/**
 	 * Position of the hover. The default is to show above the target. This option will be ignored
 	 * if there is not enough room to layout the hover in the specified position, unless the
 	 * forcePosition option is set.
 	 */
-	hoverPosition?: HoverPosition;
+	hoverPosition?: HoverPosition | MouseEvent;
 
 	/**
 	 * Force the hover position, reducing the size of the hover instead of adjusting the hover
@@ -213,6 +341,13 @@ export interface IHoverAppearanceOptions {
 	 * another in the same group so it looks like the hover is moving from one element to the other.
 	 */
 	skipFadeInAnimation?: boolean;
+
+	/**
+	 * The max height of the hover relative to the window height.
+	 * Accepted values: (0,1]
+	 * Default: 0.5
+	 */
+	maxHeightRatio?: number;
 }
 
 export interface IHoverAction {
@@ -242,7 +377,7 @@ export interface IHoverAction {
 /**
  * A target for a hover.
  */
-export interface IHoverTarget extends IDisposable {
+export interface IHoverTarget extends Partial<IDisposable> {
 	/**
 	 * A set of target elements used to position the hover. If multiple elements are used the hover
 	 * will try to not overlap any target element. An example use case for this is show a hover for
@@ -270,10 +405,25 @@ export interface IManagedHoverTooltipMarkdownString {
 	markdownNotSupportedFallback: string | undefined;
 }
 
-export type IManagedHoverContent = string | IManagedHoverTooltipMarkdownString | HTMLElement | undefined;
+export function isManagedHoverTooltipMarkdownString(obj: unknown): obj is IManagedHoverTooltipMarkdownString {
+	const candidate = obj as IManagedHoverTooltipMarkdownString;
+	return typeof candidate === 'object' && 'markdown' in candidate && 'markdownNotSupportedFallback' in candidate;
+}
+
+export interface IManagedHoverTooltipHTMLElement {
+	element: (token: CancellationToken) => HTMLElement | Promise<HTMLElement>;
+}
+
+export function isManagedHoverTooltipHTMLElement(obj: unknown): obj is IManagedHoverTooltipHTMLElement {
+	const candidate = obj as IManagedHoverTooltipHTMLElement;
+	return typeof candidate === 'object' && 'element' in candidate;
+}
+
+export type IManagedHoverContent = string | IManagedHoverTooltipMarkdownString | IManagedHoverTooltipHTMLElement | HTMLElement | undefined;
 export type IManagedHoverContentOrFactory = IManagedHoverContent | (() => IManagedHoverContent);
 
 export interface IManagedHoverOptions extends Pick<IHoverOptions, 'actions' | 'linkHandler' | 'trapFocus'> {
+	appearance?: Pick<IHoverAppearanceOptions, 'showHoverHint'>;
 }
 
 export interface IManagedHover extends IDisposable {

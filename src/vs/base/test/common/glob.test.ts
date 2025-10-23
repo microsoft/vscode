@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as glob from 'vs/base/common/glob';
-import { sep } from 'vs/base/common/path';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import * as glob from '../../common/glob.js';
+import { sep } from '../../common/path.js';
+import { isLinux, isMacintosh, isWindows } from '../../common/platform.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Glob', () => {
 
@@ -494,6 +494,7 @@ suite('Glob', () => {
 		assert.strictEqual(glob.match(expression, 'test.js', hasSibling), null);
 
 		expression = {
+			// eslint-disable-next-line local/code-no-any-casts
 			'**/*.js': {
 			} as any
 		};
@@ -514,6 +515,7 @@ suite('Glob', () => {
 			'**/*.js': { when: '$(basename).ts' },
 			'**/*.as': true,
 			'**/*.foo': false,
+			// eslint-disable-next-line local/code-no-any-casts
 			'**/*.bananas': { bananas: true } as any
 		};
 
@@ -758,6 +760,7 @@ suite('Glob', () => {
 	});
 
 	test('expression with other falsy value', function () {
+		// eslint-disable-next-line local/code-no-any-casts
 		const expr = { '**/*.js': 0 } as any;
 
 		assert.strictEqual(glob.match(expr, 'foo.js'), '**/*.js');
@@ -1156,6 +1159,16 @@ suite('Glob', () => {
 		assert.ok(glob.patternsEquals(undefined, undefined));
 		assert.ok(!glob.patternsEquals(undefined, ['b']));
 		assert.ok(!glob.patternsEquals(['a'], undefined));
+	});
+
+	test('isEmptyPattern', () => {
+		assert.ok(glob.isEmptyPattern(glob.parse('')));
+		assert.ok(glob.isEmptyPattern(glob.parse(undefined!)));
+		assert.ok(glob.isEmptyPattern(glob.parse(null!)));
+
+		assert.ok(glob.isEmptyPattern(glob.parse({})));
+		assert.ok(glob.isEmptyPattern(glob.parse({ '': true })));
+		assert.ok(glob.isEmptyPattern(glob.parse({ '**/*.js': false })));
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

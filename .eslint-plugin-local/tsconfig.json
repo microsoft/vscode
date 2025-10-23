@@ -1,0 +1,26 @@
+{
+	"compilerOptions": {
+		"target": "es2024",
+		"lib": [
+			"ES2024"
+		],
+		"module": "commonjs",
+		"esModuleInterop": true,
+		"alwaysStrict": true,
+		"allowJs": true,
+		"strict": true,
+		"exactOptionalPropertyTypes": false,
+		"useUnknownInCatchVariables": false,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"newLine": "lf",
+		"noEmit": true
+	},
+	"include": [
+		"**/*.ts",
+		"**/*.js"
+	],
+	"exclude": [
+		"node_modules/**"
+	]
+}

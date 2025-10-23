@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isLinux, isWindows, OS } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/path';
-import { validateFileName } from 'vs/workbench/contrib/files/browser/fileActions';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { TestFileService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { NullFilesConfigurationService } from 'vs/workbench/test/common/workbenchTestServices';
+import { join } from '../../../../../base/common/path.js';
+import { isLinux, isWindows, OS } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestPathService } from '../../../../test/browser/workbenchTestServices.js';
+import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
+import { validateFileName } from '../../browser/fileActions.js';
+import { ExplorerItem } from '../../common/explorerModel.js';
 
 
 suite('Files - View Model', function () {

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SequencerByKey } from 'vs/base/common/async';
-import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Lazy } from 'vs/base/common/lazy';
+import { SequencerByKey } from '../../../base/common/async.js';
+import { IEncryptionService } from '../../encryption/common/encryptionService.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { ILogService } from '../../log/common/log.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Lazy } from '../../../base/common/lazy.js';
 
 export const ISecretStorageService = createDecorator<ISecretStorageService>('secretStorageService');
 
@@ -19,11 +19,12 @@ export interface ISecretStorageProvider {
 	get(key: string): Promise<string | undefined>;
 	set(key: string, value: string): Promise<void>;
 	delete(key: string): Promise<void>;
+	keys?(): Promise<string[]>;
 }
 
 export interface ISecretStorageService extends ISecretStorageProvider {
 	readonly _serviceBrand: undefined;
-	onDidChangeSecret: Event<string>;
+	readonly onDidChangeSecret: Event<string>;
 }
 
 export class BaseSecretStorageService extends Disposable implements ISecretStorageService {
@@ -32,7 +33,7 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
 	private readonly _storagePrefix = 'secret://';
 
 	protected readonly onDidChangeSecretEmitter = this._register(new Emitter<string>());
-	onDidChangeSecret: Event<string> = this.onDidChangeSecretEmitter.event;
+	readonly onDidChangeSecret: Event<string> = this.onDidChangeSecretEmitter.event;
 
 	protected readonly _sequencer = new SequencerByKey<string>();
 
@@ -120,6 +121,16 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
 			this._logService.trace('[secrets] deleting secret for key:', fullKey);
 			storageService.remove(fullKey, StorageScope.APPLICATION);
 			this._logService.trace('[secrets] deleted secret for key:', fullKey);
+		});
+	}
+
+	keys(): Promise<string[]> {
+		return this._sequencer.queue('__keys__', async () => {
+			const storageService = await this.resolvedStorageService;
+			this._logService.trace('[secrets] fetching keys of all secrets');
+			const allKeys = storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this._logService.trace('[secrets] fetched keys of all secrets');
+			return allKeys.filter(key => key.startsWith(this._storagePrefix)).map(key => key.slice(this._storagePrefix.length));
 		});
 	}
 

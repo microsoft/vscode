@@ -29,7 +29,7 @@ export function inferredProjectCompilerOptions(
 		module: (version.gte(API.v540) ? 'Preserve' : 'ESNext') as Proto.ModuleKind,
 		moduleResolution: (version.gte(API.v540) ? 'Bundler' : 'Node') as Proto.ModuleResolutionKind,
 		target: 'ES2022' as Proto.ScriptTarget,
-		jsx: 'react' as Proto.JsxEmit,
+		jsx: 'react-jsx' as Proto.JsxEmit,
 	};
 
 	if (version.gte(API.v500)) {
@@ -55,6 +55,10 @@ export function inferredProjectCompilerOptions(
 		projectConfig.strictFunctionTypes = true;
 	}
 
+	if (serviceConfig.implicitProjectConfiguration.strict) {
+		projectConfig.strict = true;
+	}
+
 	if (serviceConfig.implicitProjectConfiguration.module) {
 		projectConfig.module = serviceConfig.implicitProjectConfiguration.module as Proto.ModuleKind;
 	}
@@ -76,6 +80,10 @@ function inferredProjectConfigSnippet(
 	config: TypeScriptServiceConfiguration
 ) {
 	const baseConfig = inferredProjectCompilerOptions(version, projectType, config);
+	if (projectType === ProjectType.TypeScript) {
+		delete baseConfig.allowImportingTsExtensions;
+	}
+
 	const compilerOptions = Object.keys(baseConfig).map(key => `"${key}": ${JSON.stringify(baseConfig[key])}`);
 	return new vscode.SnippetString(`{
 	"compilerOptions": {

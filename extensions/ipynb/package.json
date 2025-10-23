@@ -10,7 +10,6 @@
     "vscode": "^1.57.0"
   },
   "enabledApiProposals": [
-    "documentPaste",
     "diffContentOptions"
   ],
   "activationEvents": [
@@ -22,8 +21,8 @@
     "workspace",
     "ui"
   ],
-  "main": "./out/ipynbMain.js",
-  "browser": "./dist/browser/ipynbMain.js",
+  "main": "./out/ipynbMain.node.js",
+  "browser": "./dist/browser/ipynbMain.browser.js",
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
@@ -39,6 +38,15 @@
             "scope": "resource",
             "markdownDescription": "%ipynb.pasteImagesAsAttachments.enabled%",
             "default": true
+          },
+          "ipynb.experimental.serialization": {
+            "type": "boolean",
+            "scope": "resource",
+            "markdownDescription": "%ipynb.experimental.serialization%",
+            "default": true,
+            "tags": [
+              "experimental"
+            ]
           }
         }
       }
@@ -61,6 +69,17 @@
       {
         "command": "notebook.cellOutput.copy",
         "title": "%copyCellOutput.title%",
+        "category": "Notebook"
+      },
+      {
+        "command": "notebook.cellOutput.addToChat",
+        "title": "%addCellOutputToChat.title%",
+        "category": "Notebook",
+        "enablement": "chatIsEnabled"
+      },
+      {
+        "command": "notebook.cellOutput.openInTextEditor",
+        "title": "%openCellOutput.title%",
         "category": "Notebook"
       }
     ],
@@ -108,12 +127,30 @@
         {
           "command": "notebook.cellOutput.copy",
           "when": "notebookCellHasOutputs"
+        },
+        {
+          "command": "notebook.cellOutput.openInTextEditor",
+          "when": "false"
         }
       ],
       "webview/context": [
         {
           "command": "notebook.cellOutput.copy",
-          "when": "webviewId == 'notebook.output' && webviewSection == 'image'"
+          "when": "webviewId == 'notebook.output' && webviewSection == 'image'",
+          "group": "context@1"
+        },
+        {
+          "command": "notebook.cellOutput.copy",
+          "when": "webviewId == 'notebook.output' && webviewSection == 'text'"
+        },
+        {
+          "command": "notebook.cellOutput.addToChat",
+          "when": "webviewId == 'notebook.output' && (webviewSection == 'text' || webviewSection == 'image')",
+          "group": "context@2"
+        },
+        {
+          "command": "notebook.cellOutput.openInTextEditor",
+          "when": "webviewId == 'notebook.output' && webviewSection == 'text'"
         }
       ]
     }
@@ -121,7 +158,7 @@
   "scripts": {
     "compile": "npx gulp compile-extension:ipynb && npm run build-notebook",
     "watch": "npx gulp watch-extension:ipynb",
-    "build-notebook": "node ./esbuild"
+    "build-notebook": "node ./esbuild.mjs"
   },
   "dependencies": {
     "@enonic/fnv-plus": "^1.3.0",
@@ -129,7 +166,8 @@
   },
   "devDependencies": {
     "@jupyterlab/nbformat": "^3.2.9",
-    "@types/markdown-it": "12.2.3"
+    "@types/markdown-it": "12.2.3",
+    "@types/node": "^22.18.10"
   },
   "repository": {
     "type": "git",

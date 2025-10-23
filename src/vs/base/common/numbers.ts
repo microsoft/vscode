@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from './assert.js';
+
 export function clamp(value: number, min: number, max: number): number {
 	return Math.min(Math.max(value, min), max);
 }
@@ -95,4 +97,9 @@ export function isPointWithinTriangle(
 	const v = (dot00 * dot12 - dot01 * dot02) * invDenom;
 
 	return u >= 0 && v >= 0 && u + v < 1;
+}
+
+export function randomChance(p: number): boolean {
+	assert(p >= 0 && p <= 1, 'p must be between 0 and 1');
+	return Math.random() < p;
 }

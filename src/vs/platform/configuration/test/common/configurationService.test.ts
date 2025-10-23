@@ -4,22 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ConfigurationTarget, isConfigured } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
-import { NullPolicyService } from 'vs/platform/policy/common/policy';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Event } from '../../../../base/common/event.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ConfigurationTarget, isConfigured } from '../../common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../common/configurationRegistry.js';
+import { ConfigurationService } from '../../common/configurationService.js';
+import { IFileService } from '../../../files/common/files.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { FilePolicyService } from '../../../policy/common/filePolicyService.js';
+import { NullPolicyService } from '../../../policy/common/policy.js';
+import { Registry } from '../../../registry/common/platform.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 
 suite('ConfigurationService.test.ts', () => {
 
@@ -374,7 +375,9 @@ suite('ConfigurationService.test.ts', () => {
 					'default': 'isSet',
 					policy: {
 						name: 'configurationService.policySetting',
+						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
+						localization: { description: { key: '', value: '' }, }
 					}
 				}
 			}

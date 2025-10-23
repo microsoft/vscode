@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { stub } from 'sinon';
-import { tail2 } from 'vs/base/common/arrays';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { AsyncEmitter, DebounceEmitter, DynamicListEventMultiplexer, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, ListenerLeakError, ListenerRefusalError, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, DisposableTracker } from 'vs/base/common/lifecycle';
-import { observableValue, transaction } from 'vs/base/common/observable';
-import { MicrotaskDelay } from 'vs/base/common/symbols';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { timeout } from '../../common/async.js';
+import { CancellationToken } from '../../common/cancellation.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../common/errors.js';
+import { AsyncEmitter, DebounceEmitter, DynamicListEventMultiplexer, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, ListenerLeakError, ListenerRefusalError, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue } from '../../common/event.js';
+import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, DisposableTracker } from '../../common/lifecycle.js';
+import { observableValue, transaction } from '../../common/observable.js';
+import { MicrotaskDelay } from '../../common/symbols.js';
+import { runWithFakedTimers } from './timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { tail } from '../../common/arrays.js';
 
 namespace Samples {
 
@@ -34,7 +34,7 @@ namespace Samples {
 
 		private readonly _onDidChange = new Emitter<string>();
 
-		onDidChange: Event<string> = this._onDidChange.event;
+		readonly onDidChange: Event<string> = this._onDidChange.event;
 
 		setText(value: string) {
 			//...
@@ -308,6 +308,27 @@ suite('Event', function () {
 		assert.strictEqual(lastCount, 1);
 	});
 
+	test('onDidAddListener', () => {
+		let count = 0;
+		const a = ds.add(new Emitter({
+			onDidAddListener() { count += 1; }
+		}));
+
+		assert.strictEqual(count, 0);
+
+		let subscription = ds.add(a.event(function () { }));
+		assert.strictEqual(count, 1);
+
+		subscription.dispose();
+		assert.strictEqual(count, 1);
+
+		subscription = ds.add(a.event(function () { }));
+		assert.strictEqual(count, 2);
+
+		subscription.dispose();
+		assert.strictEqual(count, 2);
+	});
+
 	test('onWillRemoveListener', () => {
 		let count = 0;
 		const a = ds.add(new Emitter({
@@ -384,8 +405,8 @@ suite('Event', function () {
 		}
 
 		assert.deepStrictEqual(allError.length, 5);
-		const [start, tail] = tail2(allError);
-		assert.ok(tail instanceof ListenerRefusalError);
+		const [start, rest] = tail(allError);
+		assert.ok(rest instanceof ListenerRefusalError);
 
 		for (const item of start) {
 			assert.ok(item instanceof ListenerLeakError);
@@ -509,12 +530,6 @@ suite('Event', function () {
 
 		// assert that all events are delivered in order
 		assert.deepStrictEqual(listener2Events, ['e1', 'e2', 'e3']);
-	});
-
-	test('Cannot read property \'_actual\' of undefined #142204', function () {
-		const e = ds.add(new Emitter<number>());
-		const dispo = e.event(() => { });
-		dispo.dispose.call(undefined);  // assert that disposable can be called with this
 	});
 });
 
@@ -1200,48 +1215,6 @@ suite('Event utils', () => {
 		listener.dispose(); // should not crash
 	});
 
-	suite('fromPromise', () => {
-
-		test('not yet resolved', async function () {
-			return new Promise(resolve => {
-				let promise = new DeferredPromise<number>();
-
-				ds.add(Event.fromPromise(promise.p)(e => {
-					assert.strictEqual(e, 1);
-
-					promise = new DeferredPromise();
-
-					ds.add(Event.fromPromise(promise.p)(() => {
-						resolve();
-					}));
-
-					promise.error(undefined);
-				}));
-
-				promise.complete(1);
-			});
-		});
-
-		test('already resolved', async function () {
-			return new Promise(resolve => {
-				let promise = new DeferredPromise<number>();
-				promise.complete(1);
-
-				ds.add(Event.fromPromise(promise.p)(e => {
-					assert.strictEqual(e, 1);
-
-					promise = new DeferredPromise();
-					promise.error(undefined);
-
-					ds.add(Event.fromPromise(promise.p)(() => {
-						resolve();
-					}));
-				}));
-
-			});
-		});
-	});
-
 	suite('Relay', () => {
 		test('should input work', () => {
 			const e1 = ds.add(new Emitter<number>());
@@ -1518,6 +1491,27 @@ suite('Event utils', () => {
 			await timeout(1);
 			assert.deepStrictEqual(calls, [1]);
 		});
+	});
+
+	test('issue #230401', () => {
+		let count = 0;
+		const emitter = ds.add(new Emitter<void>());
+		const disposables = ds.add(new DisposableStore());
+		ds.add(emitter.event(() => {
+			count++;
+			disposables.add(emitter.event(() => {
+				count++;
+			}));
+			disposables.add(emitter.event(() => {
+				count++;
+			}));
+			disposables.clear();
+		}));
+		ds.add(emitter.event(() => {
+			count++;
+		}));
+		emitter.fire();
+		assert.deepStrictEqual(count, 2);
 	});
 
 	suite('chain2', () => {

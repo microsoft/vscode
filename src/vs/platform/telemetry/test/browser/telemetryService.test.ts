@@ -5,17 +5,17 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import sinonTest from 'sinon-test';
-import { mainWindow } from 'vs/base/browser/window';
-import * as Errors from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { TelemetryConfiguration, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { mainWindow } from '../../../../base/browser/window.js';
+import * as Errors from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import product from '../../../product/common/product.js';
+import { IProductService } from '../../../product/common/productService.js';
+import ErrorTelemetry from '../../browser/errorTelemetry.js';
+import { TelemetryConfiguration, TelemetryLevel } from '../../common/telemetry.js';
+import { ITelemetryServiceConfig, TelemetryService } from '../../common/telemetryService.js';
+import { ITelemetryAppender, NullAppender } from '../../common/telemetryUtils.js';
 
 const sinonTestFn = sinonTest(sinon);
 
@@ -278,7 +278,7 @@ suite('TelemetryService', () => {
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		const testError = new Error('test');
-		(<any>mainWindow.onerror)('Error Message', 'file.js', 2, 42, testError);
+		(mainWindow.onerror)('Error Message', 'file.js', 2, 42, testError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.alwaysCalledWithExactly('Error Message', 'file.js', 2, 42, testError), true);
@@ -308,7 +308,7 @@ suite('TelemetryService', () => {
 		const personInfoWithSpaces = settings.personalInfo.slice(0, 2) + ' ' + settings.personalInfo.slice(2);
 		const dangerousFilenameError: any = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
-		(<any>mainWindow.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo.replace(settings.personalInfo, personInfoWithSpaces) + '/test.js', 2, 42, dangerousFilenameError);
+		mainWindow.onerror('dangerousFilename', settings.dangerousPathWithImportantInfo.replace(settings.personalInfo, personInfoWithSpaces) + '/test.js', 2, 42, dangerousFilenameError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.callCount, 1);
@@ -331,14 +331,14 @@ suite('TelemetryService', () => {
 
 		let dangerousFilenameError: any = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
-		(<any>mainWindow.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
+		mainWindow.onerror('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
 		clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 		assert.strictEqual(errorStub.callCount, 1);
 		assert.strictEqual(testAppender.events[0].data.file.indexOf(settings.dangerousPathWithImportantInfo), -1);
 
 		dangerousFilenameError = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
-		(<any>mainWindow.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
+		mainWindow.onerror('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
 		clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 		assert.strictEqual(errorStub.callCount, 2);
 		assert.strictEqual(testAppender.events[0].data.file.indexOf(settings.dangerousPathWithImportantInfo), -1);
@@ -389,7 +389,7 @@ suite('TelemetryService', () => {
 
 		const dangerousPathWithoutImportantInfoError: any = new Error('dangerousPathWithoutImportantInfo');
 		dangerousPathWithoutImportantInfoError.stack = settings.stack;
-		(<any>mainWindow.onerror)(settings.dangerousPathWithoutImportantInfo, 'test.js', 2, 42, dangerousPathWithoutImportantInfoError);
+		mainWindow.onerror(settings.dangerousPathWithoutImportantInfo, 'test.js', 2, 42, dangerousPathWithoutImportantInfoError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.callCount, 1);
@@ -451,7 +451,7 @@ suite('TelemetryService', () => {
 
 		const dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
 		dangerousPathWithImportantInfoError.stack = settings.stack;
-		(<any>mainWindow.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
+		mainWindow.onerror(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.callCount, 1);
@@ -550,7 +550,7 @@ suite('TelemetryService', () => {
 
 		const dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
 		dangerousPathWithImportantInfoError.stack = settings.stack;
-		(<any>mainWindow.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
+		mainWindow.onerror(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.callCount, 1);
@@ -614,7 +614,7 @@ suite('TelemetryService', () => {
 
 		const missingModelError: any = new Error('missingModelMessage');
 		missingModelError.stack = settings.stack;
-		(<any>mainWindow.onerror)(settings.missingModelMessage, 'test.js', 2, 42, missingModelError);
+		mainWindow.onerror(settings.missingModelMessage, 'test.js', 2, 42, missingModelError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.callCount, 1);
@@ -683,7 +683,7 @@ suite('TelemetryService', () => {
 
 			const noSuchFileError: any = new Error('noSuchFileMessage');
 			noSuchFileError.stack = settings.stack;
-			(<any>mainWindow.onerror)(settings.noSuchFileMessage, 'test.js', 2, 42, noSuchFileError);
+			mainWindow.onerror(settings.noSuchFileMessage, 'test.js', 2, 42, noSuchFileError);
 			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 			assert.strictEqual(errorStub.callCount, 1);
@@ -726,7 +726,7 @@ suite('TelemetryService', () => {
 		}, new class extends TestConfigurationService {
 			override onDidChangeConfiguration = emitter.event;
 			override getValue() {
-				return telemetryLevel as any;
+				return telemetryLevel;
 			}
 		}(), TestProductService);
 

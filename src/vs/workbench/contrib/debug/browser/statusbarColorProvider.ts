@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ColorTransformType, asCssVariable, asCssVariableName, registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, State, IDebugSession, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { STATUS_BAR_FOREGROUND, STATUS_BAR_BORDER, COMMAND_CENTER_BACKGROUND } from 'vs/workbench/common/theme';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { localize } from '../../../../nls.js';
+import { asCssVariable, asCssVariableName, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IDebugService, State, IDebugSession, IDebugConfiguration } from '../common/debug.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { STATUS_BAR_FOREGROUND, STATUS_BAR_BORDER, COMMAND_CENTER_BACKGROUND } from '../../../common/theme.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 
 
 // colors for theming
@@ -31,21 +31,11 @@ export const STATUS_BAR_DEBUGGING_FOREGROUND = registerColor('statusBar.debuggin
 	hcLight: '#FFFFFF'
 }, localize('statusBarDebuggingForeground', "Status bar foreground color when a program is being debugged. The status bar is shown in the bottom of the window"));
 
-export const STATUS_BAR_DEBUGGING_BORDER = registerColor('statusBar.debuggingBorder', {
-	dark: STATUS_BAR_BORDER,
-	light: STATUS_BAR_BORDER,
-	hcDark: STATUS_BAR_BORDER,
-	hcLight: STATUS_BAR_BORDER
-}, localize('statusBarDebuggingBorder', "Status bar border color separating to the sidebar and editor when a program is being debugged. The status bar is shown in the bottom of the window"));
+export const STATUS_BAR_DEBUGGING_BORDER = registerColor('statusBar.debuggingBorder', STATUS_BAR_BORDER, localize('statusBarDebuggingBorder', "Status bar border color separating to the sidebar and editor when a program is being debugged. The status bar is shown in the bottom of the window"));
 
 export const COMMAND_CENTER_DEBUGGING_BACKGROUND = registerColor(
 	'commandCenter.debuggingBackground',
-	{
-		dark: { value: STATUS_BAR_DEBUGGING_BACKGROUND, op: ColorTransformType.Transparent, factor: 0.258 },
-		hcDark: { value: STATUS_BAR_DEBUGGING_BACKGROUND, op: ColorTransformType.Transparent, factor: 0.258 },
-		light: { value: STATUS_BAR_DEBUGGING_BACKGROUND, op: ColorTransformType.Transparent, factor: 0.258 },
-		hcLight: { value: STATUS_BAR_DEBUGGING_BACKGROUND, op: ColorTransformType.Transparent, factor: 0.258 }
-	},
+	transparent(STATUS_BAR_DEBUGGING_BACKGROUND, 0.258),
 	localize('commandCenter-activeBackground', "Command center background color when a program is being debugged"),
 	true
 );
@@ -54,6 +44,8 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 
 	private readonly disposables = new DisposableStore();
 	private disposable: IDisposable | undefined;
+
+	private readonly styleSheet = createStyleSheet();
 
 	private set enabled(enabled: boolean) {
 		if (enabled === !!this.disposable) {
@@ -77,7 +69,6 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 		@IDebugService private readonly debugService: IDebugService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@ILayoutService private readonly layoutService: ILayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this.debugService.onDidChangeState(this.update, this, this.disposables);
@@ -100,11 +91,12 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 		}
 
 		const isInCommandCenter = debugConfig.toolBarLocation === 'commandCenter';
-		this.layoutService.mainContainer.style.setProperty(asCssVariableName(COMMAND_CENTER_BACKGROUND), isInCommandCenter && isInDebugMode
-			? asCssVariable(COMMAND_CENTER_DEBUGGING_BACKGROUND)
-			: ''
-		);
 
+		this.styleSheet.textContent = isInCommandCenter && isInDebugMode ? `
+			.monaco-workbench {
+				${asCssVariableName(COMMAND_CENTER_BACKGROUND)}: ${asCssVariable(COMMAND_CENTER_DEBUGGING_BACKGROUND)};
+			}
+		` : '';
 	}
 
 	dispose(): void {

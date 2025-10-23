@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hide, show } from 'vs/base/browser/dom';
-import { getProgressAcccessibilitySignalScheduler } from 'vs/base/browser/ui/progressbar/progressAccessibilitySignal';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isNumber } from 'vs/base/common/types';
-import 'vs/css!./progressbar';
+import { hide, show } from '../../dom.js';
+import { getProgressAccessibilitySignalScheduler } from './progressAccessibilitySignal.js';
+import { RunOnceScheduler } from '../../../common/async.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../common/lifecycle.js';
+import { isNumber } from '../../../common/types.js';
+import './progressbar.css';
 
 const CSS_DONE = 'done';
 const CSS_ACTIVE = 'active';
@@ -177,7 +177,7 @@ export class ProgressBar extends Disposable {
 	}
 
 	/**
-	 * Tells the progress bar the total amount of work that has been completed.
+	 * Tells the progress bar the total amount of work (0 to 100) that has been completed.
 	 */
 	setWorked(value: number): ProgressBar {
 		value = Math.max(1, Number(value));
@@ -206,7 +206,7 @@ export class ProgressBar extends Disposable {
 
 	show(delay?: number): void {
 		this.showDelayedScheduler.cancel();
-		this.progressSignal.value = getProgressAcccessibilitySignalScheduler(ProgressBar.PROGRESS_SIGNAL_DEFAULT_DELAY);
+		this.progressSignal.value = getProgressAccessibilitySignalScheduler(ProgressBar.PROGRESS_SIGNAL_DEFAULT_DELAY);
 
 		if (typeof delay === 'number') {
 			this.showDelayedScheduler.schedule(delay);

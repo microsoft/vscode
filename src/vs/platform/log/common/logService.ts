@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { ILogger, ILogService, LogLevel, MultiplexLogger } from 'vs/platform/log/common/log';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { Event } from '../../../base/common/event.js';
+import { ILogger, ILogService, LogLevel, MultiplexLogger } from './log.js';
 
 export class LogService extends Disposable implements ILogService {
 
@@ -31,23 +31,23 @@ export class LogService extends Disposable implements ILogService {
 		return this.logger.getLevel();
 	}
 
-	trace(message: string, ...args: any[]): void {
+	trace(message: string, ...args: unknown[]): void {
 		this.logger.trace(message, ...args);
 	}
 
-	debug(message: string, ...args: any[]): void {
+	debug(message: string, ...args: unknown[]): void {
 		this.logger.debug(message, ...args);
 	}
 
-	info(message: string, ...args: any[]): void {
+	info(message: string, ...args: unknown[]): void {
 		this.logger.info(message, ...args);
 	}
 
-	warn(message: string, ...args: any[]): void {
+	warn(message: string, ...args: unknown[]): void {
 		this.logger.warn(message, ...args);
 	}
 
-	error(message: string | Error, ...args: any[]): void {
+	error(message: string | Error, ...args: unknown[]): void {
 		this.logger.error(message, ...args);
 	}
 

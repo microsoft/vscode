@@ -57,6 +57,15 @@
 	line-height: normal;
 }
 
+.explorer-folders-view .monaco-list-row .explorer-item .monaco-count-badge {
+	margin-left: 5px;
+	display: none;
+}
+
+.explorer-folders-view .monaco-list-row[aria-expanded="false"] .explorer-item.highlight-badge .monaco-count-badge {
+	display: inline-block;
+}
+
 .explorer-folders-view .explorer-item .monaco-icon-name-container.multiple > .label-name > .monaco-highlighted-label {
 	border-radius: 3px;
 }

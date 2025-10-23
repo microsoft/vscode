@@ -52,6 +52,12 @@
 .monaco-action-bar .checkbox-action-item {
 	display: flex;
 	align-items: center;
+	border-radius: 2px;
+	padding-right: 2px;
+}
+
+.monaco-action-bar .checkbox-action-item:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .monaco-action-bar .checkbox-action-item > .monaco-custom-toggle.monaco-checkbox {
@@ -60,9 +66,4 @@
 
 .monaco-action-bar .checkbox-action-item > .checkbox-label {
 	font-size: 12px;
-}
-
-/* hide check when unchecked */
-.monaco-custom-toggle.monaco-checkbox:not(.checked)::before {
-	visibility: hidden;
 }

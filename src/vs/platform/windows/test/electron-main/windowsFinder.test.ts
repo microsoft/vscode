@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { join } from 'vs/base/common/path';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI, UriDto } from 'vs/base/common/uri';
-import { ICommandAction } from 'vs/platform/action/common/action';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
-import { ICodeWindow, ILoadEvent, IWindowState } from 'vs/platform/window/electron-main/window';
-import { findWindowOnFile } from 'vs/platform/windows/electron-main/windowsFinder';
-import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { FileAccess } from 'vs/base/common/network';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { join } from '../../../../base/common/path.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { URI, UriDto } from '../../../../base/common/uri.js';
+import { ICommandAction } from '../../../action/common/action.js';
+import { NativeParsedArgs } from '../../../environment/common/argv.js';
+import { INativeWindowConfiguration } from '../../../window/common/window.js';
+import { ICodeWindow, ILoadEvent, IWindowState } from '../../../window/electron-main/window.js';
+import { findWindowOnFile } from '../../electron-main/windowsFinder.js';
+import { toWorkspaceFolders } from '../../../workspaces/common/workspaces.js';
+import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { FocusMode } from '../../../native/common/native.js';
 
 suite('WindowsFinder', () => {
 
@@ -29,19 +30,19 @@ suite('WindowsFinder', () => {
 	};
 
 	const testWorkspaceFolders = toWorkspaceFolders([{ path: join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: join(fixturesFolder, 'vscode_workspace_2_folder') }], testWorkspace.configPath, extUriBiasedIgnorePathCase);
-	const localWorkspaceResolver = async (workspace: any) => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: testWorkspaceFolders } : undefined; };
+	const localWorkspaceResolver = async (workspace: IWorkspaceIdentifier) => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: testWorkspaceFolders } : undefined; };
 
 	function createTestCodeWindow(options: { lastFocusTime: number; openedFolderUri?: URI; openedWorkspace?: IWorkspaceIdentifier }): ICodeWindow {
 		return new class implements ICodeWindow {
-			onWillLoad: Event<ILoadEvent> = Event.None;
+			readonly onWillLoad: Event<ILoadEvent> = Event.None;
 			onDidMaximize = Event.None;
 			onDidUnmaximize = Event.None;
-			onDidTriggerSystemContextMenu: Event<{ x: number; y: number }> = Event.None;
-			onDidSignalReady: Event<void> = Event.None;
-			onDidClose: Event<void> = Event.None;
-			onDidDestroy: Event<void> = Event.None;
-			onDidEnterFullScreen: Event<void> = Event.None;
-			onDidLeaveFullScreen: Event<void> = Event.None;
+			readonly onDidTriggerSystemContextMenu: Event<{ x: number; y: number }> = Event.None;
+			readonly onDidSignalReady: Event<void> = Event.None;
+			readonly onDidClose: Event<void> = Event.None;
+			readonly onDidDestroy: Event<void> = Event.None;
+			readonly onDidEnterFullScreen: Event<void> = Event.None;
+			readonly onDidLeaveFullScreen: Event<void> = Event.None;
 			whenClosedOrLoaded: Promise<void> = Promise.resolve();
 			id: number = -1;
 			win: Electron.BrowserWindow = null!;
@@ -60,22 +61,21 @@ suite('WindowsFinder', () => {
 			addTabbedWindow(window: ICodeWindow): void { throw new Error('Method not implemented.'); }
 			load(config: INativeWindowConfiguration, options: { isReload?: boolean }): void { throw new Error('Method not implemented.'); }
 			reload(cli?: NativeParsedArgs): void { throw new Error('Method not implemented.'); }
-			focus(options?: { force: boolean }): void { throw new Error('Method not implemented.'); }
+			focus(options?: { mode: FocusMode }): void { throw new Error('Method not implemented.'); }
 			close(): void { throw new Error('Method not implemented.'); }
 			getBounds(): Electron.Rectangle { throw new Error('Method not implemented.'); }
-			send(channel: string, ...args: any[]): void { throw new Error('Method not implemented.'); }
-			sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void { throw new Error('Method not implemented.'); }
+			send(channel: string, ...args: unknown[]): void { throw new Error('Method not implemented.'); }
+			sendWhenReady(channel: string, token: CancellationToken, ...args: unknown[]): void { throw new Error('Method not implemented.'); }
 			toggleFullScreen(): void { throw new Error('Method not implemented.'); }
 			setRepresentedFilename(name: string): void { throw new Error('Method not implemented.'); }
 			getRepresentedFilename(): string | undefined { throw new Error('Method not implemented.'); }
 			setDocumentEdited(edited: boolean): void { throw new Error('Method not implemented.'); }
 			isDocumentEdited(): boolean { throw new Error('Method not implemented.'); }
-			handleTitleDoubleClick(): void { throw new Error('Method not implemented.'); }
 			updateTouchBar(items: UriDto<ICommandAction>[][]): void { throw new Error('Method not implemented.'); }
 			serializeWindowState(): IWindowState { throw new Error('Method not implemented'); }
 			updateWindowControls(options: { height?: number | undefined; backgroundColor?: string | undefined; foregroundColor?: string | undefined }): void { throw new Error('Method not implemented.'); }
 			notifyZoomLevel(level: number): void { throw new Error('Method not implemented.'); }
-			matches(webContents: any): boolean { throw new Error('Method not implemented.'); }
+			matches(webContents: Electron.WebContents): boolean { throw new Error('Method not implemented.'); }
 			dispose(): void { }
 		};
 	}

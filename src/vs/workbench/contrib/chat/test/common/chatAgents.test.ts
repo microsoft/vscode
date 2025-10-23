@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MockObject, mockObject } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ChatAgentService, IChatAgentData, IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ChatAgentService, IChatAgentData, IChatAgentImplementation } from '../../common/chatAgents.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 const testAgentId = 'testAgent';
 const testAgentData: IChatAgentData = {
@@ -16,20 +17,34 @@ const testAgentData: IChatAgentData = {
 	name: 'Test Agent',
 	extensionDisplayName: '',
 	extensionId: new ExtensionIdentifier(''),
+	extensionVersion: undefined,
 	extensionPublisherId: '',
 	locations: [],
+	modes: [],
 	metadata: {},
 	slashCommands: [],
+	disambiguation: [],
 };
+
+class TestingContextKeyService extends MockContextKeyService {
+	private _contextMatchesRulesReturnsTrue = false;
+	public contextMatchesRulesReturnsTrue() {
+		this._contextMatchesRulesReturnsTrue = true;
+	}
+
+	public override contextMatchesRules(rules: ContextKeyExpression): boolean {
+		return this._contextMatchesRulesReturnsTrue;
+	}
+}
 
 suite('ChatAgents', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let chatAgentService: IChatAgentService;
-	let contextKeyService: MockObject<IContextKeyService>;
+	let chatAgentService: ChatAgentService;
+	let contextKeyService: TestingContextKeyService;
 	setup(() => {
-		contextKeyService = mockObject<IContextKeyService>()();
-		chatAgentService = new ChatAgentService(contextKeyService as any);
+		contextKeyService = new TestingContextKeyService();
+		chatAgentService = store.add(new ChatAgentService(contextKeyService, new TestConfigurationService()));
 	});
 
 	test('registerAgent', async () => {
@@ -56,7 +71,7 @@ suite('ChatAgents', function () {
 		}));
 		assert.strictEqual(chatAgentService.getAgents().length, 0);
 
-		contextKeyService.contextMatchesRules.returns(true);
+		contextKeyService.contextMatchesRulesReturnsTrue();
 		assert.strictEqual(chatAgentService.getAgents().length, 1);
 	});
 

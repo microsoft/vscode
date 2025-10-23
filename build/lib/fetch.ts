@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import * as VinylFile from 'vinyl';
-import * as log from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-import * as crypto from 'crypto';
-import * as through2 from 'through2';
+import es from 'event-stream';
+import VinylFile from 'vinyl';
+import log from 'fancy-log';
+import ansiColors from 'ansi-colors';
+import crypto from 'crypto';
+import through2 from 'through2';
 import { Stream } from 'stream';
 
 export interface IFetchOptions {
@@ -42,7 +42,7 @@ export function fetchUrls(urls: string[] | string, options: IFetchOptions): es.T
 }
 
 export async function fetchUrl(url: string, options: IFetchOptions, retries = 10, retryDelay = 1000): Promise<VinylFile> {
-	const verbose = !!options.verbose ?? (!!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY']);
+	const verbose = !!options.verbose || !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
 	try {
 		let startTime = 0;
 		if (verbose) {
@@ -54,7 +54,7 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 		try {
 			const response = await fetch(url, {
 				...options.nodeFetchOptions,
-				signal: controller.signal as any /* Typings issue with lib.dom.d.ts */
+				signal: controller.signal
 			});
 			if (verbose) {
 				log(`Fetch completed: Status ${response.status}. Took ${ansiColors.magenta(`${new Date().getTime() - startTime} ms`)}`);

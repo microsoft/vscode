@@ -3,46 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
+import { IToolAndToolSetEnablementMap } from '../../common/languageModelToolsService.js';
 
 export class MockChatVariablesService implements IChatVariablesService {
 	_serviceBrand: undefined;
-	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable {
-		throw new Error('Method not implemented.');
-	}
 
-	getVariable(name: string): IChatVariableData | undefined {
-		throw new Error('Method not implemented.');
-	}
-
-	hasVariable(name: string): boolean {
-		throw new Error('Method not implemented.');
-	}
-
-	getVariables(): Iterable<Readonly<IChatVariableData>> {
-		throw new Error('Method not implemented.');
-	}
+	private _dynamicVariables = new Map<string, readonly IDynamicVariable[]>();
+	private _selectedToolAndToolSets = new Map<string, IToolAndToolSetEnablementMap>();
 
 	getDynamicVariables(sessionId: string): readonly IDynamicVariable[] {
-		return [];
+		return this._dynamicVariables.get(sessionId) ?? [];
 	}
 
-	async resolveVariables(prompt: IParsedChatRequest, attachedContextVariables: IChatRequestVariableEntry[] | undefined, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData> {
-		return {
-			variables: []
-		};
+	getSelectedToolAndToolSets(sessionId: string): IToolAndToolSetEnablementMap {
+		return this._selectedToolAndToolSets.get(sessionId) ?? new Map();
 	}
 
-	attachContext(name: string, value: unknown, location: ChatAgentLocation): void {
-		throw new Error('Method not implemented.');
+	setDynamicVariables(sessionId: string, variables: readonly IDynamicVariable[]): void {
+		this._dynamicVariables.set(sessionId, variables);
 	}
 
-	resolveVariable(variableName: string, promptText: string, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue> {
-		throw new Error('Method not implemented.');
+	setSelectedToolAndToolSets(sessionId: string, tools: IToolAndToolSetEnablementMap): void {
+		this._selectedToolAndToolSets.set(sessionId, tools);
 	}
 }

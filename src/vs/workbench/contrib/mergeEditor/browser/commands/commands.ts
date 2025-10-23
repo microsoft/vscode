@@ -3,25 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { basename } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize, localize2 } from 'vs/nls';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IEditorIdentifier, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
-import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import { IMergeEditorInputModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
-import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges, StorageCloseWithConflicts } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { ILocalizedString } from '../../../../../platform/action/common/action.js';
+import { Action2, IAction2Options, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { IEditorIdentifier, IResourceMergeEditorInput } from '../../../../common/editor.js';
+import { MergeEditorInput, MergeEditorInputData } from '../mergeEditorInput.js';
+import { IMergeEditorInputModel } from '../mergeEditorInputModel.js';
+import { MergeEditor } from '../view/mergeEditor.js';
+import { MergeEditorViewModel } from '../view/viewModel.js';
+import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges, StorageCloseWithConflicts } from '../../common/mergeEditor.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { transaction } from '../../../../../base/common/observable.js';
+import { ModifiedBaseRangeStateKind } from '../model/modifiedBaseRange.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 abstract class MergeEditorAction extends Action2 {
 	constructor(desc: Readonly<IAction2Options>) {
@@ -54,7 +58,7 @@ abstract class MergeEditorAction2 extends Action2 {
 		super(desc);
 	}
 
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
 			const vm = activeEditorPane.viewModel.get();
@@ -62,6 +66,7 @@ abstract class MergeEditorAction2 extends Action2 {
 				return;
 			}
 
+			// eslint-disable-next-line local/code-no-any-casts
 			return this.runWithMergeEditor({
 				viewModel: vm,
 				inputModel: activeEditorPane.inputModel.get()!,
@@ -74,7 +79,7 @@ abstract class MergeEditorAction2 extends Action2 {
 		}
 	}
 
-	abstract runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: any[]): unknown;
+	abstract runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: unknown[]): unknown;
 }
 
 export class OpenMergeEditor extends Action2 {
@@ -513,7 +518,7 @@ export class AcceptAllInput1 extends MergeEditorAction {
 		super({
 			id: 'merge.acceptAllInput1',
 			category: mergeEditorCategory,
-			title: localize2('merge.acceptAllInput1', "Accept All Changes from Left"),
+			title: localize2('merge.acceptAllInput1', "Accept All Incoming Changes from Left"),
 			f1: true,
 			precondition: ctxIsMergeEditor,
 			menu: { id: MenuId.MergeInput1Toolbar, group: 'primary' },
@@ -531,7 +536,7 @@ export class AcceptAllInput2 extends MergeEditorAction {
 		super({
 			id: 'merge.acceptAllInput2',
 			category: mergeEditorCategory,
-			title: localize2('merge.acceptAllInput2', "Accept All Changes from Right"),
+			title: localize2('merge.acceptAllInput2', "Accept All Current Changes from Right"),
 			f1: true,
 			precondition: ctxIsMergeEditor,
 			menu: { id: MenuId.MergeInput2Toolbar, group: 'primary' },
@@ -577,6 +582,41 @@ export class ResetCloseWithConflictsChoice extends Action2 {
 	}
 }
 
+export class AcceptAllCombination extends MergeEditorAction2 {
+	constructor() {
+		super({
+			id: 'mergeEditor.acceptAllCombination',
+			category: mergeEditorCategory,
+			title: localize2('mergeEditor.acceptAllCombination', "Accept All Combination"),
+			f1: true,
+		});
+	}
+
+	override runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: unknown[]) {
+		const { viewModel } = context;
+		const modifiedBaseRanges = viewModel.model.modifiedBaseRanges.get();
+		const model = viewModel.model;
+		transaction((tx) => {
+			for (const m of modifiedBaseRanges) {
+				const state = model.getState(m).get();
+				if (state.kind !== ModifiedBaseRangeStateKind.unrecognized && !state.isInputIncluded(1) && (!state.isInputIncluded(2) || !viewModel.shouldUseAppendInsteadOfAccept.get()) && m.canBeCombined) {
+					model.setState(
+						m,
+						state
+							.withInputValue(1, true)
+							.withInputValue(2, true, true),
+						true,
+						tx
+					);
+					model.telemetry.reportSmartCombinationInvoked(state.includesInput(2));
+				}
+			}
+		});
+		return { success: true };
+
+	}
+}
+
 // this is an API command
 export class AcceptMerge extends MergeEditorAction2 {
 	constructor() {
@@ -584,8 +624,15 @@ export class AcceptMerge extends MergeEditorAction2 {
 			id: 'mergeEditor.acceptMerge',
 			category: mergeEditorCategory,
 			title: localize2('mergeEditor.acceptMerge', "Complete Merge"),
-			f1: false,
-			precondition: ctxIsMergeEditor
+			f1: true,
+			precondition: ctxIsMergeEditor,
+			keybinding: [
+				{
+					primary: KeyMod.CtrlCmd | KeyCode.Enter,
+					weight: KeybindingWeight.EditorContrib,
+					when: ctxIsMergeEditor,
+				}
+			]
 		});
 	}
 
@@ -613,5 +660,36 @@ export class AcceptMerge extends MergeEditorAction2 {
 		return {
 			successful: true
 		};
+	}
+}
+
+export class ToggleBetweenInputs extends MergeEditorAction2 {
+	constructor() {
+		super({
+			id: 'mergeEditor.toggleBetweenInputs',
+			category: mergeEditorCategory,
+			title: localize2('mergeEditor.toggleBetweenInputs', "Toggle Between Merge Editor Inputs"),
+			f1: true,
+			precondition: ctxIsMergeEditor,
+			keybinding: [
+				{
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
+					// Override reopen closed editor
+					weight: KeybindingWeight.WorkbenchContrib + 10,
+					when: ctxIsMergeEditor,
+				}
+			]
+		});
+	}
+
+	override runWithMergeEditor({ viewModel }: MergeEditorAction2Args, accessor: ServicesAccessor) {
+		const input1IsFocused = viewModel.inputCodeEditorView1.editor.hasWidgetFocus();
+
+		// Toggle focus between inputs
+		if (input1IsFocused) {
+			viewModel.inputCodeEditorView2.editor.focus();
+		} else {
+			viewModel.inputCodeEditorView1.editor.focus();
+		}
 	}
 }
