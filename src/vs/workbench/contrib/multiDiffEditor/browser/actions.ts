@@ -98,7 +98,7 @@ export class GoToNextChangeAction extends Action2 {
 			return;
 		}
 
-		(activeEditorPane as MultiDiffEditor).goToNextChange();
+		activeEditorPane.goToNextChange();
 	}
 }
 
@@ -132,7 +132,7 @@ export class GoToPreviousChangeAction extends Action2 {
 			return;
 		}
 
-		(activeEditorPane as MultiDiffEditor).goToPreviousChange();
+		activeEditorPane.goToPreviousChange();
 	}
 }
 

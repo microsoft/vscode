@@ -426,14 +426,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		const nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
 
 		// Wrap around if needed
-		let targetIndex: number;
-		if (nextIndex >= viewItems.length) {
-			targetIndex = 0; // Wrap to first file
-		} else if (nextIndex < 0) {
-			targetIndex = viewItems.length - 1; // Wrap to last file
-		} else {
-			targetIndex = nextIndex;
-		}
+		const targetIndex = (nextIndex + viewItems.length) % viewItems.length;
 
 		const targetViewItem = viewItems[targetIndex];
 
