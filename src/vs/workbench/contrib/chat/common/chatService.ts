@@ -343,8 +343,6 @@ export type ConfirmedReason =
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
 	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
-	/** Arbitrary metadata returned by the tool's result (eg, structured command info). */
-	readonly toolMetadata?: unknown;
 	readonly confirmationMessages?: IToolConfirmationMessages;
 	readonly originMessage: string | IMarkdownString | undefined;
 	readonly invocationMessage: string | IMarkdownString;
@@ -543,7 +541,6 @@ export interface IToolResultOutputDetailsSerialized {
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
-	toolMetadata?: unknown;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;

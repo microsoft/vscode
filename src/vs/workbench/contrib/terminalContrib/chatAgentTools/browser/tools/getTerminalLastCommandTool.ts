@@ -10,8 +10,6 @@ import { localize } from '../../../../../../nls.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ToolDataSource, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type CountTokensCallback, type ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { getTerminalUri } from '../../../../terminal/browser/terminalUri.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 
 export const GetTerminalLastCommandToolData: IToolData = {
 	id: 'terminal_last_command',
@@ -26,7 +24,6 @@ export class GetTerminalLastCommandTool extends Disposable implements IToolImpl 
 
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 	}
@@ -114,24 +111,11 @@ export class GetTerminalLastCommandTool extends Disposable implements IToolImpl 
 			}
 		}
 
-		const workspace = this._workspaceContextService.getWorkspace();
-		const workspaceId = workspace?.id;
-		const terminalUri = getTerminalUri(workspaceId, activeInstance.instanceId, { title: activeInstance.title, commandId: lastCommand.id });
-
 		return {
 			content: [{
 				kind: 'text',
 				value: userPrompt.join('\n')
-			}],
-			toolResultDetails: [terminalUri],
-			toolMetadata: {
-				terminalCommand: {
-					commandId: lastCommand.id,
-					commandLine: lastCommand.command,
-					output: lastCommand.getOutput ? lastCommand.getOutput() ?? '' : ''
-				}
-			}
+			}]
 		};
 	}
 }
-

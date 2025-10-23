@@ -112,14 +112,6 @@ export interface INotebookOutputVariableEntry extends IBaseChatRequestVariableEn
 	readonly mimeType?: string;
 }
 
-export interface ITerminalCommandVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'terminalCommand';
-	readonly value: URI;
-	readonly commandId?: string;
-	readonly commandLine?: string;
-	readonly output: string;
-}
-
 export interface IDiagnosticVariableEntryFilterData {
 	readonly owner?: string;
 	readonly problemMessage?: string;
@@ -240,7 +232,6 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
-	| ITerminalCommandVariableEntry
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry;
 
@@ -256,44 +247,6 @@ export namespace IChatRequestVariableEntry {
 				? entry.value.uri
 				: undefined;
 	}
-}
-
-export function isTerminalCommandVariableEntry(entry: IChatRequestVariableEntry): entry is ITerminalCommandVariableEntry {
-	return entry.kind === 'terminalCommand';
-}
-
-export function toTerminalCommandVariableEntry(uri: URI): ITerminalCommandVariableEntry {
-	const query = uri.query ?? '';
-	const params = new URLSearchParams(query);
-	const commandId = params.get('command') ?? undefined;
-	const fragment = uri.fragment ?? undefined;
-	const label = fragment || localize('chat.terminalCommandAttachment.defaultName', "Terminal Command");
-	return {
-		id: uri.toString(true),
-		name: label,
-		kind: 'terminalCommand',
-		value: uri,
-		commandId,
-		commandLine: undefined,
-		output: '',
-		fullName: undefined,
-		icon: Codicon.terminal
-	};
-}
-
-export function toTerminalCommandVariableEntryFromData(uri: URI, commandId?: string, commandLine?: string, output: string = ''): ITerminalCommandVariableEntry {
-	const label = commandLine?.split('\n')[0] || uri.fragment || localize('chat.terminalCommandAttachment.defaultName', "Terminal Command");
-	return {
-		id: uri.toString(true),
-		name: label,
-		kind: 'terminalCommand',
-		value: uri,
-		commandId,
-		commandLine,
-		output,
-		fullName: commandLine,
-		icon: Codicon.terminal
-	};
 }
 
 
