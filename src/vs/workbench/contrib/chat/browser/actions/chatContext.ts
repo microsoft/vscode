@@ -285,12 +285,12 @@ export class TerminalContext implements IChatContextValueItem {
 		}
 		const attachment: IChatRequestVariableEntry = {
 			kind: 'terminalCommand',
-			id: this._resource.toString(),
+			id: `terminalCommand:${Date.now()}}`,
 			value: this._resource,
 			name: command.command,
 			command: command.command,
 			output: command.getOutput(),
-			exitCode: command.exitCode
+			exitCode: command.exitCode,
 		};
 		const cleanup = new DisposableStore();
 		let disposed = false;

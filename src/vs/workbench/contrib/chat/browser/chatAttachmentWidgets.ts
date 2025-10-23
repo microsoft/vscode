@@ -162,10 +162,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		}
 
 		if (resource.scheme === Schemas.vscodeTerminal) {
-			this.element.style.cursor = 'pointer';
-			this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, () => {
-				this.commandService.executeCommand('workbench.action.terminal.revealCommand', resource);
-			}));
+			this.commandService.executeCommand('workbench.action.terminal.revealCommand', resource);
 			return;
 		}
 
