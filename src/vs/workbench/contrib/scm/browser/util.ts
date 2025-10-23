@@ -128,7 +128,7 @@ class StatusBarActionViewItem extends ActionViewItem {
 				.map(element => {
 					if (typeof element === 'string') {
 						const span = document.createElement('span');
-						span.textContent = element.trim();
+						span.textContent = element;
 						return span;
 					}
 					return element;
