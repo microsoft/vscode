@@ -104,6 +104,11 @@ export class SessionsViewPane extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
+		// Set a smaller minimum body size for the local chat sessions provider
+		if (provider instanceof LocalChatSessionsProvider) {
+			this.minimumBodySize = 44; // Reduced from default 120 to allow 2 items (22px each)
+		}
+
 		// Listen for changes in the provider if it's a LocalChatSessionsProvider
 		if (provider instanceof LocalChatSessionsProvider) {
 			this._register(provider.onDidChange(() => {
