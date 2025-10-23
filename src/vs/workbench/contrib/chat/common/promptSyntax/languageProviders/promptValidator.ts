@@ -136,6 +136,7 @@ export class PromptValidator {
 			}
 		}
 		this.validateDescription(attributes, report);
+		this.validateArgumentHint(attributes, report);
 		switch (promptType) {
 			case PromptsType.prompt: {
 				const agent = this.validateAgent(attributes, report);
@@ -172,6 +173,20 @@ export class PromptValidator {
 		}
 	}
 
+	private validateArgumentHint(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
+		const argumentHintAttribute = attributes.find(attr => attr.key === 'argument-hint');
+		if (!argumentHintAttribute) {
+			return;
+		}
+		if (argumentHintAttribute.value.type !== 'string') {
+			report(toMarker(localize('promptValidator.argumentHintMustBeString', "The 'argument-hint' attribute must be a string."), argumentHintAttribute.range, MarkerSeverity.Error));
+			return;
+		}
+		if (argumentHintAttribute.value.value.trim().length === 0) {
+			report(toMarker(localize('promptValidator.argumentHintShouldNotBeEmpty', "The 'argument-hint' attribute should not be empty."), argumentHintAttribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+	}
 
 	private validateModel(attributes: IHeaderAttribute[], agentKind: ChatModeKind, report: (markers: IMarkerData) => void): void {
 		const attribute = attributes.find(attr => attr.key === 'model');
@@ -379,9 +394,9 @@ export class PromptValidator {
 }
 
 const allAttributeNames = {
-	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode', 'agent'],
+	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode', 'agent', 'argument-hint'],
 	[PromptsType.instructions]: ['description', 'applyTo', 'excludeAgent'],
-	[PromptsType.agent]: ['description', 'model', 'tools', 'advancedOptions', 'handoffs']
+	[PromptsType.agent]: ['description', 'model', 'tools', 'advancedOptions', 'handoffs', 'argument-hint']
 };
 const recommendedAttributeNames = {
 	[PromptsType.prompt]: allAttributeNames[PromptsType.prompt].filter(name => !isNonRecommendedAttribute(name)),
