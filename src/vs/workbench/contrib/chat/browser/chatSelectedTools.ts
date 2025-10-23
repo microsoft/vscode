@@ -116,7 +116,7 @@ export class ChatSelectedTools extends Disposable {
 			toStorage: ToolEnablementStates.toStorage
 		});
 
-		this._globalState = this._store.add(globalStateMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE, _storageService));
+		this._globalState = this._store.add(globalStateMemento(StorageScope.PROFILE, StorageTarget.MACHINE, _storageService));
 		this._allTools = observableFromEvent(_toolsService.onDidChangeTools, () => Array.from(_toolsService.getTools()));
 	}
 
