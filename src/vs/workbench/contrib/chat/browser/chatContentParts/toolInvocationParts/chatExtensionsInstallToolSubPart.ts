@@ -89,7 +89,7 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 				chatWidgetService.getWidgetBySessionId(context.element.sessionId)?.focusInput();
 			}));
 			this._register(autorunSelfDisposable(reader => {
-				if (IChatToolInvocation.isConfirmed(toolInvocation, reader)) {
+				if (IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, reader)) {
 					reader.dispose();
 					ChatContextKeys.Editing.hasToolConfirmation.bindTo(contextKeyService).set(false);
 					this._onNeedsRerender.fire();

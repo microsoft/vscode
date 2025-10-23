@@ -121,6 +121,10 @@ export class SessionsViewPane extends ViewPane {
 				}
 			}
 		}));
+
+		if (provider) { // TODO: Why can this be undefined?
+			this.scopedContextKeyService.createKey('chatSessionType', provider.chatSessionType);
+		}
 	}
 
 	override shouldShowWelcome(): boolean {

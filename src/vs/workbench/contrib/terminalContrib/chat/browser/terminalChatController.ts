@@ -16,6 +16,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import type { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import type { IChatModel } from '../../../chat/common/chatModel.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.chat';
@@ -156,8 +157,9 @@ async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | u
 
 	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
+	const layoutService = accessor.get(IWorkbenchLayoutService);
 
-	const widget = await showChatView(viewsService);
+	const widget = await showChatView(viewsService, layoutService);
 
 	if (widget && widget.viewModel && model) {
 		for (const request of model.getRequests().slice()) {

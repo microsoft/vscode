@@ -51,6 +51,7 @@ export interface IChatSessionsExtensionPoint {
 	readonly when?: string;
 	readonly icon?: string;
 	readonly order?: number;
+	readonly alternativeIds?: string[];
 	readonly welcomeTitle?: string;
 	readonly welcomeMessage?: string;
 	readonly welcomeTips?: string;
@@ -66,7 +67,7 @@ export interface IChatSessionItem {
 	description?: string | IMarkdownString;
 	status?: ChatSessionStatus;
 	tooltip?: string | IMarkdownString;
-	timing?: {
+	timing: {
 		startTime: number;
 		endTime?: number;
 	};
