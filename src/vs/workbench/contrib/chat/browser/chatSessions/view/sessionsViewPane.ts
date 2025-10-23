@@ -103,6 +103,7 @@ export class SessionsViewPane extends ViewPane {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		this.minimumBodySize = 44;
 
 		// Listen for changes in the provider if it's a LocalChatSessionsProvider
 		if (provider instanceof LocalChatSessionsProvider) {
