@@ -2402,6 +2402,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.renderer.updateViewModel(this.viewModel);
 		this.updateChatInputContext();
+		this.input.renderChatTodoListWidget(this.viewModel.sessionId);
 	}
 
 	getFocus(): ChatTreeItem | undefined {

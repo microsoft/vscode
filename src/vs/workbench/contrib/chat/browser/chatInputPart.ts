@@ -1788,6 +1788,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	async renderChatTodoListWidget(chatSessionId: string) {
+
+		const isTodoWidgetEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.TodosShowWidget) !== false;
+		if (!isTodoWidgetEnabled) {
+			return;
+		}
+
 		if (!this._chatInputTodoListWidget.value) {
 			const widget = this._chatEditingTodosDisposables.add(this.instantiationService.createInstance(ChatTodoListWidget));
 			this._chatInputTodoListWidget.value = widget;
