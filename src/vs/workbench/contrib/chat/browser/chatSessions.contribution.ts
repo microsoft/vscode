@@ -218,6 +218,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _sessionTypeWelcomeTips: Map<string, string> = new Map();
 	private readonly _sessionTypeInputPlaceholders: Map<string, string> = new Map();
 	private _activatingSessionTypes = new Set<string>();
+	private _nextContentProviderHandle = 0;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -709,7 +710,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable {
 		// Generate a unique handle for this provider registration
-		const handle = Date.now() + Math.random();
+		const handle = this._nextContentProviderHandle++;
 
 		// Keep the legacy single provider map for backward compatibility
 		this._contentProviders.set(chatSessionType, provider);
