@@ -28,8 +28,7 @@ import { getTextResponseFromStream } from './utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
-import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
-import { TerminalCommandId } from '../../../../../terminal/common/terminal.js';
+import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -89,7 +88,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
-		@ICommandService private readonly _commandService: ICommandService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
 
@@ -530,7 +529,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			localize('poll.terminal.enterInput', 'Focus terminal'),
 			undefined,
 			async () => {
-				await this._commandService.executeCommand(TerminalCommandId.Focus, execution.instance);
+				this._showInstance(execution.instance.instanceId);
 				return true;
 			}
 		);
@@ -573,7 +572,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				return option;
 			},
 			async () => {
-				await this._commandService.executeCommand(TerminalCommandId.Focus, execution.instance);
+				this._showInstance(execution.instance.instanceId);
 				this._state = OutputMonitorState.Cancelled;
 				this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
 				inputDataDisposable.dispose();
@@ -597,6 +596,17 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return optionToRun;
 	}
 
+	private _showInstance(instanceId?: number): void {
+		if (!instanceId) {
+			return;
+		}
+		const instance = this._terminalService.getInstanceFromId(instanceId);
+		if (!instance) {
+			return;
+		}
+		this._terminalService.setActiveInstance(instance);
+		this._terminalService.revealActiveTerminal(true);
+	}
 	// Helper to create, register, and wire a ChatElicitationRequestPart. Returns the promise that
 	// resolves when the part is accepted/rejected and the registered part itself so callers can
 	// attach additional listeners (e.g., onDidRequestHide) or compose with other promises.
