@@ -73,6 +73,10 @@
 			overflow: hidden;
 		}
 
+		.agent-session-timestamp {
+			font-size: 11px;
+		}
+
 		/* #region Diff Styling */
 
 		.agent-session-diff {

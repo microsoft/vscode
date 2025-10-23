@@ -7,7 +7,7 @@
 import type { Parser, Language, Query } from '@vscode/tree-sitter-wasm';
 import { IReader, ObservablePromise } from '../../../../base/common/observable.js';
 import { ITreeSitterLibraryService } from '../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-import { canASAR, importAMDNodeModule } from '../../../../amdX.js';
+import { importAMDNodeModule } from '../../../../amdX.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FileOperationResult, IFileContent, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
@@ -25,7 +25,7 @@ const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
 const FILENAME_TREESITTER_WASM = `tree-sitter.wasm`;
 
 export function getModuleLocation(environmentService: IEnvironmentService): AppResourcePath {
-	return `${(canASAR && environmentService.isBuilt) ? nodeModulesAsarUnpackedPath : nodeModulesPath}/${MODULE_LOCATION_SUBPATH}`;
+	return `${environmentService.isBuilt ? nodeModulesAsarUnpackedPath : nodeModulesPath}/${MODULE_LOCATION_SUBPATH}`;
 }
 
 export class TreeSitterLibraryService extends Disposable implements ITreeSitterLibraryService {
@@ -121,8 +121,8 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		return treeSitter.Parser;
 	}
 
-	getLanguage(languageId: string, reader: IReader | undefined): Language | undefined {
-		if (!this.supportsLanguage(languageId, reader)) {
+	getLanguage(languageId: string, ignoreSupportsCheck: boolean, reader: IReader | undefined): Language | undefined {
+		if (!ignoreSupportsCheck && !this.supportsLanguage(languageId, reader)) {
 			return undefined;
 		}
 		const lang = this._languagesCache.get(languageId).resolvedValue.read(reader);
@@ -143,6 +143,11 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		}
 		const query = this._injectionQueries.get({ languageId, kind: 'highlights' }).read(reader);
 		return query;
+	}
+
+	async createQuery(language: Language, querySource: string): Promise<Query> {
+		const treeSitter = await this._treeSitterImport.value;
+		return new treeSitter.Query(language, querySource);
 	}
 }
 

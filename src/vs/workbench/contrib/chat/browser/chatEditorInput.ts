@@ -16,7 +16,7 @@ import * as nls from '../../../../nls.js';
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatModel } from '../common/chatModel.js';
@@ -189,6 +189,27 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const inputCountSuffix = (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
 		const defaultName = this.options.title?.fallback ?? nls.localize('chatEditorName', "Chat");
 		return defaultName + inputCountSuffix;
+	}
+
+	override getTitle(verbosity?: Verbosity): string {
+		const name = this.getName();
+		if (verbosity === Verbosity.LONG) { // Verbosity LONG is used for tooltips
+			const sessionType = this.getSessionType();
+			const sessionTypeDisplayName = this.getSessionTypeDisplayName(sessionType);
+			if (sessionTypeDisplayName) {
+				return `${name} | ${sessionTypeDisplayName}`;
+			}
+		}
+		return name;
+	}
+
+	private getSessionTypeDisplayName(sessionType: string): string | undefined {
+		if (sessionType === 'local') {
+			return;
+		}
+		const contributions = this.chatSessionsService.getAllChatSessionContributions();
+		const contribution = contributions.find(c => c.type === sessionType);
+		return contribution?.displayName;
 	}
 
 	override getIcon(): ThemeIcon | undefined {

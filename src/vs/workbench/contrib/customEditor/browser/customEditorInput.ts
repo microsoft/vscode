@@ -38,7 +38,7 @@ import { WebviewIcons } from '../../webviewPanel/browser/webviewEditorInput.js';
 interface CustomEditorInputInitInfo {
 	readonly resource: URI;
 	readonly viewType: string;
-	readonly customTitle: string | undefined;
+	readonly webviewTitle: string | undefined;
 	readonly iconPath: WebviewIcons | undefined;
 }
 
@@ -56,7 +56,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			const untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
 			const webview = accessor.get(IWebviewService).createWebviewOverlay({
 				providedViewType: init.viewType,
-				title: init.customTitle,
+				title: init.webviewTitle,
 				options: { customClasses: options?.customClasses },
 				contentOptions: {},
 				extension: undefined,
@@ -76,7 +76,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	private _defaultDirtyState: boolean | undefined;
 
 	private _editorName: string | undefined = undefined;
-	private _customTitle: string | undefined = undefined;
 
 	private readonly _backupId: string | undefined;
 
@@ -110,13 +109,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._backupId = options.backupId;
 		this._untitledDocumentData = options.untitledDocumentData;
 
-		this._customTitle = init.customTitle;
-
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-
 		// Clear our labels on certain label related events
 		this._register(this.labelService.onDidChangeFormatters(e => this.onLabelEvent(e.scheme)));
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onLabelEvent(e.scheme)));
@@ -181,24 +177,13 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	override getName(): string {
-		if (this._customTitle) {
-			return this._customTitle;
+		const customTitle = this.getWebviewTitle();
+		if (customTitle) {
+			return customTitle;
 		}
 
-		if (typeof this._editorName !== 'string') {
-			this._editorName = this.customEditorLabelService.getName(this.resource) ?? basename(this.labelService.getUriLabel(this.resource));
-		}
-
+		this._editorName ??= this.customEditorLabelService.getName(this.resource) ?? basename(this.labelService.getUriLabel(this.resource));
 		return this._editorName;
-	}
-
-	override setName(value: string): void {
-		this._customTitle = value;
-		super.setName(value);
-	}
-
-	getCustomTitle(): string | undefined {
-		return this._customTitle;
 	}
 
 	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
@@ -215,61 +200,44 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	private _shortDescription: string | undefined = undefined;
 	private get shortDescription(): string {
-		if (typeof this._shortDescription !== 'string') {
-			this._shortDescription = this.labelService.getUriBasenameLabel(dirname(this.resource));
-		}
-
+		this._shortDescription ??= this.labelService.getUriBasenameLabel(dirname(this.resource));
 		return this._shortDescription;
 	}
 
 	private _mediumDescription: string | undefined = undefined;
 	private get mediumDescription(): string {
-		if (typeof this._mediumDescription !== 'string') {
-			this._mediumDescription = this.labelService.getUriLabel(dirname(this.resource), { relative: true });
-		}
-
+		this._mediumDescription ??= this.labelService.getUriLabel(dirname(this.resource), { relative: true });
 		return this._mediumDescription;
 	}
 
 	private _longDescription: string | undefined = undefined;
 	private get longDescription(): string {
-		if (typeof this._longDescription !== 'string') {
-			this._longDescription = this.labelService.getUriLabel(dirname(this.resource));
-		}
-
+		this._longDescription ??= this.labelService.getUriLabel(dirname(this.resource));
 		return this._longDescription;
 	}
 
 	private _shortTitle: string | undefined = undefined;
 	private get shortTitle(): string {
-		if (typeof this._shortTitle !== 'string') {
-			this._shortTitle = this.getName();
-		}
-
+		this._shortTitle ??= this.getName();
 		return this._shortTitle;
 	}
 
 	private _mediumTitle: string | undefined = undefined;
 	private get mediumTitle(): string {
-		if (typeof this._mediumTitle !== 'string') {
-			this._mediumTitle = this.labelService.getUriLabel(this.resource, { relative: true });
-		}
-
+		this._mediumTitle ??= this.labelService.getUriLabel(this.resource, { relative: true });
 		return this._mediumTitle;
 	}
 
 	private _longTitle: string | undefined = undefined;
 	private get longTitle(): string {
-		if (typeof this._longTitle !== 'string') {
-			this._longTitle = this.labelService.getUriLabel(this.resource);
-		}
-
+		this._longTitle ??= this.labelService.getUriLabel(this.resource);
 		return this._longTitle;
 	}
 
 	override getTitle(verbosity?: Verbosity): string {
-		if (this._customTitle) {
-			return this._customTitle;
+		const customTitle = this.getWebviewTitle();
+		if (customTitle) {
+			return customTitle;
 		}
 
 		switch (verbosity) {
@@ -294,7 +262,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public override copy(): EditorInput {
 		return CustomEditorInput.create(this.instantiationService,
-			{ resource: this.resource, viewType: this.viewType, customTitle: this._customTitle, iconPath: this.iconPath, },
+			{ resource: this.resource, viewType: this.viewType, webviewTitle: this.getWebviewTitle(), iconPath: this.iconPath, },
 			this.group,
 			this.webview.options);
 	}

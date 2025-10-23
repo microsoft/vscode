@@ -2402,6 +2402,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.renderer.updateViewModel(this.viewModel);
 		this.updateChatInputContext();
+		this.input.renderChatTodoListWidget(this.viewModel.sessionId);
 	}
 
 	getFocus(): ChatTreeItem | undefined {
@@ -2781,7 +2782,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.layout(contentHeight, width);
 
 		// Push the welcome message down so it doesn't change position
-		// when followups, attachments, working set, or suggest next widget appear
+		// when followups, attachments, working set, todo list, or suggest next widget appear
 		let welcomeOffset = 100;
 		if (this.viewOptions.renderFollowups) {
 			welcomeOffset = Math.max(welcomeOffset - this.input.followupsHeight, 0);
@@ -2789,6 +2790,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewOptions.enableWorkingSet) {
 			welcomeOffset = Math.max(welcomeOffset - this.input.editSessionWidgetHeight, 0);
 		}
+		welcomeOffset = Math.max(welcomeOffset - this.input.todoListWidgetHeight, 0);
 		welcomeOffset = Math.max(welcomeOffset - this.input.attachmentsHeight, 0);
 		this.welcomeMessageContainer.style.height = `${contentHeight - welcomeOffset}px`;
 		this.welcomeMessageContainer.style.paddingBottom = `${welcomeOffset}px`;

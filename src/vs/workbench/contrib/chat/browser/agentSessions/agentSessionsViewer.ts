@@ -176,12 +176,10 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsV
 		return isAgentSessionsViewModel(element);
 	}
 
-	async getChildren(element: IAgentSessionsViewModel | IAgentSessionViewModel): Promise<Iterable<IAgentSessionViewModel>> {
+	getChildren(element: IAgentSessionsViewModel | IAgentSessionViewModel): Iterable<IAgentSessionViewModel> {
 		if (!isAgentSessionsViewModel(element)) {
 			return [];
 		}
-
-		await element.resolve();
 
 		return element.sessions;
 	}

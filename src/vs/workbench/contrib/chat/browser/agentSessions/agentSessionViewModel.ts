@@ -5,6 +5,7 @@
 
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -18,9 +19,14 @@ import { ChatSessionUri } from '../../common/chatUri.js';
 
 export interface IAgentSessionsViewModel {
 
+	readonly onWillResolve: Event<void>;
+	readonly onDidResolve: Event<void>;
+
+	readonly onDidChangeSessions: Event<void>;
+
 	readonly sessions: IAgentSessionViewModel[];
 
-	resolve(): Promise<void>;
+	resolve(provider: string | string[] | undefined): Promise<void>;
 }
 
 export const enum AgentSessionStatus {
@@ -73,31 +79,72 @@ export function isAgentSessionsViewModel(obj: IAgentSessionsViewModel | IAgentSe
 
 //#endregion
 
-const INCLUDE_HISTORY = false; // TODO@bpasero figure out how to best support history
+const INCLUDE_HISTORY = false;
 export class AgentSessionsViewModel extends Disposable implements IAgentSessionsViewModel {
 
 	readonly sessions: IAgentSessionViewModel[] = [];
 
+	private readonly _onWillResolve = this._register(new Emitter<void>());
+	readonly onWillResolve = this._onWillResolve.event;
+
+	private readonly _onDidResolve = this._register(new Emitter<void>());
+	readonly onDidResolve = this._onDidResolve.event;
+
+	private readonly _onDidChangeSessions = this._register(new Emitter<void>());
+	readonly onDidChangeSessions = this._onDidChangeSessions.event;
+
 	private readonly resolver = this._register(new ThrottledDelayer<void>(100));
+	private readonly providersToResolve = new Set<string | undefined>();
 
 	constructor(
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
+
+		this.registerListeners();
 	}
 
-	async resolve(): Promise<void> {
-		return this.resolver.trigger(token => this.doResolve(token));
+	private registerListeners(): void {
+		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType }) => this.resolve(chatSessionType)));
+		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.resolve(undefined)));
+		this._register(this.chatSessionsService.onDidChangeSessionItems(provider => this.resolve(provider)));
+	}
+
+	async resolve(provider: string | string[] | undefined): Promise<void> {
+		if (Array.isArray(provider)) {
+			for (const p of provider) {
+				this.providersToResolve.add(p);
+			}
+		} else {
+			this.providersToResolve.add(provider);
+		}
+
+		return this.resolver.trigger(async token => {
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			try {
+				this._onWillResolve.fire();
+				return await this.doResolve(token);
+			} finally {
+				this._onDidResolve.fire();
+			}
+		});
 	}
 
 	private async doResolve(token: CancellationToken): Promise<void> {
-		if (token.isCancellationRequested) {
-			return;
-		}
+		const providersToResolve = Array.from(this.providersToResolve);
+		this.providersToResolve.clear();
 
 		const newSessions: IAgentSessionViewModel[] = [];
 		for (const provider of this.chatSessionsService.getAllChatSessionItemProviders()) {
+			if (!providersToResolve.includes(undefined) && !providersToResolve.includes(provider.chatSessionType)) {
+				newSessions.push(...this.sessions.filter(session => session.provider.chatSessionType === provider.chatSessionType));
+				continue; // skipped for resolving, preserve existing ones
+			}
+
 			const sessions = await provider.provideChatSessionItems(token);
 			if (token.isCancellationRequested) {
 				return;
@@ -125,14 +172,17 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 			}
 
 			if (INCLUDE_HISTORY && provider.chatSessionType === LOCAL_AGENT_SESSION_TYPE) {
-				for (const history of await this.chatService.getHistory()) { // TODO@bpasero this needs to come from the local provider
+				// TODO@bpasero this needs to come from the local provider:
+				// - do we want to show history or not and how
+				// - can we support all properties including `startTime` properly
+				for (const history of await this.chatService.getHistory()) {
 					newSessions.push({
 						id: history.sessionId,
 						resource: ChatSessionUri.forSession(LOCAL_AGENT_SESSION_TYPE, history.sessionId),
 						label: history.title,
 						provider: provider,
 						timing: {
-							startTime: history.lastMessageDate ?? Date.now() /* TODO@bpasero BAD */
+							startTime: history.lastMessageDate ?? Date.now()
 						},
 						description: new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`),
 					});
@@ -142,5 +192,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 
 		this.sessions.length = 0;
 		this.sessions.push(...newSessions);
+
+		this._onDidChangeSessions.fire();
 	}
 }
