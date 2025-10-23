@@ -628,6 +628,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		chatViewType = resolvedType;
+		const contribution = this._contributions.get(chatViewType);
+		if (contribution && !this._isContributionAvailable(contribution)) {
+			return false;
+		}
 
 		if (this._itemsProviders.has(chatViewType)) {
 			return true;
@@ -646,6 +650,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		chatViewType = resolvedType;
+
+		const contribution = this._contributions.get(chatViewType);
+		if (contribution && !this._isContributionAvailable(contribution)) {
+			return false;
+		}
 
 		if (this._contentProviders.has(chatViewType)) {
 			return true;
