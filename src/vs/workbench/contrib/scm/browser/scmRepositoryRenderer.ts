@@ -141,10 +141,6 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 
 		templateData.label.setLabel(repository.provider.name, description, { title });
 
-		// Label minimum width set to fit the three default actions (checkout, sync, more actions)
-		// 170px (activity bar) - 30px (indentation) - 18px (icon) - 3 x 24px (actions) - 12px (padding) - 1px (border)
-		templateData.label.element.style.minWidth = '37px';
-
 		let statusPrimaryActions: IAction[] = [];
 		let menuPrimaryActions: IAction[] = [];
 		let menuSecondaryActions: IAction[] = [];
