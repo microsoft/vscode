@@ -179,7 +179,7 @@ export namespace CloneUtil {
 		}
 	}
 
-	export async function doPostCloneAction(target: string, postCloneAction?: PostCloneAction): Promise<undefined> {
+	export async function doPostCloneAction(target: string, postCloneAction?: PostCloneAction): Promise<void> {
 		const forceReuseWindow = ((workspace.workspaceFile === undefined) && (workspace.workspaceFolders === undefined));
 		if (postCloneAction === 'open') {
 			await commands.executeCommand('vscode.openFolder', Uri.file(target), { forceReuseWindow });
