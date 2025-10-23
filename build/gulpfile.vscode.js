@@ -288,14 +288,17 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const productionDependencies = getProductionDependencies(root);
 		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat().concat('!**/*.mk');
 
-		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
+		const deps = es.merge(
+			gulp.src(dependenciesSrc, { base: '.', dot: true }),
+			gulp.src(['node_modules/vsda/**'], { base: 'node_modules', dot: true }) // retain vsda at root level of asar for backward compatibility
+		)
 			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.{js,css}.map']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(__dirname, `.moduleignore.${process.platform}`)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)
-			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
+			.pipe(createAsar(process.cwd(), [
 				'**/*.node',
 				'**/@vscode/ripgrep/bin/*',
 				'**/node-pty/build/Release/*',
@@ -306,9 +309,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/@vscode/vsce-sign/bin/*',
 			], [
 				'**/*.mk',
-				'!node_modules/vsda/**' // stay compatible with extensions that depend on us shipping `vsda` into ASAR
 			], [
-				'node_modules/vsda/**' // retain copy of `vsda` in node_modules for internal use
+				'node_modules/vsda/**', // duplicate vsda in node_modules.asar.unpacked for backward compatibility
 			], 'node_modules.asar'));
 
 		let all = es.merge(

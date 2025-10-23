@@ -257,8 +257,8 @@ export type AppResourcePath = (
 
 export const builtinExtensionsPath: AppResourcePath = 'vs/../../extensions';
 export const nodeModulesPath: AppResourcePath = 'vs/../../node_modules';
-export const nodeModulesAsarPath: AppResourcePath = 'vs/../../node_modules.asar';
-export const nodeModulesAsarUnpackedPath: AppResourcePath = 'vs/../../node_modules.asar.unpacked';
+export const nodeModulesAsarPath: AppResourcePath = 'vs/../../node_modules.asar/node_modules';
+export const nodeModulesAsarUnpackedPath: AppResourcePath = 'vs/../../node_modules.asar.unpacked/node_modules';
 
 export const VSCODE_AUTHORITY = 'vscode-app';
 
