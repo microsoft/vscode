@@ -93,7 +93,7 @@ import type { IProgressState } from '@xterm/addon-progress';
 import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { PromptInputState } from '../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
-import { isNumber } from '../../../../base/common/types.js';
+import { getShellIntegrationTimeout } from '../../../../platform/terminal/common/terminalEnvironment.js';
 
 const enum Constants {
 	/**
@@ -2812,28 +2812,4 @@ function guessShellTypeFromExecutable(os: OperatingSystem, executable: string): 
 		}
 	}
 	return undefined;
-}
-
-export function getShellIntegrationTimeout(
-	configurationService: IConfigurationService,
-	siInjectionEnabled: boolean,
-	isRemote: boolean,
-	processReadyTimestamp?: number
-): number {
-	const timeoutValue = configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
-	let timeoutMs: number;
-
-	if (!isNumber(timeoutValue) || timeoutValue < 0) {
-		timeoutMs = siInjectionEnabled ? 5000 : (isRemote ? 3000 : 2000);
-	} else {
-		timeoutMs = Math.max(timeoutValue, 500);
-	}
-
-	// Adjust timeout based on how long the process has already been running
-	if (processReadyTimestamp !== undefined) {
-		const elapsed = Date.now() - processReadyTimestamp;
-		timeoutMs = Math.max(0, timeoutMs - elapsed);
-	}
-
-	return timeoutMs;
 }

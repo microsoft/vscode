@@ -15,8 +15,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { ITerminalLogService, ITerminalProfile, TerminalSettingId, type IShellLaunchConfig } from '../../../../../platform/terminal/common/terminal.js';
+import { getShellIntegrationTimeout } from '../../../../../platform/terminal/common/terminalEnvironment.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import { getShellIntegrationTimeout } from '../../../terminal/browser/terminalInstance.js';
 
 const enum ShellLaunchType {
 	Unknown = 0,

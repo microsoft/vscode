@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem, OS } from '../../../base/common/platform.js';
-import { IShellLaunchConfig, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType } from './terminal.js';
+import { isNumber } from '../../../base/common/types.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IShellLaunchConfig, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType, TerminalSettingId } from './terminal.js';
 
 /**
  * Aggressively escape non-windows paths to prepare for being sent to a shell. This will do some
@@ -125,4 +127,28 @@ export function sanitizeCwd(cwd: string): string {
  */
 export function shouldUseEnvironmentVariableCollection(slc: IShellLaunchConfig): boolean {
 	return !slc.strictEnv;
+}
+
+export function getShellIntegrationTimeout(
+	configurationService: IConfigurationService,
+	siInjectionEnabled: boolean,
+	isRemote: boolean,
+	processReadyTimestamp?: number
+): number {
+	const timeoutValue = configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
+	let timeoutMs: number;
+
+	if (!isNumber(timeoutValue) || timeoutValue < 0) {
+		timeoutMs = siInjectionEnabled ? 5000 : (isRemote ? 3000 : 2000);
+	} else {
+		timeoutMs = Math.max(timeoutValue, 500);
+	}
+
+	// Adjust timeout based on how long the process has already been running
+	if (processReadyTimestamp !== undefined) {
+		const elapsed = Date.now() - processReadyTimestamp;
+		timeoutMs = Math.max(0, timeoutMs - elapsed);
+	}
+
+	return timeoutMs;
 }
