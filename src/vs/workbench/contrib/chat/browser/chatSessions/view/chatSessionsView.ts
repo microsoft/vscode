@@ -31,6 +31,26 @@ import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { SessionsViewPane } from './sessionsViewPane.js';
 
+export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.chatSessionsView';
+	constructor() {
+		super();
+		this.registerViewContainer();
+	}
+	private registerViewContainer(): void {
+		Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+			{
+				id: AGENT_SESSIONS_VIEWLET_ID,
+				title: nls.localize2('chat.agent.sessions', "Agent Sessions"),
+				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer),
+				hideIfEmpty: false,
+				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View'),
+				order: 6
+			}, ViewContainerLocation.Sidebar);
+	}
+
+}
+
 export class ChatSessionsViewContrib extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatSessions';
 
@@ -55,7 +75,6 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 		this._register(this.chatSessionsService.registerChatSessionItemProvider(this.localProvider));
 
 		// Initial check
-		this.registerViewContainer();
 		void this.updateViewRegistration();
 
 		this._register(this.chatSessionsService.onDidChangeItemsProviders(() => {
@@ -71,18 +90,6 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 		this._register(this.sessionTracker.onDidChangeEditors(e => {
 			this.chatSessionsService.notifySessionItemsChanged(e.sessionType);
 		}));
-	}
-
-	private registerViewContainer(): void {
-		Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
-			{
-				id: AGENT_SESSIONS_VIEWLET_ID,
-				title: nls.localize2('chat.agent.sessions', "Agent Sessions"),
-				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer, [this.sessionTracker]),
-				hideIfEmpty: true,
-				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View'),
-				order: 6
-			}, ViewContainerLocation.Sidebar);
 	}
 
 	private getAllChatSessionItemProviders(): IChatSessionItemProvider[] {

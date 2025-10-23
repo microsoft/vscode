@@ -22,7 +22,6 @@ import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditi
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
-import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
@@ -245,22 +244,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			return 'local';
 		}
 
-		const { scheme, query } = this.resource;
-
-		if (scheme === Schemas.vscodeChatSession) {
-			const parsed = ChatSessionUri.parse(this.resource);
-			if (parsed) {
-				return parsed.chatSessionType;
-			}
+		const { scheme } = this.resource;
+		if (scheme === Schemas.vscodeChatEditor || scheme === Schemas.vscodeChatSession) {
+			return 'local';
 		}
-
-		const sessionTypeFromQuery = new URLSearchParams(query).get('chatSessionType');
-		if (sessionTypeFromQuery) {
-			return sessionTypeFromQuery;
-		}
-
-		// Default to 'local' for vscode-chat-editor scheme or when type cannot be determined
-		return 'local';
+		return scheme;
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {

@@ -28,12 +28,12 @@ export type ChatSessionItemWithProvider = IChatSessionItem & {
 	};
 };
 
-export function isChatSession(editor?: EditorInput): boolean {
+export function isChatSession(schemes: string[], editor?: EditorInput): boolean {
 	if (!(editor instanceof ChatEditorInput)) {
 		return false;
 	}
 
-	if (editor.resource?.scheme !== 'vscode-chat-editor' && editor.resource?.scheme !== 'vscode-chat-session') {
+	if (!schemes.includes(editor.resource?.scheme)) {
 		return false;
 	}
 
