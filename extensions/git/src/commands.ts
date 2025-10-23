@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
@@ -944,144 +944,6 @@ export class CommandCenter {
 		}
 	}
 
-	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string } = {}): Promise<void> {
-		if (!url || typeof url !== 'string') {
-			url = await pickRemoteSource({
-				providerLabel: provider => l10n.t('Clone from {0}', provider.name),
-				urlLabel: l10n.t('Clone from URL')
-			});
-		}
-
-		if (!url) {
-			/* __GDPR__
-				"clone" : {
-					"owner": "lszomoru",
-					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
-				}
-			*/
-			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
-			return;
-		}
-
-		url = url.trim().replace(/^git\s+clone\s+/, '');
-
-		if (!parentPath) {
-			const config = workspace.getConfiguration('git');
-			let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
-			defaultCloneDirectory = defaultCloneDirectory.replace(/^~/, os.homedir());
-
-			const uris = await window.showOpenDialog({
-				canSelectFiles: false,
-				canSelectFolders: true,
-				canSelectMany: false,
-				defaultUri: Uri.file(defaultCloneDirectory),
-				title: l10n.t('Choose a folder to clone {0} into', url),
-				openLabel: l10n.t('Select as Repository Destination')
-			});
-
-			if (!uris || uris.length === 0) {
-				/* __GDPR__
-					"clone" : {
-						"owner": "lszomoru",
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
-					}
-				*/
-				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
-				return;
-			}
-
-			const uri = uris[0];
-			parentPath = uri.fsPath;
-		}
-
-		try {
-			const opts = {
-				location: ProgressLocation.Notification,
-				title: l10n.t('Cloning git repository "{0}"...', url),
-				cancellable: true
-			};
-
-			const repositoryPath = await window.withProgress(
-				opts,
-				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive, ref: options.ref }, token)
-			);
-
-			const config = workspace.getConfiguration('git');
-			const openAfterClone = config.get<'always' | 'alwaysNewWindow' | 'whenNoFolderOpen' | 'prompt'>('openAfterClone');
-
-			enum PostCloneAction { Open, OpenNewWindow, AddToWorkspace }
-			let action: PostCloneAction | undefined = undefined;
-
-			if (openAfterClone === 'always') {
-				action = PostCloneAction.Open;
-			} else if (openAfterClone === 'alwaysNewWindow') {
-				action = PostCloneAction.OpenNewWindow;
-			} else if (openAfterClone === 'whenNoFolderOpen' && !workspace.workspaceFolders) {
-				action = PostCloneAction.Open;
-			}
-
-			if (action === undefined) {
-				let message = l10n.t('Would you like to open the cloned repository?');
-				const open = l10n.t('Open');
-				const openNewWindow = l10n.t('Open in New Window');
-				const choices = [open, openNewWindow];
-
-				const addToWorkspace = l10n.t('Add to Workspace');
-				if (workspace.workspaceFolders) {
-					message = l10n.t('Would you like to open the cloned repository, or add it to the current workspace?');
-					choices.push(addToWorkspace);
-				}
-
-				const result = await window.showInformationMessage(message, { modal: true }, ...choices);
-
-				action = result === open ? PostCloneAction.Open
-					: result === openNewWindow ? PostCloneAction.OpenNewWindow
-						: result === addToWorkspace ? PostCloneAction.AddToWorkspace : undefined;
-			}
-
-			/* __GDPR__
-				"clone" : {
-					"owner": "lszomoru",
-					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" },
-					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Indicates whether the folder is opened following the clone operation" }
-				}
-			*/
-			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: action === PostCloneAction.Open || action === PostCloneAction.OpenNewWindow ? 1 : 0 });
-
-			const uri = Uri.file(repositoryPath);
-
-			if (action === PostCloneAction.Open) {
-				commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
-			} else if (action === PostCloneAction.AddToWorkspace) {
-				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
-			} else if (action === PostCloneAction.OpenNewWindow) {
-				commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
-			}
-		} catch (err) {
-			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
-				/* __GDPR__
-					"clone" : {
-						"owner": "lszomoru",
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
-					}
-				*/
-				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
-			} else if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
-				return;
-			} else {
-				/* __GDPR__
-					"clone" : {
-						"owner": "lszomoru",
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
-					}
-				*/
-				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
-			}
-
-			throw err;
-		}
-	}
-
 	private getRepositoriesWithRemote(repositories: Repository[]) {
 		return repositories.reduce<(QuickPickItem & { repository: Repository })[]>((items, repository) => {
 			const remote = repository.remotes.find((r) => r.name === repository.HEAD?.upstream?.remote);
@@ -1154,12 +1016,12 @@ export class CommandCenter {
 
 	@command('git.clone')
 	async clone(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
-		await this.cloneRepository(url, parentPath, options);
+		await this.model.clone(url, { parentPath, ...options });
 	}
 
 	@command('git.cloneRecursive')
 	async cloneRecursive(url?: string, parentPath?: string): Promise<void> {
-		await this.cloneRepository(url, parentPath, { recursive: true });
+		await this.model.clone(url, { parentPath, recursive: true });
 	}
 
 	@command('git.init')

@@ -128,7 +128,7 @@ export class PromptHoverProvider implements HoverProvider {
 			if (tool instanceof ToolSet) {
 				return this.getToolsetHover(tool, range);
 			} else {
-				return this.createHover(tool.modelDescription, range);
+				return this.createHover(tool.userDescription ?? tool.modelDescription, range);
 			}
 		}
 		return undefined;

@@ -1082,6 +1082,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* Chat Todo List Widget Container - mirrors chat-editing-session styling */
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container {
+	margin-bottom: -4px; /* reset the 4px gap of the container for editing sessions */
 	width: 100%;
 	position: relative;
 }
@@ -1307,8 +1308,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars .tool-warning-indicator {
 	position: absolute;
-	bottom: 0;
-	right: 0;
+	bottom: 1px;
+	right: 1px;
 	font-size: 9px !important;
 	color: var(--vscode-problemsWarningIcon-foreground);
 	background: var(--vscode-input-background);
@@ -1598,40 +1599,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .action-item.chat-mcp {
-	display: flex !important;
 
-	&.chat-mcp-has-action .action-label {
-		border-top-right-radius: 0;
-		border-bottom-right-radius: 0;
-		border-right: 0;
-	}
+	.chat-mcp-state-indicator {
+		position: absolute;
+		bottom: 1px;
+		right: 1px;
+		font-size: 9px !important;
+		background: var(--vscode-input-background);
+		width: fit-content;
+		height: fit-content;
+		border-radius: 100%;
 
-	.chat-mcp-action {
-		align-self: stretch;
-		padding: 0 2px;
-		border-radius: 0;
-		outline: 0;
-		border: 0;
-		border-top-right-radius: 4px;
-		border-bottom-right-radius: 4px;
-		background: var(--vscode-button-background);
-		cursor: pointer;
-
-		.codicon {
-			width: fit-content;
+		&.chat-mcp-state-new {
 			color: var(--vscode-button-foreground);
 		}
 
-		.codicon::before {
-			font-size: 14px;
+		&.chat-mcp-state-error {
+			color: var(--vscode-problemsErrorIcon-foreground);
 		}
 
-		&.chat-mcp-action-error {
-			background: var(--vscode-activityErrorBadge-background);
-
-			.codicon {
-				color: var(--vscode-activityErrorBadge-foreground);
-			}
+		&.chat-mcp-state-refreshing {
+			color: var(--vscode-button-foreground);
 		}
 	}
 }

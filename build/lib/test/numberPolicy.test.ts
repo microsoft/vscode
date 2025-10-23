@@ -97,6 +97,16 @@ suite('NumberPolicy', () => {
 		assert.strictEqual(presentation, '<presentation id="TestNumberPolicy"><decimalTextBox refId="TestNumberPolicy" defaultValue="42">TestNumberPolicy</decimalTextBox></presentation>');
 	});
 
+	test('should render JSON value correctly', () => {
+		const policy = NumberPolicy.from(mockCategory, mockPolicy);
+
+		assert.ok(policy);
+
+		const jsonValue = policy.renderJsonValue();
+
+		assert.strictEqual(jsonValue, 42);
+	});
+
 	test('should render profile value correctly', () => {
 		const policy = NumberPolicy.from(mockCategory, mockPolicy);
 

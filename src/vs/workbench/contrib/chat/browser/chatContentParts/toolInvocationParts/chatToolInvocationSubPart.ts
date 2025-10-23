@@ -42,7 +42,7 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 
 	protected getIcon() {
 		const toolInvocation = this.toolInvocation;
-		const confirmState = IChatToolInvocation.isConfirmed(toolInvocation);
+		const confirmState = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation);
 		const isSkipped = confirmState?.type === ToolConfirmKind.Skipped;
 		if (isSkipped) {
 			return Codicon.circleSlash;

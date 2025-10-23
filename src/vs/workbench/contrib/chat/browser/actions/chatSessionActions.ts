@@ -28,7 +28,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
-import { ChatConfiguration, VIEWLET_ID } from '../../common/constants.js';
+import { ChatConfiguration, AGENT_SESSIONS_VIEWLET_ID } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -477,7 +477,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 	},
 	group: '1_config',
 	order: 1,
-	when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
+	when: ContextKeyExpr.equals('viewContainer', AGENT_SESSIONS_VIEWLET_ID),
 });
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
@@ -488,5 +488,5 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	},
 	group: 'navigation',
 	order: 1,
-	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+	when: ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.local`),
 });

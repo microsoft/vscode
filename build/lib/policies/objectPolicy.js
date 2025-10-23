@@ -25,6 +25,9 @@ class ObjectPolicy extends basePolicy_1.BasePolicy {
     renderADMLPresentationContents() {
         return `<multiTextBox refId="${this.name}" />`;
     }
+    renderJsonValue() {
+        return '';
+    }
     renderProfileValue() {
         return `<string></string>`;
     }
