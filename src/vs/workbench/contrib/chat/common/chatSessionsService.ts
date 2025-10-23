@@ -183,6 +183,7 @@ export interface IChatSessionsService {
 	// Notify providers about session items changes
 	notifySessionItemsChanged(chatSessionType: string): void;
 
+	hasAnySessionOptions(chatSessionType: string, sessionId: string): boolean;
 	getSessionOption(chatSessionType: string, sessionId: string, optionId: string): string | undefined;
 	setSessionOption(chatSessionType: string, sessionId: string, optionId: string, value: string): boolean;
 
