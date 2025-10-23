@@ -288,10 +288,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const productionDependencies = getProductionDependencies(root);
 		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat().concat('!**/*.mk');
 
-		const deps = es.merge(
-			gulp.src(dependenciesSrc, { base: '.', dot: true }),
-			gulp.src(['node_modules/vsda/**'], { base: 'node_modules', dot: true }) // retain vsda at root level of asar for backward compatibility
-		)
+		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
 			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.{js,css}.map']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(__dirname, `.moduleignore.${process.platform}`)))
@@ -310,7 +307,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			], [
 				'**/*.mk',
 			], [
-				'node_modules/vsda/**', // duplicate vsda in node_modules.asar.unpacked for backward compatibility
+				'node_modules/vsda/**', // retain copy of vsda in node_modules for internal use, refer https://github.com/microsoft/vscode/blob/a1b4ecaa32eea1784ee34bc7d5eabc6b76ce2e03/src/vs/workbench/api/node/extHostExtensionService.ts#L55-L61
 			], 'node_modules.asar'));
 
 		let all = es.merge(
