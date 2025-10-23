@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isElectron } from '../../../../../base/common/platform.js';
 import { dirname } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -273,7 +273,7 @@ export class TerminalContext implements IChatContextValueItem {
 		const terminal = this._terminalService.getInstanceFromResource(this._resource);
 		return !!widget.attachmentCapabilities.supportsTerminalAttachments && terminal?.isDisposed === false;
 	}
-	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
+	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {
 		const terminal = this._terminalService.getInstanceFromResource(this._resource);
 		if (!terminal) {
 			return;
@@ -283,7 +283,7 @@ export class TerminalContext implements IChatContextValueItem {
 		if (!command) {
 			return;
 		}
-		return {
+		const attachment: IChatRequestVariableEntry = {
 			kind: 'terminalCommand',
 			id: this._resource.toString(),
 			value: this._resource,
@@ -291,6 +291,26 @@ export class TerminalContext implements IChatContextValueItem {
 			command: command.command,
 			output: command.getOutput()
 		};
+		const cleanup = new DisposableStore();
+		let disposed = false;
+		const disposeCleanup = () => {
+			if (disposed) {
+				return;
+			}
+			disposed = true;
+			cleanup.dispose();
+		};
+		cleanup.add(widget.attachmentModel.onDidChange(e => {
+			if (e.deleted.includes(attachment.id)) {
+				disposeCleanup();
+			}
+		}));
+		cleanup.add(terminal.onDisposed(() => {
+			widget.attachmentModel.delete(attachment.id);
+			widget.refreshParsedInput();
+			disposeCleanup();
+		}));
+		return attachment;
 	}
 }
 

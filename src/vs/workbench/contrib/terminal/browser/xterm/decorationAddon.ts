@@ -33,7 +33,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { TerminalContext } from '../../../chat/browser/actions/chatContext.js';
 import { getTerminalUri } from '../terminalUri.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { ITerminalService } from '../terminal.js';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 
@@ -69,7 +68,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
 		this._register(toDisposable(() => this._dispose()));
@@ -530,19 +528,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 				const workspaceId = this._workspaceContextService.getWorkspace().id;
 				const widget = this._chatWidgetService.lastFocusedWidget;
 				const terminalContext = this._instantiationService.createInstance(TerminalContext, getTerminalUri(workspaceId, this._instanceId, undefined, command.id));
-				const instance = this._terminalService.getInstanceFromId(this._instanceId);
-				if (!instance) {
-					return;
-				}
 				if (widget && widget.attachmentCapabilities.supportsTerminalAttachments) {
 					try {
-						const attachment = await terminalContext.asAttachment();
+						const attachment = await terminalContext.asAttachment(widget);
 						if (attachment) {
-							const listener = this._register(instance.onDisposed(() => {
-								widget.attachmentModel.delete(attachment.id);
-								widget.refreshParsedInput();
-								listener.dispose();
-							}));
 							widget.attachmentModel.addContext(attachment);
 							widget.focusInput();
 							return;
