@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as os from 'os';
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation, WorkspaceFolder, ThemeIcon } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { IRepositoryResolver, Repository, RepositoryState } from './repository';
@@ -20,7 +21,8 @@ import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
 import { IBranchProtectionProviderRegistry } from './branchProtection';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
-import { RepositoryCache } from './repositoryCache';
+import { RepositoryCache, RepositoryCacheInfo } from './repositoryCache';
+import { pickRemoteSource } from './remoteSource';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -59,6 +61,16 @@ export interface OriginalResourceChangeEvent {
 
 interface OpenRepository extends Disposable {
 	repository: Repository;
+}
+
+type PostCloneAction = 'none' | 'open' | 'prompt';
+
+export interface CloneOptions {
+	parentPath?: string;
+	ref?: string;
+	recursive?: boolean;
+	postCloneAction?: PostCloneAction;
+	skipCache?: boolean;
 }
 
 class ClosedRepositoriesManager {
@@ -1090,6 +1102,227 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 	deleteUnsafeRepository(repository: string): boolean {
 		return this._unsafeRepositoriesManager.deleteRepository(repository);
+	}
+
+	async clone(url?: string, options: CloneOptions = {}) {
+		const cachedRepository = url ? this.repositoryCache.get(url) : undefined;
+		if (url && !options.skipCache && cachedRepository && (cachedRepository.length > 0)) {
+			return this.tryOpenExistingRepository(cachedRepository, url, options.postCloneAction, options.parentPath, options.ref);
+		}
+		return this.cloneRepository(url, options.parentPath, options);
+	}
+
+	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string; postCloneAction?: PostCloneAction } = {}): Promise<string | undefined> {
+		if (!url || typeof url !== 'string') {
+			url = await pickRemoteSource({
+				providerLabel: provider => l10n.t('Clone from {0}', provider.name),
+				urlLabel: l10n.t('Clone from URL')
+			});
+		}
+
+		if (!url) {
+			/* __GDPR__
+				"clone" : {
+					"owner": "lszomoru",
+					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
+				}
+			*/
+			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
+			return;
+		}
+
+		url = url.trim().replace(/^git\s+clone\s+/, '');
+
+		if (!parentPath) {
+			const config = workspace.getConfiguration('git');
+			let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
+			defaultCloneDirectory = defaultCloneDirectory.replace(/^~/, os.homedir());
+
+			const uris = await window.showOpenDialog({
+				canSelectFiles: false,
+				canSelectFolders: true,
+				canSelectMany: false,
+				defaultUri: Uri.file(defaultCloneDirectory),
+				title: l10n.t('Choose a folder to clone {0} into', url),
+				openLabel: l10n.t('Select as Repository Destination')
+			});
+
+			if (!uris || uris.length === 0) {
+				/* __GDPR__
+					"clone" : {
+						"owner": "lszomoru",
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
+					}
+				*/
+				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
+				return;
+			}
+
+			const uri = uris[0];
+			parentPath = uri.fsPath;
+		}
+
+		try {
+			const opts = {
+				location: ProgressLocation.Notification,
+				title: l10n.t('Cloning git repository "{0}"...', url),
+				cancellable: true
+			};
+
+			const repositoryPath = await window.withProgress(
+				opts,
+				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive, ref: options.ref }, token)
+			);
+
+			const config = workspace.getConfiguration('git');
+			const openAfterClone = config.get<'always' | 'alwaysNewWindow' | 'whenNoFolderOpen' | 'prompt'>('openAfterClone');
+
+			enum PostCloneAction { Open, OpenNewWindow, AddToWorkspace, None }
+			let action: PostCloneAction | undefined = undefined;
+
+			if (options.postCloneAction) {
+				if (options.postCloneAction === 'open') {
+					action = PostCloneAction.Open;
+				} else if (options.postCloneAction === 'none') {
+					action = PostCloneAction.None;
+				}
+			} else {
+				if (openAfterClone === 'always') {
+					action = PostCloneAction.Open;
+				} else if (openAfterClone === 'alwaysNewWindow') {
+					action = PostCloneAction.OpenNewWindow;
+				} else if (openAfterClone === 'whenNoFolderOpen' && !workspace.workspaceFolders) {
+					action = PostCloneAction.Open;
+				}
+			}
+
+			if (action === undefined) {
+				let message = l10n.t('Would you like to open the cloned repository?');
+				const open = l10n.t('Open');
+				const openNewWindow = l10n.t('Open in New Window');
+				const choices = [open, openNewWindow];
+
+				const addToWorkspace = l10n.t('Add to Workspace');
+				if (workspace.workspaceFolders) {
+					message = l10n.t('Would you like to open the cloned repository, or add it to the current workspace?');
+					choices.push(addToWorkspace);
+				}
+
+				const result = await window.showInformationMessage(message, { modal: true }, ...choices);
+
+				action = result === open ? PostCloneAction.Open
+					: result === openNewWindow ? PostCloneAction.OpenNewWindow
+						: result === addToWorkspace ? PostCloneAction.AddToWorkspace : undefined;
+			}
+
+			/* __GDPR__
+				"clone" : {
+					"owner": "lszomoru",
+					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" },
+					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Indicates whether the folder is opened following the clone operation" }
+				}
+			*/
+			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: action === PostCloneAction.Open || action === PostCloneAction.OpenNewWindow ? 1 : 0 });
+
+			const uri = Uri.file(repositoryPath);
+
+			if (action === PostCloneAction.Open) {
+				commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
+			} else if (action === PostCloneAction.AddToWorkspace) {
+				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
+			} else if (action === PostCloneAction.OpenNewWindow) {
+				commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+			}
+
+			return repositoryPath;
+		} catch (err) {
+			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
+				/* __GDPR__
+					"clone" : {
+						"owner": "lszomoru",
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
+					}
+				*/
+				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
+			} else if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
+				return;
+			} else {
+				/* __GDPR__
+					"clone" : {
+						"owner": "lszomoru",
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
+					}
+				*/
+				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
+			}
+
+			throw err;
+		}
+	}
+
+	private async postCloneAction(target: string, postCloneAction?: PostCloneAction): Promise<undefined> {
+		const forceReuseWindow = ((workspace.workspaceFile === undefined) && (workspace.workspaceFolders === undefined));
+		if (postCloneAction === 'open') {
+			await commands.executeCommand('vscode.openFolder', Uri.file(target), { forceReuseWindow });
+		}
+	}
+
+	private async chooseExistingRepository(url: string, existingCachedRepositories: RepositoryCacheInfo[], ref: string | undefined, parentPath?: string, postCloneAction?: PostCloneAction): Promise<string | undefined> {
+		try {
+			const items: { label: string; description?: string; item?: RepositoryCacheInfo }[] = existingCachedRepositories.map(knownFolder => {
+				const isWorkspace = knownFolder.workspacePath.endsWith('.code-workspace');
+				const label = isWorkspace ? l10n.t('Workspace: {0}', path.basename(knownFolder.workspacePath, '.code-workspace')) : path.basename(knownFolder.workspacePath);
+				return { label, description: knownFolder.workspacePath, item: knownFolder };
+			});
+			const cloneAgain = { label: l10n.t('Clone again') };
+			items.push(cloneAgain);
+			const placeHolder = l10n.t('Open Existing Repository Clone');
+			const pick = await window.showQuickPick(items, { placeHolder, canPickMany: false });
+			if (pick === cloneAgain) {
+				return (await this.cloneRepository(url, parentPath, { ref, postCloneAction })) ?? undefined;
+			}
+			if (!pick?.item) {
+				return undefined;
+			}
+			return pick.item.workspacePath;
+		} catch {
+			return undefined;
+		}
+	}
+
+	private async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, postCloneAction?: PostCloneAction, parentPath?: string, ref?: string): Promise<string | undefined> {
+		// Gather existing folders/workspace files (ignore ones that no longer exist)
+		const existingCachedRepositories: RepositoryCacheInfo[] = (await Promise.all<RepositoryCacheInfo | undefined>(cachedRepository.map(async folder => {
+			const stat = await fs.promises.stat(folder.workspacePath).catch(() => undefined);
+			if (stat) {
+				return folder;
+			}
+			return undefined;
+		}
+		))).filter<RepositoryCacheInfo>((folder): folder is RepositoryCacheInfo => folder !== undefined);
+
+		if (!existingCachedRepositories.length) {
+			// fallback to clone
+			return (await this.cloneRepository(url, parentPath, { ref, postCloneAction }) ?? undefined);
+		}
+
+		// First, find the cached repo that exists in the current workspace
+		const matchingInCurrentWorkspace = existingCachedRepositories?.find(cachedRepo => {
+			return workspace.workspaceFolders?.some(workspaceFolder => workspaceFolder.uri.fsPath === cachedRepo.workspacePath);
+		});
+
+		if (matchingInCurrentWorkspace) {
+			return matchingInCurrentWorkspace.workspacePath;
+		}
+
+		let repoForWorkspace: string | undefined = (existingCachedRepositories.length === 1 ? existingCachedRepositories[0].workspacePath : undefined);
+		if (!repoForWorkspace) {
+			repoForWorkspace = await this.chooseExistingRepository(url, existingCachedRepositories, ref, parentPath, postCloneAction);
+		}
+		if (repoForWorkspace) {
+			return this.postCloneAction(repoForWorkspace, postCloneAction);
+		}
+		return undefined;
 	}
 
 	private async isRepositoryOutsideWorkspace(repositoryPath: string): Promise<boolean> {

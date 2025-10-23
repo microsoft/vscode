@@ -302,6 +302,8 @@ export class SCMViewService implements ISCMViewService {
 			if (selectionMode === 'single' && this.visibleRepositories.length > 1) {
 				const repository = this.visibleRepositories[0];
 				this.visibleRepositories = [repository];
+			} else if (selectionMode === 'multiple' && this.repositories.length > 1) {
+				this.visibleRepositories = this.repositories;
 			}
 		}));
 

@@ -179,7 +179,7 @@ export class ChatSubmitAction extends SubmitAction {
 			toggled: {
 				condition: ChatContextKeys.lockedToCodingAgent,
 				icon: Codicon.send,
-				tooltip: localize('sendToRemoteAgent', "Send to Coding Agent"),
+				tooltip: localize('sendToAgent', "Send to Agent"),
 			},
 			keybinding: {
 				when: ContextKeyExpr.and(
@@ -431,8 +431,8 @@ export class OpenModePickerAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenModePickerAction.ID,
-			title: localize2('interactive.openModePicker.label', "Open Mode Picker"),
-			tooltip: localize('setChatMode', "Set Mode"),
+			title: localize2('interactive.openModePicker.label', "Open Agent Picker"),
+			tooltip: localize('setChatMode', "Set Agent"),
 			category: CHAT_CATEGORY,
 			f1: false,
 			precondition: ChatContextKeys.enabled,
@@ -468,12 +468,12 @@ export class OpenModePickerAction extends Action2 {
 	}
 }
 
-export class ChatSessionOpenModelPickerAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.chatSessionOpenModelPicker';
+export class ChatSessionPrimaryPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.chatSessionPrimaryPicker';
 	constructor() {
 		super({
-			id: ChatSessionOpenModelPickerAction.ID,
-			title: localize2('interactive.openModelPicker.label', "Open Model Picker"),
+			id: ChatSessionPrimaryPickerAction.ID,
+			title: localize2('interactive.openChatSessionPrimaryPicker.label', "Open Picker"),
 			category: CHAT_CATEGORY,
 			f1: false,
 			precondition: ChatContextKeys.enabled,
@@ -1192,7 +1192,7 @@ export function registerChatExecuteActions() {
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);
-	registerAction2(ChatSessionOpenModelPickerAction);
+	registerAction2(ChatSessionPrimaryPickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
 }

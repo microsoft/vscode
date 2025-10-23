@@ -138,10 +138,10 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 					},
 					{
 						createEditorInput: ({ resource }, group) => {
-							return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id) };
+							return { editor: CustomEditorInput.create(this.instantiationService, { resource, viewType: contributedEditor.id, webviewTitle: undefined, iconPath: undefined }, group.id) };
 						},
 						createUntitledEditorInput: ({ resource }, group) => {
-							return { editor: CustomEditorInput.create(this.instantiationService, resource ?? URI.from({ scheme: Schemas.untitled, authority: `Untitled-${this._untitledCounter++}` }), contributedEditor.id, group.id) };
+							return { editor: CustomEditorInput.create(this.instantiationService, { resource: resource ?? URI.from({ scheme: Schemas.untitled, authority: `Untitled-${this._untitledCounter++}` }), viewType: contributedEditor.id, webviewTitle: undefined, iconPath: undefined }, group.id) };
 						},
 						createDiffEditorInput: (diffEditorInput, group) => {
 							return { editor: this.createDiffEditorInput(diffEditorInput, contributedEditor.id, group) };
@@ -157,8 +157,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		editorID: string,
 		group: IEditorGroup
 	): DiffEditorInput {
-		const modifiedOverride = CustomEditorInput.create(this.instantiationService, assertReturnsDefined(editor.modified.resource), editorID, group.id, { customClasses: 'modified' });
-		const originalOverride = CustomEditorInput.create(this.instantiationService, assertReturnsDefined(editor.original.resource), editorID, group.id, { customClasses: 'original' });
+		const modifiedOverride = CustomEditorInput.create(this.instantiationService, { resource: assertReturnsDefined(editor.modified.resource), viewType: editorID, webviewTitle: undefined, iconPath: undefined }, group.id, { customClasses: 'modified' });
+		const originalOverride = CustomEditorInput.create(this.instantiationService, { resource: assertReturnsDefined(editor.original.resource), viewType: editorID, webviewTitle: undefined, iconPath: undefined }, group.id, { customClasses: 'original' });
 		return this.instantiationService.createInstance(DiffEditorInput, editor.label, editor.description, originalOverride, modifiedOverride, true);
 	}
 
@@ -259,7 +259,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				let replacement: EditorInput | IResourceEditorInput;
 				if (possibleEditors.defaultEditor) {
 					const viewType = possibleEditors.defaultEditor.id;
-					replacement = CustomEditorInput.create(this.instantiationService, newResource, viewType, group);
+					replacement = CustomEditorInput.create(this.instantiationService, { resource: newResource, viewType, webviewTitle: undefined, iconPath: undefined }, group);
 				} else {
 					replacement = { resource: newResource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } };
 				}

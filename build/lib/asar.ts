@@ -38,7 +38,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 	};
 
 	// Files that should be duplicated between
-	// node_modules.asar and node_modules
+	// node_modules.asar.unpacked/node_modules and node_modules.asar.unpacked
 	const shouldDuplicateFile = (file: VinylFile): boolean => {
 		for (const duplicateGlob of duplicateGlobs) {
 			if (minimatch(file.relative, duplicateGlob)) {
@@ -107,14 +107,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 			}));
 			return;
 		}
-		if (shouldDuplicateFile(file)) {
-			this.queue(new VinylFile({
-				base: '.',
-				path: file.path,
-				stat: file.stat,
-				contents: file.contents
-			}));
-		}
+
 		const shouldUnpack = shouldUnpackFile(file);
 		insertFile(file.relative, { size: file.contents.length, mode: file.stat.mode }, shouldUnpack);
 
@@ -127,6 +120,17 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 				stat: file.stat,
 				contents: file.contents
 			}));
+
+			const shouldDuplicate = shouldDuplicateFile(file);
+			if (shouldDuplicate) {
+				const rootRelative = file.relative.replace(/^node_modules\//, '');
+				this.queue(new VinylFile({
+					base: '.',
+					path: path.join(destFilename + '.unpacked', rootRelative),
+					stat: file.stat,
+					contents: file.contents
+				}));
+			}
 		} else {
 			// The file goes inside of xx.asar
 			out.push(file.contents);
