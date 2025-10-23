@@ -5,7 +5,13 @@
 
 import * as array from './arrays';
 
-export function equals(one: any, other: any): boolean {
+/**
+ * Deep equality check for two objects or arrays
+ * @param one First object to compare
+ * @param other Second object to compare
+ * @returns True if the objects are deeply equal, false otherwise
+ */
+export function equals(one: unknown, other: unknown): boolean {
 	if (one === other) {
 		return true;
 	}

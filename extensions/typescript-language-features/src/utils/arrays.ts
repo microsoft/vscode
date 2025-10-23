@@ -5,6 +5,13 @@
 
 export const empty = Object.freeze([]);
 
+/**
+ * Compares two arrays for equality using a custom comparison function
+ * @param a First array to compare
+ * @param b Second array to compare
+ * @param itemEquals Custom comparison function for array elements
+ * @returns True if arrays are equal, false otherwise
+ */
 export function equals<T>(
 	a: ReadonlyArray<T>,
 	b: ReadonlyArray<T>,
@@ -19,6 +26,11 @@ export function equals<T>(
 	return a.every((x, i) => itemEquals(x, b[i]));
 }
 
+/**
+ * Removes undefined and null values from an array
+ * @param array Array to filter
+ * @returns New array with only defined values
+ */
 export function coalesce<T>(array: ReadonlyArray<T | undefined>): T[] {
 	return array.filter((e): e is T => !!e);
 }
