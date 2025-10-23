@@ -209,6 +209,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return true;
 	}
 
+	hasAnySessionOptions(resource: URI): boolean {
+		return this.sessionOptions.has(resource) && this.sessionOptions.get(resource)!.size > 0;
+	}
+
 	getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined {
 		return this.contributions.find(c => c.type === chatSessionType)?.capabilities;
 	}

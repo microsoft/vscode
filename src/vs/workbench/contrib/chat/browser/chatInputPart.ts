@@ -1169,6 +1169,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return hideAll();
 		}
 
+		if (!this.chatSessionsService.hasAnySessionOptions(ctx.chatSessionResource)) {
+			return hideAll();
+		}
+
 		this.chatSessionHasOptions.set(true);
 
 		const currentWidgetGroupIds = new Set(this.chatSessionPickerWidgets.keys());

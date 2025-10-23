@@ -189,6 +189,7 @@ export interface IChatSessionsService {
 	canResolveChatSession(chatSessionResource: URI): Promise<boolean>;
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
 
+	hasAnySessionOptions(resource: URI): boolean;
 	getSessionOption(chatSessionType: string, sessionResource: URI, optionId: string): string | undefined;
 	setSessionOption(chatSessionType: string, sessionResource: URI, optionId: string, value: string): boolean;
 
