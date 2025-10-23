@@ -72,6 +72,9 @@
         "language": "latex",
         "scopeName": "text.tex.latex",
         "path": "./syntaxes/LaTeX.tmLanguage.json",
+        "unbalancedBracketScopes": [
+          "keyword.control.ifnextchar.tex"
+        ],
         "embeddedLanguages": {
           "source.cpp": "cpp_embedded_latex",
           "source.css": "css",

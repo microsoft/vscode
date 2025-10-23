@@ -103,6 +103,7 @@ export class SessionsViewPane extends ViewPane {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		this.minimumBodySize = 44;
 
 		// Listen for changes in the provider if it's a LocalChatSessionsProvider
 		if (provider instanceof LocalChatSessionsProvider) {
@@ -121,6 +122,10 @@ export class SessionsViewPane extends ViewPane {
 				}
 			}
 		}));
+
+		if (provider) { // TODO: Why can this be undefined?
+			this.scopedContextKeyService.createKey('chatSessionType', provider.chatSessionType);
+		}
 	}
 
 	override shouldShowWelcome(): boolean {
@@ -336,7 +341,7 @@ export class SessionsViewPane extends ViewPane {
 						if (elements.length === 1) {
 							return elements[0].label;
 						}
-						return nls.localize('chatSessions.dragLabel', "{0} chat sessions", elements.length);
+						return nls.localize('chatSessions.dragLabel', "{0} agent sessions", elements.length);
 					},
 					drop: () => { },
 					onDragOver: () => false,

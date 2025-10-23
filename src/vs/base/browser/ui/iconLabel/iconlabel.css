@@ -33,9 +33,8 @@
 
 .monaco-icon-label-iconpath {
 	width: 16px;
-	height: 16px;
-	padding-left: 2px;
-	margin-top: 2px;
+	height: 22px;
+	margin-right: 6px;
 	display: flex;
 }
 
@@ -47,6 +46,8 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	flex: 1;
+	display: flex;
+	align-items: center;
 }
 
 .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {

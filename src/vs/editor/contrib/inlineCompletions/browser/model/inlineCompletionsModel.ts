@@ -25,7 +25,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { TextReplacement, TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { TextLength } from '../../../../common/core/text/textLength.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
-import { InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionTriggerKind, PartialAcceptTriggerKind, InlineCompletionsProvider, InlineCompletionCommand, InlineCompletions } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionTriggerKind, PartialAcceptTriggerKind, InlineCompletionsProvider, InlineCompletionCommand } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { EndOfLinePreference, IModelDeltaDecoration, ITextModel } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
@@ -441,7 +441,7 @@ export class InlineCompletionsModel extends Disposable {
 
 	// TODO: This is not an ideal implementation of excludesGroupIds, however as this is currently still behind proposed API
 	// and due to the time constraints, we are using a simplified approach
-	private getAvailableProviders(providers: InlineCompletionsProvider<InlineCompletions<InlineCompletion>>[]): InlineCompletionsProvider[] {
+	private getAvailableProviders(providers: InlineCompletionsProvider[]): InlineCompletionsProvider[] {
 		const suppressedProviderGroupIds = this._suppressedInlineCompletionGroupIds.get();
 		const unsuppressedProviders = providers.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
 
@@ -450,7 +450,7 @@ export class InlineCompletionsModel extends Disposable {
 			provider.excludesGroupIds?.forEach(p => excludedGroupIds.add(p));
 		}
 
-		const availableProviders: InlineCompletionsProvider<InlineCompletions<InlineCompletion>>[] = [];
+		const availableProviders: InlineCompletionsProvider[] = [];
 		for (const provider of unsuppressedProviders) {
 			if (provider.groupId && excludedGroupIds.has(provider.groupId)) {
 				continue;
@@ -461,29 +461,29 @@ export class InlineCompletionsModel extends Disposable {
 		return availableProviders;
 	}
 
-	public async trigger(tx?: ITransaction, options?: { onlyFetchInlineEdits?: boolean; noDelay?: boolean }): Promise<void> {
+	public async trigger(tx?: ITransaction, options: { onlyFetchInlineEdits?: boolean; noDelay?: boolean; provider?: InlineCompletionsProvider; explicit?: boolean } = {}): Promise<void> {
 		subtransaction(tx, tx => {
-			if (options?.onlyFetchInlineEdits) {
+			if (options.onlyFetchInlineEdits) {
 				this._onlyRequestInlineEditsSignal.trigger(tx);
 			}
-			if (options?.noDelay) {
+			if (options.noDelay) {
 				this._noDelaySignal.trigger(tx);
 			}
 			this._isActive.set(true, tx);
+
+			if (options.explicit) {
+				this._inAcceptFlow.set(true, tx);
+				this._forceUpdateExplicitlySignal.trigger(tx);
+			}
+			if (options.provider) {
+				this._fetchSpecificProviderSignal.trigger(tx, options.provider);
+			}
 		});
 		await this._fetchInlineCompletionsPromise.get();
 	}
 
 	public async triggerExplicitly(tx?: ITransaction, onlyFetchInlineEdits: boolean = false): Promise<void> {
-		subtransaction(tx, tx => {
-			if (onlyFetchInlineEdits) {
-				this._onlyRequestInlineEditsSignal.trigger(tx);
-			}
-			this._isActive.set(true, tx);
-			this._inAcceptFlow.set(true, tx);
-			this._forceUpdateExplicitlySignal.trigger(tx);
-		});
-		await this._fetchInlineCompletionsPromise.get();
+		return this.trigger(tx, { onlyFetchInlineEdits, explicit: true });
 	}
 
 	public stop(stopReason: 'explicitCancel' | 'automatic' = 'automatic', tx?: ITransaction): void {
