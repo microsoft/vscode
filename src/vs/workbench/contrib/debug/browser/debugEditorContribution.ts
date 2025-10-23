@@ -633,7 +633,16 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		const currentScrollTop = this.editor.getScrollTop();
 		const visibleRanges = this.editor.getVisibleRanges();
-		const firstVisibleLine = visibleRanges.length > 0 ? visibleRanges[0].startLineNumber : 1;
+		if (visibleRanges.length === 0) {
+			// Editor not fully initialized or not visible; skip scroll adjustment
+			this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession, this.shouldScrollToExceptionWidget);
+			this.exceptionWidget.show({ lineNumber, column }, 0);
+			this.exceptionWidgetVisible.set(true);
+			this.allowScrollToExceptionWidget = true;
+			return;
+		}
+
+		const firstVisibleLine = visibleRanges[0].startLineNumber;
 
 		// Create widget - this may add a zone that pushes content down
 		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession, this.shouldScrollToExceptionWidget);
@@ -642,15 +651,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		// only adjust scroll if the exception widget is above the first visible line
 		if (lineNumber < firstVisibleLine) {
-			// Get the actual height of the widget that was just added
-			// by checking the view zones - find the zone we just added
-			const whitespaces = this.editor.getWhitespaces();
-			let scrollAdjustment = 0;
-			if (whitespaces.length > 0) {
-				// The most recently added whitespace is our widget
-				const lastWhitespace = whitespaces[whitespaces.length - 1];
-				scrollAdjustment = lastWhitespace.height;
-			}
+			// Get the actual height of the widget that was just added from the whitespace
+			// The whitespace height is more accurate than the container height
+			const scrollAdjustment = this.exceptionWidget.getWhitespaceHeight();
 
 			// Scroll down by the actual widget height to keep the first visible line the same
 			this.editor.setScrollTop(currentScrollTop + scrollAdjustment, ScrollType.Immediate);

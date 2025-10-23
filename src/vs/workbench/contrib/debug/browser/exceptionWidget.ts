@@ -139,4 +139,16 @@ export class ExceptionWidget extends ZoneWidget {
 
 		return dom.isAncestorOfActiveElement(this.container);
 	}
+
+	getWhitespaceHeight(): number {
+		// Returns the height of the whitespace zone from the editor's whitespaces
+		// This is more accurate than the container height as it includes the actual zone dimensions
+		if (!this._viewZone || !this._viewZone.id) {
+			return 0;
+		}
+
+		const whitespaces = this.editor.getWhitespaces();
+		const whitespace = whitespaces.find(ws => ws.id === this._viewZone!.id);
+		return whitespace ? whitespace.height : 0;
+	}
 }
