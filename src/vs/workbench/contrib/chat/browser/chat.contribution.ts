@@ -519,35 +519,6 @@ configurationRegistry.registerConfiguration({
 				}
 			},
 		},
-		[PromptsConfig.KEY]: {
-			type: 'boolean',
-			title: nls.localize(
-				'chat.reusablePrompts.config.enabled.title',
-				"Prompt Files",
-			),
-			markdownDescription: nls.localize(
-				'chat.reusablePrompts.config.enabled.description',
-				"Enable reusable prompt (`*{0}`) and instruction files (`*{1}`) in Chat sessions. [Learn More]({2}).",
-				PROMPT_FILE_EXTENSION,
-				INSTRUCTION_FILE_EXTENSION,
-				PROMPT_DOCUMENTATION_URL,
-			),
-			default: true,
-			restricted: true,
-			disallowConfigurationDefault: true,
-			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
-			policy: {
-				name: 'ChatPromptFiles',
-				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.99',
-				localization: {
-					description: {
-						key: 'chat.promptFiles.policy',
-						value: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat sessions.")
-					}
-				}
-			}
-		},
 		[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {
 			type: 'object',
 			title: nls.localize(
@@ -565,7 +536,7 @@ configurationRegistry.registerConfiguration({
 			},
 			additionalProperties: { type: 'boolean' },
 			restricted: true,
-			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
+			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			examples: [
 				{
 					[INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true,
@@ -594,7 +565,7 @@ configurationRegistry.registerConfiguration({
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
 			restricted: true,
-			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
+			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			examples: [
 				{
 					[PROMPT_DEFAULT_SOURCE_FOLDER]: true,
@@ -671,7 +642,7 @@ configurationRegistry.registerConfiguration({
 					{ type: 'string' }
 				]
 			},
-			tags: ['experimental'],
+			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			examples: [
 				{
 					'plan': true,
