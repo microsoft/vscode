@@ -18,8 +18,10 @@ export const enum AccessibleViewProviderId {
 	TerminalChat = 'terminal-chat',
 	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
+	MergeEditor = 'mergeEditor',
 	PanelChat = 'panelChat',
 	InlineChat = 'inlineChat',
+	AgentChat = 'agentChat',
 	QuickChat = 'quickChat',
 	InlineCompletions = 'inlineCompletions',
 	KeybindingsEditor = 'keybindingsEditor',
@@ -98,7 +100,7 @@ export interface IAccessibleViewContentProvider extends IBasicContentProvider, I
 	/**
 	 * Note that this will only take effect if the provider has an ID.
 	 */
-	onDidRequestClearLastProvider?: Event<AccessibleViewProviderId>;
+	readonly onDidRequestClearLastProvider?: Event<AccessibleViewProviderId>;
 }
 
 
@@ -169,6 +171,10 @@ export class AccessibleContentProvider extends Disposable implements IAccessible
 	}
 }
 
+export function isIAccessibleViewContentProvider(obj: any): obj is IAccessibleViewContentProvider {
+	return obj && obj.id && obj.options && obj.provideContent && obj.onClose && obj.verbositySettingKey;
+}
+
 export class ExtensionContentProvider extends Disposable implements IBasicContentProvider {
 
 	constructor(
@@ -195,5 +201,5 @@ export interface IBasicContentProvider extends IDisposable {
 	actions?: IAction[];
 	providePreviousContent?(): void;
 	provideNextContent?(): void;
-	onDidChangeContent?: Event<void>;
+	readonly onDidChangeContent?: Event<void>;
 }

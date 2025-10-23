@@ -10,7 +10,7 @@ import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../markdown/
 import { URI } from '../../../../base/common/uri.js';
 import { language } from '../../../../base/common/platform.js';
 import { joinPath } from '../../../../base/common/resources.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -21,7 +21,7 @@ import { gettingStartedContentRegistry } from '../common/gettingStartedContent.j
 
 
 export class GettingStartedDetailsRenderer {
-	private mdCache = new ResourceMap<string>();
+	private mdCache = new ResourceMap<TrustedHTML>();
 	private svgCache = new ResourceMap<string>();
 
 	constructor(
@@ -201,7 +201,7 @@ export class GettingStartedDetailsRenderer {
 		</html>`;
 	}
 
-	async renderVideo(path: URI, poster?: URI): Promise<string> {
+	async renderVideo(path: URI, poster?: URI, description?: string): Promise<string> {
 		const nonce = generateUuid();
 
 		return `<!DOCTYPE html>
@@ -211,51 +211,17 @@ export class GettingStartedDetailsRenderer {
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; media-src https:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
 				<style nonce="${nonce}">
 					video {
-						max-width: 530px;
-						min-width: 350px;
-						height: 100%;
-						width: 100%;
+						max-width: 100%;
+						max-height: 100%;
 						object-fit: cover;
-						transform: translateY(50%);
 					}
 				</style>
 			</head>
 			<body>
-				<vertically-centered>
-					<video controls ${poster ? `poster="${poster?.toString(true)}"` : ''} muted>
-						<source src="${path.toString(true)}" type="video/mp4">
-					</video>
-				</vertically-centered>
+				<video controls autoplay ${poster ? `poster="${poster.toString(true)}"` : ''} muted ${description ? `aria-label="${description}"` : ''}>
+					<source src="${path.toString(true)}" type="video/mp4">
+				</video>
 			</body>
-
-			<script nonce="${nonce}">
-				const vscode = acquireVsCodeApi();
-
-				document.querySelector('video').addEventListener('play', () => {
-					vscode.postMessage('playVideo' );
-				});
-
-				let ongoingLayout = undefined;
-				const doLayout = () => {
-					document.querySelectorAll('vertically-centered').forEach(element => {
-						element.style.marginTop = Math.max((document.body.clientHeight - element.scrollHeight) * 3/10, 0) + 'px';
-					});
-					ongoingLayout = undefined;
-				};
-
-				const layout = () => {
-					if (ongoingLayout) {
-						clearTimeout(ongoingLayout);
-					}
-					ongoingLayout = setTimeout(doLayout, 0);
-				};
-
-				layout();
-
-				document.querySelectorAll('video').forEach(element => {
-					element.onload = layout;
-				})
-		</script>
 		</html>`;
 	}
 
@@ -264,16 +230,38 @@ export class GettingStartedDetailsRenderer {
 			const contents = await this.readContentsOfPath(path, false);
 			this.svgCache.set(path, contents);
 		}
-		return assertIsDefined(this.svgCache.get(path));
+		return assertReturnsDefined(this.svgCache.get(path));
 	}
 
-	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
+	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<TrustedHTML> {
 		if (!this.mdCache.has(path)) {
 			const contents = await this.readContentsOfPath(path);
-			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, { allowUnknownProtocols: true });
+			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, {
+				sanitizerConfig: {
+					allowedLinkProtocols: {
+						override: '*'
+					},
+					allowedTags: {
+						augment: [
+							'select',
+							'checkbox',
+							'checklist',
+						]
+					},
+					allowedAttributes: {
+						augment: [
+							'x-dispatch',
+							'data-command',
+							'when-checked',
+							'checked-on',
+							'checked',
+						]
+					},
+				}
+			});
 			this.mdCache.set(path, markdownContents);
 		}
-		return assertIsDefined(this.mdCache.get(path));
+		return assertReturnsDefined(this.mdCache.get(path));
 	}
 
 	private async readContentsOfPath(path: URI, useModuleId = true): Promise<string> {

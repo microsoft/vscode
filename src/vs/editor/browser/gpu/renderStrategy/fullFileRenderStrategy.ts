@@ -10,18 +10,19 @@ import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
-import type { InlineDecoration, ViewLineRenderingData } from '../../../common/viewModel.js';
+import type { ViewLineRenderingData } from '../../../common/viewModel.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import type { ViewLineOptions } from '../../viewParts/viewLines/viewLineOptions.js';
 import type { ITextureAtlasPageGlyph } from '../atlas/atlas.js';
 import { createContentSegmenter, type IContentSegmenter } from '../contentSegmenter.js';
 import { fullFileRenderStrategyWgsl } from './fullFileRenderStrategy.wgsl.js';
-import { BindingId, type IGpuRenderStrategyUpdateResult } from '../gpu.js';
+import { BindingId } from '../gpu.js';
 import { GPULifecycle } from '../gpuDisposable.js';
 import { quadVertices } from '../gpuUtils.js';
 import { GlyphRasterizer } from '../raster/glyphRasterizer.js';
 import { ViewGpuContext } from '../viewGpuContext.js';
 import { BaseRenderStrategy } from './baseRenderStrategy.js';
+import { InlineDecoration } from '../../../common/viewModel/inlineDecorations.js';
 
 const enum Constants {
 	IndicesPerCell = 6,
@@ -174,7 +175,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		const dpr = getActiveWindow().devicePixelRatio;
 		this._scrollOffsetValueBuffer[0] = (e?.scrollLeft ?? this._context.viewLayout.getCurrentScrollLeft()) * dpr;
 		this._scrollOffsetValueBuffer[1] = (e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) * dpr;
-		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer);
+		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer as Float32Array<ArrayBuffer>);
 		return true;
 	}
 
@@ -232,7 +233,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		this._finalRenderedLine = 0;
 	}
 
-	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): IGpuRenderStrategyUpdateResult {
+	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number {
 		// IMPORTANT: This is a hot function. Variables are pre-allocated and shared within the
 		// loop. This is done so we don't need to trust the JIT compiler to do this optimization to
 		// avoid potential additional blocking time in garbage collector which is a common cause of
@@ -501,9 +502,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 		this._visibleObjectCount = visibleObjectCount;
 
-		return {
-			localContentWidth: absoluteOffsetX
-		};
+		return visibleObjectCount;
 	}
 
 	draw(pass: GPURenderPassEncoder, viewportData: ViewportData): void {

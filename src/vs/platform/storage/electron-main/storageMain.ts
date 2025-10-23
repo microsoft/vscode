@@ -310,14 +310,6 @@ class BaseProfileAwareStorageMain extends BaseStorageMain {
 
 export class ProfileStorageMain extends BaseProfileAwareStorageMain {
 
-	constructor(
-		profile: IUserDataProfile,
-		options: IStorageMainOptions,
-		logService: ILogService,
-		fileService: IFileService
-	) {
-		super(profile, options, logService, fileService);
-	}
 }
 
 export class ApplicationStorageMain extends BaseProfileAwareStorageMain {

@@ -287,14 +287,10 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 		return null;
 	}
 
-	public getAllLinkOccurrences(): LinkOccurrence[] {
-		return Object.values(this.currentOccurrences);
-	}
-
 	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent | null): boolean {
 		return Boolean(
 			(mouseEvent.target.type === MouseTargetType.CONTENT_TEXT)
-			&& (mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey))
+			&& ((mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey)) || mouseEvent.isMiddleClick && mouseEvent.mouseMiddleClickAction === 'openLink')
 		);
 	}
 

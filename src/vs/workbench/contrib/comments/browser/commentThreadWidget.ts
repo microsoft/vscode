@@ -5,13 +5,12 @@
 
 import './media/review.css';
 import * as dom from '../../../../base/browser/dom.js';
-import * as nls from '../../../../nls.js';
 import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as languages from '../../../../editor/common/languages.js';
-import { IMarkdownRendererOptions } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererExtraOptions } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CommentMenus } from './commentMenus.js';
@@ -38,8 +37,6 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { LayoutableEditor } from './simpleCommentEditor.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import Severity from '../../../../base/common/severity.js';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
@@ -72,17 +69,15 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		private _commentThread: languages.CommentThread<T>,
 		private _pendingComment: languages.PendingComment | undefined,
 		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
-		private _markdownOptions: IMarkdownRendererOptions,
+		private _markdownOptions: IMarkdownRendererExtraOptions,
 		private _commentOptions: languages.CommentOptions | undefined,
 		private _containerDelegate: {
 			actionRunner: (() => void) | null;
-			collapse: () => void;
+			collapse: () => Promise<boolean>;
 		},
 		@ICommentService private readonly commentService: ICommentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IDialogService private readonly _dialogService: IDialogService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -96,7 +91,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			CommentThreadHeader,
 			container,
 			{
-				collapse: this.collapseAction.bind(this)
+				collapse: this._containerDelegate.collapse.bind(this)
 			},
 			this._commentMenus,
 			this._commentThread
@@ -160,19 +155,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this.currentThreadListeners();
 	}
 
-	private async confirmCollapse(): Promise<boolean> {
-		const confirmSetting = this._configurationService.getValue<'whenHasUnsubmittedComments' | 'never'>('comments.thread.confirmOnCollapse');
-
-		const hasUnsubmitted = !!this._commentReply?.commentEditor.getValue() || this._body.hasCommentsInEditMode();
-		if (confirmSetting === 'whenHasUnsubmittedComments' && hasUnsubmitted) {
-			const result = await this._dialogService.confirm({
-				message: nls.localize('confirmCollapse', "This comment thread has unsubmitted comments. Do you want to collapse it?"),
-				primaryButton: nls.localize('collapse', "Collapse"),
-				type: Severity.Warning
-			});
-			return result.confirmed;
-		}
-		return true;
+	get hasUnsubmittedComments(): boolean {
+		return !!this._commentReply?.commentEditor.getValue() || this._body.hasCommentsInEditMode();
 	}
 
 	private _setAriaLabel(): void {
@@ -202,13 +186,13 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		let hasMouse = false;
 		let hasFocus = false;
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_ENTER, (e) => {
-			if ((<any>e).toElement === this.container) {
+			if (e.relatedTarget === this.container) {
 				hasMouse = true;
 				this.updateCurrentThread(hasMouse, hasFocus);
 			}
 		}, true));
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_LEAVE, (e) => {
-			if ((<any>e).fromElement === this.container) {
+			if (e.relatedTarget === this.container) {
 				hasMouse = false;
 				this.updateCurrentThread(hasMouse, hasFocus);
 			}
@@ -391,17 +375,11 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 	}
 
-	private async collapseAction() {
-		if (await this.confirmCollapse()) {
-			this.collapse();
-		}
-	}
-
-	collapse() {
-		if (Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
+	async collapse() {
+		if ((await this._containerDelegate.collapse()) && Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
 			this._parentEditor.setSelection(this.commentThread.range);
 		}
-		this._containerDelegate.collapse();
+
 	}
 
 	applyTheme(theme: IColorTheme, fontInfo: FontInfo) {

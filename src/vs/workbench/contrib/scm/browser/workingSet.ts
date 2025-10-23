@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -28,8 +28,8 @@ interface ISCMRepositoryWorkingSet {
 export class SCMWorkingSetController extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.scmWorkingSets';
 
+	private _enabledConfig: IObservable<boolean>;
 	private _workingSets!: Map<string, ISCMRepositoryWorkingSet>;
-	private _enabledConfig = observableConfigValue<boolean>('scm.workingSets.enabled', false, this.configurationService);
 
 	private readonly _repositoryDisposables = new DisposableMap<ISCMRepository>();
 
@@ -42,7 +42,9 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 	) {
 		super();
 
-		this._store.add(autorunWithStore((reader, store) => {
+		this._enabledConfig = observableConfigValue<boolean>('scm.workingSets.enabled', false, this.configurationService);
+
+		this._store.add(autorun(reader => {
 			if (!this._enabledConfig.read(reader)) {
 				this.storageService.remove('scm.workingSets', StorageScope.WORKSPACE);
 				this._repositoryDisposables.clearAndDisposeAll();
@@ -51,8 +53,8 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 
 			this._workingSets = this._loadWorkingSets();
 
-			this.scmService.onDidAddRepository(this._onDidAddRepository, this, store);
-			this.scmService.onDidRemoveRepository(this._onDidRemoveRepository, this, store);
+			this.scmService.onDidAddRepository(this._onDidAddRepository, this, reader.store);
+			this.scmService.onDidRemoveRepository(this._onDidRemoveRepository, this, reader.store);
 
 			for (const repository of this.scmService.repositories) {
 				this._onDidAddRepository(repository);

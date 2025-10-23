@@ -142,8 +142,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'comments.thread.confirmOnCollapse': {
 			type: 'string',
 			enum: ['whenHasUnsubmittedComments', 'never'],
-			default: 'never',
-			description: nls.localize('confirmOnCollapse', "Controls whether a confirmation dialog is shown when collapsing a comment thread with unsubmitted comments.")
+			enumDescriptions: [nls.localize('confirmOnCollapse.whenHasUnsubmittedComments', "Show a confirmation dialog when collapsing a comment thread with unsubmitted comments."), nls.localize('confirmOnCollapse.never', "Never show a confirmation dialog when collapsing a comment thread.")],
+			default: 'whenHasUnsubmittedComments',
+			description: nls.localize('confirmOnCollapse', "Controls whether a confirmation dialog is shown when collapsing a comment thread.")
 		}
 	}
 });
@@ -160,7 +161,7 @@ export class UnresolvedCommentsBadge extends Disposable implements IWorkbenchCon
 		super();
 		this._register(this._commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this));
 		this._register(this._commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this));
-
+		this._register(this._commentService.onDidDeleteDataProvider(this.onCommentsUpdated, this));
 	}
 
 	private onAllCommentsChanged(e: IWorkspaceCommentThreadsEvent): void {

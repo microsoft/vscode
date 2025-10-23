@@ -363,6 +363,81 @@ export class DeleteDuplicateLinesAction extends EditorAction {
 	}
 }
 
+export class ReverseLinesAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.reverseLines',
+			label: nls.localize2('lines.reverseLines', "Reverse lines"),
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const model: ITextModel = editor.getModel();
+		const originalSelections = editor.getSelections();
+		let selections = originalSelections;
+		if (selections.length === 1 && selections[0].isEmpty()) {
+			// Apply to whole document.
+			selections = [new Selection(1, 1, model.getLineCount(), model.getLineMaxColumn(model.getLineCount()))];
+		}
+
+		const edits: ISingleEditOperation[] = [];
+		const resultingSelections: Selection[] = [];
+
+		for (let i = 0; i < selections.length; i++) {
+			const selection = selections[i];
+			const originalSelection = originalSelections[i];
+			let endLineNumber = selection.endLineNumber;
+			if (selection.startLineNumber < selection.endLineNumber && selection.endColumn === 1) {
+				endLineNumber--;
+			}
+
+			let range: Range = new Range(selection.startLineNumber, 1, endLineNumber, model.getLineMaxColumn(endLineNumber));
+
+			// Exclude last line if empty and we're at the end of the document
+			if (endLineNumber === model.getLineCount() && model.getLineContent(range.endLineNumber) === '') {
+				range = range.setEndPosition(range.endLineNumber - 1, model.getLineMaxColumn(range.endLineNumber - 1));
+			}
+
+			const lines: string[] = [];
+			for (let i = range.endLineNumber; i >= range.startLineNumber; i--) {
+				lines.push(model.getLineContent(i));
+			}
+			const edit: ISingleEditOperation = EditOperation.replace(range, lines.join('\n'));
+			edits.push(edit);
+
+			const updateLineNumber = function (lineNumber: number): number {
+				return lineNumber <= range.endLineNumber ? range.endLineNumber - lineNumber + range.startLineNumber : lineNumber;
+			};
+			const updateSelection = function (sel: Selection): Selection {
+				if (sel.isEmpty()) {
+					// keep just the cursor
+					return new Selection(updateLineNumber(sel.positionLineNumber), sel.positionColumn, updateLineNumber(sel.positionLineNumber), sel.positionColumn);
+				} else {
+					// keep selection - maintain direction by creating backward selection
+					const newSelectionStart = updateLineNumber(sel.selectionStartLineNumber);
+					const newPosition = updateLineNumber(sel.positionLineNumber);
+					const newSelectionStartColumn = sel.selectionStartColumn;
+					const newPositionColumn = sel.positionColumn;
+
+					// Create selection: from (newSelectionStart, newSelectionStartColumn) to (newPosition, newPositionColumn)
+					// After reversal: from (3, 2) to (1, 3)
+					return new Selection(newSelectionStart, newSelectionStartColumn, newPosition, newPositionColumn);
+				}
+			};
+			resultingSelections.push(updateSelection(originalSelection));
+		}
+
+		editor.pushUndoStop();
+		editor.executeEdits(this.id, edits, resultingSelections);
+		editor.pushUndoStop();
+	}
+}
+
 export class TrimTrailingWhitespaceAction extends EditorAction {
 
 	public static readonly ID = 'editor.action.trimTrailingWhitespace';
@@ -563,9 +638,10 @@ class OutdentLinesAction extends EditorAction {
 }
 
 export class InsertLineBeforeAction extends EditorAction {
+	public static readonly ID = 'editor.action.insertLineBefore';
 	constructor() {
 		super({
-			id: 'editor.action.insertLineBefore',
+			id: InsertLineBeforeAction.ID,
 			label: nls.localize2('lines.insertBefore', "Insert Line Above"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
@@ -587,9 +663,10 @@ export class InsertLineBeforeAction extends EditorAction {
 }
 
 export class InsertLineAfterAction extends EditorAction {
+	public static readonly ID = 'editor.action.insertLineAfter';
 	constructor() {
 		super({
-			id: 'editor.action.insertLineAfter',
+			id: InsertLineAfterAction.ID,
 			label: nls.localize2('lines.insertAfter', "Insert Line Below"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
@@ -1164,7 +1241,9 @@ export class SnakeCaseAction extends AbstractCaseAction {
 }
 
 export class CamelCaseAction extends AbstractCaseAction {
-	public static wordBoundary = new BackwardsCompatibleRegExp('[_\\s-]', 'gm');
+	public static singleLineWordBoundary = new BackwardsCompatibleRegExp('[_\\s-]+', 'gm');
+	public static multiLineWordBoundary = new BackwardsCompatibleRegExp('[_-]+', 'gm');
+	public static validWordStart = new BackwardsCompatibleRegExp('^(\\p{Lu}[^\\p{Lu}])', 'gmu');
 
 	constructor() {
 		super({
@@ -1175,21 +1254,23 @@ export class CamelCaseAction extends AbstractCaseAction {
 	}
 
 	protected _modifyText(text: string, wordSeparators: string): string {
-		const wordBoundary = CamelCaseAction.wordBoundary.get();
-		if (!wordBoundary) {
+		const wordBoundary = /\r\n|\r|\n/.test(text) ? CamelCaseAction.multiLineWordBoundary.get() : CamelCaseAction.singleLineWordBoundary.get();
+		const validWordStart = CamelCaseAction.validWordStart.get();
+		if (!wordBoundary || !validWordStart) {
 			// cannot support this
 			return text;
 		}
 		const words = text.split(wordBoundary);
-		const firstWord = words.shift();
+		const firstWord = words.shift()?.replace(validWordStart, (start: string) => start.toLocaleLowerCase());
 		return firstWord + words.map((word: string) => word.substring(0, 1).toLocaleUpperCase() + word.substring(1))
 			.join('');
 	}
 }
 
 export class PascalCaseAction extends AbstractCaseAction {
-	public static wordBoundary = new BackwardsCompatibleRegExp('[_\\s-]', 'gm');
+	public static wordBoundary = new BackwardsCompatibleRegExp('[_ \\t-]', 'gm');
 	public static wordBoundaryToMaintain = new BackwardsCompatibleRegExp('(?<=\\.)', 'gm');
+	public static upperCaseWordMatcher = new BackwardsCompatibleRegExp('^\\p{Lu}+$', 'mu');
 
 	constructor() {
 		super({
@@ -1202,18 +1283,27 @@ export class PascalCaseAction extends AbstractCaseAction {
 	protected _modifyText(text: string, wordSeparators: string): string {
 		const wordBoundary = PascalCaseAction.wordBoundary.get();
 		const wordBoundaryToMaintain = PascalCaseAction.wordBoundaryToMaintain.get();
+		const upperCaseWordMatcher = PascalCaseAction.upperCaseWordMatcher.get();
 
-		if (!wordBoundary || !wordBoundaryToMaintain) {
+		if (!wordBoundary || !wordBoundaryToMaintain || !upperCaseWordMatcher) {
 			// cannot support this
 			return text;
 		}
 
 		const wordsWithMaintainBoundaries = text.split(wordBoundaryToMaintain);
-		const words = wordsWithMaintainBoundaries.map((word: string) => word.split(wordBoundary)).flat();
-		return words.map((word: string) => word.substring(0, 1).toLocaleUpperCase() + word.substring(1))
-			.join('');
+		const words = wordsWithMaintainBoundaries.map(word => word.split(wordBoundary)).flat();
+
+		return words.map(word => {
+			const normalizedWord = word.charAt(0).toLocaleUpperCase() + word.slice(1);
+			const isAllCaps = normalizedWord.length > 1 && upperCaseWordMatcher.test(normalizedWord);
+			if (isAllCaps) {
+				return normalizedWord.charAt(0) + normalizedWord.slice(1).toLocaleLowerCase();
+			}
+			return normalizedWord;
+		}).join('');
 	}
 }
+
 
 export class KebabCaseAction extends AbstractCaseAction {
 
@@ -1277,11 +1367,12 @@ registerEditorAction(JoinLinesAction);
 registerEditorAction(TransposeAction);
 registerEditorAction(UpperCaseAction);
 registerEditorAction(LowerCaseAction);
+registerEditorAction(ReverseLinesAction);
 
 if (SnakeCaseAction.caseBoundary.isSupported() && SnakeCaseAction.singleLetters.isSupported()) {
 	registerEditorAction(SnakeCaseAction);
 }
-if (CamelCaseAction.wordBoundary.isSupported()) {
+if (CamelCaseAction.singleLineWordBoundary.isSupported() && CamelCaseAction.multiLineWordBoundary.isSupported()) {
 	registerEditorAction(CamelCaseAction);
 }
 if (PascalCaseAction.wordBoundary.isSupported()) {

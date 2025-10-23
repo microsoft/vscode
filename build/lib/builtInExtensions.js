@@ -1,8 +1,4 @@
 "use strict";
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -42,6 +38,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getExtensionStream = getExtensionStream;
 exports.getBuiltInExtensions = getBuiltInExtensions;
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const os_1 = __importDefault(require("os"));
@@ -81,9 +81,17 @@ function isUpToDate(extension) {
     }
 }
 function getExtensionDownloadStream(extension) {
-    const galleryServiceUrl = productjson.extensionsGallery?.serviceUrl;
-    return (galleryServiceUrl ? ext.fromMarketplace(galleryServiceUrl, extension) : ext.fromGithub(extension))
-        .pipe((0, gulp_rename_1.default)(p => p.dirname = `${extension.name}/${p.dirname}`));
+    let input;
+    if (extension.vsix) {
+        input = ext.fromVsix(path_1.default.join(root, extension.vsix), extension);
+    }
+    else if (productjson.extensionsGallery?.serviceUrl) {
+        input = ext.fromMarketplace(productjson.extensionsGallery.serviceUrl, extension);
+    }
+    else {
+        input = ext.fromGithub(extension);
+    }
+    return input.pipe((0, gulp_rename_1.default)(p => p.dirname = `${extension.name}/${p.dirname}`));
 }
 function getExtensionStream(extension) {
     // if the extension exists on disk, use those files instead of downloading anew

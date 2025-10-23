@@ -470,6 +470,12 @@ suite('URI', () => {
 			with() { return this; },
 			toString() { return ''; }
 		}), true);
+
+		assert.strictEqual(URI.isUri(1), false);
+		assert.strictEqual(URI.isUri('1'), false);
+		assert.strictEqual(URI.isUri('http://sample.com'), false);
+		assert.strictEqual(URI.isUri(null), false);
+		assert.strictEqual(URI.isUri(undefined), false);
 	});
 
 	test('isUriComponents', function () {
@@ -481,7 +487,7 @@ suite('URI', () => {
 
 		assert.strictEqual(isUriComponents(1), false);
 		assert.strictEqual(isUriComponents(true), false);
-		assert.strictEqual(isUriComponents("true"), false);
+		assert.strictEqual(isUriComponents('true'), false);
 		assert.strictEqual(isUriComponents({}), false);
 		assert.strictEqual(isUriComponents({ scheme: '' }), true); // valid components but INVALID uri
 		assert.strictEqual(isUriComponents({ scheme: 'fo' }), true);

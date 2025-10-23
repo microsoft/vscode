@@ -1,8 +1,11 @@
 {
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
 		"outDir": "./out",
-		"experimentalDecorators": true,
+		"skipLibCheck": true,
+		"allowSyntheticDefaultImports": false,
 		"typeRoots": [
 			"./node_modules/@types"
 		]

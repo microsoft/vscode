@@ -6,11 +6,12 @@
 import { isFalsyOrEmpty, isNonEmptyArray } from '../../../base/common/arrays.js';
 import { DebounceEmitter } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
-import { IDisposable } from '../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../base/common/map.js';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
-import { IMarker, IMarkerData, IMarkerService, IResourceMarker, MarkerSeverity, MarkerStatistics } from './markers.js';
+import { localize } from '../../../nls.js';
+import { IMarker, IMarkerData, IMarkerReadOptions, IMarkerService, IResourceMarker, MarkerSeverity, MarkerStatistics } from './markers.js';
 
 export const unsupportedSchemas = new Set([
 	Schemas.inMemory,
@@ -18,6 +19,7 @@ export const unsupportedSchemas = new Set([
 	Schemas.walkThrough,
 	Schemas.walkThroughSnippet,
 	Schemas.vscodeChatCodeBlock,
+	Schemas.vscodeTerminal
 ]);
 
 class DoubleResourceMap<V> {
@@ -158,6 +160,7 @@ export class MarkerService implements IMarkerService {
 
 	private readonly _data = new DoubleResourceMap<IMarker[]>();
 	private readonly _stats = new MarkerStats(this);
+	private readonly _filteredResources = new ResourceMap<string[]>();
 
 	dispose(): void {
 		this._stats.dispose();
@@ -197,13 +200,39 @@ export class MarkerService implements IMarkerService {
 		}
 	}
 
+	installResourceFilter(resource: URI, reason: string): IDisposable {
+		let reasons = this._filteredResources.get(resource);
+
+		if (!reasons) {
+			reasons = [];
+			this._filteredResources.set(resource, reasons);
+		}
+		reasons.push(reason);
+		this._onMarkerChanged.fire([resource]);
+
+		return toDisposable(() => {
+			const reasons = this._filteredResources.get(resource);
+			if (!reasons) {
+				return;
+			}
+			const reasonIndex = reasons.indexOf(reason);
+			if (reasonIndex !== -1) {
+				reasons.splice(reasonIndex, 1);
+				if (reasons.length === 0) {
+					this._filteredResources.delete(resource);
+				}
+				this._onMarkerChanged.fire([resource]);
+			}
+		});
+	}
+
 	private static _toMarker(owner: string, resource: URI, data: IMarkerData): IMarker | undefined {
 		let {
 			code, severity,
 			message, source,
 			startLineNumber, startColumn, endLineNumber, endColumn,
 			relatedInformation,
-			tags,
+			tags, origin
 		} = data;
 
 		if (!message) {
@@ -229,6 +258,7 @@ export class MarkerService implements IMarkerService {
 			endColumn,
 			relatedInformation,
 			tags,
+			origin
 		};
 	}
 
@@ -278,7 +308,27 @@ export class MarkerService implements IMarkerService {
 		}
 	}
 
-	read(filter: { owner?: string; resource?: URI; severities?: number; take?: number } = Object.create(null)): IMarker[] {
+	/**
+	 * Creates an information marker for filtered resources
+	 */
+	private _createFilteredMarker(resource: URI, reasons: string[]): IMarker {
+		const message = reasons.length === 1
+			? localize('filtered', "Problems are paused because: \"{0}\"", reasons[0])
+			: localize('filtered.network', "Problems are paused because: \"{0}\" and {1} more", reasons[0], reasons.length - 1);
+
+		return {
+			owner: 'markersFilter',
+			resource,
+			severity: MarkerSeverity.Info,
+			message,
+			startLineNumber: 1,
+			startColumn: 1,
+			endLineNumber: 1,
+			endColumn: 1,
+		};
+	}
+
+	read(filter: IMarkerReadOptions = Object.create(null)): IMarker[] {
 
 		let { owner, resource, severities, take } = filter;
 
@@ -288,48 +338,56 @@ export class MarkerService implements IMarkerService {
 
 		if (owner && resource) {
 			// exactly one owner AND resource
+			const reasons = !filter.ignoreResourceFilters ? this._filteredResources.get(resource) : undefined;
+			if (reasons?.length) {
+				const infoMarker = this._createFilteredMarker(resource, reasons);
+				return [infoMarker];
+			}
+
 			const data = this._data.get(resource, owner);
 			if (!data) {
 				return [];
-			} else {
-				const result: IMarker[] = [];
-				for (const marker of data) {
-					if (MarkerService._accept(marker, severities)) {
-						const newLen = result.push(marker);
-						if (take > 0 && newLen === take) {
-							break;
-						}
-					}
-				}
-				return result;
 			}
 
-		} else if (!owner && !resource) {
-			// all
 			const result: IMarker[] = [];
-			for (const markers of this._data.values()) {
-				for (const data of markers) {
-					if (MarkerService._accept(data, severities)) {
-						const newLen = result.push(data);
-						if (take > 0 && newLen === take) {
-							return result;
-						}
-					}
+			for (const marker of data) {
+				if (take > 0 && result.length === take) {
+					break;
+				}
+				const reasons = !filter.ignoreResourceFilters ? this._filteredResources.get(resource) : undefined;
+				if (reasons?.length) {
+					result.push(this._createFilteredMarker(resource, reasons));
+
+				} else if (MarkerService._accept(marker, severities)) {
+					result.push(marker);
 				}
 			}
 			return result;
 
 		} else {
 			// of one resource OR owner
-			const iterable = this._data.values(resource ?? owner!);
+			const iterable = !owner && !resource
+				? this._data.values()
+				: this._data.values(resource ?? owner!);
+
 			const result: IMarker[] = [];
+			const filtered = new ResourceSet();
+
 			for (const markers of iterable) {
 				for (const data of markers) {
-					if (MarkerService._accept(data, severities)) {
-						const newLen = result.push(data);
-						if (take > 0 && newLen === take) {
-							return result;
-						}
+					if (filtered.has(data.resource)) {
+						continue;
+					}
+					if (take > 0 && result.length === take) {
+						break;
+					}
+					const reasons = !filter.ignoreResourceFilters ? this._filteredResources.get(data.resource) : undefined;
+					if (reasons?.length) {
+						result.push(this._createFilteredMarker(data.resource, reasons));
+						filtered.add(data.resource);
+
+					} else if (MarkerService._accept(data, severities)) {
+						result.push(data);
 					}
 				}
 			}

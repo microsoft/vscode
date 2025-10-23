@@ -23,8 +23,22 @@ import { IProductService } from '../../product/common/productService.js';
 import { asJson, asText, asTextOrError, hasNoContent, IRequestService, isSuccess, isSuccess as isSuccessContext } from '../../request/common/request.js';
 import { getServiceMachineId } from '../../externalServices/common/serviceMachineId.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
-import { HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from './userDataSync.js';
+import { HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLatestData, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from './userDataSync.js';
 import { VSBufferReadableStream } from '../../../base/common/buffer.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+
+type IDownloadLatestDataType = {
+	resources?: {
+		[resourceId: string]: [IUserData];
+	};
+	collections?: {
+		[collectionId: string]: {
+			resources?: {
+				[resourceId: string]: [IUserData];
+			} | undefined;
+		};
+	};
+};
 
 const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 const SYNC_PREVIOUS_STORE = 'sync.previous.store';
@@ -456,6 +470,56 @@ export class UserDataSyncStoreClient extends Disposable {
 
 		// clear cached session.
 		this.clearSession();
+	}
+
+	async getLatestData(headers: IHeaders = {}): Promise<IUserDataSyncLatestData | null> {
+		if (!this.userDataSyncStoreUrl) {
+			throw new Error('No settings sync store url configured.');
+		}
+
+		const url = joinPath(this.userDataSyncStoreUrl, 'download', 'latest').toString();
+
+		headers = { ...headers };
+		headers['Content-Type'] = 'application/json';
+		const context = await this.request(url, { type: 'GET', headers }, [], CancellationToken.None);
+
+		if (!isSuccess(context)) {
+			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, url, UserDataSyncErrorCode.EmptyResponse, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+		}
+
+		const serverData = await asJson<IDownloadLatestDataType>(context);
+		if (!serverData) {
+			return null;
+		}
+
+		const result: IUserDataSyncLatestData = {};
+		if (serverData.resources) {
+			result.resources = {};
+			for (const resource in serverData.resources) {
+				const [resourceData] = serverData.resources[resource];
+				result.resources[resource] = {
+					content: resourceData.content,
+					ref: resourceData.ref
+				};
+			}
+		}
+
+		if (serverData.collections) {
+			result.collections = {};
+			for (const collection in serverData.collections) {
+				const resources: IStringDictionary<IUserData> = {};
+				result.collections[collection] = { resources };
+				for (const resource in serverData.collections[collection].resources) {
+					const [resourceData] = serverData.collections[collection].resources[resource];
+					resources[resource] = {
+						content: resourceData.content,
+						ref: resourceData.ref
+					};
+				}
+			}
+		}
+
+		return result;
 	}
 
 	async getActivityData(): Promise<VSBufferReadableStream> {

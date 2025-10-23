@@ -19,6 +19,7 @@ import { IPolicyService } from '../../../policy/common/policy.js';
 import { FilePolicyService } from '../../../policy/common/filePolicyService.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 
 suite('PolicyConfiguration', () => {
 
@@ -39,7 +40,9 @@ suite('PolicyConfiguration', () => {
 				'default': 'defaultValueA',
 				policy: {
 					name: 'PolicySettingA',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' }, }
 				}
 			},
 			'policy.settingB': {
@@ -47,7 +50,9 @@ suite('PolicyConfiguration', () => {
 				'default': 'defaultValueB',
 				policy: {
 					name: 'PolicySettingB',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' }, }
 				}
 			},
 			'policy.objectSetting': {
@@ -55,7 +60,9 @@ suite('PolicyConfiguration', () => {
 				'default': {},
 				policy: {
 					name: 'PolicyObjectSetting',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' }, }
 				}
 			},
 			'policy.arraySetting': {
@@ -63,7 +70,30 @@ suite('PolicyConfiguration', () => {
 				'default': [],
 				policy: {
 					name: 'PolicyArraySetting',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' }, }
+				}
+			},
+			'policy.booleanSetting': {
+				'type': 'boolean',
+				'default': true,
+				policy: {
+					name: 'PolicyBooleanSetting',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' }, }
+				}
+			},
+			'policy.internalSetting': {
+				'type': 'string',
+				'default': 'defaultInternalValue',
+				included: false,
+				policy: {
+					name: 'PolicyInternalSetting',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' }, }
 				}
 			},
 			'nonPolicy.setting': {
@@ -150,6 +180,24 @@ suite('PolicyConfiguration', () => {
 		assert.deepStrictEqual(acutal.getValue('policy.arraySetting'), [1]);
 	});
 
+	test('initialize: with boolean type policy as false', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyBooleanSetting': false })));
+
+		await testObject.initialize();
+		const acutal = testObject.configurationModel;
+
+		assert.deepStrictEqual(acutal.getValue('policy.booleanSetting'), false);
+	});
+
+	test('initialize: with boolean type policy as true', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyBooleanSetting': true })));
+
+		await testObject.initialize();
+		const acutal = testObject.configurationModel;
+
+		assert.deepStrictEqual(acutal.getValue('policy.booleanSetting'), true);
+	});
+
 	test('initialize: with object type policy ignores policy if value is not valid', async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyObjectSetting': '{"a": "b", "hello": }' })));
 
@@ -232,7 +280,9 @@ suite('PolicyConfiguration', () => {
 			'default': 'defaultValueC',
 			policy: {
 				name: 'PolicySettingC',
+				category: PolicyCategory.Extensions,
 				minimumVersion: '1.0.0',
+				localization: { description: { key: '', value: '' }, },
 			}
 		};
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(deepClone(policyConfigurationNode));
@@ -260,6 +310,20 @@ suite('PolicyConfiguration', () => {
 		assert.strictEqual(acutal.getValue('policy.settingB'), undefined);
 		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
 		assert.deepStrictEqual(acutal.keys, []);
+		assert.deepStrictEqual(acutal.overrides, []);
+	});
+
+	test('initialize: with internal policies', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyInternalSetting': 'internalValue' })));
+
+		await testObject.initialize();
+		const acutal = testObject.configurationModel;
+
+		assert.strictEqual(acutal.getValue('policy.settingA'), undefined);
+		assert.strictEqual(acutal.getValue('policy.settingB'), undefined);
+		assert.strictEqual(acutal.getValue('policy.internalSetting'), 'internalValue');
+		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
+		assert.deepStrictEqual(acutal.keys, ['policy.internalSetting']);
 		assert.deepStrictEqual(acutal.overrides, []);
 	});
 

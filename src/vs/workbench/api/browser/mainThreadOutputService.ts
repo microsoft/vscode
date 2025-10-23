@@ -106,7 +106,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 				statusProperties,
 				'status.view.showQuietly',
 				StatusbarAlignment.RIGHT,
-				{ id: 'status.notifications', alignment: StatusbarAlignment.LEFT }
+				{ location: { id: 'status.notifications', priority: Number.NEGATIVE_INFINITY }, alignment: StatusbarAlignment.LEFT }
 			);
 		} else {
 			this._outputStatusItem.value.update(statusProperties);

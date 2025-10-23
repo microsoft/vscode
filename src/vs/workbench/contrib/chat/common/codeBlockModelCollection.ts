@@ -9,6 +9,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
 import { EndOfLinePreference, ITextModel } from '../../../../editor/common/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText, IMarkdownVulnerability } from './annotations.js';
@@ -21,10 +22,11 @@ interface CodeBlockContent {
 	readonly isComplete: boolean;
 }
 
-interface CodeBlockEntry {
+export interface CodeBlockEntry {
 	readonly model: Promise<ITextModel>;
 	readonly vulns: readonly IMarkdownVulnerability[];
 	readonly codemapperUri?: URI;
+	readonly isEdit?: boolean;
 }
 
 export class CodeBlockModelCollection extends Disposable {
@@ -32,7 +34,9 @@ export class CodeBlockModelCollection extends Disposable {
 	private readonly _models = new Map<string, {
 		model: Promise<IReference<IResolvedTextEditorModel>>;
 		vulns: readonly IMarkdownVulnerability[];
+		inLanguageId: string | undefined;
 		codemapperUri?: URI;
+		isEdit?: boolean;
 	}>();
 
 	/**
@@ -43,10 +47,25 @@ export class CodeBlockModelCollection extends Disposable {
 	private readonly maxModelCount = 100;
 
 	constructor(
+		private readonly tag: string | undefined,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
 		super();
+
+		this._register(this.languageService.onDidChange(async () => {
+			for (const entry of this._models.values()) {
+				if (!entry.inLanguageId) {
+					continue;
+				}
+
+				const model = (await entry.model).object;
+				const existingLanguageId = model.getLanguageId();
+				if (!existingLanguageId || existingLanguageId === PLAINTEXT_LANGUAGE_ID) {
+					this.trySetTextModelLanguage(entry.inLanguageId, model.textEditorModel);
+				}
+			}
+		}));
 	}
 
 	public override dispose(): void {
@@ -62,7 +81,8 @@ export class CodeBlockModelCollection extends Disposable {
 		return {
 			model: entry.model.then(ref => ref.object.textEditorModel),
 			vulns: entry.vulns,
-			codemapperUri: entry.codemapperUri
+			codemapperUri: entry.codemapperUri,
+			isEdit: entry.isEdit,
 		};
 	}
 
@@ -77,6 +97,7 @@ export class CodeBlockModelCollection extends Disposable {
 		this._models.set(this.getKey(sessionId, chat, codeBlockIndex), {
 			model: model,
 			vulns: [],
+			inLanguageId: undefined,
 			codemapperUri: undefined,
 		});
 
@@ -97,31 +118,19 @@ export class CodeBlockModelCollection extends Disposable {
 			return;
 		}
 
-		entry.model.then(ref => ref.object.dispose());
-
+		entry.model.then(ref => ref.dispose());
 		this._models.delete(key);
 	}
 
 	clear(): void {
-		this._models.forEach(async entry => (await entry.model).dispose());
+		this._models.forEach(async entry => await entry.model.then(ref => ref.dispose()));
 		this._models.clear();
 	}
 
 	updateSync(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, content: CodeBlockContent): CodeBlockEntry {
 		const entry = this.getOrCreate(sessionId, chat, codeBlockIndex);
 
-		const extractedVulns = extractVulnerabilitiesFromText(content.text);
-		const newText = fixCodeText(extractedVulns.newText, content.languageId);
-		this.setVulns(sessionId, chat, codeBlockIndex, extractedVulns.vulnerabilities);
-
-		const codeblockUri = extractCodeblockUrisFromText(newText);
-		if (codeblockUri) {
-			this.setCodemapperUri(sessionId, chat, codeBlockIndex, codeblockUri.uri);
-		}
-
-		if (content.isComplete) {
-			this.markCodeBlockCompleted(sessionId, chat, codeBlockIndex);
-		}
+		this.updateInternalCodeBlockEntry(content, sessionId, chat, codeBlockIndex);
 
 		return this.get(sessionId, chat, codeBlockIndex) ?? entry;
 	}
@@ -137,30 +146,16 @@ export class CodeBlockModelCollection extends Disposable {
 	async update(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, content: CodeBlockContent): Promise<CodeBlockEntry> {
 		const entry = this.getOrCreate(sessionId, chat, codeBlockIndex);
 
-		const extractedVulns = extractVulnerabilitiesFromText(content.text);
-		let newText = fixCodeText(extractedVulns.newText, content.languageId);
-		this.setVulns(sessionId, chat, codeBlockIndex, extractedVulns.vulnerabilities);
-
-		const codeblockUri = extractCodeblockUrisFromText(newText);
-		if (codeblockUri) {
-			this.setCodemapperUri(sessionId, chat, codeBlockIndex, codeblockUri.uri);
-			newText = codeblockUri.textWithoutResult;
-		}
-
-		if (content.isComplete) {
-			this.markCodeBlockCompleted(sessionId, chat, codeBlockIndex);
-		}
+		const newText = this.updateInternalCodeBlockEntry(content, sessionId, chat, codeBlockIndex);
 
 		const textModel = await entry.model;
-		if (textModel.isDisposed()) {
+		if (!textModel || textModel.isDisposed()) {
+			// Somehow we get an undefined textModel sometimes - #237782
 			return entry;
 		}
 
 		if (content.languageId) {
-			const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(content.languageId);
-			if (vscodeLanguageId && vscodeLanguageId !== textModel.getLanguageId()) {
-				textModel.setLanguage(vscodeLanguageId);
-			}
+			this.trySetTextModelLanguage(content.languageId, textModel);
 		}
 
 		const currentText = textModel.getValue(EndOfLinePreference.LF);
@@ -181,17 +176,39 @@ export class CodeBlockModelCollection extends Disposable {
 		return entry;
 	}
 
-	private setCodemapperUri(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, codemapperUri: URI) {
+	private updateInternalCodeBlockEntry(content: CodeBlockContent, sessionId: string, chat: IChatResponseViewModel | IChatRequestViewModel, codeBlockIndex: number) {
 		const entry = this._models.get(this.getKey(sessionId, chat, codeBlockIndex));
 		if (entry) {
-			entry.codemapperUri = codemapperUri;
+			entry.inLanguageId = content.languageId;
 		}
+
+		const extractedVulns = extractVulnerabilitiesFromText(content.text);
+		let newText = fixCodeText(extractedVulns.newText, content.languageId);
+		if (entry) {
+			entry.vulns = extractedVulns.vulnerabilities;
+		}
+
+		const codeblockUri = extractCodeblockUrisFromText(newText);
+		if (codeblockUri) {
+			if (entry) {
+				entry.codemapperUri = codeblockUri.uri;
+				entry.isEdit = codeblockUri.isEdit;
+			}
+
+			newText = codeblockUri.textWithoutResult;
+		}
+
+		if (content.isComplete) {
+			this.markCodeBlockCompleted(sessionId, chat, codeBlockIndex);
+		}
+
+		return newText;
 	}
 
-	private setVulns(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, vulnerabilities: IMarkdownVulnerability[]) {
-		const entry = this._models.get(this.getKey(sessionId, chat, codeBlockIndex));
-		if (entry) {
-			entry.vulns = vulnerabilities;
+	private trySetTextModelLanguage(inLanguageId: string, textModel: ITextModel) {
+		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(inLanguageId);
+		if (vscodeLanguageId && vscodeLanguageId !== textModel.getLanguageId()) {
+			textModel.setLanguage(vscodeLanguageId);
 		}
 	}
 
@@ -201,10 +218,11 @@ export class CodeBlockModelCollection extends Disposable {
 
 	private getCodeBlockUri(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, index: number): URI {
 		const metadata = this.getUriMetaData(chat);
+		const indexPart = this.tag ? `${this.tag}-${index}` : `${index}`;
 		return URI.from({
 			scheme: Schemas.vscodeChatCodeBlock,
 			authority: sessionId,
-			path: `/${chat.id}/${index}`,
+			path: `/${chat.id}/${indexPart}`,
 			fragment: metadata ? JSON.stringify(metadata) : undefined,
 		});
 	}
@@ -244,7 +262,8 @@ export class CodeBlockModelCollection extends Disposable {
 
 function fixCodeText(text: string, languageId: string | undefined): string {
 	if (languageId === 'php') {
-		if (!text.trim().startsWith('<')) {
+		// <?php or short tag version <?
+		if (!text.trim().startsWith('<?')) {
 			return `<?php\n${text}`;
 		}
 	}

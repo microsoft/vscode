@@ -16,11 +16,13 @@ import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 
 export interface CodeLensItem {
-	symbol: CodeLens;
-	provider: CodeLensProvider;
+	readonly symbol: CodeLens;
+	readonly provider: CodeLensProvider;
 }
 
 export class CodeLensModel {
+
+	static readonly Empty = new CodeLensModel();
 
 	lenses: CodeLensItem[] = [];
 
@@ -66,6 +68,11 @@ export async function getCodeLensModel(registry: LanguageFeatureRegistry<CodeLen
 	});
 
 	await Promise.all(promises);
+
+	if (token.isCancellationRequested) {
+		result.dispose();
+		return CodeLensModel.Empty;
+	}
 
 	result.lenses = result.lenses.sort((a, b) => {
 		// sort by lineNumber, provider-rank, and column

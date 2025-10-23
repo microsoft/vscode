@@ -69,10 +69,10 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, seen: Set<any>):
 			throw new Error('Cannot clone recursive data-structure');
 		}
 		seen.add(obj);
-		const r2 = {};
+		const r2: Record<string, unknown> = {};
 		for (const i2 in obj) {
 			if (_hasOwnProperty.call(obj, i2)) {
-				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, seen);
+				r2[i2] = _cloneAndChange(obj[i2], changer, seen);
 			}
 		}
 		seen.delete(obj);
@@ -227,41 +227,6 @@ export function filter(obj: obj, predicate: (key: string, value: any) => boolean
 		if (predicate(key, value)) {
 			result[key] = value;
 		}
-	}
-	return result;
-}
-
-export function getAllPropertyNames(obj: object): string[] {
-	let res: string[] = [];
-	while (Object.prototype !== obj) {
-		res = res.concat(Object.getOwnPropertyNames(obj));
-		obj = Object.getPrototypeOf(obj);
-	}
-	return res;
-}
-
-export function getAllMethodNames(obj: object): string[] {
-	const methods: string[] = [];
-	for (const prop of getAllPropertyNames(obj)) {
-		if (typeof (obj as any)[prop] === 'function') {
-			methods.push(prop);
-		}
-	}
-	return methods;
-}
-
-export function createProxyObject<T extends object>(methodNames: string[], invoke: (method: string, args: unknown[]) => unknown): T {
-	const createProxyMethod = (method: string): () => unknown => {
-		return function () {
-			const args = Array.prototype.slice.call(arguments, 0);
-			return invoke(method, args);
-		};
-	};
-
-	// eslint-disable-next-line local/code-no-dangerous-type-assertions
-	const result = {} as T;
-	for (const methodName of methodNames) {
-		(<any>result)[methodName] = createProxyMethod(methodName);
 	}
 	return result;
 }

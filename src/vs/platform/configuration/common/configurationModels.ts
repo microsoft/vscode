@@ -14,7 +14,7 @@ import { IExtUri } from '../../../base/common/resources.js';
 import * as types from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { addToValueTree, ConfigurationTarget, getConfigurationValue, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IInspectValue, IOverrides, removeFromValueTree, toValuesTree } from './configuration.js';
-import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from './configurationRegistry.js';
+import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX, IRegisteredConfigurationPropertySchema } from './configurationRegistry.js';
 import { FileOperation, IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { Registry } from '../../registry/common/platform.js';
@@ -405,8 +405,10 @@ export class ConfigurationModelParser {
 	}
 
 	protected doParseRaw(raw: any, options?: ConfigurationParseOptions): IConfigurationModel & { restricted?: string[]; hasExcludedProperties?: boolean } {
-		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		const filtered = this.filter(raw, configurationProperties, true, options);
+		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		const configurationProperties = registry.getConfigurationProperties();
+		const excludedConfigurationProperties = registry.getExcludedConfigurationProperties();
+		const filtered = this.filter(raw, configurationProperties, excludedConfigurationProperties, true, options);
 		raw = filtered.raw;
 		const contents = toValuesTree(raw, message => this.logService.error(`Conflict in settings file ${this._name}: ${message}`));
 		const keys = Object.keys(raw);
@@ -414,16 +416,16 @@ export class ConfigurationModelParser {
 		return { contents, keys, overrides, restricted: filtered.restricted, hasExcludedProperties: filtered.hasExcludedProperties };
 	}
 
-	private filter(properties: any, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema | undefined }, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: {}; restricted: string[]; hasExcludedProperties: boolean } {
+	private filter(properties: any, configurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>, excludedConfigurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: {}; restricted: string[]; hasExcludedProperties: boolean } {
 		let hasExcludedProperties = false;
-		if (!options?.scopes && !options?.skipRestricted && !options?.exclude?.length) {
+		if (!options?.scopes && !options?.skipRestricted && !options?.skipUnregistered && !options?.exclude?.length) {
 			return { raw: properties, restricted: [], hasExcludedProperties };
 		}
 		const raw: any = {};
 		const restricted: string[] = [];
 		for (const key in properties) {
 			if (OVERRIDE_PROPERTY_REGEX.test(key) && filterOverriddenProperties) {
-				const result = this.filter(properties[key], configurationProperties, false, options);
+				const result = this.filter(properties[key], configurationProperties, excludedConfigurationProperties, false, options);
 				raw[key] = result.raw;
 				hasExcludedProperties = hasExcludedProperties || result.hasExcludedProperties;
 				restricted.push(...result.restricted);
@@ -432,7 +434,7 @@ export class ConfigurationModelParser {
 				if (propertySchema?.restricted) {
 					restricted.push(key);
 				}
-				if (this.shouldInclude(key, propertySchema, options)) {
+				if (this.shouldInclude(key, propertySchema, excludedConfigurationProperties, options)) {
 					raw[key] = properties[key];
 				} else {
 					hasExcludedProperties = true;
@@ -442,7 +444,7 @@ export class ConfigurationModelParser {
 		return { raw, restricted, hasExcludedProperties };
 	}
 
-	private shouldInclude(key: string, propertySchema: IConfigurationPropertySchema | undefined, options: ConfigurationParseOptions): boolean {
+	private shouldInclude(key: string, propertySchema: IConfigurationPropertySchema | undefined, excludedConfigurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>, options: ConfigurationParseOptions): boolean {
 		if (options.exclude?.includes(key)) {
 			return false;
 		}
@@ -459,7 +461,8 @@ export class ConfigurationModelParser {
 			return false;
 		}
 
-		const scope = propertySchema ? typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW : undefined;
+		const schema = propertySchema ?? excludedConfigurationProperties[key];
+		const scope = schema ? typeof schema.scope !== 'undefined' ? schema.scope : ConfigurationScope.WINDOW : undefined;
 		if (scope === undefined || options.scopes === undefined) {
 			return true;
 		}
@@ -727,7 +730,7 @@ export class Configuration {
 	}
 
 	getValue(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | undefined): any {
-		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(overrides, workspace);
+		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(section, overrides, workspace);
 		return consolidateConfigurationModel.getValue(section);
 	}
 
@@ -755,7 +758,7 @@ export class Configuration {
 	}
 
 	inspect<C>(key: string, overrides: IConfigurationOverrides, workspace: Workspace | undefined): IConfigurationValue<C> {
-		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(overrides, workspace);
+		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(key, overrides, workspace);
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(overrides.resource, workspace);
 		const memoryConfigurationModel = overrides.resource ? this._memoryConfigurationByResource.get(overrides.resource) || this._memoryConfiguration : this._memoryConfiguration;
 		const overrideIdentifiers = new Set<string>();
@@ -787,6 +790,7 @@ export class Configuration {
 
 	keys(workspace: Workspace | undefined): {
 		default: string[];
+		policy: string[];
 		user: string[];
 		workspace: string[];
 		workspaceFolder: string[];
@@ -794,6 +798,7 @@ export class Configuration {
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(undefined, workspace);
 		return {
 			default: this._defaultConfiguration.keys.slice(0),
+			policy: this._policyConfiguration.keys.slice(0),
 			user: this.userConfiguration.keys.slice(0),
 			workspace: this._workspaceConfiguration.keys.slice(0),
 			workspaceFolder: folderConfigurationModel ? folderConfigurationModel.keys.slice(0) : []
@@ -970,12 +975,12 @@ export class Configuration {
 		return this._folderConfigurations;
 	}
 
-	private getConsolidatedConfigurationModel(overrides: IConfigurationOverrides, workspace: Workspace | undefined): ConfigurationModel {
+	private getConsolidatedConfigurationModel(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | undefined): ConfigurationModel {
 		let configurationModel = this.getConsolidatedConfigurationModelForResource(overrides, workspace);
 		if (overrides.overrideIdentifier) {
 			configurationModel = configurationModel.override(overrides.overrideIdentifier);
 		}
-		if (!this._policyConfiguration.isEmpty()) {
+		if (!this._policyConfiguration.isEmpty() && this._policyConfiguration.getValue(section) !== undefined) {
 			// clone by merging
 			configurationModel = configurationModel.merge();
 			for (const key of this._policyConfiguration.keys) {

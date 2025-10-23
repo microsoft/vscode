@@ -144,7 +144,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 					options: {
 						pinned: true,
 						forceReload: true,
-						preserveFocus: editorOptions?.preserveFocus
+						preserveFocus: editorOptions?.preserveFocus,
+						auxiliary: editorOptions?.auxiliary,
 					}
 				}, editorOptions?.viewColumn ?? ACTIVE_GROUP)
 			};
@@ -181,8 +182,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._instanceDisposables.set(inputKey, [
 			instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance),
 			instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance),
-			instance.capabilities.onDidAddCapabilityType(() => this._onDidChangeInstanceCapability.fire(instance)),
-			instance.capabilities.onDidRemoveCapabilityType(() => this._onDidChangeInstanceCapability.fire(instance)),
+			instance.capabilities.onDidChangeCapabilities(() => this._onDidChangeInstanceCapability.fire(instance)),
 		]);
 		this.instances.push(instance);
 		this._onDidChangeInstances.fire();

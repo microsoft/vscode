@@ -51,7 +51,7 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 				node,
 				messageId: 'amdX'
 			});
-		}
+		};
 
 		return {
 			['ImportExpression Literal']: checkImport,

@@ -7,7 +7,7 @@ import { Event } from '../../base/common/event.js';
 import * as platform from '../../base/common/platform.js';
 import * as performance from '../../base/common/performance.js';
 import { URI } from '../../base/common/uri.js';
-import { createURITransformer } from '../../workbench/api/node/uriTransformer.js';
+import { createURITransformer } from '../../base/common/uriTransformer.js';
 import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments, IGetExtensionHostExitInfoArguments } from '../../workbench/services/remote/common/remoteAgentEnvironmentChannel.js';
 import { IServerEnvironmentService } from './serverEnvironmentService.js';
 import { IServerChannel } from '../../base/parts/ipc/common/ipc.js';
@@ -103,13 +103,14 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		if (process.platform === 'linux') {
 			const glibcVersion = (process as ProcessWithGlibc).glibcVersion;
 			const minorVersion = glibcVersion ? parseInt(glibcVersion.split('.')[1]) : 28;
-			isUnsupportedGlibc = (minorVersion <= 27);
+			isUnsupportedGlibc = (minorVersion <= 27) || !!process.env['VSCODE_SERVER_CUSTOM_GLIBC_LINKER'];
 		}
 		return {
 			pid: process.pid,
 			connectionToken: (this._connectionToken.type !== ServerConnectionTokenType.None ? this._connectionToken.value : ''),
 			appRoot: URI.file(this._environmentService.appRoot),
 			settingsPath: this._environmentService.machineSettingsResource,
+			mcpResource: this._environmentService.mcpResource,
 			logsPath: this._environmentService.logsHome,
 			extensionHostLogsPath: joinPath(this._environmentService.logsHome, `exthost${RemoteAgentEnvironmentChannel._namePool++}`),
 			globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,

@@ -269,8 +269,14 @@ class ClassData {
 	}
 }
 
+declare module 'typescript' {
+	interface SourceFile {
+		identifiers?: Map<string, true>;
+	}
+}
+
 function isNameTakenInFile(node: ts.Node, name: string): boolean {
-	const identifiers = (<any>node.getSourceFile()).identifiers;
+	const identifiers = node.getSourceFile().identifiers;
 	if (identifiers instanceof Map) {
 		if (identifiers.has(name)) {
 			return true;
@@ -280,8 +286,6 @@ function isNameTakenInFile(node: ts.Node, name: string): boolean {
 }
 
 const skippedExportMangledFiles = [
-	// Build
-	'css.build',
 
 	// Monaco
 	'editorCommon',
@@ -407,7 +411,7 @@ export class Mangler {
 	) {
 
 		this.renameWorkerPool = workerpool.pool(path.join(__dirname, 'renameWorker.js'), {
-			maxWorkers: 1,
+			maxWorkers: 4,
 			minWorkers: 'max'
 		});
 	}

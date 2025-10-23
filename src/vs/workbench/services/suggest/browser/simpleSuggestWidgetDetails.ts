@@ -13,7 +13,7 @@ import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resi
 import * as nls from '../../../../nls.js';
 import { SimpleCompletionItem } from './simpleCompletionItem.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISimpleSuggestWidgetFontInfo } from './simpleSuggestWidgetRenderer.js';
 
@@ -41,8 +41,6 @@ export class SimpleSuggestDetailsWidget {
 	private readonly _docs: HTMLElement;
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _markdownRenderer: MarkdownRenderer;
-
 	private readonly _renderDisposeable = this._disposables.add(new DisposableStore());
 	private _borderWidth: number = 1;
 	private _size = new dom.Dimension(330, 0);
@@ -50,12 +48,12 @@ export class SimpleSuggestDetailsWidget {
 	constructor(
 		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
 		onDidFontInfoChange: Event<void>,
-		@IInstantiationService instaService: IInstantiationService
+		private readonly _getAdvancedExplainModeDetails: () => string | undefined,
+		@IInstantiationService instaService: IInstantiationService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		this.domNode = dom.$('.suggest-details');
 		this.domNode.classList.add('no-docs');
-
-		this._markdownRenderer = instaService.createInstance(MarkdownRenderer, {});
 
 		this._body = dom.$('.body');
 
@@ -136,9 +134,15 @@ export class SimpleSuggestDetailsWidget {
 		if (explainMode) {
 			md += `score: ${item.score[0]}\n`;
 			md += `prefix: ${item.word ?? '(no prefix)'}\n`;
-			md += `replacementIndex: ${item.completion.replacementIndex}\n`;
-			md += `replacementLength: ${item.completion.replacementLength}\n`;
+			const vs = item.completion.replacementRange;
+			md += `valueSelection: ${vs ? `[${vs[0]}, ${vs[1]}]` : 'undefined'}\\n`;
 			md += `index: ${item.idx}\n`;
+			if (this._getAdvancedExplainModeDetails) {
+				const advancedDetails = this._getAdvancedExplainModeDetails();
+				if (advancedDetails) {
+					md += `${advancedDetails}\n`;
+				}
+			}
 			detail = `Provider: ${item.completion.provider}`;
 			documentation = new MarkdownString().appendCodeblock('empty', md);
 		}
@@ -175,7 +179,7 @@ export class SimpleSuggestDetailsWidget {
 		} else if (documentation) {
 			this._docs.classList.add('markdown-docs');
 			dom.clearNode(this._docs);
-			const renderedContents = this._markdownRenderer.render(documentation, {
+			const renderedContents = this.markdownRendererService.render(documentation, {
 				asyncRenderCallback: () => {
 					this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
 					this._onDidChangeContents.fire(this);

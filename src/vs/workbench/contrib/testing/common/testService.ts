@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert } from '../../../../base/common/assert.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -19,7 +20,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { MutableObservableValue } from './observableValue.js';
 import { TestExclusions } from './testExclusions.js';
-import { TestId } from './testId.js';
+import { TestId, TestIdPathParts } from './testId.js';
 import { ITestResult } from './testResult.js';
 import { AbstractIncrementalTestCollection, ICallProfileRunHandler, IncrementalTestCollectionItem, InternalTestItem, IStartControllerTests, IStartControllerTestsResult, ITestItemContext, ResolvedTestRunRequest, TestControllerCapability, TestItemExpandState, TestMessageFollowupRequest, TestMessageFollowupResponse, TestRunProfileBitset, TestsDiff } from './testTypes.js';
 
@@ -46,7 +47,7 @@ export interface IMainThreadTestHostProxy {
 }
 
 export interface IMainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> {
-	onBusyProvidersChange: Event<number>;
+	readonly onBusyProvidersChange: Event<number>;
 
 	/**
 	 * Number of providers working to discover tests.
@@ -153,7 +154,7 @@ export const expandAndGetTestById = async (collection: IMainThreadTestCollection
 /**
  * Waits for the test to no longer be in the "busy" state.
  */
-const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCollectionItem) => {
+export const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCollectionItem) => {
 	if (!test.item.busy) {
 		return;
 	}
@@ -172,15 +173,46 @@ const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCol
  * Iterator that expands to and iterates through tests in the file. Iterates
  * in strictly descending order.
  */
-export const testsInFile = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true): AsyncIterable<IncrementalTestCollectionItem> {
-	const queue = new LinkedList<Iterable<string>>();
+export const testsInFile = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true, descendInFile = true): AsyncIterable<readonly IncrementalTestCollectionItem[]> {
+	// In this function we go to a bit of effort to avoid awaiting unnecessarily
+	// and bulking the test collections we do collect for consumers. This fixes
+	// a performance issue (#235819) where a large number of tests in a file
+	// would cause a long delay switching editors.
+	const queue = new LinkedList<Iterable<string> | DeferredPromise<Iterable<string>>>();
 
-	const existing = [...testService.collection.getNodeByUrl(uri)];
+	const existing = [...testService.collection.getNodeByUrl(uri)].sort((a, b) => a.item.extId.length - b.item.extId.length);
+
+	// getNodeByUrl will return all known tests in the URI, but this can include
+	// children of tests even when `descendInFile` is false. Remove those cases.
+	for (let i = 0; i < existing.length - 1; i++) {
+		const prefix = existing[i].item.extId + TestIdPathParts.Delimiter;
+		for (let k = i + 1; k < existing.length; k++) {
+			if (existing[k].item.extId.startsWith(prefix)) {
+				existing.splice(k--, 1);
+			}
+		}
+	}
+
 	queue.push(existing.length ? existing.map(e => e.item.extId) : testService.collection.rootIds);
 
 	let n = 0;
+	let gather: IncrementalTestCollectionItem[] = [];
 	while (queue.size > 0) {
-		for (const id of queue.pop()!) {
+		const next = queue.pop()!;
+		let ids: Iterable<string>;
+		if (!(next instanceof DeferredPromise)) {
+			ids = next;
+		} else if (next.isSettled) {
+			ids = next.value || Iterable.empty();
+		} else {
+			if (gather.length) {
+				yield gather;
+				gather = [];
+			}
+			ids = await next.p;
+		}
+
+		for (const id of ids) {
 			n++;
 			const test = testService.collection.getNodeById(id);
 			if (!test) {
@@ -193,22 +225,37 @@ export const testsInFile = async function* (testService: ITestService, ident: IU
 			}
 
 			if (ident.extUri.isEqual(uri, test.item.uri)) {
-				yield test;
+				gather.push(test);
+
+				if (!descendInFile) {
+					continue;
+				}
 			}
 
 			if (ident.extUri.isEqualOrParent(uri, test.item.uri)) {
+				let prom: Promise<void> | undefined;
 				if (test.expand === TestItemExpandState.Expandable) {
-					await testService.collection.expand(test.item.extId, 1);
+					prom = testService.collection.expand(test.item.extId, 1);
 				}
 				if (waitForIdle) {
-					await waitForTestToBeIdle(testService, test);
+					if (prom) {
+						prom = prom.then(() => waitForTestToBeIdle(testService, test));
+					} else if (test.item.busy) {
+						prom = waitForTestToBeIdle(testService, test);
+					}
 				}
 
-				if (test.children.size) {
+				if (prom) {
+					queue.push(DeferredPromise.fromPromise(prom.then(() => test.children)));
+				} else if (test.children.size) {
 					queue.push(test.children);
 				}
 			}
 		}
+	}
+
+	if (gather.length) {
+		yield gather;
 	}
 };
 
@@ -314,6 +361,8 @@ export interface AmbiguousRunTestsRequest {
 	exclude?: InternalTestItem[];
 	/** Whether this was triggered from an auto run. */
 	continuous?: boolean;
+	/** Whether this was trigged by a user action in UI. Default=true */
+	preserveFocus?: boolean;
 }
 
 export interface ITestFollowup {

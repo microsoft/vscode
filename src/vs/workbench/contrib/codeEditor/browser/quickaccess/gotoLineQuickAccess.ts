@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../base/common/event.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IKeyMods, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -22,14 +23,23 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
-	protected readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
+	private static zeroBasedOffsetSetting = 'workbench.quickOpen.useZeroBasedOffset';
+	protected readonly onDidActiveTextEditorControlChange: Event<void>;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super();
+		super({
+			get value() {
+				return configurationService.getValue<boolean>(GotoLineQuickAccessProvider.zeroBasedOffsetSetting);
+			},
+			set value(value: boolean) {
+				configurationService.updateValue(GotoLineQuickAccessProvider.zeroBasedOffsetSetting, value);
+			}
+		});
+		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 	}
 
 	private get configuration() {

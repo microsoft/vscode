@@ -39,6 +39,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 				versionId: 1,
 				lines: ['foo'],
 				EOL: '\n',
+				encoding: 'utf8'
 			}]
 		});
 		documents = new ExtHostDocuments(SingleProxyRPCProtocol(null), documentsAndEditors);
@@ -80,6 +81,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			assert.ok(event);
+			// eslint-disable-next-line local/code-no-any-casts
 			assert.throws(() => { (event.document as any) = null!; });
 		});
 	});
@@ -302,6 +304,9 @@ suite('ExtHostDocumentSaveParticipant', () => {
 				versionId: 2,
 				isRedoing: false,
 				isUndoing: false,
+				detailedReason: undefined,
+				isFlush: false,
+				isEolChange: false,
 			}, true);
 
 			e.waitUntil(Promise.resolve([TextEdit.insert(new Position(0, 0), 'bar')]));
@@ -336,6 +341,9 @@ suite('ExtHostDocumentSaveParticipant', () => {
 						versionId: documents.getDocumentData(uri)!.version + 1,
 						isRedoing: false,
 						isUndoing: false,
+						detailedReason: undefined,
+						isFlush: false,
+						isEolChange: false,
 					}, true);
 					// }
 				}

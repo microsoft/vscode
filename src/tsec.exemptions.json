@@ -1,34 +1,30 @@
 {
 	"ban-document-execcommand": [
-		"vs/workbench/contrib/codeEditor/electron-sandbox/inputClipboardActions.ts",
+		"vs/workbench/contrib/codeEditor/electron-browser/inputClipboardActions.ts",
 		"vs/editor/contrib/clipboard/browser/clipboard.ts"
 	],
 	"ban-eval-calls": [
-		"vs/workbench/api/worker/extHostExtensionService.ts",
-		"vs/base/worker/workerMain.ts"
+		"vs/workbench/api/worker/extHostExtensionService.ts"
 	],
 	"ban-function-calls": [
 		"vs/workbench/api/worker/extHostExtensionService.ts",
-		"vs/base/worker/workerMain.ts",
 		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts",
 		"vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils.ts"
 	],
 	"ban-trustedtypes-createpolicy": [
-		"bootstrap-window.ts",
+		"vs/code/electron-browser/workbench/workbench.ts",
 		"vs/amdX.ts",
 		"vs/base/browser/trustedTypes.ts",
-		"vs/base/worker/workerMain.ts",
 		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts"
 	],
 	"ban-worker-calls": [
-		"vs/base/browser/defaultWorkerFactory.ts",
+		"vs/base/browser/webWorkerFactory.ts",
 		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
 	],
 	"ban-worker-importscripts": [
 		"vs/amdX.ts",
 		"vs/workbench/services/extensions/worker/polyfillNestedWorker.ts",
-		"vs/workbench/api/worker/extensionHostWorker.ts",
-		"vs/base/worker/workerMain.ts"
+		"vs/workbench/api/worker/extensionHostWorker.ts"
 	],
 	"ban-domparser-parsefromstring": [
 		"vs/base/browser/markdownRenderer.ts",
@@ -41,6 +37,6 @@
 		"**/*.ts"
 	],
 	"ban-script-content-assignments": [
-		"bootstrap-window.ts"
+		"vs/code/electron-browser/workbench/workbench.ts"
 	]
 }

@@ -1,8 +1,4 @@
 "use strict";
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -15,6 +11,10 @@ exports.createXlfFilesForExtensions = createXlfFilesForExtensions;
 exports.createXlfFilesForIsl = createXlfFilesForIsl;
 exports.prepareI18nPackFiles = prepareI18nPackFiles;
 exports.prepareIslFiles = prepareIslFiles;
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const event_stream_1 = require("event-stream");
@@ -41,11 +41,12 @@ exports.defaultLanguages = [
     { id: 'ru', folderName: 'rus' },
     { id: 'it', folderName: 'ita' }
 ];
-// languages requested by the community to non-stable builds
+// languages requested by the community
 exports.extraLanguages = [
     { id: 'pt-br', folderName: 'ptb' },
-    { id: 'hu', folderName: 'hun' },
-    { id: 'tr', folderName: 'trk' }
+    { id: 'tr', folderName: 'trk' },
+    { id: 'cs' },
+    { id: 'pl' }
 ];
 var LocalizeInfo;
 (function (LocalizeInfo) {
@@ -319,9 +320,10 @@ globalThis._VSCODE_NLS_LANGUAGE=${JSON.stringify(language.id)};`),
 function processNlsFiles(opts) {
     return (0, event_stream_1.through)(function (file) {
         const fileName = path_1.default.basename(file.path);
-        if (fileName === 'bundleInfo.json') { // pick a root level file to put the core bundles (TODO@esm this file is not created anymore, pick another)
+        if (fileName === 'nls.keys.json') {
             try {
-                const json = JSON.parse(fs_1.default.readFileSync(path_1.default.join(REPO_ROOT_PATH, opts.out, 'nls.keys.json')).toString());
+                const contents = file.contents.toString('utf8');
+                const json = JSON.parse(contents);
                 if (NLSKeysFormat.is(json)) {
                     processCoreBundleFormat(file.base, opts.fileHeader, opts.languages, json, this);
                 }

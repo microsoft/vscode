@@ -37,6 +37,7 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 	}
 	if (obj !== undefined && obj !== null && typeof obj === 'object' && Object.keys(obj).length > 0) {
 		return (
+			// eslint-disable-next-line local/code-no-any-casts
 			Object.keys(obj)
 				.sort()
 				.reduce<Record<string, any>>((sortedObj, prop) => {
@@ -57,6 +58,7 @@ export function getCellMetadata(options: { cell: NotebookCell | NotebookCellData
 			...(cell.metadata ?? {})
 		} satisfies CellMetadata;
 		if (cell.kind === NotebookCellKindMarkup) {
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (metadata as any).execution_count;
 		}
 		return metadata;
@@ -103,7 +105,7 @@ function createCodeCellFromNotebookCell(cell: NotebookCellData, preferredLanguag
 		// & in that case execution summary could contain the data, but metadata will not.
 		// In such cases we do not want to re-set the metadata with the value from execution summary (remember, user reverted that).
 		execution_count: cellMetadata.execution_count ?? null,
-		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
+		source: splitCellSourceIntoMultilineString(cell.value),
 		outputs: (cell.outputs || []).map(translateCellDisplayOutput),
 		metadata: cellMetadata.metadata
 	};
@@ -117,7 +119,7 @@ function createRawCellFromNotebookCell(cell: NotebookCellData): nbformat.IRawCel
 	const cellMetadata = getCellMetadata({ cell });
 	const rawCell: any = {
 		cell_type: 'raw',
-		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
+		source: splitCellSourceIntoMultilineString(cell.value),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
 	if (cellMetadata?.attachments) {
@@ -127,6 +129,15 @@ function createRawCellFromNotebookCell(cell: NotebookCellData): nbformat.IRawCel
 		rawCell.id = cellMetadata.id;
 	}
 	return rawCell;
+}
+
+/**
+ * Splits the source of a cell into an array of strings, each representing a line.
+ * Also normalizes line endings to use LF (`\n`) instead of CRLF (`\r\n`).
+ * Same is done in deserializer as well.
+ */
+function splitCellSourceIntoMultilineString(source: string): string[] {
+	return splitMultilineString(source.replace(/\r\n/g, '\n'));
 }
 
 function splitMultilineString(source: nbformat.MultilineString): string[] {
@@ -368,7 +379,7 @@ export function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbfo
 	const cellMetadata = getCellMetadata({ cell });
 	const markdownCell: any = {
 		cell_type: 'markdown',
-		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
+		source: splitCellSourceIntoMultilineString(cell.value),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
 	if (cellMetadata?.attachments) {
@@ -389,7 +400,9 @@ export function pruneCell(cell: nbformat.ICell): nbformat.ICell {
 
 	// Remove outputs and execution_count from non code cells
 	if (result.cell_type !== 'code') {
+		// eslint-disable-next-line local/code-no-any-casts
 		delete (<any>result).outputs;
+		// eslint-disable-next-line local/code-no-any-casts
 		delete (<any>result).execution_count;
 	} else {
 		// Clean outputs from code cells

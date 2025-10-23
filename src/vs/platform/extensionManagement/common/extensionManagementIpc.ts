@@ -17,6 +17,7 @@ import {
 import { ExtensionType, IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
 import { IProductService } from '../../product/common/productService.js';
 import { CommontExtensionManagementService } from './abstractExtensionManagementService.js';
+import { language } from '../../../base/common/platform.js';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI;
 function transformIncomingURI(uri: UriComponents | undefined, transformer: IURITransformer | null): URI | undefined;
@@ -45,11 +46,11 @@ function transformOutgoingExtension(extension: ILocalExtension, transformer: IUR
 
 export class ExtensionManagementChannel implements IServerChannel {
 
-	onInstallExtension: Event<InstallExtensionEvent>;
-	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
-	onUninstallExtension: Event<UninstallExtensionEvent>;
-	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
-	onDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
+	readonly onInstallExtension: Event<InstallExtensionEvent>;
+	readonly onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
+	readonly onUninstallExtension: Event<UninstallExtensionEvent>;
+	readonly onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
+	readonly onDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
 
 	constructor(private service: IExtensionManagementService, private getUriTransformer: (requestContext: any) => IURITransformer | null) {
 		this.onInstallExtension = Event.buffer(service.onInstallExtension, true);
@@ -145,11 +146,11 @@ export class ExtensionManagementChannel implements IServerChannel {
 				return this.service.uninstallExtensions(arg.map(({ extension, options }) => ({ extension: transformIncomingExtension(extension, uriTransformer), options: transformIncomingOptions(options, uriTransformer) })));
 			}
 			case 'getInstalled': {
-				const extensions = await this.service.getInstalled(args[0], transformIncomingURI(args[1], uriTransformer), args[2]);
+				const extensions = await this.service.getInstalled(args[0], transformIncomingURI(args[1], uriTransformer), args[2], args[3]);
 				return extensions.map(e => transformOutgoingExtension(e, uriTransformer));
 			}
-			case 'toggleAppliationScope': {
-				const extension = await this.service.toggleAppliationScope(transformIncomingExtension(args[0], uriTransformer), transformIncomingURI(args[1], uriTransformer));
+			case 'toggleApplicationScope': {
+				const extension = await this.service.toggleApplicationScope(transformIncomingExtension(args[0], uriTransformer), transformIncomingURI(args[1], uriTransformer));
 				return transformOutgoingExtension(extension, uriTransformer);
 			}
 			case 'copyExtensions': {
@@ -239,7 +240,9 @@ export class ExtensionManagementChannelClient extends CommontExtensionManagement
 		if (!thing) {
 			return false;
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		return typeof (<any>thing).path === 'string' &&
+			// eslint-disable-next-line local/code-no-any-casts
 			typeof (<any>thing).scheme === 'string';
 	}
 
@@ -297,7 +300,7 @@ export class ExtensionManagementChannelClient extends CommontExtensionManagement
 	}
 
 	getInstalled(type: ExtensionType | null = null, extensionsProfileResource?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]> {
-		return Promise.resolve(this.channel.call<ILocalExtension[]>('getInstalled', [type, extensionsProfileResource, productVersion]))
+		return Promise.resolve(this.channel.call<ILocalExtension[]>('getInstalled', [type, extensionsProfileResource, productVersion, language]))
 			.then(extensions => extensions.map(extension => transformIncomingExtension(extension, null)));
 	}
 
@@ -310,8 +313,8 @@ export class ExtensionManagementChannelClient extends CommontExtensionManagement
 		return this.channel.call<void>('resetPinnedStateForAllUserExtensions', [pinned]);
 	}
 
-	toggleAppliationScope(local: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {
-		return this.channel.call<ILocalExtension>('toggleAppliationScope', [local, fromProfileLocation])
+	toggleApplicationScope(local: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {
+		return this.channel.call<ILocalExtension>('toggleApplicationScope', [local, fromProfileLocation])
 			.then(extension => transformIncomingExtension(extension, null));
 	}
 

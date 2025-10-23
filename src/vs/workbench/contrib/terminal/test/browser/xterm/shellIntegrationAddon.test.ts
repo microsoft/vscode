@@ -36,7 +36,7 @@ suite('ShellIntegrationAddon', () => {
 	setup(async () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 }));
-		shellIntegrationAddon = store.add(new TestShellIntegrationAddon('', true, undefined, new NullLogService()));
+		shellIntegrationAddon = store.add(new TestShellIntegrationAddon('', true, undefined, undefined, new NullLogService()));
 		xterm.loadAddon(shellIntegrationAddon);
 		capabilities = shellIntegrationAddon.capabilities;
 	});
@@ -248,13 +248,13 @@ suite('ShellIntegrationAddon', () => {
 				deepEqual(parseMarkSequence(['', '']), { id: undefined, hidden: false });
 			});
 			test('ID', async () => {
-				deepEqual(parseMarkSequence(['Id=3', '']), { id: "3", hidden: false });
+				deepEqual(parseMarkSequence(['Id=3', '']), { id: '3', hidden: false });
 			});
 			test('hidden', async () => {
 				deepEqual(parseMarkSequence(['', 'Hidden']), { id: undefined, hidden: true });
 			});
 			test('ID + hidden', async () => {
-				deepEqual(parseMarkSequence(['Id=4555', 'Hidden']), { id: "4555", hidden: true });
+				deepEqual(parseMarkSequence(['Id=4555', 'Hidden']), { id: '4555', hidden: true });
 			});
 		});
 	});

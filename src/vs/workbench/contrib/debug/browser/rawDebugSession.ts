@@ -674,7 +674,7 @@ export class RawDebugSession implements IDisposable {
 					}
 				}
 				response.body = {
-					rendererDebugPort: result.rendererDebugPort,
+					rendererDebugAddr: result.rendererDebugAddr,
 				};
 				safeSendResponse(response);
 			} catch (err) {
@@ -810,7 +810,7 @@ export class RawDebugSession implements IDisposable {
 			this.notificationService.error(userMessage);
 		}
 		const result = new errors.ErrorNoTelemetry(userMessage);
-		(<any>result).showUser = error?.showUser;
+		(result as { showUser?: boolean }).showUser = error?.showUser;
 
 		return result;
 	}

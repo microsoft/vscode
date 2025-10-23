@@ -288,7 +288,7 @@ class TimerCellStatusBarItem extends Disposable {
 				this._deferredUpdate = disposableTimeout(() => {
 					this._deferredUpdate = undefined;
 					this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);
-				}, UPDATE_TIMER_GRACE_PERIOD);
+				}, UPDATE_TIMER_GRACE_PERIOD, this._store);
 			}
 		} else {
 			this._deferredUpdate?.dispose();
@@ -314,12 +314,17 @@ class TimerCellStatusBarItem extends Disposable {
 				const args = encodeURIComponent(JSON.stringify({
 					extensionId: rendererInfo?.extensionId.value ?? '',
 					issueBody:
-						`Auto-generated text from notebook cell performance. The duration for the renderer, ${rendererInfo?.displayName ?? key}, is slower than expected.\n` +
+						`Auto-generated text from notebook cell performance - Please add an explanation for the performance issue, including cell content if possible.\n` +
+						`The duration for the renderer, ${rendererInfo?.displayName ?? key}, is slower than expected.\n` +
 						`Execution Time: ${formatCellDuration(executionDuration)}\n` +
 						`Renderer Duration: ${formatCellDuration(renderDuration[key])}\n`
 				}));
 
-				renderTimes += `- [${rendererInfo?.displayName ?? key}](command:workbench.action.openIssueReporter?${args}) ${formatCellDuration(renderDuration[key])}\n`;
+				// Show a link to create an issue if the renderer was slow compared to the execution duration, or just exceptionally slow on its own
+				const renderIssueLink = (renderDuration[key] > 200 && executionDuration < 2000) || renderDuration[key] > 1000;
+				const linkText = rendererInfo?.displayName ?? key;
+				const rendererTitle = renderIssueLink ? `[${linkText}](command:workbench.action.openIssueReporter?${args})` : `**${linkText}**`;
+				renderTimes += `- ${rendererTitle} ${formatCellDuration(renderDuration[key])}\n`;
 			}
 
 			renderTimes += `\n*${localize('notebook.cell.statusBar.timerTooltip.reportIssueFootnote', "Use the links above to file an issue using the issue reporter.")}*\n`;

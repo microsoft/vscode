@@ -5,7 +5,7 @@
 
 import { mark } from '../../base/common/performance.js';
 import { domContentLoaded, detectFullscreen, getCookieValue, getWindow } from '../../base/browser/dom.js';
-import { assertIsDefined } from '../../base/common/types.js';
+import { assertReturnsDefined } from '../../base/common/types.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILogService, ConsoleLogger, getLogLevel, ILoggerService, ILogger } from '../../platform/log/common/log.js';
 import { ConsoleLogInAutomationLogger } from '../../platform/log/browser/log.js';
@@ -27,7 +27,7 @@ import { IAnyWorkspaceIdentifier, IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW
 import { IWorkbenchConfigurationService } from '../services/configuration/common/configuration.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { setFullscreen } from '../../base/browser/browser.js';
-import { URI } from '../../base/common/uri.js';
+import { URI, UriComponents } from '../../base/common/uri.js';
 import { WorkspaceService } from '../services/configuration/browser/configurationService.js';
 import { ConfigurationCache } from '../services/configuration/common/configurationCache.js';
 import { ISignService } from '../../platform/sign/common/sign.js';
@@ -182,8 +182,8 @@ export class BrowserMain extends Disposable {
 
 						return timerService.getPerformanceMarks();
 					},
-					async openUri(uri: URI): Promise<boolean> {
-						return openerService.open(uri, {});
+					async openUri(uri: URI | UriComponents): Promise<boolean> {
+						return openerService.open(URI.isUri(uri) ? uri : URI.from(uri), {});
 					}
 				},
 				logger: {
@@ -209,7 +209,7 @@ export class BrowserMain extends Disposable {
 						await remoteAuthorityResolverService.resolveAuthority(this.configuration.remoteAuthority);
 					},
 					openTunnel: async tunnelOptions => {
-						const tunnel = assertIsDefined(await remoteExplorerService.forward({
+						const tunnel = assertReturnsDefined(await remoteExplorerService.forward({
 							remote: tunnelOptions.remoteAddress,
 							local: tunnelOptions.localAddressPort,
 							name: tunnelOptions.label,

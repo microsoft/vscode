@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 
-import { TypeScriptRequests } from '../typescriptService';
+import { ExecConfig, TypeScriptRequests } from '../typescriptService';
 import TypeScriptServiceClientHost from '../typeScriptServiceClientHost';
 import { nulToken } from '../utils/cancellation';
 import { Lazy } from '../utils/lazy';
@@ -14,8 +14,9 @@ function isCancellationToken(value: any): value is vscode.CancellationToken {
 	return value && typeof value.isCancellationRequested === 'boolean' && typeof value.onCancellationRequested === 'function';
 }
 
-interface RequestArgs {
+export interface RequestArgs {
 	readonly file?: unknown;
+	readonly $traceId?: unknown;
 }
 
 export class TSServerRequestCommand implements Command {
@@ -25,17 +26,24 @@ export class TSServerRequestCommand implements Command {
 		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
 	) { }
 
-	public async execute(command: keyof TypeScriptRequests, args?: any, config?: any, token?: vscode.CancellationToken): Promise<unknown> {
+	public async execute(command: keyof TypeScriptRequests, args?: unknown, config?: ExecConfig, token?: vscode.CancellationToken): Promise<unknown> {
 		if (!isCancellationToken(token)) {
 			token = nulToken;
 		}
 		if (args && typeof args === 'object' && !Array.isArray(args)) {
 			const requestArgs = args as RequestArgs;
-			let newArgs: any = undefined;
-			if (requestArgs.file instanceof vscode.Uri) {
-				newArgs = { ...args };
-				const client = this.lazyClientHost.value.serviceClient;
-				newArgs.file = client.toOpenTsFilePath(requestArgs.file);
+			const hasFile = requestArgs.file instanceof vscode.Uri;
+			const hasTraceId = typeof requestArgs.$traceId === 'string';
+			if (hasFile || hasTraceId) {
+				const newArgs = { file: undefined as string | undefined, ...args };
+				if (hasFile) {
+					const client = this.lazyClientHost.value.serviceClient;
+					newArgs.file = client.toOpenTsFilePath(requestArgs.file);
+				}
+				if (hasTraceId) {
+					const telemetryReporter = this.lazyClientHost.value.serviceClient.telemetryReporter;
+					telemetryReporter.logTraceEvent('TSServerRequestCommand.execute', requestArgs.$traceId, JSON.stringify({ command }));
+				}
 				args = newArgs;
 			}
 		}

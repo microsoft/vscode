@@ -15,7 +15,7 @@ namespace CustomDataChangedNotification {
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => BaseLanguageClient;
 
 export interface Runtime {
-	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string } };
+	TextDecoder: typeof TextDecoder;
 	fs?: RequestService;
 }
 
@@ -83,7 +83,9 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 					}
 					return r;
 				}
-				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
+				function isThenable<T>(obj: unknown): obj is Thenable<T> {
+					return !!obj && typeof (obj as unknown as Thenable<T>).then === 'function';
+				}
 
 				const r = next(document, position, context, token);
 				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {

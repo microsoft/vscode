@@ -68,6 +68,7 @@ suite('Buffer Content Tracker', () => {
 		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
 		instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
+		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IAccessibilitySignalService, {
 			playSignal: async () => { },
 			isSoundEnabled(signal: unknown) { return false; },
@@ -85,7 +86,7 @@ suite('Buffer Content Tracker', () => {
 			xtermColorProvider: { getBackgroundColor: () => undefined },
 			capabilities,
 			disableShellIntegrationReporting: true
-		}));
+		}, undefined));
 		const container = document.createElement('div');
 		xterm.raw.open(container);
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });

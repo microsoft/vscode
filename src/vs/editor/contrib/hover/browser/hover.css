@@ -46,7 +46,7 @@
 .monaco-editor .monaco-hover .hover-row .verbosity-actions {
 	border-right: 1px solid var(--vscode-editorHoverWidget-border);
 	width: 22px;
-	overflow: hidden;
+	overflow-y: clip;
 }
 
 .monaco-editor .monaco-hover .hover-row .verbosity-actions-inner {

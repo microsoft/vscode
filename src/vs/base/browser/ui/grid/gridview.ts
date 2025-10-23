@@ -145,7 +145,7 @@ export interface IViewDeserializer<T extends ISerializableView> {
 
 export interface ISerializedLeafNode {
 	type: 'leaf';
-	data: any;
+	data: unknown;
 	size: number;
 	visible?: boolean;
 	maximized?: boolean;
@@ -193,6 +193,7 @@ export interface GridBranchNode {
 export type GridNode = GridLeafNode | GridBranchNode;
 
 export function isGridBranchNode(node: GridNode): node is GridBranchNode {
+	// eslint-disable-next-line local/code-no-any-casts
 	return !!(node as any).children;
 }
 

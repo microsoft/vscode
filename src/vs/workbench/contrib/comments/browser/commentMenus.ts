@@ -5,7 +5,7 @@
 
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Comment } from '../../../../editor/common/languages.js';
-import { IMenu, IMenuCreateOptions, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuActionOptions, IMenuCreateOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 export class CommentMenus implements IDisposable {
@@ -37,12 +37,16 @@ export class CommentMenus implements IDisposable {
 		return this.getMenu(MenuId.CommentActions, contextKeyService);
 	}
 
-	getCommentThreadTitleContextActions(contextKeyService: IContextKeyService): IMenu {
-		return this.getMenu(MenuId.CommentThreadTitleContext, contextKeyService);
+	getCommentThreadTitleContextActions(contextKeyService: IContextKeyService) {
+		return this.getActions(MenuId.CommentThreadTitleContext, contextKeyService, { shouldForwardArgs: true });
 	}
 
 	private getMenu(menuId: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
 		return this.menuService.createMenu(menuId, contextKeyService, options);
+	}
+
+	private getActions(menuId: MenuId, contextKeyService: IContextKeyService, options?: IMenuActionOptions): Array<MenuItemAction | SubmenuItemAction> {
+		return this.menuService.getMenuActions(menuId, contextKeyService, options).map((value) => value[1]).flat();
 	}
 
 	dispose(): void {

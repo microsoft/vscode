@@ -7,9 +7,12 @@ import { IKeyboardEvent } from '../../base/browser/keyboardEvent.js';
 import { IMouseEvent, IMouseWheelEvent } from '../../base/browser/mouseEvent.js';
 import { IBoundarySashes } from '../../base/browser/ui/sash/sash.js';
 import { Event } from '../../base/common/event.js';
-import { IEditorConstructionOptions } from './config/editorConfiguration.js';
+import { MenuId } from '../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IDiffEditorOptions, IEditorOptions, OverviewRulerPosition } from '../common/config/editorOptions.js';
-import { IDimension } from '../common/core/dimension.js';
+import { IDimension } from '../common/core/2d/dimension.js';
+import { TextEdit } from '../common/core/edits/textEdit.js';
 import { IPosition, Position } from '../common/core/position.js';
 import { IRange, Range } from '../common/core/range.js';
 import { Selection } from '../common/core/selection.js';
@@ -17,14 +20,13 @@ import { IWordAtPosition } from '../common/core/wordHelper.js';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
 import { IDiffComputationResult, ILineChange } from '../common/diff/legacyLinesDiffComputer.js';
 import * as editorCommon from '../common/editorCommon.js';
-import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../common/model.js';
+import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../common/model.js';
 import { InjectedText } from '../common/modelLineProjectionData.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from '../common/textModelEvents.js';
+import { TextModelEditSource } from '../common/textModelEditSource.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelFontChangedEvent, ModelLineHeightChangedEvent } from '../common/textModelEvents.js';
 import { IEditorWhitespace, IViewModel } from '../common/viewModel.js';
 import { OverviewRulerZone } from '../common/viewModel/overviewZoneManager.js';
-import { MenuId } from '../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
-import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { IEditorConstructionOptions } from './config/editorConfiguration.js';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -279,7 +281,7 @@ export interface IOverlayWidget {
 	/**
 	 * Event fired when the widget layout changes.
 	 */
-	onDidLayout?: Event<void>;
+	readonly onDidLayout?: Event<void>;
 	/**
 	 * Render this overlay widget in a location where it could overflow the editor's view dom node.
 	 */
@@ -892,6 +894,20 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getConfiguredWordAtPosition(position: Position): IWordAtPosition | null;
 
 	/**
+	 * An event emitted when line heights from decorations change
+	 * @internal
+	 * @event
+	 */
+	readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
+
+	/**
+	 * An event emitted when the font of the editor has changed.
+	 * @internal
+	 * @event
+	 */
+	readonly onDidChangeFont: Event<ModelFontChangedEvent>;
+
+	/**
 	 * Get value of the current model attached to this editor.
 	 * @see {@link ITextModel.getValue}
 	 */
@@ -981,6 +997,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @param endCursorState Cursor state after the edits were applied.
 	 */
 	executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
+	/** @internal */
+	executeEdits(source: TextModelEditSource | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
+
+	/**
+	 * @internal
+	*/
+	edit(edit: TextEdit, reason: TextModelEditSource): void;
 
 	/**
 	 * Execute multiple (concomitant) commands on the editor.
@@ -1005,6 +1028,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getDecorationsInRange(range: Range): IModelDecoration[] | null;
 
 	/**
+	 * Get the font size at a given position
+	 * @param position the position for which to fetch the font size
+	 */
+	getFontSizeAtPosition(position: IPosition): string | null;
+
+	/**
 	 * All decorations added through this call will get the ownerId of this editor.
 	 * @deprecated Use `createDecorationsCollection`
 	 * @see createDecorationsCollection
@@ -1019,7 +1048,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * @internal
 	 */
-	setDecorationsByType(description: string, decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): void;
+	setDecorationsByType(description: string, decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): readonly string[];
 
 	/**
 	 * @internal
@@ -1069,6 +1098,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getTopForPosition(lineNumber: number, column: number): number;
 
 	/**
+	 * Get the line height for a model position.
+	 */
+	getLineHeightForPosition(position: IPosition): number;
+
+	/**
 	 * Set the model ranges that will be hidden in the view.
 	 * Hidden areas are stored per source.
 	 * @internal
@@ -1089,7 +1123,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * @internal
 	 */
-	getTelemetryData(): { [key: string]: any } | undefined;
+	getTelemetryData(): object | undefined;
 
 	/**
 	 * Returns the editor's container dom node
@@ -1249,6 +1283,15 @@ export interface IActiveCodeEditor extends ICodeEditor {
 	 * Warning: the results of this method are inaccurate for positions that are outside the current editor viewport.
 	 */
 	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number };
+
+	/**
+	 * Change the decorations. All decorations added through this changeAccessor
+	 * will get the ownerId of the editor (meaning they will not show up in other
+	 * editors).
+	 * @see {@link ITextModel.changeDecorations}
+	 * @internal
+	 */
+	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T;
 }
 
 /**
@@ -1428,7 +1471,7 @@ export function getCodeEditor(thing: unknown): ICodeEditor | null {
 /**
  *@internal
  */
-export function getIEditor(thing: any): editorCommon.IEditor | null {
+export function getIEditor(thing: unknown): editorCommon.IEditor | null {
 	if (isCodeEditor(thing) || isDiffEditor(thing)) {
 		return thing;
 	}

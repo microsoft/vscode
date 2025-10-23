@@ -1,8 +1,4 @@
 "use strict";
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -40,6 +36,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 const path_1 = __importDefault(require("path"));
 const event_stream_1 = __importDefault(require("event-stream"));
 const vinyl_fs_1 = __importDefault(require("vinyl-fs"));
@@ -87,8 +87,8 @@ function main() {
             .pipe(azure.upload({
             account: process.env.AZURE_STORAGE_ACCOUNT,
             credential,
-            container: 'sourcemaps',
-            prefix: commit + '/'
+            container: '$web',
+            prefix: `sourcemaps/${commit}/`
         }))
             .on('end', () => c())
             .on('error', (err) => e(err));

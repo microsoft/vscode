@@ -16,7 +16,7 @@ import ManagedFileContextManager from './ui/managedFileContext';
 import { ServiceConfigurationProvider } from './configuration/configuration';
 import * as fileSchemes from './configuration/fileSchemes';
 import { standardLanguageDescriptions, isJsConfigOrTsConfigFileName } from './configuration/languageDescription';
-import { Lazy, lazy } from './utils/lazy';
+import { Lazy } from './utils/lazy';
 import { Logger } from './logging/logger';
 import { PluginManager } from './tsServer/plugins';
 
@@ -37,17 +37,13 @@ export function createLazyClientHost(
 	},
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
-	return lazy(() => {
-		const clientHost = new TypeScriptServiceClientHost(
+	return new Lazy(() => {
+		return new TypeScriptServiceClientHost(
 			standardLanguageDescriptions,
 			context,
 			onCaseInsensitiveFileSystem,
 			services,
 			onCompletionAccepted);
-
-		context.subscriptions.push(clientHost);
-
-		return clientHost;
 	});
 }
 
