@@ -343,7 +343,6 @@ export async function preparePathForShell(resource: string | URI, executable: st
 		pathBasename === 'powershell' ||
 		title === 'powershell';
 
-
 	if (isPowerShell && (hasSpace || originalPath.includes('\''))) {
 		return `& '${originalPath.replace(/'/g, '\'\'')}'`;
 	}
@@ -391,22 +390,25 @@ export function getWorkspaceForTerminal(cwd: URI | string | undefined, workspace
 	return workspaceFolder;
 }
 
-export async function formatUriForShellDisplay(uri: URI, shellType?: TerminalShellType, os?: OperatingSystem, backend?: Pick<ITerminalBackend, 'getWslPath'>): Promise<string> {
+export async function formatUriForShellDisplay(uri: URI | string, shellType?: TerminalShellType, os?: OperatingSystem, backend?: Pick<ITerminalBackend, 'getWslPath'>, isWindowsFrontend: boolean = isWindows): Promise<string> {
+	let path = typeof uri === 'string' ? uri : uri.fsPath;
 	if (os === OperatingSystem.Windows) {
 		if (shellType === WindowsShellType.Wsl) {
-			const path = uri.fsPath;
-			return backend?.getWslPath(path, 'win-to-unix') ?? path.replace(/\\/g, '/');
+			if (backend) {
+				return backend.getWslPath(path.replace(/\//g, '\\'), 'win-to-unix');
+			} else {
+				return path.replace(/\\/g, '//');
+			}
 		} else if (shellType === WindowsShellType.GitBash) {
 			// Convert \ to / and replace 'c:\' with '/c/'.
-			return uri.fsPath.replace(/\\/g, '/').replace(/^([a-zA-Z]):\//, '/$1/');
+			return path.replace(/\\/g, '/').replace(/^([a-zA-Z]):\//, '/$1/');
 		} else {
 			// If the frontend is not Windows but the terminal is, convert / to \.
-			const path = uriToFsPath(uri, true);
-			return !isWindows ? path.replace(/\//g, '\\') : path;
+			path = typeof uri === 'string' ? path : uriToFsPath(uri, true);
+			return !isWindowsFrontend ? path.replace(/\//g, '\\') : path;
 		}
 	} else {
 		// If the frontend is Windows but the terminal is not, convert \ to /.
-		const path = uri.fsPath;
-		return isWindows ? path.replace(/\\/g, '/') : path;
+		return isWindowsFrontend ? path.replace(/\\/g, '/') : path;
 	}
 }
