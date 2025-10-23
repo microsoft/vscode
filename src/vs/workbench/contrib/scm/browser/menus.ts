@@ -348,11 +348,10 @@ export class SCMMenus implements ISCMMenus, IDisposable {
 				// In order to keep the Repositories view clean, we hide the
 				// primary actions by default. Users can always promote actions
 				// from the `...` menu to inline actions.
-				let itemToAppend = menuItem;
 				if (isIMenuItem(menuItem) && menuItem.group === 'navigation') {
-					itemToAppend = { ...menuItem, isHiddenByDefault: true };
+					menuItem.isHiddenByDefault = true;
 				}
-				this.repositoryMenuDisposables.add(MenuRegistry.appendMenuItem(MenuId.SCMSourceControlInline, itemToAppend));
+				this.repositoryMenuDisposables.add(MenuRegistry.appendMenuItem(MenuId.SCMSourceControlInline, menuItem));
 			}
 		}));
 	}
