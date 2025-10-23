@@ -345,7 +345,7 @@ export interface IChatToolInvocation {
 	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
 	/** Arbitrary metadata returned by the tool's result (eg, structured command info). */
 	readonly toolMetadata?: unknown;
-  readonly confirmationMessages?: IToolConfirmationMessages;
+	readonly confirmationMessages?: IToolConfirmationMessages;
 	readonly originMessage: string | IMarkdownString | undefined;
 	readonly invocationMessage: string | IMarkdownString;
 	readonly pastTenseMessage: string | IMarkdownString | undefined;
