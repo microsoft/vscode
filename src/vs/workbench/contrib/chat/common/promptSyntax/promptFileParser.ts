@@ -71,6 +71,7 @@ export namespace PromptHeaderAttributes {
 	export const handOffs = 'handoffs';
 	export const advancedOptions = 'advancedOptions';
 	export const argumentHint = 'argument-hint';
+	export const excludeAgent = 'excludeAgent';
 }
 
 export class PromptHeader {
