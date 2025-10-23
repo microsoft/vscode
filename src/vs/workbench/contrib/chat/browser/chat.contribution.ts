@@ -810,6 +810,10 @@ class ChatResolverContribution extends Disposable {
 				this._editorRegistrations.deleteAndDispose(scheme);
 			}
 		}));
+
+		for (const scheme of chatSessionsService.getContentProviderSchemes()) {
+			this._registerEditor(scheme);
+		}
 	}
 
 	private _registerEditor(scheme: string): void {

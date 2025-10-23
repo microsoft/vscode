@@ -201,6 +201,7 @@ class ContributedChatSessionData implements IDisposable {
 
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
+
 	private readonly _itemsProviders: Map<string, IChatSessionItemProvider> = new Map();
 
 	private readonly _onDidChangeItemsProviders = this._register(new Emitter<IChatSessionItemProvider>());
@@ -839,6 +840,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 */
 	public getWelcomeTipsForSessionType(chatSessionType: string): string | undefined {
 		return this._sessionTypeWelcomeTips.get(chatSessionType);
+	}
+
+	public getContentProviderSchemes(): string[] {
+		return Array.from(this._contentProviders.keys());
 	}
 }
 

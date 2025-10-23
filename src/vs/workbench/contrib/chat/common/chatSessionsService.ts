@@ -182,6 +182,8 @@ export interface IChatSessionsService {
 	// TODO: Split into separate service?
 	readonly onDidChangeContentProviderSchemes: Event<{ readonly added: string[]; readonly removed: string[] }>;
 
+	getContentProviderSchemes(): string[];
+
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveChatSession(chatSessionResource: URI): Promise<boolean>;
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
