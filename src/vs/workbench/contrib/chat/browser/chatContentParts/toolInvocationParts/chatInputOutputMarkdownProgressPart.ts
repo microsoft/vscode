@@ -136,15 +136,6 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._register(toDisposable(() => ChatInputOutputMarkdownProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));
 
-		// Make sure to rerender back into a confirmation when reviewing output
-		this._register(autorun(reader => {
-			if (toolInvocation.kind === 'toolInvocation') {
-				if (toolInvocation.state.read(reader).type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-					this._onNeedsRerender.fire();
-				}
-			}
-		}));
-
 		const progressObservable = toolInvocation.kind === 'toolInvocation' ? toolInvocation.state.map((s, r) => s.type === IChatToolInvocation.StateKind.Executing ? s.progress.read(r) : undefined) : undefined;
 		const progressBar = new Lazy(() => this._register(new ProgressBar(collapsibleListPart.domNode)));
 		if (progressObservable) {

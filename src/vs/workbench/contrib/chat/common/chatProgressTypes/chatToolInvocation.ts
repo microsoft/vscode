@@ -83,7 +83,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			this.pastTenseMessage = this._progress.get().message;
 		}
 
-		if (this.confirmationMessages?.confirmResults && !result?.toolResultError && !final) {
+		if (this.confirmationMessages?.confirmResults && !result?.toolResultError && result?.confirmResults !== false && !final) {
 			this._state.set({
 				type: IChatToolInvocation.StateKind.WaitingForPostApproval,
 				confirmed: IChatToolInvocation.executionConfirmedOrDenied(this) || { type: ToolConfirmKind.ConfirmationNotNeeded },

@@ -1074,6 +1074,11 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	matchOnLabel: boolean;
 
 	/**
+	 * Whether to sort the items by label. Defaults to true.
+	 */
+	sortByLabel: boolean;
+
+	/**
 	 * The currently active items.
 	 */
 	activeItems: ReadonlyArray<T>;

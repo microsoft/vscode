@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { append, h } from '../../../../../../base/browser/dom.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Separator } from '../../../../../../base/common/actions.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ErrorNoTelemetry } from '../../../../../../base/common/errors.js';
 import { createCommandUri, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { thenIfNotDisposed, thenRegisterOrDispose } from '../../../../../../base/common/lifecycle.js';
+import { thenIfNotDisposed, thenRegisterOrDispose, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
@@ -27,6 +27,7 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
@@ -40,10 +41,8 @@ import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
-import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { openTerminalSettingsLinkCommandId } from './chatTerminalToolProgressPart.js';
-import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
-import { autorunSelfDisposable } from '../../../../../../base/common/observable.js';
+import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
 	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
@@ -204,7 +203,10 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			this._appendMarkdownPart(elements.disclaimer, disclaimer, codeBlockRenderOptions);
 		}
 
-		ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(true);
+		const hasToolConfirmationKey = ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService);
+		hasToolConfirmationKey.set(true);
+		this._register(toDisposable(() => hasToolConfirmationKey.reset()));
+
 		this._register(confirmWidget.onDidClick(async button => {
 			let doComplete = true;
 			const data = button.data;
@@ -306,13 +308,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		this._register(autorunSelfDisposable(reader => {
-			if (IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, reader)) {
-				reader.dispose();
-				ChatContextKeys.Editing.hasToolConfirmation.bindTo(contextKeyService).set(false);
-				this._onNeedsRerender.fire();
-			}
-		}));
 
 		this.domNode = confirmWidget.domNode;
 	}

@@ -445,7 +445,7 @@ export async function showToolsPicker(
 	treePicker.description = description;
 	treePicker.matchOnDescription = true;
 	treePicker.matchOnLabel = true;
-
+	treePicker.sortByLabel = false;
 
 	computeItems();
 
