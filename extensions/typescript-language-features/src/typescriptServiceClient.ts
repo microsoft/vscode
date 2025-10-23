@@ -630,6 +630,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		};
 	}
 
+	/**
+	 * Handles the TypeScript service exit event and manages restart logic
+	 * @param restart Whether the service should be restarted
+	 * @param tsVersion The version of TypeScript that was running
+	 */
 	private serviceExited(restart: boolean, tsVersion: API): void {
 		this.resetWatchers();
 		this.loadingIndicator.reset();

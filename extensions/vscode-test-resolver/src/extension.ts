@@ -24,6 +24,10 @@ let outputChannel: vscode.OutputChannel;
 
 const SLOWED_DOWN_CONNECTION_DELAY = 800;
 
+/**
+ * Activates the VS Code test resolver extension
+ * @param context The extension context provided by VS Code
+ */
 export function activate(context: vscode.ExtensionContext) {
 
 	let connectionPaused = false;
@@ -206,6 +210,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 		return serverPromise.then((serverAddr): Promise<vscode.ResolverResult> => {
 			if (authority.includes('managed')) {
+				console.log('Connecting via a managed authority');
 				return Promise.resolve(new vscode.ManagedResolvedAuthority(async () => {
 					const remoteSocket = net.createConnection({ port: serverAddr.port });
 					const dataEmitter = new vscode.EventEmitter<Uint8Array>();
@@ -575,6 +580,7 @@ function runHTTPTestServer(port: number): vscode.Disposable {
 	remoteServers.push(port);
 	server.listen(port, '127.0.0.1');
 	const message = `Opened HTTP server on http://127.0.0.1:${port}`;
+	console.log(message);
 	outputChannel.appendLine(message);
 	return {
 		dispose: () => {

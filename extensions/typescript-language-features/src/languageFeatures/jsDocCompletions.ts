@@ -82,6 +82,12 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 		return [item];
 	}
 
+	/**
+	 * Determines if the given position is a valid location for JSDoc completion
+	 * @param document The text document to check
+	 * @param position The position to validate
+	 * @returns True if JSDoc completion should be offered at this position
+	 */
 	private isPotentiallyValidDocCompletionPosition(
 		document: vscode.TextDocument,
 		position: vscode.Position
@@ -100,6 +106,11 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 	}
 }
 
+/**
+ * Converts a JSDoc template string to a VS Code snippet string
+ * @param template The JSDoc template string to convert
+ * @returns A VS Code snippet string for the template
+ */
 export function templateToSnippet(template: string): vscode.SnippetString {
 	// TODO: use append placeholder
 	let snippetIndex = 1;

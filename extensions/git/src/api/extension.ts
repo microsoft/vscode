@@ -9,6 +9,12 @@ import { ApiRepository, ApiImpl } from './api1';
 import { Event, EventEmitter } from 'vscode';
 import { CloneManager } from '../cloneManager';
 
+/**
+ * Decorator function that marks a method as deprecated and logs a warning when called
+ * @param original The original method being decorated
+ * @param context The decorator context containing method metadata
+ * @returns A wrapped function that logs deprecation warnings
+ */
 function deprecated(original: any, context: ClassMemberDecoratorContext) {
 	if (context.kind !== 'method') {
 		throw new Error('not supported');
