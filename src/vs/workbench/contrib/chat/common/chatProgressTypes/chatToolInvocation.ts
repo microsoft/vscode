@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from '../../../../../base/common/async.js';
 import { encodeBase64 } from '../../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -13,35 +12,6 @@ import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMe
 
 export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly kind: 'toolInvocation' = 'toolInvocation';
-
-	private _isComplete = false;
-	public get isComplete(): boolean {
-		return this._isComplete;
-	}
-
-	private _isCompleteDeferred = new DeferredPromise<void>();
-	public get isCompletePromise(): Promise<void> {
-		return this._isCompleteDeferred.p;
-	}
-
-	private _confirmDeferred = new DeferredPromise<ConfirmedReason>();
-	public get confirmed() {
-		return this._confirmDeferred;
-	}
-
-	public get isConfirmed(): ConfirmedReason | undefined {
-		return this._confirmDeferred.value;
-	}
-
-	private _resultDetails: IToolResult['toolResultDetails'] | undefined;
-	public get resultDetails(): IToolResult['toolResultDetails'] | undefined {
-		return this._resultDetails;
-	}
-
-	private _toolMetadata: unknown;
-	public get toolMetadata(): unknown {
-		return this._toolMetadata;
-	}
 
 	public readonly invocationMessage: string | IMarkdownString;
 	public readonly originMessage: string | IMarkdownString | undefined;
@@ -112,10 +82,6 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		} else if (this._progress.get().message) {
 			this.pastTenseMessage = this._progress.get().message;
 		}
-
-		this._resultDetails = result?.toolResultDetails;
-		this._toolMetadata = result?.toolMetadata;
-		this._isCompleteDeferred.complete();
 
 		if (this.confirmationMessages?.confirmResults && !result?.toolResultError && !final) {
 			this._state.set({
