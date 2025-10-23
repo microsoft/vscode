@@ -27,7 +27,7 @@ export class CloneManager {
 		private readonly telemetryReporter: TelemetryReporter,
 		private readonly repositoryCache: RepositoryCache) { }
 
-	public clone(url?: string, options: CloneOptions = {}) {
+	clone(url?: string, options: CloneOptions = {}) {
 		const cachedRepository = url ? this.repositoryCache.get(url) : undefined;
 		if (url && !options.skipCache && cachedRepository && (cachedRepository.length > 0)) {
 			return this.tryOpenExistingRepository(cachedRepository, url, options.postCloneAction, options.parentPath, options.ref);
@@ -35,7 +35,7 @@ export class CloneManager {
 		return this.cloneRepository(url, options.parentPath, options);
 	}
 
-	public async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string; postCloneAction?: PostCloneAction } = {}): Promise<string | undefined> {
+	private async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string; postCloneAction?: PostCloneAction } = {}): Promise<string | undefined> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource({
 				providerLabel: provider => l10n.t('Clone from {0}', provider.name),
@@ -183,14 +183,14 @@ export class CloneManager {
 		}
 	}
 
-	async doPostCloneAction(target: string, postCloneAction?: PostCloneAction): Promise<undefined> {
+	private async doPostCloneAction(target: string, postCloneAction?: PostCloneAction): Promise<undefined> {
 		const forceReuseWindow = ((workspace.workspaceFile === undefined) && (workspace.workspaceFolders === undefined));
 		if (postCloneAction === 'open') {
 			await commands.executeCommand('vscode.openFolder', Uri.file(target), { forceReuseWindow });
 		}
 	}
 
-	async chooseExistingRepository(url: string, existingCachedRepositories: RepositoryCacheInfo[], ref: string | undefined, parentPath?: string, postCloneAction?: PostCloneAction): Promise<string | undefined> {
+	private async chooseExistingRepository(url: string, existingCachedRepositories: RepositoryCacheInfo[], ref: string | undefined, parentPath?: string, postCloneAction?: PostCloneAction): Promise<string | undefined> {
 		try {
 			const items: { label: string; description?: string; item?: RepositoryCacheInfo }[] = existingCachedRepositories.map(knownFolder => {
 				const isWorkspace = knownFolder.workspacePath.endsWith('.code-workspace');
@@ -213,7 +213,7 @@ export class CloneManager {
 		}
 	}
 
-	async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, postCloneAction?: PostCloneAction, parentPath?: string, ref?: string): Promise<string | undefined> {
+	private async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, postCloneAction?: PostCloneAction, parentPath?: string, ref?: string): Promise<string | undefined> {
 		// Gather existing folders/workspace files (ignore ones that no longer exist)
 		const existingCachedRepositories: RepositoryCacheInfo[] = (await Promise.all<RepositoryCacheInfo | undefined>(cachedRepository.map(async folder => {
 			const stat = await fs.promises.stat(folder.workspacePath).catch(() => undefined);
