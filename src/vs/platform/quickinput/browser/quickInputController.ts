@@ -648,7 +648,7 @@ export class QuickInputController extends Disposable {
 		ui.visibleCount.setCount(0);
 		ui.count.setCount(0);
 		dom.reset(ui.message);
-		ui.progressBar.stop();
+		ui.progressBar.stop().hide();
 		ui.list.setElements([]);
 		ui.list.matchOnDescription = false;
 		ui.list.matchOnDetail = false;
