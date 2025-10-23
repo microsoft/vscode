@@ -1295,9 +1295,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars .tool-warning-indicator {
 	position: absolute;
-	bottom: 1px;
-	right: 1px;
-	font-size: 9px !important;
+	bottom: 0;
+	right: 0;
+	font-size: 12px !important;
 	color: var(--vscode-problemsWarningIcon-foreground);
 	background: var(--vscode-input-background);
 	width: fit-content;
@@ -1589,9 +1589,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.chat-mcp-state-indicator {
 		position: absolute;
-		bottom: 1px;
-		right: 1px;
-		font-size: 9px !important;
+		bottom: 0;
+		right: 0;
+		font-size: 12px !important;
 		background: var(--vscode-input-background);
 		width: fit-content;
 		height: fit-content;
