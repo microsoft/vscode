@@ -27,6 +27,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
@@ -95,6 +96,7 @@ class AttachInstructionsAction extends Action2 {
 	): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const instaService = accessor.get(IInstantiationService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 
 		if (!options) {
 			options = {
@@ -108,7 +110,7 @@ class AttachInstructionsAction extends Action2 {
 		const { skipSelectionDialog, resource } = options;
 
 
-		const widget = options.widget ?? (await showChatView(viewsService));
+		const widget = options.widget ?? (await showChatView(viewsService, layoutService));
 		if (!widget) {
 			return;
 		}

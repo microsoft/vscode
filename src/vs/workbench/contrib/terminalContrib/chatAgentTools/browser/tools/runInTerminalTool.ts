@@ -1036,7 +1036,7 @@ export class TerminalProfileFetcher {
 			};
 		}
 
-		// Setting icon: undefined allows the system to use the default Copilot terminal icon (not overridden or removed)
+		// Setting icon: undefined allows the system to use the default AI terminal icon (not overridden or removed)
 		return { ...defaultProfile, icon: undefined };
 	}
 
