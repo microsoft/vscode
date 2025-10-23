@@ -194,6 +194,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		};
 	}
 
+	public getCurrentContents() {
+		return this.modifiedModel.getValue();
+	}
+
 	public override hasModificationAt(location: Location): boolean {
 		return location.uri.toString() === this.modifiedModel.uri.toString() && this._textModelChangeService.hasHunkAt(location.range);
 	}

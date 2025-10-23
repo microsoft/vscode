@@ -221,13 +221,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._timeline.createCheckpoint(requestId, undoStop, label);
 	}
 
-	public getSnapshotContents(requestId: string, uri: URI, stopId: string | undefined): Promise<VSBuffer | undefined> {
-		const content = this._timeline.getContentAtStop(requestId, uri, stopId);
-		return Promise.resolve(typeof content === 'string' ? VSBuffer.fromString(content) : content);
+	public async getSnapshotContents(requestId: string, uri: URI, stopId: string | undefined): Promise<VSBuffer | undefined> {
+		const content = await this._timeline.getContentAtStop(requestId, uri, stopId);
+		return typeof content === 'string' ? VSBuffer.fromString(content) : content;
 	}
 
 	public async getSnapshotModel(requestId: string, undoStop: string | undefined, snapshotUri: URI): Promise<ITextModel | null> {
-		const content = this._timeline.getContentAtStop(requestId, snapshotUri, undoStop);
+		const content = await this._timeline.getContentAtStop(requestId, snapshotUri, undoStop);
 		if (!content) {
 			return null;
 		}
@@ -408,20 +408,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		await this._timeline.redoToNextCheckpoint();
 	}
 
-	private async _getFileContent(uri: URI): Promise<string> {
-		try {
-			const ref = await this._textModelService.createModelReference(uri);
-			try {
-				return ref.object.textEditorModel.getValue();
-			} finally {
-				ref.dispose();
-			}
-		} catch (error) {
-			// File doesn't exist, return empty content
-			return '';
-		}
-	}
-
 	private async _recordEditOperations(resource: URI, edits: (TextEdit | ICellEditOperation)[], responseModel: IChatResponseModel): Promise<void> {
 		// Determine if these are text edits or notebook edits
 		const isNotebookEdits = edits.length > 0 && 'cell' in edits[0];
@@ -429,7 +415,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		if (isNotebookEdits) {
 			// Record notebook edit operation
 			const notebookEdits = edits as ICellEditOperation[];
-
 			this._timeline.recordFileOperation({
 				type: FileOperationType.NotebookEdit,
 				uri: resource,
@@ -440,7 +425,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		} else {
 			// Record text edit operation
 			const textEdits = edits as TextEdit[];
-
 			this._timeline.recordFileOperation({
 				type: FileOperationType.TextEdit,
 				uri: resource,
@@ -456,13 +440,24 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		// Record file baseline if this is the first edit for this file in this request
 		if (!this._timeline.hasFileBaseline(resource, responseModel.requestId)) {
-			const content = await this._getFileContent(resource);
+			let content: string;
+			let notebookViewType: string | undefined;
+			if (entry instanceof ChatEditingModifiedNotebookEntry) {
+				content = entry.getCurrentSnapshot();
+				notebookViewType = entry.viewType;
+			} else if (entry instanceof ChatEditingModifiedDocumentEntry) {
+				content = entry.getCurrentContents();
+			} else {
+				throw new Error(`unknown entry type for ${resource}`);
+			}
+
 			this._timeline.recordFileBaseline({
 				uri: resource,
 				requestId: responseModel.requestId,
 				content,
 				epoch: this._timeline.incrementEpoch(),
 				telemetryInfo: entry.telemetryInfo,
+				notebookViewType,
 			});
 		}
 

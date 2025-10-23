@@ -35,7 +35,7 @@ export interface IChatEditingCheckpointTimeline {
 
 	// State reconstruction
 	getContentURIAtStop(requestId: string, fileURI: URI, stopId: string | undefined): URI;
-	getContentAtStop(requestId: string, contentURI: URI, stopId: string | undefined): string | VSBuffer | undefined;
+	getContentAtStop(requestId: string, contentURI: URI, stopId: string | undefined): Promise<string | VSBuffer | undefined>;
 
 	// Persistence
 	getStateForPersistence(): IChatEditingTimelineState;

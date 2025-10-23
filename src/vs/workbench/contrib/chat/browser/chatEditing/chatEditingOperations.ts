@@ -32,6 +32,7 @@ export interface IFileOperation {
 export interface IFileCreateOperation extends IFileOperation {
 	readonly type: FileOperationType.Create;
 	readonly initialContent: string;
+	readonly notebookViewType?: string;
 }
 
 /**
@@ -81,20 +82,26 @@ export interface IFileBaseline {
 	readonly content: string;
 	readonly epoch: number;
 	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
+	readonly notebookViewType?: string;
+}
+
+export interface IReconstructedFileExistsState {
+	readonly exists: true;
+	readonly content: string;
+	readonly uri: URI;
+	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
+	readonly notebookViewType?: string;
+}
+
+export interface IReconstructedFileNotExistsState {
+	readonly exists: false;
+	readonly uri: URI;
 }
 
 /**
  * The reconstructed state of a file at a specific checkpoint
  */
-export type IReconstructedFileState = {
-	readonly exists: false;
-	readonly uri: URI;
-} | {
-	readonly exists: true;
-	readonly content: string;
-	readonly uri: URI;
-	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
-};
+export type IReconstructedFileState = IReconstructedFileNotExistsState | IReconstructedFileExistsState;
 
 /**
  * Checkpoint represents a stable state that can be navigated to

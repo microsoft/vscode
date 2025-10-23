@@ -5,12 +5,14 @@
 
 import { equals as arraysEqual } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
+import { assertNever } from '../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { equals as objectsEqual } from '../../../../../base/common/objects.js';
 import { derived, derivedOpts, IObservable, IReader, ITransaction, ObservablePromise, observableSignalFromEvent, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
@@ -19,15 +21,23 @@ import { TextModel } from '../../../../../editor/common/model/textModel.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotebookTextModel } from '../../../notebook/common/notebookCommon.js';
+import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
+import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { IEditSessionEntryDiff, IModifiedEntryTelemetryInfo } from '../../common/chatEditingService.js';
 import { IChatRequestDisablement } from '../../common/chatModel.js';
 import { IChatEditingCheckpointTimeline } from './chatEditingCheckpointTimeline.js';
-import { FileOperation, FileOperationType, IChatEditingTimelineState, ICheckpoint, IFileBaseline, IFileCreateOperation, IFileDeleteOperation, IFileRenameOperation, IReconstructedFileState } from './chatEditingOperations.js';
+import { FileOperation, FileOperationType, IChatEditingTimelineState, ICheckpoint, IFileBaseline, IFileCreateOperation, IFileDeleteOperation, IFileRenameOperation, IReconstructedFileExistsState, IReconstructedFileNotExistsState, IReconstructedFileState } from './chatEditingOperations.js';
 import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+import { createSnapshot as createNotebookSnapshot, restoreSnapshot as restoreNotebookSnapshot } from './notebook/chatEditingModifiedNotebookSnapshot.js';
 
 const START_REQUEST_EPOCH = '$$start';
 const STOP_ID_EPOCH_PREFIX = '__epoch_';
+
+type IReconstructedFileStateWithNotebook = IReconstructedFileNotExistsState | (Mutable<IReconstructedFileExistsState> & { notebook?: INotebookTextModel });
+
 
 /**
  * Implementation of the checkpoint-based timeline system.
@@ -105,11 +115,14 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		private readonly _delegate: {
 			setContents(uri: URI, content: string, telemetryInfo: IModifiedEntryTelemetryInfo): Promise<void>;
 		},
+		@INotebookEditorModelResolverService private readonly _notebookEditorModelResolverService: INotebookEditorModelResolverService,
+		@INotebookService private readonly _notebookService: INotebookService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 
@@ -225,7 +238,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		return this._fileBaselines.has(key);
 	}
 
-	public getContentAtStop(requestId: string, contentURI: URI, stopId: string | undefined) {
+	public async getContentAtStop(requestId: string, contentURI: URI, stopId: string | undefined) {
 		let toEpoch: number | undefined;
 		if (stopId?.startsWith(STOP_ID_EPOCH_PREFIX)) {
 			toEpoch = Number(stopId.slice(STOP_ID_EPOCH_PREFIX.length));
@@ -242,13 +255,13 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		}
 
 
-		const baseline = this._findBestBaselineForFile(fileURI, toEpoch, requestId);
+		const baseline = await this._findBestBaselineForFile(fileURI, toEpoch, requestId);
 		if (!baseline) {
 			return '';
 		}
 
 		const operations = this._getFileOperationsInRange(fileURI, baseline.epoch, toEpoch);
-		const replayed = this._replayOperations(baseline, operations);
+		const replayed = await this._replayOperations(baseline, operations);
 		return replayed.exists ? replayed.content : undefined;
 	}
 
@@ -256,14 +269,14 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		return findLast(this._checkpoints.read(reader), c => c.epoch <= epoch);
 	}
 
-	private _reconstructFileState(uri: URI, targetEpoch: number): IReconstructedFileState {
+	private async _reconstructFileState(uri: URI, targetEpoch: number): Promise<IReconstructedFileState> {
 		const targetCheckpoint = this._getCheckpointBeforeEpoch(targetEpoch);
 		if (!targetCheckpoint) {
 			throw new Error(`Checkpoint for epoch ${targetEpoch} not found`);
 		}
 
 		// Find the most appropriate baseline for this file
-		const baseline = this._findBestBaselineForFile(uri, targetEpoch, targetCheckpoint.requestId || '');
+		const baseline = await this._findBestBaselineForFile(uri, targetEpoch, targetCheckpoint.requestId || '');
 		if (!baseline) {
 			// File doesn't exist at this checkpoint
 			return {
@@ -355,7 +368,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 
 		// Reconstruct content for each file that needs it
 		for (const uri of filesToReconstruct) {
-			const reconstructedState = this._reconstructFileState(uri, targetEpoch);
+			const reconstructedState = await this._reconstructFileState(uri, targetEpoch);
 			if (reconstructedState.exists) {
 				this._delegate.setContents(reconstructedState.uri, reconstructedState.content, reconstructedState.telemetryInfo);
 			}
@@ -367,7 +380,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		return `${uri.toString()}::${requestId}`;
 	}
 
-	private _findBestBaselineForFile(uri: URI, epoch: number, requestId: string): IFileBaseline | undefined {
+	private async _findBestBaselineForFile(uri: URI, epoch: number, requestId: string): Promise<IFileBaseline | undefined> {
 		// First, iterate backwards through operations before the target checkpoint
 		// to see if the file was created/re-created more recently than any baseline
 
@@ -393,14 +406,14 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 
 			// If the file was renamed to this URI, use its old contents as the baseline
 			if (operation.type === FileOperationType.Rename && isEqual(operation.newUri, uri)) {
-				const prev = this._findBestBaselineForFile(operation.oldUri, operation.epoch, operation.requestId);
+				const prev = await this._findBestBaselineForFile(operation.oldUri, operation.epoch, operation.requestId);
 				if (!prev) {
 					return undefined;
 				}
 
 
 				const operations = this._getFileOperationsInRange(operation.oldUri, prev.epoch, operation.epoch);
-				const replayed = this._replayOperations(prev, operations);
+				const replayed = await this._replayOperations(prev, operations);
 				return {
 					uri: uri,
 					epoch: operation.epoch,
@@ -433,32 +446,60 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		).sort((a, b) => a.epoch - b.epoch);
 	}
 
-	private _replayOperations(baseline: IFileBaseline, operations: readonly FileOperation[]): IReconstructedFileState {
-		let currentState: IReconstructedFileState = {
+	private async _replayOperations(baseline: IFileBaseline, operations: readonly FileOperation[]): Promise<IReconstructedFileState> {
+		let currentState: IReconstructedFileStateWithNotebook = {
 			exists: true,
 			content: baseline.content,
 			uri: baseline.uri,
-			telemetryInfo: baseline.telemetryInfo
+			telemetryInfo: baseline.telemetryInfo,
 		};
 
+		if (baseline.notebookViewType) {
+			currentState.notebook = await this._notebookEditorModelResolverService.createUntitledNotebookTextModel(baseline.notebookViewType);
+			if (baseline.content) {
+				restoreNotebookSnapshot(currentState.notebook, baseline.content);
+			}
+		}
+
 		for (const operation of operations) {
-			currentState = this._applyOperationToState(currentState, operation, baseline.telemetryInfo);
+			currentState = await this._applyOperationToState(currentState, operation, baseline.telemetryInfo);
+		}
+
+		if (currentState.exists && currentState.notebook) {
+			const info = await this._notebookService.withNotebookDataProvider(currentState.notebook.viewType);
+			currentState.content = createNotebookSnapshot(currentState.notebook, info.serializer.options, this._configurationService);
+			currentState.notebook.dispose();
 		}
 
 		return currentState;
 	}
 
-	private _applyOperationToState(state: IReconstructedFileState, operation: FileOperation, telemetryInfo: IModifiedEntryTelemetryInfo): IReconstructedFileState {
+	private async _applyOperationToState(state: IReconstructedFileStateWithNotebook, operation: FileOperation, telemetryInfo: IModifiedEntryTelemetryInfo): Promise<IReconstructedFileStateWithNotebook> {
 		switch (operation.type) {
-			case FileOperationType.Create:
+			case FileOperationType.Create: {
+				let notebook: INotebookTextModel | undefined;
+				if (operation.notebookViewType) {
+					notebook = await this._notebookEditorModelResolverService.createUntitledNotebookTextModel(operation.notebookViewType);
+					if (operation.initialContent) {
+						restoreNotebookSnapshot(notebook, operation.initialContent);
+					}
+				}
+
 				return {
 					exists: true,
 					content: operation.initialContent,
 					uri: operation.uri,
 					telemetryInfo,
+					notebookViewType: operation.notebookViewType,
+					notebook,
 				};
+			}
 
 			case FileOperationType.Delete:
+				if (state.exists && state.notebook) {
+					state.notebook.dispose();
+				}
+
 				return {
 					exists: false,
 					uri: operation.uri
@@ -482,16 +523,18 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 				};
 
 			case FileOperationType.NotebookEdit:
-				// For notebook edits, we'll need to implement proper notebook cell edit application
-				// For now, return the current state unchanged
-				// TODO: Implement proper notebook edit application using notebook models
 				if (!state.exists || !state.content) {
 					throw new Error('Cannot apply notebook edits to non-existent file');
 				}
+				if (!state.notebook) {
+					throw new Error('Cannot apply notebook edits to non-notebook file');
+				}
+
+				state.notebook.applyEdits(operation.cellEdits.slice(), true, undefined, () => undefined, undefined);
 				return state;
 
 			default:
-				throw new Error(`Unknown operation type: ${(operation as any).type}`);
+				assertNever(operation);
 		}
 	}
 

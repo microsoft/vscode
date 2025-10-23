@@ -90,6 +90,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		return this._cellsDiffInfo;
 	}
 
+	get viewType() {
+		return this.modifiedModel.viewType;
+	}
+
 	/**
 	 * List of Cell URIs that are edited,
 	 * Will be cleared once all edits have been accepted.
@@ -916,6 +920,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		} finally {
 			this._isEditFromUs = false;
 		}
+	}
+
+	public getCurrentSnapshot() {
+		return createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
 	}
 
 	override createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
