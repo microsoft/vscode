@@ -26,6 +26,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { showChatView } from '../chat.js';
 import './media/chatConfirmationWidget.css';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 export interface IChatConfirmationButton<T> {
 	label: string;
@@ -141,6 +142,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 		@IHostService private readonly _hostService: IHostService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -262,7 +264,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 
 			disposables.add(Event.once(notification.onClick)(() => {
 				this._hostService.focus(targetWindow, { mode: FocusMode.Force });
-				showChatView(this._viewsService);
+				showChatView(this._viewsService, this._layoutService);
 			}));
 
 			disposables.add(this._hostService.onDidChangeFocus(focus => {
@@ -288,8 +290,9 @@ export class SimpleChatConfirmationWidget<T> extends BaseSimpleChatConfirmationW
 		@IHostService hostService: IHostService,
 		@IViewsService viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
-		super(options, instantiationService, markdownRendererService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
+		super(options, instantiationService, markdownRendererService, contextMenuService, configurationService, hostService, viewsService, contextKeyService, layoutService);
 		this.updateMessage(options.message);
 	}
 
@@ -349,6 +352,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		@IHostService private readonly _hostService: IHostService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -490,7 +494,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 
 			disposables.add(Event.once(notification.onClick)(() => {
 				this._hostService.focus(targetWindow, { mode: FocusMode.Force });
-				showChatView(this._viewsService);
+				showChatView(this._viewsService, this._layoutService);
 			}));
 
 			disposables.add(this._hostService.onDidChangeFocus(focus => {
@@ -514,8 +518,9 @@ export class ChatConfirmationWidget<T> extends BaseChatConfirmationWidget<T> {
 		@IHostService hostService: IHostService,
 		@IViewsService viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
-		super(options, instantiationService, markdownRendererService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
+		super(options, instantiationService, markdownRendererService, contextMenuService, configurationService, hostService, viewsService, contextKeyService, layoutService);
 		this.renderMessage(options.message, this._container);
 	}
 
@@ -540,8 +545,9 @@ export class ChatCustomConfirmationWidget<T> extends BaseChatConfirmationWidget<
 		@IHostService hostService: IHostService,
 		@IViewsService viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
-		super(options, instantiationService, markdownRendererService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
+		super(options, instantiationService, markdownRendererService, contextMenuService, configurationService, hostService, viewsService, contextKeyService, layoutService);
 		this.renderMessage(options.message, container);
 	}
 }

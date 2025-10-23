@@ -18,6 +18,7 @@ import { NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_
 import { InlineChatController } from '../../../../inlineChat/browser/inlineChatController.js';
 import { showChatView } from '../../../../chat/browser/chat.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 
 export const OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID = 'notebook.cell.openFailureActions';
 export const FIX_CELL_ERROR_COMMAND_ID = 'notebook.cell.chat.fixError';
@@ -111,7 +112,8 @@ registerAction2(class extends NotebookCellAction {
 			const error = context.cell.executionErrorDiagnostic.get();
 			if (error?.message) {
 				const viewsService = accessor.get(IViewsService);
-				const chatWidget = await showChatView(viewsService);
+				const layoutService = accessor.get(IWorkbenchLayoutService);
+				const chatWidget = await showChatView(viewsService, layoutService);
 				const message = error.name ? `${error.name}: ${error.message}` : error.message;
 				// TODO: can we add special prompt instructions? e.g. use "%pip install"
 				chatWidget?.acceptInput('@workspace /explain ' + message,);

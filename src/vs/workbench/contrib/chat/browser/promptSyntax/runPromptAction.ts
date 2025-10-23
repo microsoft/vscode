@@ -30,6 +30,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 /**
  * Condition for the `Run Current Prompt` action.
@@ -135,6 +136,7 @@ abstract class RunPromptBaseAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const commandService = accessor.get(ICommandService);
 		const promptsService = accessor.get(IPromptsService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 
 		resource ||= getActivePromptFileUri(accessor);
 		assertDefined(
@@ -146,7 +148,7 @@ abstract class RunPromptBaseAction extends Action2 {
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
 
-		const widget = await showChatView(viewsService);
+		const widget = await showChatView(viewsService, layoutService);
 		if (widget) {
 			widget.setInput(`/${await promptsService.getPromptCommandName(resource)}`);
 			// submit the prompt immediately
@@ -211,6 +213,7 @@ class RunSelectedPromptAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const instaService = accessor.get(IInstantiationService);
 		const promptsService = accessor.get(IPromptsService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 
 		const pickers = instaService.createInstance(PromptFilePickers);
 
@@ -232,7 +235,7 @@ class RunSelectedPromptAction extends Action2 {
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
 
-		const widget = await showChatView(viewsService);
+		const widget = await showChatView(viewsService, layoutService);
 		if (widget) {
 			widget.setInput(`/${await promptsService.getPromptCommandName(promptFile)}`);
 			// submit the prompt immediately
