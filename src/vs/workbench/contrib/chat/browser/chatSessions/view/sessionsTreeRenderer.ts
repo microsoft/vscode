@@ -200,7 +200,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		let editableData: IEditableData | undefined;
 		if (isLocalChatSessionItem(session)) {
 			templateData.container.classList.add('local-session');
-			editableData = this.chatSessionsService.getEditableData(session.id);
+			editableData = this.chatSessionsService.getEditableData(session.resource);
 		} else {
 			templateData.container.classList.remove('local-session');
 		}

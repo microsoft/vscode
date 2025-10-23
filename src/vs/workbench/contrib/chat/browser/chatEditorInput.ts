@@ -73,8 +73,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			if (!parsed || typeof parsed !== 'number') {
 				throw new Error('Invalid chat URI');
 			}
-		} else if (resource.scheme !== Schemas.vscodeChatSession) {
-			throw new Error('Invalid chat URI');
 		}
 
 		this.sessionId = (options.target && 'sessionId' in options.target) ?
@@ -269,7 +267,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const searchParams = new URLSearchParams(this.resource.query);
 		const chatSessionType = searchParams.get('chatSessionType');
 		const inputType = chatSessionType ?? this.resource.authority;
-		if (this.resource.scheme === Schemas.vscodeChatSession) {
+		if (this.resource.scheme !== Schemas.vscodeChatEditor) {
 			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Chat, CancellationToken.None);
 		} else if (typeof this.sessionId === 'string') {
 			this.model = await this.chatService.getOrRestoreSession(this.sessionId)
