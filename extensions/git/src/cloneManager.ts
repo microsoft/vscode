@@ -10,7 +10,7 @@ import { pickRemoteSource } from './remoteSource';
 import { l10n, workspace, window, Uri, ProgressLocation, commands } from 'vscode';
 import { RepositoryCache, RepositoryCacheInfo } from './repositoryCache';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { Git } from './git';
+import { Model } from './model';
 
 type PostCloneAction = 'none' | 'open' | 'prompt';
 
@@ -22,16 +22,20 @@ export interface CloneOptions {
 	skipCache?: boolean;
 }
 
-export namespace CloneUtil {
-	export function clone(git: Git, telemetryReporter: TelemetryReporter, repositoryCache: RepositoryCache, url?: string, options: CloneOptions = {}) {
-		const cachedRepository = url ? repositoryCache.get(url) : undefined;
+export class CloneManager {
+	constructor(private readonly model: Model,
+		private readonly telemetryReporter: TelemetryReporter,
+		private readonly repositoryCache: RepositoryCache) { }
+
+	public clone(url?: string, options: CloneOptions = {}) {
+		const cachedRepository = url ? this.repositoryCache.get(url) : undefined;
 		if (url && !options.skipCache && cachedRepository && (cachedRepository.length > 0)) {
-			return tryOpenExistingRepository(git, telemetryReporter, cachedRepository, url, options.postCloneAction, options.parentPath, options.ref);
+			return this.tryOpenExistingRepository(cachedRepository, url, options.postCloneAction, options.parentPath, options.ref);
 		}
-		return cloneRepository(git, telemetryReporter, url, options.parentPath, options);
+		return this.cloneRepository(url, options.parentPath, options);
 	}
 
-	export async function cloneRepository(git: Git, telemetryReporter: TelemetryReporter, url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string; postCloneAction?: PostCloneAction } = {}): Promise<string | undefined> {
+	public async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string; postCloneAction?: PostCloneAction } = {}): Promise<string | undefined> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource({
 				providerLabel: provider => l10n.t('Clone from {0}', provider.name),
@@ -46,7 +50,7 @@ export namespace CloneUtil {
 					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
 				}
 			*/
-			telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
+			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
 			return;
 		}
 
@@ -73,7 +77,7 @@ export namespace CloneUtil {
 						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
 					}
 				*/
-				telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
+				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
 				return;
 			}
 
@@ -90,7 +94,7 @@ export namespace CloneUtil {
 
 			const repositoryPath = await window.withProgress(
 				opts,
-				(progress, token) => git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive, ref: options.ref }, token)
+				(progress, token) => this.model.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive, ref: options.ref }, token)
 			);
 
 			const config = workspace.getConfiguration('git');
@@ -141,7 +145,7 @@ export namespace CloneUtil {
 					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Indicates whether the folder is opened following the clone operation" }
 				}
 			*/
-			telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: action === PostCloneAction.Open || action === PostCloneAction.OpenNewWindow ? 1 : 0 });
+			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: action === PostCloneAction.Open || action === PostCloneAction.OpenNewWindow ? 1 : 0 });
 
 			const uri = Uri.file(repositoryPath);
 
@@ -162,7 +166,7 @@ export namespace CloneUtil {
 						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
 					}
 				*/
-				telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
+				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
 			} else if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
 				return;
 			} else {
@@ -172,21 +176,21 @@ export namespace CloneUtil {
 						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
 					}
 				*/
-				telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
+				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
 			}
 
 			throw err;
 		}
 	}
 
-	export async function doPostCloneAction(target: string, postCloneAction?: PostCloneAction): Promise<void> {
+	async doPostCloneAction(target: string, postCloneAction?: PostCloneAction): Promise<undefined> {
 		const forceReuseWindow = ((workspace.workspaceFile === undefined) && (workspace.workspaceFolders === undefined));
 		if (postCloneAction === 'open') {
 			await commands.executeCommand('vscode.openFolder', Uri.file(target), { forceReuseWindow });
 		}
 	}
 
-	export async function chooseExistingRepository(git: Git, telemetryReporter: TelemetryReporter, url: string, existingCachedRepositories: RepositoryCacheInfo[], ref: string | undefined, parentPath?: string, postCloneAction?: PostCloneAction): Promise<string | undefined> {
+	async chooseExistingRepository(url: string, existingCachedRepositories: RepositoryCacheInfo[], ref: string | undefined, parentPath?: string, postCloneAction?: PostCloneAction): Promise<string | undefined> {
 		try {
 			const items: { label: string; description?: string; item?: RepositoryCacheInfo }[] = existingCachedRepositories.map(knownFolder => {
 				const isWorkspace = knownFolder.workspacePath.endsWith('.code-workspace');
@@ -198,7 +202,7 @@ export namespace CloneUtil {
 			const placeHolder = l10n.t('Open Existing Repository Clone');
 			const pick = await window.showQuickPick(items, { placeHolder, canPickMany: false });
 			if (pick === cloneAgain) {
-				return (await cloneRepository(git, telemetryReporter, url, parentPath, { ref, postCloneAction })) ?? undefined;
+				return (await this.cloneRepository(url, parentPath, { ref, postCloneAction })) ?? undefined;
 			}
 			if (!pick?.item) {
 				return undefined;
@@ -209,7 +213,7 @@ export namespace CloneUtil {
 		}
 	}
 
-	export async function tryOpenExistingRepository(git: Git, telemetryReporter: TelemetryReporter, cachedRepository: RepositoryCacheInfo[], url: string, postCloneAction?: PostCloneAction, parentPath?: string, ref?: string): Promise<string | undefined> {
+	async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, postCloneAction?: PostCloneAction, parentPath?: string, ref?: string): Promise<string | undefined> {
 		// Gather existing folders/workspace files (ignore ones that no longer exist)
 		const existingCachedRepositories: RepositoryCacheInfo[] = (await Promise.all<RepositoryCacheInfo | undefined>(cachedRepository.map(async folder => {
 			const stat = await fs.promises.stat(folder.workspacePath).catch(() => undefined);
@@ -222,7 +226,7 @@ export namespace CloneUtil {
 
 		if (!existingCachedRepositories.length) {
 			// fallback to clone
-			return (await cloneRepository(git, telemetryReporter, url, parentPath, { ref, postCloneAction }) ?? undefined);
+			return (await this.cloneRepository(url, parentPath, { ref, postCloneAction }) ?? undefined);
 		}
 
 		// First, find the cached repo that exists in the current workspace
@@ -236,10 +240,10 @@ export namespace CloneUtil {
 
 		let repoForWorkspace: string | undefined = (existingCachedRepositories.length === 1 ? existingCachedRepositories[0].workspacePath : undefined);
 		if (!repoForWorkspace) {
-			repoForWorkspace = await chooseExistingRepository(git, telemetryReporter, url, existingCachedRepositories, ref, parentPath, postCloneAction);
+			repoForWorkspace = await this.chooseExistingRepository(url, existingCachedRepositories, ref, parentPath, postCloneAction);
 		}
 		if (repoForWorkspace) {
-			return doPostCloneAction(repoForWorkspace, postCloneAction);
+			return this.doPostCloneAction(repoForWorkspace, postCloneAction);
 		}
 		return undefined;
 	}
