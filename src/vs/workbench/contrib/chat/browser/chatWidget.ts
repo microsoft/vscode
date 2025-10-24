@@ -1151,6 +1151,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (numItems === 0) {
 			this.refreshHistoryList();
+			if (!dom.isAncestorOfActiveElement(this.container)) {
+				this.focusInput();
+			}
 		}
 	}
 
