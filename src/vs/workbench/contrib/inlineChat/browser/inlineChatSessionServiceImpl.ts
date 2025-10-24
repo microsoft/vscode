@@ -501,17 +501,7 @@ export class InlineChatEscapeToolContribution extends Disposable {
 		canBeReferencedInPrompt: false,
 		alwaysDisplayInputOutput: false,
 		displayName: localize('name', "Inline Chat to Panel Chat"),
-		modelDescription: 'Moves the inline chat session to the richer panel chat which supports edits across files, creating new files, and multi-turn conversations between the user and the assistant.',
-		// inputSchema: {
-		// 	type: 'object',
-		// 	properties: {
-		// 		reason: {
-		// 			type: 'string',
-		// 			description: 'A brief (just a few words) explanation why the assistant needs to move to the panel chat for this task.',
-		// 		}
-		// 	},
-		// 	required: ['reason']
-		// },
+		modelDescription: 'Moves the inline chat session to the richer panel chat which supports edits across files, creating and deleting files, multi-turn conversations between the user and the assistant, and access to more IDE tools, like retrieve problems, interact with source control, run terminal commands etc.',
 	};
 
 	constructor(
@@ -544,15 +534,15 @@ export class InlineChatEscapeToolContribution extends Disposable {
 					type: 'question',
 					title: localize('confirm.title', "Continue in Panel Chat?"),
 					message: localize('confirm', "Do you want to continue in panel chat or rephrase your prompt?"),
-					detail: localize('confirm.detail', "This task seems to be too big for inline chat. You can rephrase your prompt or continue in the panel chat where you can work with the assistant on multiple files and with multiple turns."),
-					primaryButton: localize('confirm.yes', "Continue"),
-					cancelButton: localize('confirm.no', "Rephrase"),
+					detail: localize('confirm.detail', "This task is too complex for Inline Chat. You can rephrase your prompt or continue in the panel chat."),
+					primaryButton: localize('confirm.yes', "Rephrase"),
+					cancelButton: localize('confirm.no', "Continue in Chat"),
 				});
 
 
 				const editor = codeEditorService.getFocusedCodeEditor();
 
-				if (result.confirmed || !editor) {
+				if (!result.confirmed || !editor) {
 					await instaService.invokeFunction(moveToPanelChat, session.chatModel, true);
 					session.dispose();
 
