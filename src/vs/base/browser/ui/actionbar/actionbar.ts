@@ -11,15 +11,16 @@ import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from '../../../common/actions.js';
 import { Emitter } from '../../../common/event.js';
 import { KeyCode, KeyMod } from '../../../common/keyCodes.js';
-import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from '../../../common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import * as types from '../../../common/types.js';
 import './actionbar.css';
+import { BugIndicatingError } from '../../../common/errors.js';
 
 export interface IActionViewItem extends IDisposable {
 	action: IAction;
 	actionRunner: IActionRunner;
 	setActionContext(context: unknown): void;
-	render(element: HTMLElement): void;
+	render(element: HTMLElement, actionUpdated: (rerender: boolean) => void): void;
 	isEnabled(): boolean;
 	focus(fromRight?: boolean): void; // TODO@isidorn what is this?
 	blur(): void;
@@ -106,6 +107,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	private readonly _onWillRun = this._register(new Emitter<IRunEvent>());
 	get onWillRun() { return this._onWillRun.event; }
+
+	private readonly _onDidRerenderItem = this._register(new Emitter<void>());
+	get onDidRerenderItem() { return this._onDidRerenderItem.event; }
 
 	constructor(container: HTMLElement, options: IActionBarOptions = {}) {
 		super();
@@ -367,16 +371,36 @@ export class ActionBar extends Disposable implements IActionRunner {
 				item = new ActionViewItem(this.context, action, viewItemOptions);
 			}
 
+			const disposables = new DisposableStore();
+			this.viewItemDisposables.set(item, disposables);
+
 			// Prevent native context menu on actions
 			if (!this.options.allowContextMenu) {
-				this.viewItemDisposables.set(item, DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
+				disposables.add(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
 					DOM.EventHelper.stop(e, true);
 				}));
 			}
 
 			item.actionRunner = this._actionRunner;
 			item.setActionContext(this.context);
-			item.render(actionViewItemElement);
+
+			let onDidUpdateGuarded = false;
+			disposables.add(toDisposable(() => onDidUpdateGuarded = true));
+
+			const renderItem = () => {
+				DOM.clearNode(actionViewItemElement);
+				item.render(actionViewItemElement, (rerender: boolean) => {
+					if (!onDidUpdateGuarded) {
+						if (rerender) {
+							renderItem();
+						}
+						this._onDidRerenderItem.fire();
+					} else {
+						throw new BugIndicatingError(`${item.action.id}: onDidUpdate called after dispose`);
+					}
+				});
+			};
+			renderItem();
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
 				this.actionsList.appendChild(actionViewItemElement);

@@ -10,7 +10,7 @@ import { DropdownMenuActionViewItem } from '../dropdown/dropdownActionViewItem.j
 import { Action, IAction, IActionRunner, Separator, SubmenuAction } from '../../../common/actions.js';
 import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
-import { EventMultiplexer } from '../../../common/event.js';
+import { Emitter, EventMultiplexer } from '../../../common/event.js';
 import { ResolvedKeybinding } from '../../../common/keybindings.js';
 import { Disposable, DisposableStore } from '../../../common/lifecycle.js';
 import './toolbar.css';
@@ -64,6 +64,9 @@ export class ToolBar extends Disposable {
 	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
 	get onDidChangeDropdownVisibility() { return this._onDidChangeDropdownVisibility.event; }
 	private readonly disposables = this._register(new DisposableStore());
+
+	private readonly _onDidRerenderItem = this._register(new Emitter<void>());
+	public readonly onDidRerenderItem = this._onDidRerenderItem.event;
 
 	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
 		super();
@@ -141,6 +144,10 @@ export class ToolBar extends Disposable {
 
 				return undefined;
 			}
+		}));
+
+		this._register(this.actionBar.onDidRerenderItem(() => {
+			this._onDidRerenderItem.fire();
 		}));
 	}
 
