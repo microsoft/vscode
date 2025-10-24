@@ -1009,6 +1009,22 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 		this._evaluateLocalCwd(shellLaunchConfig);
 		const location = await this.resolveLocation(options?.location) || this._terminalConfigurationService.defaultLocation;
+
+		if (shellLaunchConfig.hideFromUser) {
+			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, location);
+			this._backgroundedTerminalInstances.push({ instance, terminalLocationOptions: options?.location });
+			this._backgroundedTerminalDisposables.set(instance.instanceId, [
+				instance.onDisposed(instance => {
+					const idx = this._backgroundedTerminalInstances.findIndex(bg => bg.instance === instance);
+					if (idx !== -1) {
+						this._backgroundedTerminalInstances.splice(idx, 1);
+					}
+					this._onDidDisposeInstance.fire(instance);
+				})
+			]);
+			return instance;
+		}
+
 		const parent = await this._getSplitParent(options?.location);
 		this._terminalHasBeenCreated.set(true);
 		this._extensionService.activateByEvent('onTerminal:*');
@@ -1020,19 +1036,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 		if (instance.shellType) {
 			this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`);
-		}
-
-		if (shellLaunchConfig.hideFromUser) {
-			this._backgroundedTerminalInstances.push({ instance, terminalLocationOptions: options?.location });
-			this._backgroundedTerminalDisposables.set(instance.instanceId, [
-				instance.onDisposed(instance => {
-					const idx = this._backgroundedTerminalInstances.findIndex(bg => bg.instance === instance);
-					if (idx !== -1) {
-						this._backgroundedTerminalInstances.splice(idx, 1);
-					}
-					this._onDidDisposeInstance.fire(instance);
-				})
-			]);
 		}
 
 		return instance;

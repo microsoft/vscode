@@ -7,7 +7,6 @@ import { Separator } from '../../../../../../base/common/actions.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunSelfDisposable, IReader } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -138,13 +137,6 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._register(toDisposable(() => hasToolConfirmation.reset()));
-		this._register(autorunSelfDisposable(reader => {
-			if (this.shouldDismiss(toolInvocation, reader)) {
-				reader.dispose();
-				hasToolConfirmation.reset();
-				this._onNeedsRerender.fire();
-			}
-		}));
 
 		this.domNode = confirmWidget.domNode;
 	}
@@ -159,5 +151,4 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 
 	protected abstract createContentElement(): HTMLElement | string;
 	protected abstract getTitle(): string;
-	protected abstract shouldDismiss(toolInvocation: IChatToolInvocation, reader: IReader): boolean;
 }

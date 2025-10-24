@@ -763,7 +763,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session {
-	margin-bottom: -4px; /* reset the 4px gap of the container for editing sessions */
+	margin-bottom: -4px;
+	/* reset the 4px gap of the container for editing sessions */
 	width: 100%;
 	position: relative;
 }
@@ -780,6 +781,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: column;
 	gap: 2px;
 	overflow: hidden;
+}
+
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container:has(.chat-todo-list-widget.has-todos) + .chat-editing-session .chat-editing-session-container {
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
 }
 
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
@@ -1088,12 +1094,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget {
-	padding: 4px 8px 4px 12px;
+	padding: 6px 8px 6px 12px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-editor-background);
 	border-bottom: none;
-	border-radius: 4px;
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
 	flex-direction: column;
 	gap: 2px;
 	overflow: hidden;
@@ -1104,7 +1111,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	gap: 4px;
 	cursor: pointer;
-	padding: 2px 0;
 	justify-content: space-between;
 	width: 100%;
 }
@@ -1124,6 +1130,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 	text-overflow: ellipsis;
 	line-height: 16px;
+	margin-left: -1px;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand .todo-list-title-section .codicon {
@@ -1177,6 +1184,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-weight: normal;
 	font-size: 11px;
 	color: var(--vscode-foreground);
+	display: flex;
+	align-items: center;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-container {
@@ -1295,9 +1304,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars .tool-warning-indicator {
 	position: absolute;
-	bottom: 1px;
-	right: 1px;
-	font-size: 9px !important;
+	bottom: 0;
+	right: 0;
+	font-size: 12px !important;
 	color: var(--vscode-problemsWarningIcon-foreground);
 	background: var(--vscode-input-background);
 	width: fit-content;
@@ -1589,9 +1598,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.chat-mcp-state-indicator {
 		position: absolute;
-		bottom: 1px;
-		right: 1px;
-		font-size: 9px !important;
+		bottom: 0;
+		right: 0;
+		font-size: 12px !important;
 		background: var(--vscode-input-background);
 		width: fit-content;
 		height: fit-content;
@@ -2991,6 +3000,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin-bottom: 0;
 		position: relative;
 		overflow: hidden;
+
+		.chat-tool-invocation-part {
+			.chat-used-context {
+				margin-bottom: 0px;
+				margin-left: 2px;
+			}
+
+			.progress-container {
+				margin-left: 6px;
+			}
+		}
 
 		.chat-thinking-item.markdown-content {
 			padding: 3px 12px 3px 24px;

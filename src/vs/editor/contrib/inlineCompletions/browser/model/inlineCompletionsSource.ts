@@ -268,8 +268,10 @@ export class InlineCompletionsSource extends Disposable {
 					const result = suggestions.map(c => ({
 						range: c.editRange.toString(),
 						text: c.insertText,
-						isInlineEdit: !!c.isInlineEdit,
-						source: c.source.provider.groupId,
+						displayLocation: c.displayLocation ? { label: c.displayLocation.label, range: c.displayLocation.range.toString(), kind: c.displayLocation.kind, jumpToEdit: c.displayLocation.jumpToEdit } : undefined,
+						isInlineEdit: c.isInlineEdit,
+						showInlineEditMenu: c.showInlineEditMenu,
+						providerId: c.source.provider.providerId?.toString(),
 					}));
 					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now(), didAllProvidersReturn });
 				}

@@ -212,6 +212,11 @@ export const enum ISCMRepositorySortKey {
 	Path = 'path'
 }
 
+export const enum ISCMRepositorySelectionMode {
+	Single = 'single',
+	Multiple = 'multiple'
+}
+
 export const ISCMViewService = createDecorator<ISCMViewService>('scmView');
 
 export interface ISCMViewVisibleRepositoryChangeEvent {
@@ -223,7 +228,7 @@ export interface ISCMViewService {
 	readonly _serviceBrand: undefined;
 
 	readonly menus: ISCMMenus;
-	readonly selectionModeConfig: IObservable<'multiple' | 'single'>;
+	readonly selectionModeConfig: IObservable<ISCMRepositorySelectionMode>;
 	readonly explorerEnabledConfig: IObservable<boolean>;
 
 	repositories: ISCMRepository[];
@@ -236,6 +241,7 @@ export interface ISCMViewService {
 	toggleVisibility(repository: ISCMRepository, visible?: boolean): void;
 
 	toggleSortKey(sortKey: ISCMRepositorySortKey): void;
+	toggleSelectionMode(selectionMode: ISCMRepositorySelectionMode): void;
 
 	readonly focusedRepository: ISCMRepository | undefined;
 	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;

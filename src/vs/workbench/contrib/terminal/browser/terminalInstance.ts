@@ -72,7 +72,7 @@ import { IEnvironmentVariableInfo } from '../common/environmentVariable.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
-import { getWorkspaceForTerminal, preparePathForShell } from '../common/terminalEnvironment.js';
+import { getShellIntegrationTimeout, getWorkspaceForTerminal, preparePathForShell } from '../common/terminalEnvironment.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
@@ -92,6 +92,7 @@ import { TerminalContribCommandId } from '../terminalContribExports.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { PromptInputState } from '../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 
 const enum Constants {
 	/**
@@ -916,18 +917,31 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
+		const timeoutMs = getShellIntegrationTimeout(
+			this._configurationService,
+			siInjectionEnabled,
+			this.isRemote,
+			this._processManager.processReadyTimestamp
+		);
 
-		// Await command detection if the terminal is starting up
-		if (!commandDetection && (this._processManager.processState === ProcessState.Uninitialized || this._processManager.processState === ProcessState.Launching)) {
+		if (!commandDetection || commandDetection.promptInputModel.state !== PromptInputState.Input) {
 			const store = new DisposableStore();
+
 			await Promise.race([
 				new Promise<void>(r => {
 					store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
 						commandDetection = e;
-						r();
+						if (commandDetection.promptInputModel.state === PromptInputState.Input) {
+							r();
+						} else {
+							store.add(commandDetection.promptInputModel.onDidStartInput(() => {
+								r();
+							}));
+						}
 					}));
 				}),
-				timeout(2000),
+				timeout(timeoutMs)
 			]);
 			store.dispose();
 		}
