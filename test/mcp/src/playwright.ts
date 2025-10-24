@@ -12,8 +12,7 @@ export async function getServer(app?: Application): Promise<Server> {
 	const application = app ?? await getApplication();
 	const connection = await createConnection(
 		{
-			capabilities: ['core', 'pdf', 'vision'],
-			saveTrace: true
+			capabilities: ['core', 'pdf', 'vision']
 		},
 		// eslint-disable-next-line local/code-no-any-casts
 		() => Promise.resolve(application.code.driver.browserContext as any)
