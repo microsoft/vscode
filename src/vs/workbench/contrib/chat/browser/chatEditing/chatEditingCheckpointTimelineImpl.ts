@@ -6,7 +6,6 @@
 import { equals as arraysEqual } from '../../../../../base/common/arrays.js';
 import { findLast, findLastIdx } from '../../../../../base/common/arraysFind.js';
 import { assertNever } from '../../../../../base/common/assert.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { equals as objectsEqual } from '../../../../../base/common/objects.js';
@@ -15,7 +14,6 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { TextModel } from '../../../../../editor/common/model/textModel.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
@@ -43,6 +41,8 @@ type IReconstructedFileStateWithNotebook = IReconstructedFileNotExistsState | (M
  * navigating in the timeline tracks the changes as agent-initiated.
  */
 export interface IChatEditingTimelineFsDelegate {
+	/** Creates a file with initial content. */
+	createFile: (uri: URI, initialContent: string) => Promise<unknown>;
 	/** Delete a URI */
 	deleteFile: (uri: URI) => Promise<void>;
 	/** Rename a URI, retaining contents */
@@ -149,7 +149,6 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
@@ -561,7 +560,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		switch (operation.type) {
 			case FileOperationType.Create:
 				if (isMovingForward) {
-					await this._createFile(operation.uri, (operation as IFileCreateOperation).initialContent);
+					await this._delegate.createFile(operation.uri, (operation as IFileCreateOperation).initialContent);
 					urisToRestore.add(operation.uri);
 				} else {
 					await this._delegate.deleteFile(operation.uri);
@@ -574,7 +573,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 					await this._delegate.deleteFile(operation.uri);
 					urisToRestore.delete(operation.uri);
 				} else {
-					await this._createFile(operation.uri, operation.finalContent);
+					await this._delegate.createFile(operation.uri, operation.finalContent);
 					urisToRestore.add(operation.uri);
 				}
 				break;
@@ -600,19 +599,6 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 			default:
 				assertNever(operation);
 		}
-	}
-
-	// File system operation implementations - these would integrate with VS Code's file system
-	private async _createFile(uri: URI, content: string): Promise<void> {
-		await this._bulkEditService.apply({
-			edits: [{
-				newResource: uri,
-				options: {
-					overwrite: true,
-					contents: content ? Promise.resolve(VSBuffer.fromString(content)) : undefined,
-				},
-			}],
-		});
 	}
 
 	private _applyTextEditsToContent(content: string, edits: readonly TextEdit[]): string {

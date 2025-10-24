@@ -148,6 +148,17 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	private _getTimelineDelegate(): IChatEditingTimelineFsDelegate {
 		return {
+			createFile: (uri, content) => {
+				return this._bulkEditService.apply({
+					edits: [{
+						newResource: uri,
+						options: {
+							overwrite: true,
+							contents: content ? Promise.resolve(VSBuffer.fromString(content)) : undefined,
+						},
+					}],
+				});
+			},
 			deleteFile: async (uri) => {
 				const entries = this._entriesObs.get().filter(e => !isEqual(e.modifiedURI, uri));
 				this._entriesObs.set(entries, undefined);
