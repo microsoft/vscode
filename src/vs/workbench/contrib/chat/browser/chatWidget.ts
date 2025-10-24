@@ -1425,11 +1425,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				suggestedPrompts
 			};
 		} else {
-			const agentHelpMessage = localize('agentMessage', "Ask to edit your files using [Agent]({0}). Agent will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent');
+			const agentHelpMessage = localize('agentMessage', "Ask to edit your files using [Plan]({0}). Plan will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent');
 			const message = expEmptyState ? disclaimerMessage : `${agentHelpMessage}\n\n${disclaimerMessage}`;
 
 			return {
-				title: localize('agentTitle', "Build with Agent"),
+				title: localize('agentTitle', "Build with Plan"),
 				message: new MarkdownString(message),
 				icon,
 				additionalMessage,
