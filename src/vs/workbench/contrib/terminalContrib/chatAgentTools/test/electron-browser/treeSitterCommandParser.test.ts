@@ -22,8 +22,7 @@ suite('TreeSitterCommandParser', () => {
 	let parser: TreeSitterCommandParser;
 
 	setup(() => {
-		const logService = new NullLogService();
-		const fileService = store.add(new FileService(logService));
+		const fileService = store.add(new FileService(new NullLogService()));
 		const fileSystemProvider = new TestIPCFileSystemProvider();
 		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 
