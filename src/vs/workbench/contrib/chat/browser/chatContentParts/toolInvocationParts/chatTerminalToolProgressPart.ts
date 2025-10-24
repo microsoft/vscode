@@ -90,11 +90,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		// Wait for terminal reconnection to ensure the terminal instance is available
-		this._terminalService.whenConnected.then(() => {
+		this._terminalService.whenConnected.then(async () => {
 			// Append the action bar element after the title has been populated so flex order hacks aren't required.
 			const actionBarEl = h('.chat-terminal-action-bar@actionBar');
 			elements.title.append(actionBarEl.root);
-			this._createActionBar({ actionBar: actionBarEl.actionBar });
+			await this._createActionBar({ actionBar: actionBarEl.actionBar });
 		});
 		let pastTenseMessage: string | undefined;
 		if (toolInvocation.pastTenseMessage) {
@@ -127,7 +127,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this.domNode = progressPart.domNode;
 	}
 
-	private _createActionBar(elements: { actionBar: HTMLElement }): void {
+	private async _createActionBar(elements: { actionBar: HTMLElement }): Promise<void> {
 		this._actionBar.value = new ActionBar(elements.actionBar, {});
 
 		const terminalToolSessionId = this._terminalData.terminalToolSessionId;
@@ -135,17 +135,17 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return;
 		}
 
-		const attachInstance = (instance: ITerminalInstance | undefined) => {
+		const attachInstance = async (instance: ITerminalInstance | undefined) => {
 			if (!instance || this._terminalForOutput === instance) {
 				return;
 			}
 			this._terminalForOutput = instance;
 			this._attachedCommand = this._resolveCommand(instance);
 			this._registerInstanceListener(instance);
-			this._addFocusAction(instance, terminalToolSessionId);
+			await this._addFocusAction(instance, terminalToolSessionId);
 		};
 
-		attachInstance(this._terminalChatService.getTerminalInstanceByToolSessionId(terminalToolSessionId));
+		await attachInstance(this._terminalChatService.getTerminalInstanceByToolSessionId(terminalToolSessionId));
 
 		if (this._terminalForOutput) {
 			return;
@@ -161,14 +161,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._register(listener);
 	}
 
-	private _addFocusAction(terminalInstance: ITerminalInstance, terminalToolSessionId: string) {
+	private async _addFocusAction(terminalInstance: ITerminalInstance, terminalToolSessionId: string) {
 		const isTerminalHidden = this._terminalChatService.isBackgroundTerminal(terminalToolSessionId);
 		const focusAction = this._register(this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, this._attachedCommand, isTerminalHidden));
 		this._actionBar.value?.push(focusAction, { icon: true, label: false });
-		this._addShowOutputAction();
+		await this._addShowOutputAction();
 	}
 
-	private _addShowOutputAction() {
+	private async _addShowOutputAction() {
 		this._showOutputAction = new Action(
 			'chat.showTerminalOutput',
 			localize('showTerminalOutput', 'Show Output'),
@@ -184,7 +184,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 				if (expanded) {
 					if (!this._outputContent && this._terminalForOutput) {
-						const output = this._collectOutput(this._terminalForOutput);
+						const output = await this._collectOutput(this._terminalForOutput);
 						this._outputContent = this._renderOutput(output);
 						this._outputContainer.replaceChildren(this._outputContent);
 					}
@@ -210,12 +210,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}));
 	}
 
-	private _collectOutput(terminalInstance: ITerminalInstance): { text: string; truncated: boolean } {
+	private async _collectOutput(terminalInstance: ITerminalInstance): Promise<{ text: string; truncated: boolean }> {
 		this._attachedCommand ??= this._resolveCommand(terminalInstance);
 		let text = this._attachedCommand?.getOutput() ?? '';
 
 		if (!text && terminalInstance.xterm) {
-			text = terminalInstance.xterm.getContentsAsText();
+			text = await terminalInstance.xterm.getContentsAsHtml();
 		}
 
 		if (!text) {
