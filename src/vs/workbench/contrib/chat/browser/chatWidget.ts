@@ -2402,6 +2402,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.renderer.updateViewModel(this.viewModel);
 		this.updateChatInputContext();
+		this.input.renderChatTodoListWidget(this.viewModel.sessionId);
 	}
 
 	getFocus(): ChatTreeItem | undefined {
@@ -2536,11 +2537,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<void> {
-		if (!PromptsConfig.enabled(this.configurationService)) {
-			// if prompts are not enabled, we don't need to do anything
-			return undefined;
-		}
-
 		let parseResult: ParsedPromptFile | undefined;
 
 		// first check if the input has a prompt slash command
@@ -2781,7 +2777,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.layout(contentHeight, width);
 
 		// Push the welcome message down so it doesn't change position
-		// when followups, attachments, working set, or suggest next widget appear
+		// when followups, attachments, working set, todo list, or suggest next widget appear
 		let welcomeOffset = 100;
 		if (this.viewOptions.renderFollowups) {
 			welcomeOffset = Math.max(welcomeOffset - this.input.followupsHeight, 0);
@@ -2789,6 +2785,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewOptions.enableWorkingSet) {
 			welcomeOffset = Math.max(welcomeOffset - this.input.editSessionWidgetHeight, 0);
 		}
+		welcomeOffset = Math.max(welcomeOffset - this.input.todoListWidgetHeight, 0);
 		welcomeOffset = Math.max(welcomeOffset - this.input.attachmentsHeight, 0);
 		this.welcomeMessageContainer.style.height = `${contentHeight - welcomeOffset}px`;
 		this.welcomeMessageContainer.style.paddingBottom = `${welcomeOffset}px`;
@@ -2973,16 +2970,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * - instructions referenced in an already included instruction file
 	 */
 	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
-		const promptsConfigEnabled = PromptsConfig.enabled(this.configurationService);
-		this.logService.debug(`ChatWidget#_autoAttachInstructions: ${PromptsConfig.KEY}: ${promptsConfigEnabled}`);
+		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are always enabled`);
 
-		if (promptsConfigEnabled) {
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this._getReadTool());
-			await computer.collect(attachedContext, CancellationToken.None);
-		} else {
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, undefined);
-			await computer.collectAgentInstructionsOnly(attachedContext, CancellationToken.None);
-		}
+		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this._getReadTool());
+		await computer.collect(attachedContext, CancellationToken.None);
 	}
 
 	private _getReadTool(): IToolData | undefined {

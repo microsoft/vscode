@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { autorun, derived, IObservable, ObservableMap } from '../../../../base/common/observable.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -36,7 +37,6 @@ import { IChatSessionsService } from './chatSessionsService.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatTransferService } from './chatTransferService.js';
-import { ChatSessionUri } from './chatUri.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
@@ -72,7 +72,7 @@ export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
 	private readonly _sessionModels = new ObservableMap<string, ChatModel>();
-	private readonly _contentProviderSessionModels = new Map<string, Map<string, { readonly model: IChatModel; readonly disposables: DisposableStore }>>();
+	private readonly _contentProviderSessionModels = new Map</* scheme */ string, ResourceMap<{ readonly model: IChatModel; readonly disposables: DisposableStore }>>();
 	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
 
@@ -81,8 +81,8 @@ export class ChatService extends Disposable implements IChatService {
 		return this._transferredSessionData;
 	}
 
-	private readonly _onDidSubmitRequest = this._register(new Emitter<{ chatSessionId: string }>());
-	public readonly onDidSubmitRequest: Event<{ chatSessionId: string }> = this._onDidSubmitRequest.event;
+	private readonly _onDidSubmitRequest = this._register(new Emitter<{ readonly chatSessionId: string }>());
+	public readonly onDidSubmitRequest = this._onDidSubmitRequest.event;
 
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
@@ -452,39 +452,31 @@ export class ChatService extends Disposable implements IChatService {
 
 	async loadSessionForResource(chatSessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined> {
 		// TODO: Move this into a new ChatModelService
-		const parsed = ChatSessionUri.parse(chatSessionResource);
-		if (!parsed) {
-			throw new Error('Invalid chat session URI');
-		}
 
-		const existing = this._contentProviderSessionModels.get(parsed.chatSessionType)?.get(parsed.sessionId);
+		const existing = this._contentProviderSessionModels.get(chatSessionResource.scheme)?.get(chatSessionResource);
 		if (existing) {
 			return existing.model;
 		}
 
-		if (parsed.chatSessionType === 'local') {
-			return this.getOrRestoreSession(parsed.sessionId);
-		}
-
-		const chatSessionType = parsed.chatSessionType;
-		const content = await this.chatSessionService.provideChatSessionContent(chatSessionType, parsed.sessionId, chatSessionResource, CancellationToken.None);
+		const content = await this.chatSessionService.provideChatSessionContent(chatSessionResource, CancellationToken.None);
+		const chatSessionType = chatSessionResource.scheme;
 
 		// Contributed sessions do not use UI tools
 		const model = this._startSession(undefined, location, true, CancellationToken.None, { canUseTools: false, inputType: chatSessionType });
 		model.setContributedChatSession({
-			chatSessionType,
-			chatSessionId: parsed.sessionId,
+			chatSessionType: chatSessionType,
+			chatSessionId: chatSessionResource.toString(),
 			chatSessionResource,
-			isUntitled: parsed.sessionId.startsWith('untitled-')  //TODO(jospicer)
+			isUntitled: chatSessionResource.path.startsWith('/untitled-')  //TODO(jospicer)
 		});
 		if (!this._contentProviderSessionModels.has(chatSessionType)) {
-			this._contentProviderSessionModels.set(chatSessionType, new Map());
+			this._contentProviderSessionModels.set(chatSessionType, new ResourceMap());
 		}
 		const disposables = new DisposableStore();
-		this._contentProviderSessionModels.get(chatSessionType)!.set(parsed.sessionId, { model, disposables });
+		this._contentProviderSessionModels.get(chatSessionType)!.set(chatSessionResource, { model, disposables });
 
 		disposables.add(model.onDidDispose(() => {
-			this._contentProviderSessionModels?.get(chatSessionType)?.delete(parsed.sessionId);
+			this._contentProviderSessionModels?.get(chatSessionType)?.delete(chatSessionResource);
 			content.dispose();
 		}));
 

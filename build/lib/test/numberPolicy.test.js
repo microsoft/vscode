@@ -78,6 +78,12 @@ suite('NumberPolicy', () => {
         const presentation = policy.renderADMLPresentation();
         assert_1.default.strictEqual(presentation, '<presentation id="TestNumberPolicy"><decimalTextBox refId="TestNumberPolicy" defaultValue="42">TestNumberPolicy</decimalTextBox></presentation>');
     });
+    test('should render JSON value correctly', () => {
+        const policy = numberPolicy_js_1.NumberPolicy.from(mockCategory, mockPolicy);
+        assert_1.default.ok(policy);
+        const jsonValue = policy.renderJsonValue();
+        assert_1.default.strictEqual(jsonValue, 42);
+    });
     test('should render profile value correctly', () => {
         const policy = numberPolicy_js_1.NumberPolicy.from(mockCategory, mockPolicy);
         assert_1.default.ok(policy);

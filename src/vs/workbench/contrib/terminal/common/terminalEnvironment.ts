@@ -12,12 +12,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { sanitizeProcessEnvironment } from '../../../../base/common/processes.js';
-import { IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, TerminalShellType, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
+import { IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, TerminalSettingId, TerminalShellType, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
 import { IProcessEnvironment, isWindows, isMacintosh, language, OperatingSystem } from '../../../../base/common/platform.js';
 import { escapeNonWindowsPath, sanitizeCwd } from '../../../../platform/terminal/common/terminalEnvironment.js';
-import { isString } from '../../../../base/common/types.js';
+import { isNumber, isString } from '../../../../base/common/types.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import type { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export function mergeEnvironments(parent: IProcessEnvironment, other: ITerminalEnvironment | undefined): void {
 	if (!other) {
@@ -389,4 +390,32 @@ export function getWorkspaceForTerminal(cwd: URI | string | undefined, workspace
 		workspaceFolder = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 	}
 	return workspaceFolder;
+}
+
+/**
+ * Gets the unified duration to wait for shell integration after the terminal launches before
+ * declaring the terminal lacks shell integration.
+ */
+export function getShellIntegrationTimeout(
+	configurationService: IConfigurationService,
+	siInjectionEnabled: boolean,
+	isRemote: boolean,
+	processReadyTimestamp?: number
+): number {
+	const timeoutValue = configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
+	let timeoutMs: number;
+
+	if (!isNumber(timeoutValue) || timeoutValue < 0) {
+		timeoutMs = siInjectionEnabled ? 5000 : (isRemote ? 3000 : 2000);
+	} else {
+		timeoutMs = Math.max(timeoutValue, 500);
+	}
+
+	// Adjust timeout based on how long the process has already been running
+	if (processReadyTimestamp !== undefined) {
+		const elapsed = Date.now() - processReadyTimestamp;
+		timeoutMs = Math.max(0, timeoutMs - elapsed);
+	}
+
+	return timeoutMs;
 }

@@ -13,7 +13,7 @@ import { ObjectPolicy } from '../policies/objectPolicy';
 import { StringEnumPolicy } from '../policies/stringEnumPolicy';
 import { StringPolicy } from '../policies/stringPolicy';
 import { Policy, ProductJson } from '../policies/types';
-import { renderGP, renderMacOSPolicy } from '../policies/render';
+import { renderGP, renderMacOSPolicy, renderJsonPolicies } from '../policies/render';
 
 const PolicyTypes = [
 	BooleanPolicy,
@@ -490,6 +490,19 @@ suite('Policy E2E conversion', () => {
 
 		// Compare the rendered ADML with the fixture
 		assert.strictEqual(frFrAdml.contents, expectedContent, 'Windows fr-fr ADML should match the fixture');
+	});
+
+	test('should render Linux policy JSON from policies list', async () => {
+		const parsedPolicies = parsePolicies(policies);
+		const result = renderJsonPolicies(parsedPolicies);
+
+		// Load the expected fixture file
+		const fixturePath = path.join(__dirname, 'fixtures', 'policies', 'linux', 'policy.json');
+		const expectedContent = await fs.readFile(fixturePath, 'utf-8');
+		const expectedJson = JSON.parse(expectedContent);
+
+		// Compare the rendered JSON with the fixture
+		assert.deepStrictEqual(result, expectedJson, 'Linux policy JSON should match the fixture');
 	});
 
 });

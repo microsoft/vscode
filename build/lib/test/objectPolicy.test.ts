@@ -96,6 +96,16 @@ suite('ObjectPolicy', () => {
 		assert.strictEqual(presentation, '<presentation id="TestObjectPolicy"><multiTextBox refId="TestObjectPolicy" /></presentation>');
 	});
 
+	test('should render JSON value correctly', () => {
+		const policy = ObjectPolicy.from(mockCategory, mockPolicy);
+
+		assert.ok(policy);
+
+		const jsonValue = policy.renderJsonValue();
+
+		assert.strictEqual(jsonValue, '');
+	});
+
 	test('should render profile value correctly', () => {
 		const policy = ObjectPolicy.from(mockCategory, mockPolicy);
 

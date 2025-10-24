@@ -70,6 +70,9 @@ export namespace PromptHeaderAttributes {
 	export const tools = 'tools';
 	export const handOffs = 'handoffs';
 	export const advancedOptions = 'advancedOptions';
+	export const argumentHint = 'argument-hint';
+	export const excludeAgent = 'excludeAgent';
+	export const target = 'target';
 }
 
 export class PromptHeader {
@@ -160,6 +163,14 @@ export class PromptHeader {
 
 	public get applyTo(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.applyTo);
+	}
+
+	public get argumentHint(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.argumentHint);
+	}
+
+	public get target(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.target);
 	}
 
 	public get tools(): string[] | undefined {

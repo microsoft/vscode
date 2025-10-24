@@ -18,7 +18,7 @@ import { getPathLabel } from '../../base/common/labels.js';
 import { Schemas } from '../../base/common/network.js';
 import { basename, resolve } from '../../base/common/path.js';
 import { mark } from '../../base/common/performance.js';
-import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
 import { cwd } from '../../base/common/process.js';
 import { rtrim, trim } from '../../base/common/strings.js';
 import { Promises as FSPromises } from '../../base/node/pfs.js';
@@ -73,6 +73,7 @@ import { SaveStrategy, StateService } from '../../platform/state/node/stateServi
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
 import { ThemeMainService } from '../../platform/theme/electron-main/themeMainServiceImpl.js';
+import { LINUX_SYSTEM_POLICY_FILE_PATH } from '../../base/common/policy.js';
 
 /**
  * The main VS Code entry point.
@@ -204,6 +205,8 @@ class CodeMain {
 			policyService = disposables.add(new NativePolicyService(logService, productService.win32RegValueName));
 		} else if (isMacintosh && productService.darwinBundleIdentifier) {
 			policyService = disposables.add(new NativePolicyService(logService, productService.darwinBundleIdentifier));
+		} else if (isLinux) {
+			policyService = disposables.add(new FilePolicyService(URI.file(LINUX_SYSTEM_POLICY_FILE_PATH), fileService, logService));
 		} else if (environmentMainService.policyFile) {
 			policyService = disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService));
 		} else {
