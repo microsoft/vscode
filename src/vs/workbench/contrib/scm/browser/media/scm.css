@@ -54,6 +54,16 @@
 	flex: 0 1 auto;
 }
 
+.scm-view .scm-provider > .monaco-icon-label.visible {
+	font-weight: bold;
+}
+
+.scm-view .scm-provider > .monaco-icon-label .monaco-icon-name-container {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .scm-view .scm-provider .monaco-highlighted-label {
 	display: flex;
 	align-items: center;

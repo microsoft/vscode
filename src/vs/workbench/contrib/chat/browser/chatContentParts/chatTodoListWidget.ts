@@ -271,9 +271,11 @@ export class ChatTodoListWidget extends Disposable {
 		const shouldShow = todoList.length > 2;
 
 		if (!shouldShow) {
+			this.domNode.classList.remove('has-todos');
 			return;
 		}
 
+		this.domNode.classList.add('has-todos');
 		this.renderTodoList(todoList);
 		this.domNode.style.display = 'block';
 		this._onDidChangeHeight.fire();
@@ -443,55 +445,67 @@ export class ChatTodoListWidget extends Disposable {
 		const totalCount = todoList.length;
 		const inProgressTodos = todoList.filter(todo => todo.status === 'in-progress');
 		const firstInProgressTodo = inProgressTodos.length > 0 ? inProgressTodos[0] : undefined;
-		const completedTodos = todoList.filter(todo => todo.status === 'completed');
-		const lastCompletedTodo = completedTodos.length > 0 ? completedTodos[completedTodos.length - 1] : undefined;
+		const notStartedTodos = todoList.filter(todo => todo.status === 'not-started');
+		const firstNotStartedTodo = notStartedTodos.length > 0 ? notStartedTodos[0] : undefined;
 
-		const progressText = dom.$('span');
-		if (totalCount === 0) {
-			progressText.textContent = localize('chat.todoList.title', 'Todos');
-		} else {
-			progressText.textContent = localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
-		}
-		titleElement.appendChild(progressText);
+		// Calculate current task number (1-indexed)
+		const currentTaskNumber = inProgressTodos.length > 0 ? completedCount + 1 : Math.max(1, completedCount);
+		const progressCount = totalCount > 0 ? ` (${currentTaskNumber}/${totalCount})` : '';
+
+		const titleText = dom.$('span');
+		titleText.textContent = this._isExpanded
+			? localize('chat.todoList.title', 'Todos') + progressCount
+			: progressCount;
+		titleElement.appendChild(titleText);
+
 		const expandButtonLabel = this._isExpanded
-			? localize('chat.todoList.collapseButtonWithProgress', 'Collapse {0}', progressText.textContent)
-			: localize('chat.todoList.expandButtonWithProgress', 'Expand {0}', progressText.textContent);
+			? localize('chat.todoList.collapseButton', 'Collapse Todos {0}', progressCount)
+			: localize('chat.todoList.expandButton', 'Expand Todos {0}', progressCount);
 		this.expandoElement.setAttribute('aria-label', expandButtonLabel);
 		this.expandoElement.setAttribute('aria-expanded', this._isExpanded ? 'true' : 'false');
 		if (!this._isExpanded) {
-			// Priority 1: Show first in-progress todo (matches manageTodoListTool logic)
-			if (firstInProgressTodo) {
+			// Show first in-progress todo, or if none, the first not-started todo
+			const todoToShow = firstInProgressTodo || firstNotStartedTodo;
+			if (todoToShow) {
 				const separator = dom.$('span');
 				separator.textContent = ' - ';
+				separator.style.marginLeft = '4px';
 				titleElement.appendChild(separator);
 
-				const icon = dom.$('.codicon.codicon-record');
-				icon.style.color = 'var(--vscode-charts-blue)';
+				const icon = dom.$('.codicon');
+				if (todoToShow === firstInProgressTodo) {
+					icon.classList.add('codicon-record');
+					icon.style.color = 'var(--vscode-charts-blue)';
+				} else {
+					icon.classList.add('codicon-circle-large-outline');
+					icon.style.color = 'var(--vscode-foreground)';
+				}
+				icon.style.marginLeft = '4px';
 				icon.style.marginRight = '4px';
 				icon.style.verticalAlign = 'middle';
 				titleElement.appendChild(icon);
 
-				const inProgressText = dom.$('span');
-				inProgressText.textContent = firstInProgressTodo.title;
-				inProgressText.style.verticalAlign = 'middle';
-				titleElement.appendChild(inProgressText);
+				const todoText = dom.$('span');
+				todoText.textContent = todoToShow.title;
+				todoText.style.verticalAlign = 'middle';
+				todoText.style.overflow = 'hidden';
+				todoText.style.textOverflow = 'ellipsis';
+				todoText.style.whiteSpace = 'nowrap';
+				todoText.style.minWidth = '0';
+				titleElement.appendChild(todoText);
 			}
-			// Priority 2: Show last completed todo if not all completed (matches manageTodoListTool logic)
-			else if (completedCount > 0 && completedCount < totalCount && lastCompletedTodo) {
+			// Show "Done" when all tasks are completed
+			else if (completedCount > 0 && completedCount === totalCount) {
 				const separator = dom.$('span');
 				separator.textContent = ' - ';
+				separator.style.marginLeft = '4px';
 				titleElement.appendChild(separator);
 
-				const icon = dom.$('.codicon.codicon-check');
-				icon.style.color = 'var(--vscode-charts-green)';
-				icon.style.marginRight = '4px';
-				icon.style.verticalAlign = 'middle';
-				titleElement.appendChild(icon);
-
-				const completedText = dom.$('span');
-				completedText.textContent = lastCompletedTodo.title;
-				completedText.style.verticalAlign = 'middle';
-				titleElement.appendChild(completedText);
+				const doneText = dom.$('span');
+				doneText.textContent = localize('chat.todoList.allDone', 'Done');
+				doneText.style.marginLeft = '4px';
+				doneText.style.verticalAlign = 'middle';
+				titleElement.appendChild(doneText);
 			}
 		}
 	}

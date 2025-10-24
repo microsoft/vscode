@@ -594,6 +594,14 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		],
 		default: 'both'
 	},
+	[TerminalSettingId.ShellIntegrationTimeout]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. Set to {0} to wait the minimum time (500ms), the default value {1} means the wait time is variable based on whether shell integration injection is enabled and whether it's a remote window. Consider setting this to a small value if you intentionally disabled shell integration, or a large value if your shell starts very slowly.", '`0`', '`-1`'),
+		type: 'integer',
+		minimum: -1,
+		maximum: 60000,
+		default: -1
+	},
 	[TerminalSettingId.ShellIntegrationQuickFixEnabled]: {
 		restricted: true,
 		markdownDescription: localize('terminal.integrated.shellIntegration.quickFixEnabled', "When shell integration is enabled, enables quick fixes for terminal commands that appear as a lightbulb or sparkle icon to the left of the prompt."),

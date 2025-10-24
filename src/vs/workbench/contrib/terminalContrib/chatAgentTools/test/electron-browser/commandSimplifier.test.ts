@@ -15,6 +15,13 @@ import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js
 import { URI } from '../../../../../../base/common/uri.js';
 import type { IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
+import { TreeSitterCommandParser } from '../../browser/treeSitterCommandParser.js';
+import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { TreeSitterLibraryService } from '../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
 
 suite('command re-writing', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,6 +29,7 @@ suite('command re-writing', () => {
 	let instantiationService: TestInstantiationService;
 	let workspaceService: TestContextService;
 
+	let parser: TreeSitterCommandParser;
 	let commandSimplifier: CommandSimplifier;
 
 	function createRewriteParams(command: string, chatSessionId?: string): IRunInTerminalInputParams {
@@ -45,14 +53,27 @@ suite('command re-writing', () => {
 	}
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService(undefined, store);
+		const fileService = store.add(new FileService(new NullLogService()));
+		const fileSystemProvider = new TestIPCFileSystemProvider();
+		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+
+		instantiationService = workbenchInstantiationService({
+			fileService: () => fileService,
+		}, store);
+
+		const treeSitterLibraryService = store.add(instantiationService.createInstance(TreeSitterLibraryService));
+		treeSitterLibraryService.isTest = true;
+		instantiationService.stub(ITreeSitterLibraryService, treeSitterLibraryService);
+
+		parser = instantiationService.createInstance(TreeSitterCommandParser);
+
 		workspaceService = instantiationService.get(IWorkspaceContextService) as TestContextService;
 	});
 
 	suite('cd <cwd> && <suffix> -> <suffix>', () => {
 		(!isWindows ? suite : suite.skip)('Posix', () => {
 			setup(() => {
-				commandSimplifier = instantiationService.createInstance(CommandSimplifier, Promise.resolve(OperatingSystem.Linux));
+				commandSimplifier = instantiationService.createInstance(CommandSimplifier, Promise.resolve(OperatingSystem.Linux), parser);
 			});
 
 			test('should return original command when no cd prefix pattern matches', async () => {
@@ -168,7 +189,7 @@ suite('command re-writing', () => {
 
 		(isWindows ? suite : suite.skip)('Windows', () => {
 			setup(() => {
-				commandSimplifier = instantiationService.createInstance(CommandSimplifier, Promise.resolve(OperatingSystem.Windows));
+				commandSimplifier = instantiationService.createInstance(CommandSimplifier, Promise.resolve(OperatingSystem.Windows), parser);
 			});
 
 			test('should ignore any trailing back slash', async () => {
@@ -310,7 +331,7 @@ suite('command re-writing', () => {
 			test('should not rewrite cd /d when directory does not match cwd', async () => {
 				const testDir = 'C:\\test\\workspace';
 				const differentDir = 'C:\\different\\path';
-				const command = `cd /d ${differentDir} && echo hello`;
+				const command = `cd /d ${differentDir} ; echo hello`;
 				const options = createRewriteParams(command, 'session-1');
 				setWorkspaceFolders([URI.file(testDir)]);
 
@@ -343,5 +364,23 @@ suite('command re-writing', () => {
 				strictEqual(result, 'echo hello');
 			});
 		});
+	});
+
+	suite('PowerShell: && -> ;', () => {
+		async function t(originalCommandLine: string, expectedResult: string) {
+			const parameters = createRewriteParams(originalCommandLine);
+			const result = await commandSimplifier.rewriteIfNeeded(parameters, undefined, 'pwsh');
+			strictEqual(result, expectedResult);
+		}
+		setup(() => {
+			commandSimplifier = instantiationService.createInstance(CommandSimplifier, Promise.resolve(OperatingSystem.Windows), parser);
+		});
+
+		test('should rewrite && to ; in PowerShell commands', () => t('echo hello && echo world', 'echo hello ; echo world'));
+		test('should rewrite multiple && to ; in PowerShell commands', () => t('echo first && echo second && echo third', 'echo first ; echo second ; echo third'));
+		test('should handle complex commands with && operators', () => t('npm install && npm test && echo "build complete"', 'npm install ; npm test ; echo "build complete"'));
+		test('should work with Windows PowerShell shell identifier', () => t('Get-Process && Stop-Process', 'Get-Process ; Stop-Process'));
+		test('should preserve existing semicolons', () => t('echo hello; echo world && echo final', 'echo hello; echo world ; echo final'));
+		test('should not rewrite strings', () => t('echo "&&" && Write-Host "&& &&" && "&&"', 'echo "&&" ; Write-Host "&& &&" ; "&&"'));
 	});
 });
