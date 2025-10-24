@@ -22,7 +22,7 @@ suite('NewPromptsParser', () => {
 			/* 04 */`tools: ['tool1', 'tool2']`,
 			/* 05 */'---',
 			/* 06 */'This is an agent test.',
-			/* 07 */'Here is a #tool:tool1 variable and a #file:./reference1.md as well as a [reference](./reference2.md).',
+			/* 07 */'Here is a #tool:tool1 variable (and one with closing parenthesis after: #tool:tool-2) and a #file:./reference1.md as well as a [reference](./reference2.md).',
 		].join('\n');
 		const result = new PromptFileParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
@@ -42,14 +42,15 @@ suite('NewPromptsParser', () => {
 		]);
 		assert.deepEqual(result.body.range, { startLineNumber: 6, startColumn: 1, endLineNumber: 8, endColumn: 1 });
 		assert.equal(result.body.offset, 75);
-		assert.equal(result.body.getContent(), 'This is an agent test.\nHere is a #tool:tool1 variable and a #file:./reference1.md as well as a [reference](./reference2.md).');
+		assert.equal(result.body.getContent(), 'This is an agent test.\nHere is a #tool:tool1 variable (and one with closing parenthesis after: #tool:tool-2) and a #file:./reference1.md as well as a [reference](./reference2.md).');
 
 		assert.deepEqual(result.body.fileReferences, [
-			{ range: new Range(7, 44, 7, 59), content: './reference1.md', isMarkdownLink: false },
-			{ range: new Range(7, 85, 7, 100), content: './reference2.md', isMarkdownLink: true }
+			{ range: new Range(7, 99, 7, 114), content: './reference1.md', isMarkdownLink: false },
+			{ range: new Range(7, 140, 7, 155), content: './reference2.md', isMarkdownLink: true }
 		]);
 		assert.deepEqual(result.body.variableReferences, [
-			{ range: new Range(7, 17, 7, 22), name: 'tool1', offset: 108 }
+			{ range: new Range(7, 17, 7, 22), name: 'tool1', offset: 108 },
+			{ range: new Range(7, 79, 7, 85), name: 'tool-2', offset: 170 }
 		]);
 		assert.deepEqual(result.header.description, 'Agent test');
 		assert.deepEqual(result.header.model, 'GPT 4.1');

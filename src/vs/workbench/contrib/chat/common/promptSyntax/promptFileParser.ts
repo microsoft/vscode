@@ -294,23 +294,26 @@ export class PromptBody {
 					fileReferences.push({ content: match[2], range, isMarkdownLink: true });
 					markdownLinkRanges.push(new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1));
 				}
-				const reg = /#(\w+:)([^\s#[\](){}]+)/gi;
+				// Related to <toolMatch> here, see also the variableReg regex in chatRequestParser.ts.
+				const reg = /#file:(?<fileMatch>[^\s#]+)|#tool:(?<toolMatch>[\w_\-]+)/gi;
 				const matches = line.matchAll(reg);
 				for (const match of matches) {
-					const fullRange = new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1);
+					const fullMatch = match[0];
+					const fullRange = new Range(i + 1, match.index + 1, i + 1, match.index + fullMatch.length + 1);
 					if (markdownLinkRanges.some(mdRange => Range.areIntersectingOrTouching(mdRange, fullRange))) {
 						continue;
 					}
-					const varType = match[1];
-					if (varType) {
-						const startOffset = match.index + match[0].length - match[2].length;
-						const endOffset = match.index + match[0].length;
-						const range = new Range(i + 1, startOffset + 1, i + 1, endOffset + 1);
-						if (varType === 'file:') {
-							fileReferences.push({ content: match[2], range, isMarkdownLink: false });
-						} else if (varType === 'tool:') {
-							variableReferences.push({ name: match[2], range, offset: lineStartOffset + match.index });
-						}
+					const contentMatch = match.groups?.['fileMatch'] || match.groups?.['toolMatch'];
+					if (!contentMatch) {
+						continue;
+					}
+					const startOffset = match.index + fullMatch.length - contentMatch.length;
+					const endOffset = match.index + fullMatch.length;
+					const range = new Range(i + 1, startOffset + 1, i + 1, endOffset + 1);
+					if (match.groups?.['fileMatch']) {
+						fileReferences.push({ content: match.groups?.['fileMatch'], range, isMarkdownLink: false });
+					} else if (match.groups?.['toolMatch']) {
+						variableReferences.push({ name: match.groups?.['toolMatch'], range, offset: lineStartOffset + match.index });
 					}
 				}
 				lineStartOffset += line.length;
