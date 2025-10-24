@@ -207,7 +207,7 @@
 .scm-view .monaco-list-row .history-item > .label-container > .label > .codicon {
 	font-size: 16px;
 	color: inherit !important;
-	padding: 2px;
+	padding: 1px;
 }
 
 .scm-view .monaco-list-row .history-item > .label-container > .label > .codicon.codicon-git-branch {
@@ -572,7 +572,11 @@
 
 .monaco-hover.history-item-hover .hover-row.status-bar .action .codicon {
 	color: inherit;
-	font-size: 12px;
+	font-size: 16px;
+}
+
+.monaco-hover.history-item-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span.codicon {
+	font-size: 16px;
 }
 
 /* Graph */
