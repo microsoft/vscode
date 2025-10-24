@@ -85,7 +85,7 @@ export class InlineEditsView extends Disposable {
 
 			let state = this.determineRenderState(model, reader, diff, new StringText(newText));
 			if (!state) {
-				onUnexpectedError(`unable to determine view: tried to render ${this._previousView?.view}`);
+				onUnexpectedError(new Error(`unable to determine view: tried to render ${this._previousView?.view}`));
 				return undefined;
 			}
 
