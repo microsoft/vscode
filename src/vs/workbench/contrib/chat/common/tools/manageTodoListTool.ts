@@ -306,6 +306,29 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		}));
 
 		const existingTodos = this.chatTodoListService.getTodos(chatSessionId);
+
+		// Special case: single completed/in-progress item when existing todos exist
+		if (todoList.length === 1 && existingTodos.length > 0) {
+			const singleItem = todoList[0];
+			if (singleItem.status === 'completed' || singleItem.status === 'in-progress') {
+				return {
+					content: [{
+						kind: 'text',
+						value: "Error: You must include ALL todo items when updating the list, not just the one you're working on. The write operation replaces the entire list, so include all existing items along with any updates."
+					}]
+				};
+			}
+		}
+
+		// Reject todo lists with less than 3 items
+		if (todoList.length < 3) {
+			return {
+				content: [{
+					kind: 'text',
+					value: "This task is too simple for a todo list. Tasks with fewer than 3 items don't need a todo list. Either skip creating todos or add more detailed steps to reach at least 3 items."
+				}]
+			};
+		}
 		const changes = this.calculateTodoChanges(existingTodos, todoList);
 
 		this.chatTodoListService.setTodos(chatSessionId, todoList);
@@ -313,10 +336,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 		// Build warnings
 		const warnings: string[] = [];
-		if (todoList.length < 3) {
-			warnings.push('Warning: Small todo list (<3 items). This task might not need a todo list.');
-		}
-		else if (todoList.length > 10) {
+		if (todoList.length > 10) {
 			warnings.push('Warning: Large todo list (>10 items). Consider keeping the list focused and actionable.');
 		}
 
