@@ -46,7 +46,7 @@ export class InlineEditsView extends Disposable {
 
 	private readonly _tabAction;
 
-	private _previousView: { // TODO, move into identitiy
+	private _previousView: { // TODO, move into identity
 		id: string;
 		view: ReturnType<typeof InlineEditsView.prototype.determineView>;
 		editorWidth: number;
