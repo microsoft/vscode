@@ -280,9 +280,6 @@ export class TerminalCommandAttachmentWidget extends AbstractChatAttachmentWidge
 		this._register(createTerminalCommandElements(this.element, attachment, ariaLabel, this.hoverService, clickHandler));
 
 		this._register(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, async (e: KeyboardEvent) => {
-			if ((e.target as HTMLElement | null)?.closest('.monaco-button')) {
-				return;
-			}
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				dom.EventHelper.stop(e, true);
@@ -307,15 +304,14 @@ function createTerminalCommandElements(
 	element.ariaLabel = ariaLabel;
 	element.style.cursor = 'pointer';
 
-	const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-terminal'));
+	const terminalIconSpan = dom.$('span');
+	terminalIconSpan.classList.add(...ThemeIcon.asClassNameArray(Codicon.terminal));
+	const pillIcon = dom.$('div.chat-attached-context-pill', {}, terminalIconSpan);
 	const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.command);
 	element.appendChild(pillIcon);
 	element.appendChild(textLabel);
 
 	disposable.add(dom.addDisposableListener(element, dom.EventType.CLICK, e => {
-		if ((e.target as HTMLElement | null)?.closest('.monaco-button')) {
-			return;
-		}
 		void clickHandler();
 	}));
 
