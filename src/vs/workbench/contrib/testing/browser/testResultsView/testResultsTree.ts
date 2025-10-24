@@ -206,6 +206,7 @@ class TestCaseElement implements ITreeElement {
 		this.context = {
 			$mid: MarshalledId.TestItemContext,
 			tests: [InternalTestItem.serialize(test)],
+			taskName: results.tasks[taskIndex].name,
 		};
 	}
 }
