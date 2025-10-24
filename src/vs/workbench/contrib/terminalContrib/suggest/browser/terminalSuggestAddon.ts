@@ -156,8 +156,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Right arrow is used to accept the completion. This is a common keybinding in pwsh, zsh
 		// and fish.
 		inputData: '\x1b[C',
-		replacementIndex: 0,
-		replacementLength: 0,
+		replacementRange: [0, 0],
 		provider: 'core:inlineSuggestion',
 		detail: 'Inline suggestion',
 		kind: TerminalCompletionItemKind.InlineSuggestion,
@@ -650,10 +649,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			const replacementIndex = spaceIndex === -1 ? 0 : spaceIndex + 1;
 			const suggestion = this._currentPromptInputState.value.substring(replacementIndex);
 			this._inlineCompletion.label = suggestion;
-			this._inlineCompletion.replacementIndex = replacementIndex;
-			// Note that the cursor index delta must be taken into account here, otherwise filtering
-			// wont work correctly.
-			this._inlineCompletion.replacementLength = this._currentPromptInputState.cursorIndex - replacementIndex - this._cursorIndexDelta;
+			// Update replacementRange (inclusive start, exclusive end) for replacement
+			const end = this._currentPromptInputState.cursorIndex - this._cursorIndexDelta;
+			this._inlineCompletion.replacementRange = [replacementIndex, end];
 			// Reset the completion item as the object reference must remain the same but its
 			// contents will differ across syncs. This is done so we don't need to reassign the
 			// model and the slowdown/flickering that could potentially cause.
@@ -928,7 +926,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// The replacement text is any text after the replacement index for the completions, this
 		// includes any text that was there before the completions were requested and any text added
 		// since to refine the completion.
-		const replacementText = currentPromptInputState.value.substring(suggestion.item.completion.replacementIndex, currentPromptInputState.cursorIndex);
+		const startIndex = suggestion.item.completion.replacementRange?.[0] ?? currentPromptInputState.cursorIndex;
+		const replacementText = currentPromptInputState.value.substring(startIndex, currentPromptInputState.cursorIndex);
 
 		// Right side of replacement text in the same word
 		let rightSideReplacementText = '';

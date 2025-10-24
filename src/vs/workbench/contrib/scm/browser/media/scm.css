@@ -50,7 +50,18 @@
 }
 
 .scm-view .scm-provider > .monaco-icon-label {
-	flex: 1;
+	min-width: 0;
+	flex: 0 1 auto;
+}
+
+.scm-view .scm-provider > .monaco-icon-label.visible {
+	font-weight: bold;
+}
+
+.scm-view .scm-provider > .monaco-icon-label .monaco-icon-name-container {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .scm-view .scm-provider .monaco-highlighted-label {
@@ -60,8 +71,13 @@
 }
 
 .scm-view .scm-provider > .actions {
+	min-width: 24px;
+	flex: 1 10000 auto;
 	overflow: hidden;
-	justify-content: flex-end;
+}
+
+.scm-view .scm-provider > .actions .actions-container {
+	justify-content: end;
 }
 
 /**

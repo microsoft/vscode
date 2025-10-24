@@ -17,7 +17,7 @@ import { IChatCodeBlockInfo } from '../../chat.js';
 import { ChatQueryTitlePart } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
-import { ChatCustomProgressPart } from '../chatProgressContentPart.js';
+import { ChatProgressSubPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import '../media/chatTerminalToolProgressPart.css';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
@@ -123,7 +123,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		elements.message.append(this.markdownPart.domNode);
 		this._outputContainer = elements.output;
 		this._outputContainer.classList.add('collapsed');
-		const progressPart = _instantiationService.createInstance(ChatCustomProgressPart, elements.container, this.getIcon());
+		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
 		this.domNode = progressPart.domNode;
 	}
 
@@ -312,9 +312,8 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		private readonly _instance: ITerminalInstance,
 		private readonly _command: ITerminalCommand | undefined,
 		isTerminalHidden: boolean,
-		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
 	) {
 		super(
 			'chat.focusTerminalInstance',
@@ -326,7 +325,6 @@ export class FocusChatInstanceAction extends Action implements IAction {
 
 	public override async run() {
 		this.label = localize('focusTerminal', 'Focus Terminal');
-		this._terminalService.setActiveInstance(this._instance);
 		if (this._instance.target === TerminalLocation.Editor) {
 			this._terminalEditorService.openEditor(this._instance);
 		} else {

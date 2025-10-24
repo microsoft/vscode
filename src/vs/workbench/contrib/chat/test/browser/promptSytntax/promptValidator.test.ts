@@ -188,9 +188,12 @@ suite('PromptValidator', () => {
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
-			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.startsWith(`Attribute 'applyTo' is not supported in custom agent files.`));
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: argument-hint, description, handoffs, model, target, tools.` },
+				]
+			);
 		});
 
 		test('tools with invalid handoffs', async () => {
@@ -250,6 +253,117 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues for handoffs attribute');
+		});
+
+		test('github-copilot agent with supported attributes', async () => {
+			const content = [
+				'---',
+				'name: "GitHub Copilot Custom Agent"',
+				'description: "GitHub Copilot agent"',
+				'target: github-copilot',
+				`tools: ['shell', 'edit', 'search', 'custom-agent']`,
+				'mcp-servers: []',
+				'---',
+				'Body with #search and #edit references',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, [], 'Expected no validation issues for github-copilot target');
+		});
+
+		test('github-copilot agent warns about model and handoffs attributes', async () => {
+			const content = [
+				'---',
+				'description: "GitHub Copilot agent"',
+				'target: github-copilot',
+				'model: MAE 4.1',
+				`tools: ['shell', 'edit']`,
+				`handoffs:`,
+				'  - label: Test',
+				'    agent: Default',
+				'    prompt: Test',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			const messages = markers.map(m => m.message);
+			assert.deepStrictEqual(messages, [
+				'Attribute \'model\' is not supported in custom GitHub Copilot agent files. Supported: description, mcp-servers, name, target, tools.',
+				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, mcp-servers, name, target, tools.',
+			], 'Model and handoffs are not validated for github-copilot target');
+		});
+
+		test('github-copilot agent does not validate variable references', async () => {
+			const content = [
+				'---',
+				'description: "GitHub Copilot agent"',
+				'target: github-copilot',
+				`tools: ['shell', 'edit']`,
+				'---',
+				'Body with #unknownTool reference',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			// Variable references should not be validated for github-copilot target
+			assert.deepStrictEqual(markers, [], 'Variable references are not validated for github-copilot target');
+		});
+
+		test('github-copilot agent rejects unsupported attributes', async () => {
+			const content = [
+				'---',
+				'description: "GitHub Copilot agent"',
+				'target: github-copilot',
+				'argument-hint: "test hint"',
+				`tools: ['shell']`,
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.ok(markers[0].message.includes(`Attribute 'argument-hint' is not supported`), 'Expected warning about unsupported attribute');
+		});
+
+		test('vscode target agent validates normally', async () => {
+			const content = [
+				'---',
+				'description: "VS Code agent"',
+				'target: vscode',
+				'model: MAE 4.1',
+				`tools: ['tool1', 'tool2']`,
+				'---',
+				'Body with #tool1',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, [], 'VS Code target should validate normally');
+		});
+
+		test('vscode target agent warns about unknown tools', async () => {
+			const content = [
+				'---',
+				'description: "VS Code agent"',
+				'target: vscode',
+				`tools: ['tool1', 'unknownTool']`,
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, `Unknown tool 'unknownTool'.`);
+		});
+
+		test('default target (no target specified) validates as vscode', async () => {
+			const content = [
+				'---',
+				'description: "Agent without target"',
+				'model: MAE 4.1',
+				`tools: ['tool1']`,
+				'argument-hint: "test hint"',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			// Should validate normally as if target was vscode
+			assert.deepStrictEqual(markers, [], 'Agent without target should validate as vscode');
 		});
 	});
 

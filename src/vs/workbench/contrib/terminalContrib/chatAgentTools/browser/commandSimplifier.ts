@@ -9,22 +9,32 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import type { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import type { IRunInTerminalInputParams } from './tools/runInTerminalTool.js';
+import { TreeSitterCommandParserLanguage, type TreeSitterCommandParser } from './treeSitterCommandParser.js';
 
 export class CommandSimplifier {
 	constructor(
 		private readonly _osBackend: Promise<OperatingSystem>,
+		private readonly _treeSitterCommandParser: TreeSitterCommandParser,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 	}
 
 	async rewriteIfNeeded(args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
-		const commandLine = args.command;
 		const os = await this._osBackend;
+
+		let commandLine = args.command;
+		commandLine = await this._removeRedundantCdPrefix(instance, commandLine, os, shell);
+		commandLine = await this._rewriteUnsupportedPwshChainOperators(commandLine, os, shell);
+
+		return commandLine;
+	}
+
+	private async _removeRedundantCdPrefix(instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, commandLine: string, os: OperatingSystem, shell: string): Promise<string> {
+		const isPwsh = isPowerShell(shell, os);
 
 		// Re-write the command if it starts with `cd <dir> && <suffix>` or `cd <dir>; <suffix>`
 		// to just `<suffix>` if the directory matches the current terminal's cwd. This simplifies
 		// the result in the chat by removing redundancies that some models like to add.
-		const isPwsh = isPowerShell(shell, os);
 		const cdPrefixMatch = commandLine.match(
 			isPwsh
 				? /^(?:cd(?: \/d)?|Set-Location(?: -Path)?) (?<dir>[^\s]+) ?(?:&&|;)\s+(?<suffix>.+)$/i
@@ -68,7 +78,25 @@ export class CommandSimplifier {
 				}
 			}
 		}
+		return commandLine;
+	}
 
+	private async _rewriteUnsupportedPwshChainOperators(commandLine: string, os: OperatingSystem, shell: string) {
+		// TODO: This should just be Windows PowerShell in the future when the powershell grammar
+		// supports chain operators https://github.com/airbus-cert/tree-sitter-powershell/issues/27
+		if (isPowerShell(shell, os)) {
+			const doubleAmpersandCaptures = await this._treeSitterCommandParser.queryTree(TreeSitterCommandParserLanguage.PowerShell, commandLine, [
+				'(',
+				'  (command',
+				'    (command_elements',
+				'      (generic_token) @double.ampersand',
+				'        (#eq? @double.ampersand "&&")))',
+				')',
+			].join('\n'));
+			for (const capture of doubleAmpersandCaptures.reverse()) {
+				commandLine = `${commandLine.substring(0, capture.node.startIndex)};${commandLine.substring(capture.node.endIndex)}`;
+			}
+		}
 		return commandLine;
 	}
 }

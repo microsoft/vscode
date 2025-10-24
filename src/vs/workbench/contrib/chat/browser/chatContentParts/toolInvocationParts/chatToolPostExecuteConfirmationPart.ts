@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { getExtensionForMimeType } from '../../../../../../base/common/mime.js';
-import { IReader } from '../../../../../../base/common/observable.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
@@ -68,11 +67,6 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 
 	protected getTitle(): string {
 		return localize('approveToolResult', "Approve Tool Result");
-	}
-
-	protected shouldDismiss(toolInvocation: IChatToolInvocation, reader: IReader): boolean {
-		const currentState = toolInvocation.state.read(reader);
-		return currentState.type !== IChatToolInvocation.StateKind.WaitingForPostApproval;
 	}
 
 	protected override additionalPrimaryActions() {

@@ -33,10 +33,10 @@ import { IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
-import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
+import { ChatSessionUri } from '../common/chatUri.js';
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
@@ -256,7 +256,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (URI.isUri(sessionId) && sessionId.scheme === Schemas.vscodeChatSession) {
 			const parsed = ChatSessionUri.parse(sessionId);
 			if (parsed?.chatSessionType) {
-				await this.chatSessionsService.canResolveContentProvider(parsed.chatSessionType);
+				await this.chatSessionsService.canResolveChatSession(sessionId);
 				const contributions = this.chatSessionsService.getAllChatSessionContributions();
 				const contribution = contributions.find((c: IChatSessionsExtensionPoint) => c.type === parsed.chatSessionType);
 				if (contribution) {

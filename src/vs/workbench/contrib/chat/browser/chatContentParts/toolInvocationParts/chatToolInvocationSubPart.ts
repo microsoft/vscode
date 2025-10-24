@@ -6,7 +6,6 @@
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunSelfDisposable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
@@ -29,15 +28,6 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 		protected readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 	) {
 		super();
-
-		if (toolInvocation.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(toolInvocation)) {
-			this._register(autorunSelfDisposable(reader => {
-				if (IChatToolInvocation.isComplete(toolInvocation, reader)) {
-					this._onNeedsRerender.fire();
-					reader.dispose();
-				}
-			}));
-		}
 	}
 
 	protected getIcon() {

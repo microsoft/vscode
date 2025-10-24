@@ -277,6 +277,7 @@ export const isTerminalProcessManager = (t: ITerminalProcessInfo | ITerminalProc
 
 export interface ITerminalProcessManager extends IDisposable, ITerminalProcessInfo {
 	readonly processTraits: IProcessReadyEvent | undefined;
+	readonly processReadyTimestamp: number;
 
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
