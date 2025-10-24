@@ -24,6 +24,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { AGENTS_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { Lazy } from '../../../../../../base/common/lazy.js';
 
 const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -154,20 +155,20 @@ export class PromptValidator {
 		const validAttributeNames = getValidAttributeNames(promptType, true, isGitHubTarget);
 		for (const attribute of attributes) {
 			if (!validAttributeNames.includes(attribute.key)) {
-				const getSupportedNames = () => getValidAttributeNames(promptType, false, isGitHubTarget).sort().join(', ');
+				const supportedNames = new Lazy(() => getValidAttributeNames(promptType, false, isGitHubTarget).sort().join(', '));
 				switch (promptType) {
 					case PromptsType.prompt:
-						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, getSupportedNames()), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
 						break;
 					case PromptsType.agent:
 						if (isGitHubTarget) {
-							report(toMarker(localize('promptValidator.unknownAttribute.github-agent', "Attribute '{0}' is not supported in custom Github Copilot agent files. Supported: {1}.", attribute.key, getSupportedNames()), attribute.range, MarkerSeverity.Warning));
+							report(toMarker(localize('promptValidator.unknownAttribute.github-agent', "Attribute '{0}' is not supported in custom Github Copilot agent files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
 						} else {
-							report(toMarker(localize('promptValidator.unknownAttribute.vscode-agent', "Attribute '{0}' is not supported in VS Code agent files. Supported: {1}.", attribute.key, getSupportedNames()), attribute.range, MarkerSeverity.Warning));
+							report(toMarker(localize('promptValidator.unknownAttribute.vscode-agent', "Attribute '{0}' is not supported in VS Code agent files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
 						}
 						break;
 					case PromptsType.instructions:
-						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, getSupportedNames()), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
 						break;
 				}
 			}
