@@ -405,8 +405,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 			}),
 			dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, async (e) => {
 				e.stopImmediatePropagation();
+				const chatActions = await this._getCommandActions(command);
 				const actions = this._getContextMenuActions();
-				this._contextMenuService.showContextMenu({ getAnchor: () => element, getActions: () => actions });
+				this._contextMenuService.showContextMenu({ getAnchor: () => element, getActions: () => [...actions, ...chatActions] });
 			}),
 		];
 	}
