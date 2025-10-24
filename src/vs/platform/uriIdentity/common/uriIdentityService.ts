@@ -11,6 +11,7 @@ import { ExtUri, IExtUri, normalizePath } from '../../../base/common/resources.j
 import { SkipList } from '../../../base/common/skipList.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { compare as strCompare } from '../../../base/common/strings.js';
 
 class Entry {
 	static _clock = 0;
@@ -88,7 +89,7 @@ export class UriIdentityService extends Disposable implements IUriIdentityServic
 	readonly extUri: IExtUri;
 
 	private readonly _pathCasingCache: PathCasingCache;
-	private readonly _canonicalUris: SkipList<URI, Entry>;
+	private readonly _canonicalUris: SkipList<string, Entry>;
 	private readonly _limit = 2 ** 16;
 
 	constructor(@IFileService private readonly _fileService: IFileService) {
@@ -96,9 +97,21 @@ export class UriIdentityService extends Disposable implements IUriIdentityServic
 
 		this._pathCasingCache = this._register(new PathCasingCache(this._fileService));
 
+		this._register(this._pathCasingCache.onFileSystemCasingChanged(
+			e => this._handleFileSystemCasingChanged(e)));
+
 		this.extUri = new ExtUri(uri => this._pathCasingCache.shouldIgnorePathCasing(uri));
-		this._canonicalUris = new SkipList((a, b) => this.extUri.compare(a, b, true), this._limit);
+		this._canonicalUris = new SkipList(strCompare, this._limit);
 		this._register(toDisposable(() => this._canonicalUris.clear()));
+	}
+
+	private _handleFileSystemCasingChanged(e: IFileSystemCasingChangedEvent): void {
+		for (const [key, entry] of this._canonicalUris.entries()) {
+			if (entry.uri.scheme !== e.scheme) {
+				continue;
+			}
+			this._canonicalUris.delete(key);
+		}
 	}
 
 	asCanonicalUri(uri: URI): URI {
@@ -109,13 +122,14 @@ export class UriIdentityService extends Disposable implements IUriIdentityServic
 		}
 
 		// (2) find the uri in its canonical form or use this uri to define it
-		const item = this._canonicalUris.get(uri);
+		const uriKey = this.extUri.getComparisonKey(uri, true);
+		const item = this._canonicalUris.get(uriKey);
 		if (item) {
 			return item.touch().uri.with({ fragment: uri.fragment });
 		}
 
 		// this uri is first and defines the canonical form
-		this._canonicalUris.set(uri, new Entry(uri));
+		this._canonicalUris.set(uriKey, new Entry(uri));
 		this._checkTrim();
 
 		return uri;
