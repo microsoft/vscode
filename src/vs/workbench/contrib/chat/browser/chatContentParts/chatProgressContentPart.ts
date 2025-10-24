@@ -64,7 +64,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		result.element.classList.add('progress-step');
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 
-		const tooltip: IMarkdownString | undefined = this.createApprovalMessage(confirmedReason);
+		const tooltip: IMarkdownString | undefined = this.createApprovalMessage();
 		const progressPart = this._register(instantiationService.createInstance(ChatProgressSubPart, result.element, codicon, tooltip));
 		this.domNode = progressPart.domNode;
 		this.renderedMessage.value = result;
@@ -102,7 +102,12 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		return other.kind === 'progressMessage' && this.showSpinner === showSpinner;
 	}
 
-	private createApprovalMessage(reason: boolean | ConfirmedReason | undefined): IMarkdownString | undefined {
+	private createApprovalMessage(): IMarkdownString | undefined {
+		if (!this.toolInvocation) {
+			return undefined;
+		}
+
+		const reason = IChatToolInvocation.executionConfirmedOrDenied(this.toolInvocation);
 		if (!reason || typeof reason === 'boolean') {
 			return undefined;
 		}

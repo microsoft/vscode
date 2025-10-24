@@ -98,9 +98,16 @@
 	margin-right: 7px; /* Add margin to the most right status bar item. Margin is used to position beak properly. */
 }
 
-/* Tweak appearance for items with background to improve hover feedback */
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label,
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label {
+	/* As such, clear margins on label*/
+	margin-right: 0;
+	margin-left: 0;
+}
+
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color.left.first-visible-item,
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color.right.last-visible-item {
+	/* Tweak appearance for items with background to improve hover feedback */
 	padding-right: 0;
 	padding-left: 0;
 }

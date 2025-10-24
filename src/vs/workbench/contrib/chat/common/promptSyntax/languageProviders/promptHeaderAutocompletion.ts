@@ -15,7 +15,7 @@ import { IChatModeService } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
-import { PromptHeader } from '../service/newPromptsParser.js';
+import { PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
 import { getValidAttributeNames } from './promptValidator.js';
 import { localize } from '../../../../../../nls.js';
 
@@ -133,7 +133,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			return undefined;
 		}
 
-		if (promptType === PromptsType.prompt || promptType === PromptsType.mode) {
+		if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
 			// if the position is inside the tools metadata, we provide tool name completions
 			const result = this.provideToolCompletions(model, position, header);
 			if (result) {
@@ -158,7 +158,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			};
 			suggestions.push(item);
 		}
-		if (property === 'handoffs' && (promptType === PromptsType.mode)) {
+		if (property === PromptHeaderAttributes.handOffs && (promptType === PromptsType.agent)) {
 			const value = [
 				'',
 				'  - label: Start Implementation',
@@ -191,23 +191,23 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	}
 
 	private getValueSuggestions(promptType: string, property: string): string[] {
-		if (promptType === PromptsType.instructions && property === 'applyTo') {
+		if (promptType === PromptsType.instructions && property === PromptHeaderAttributes.applyTo) {
 			return [`'**'`, `'**/*.ts, **/*.js'`, `'**/*.php'`, `'**/*.py'`];
 		}
-		if (promptType === PromptsType.prompt && property === 'mode') {
-			// Get all available modes (builtin + custom)
-			const modes = this.chatModeService.getModes();
+		if (promptType === PromptsType.prompt && (property === PromptHeaderAttributes.agent || property === PromptHeaderAttributes.mode)) {
+			// Get all available agents (builtin + custom)
+			const agents = this.chatModeService.getModes();
 			const suggestions: string[] = [];
-			for (const mode of Iterable.concat(modes.builtin, modes.custom)) {
-				suggestions.push(mode.name);
+			for (const agent of Iterable.concat(agents.builtin, agents.custom)) {
+				suggestions.push(agent.name);
 			}
 			return suggestions;
 		}
-		if (property === 'tools' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
+		if (property === PromptHeaderAttributes.tools && (promptType === PromptsType.prompt || promptType === PromptsType.agent)) {
 			return ['[]', `['search', 'edit', 'fetch']`];
 		}
-		if (property === 'model' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
-			return this.getModelNames(promptType === PromptsType.mode);
+		if (property === PromptHeaderAttributes.model && (promptType === PromptsType.prompt || promptType === PromptsType.agent)) {
+			return this.getModelNames(promptType === PromptsType.agent);
 		}
 
 		return [];
@@ -227,7 +227,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	}
 
 	private provideToolCompletions(model: ITextModel, position: Position, header: PromptHeader): CompletionList | undefined {
-		const toolsAttr = header.getAttribute('tools');
+		const toolsAttr = header.getAttribute(PromptHeaderAttributes.tools);
 		if (!toolsAttr || toolsAttr.value.type !== 'array' || !toolsAttr.range.containsPosition(position)) {
 			return undefined;
 		}

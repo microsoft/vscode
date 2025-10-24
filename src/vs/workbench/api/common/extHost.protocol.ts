@@ -57,12 +57,12 @@ import { CallHierarchyItem } from '../../contrib/callHierarchy/common/callHierar
 import { IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, UserSelectedTools } from '../../contrib/chat/common/chatAgents.js';
 import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
 import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
-import { IChatProgressHistoryResponseContent } from '../../contrib/chat/common/chatModel.js';
-import { ChatResponseClearToPreviousToolInvocationReason, IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatSessionContext, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
-import { IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatProgressHistoryResponseContent, IChatRequestVariableData } from '../../contrib/chat/common/chatModel.js';
+import { ChatResponseClearToPreviousToolInvocationReason, IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
+import { IChatSessionItem, IChatSessionProviderOptionGroup } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
-import { IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatSelector } from '../../contrib/chat/common/languageModels.js';
+import { IChatMessage, IChatResponsePart, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatSelector } from '../../contrib/chat/common/languageModels.js';
 import { IPreparedToolInvocation, IToolInvocation, IToolInvocationPreparationContext, IToolProgressStep, IToolResult, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from '../../contrib/mcp/common/mcpTypes.js';
@@ -97,6 +97,11 @@ import { ISaveProfileResult } from '../../services/userDataProfile/common/userDa
 import { IExtHostDocumentSaveDelegate } from './extHostDocumentData.js';
 import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
+
+export type IconPathDto =
+	| UriComponents
+	| { light: UriComponents; dark: UriComponents }
+	| ThemeIcon;
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -614,17 +619,29 @@ export interface TransferQuickPickItem {
 	// shared properties from IQuickPickItem
 	type?: 'item';
 	label: string;
-	iconPath?: { light?: URI; dark: URI };
-	iconClass?: string;
+	iconPathDto?: IconPathDto;
 	description?: string;
 	detail?: string;
 	picked?: boolean;
 	alwaysShow?: boolean;
 	buttons?: TransferQuickInputButton[];
+	resourceUri?: UriComponents;
+
+	// TODO: These properties are not used for transfer (iconPathDto is used instead) but they cannot be removed
+	// because this type is used as IQuickPickItem on the main thread. Ideally IQuickPickItem should also use IconPath.
+	iconPath?: { light?: URI; dark: URI };
+	iconClass?: string;
 }
 
 export interface TransferQuickInputButton extends quickInput.IQuickInputButton {
 	handle: number;
+	iconPathDto: IconPathDto;
+	checked?: boolean;
+
+	// TODO: These properties are not used for transfer (iconPathDto is used instead) but they cannot be removed
+	// because this type is used as IQuickInputButton on the main thread. Ideally IQuickInputButton should also use IconPath.
+	iconPath?: { light?: URI; dark: URI };
+	iconClass?: string;
 }
 
 export type TransferQuickInput = TransferQuickPick | TransferInputBox;
@@ -1371,8 +1388,15 @@ export type IChatAgentHistoryEntryDto = {
 	result: IChatAgentResult;
 };
 
+export interface IChatSessionContextDto {
+	readonly chatSessionType: string;
+	readonly chatSessionId: string;
+	readonly chatSessionResource: UriComponents;
+	readonly isUntitled: boolean;
+}
+
 export interface ExtHostChatAgentsShape2 {
-	$invokeAgent(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContext; chatSummary?: { prompt?: string; history?: string } }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
+	$invokeAgent(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContextDto; chatSummary?: { prompt?: string; history?: string } }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
 	$provideFollowups(request: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]>;
 	$acceptFeedback(handle: number, result: IChatAgentResult, voteAction: IChatVoteAction): void;
 	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void;
@@ -1635,7 +1659,7 @@ export interface SCMHistoryItemRefDto {
 	readonly revision?: string;
 	readonly category?: string;
 	readonly description?: string;
-	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
+	readonly icon?: IconPathDto;
 }
 
 export interface SCMHistoryItemRefsChangeEventDto {
@@ -1652,7 +1676,7 @@ export interface SCMHistoryItemDto {
 	readonly message: string;
 	readonly displayId?: string;
 	readonly author?: string;
-	readonly authorIcon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
+	readonly authorIcon?: IconPathDto;
 	readonly authorEmail?: string;
 	readonly timestamp?: number;
 	readonly statistics?: {
@@ -1671,7 +1695,7 @@ export interface SCMHistoryItemChangeDto {
 }
 
 export interface MainThreadSCMShape extends IDisposable {
-	$registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined, inputBoxDocumentUri: UriComponents): Promise<void>;
+	$registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: IconPathDto | undefined, inputBoxDocumentUri: UriComponents): Promise<void>;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): Promise<void>;
 	$unregisterSourceControl(handle: number): Promise<void>;
 
@@ -2198,7 +2222,7 @@ export interface IWorkspaceEditEntryMetadataDto {
 	needsConfirmation: boolean;
 	label: string;
 	description?: string;
-	iconPath?: { id: string } | UriComponents | { light: UriComponents; dark: UriComponents };
+	iconPath?: IconPathDto;
 }
 
 export interface IChatNotebookEditDto {
@@ -2423,7 +2447,7 @@ export interface ExtHostQuickOpenShape {
 	$onDidChangeSelection(sessionId: number, handles: number[]): void;
 	$onDidAccept(sessionId: number): void;
 	$onDidChangeValue(sessionId: number, value: string): void;
-	$onDidTriggerButton(sessionId: number, handle: number): void;
+	$onDidTriggerButton(sessionId: number, handle: number, checked?: boolean): void;
 	$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number): void;
 	$onDidHide(sessionId: number): void;
 }
@@ -2481,7 +2505,6 @@ export interface ITerminalCommandDto {
 export interface ITerminalCompletionContextDto {
 	commandLine: string;
 	cursorIndex: number;
-	allowFallbackCompletions: boolean;
 }
 
 export interface ITerminalCompletionItemDto {
@@ -2492,8 +2515,7 @@ export interface ITerminalCompletionItemDto {
 	isFile?: boolean | undefined;
 	isDirectory?: boolean | undefined;
 	isKeyword?: boolean | undefined;
-	replacementIndex: number;
-	replacementLength: number;
+	replacementRange: readonly [number, number];
 }
 
 export interface ITerminalCompletionProvider {
@@ -3154,7 +3176,17 @@ export interface MainThreadChatStatusShape {
 	$disposeEntry(id: string): void;
 }
 
-export type IChatSessionHistoryItemDto = { type: 'request'; prompt: string; participant: string } | { type: 'response'; parts: IChatProgressDto[]; participant: string };
+export type IChatSessionHistoryItemDto = {
+	type: 'request';
+	prompt: string;
+	participant: string;
+	command?: string;
+	variableData?: Dto<IChatRequestVariableData>;
+} | {
+	type: 'response';
+	parts: IChatProgressDto[];
+	participant: string;
+};
 
 export interface ChatSessionOptionUpdateDto {
 	readonly optionId: string;
@@ -3167,36 +3199,36 @@ export interface ChatSessionDto {
 	hasActiveResponseCallback: boolean;
 	hasRequestHandler: boolean;
 	supportsInterruption: boolean;
-	options?: { model?: ILanguageModelChatMetadata };
+	options?: Record<string, string>;
 }
+
 export interface IChatSessionProviderOptions {
-	models?: ILanguageModelChatMetadata[];
+	optionGroups?: IChatSessionProviderOptionGroup[];
 }
 
 export interface MainThreadChatSessionsShape extends IDisposable {
 	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void;
 	$unregisterChatSessionItemProvider(handle: number): void;
 	$onDidChangeChatSessionItems(handle: number): void;
-	$onDidCommitChatSessionItem(handle: number, original: { id: string; resource: UriComponents }, modified: { id: string; resource: UriComponents }): void;
-	$registerChatSessionContentProvider(handle: number, chatSessionType: string): void;
+	$onDidCommitChatSessionItem(handle: number, original: UriComponents, modified: UriComponents): void;
+	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string): void;
 	$unregisterChatSessionContentProvider(handle: number): void;
 
-	$handleProgressChunk(handle: number, sessionId: string, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
-	$handleAnchorResolve(handle: number, sessionId: string, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;
-	$handleProgressComplete(handle: number, sessionId: string, requestId: string): void;
-
-	$showChatSession(chatSessionType: string, sessionId: string, position: EditorGroupColumn | undefined): Promise<void>;
+	$handleProgressChunk(handle: number, sessionResource: UriComponents, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
+	$handleAnchorResolve(handle: number, sessionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;
+	$handleProgressComplete(handle: number, sessionResource: UriComponents, requestId: string): void;
 }
 
 export interface ExtHostChatSessionsShape {
 	$provideChatSessionItems(providerHandle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
 	$provideNewChatSessionItem(providerHandle: number, options: { request: IChatAgentRequest; metadata?: any }, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
-	$provideChatSessionContent(providerHandle: number, sessionId: string, sessionResource: UriComponents, token: CancellationToken): Promise<ChatSessionDto>;
+
+	$provideChatSessionContent(providerHandle: number, sessionResource: UriComponents, token: CancellationToken): Promise<ChatSessionDto>;
+	$interruptChatSessionActiveResponse(providerHandle: number, sessionResource: UriComponents, requestId: string): Promise<void>;
+	$disposeChatSessionContent(providerHandle: number, sessionResource: UriComponents): Promise<void>;
+	$invokeChatSessionRequestHandler(providerHandle: number, sessionResource: UriComponents, request: IChatAgentRequest, history: any[], token: CancellationToken): Promise<IChatAgentResult>;
 	$provideChatSessionProviderOptions(providerHandle: number, token: CancellationToken): Promise<IChatSessionProviderOptions | undefined>;
-	$provideHandleOptionsChange(providerHandle: number, sessionId: string, updates: ReadonlyArray<ChatSessionOptionUpdateDto>, token: CancellationToken): Promise<void>;
-	$interruptChatSessionActiveResponse(providerHandle: number, sessionId: string, requestId: string): Promise<void>;
-	$disposeChatSessionContent(providerHandle: number, sessionId: string): Promise<void>;
-	$invokeChatSessionRequestHandler(providerHandle: number, id: string, request: IChatAgentRequest, history: any[], token: CancellationToken): Promise<IChatAgentResult>;
+	$provideHandleOptionsChange(providerHandle: number, sessionResource: UriComponents, updates: ReadonlyArray<ChatSessionOptionUpdateDto>, token: CancellationToken): Promise<void>;
 }
 
 // --- proxy identifiers

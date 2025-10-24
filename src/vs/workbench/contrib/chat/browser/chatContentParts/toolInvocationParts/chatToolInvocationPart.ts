@@ -24,7 +24,9 @@ import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js'
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
+import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -64,6 +66,15 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			return;
 		}
 
+		if (toolInvocation.kind === 'toolInvocation') {
+			const initialState = toolInvocation.state.get().type;
+			this._register(autorun(reader => {
+				if (toolInvocation.state.read(reader).type !== initialState) {
+					render();
+				}
+			}));
+		}
+
 		// This part is a bit different, since IChatToolInvocation is not an immutable model object. So this part is able to rerender itself.
 		// If this turns out to be a typical pattern, we could come up with a more reusable pattern, like telling the list to rerender an element
 		// when the model changes, or trying to make the model immutable and swap out one content part for a new one based on user actions in the view.
@@ -72,17 +83,16 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			dom.clearNode(this.domNode);
 			partStore.clear();
 
-			if (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && toolInvocation.isComplete) {
+			if (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation)) {
 				return;
 			}
 
 			this.subPart = partStore.add(this.createToolInvocationSubPart());
 			this.domNode.appendChild(this.subPart.domNode);
 			partStore.add(this.subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-			partStore.add(this.subPart.onNeedsRerender(() => {
-				render();
-				this._onDidChangeHeight.fire();
-			}));
+			partStore.add(this.subPart.onNeedsRerender(render));
+
+			this._onDidChangeHeight.fire();
 		};
 		render();
 	}
@@ -92,12 +102,16 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			if (this.toolInvocation.toolSpecificData?.kind === 'extensions') {
 				return this.instantiationService.createInstance(ExtensionsInstallConfirmationWidgetSubPart, this.toolInvocation, this.context);
 			}
-			if (this.toolInvocation.confirmationMessages) {
+			const state = this.toolInvocation.state.get();
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 				if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
 					return this.instantiationService.createInstance(ChatTerminalToolConfirmationSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
 				} else {
 					return this.instantiationService.createInstance(ToolConfirmationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
 				}
+			}
+			if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				return this.instantiationService.createInstance(ChatToolPostExecuteConfirmationPart, this.toolInvocation, this.context, this.editorPool, this.currentWidthDelegate);
 			}
 		}
 
@@ -105,15 +119,16 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			return this.instantiationService.createInstance(ChatTerminalToolProgressPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex, this.codeBlockModelCollection);
 		}
 
-		if (Array.isArray(this.toolInvocation.resultDetails) && this.toolInvocation.resultDetails?.length) {
-			return this.instantiationService.createInstance(ChatResultListSubPart, this.toolInvocation, this.context, this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage, this.toolInvocation.resultDetails, this.listPool);
+		const resultDetails = IChatToolInvocation.resultDetails(this.toolInvocation);
+		if (Array.isArray(resultDetails) && resultDetails.length) {
+			return this.instantiationService.createInstance(ChatResultListSubPart, this.toolInvocation, this.context, this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage, resultDetails, this.listPool);
 		}
 
-		if (isToolResultOutputDetails(this.toolInvocation.resultDetails)) {
+		if (isToolResultOutputDetails(resultDetails)) {
 			return this.instantiationService.createInstance(ChatToolOutputSubPart, this.toolInvocation, this.context);
 		}
 
-		if (isToolResultInputOutputDetails(this.toolInvocation.resultDetails)) {
+		if (isToolResultInputOutputDetails(resultDetails)) {
 			return this.instantiationService.createInstance(
 				ChatInputOutputMarkdownProgressPart,
 				this.toolInvocation,
@@ -122,14 +137,14 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				this.codeBlockStartIndex,
 				this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage,
 				this.toolInvocation.originMessage,
-				this.toolInvocation.resultDetails.input,
-				this.toolInvocation.resultDetails.output,
-				!!this.toolInvocation.resultDetails.isError,
+				resultDetails.input,
+				resultDetails.output,
+				!!resultDetails.isError,
 				this.currentWidthDelegate
 			);
 		}
 
-		if (this.toolInvocation.kind === 'toolInvocation' && this.toolInvocation.toolSpecificData?.kind === 'input' && !this.toolInvocation.isComplete) {
+		if (this.toolInvocation.kind === 'toolInvocation' && this.toolInvocation.toolSpecificData?.kind === 'input' && !IChatToolInvocation.isComplete(this.toolInvocation)) {
 			return this.instantiationService.createInstance(
 				ChatInputOutputMarkdownProgressPart,
 				this.toolInvocation,

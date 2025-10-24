@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from '../../../../base/common/async.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
 import { Range } from '../../../common/core/range.js';
@@ -35,6 +35,7 @@ export class ViewportSemanticTokensContribution extends Disposable implements IE
 	private readonly _debounceInformation: IFeatureDebounceInformation;
 	private readonly _tokenizeViewport: RunOnceScheduler;
 	private _outstandingRequests: CancelablePromise<any>[];
+	private _rangeProvidersChangeListeners: IDisposable[];
 
 	constructor(
 		editor: ICodeEditor,
@@ -50,15 +51,33 @@ export class ViewportSemanticTokensContribution extends Disposable implements IE
 		this._debounceInformation = languageFeatureDebounceService.for(this._provider, 'DocumentRangeSemanticTokens', { min: 100, max: 500 });
 		this._tokenizeViewport = this._register(new RunOnceScheduler(() => this._tokenizeViewportNow(), 100));
 		this._outstandingRequests = [];
+		this._rangeProvidersChangeListeners = [];
 		const scheduleTokenizeViewport = () => {
 			if (this._editor.hasModel()) {
 				this._tokenizeViewport.schedule(this._debounceInformation.get(this._editor.getModel()));
 			}
 		};
+		const bindRangeProvidersChangeListeners = () => {
+			this._cleanupProviderListeners();
+			if (this._editor.hasModel()) {
+				const model = this._editor.getModel();
+				for (const provider of this._provider.all(model)) {
+					const disposable = provider.onDidChange?.(() => {
+						this._cancelAll();
+						scheduleTokenizeViewport();
+					});
+					if (disposable) {
+						this._rangeProvidersChangeListeners.push(disposable);
+					}
+				}
+			}
+		};
+
 		this._register(this._editor.onDidScrollChange(() => {
 			scheduleTokenizeViewport();
 		}));
 		this._register(this._editor.onDidChangeModel(() => {
+			bindRangeProvidersChangeListeners();
 			this._cancelAll();
 			scheduleTokenizeViewport();
 		}));
@@ -66,7 +85,10 @@ export class ViewportSemanticTokensContribution extends Disposable implements IE
 			this._cancelAll();
 			scheduleTokenizeViewport();
 		}));
+
+		bindRangeProvidersChangeListeners();
 		this._register(this._provider.onDidChange(() => {
+			bindRangeProvidersChangeListeners();
 			this._cancelAll();
 			scheduleTokenizeViewport();
 		}));
@@ -81,6 +103,16 @@ export class ViewportSemanticTokensContribution extends Disposable implements IE
 			scheduleTokenizeViewport();
 		}));
 		scheduleTokenizeViewport();
+	}
+
+	public override dispose(): void {
+		this._cleanupProviderListeners();
+		super.dispose();
+	}
+
+	private _cleanupProviderListeners(): void {
+		dispose(this._rangeProvidersChangeListeners);
+		this._rangeProvidersChangeListeners = [];
 	}
 
 	private _cancelAll(): void {
