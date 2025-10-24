@@ -7,6 +7,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import * as nls from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -231,7 +232,7 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 					canMoveView: true,
 					order: 1000,
 					collapsed: !!otherProviders.length,
-					when: ChatContextKeyExprs.agentViewWhen
+					when: ContextKeyExpr.false()
 				};
 				viewDescriptorsToRegister.push(gettingStartedDescriptor);
 				this.registeredViewDescriptors.set('gettingStarted', gettingStartedDescriptor);
