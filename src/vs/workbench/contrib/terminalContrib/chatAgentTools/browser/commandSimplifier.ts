@@ -85,16 +85,20 @@ export class CommandSimplifier {
 		// TODO: This should just be Windows PowerShell in the future when the powershell grammar
 		// supports chain operators https://github.com/airbus-cert/tree-sitter-powershell/issues/27
 		if (isPowerShell(shell, os)) {
-			const doubleAmpersandCaptures = await this._treeSitterCommandParser.queryTree(TreeSitterCommandParserLanguage.PowerShell, commandLine, [
-				'(',
-				'  (command',
-				'    (command_elements',
-				'      (generic_token) @double.ampersand',
-				'        (#eq? @double.ampersand "&&")))',
-				')',
-			].join('\n'));
-			for (const capture of doubleAmpersandCaptures.reverse()) {
-				commandLine = `${commandLine.substring(0, capture.node.startIndex)};${commandLine.substring(capture.node.endIndex)}`;
+			try {
+				const doubleAmpersandCaptures = await this._treeSitterCommandParser.queryTree(TreeSitterCommandParserLanguage.PowerShell, commandLine, [
+					'(',
+					'  (command',
+					'    (command_elements',
+					'      (generic_token) @double.ampersand',
+					'        (#eq? @double.ampersand "&&")))',
+					')',
+				].join('\n'));
+				for (const capture of doubleAmpersandCaptures.reverse()) {
+					commandLine = `${commandLine.substring(0, capture.node.startIndex)};${commandLine.substring(capture.node.endIndex)}`;
+				}
+			} catch {
+				// Swallow tree sitter failures
 			}
 		}
 		return commandLine;
