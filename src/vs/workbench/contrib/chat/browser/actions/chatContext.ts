@@ -285,7 +285,7 @@ export class TerminalContext implements IChatContextValueItem {
 		}
 		const attachment: IChatRequestVariableEntry = {
 			kind: 'terminalCommand',
-			id: `terminalCommand:${Date.now()}`,
+			id: `terminalCommand:${Date.now()}}`,
 			value: this.asValue(command),
 			name: command.command,
 			command: command.command,
