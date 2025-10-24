@@ -6,7 +6,6 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { SimpleButton } from '../../find/browser/findWidget.js';
@@ -31,7 +30,6 @@ export class HoverCopyButton extends Disposable {
 		this._button = this._register(new SimpleButton({
 			label: localize('hover.copy', "Copy"),
 			icon: Codicon.copy,
-			hoverDelegate: getDefaultHoverDelegate('element'),
 			onTrigger: () => this._copyContent(),
 			className: 'hover-copy-button',
 		}, this._hoverService));
