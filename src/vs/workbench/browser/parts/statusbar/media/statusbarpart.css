@@ -90,17 +90,8 @@
 	border-right: 5px solid transparent;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.left.first-visible-item {
-	padding-left: 7px; /* Add padding to the most left status bar item */
-}
-
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.left.first-visible-item,
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.right.last-visible-item {
-	margin-right: 7px; /* Add margin to the most right status bar item. Margin is used to position beak properly. */
-}
-
-/* Tweak appearance for items with background to improve hover feedback */
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color.left.first-visible-item,
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color.right.last-visible-item {
 	padding-right: 0;
 	padding-left: 0;
 }
@@ -136,6 +127,8 @@
 	margin-right:0;
 }
 
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label,
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label,
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color > .statusbar-item-label {
 	margin-left: 0;
 	margin-right: 0;

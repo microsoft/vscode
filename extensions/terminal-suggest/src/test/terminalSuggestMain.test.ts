@@ -95,7 +95,7 @@ suite('Terminal Suggest', () => {
 					const currentCommandString = getCurrentCommandAndArgs(commandLine, cursorIndex, undefined);
 					const showFiles = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
 					const showFolders = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
-					const terminalContext = { commandLine, cursorIndex, allowFallbackCompletions: true };
+					const terminalContext = { commandLine, cursorIndex };
 					const result = await getCompletionItemsFromSpecs(
 						completionSpecs,
 						terminalContext,

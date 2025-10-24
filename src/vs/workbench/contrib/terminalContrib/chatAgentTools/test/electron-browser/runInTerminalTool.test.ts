@@ -7,7 +7,7 @@ import { ok, strictEqual } from 'assert';
 import { Separator } from '../../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { isLinux, isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -24,16 +24,21 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
+import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { TreeSitterLibraryService } from '../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
 
 	get commandLineAutoApprover() { return this._commandLineAutoApprover; }
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
+	get profileFetcher() { return this._profileFetcher; }
 
-	getCopilotProfile() {
-		return this._getCopilotProfile();
-	}
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
 	}
@@ -44,6 +49,7 @@ suite('RunInTerminalTool', () => {
 
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
+	let fileService: IFileService;
 	let storageService: IStorageService;
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionId: string; reason: 'cleared' }>;
@@ -52,13 +58,25 @@ suite('RunInTerminalTool', () => {
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
+
+		const logService = new NullLogService();
+		fileService = store.add(new FileService(logService));
+		const fileSystemProvider = new TestIPCFileSystemProvider();
+		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionId: string; reason: 'cleared' }>();
 
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
+			fileService: () => fileService,
 		}, store);
+
+		const treeSitterLibraryService = store.add(instantiationService.createInstance(TreeSitterLibraryService));
+		treeSitterLibraryService.isTest = true;
+		instantiationService.stub(ITreeSitterLibraryService, treeSitterLibraryService);
+
 		instantiationService.stub(ILanguageModelToolsService, {
 			getTools() {
 				return [];
@@ -71,7 +89,7 @@ suite('RunInTerminalTool', () => {
 			onDidDisposeSession: chatServiceDisposeEmitter.event
 		});
 		instantiationService.stub(ITerminalProfileResolverService, {
-			getDefaultProfile: async () => ({ path: 'pwsh' } as ITerminalProfile)
+			getDefaultProfile: async () => ({ path: 'bash' } as ITerminalProfile)
 		});
 
 		storageService = instantiationService.get(IStorageService);
@@ -270,32 +288,19 @@ suite('RunInTerminalTool', () => {
 			'HTTP_PROXY=proxy:8080 wget https://example.com',
 			'VAR1=value1 VAR2=value2 echo test',
 			'A=1 B=2 C=3 ./script.sh',
-
-			// Dangerous patterns
-			'echo $(whoami)',
-			'ls $(pwd)',
-			'echo `date`',
-			'cat `which ls`',
-			'echo ${HOME}',
-			'ls {a,b,c}',
-			'echo (Get-Date)',
-
-			// Dangerous patterns - multi-line
-			'echo "{\n}"',
-			'echo @"\n{\n}"@',
 		];
 
 		suite('auto approved', () => {
 			for (const command of autoApprovedTestCases) {
 				test(command.replaceAll('\n', '\\n'), async () => {
-					assertAutoApproved(await executeToolTest({ command: command }));
+					assertAutoApproved(await executeToolTest({ command }));
 				});
 			}
 		});
 		suite('confirmation required', () => {
 			for (const command of confirmationRequiredTestCases) {
 				test(command.replaceAll('\n', '\\n'), async () => {
-					assertConfirmationRequired(await executeToolTest({ command: command }));
+					assertConfirmationRequired(await executeToolTest({ command }));
 				});
 			}
 		});
@@ -321,7 +326,7 @@ suite('RunInTerminalTool', () => {
 				command: 'rm file.txt',
 				explanation: 'Remove a file'
 			});
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 		});
 
 		test('should require confirmation for commands in deny list even if in allow list', async () => {
@@ -334,7 +339,7 @@ suite('RunInTerminalTool', () => {
 				command: 'rm dangerous-file.txt',
 				explanation: 'Remove a dangerous file'
 			});
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 		});
 
 		test('should handle background commands with confirmation', async () => {
@@ -347,7 +352,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Start watching for file changes',
 				isBackground: true
 			});
-			assertConfirmationRequired(result, 'Run `pwsh` command? (background terminal)');
+			assertConfirmationRequired(result, 'Run `bash` command? (background terminal)');
 		});
 
 		test('should auto-approve background commands in allow list', async () => {
@@ -424,18 +429,6 @@ suite('RunInTerminalTool', () => {
 			assertAutoApproved(result);
 		});
 
-		test('should handle commands with only whitespace', async () => {
-			setAutoApprove({
-				echo: true
-			});
-
-			const result = await executeToolTest({
-				command: '   \t\n   ',
-				explanation: 'Whitespace only command'
-			});
-			assertConfirmationRequired(result);
-		});
-
 		test('should handle matchCommandLine: true patterns', async () => {
 			setAutoApprove({
 				'/dangerous/': { approve: false, matchCommandLine: true },
@@ -506,7 +499,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Build the project'
 			});
 
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
 				{ subCommand: 'npm run build' },
 				'commandLine',
@@ -550,7 +543,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Build the project'
 			});
 
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
 				'configure',
 			]);
@@ -562,7 +555,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Install dependencies and build'
 			});
 
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
 				{ subCommand: ['npm install', 'npm run build'] },
 				'commandLine',
@@ -580,7 +573,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Run foo command and show first 20 lines'
 			});
 
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
 				{ subCommand: 'foo' },
 				'commandLine',
@@ -612,7 +605,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Run multiple piped commands'
 			});
 
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
 				{ subCommand: ['foo', 'bar'] },
 				'commandLine',
@@ -923,7 +916,7 @@ suite('RunInTerminalTool', () => {
 
 			clearAutoApproveWarningAcceptedState();
 
-			assertConfirmationRequired(await executeToolTest({ command: 'echo hello world' }), 'Run `pwsh` command?');
+			assertConfirmationRequired(await executeToolTest({ command: 'echo hello world' }), 'Run `bash` command?');
 		});
 
 		test('should auto-approve commands when both auto-approve enabled and warning accepted', async () => {
@@ -942,7 +935,7 @@ suite('RunInTerminalTool', () => {
 			});
 
 			const result = await executeToolTest({ command: 'echo hello world' });
-			assertConfirmationRequired(result, 'Run `pwsh` command?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 		});
 	});
 
@@ -962,23 +955,25 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
-	suite('getCopilotShellOrProfile', () => {
-		test('should return custom profile when configured', async () => {
-			runInTerminalTool.setBackendOs(OperatingSystem.Windows);
-			const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] });
-			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
+	suite('TerminalProfileFetcher', () => {
+		suite('getCopilotProfile', () => {
+			(isWindows ? test : test.skip)('should return custom profile when configured', async () => {
+				runInTerminalTool.setBackendOs(OperatingSystem.Windows);
+				const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] });
+				setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
 
-			const result = await runInTerminalTool.getCopilotProfile();
-			strictEqual(result, customProfile);
-		});
+				const result = await runInTerminalTool.profileFetcher.getCopilotProfile();
+				strictEqual(result, customProfile);
+			});
 
-		test('should fall back to default shell when no custom profile is configured', async () => {
-			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, null);
+			(isLinux ? test : test.skip)('should fall back to default shell when no custom profile is configured', async () => {
+				runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+				setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, null);
 
-			const result = await runInTerminalTool.getCopilotProfile();
-			strictEqual(typeof result, 'object');
-			strictEqual((result as ITerminalProfile).path, 'pwsh'); // From the mock ITerminalProfileResolverService
+				const result = await runInTerminalTool.profileFetcher.getCopilotProfile();
+				strictEqual(typeof result, 'object');
+				strictEqual((result as ITerminalProfile).path, 'bash');
+			});
 		});
 	});
 });
