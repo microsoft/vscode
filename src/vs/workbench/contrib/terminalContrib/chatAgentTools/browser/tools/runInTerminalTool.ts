@@ -22,6 +22,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { PartialTerminalCommand } from '../../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
@@ -636,6 +637,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			try {
 				let strategy: ITerminalExecuteStrategy;
 				const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
+				if (commandDetection?.currentCommand) {
+					(commandDetection.currentCommand as PartialTerminalCommand).sessionId = toolSpecificData.terminalToolSessionId;
+				}
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
 						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false);

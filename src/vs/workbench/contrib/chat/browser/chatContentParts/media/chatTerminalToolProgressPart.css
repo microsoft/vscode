@@ -53,3 +53,30 @@
 		}
 	}
 }
+
+.chat-terminal-output-container.collapsed { display: none; }
+.chat-terminal-output-container {
+	margin-top: 6px;
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 4px;
+	padding: 4px 6px;
+	background: var(--vscode-panel-background);
+	max-height: 300px;
+	overflow: auto;
+	font-family: var(--monaco-monospace-font);
+}
+.chat-terminal-output-container.expanded { display: block; }
+.chat-terminal-output-content {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.chat-terminal-output {
+	margin: 0;
+	white-space: pre-wrap;
+	font-size: 12px;
+}
+.chat-terminal-output-info {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-xs);
+}
