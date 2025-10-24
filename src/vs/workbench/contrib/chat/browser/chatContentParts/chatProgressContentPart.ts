@@ -13,7 +13,7 @@ import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/mark
 import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../../nls.js';
-import { IChatProgressMessage, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type ConfirmedReason } from '../../common/chatService.js';
+import { IChatProgressMessage, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../common/chatService.js';
 import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
@@ -37,7 +37,6 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		forceShowSpinner: boolean | undefined,
 		forceShowMessage: boolean | undefined,
 		icon: ThemeIcon | undefined,
-		confirmedReason: boolean | ConfirmedReason | undefined,
 		private readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
@@ -190,7 +189,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 			kind: 'progressMessage',
 			content: new MarkdownString().appendText(localize('workingMessage', "Working..."))
 		};
-		super(progressMessage, chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, undefined, instantiationService, chatMarkdownAnchorService, configurationService);
+		super(progressMessage, chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, instantiationService, chatMarkdownAnchorService, configurationService);
 	}
 
 	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
