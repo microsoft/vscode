@@ -214,7 +214,7 @@ class TaskElement implements ITreeElement {
 	public readonly changeEmitter = new Emitter<void>();
 	public readonly onDidChange = this.changeEmitter.event;
 	public readonly type = 'task';
-	public readonly context: { resultId: string; taskId: string };
+	public readonly context: { resultId: string; taskId: string; taskName: string };
 	public readonly id: string;
 	public readonly label: string;
 	public readonly itemsCache = new CreationCache<TestCaseElement>();
@@ -226,7 +226,7 @@ class TaskElement implements ITreeElement {
 	constructor(public readonly results: ITestResult, public readonly task: ITestRunTaskResults, public readonly index: number) {
 		this.id = `${results.id}/${index}`;
 		this.task = results.tasks[index];
-		this.context = { resultId: results.id, taskId: this.task.id };
+		this.context = { resultId: results.id, taskId: this.task.id, taskName: this.task.name };
 		this.label = this.task.name;
 	}
 }
@@ -792,6 +792,9 @@ class TreeActionsProvider {
 		const secondary: IAction[] = [];
 
 		if (element instanceof TaskElement) {
+			contextKeys.push(
+				[TestingContextKeys.controllerId.key, element.task.ctrlId]
+			);
 			primary.push(new Action(
 				'testing.outputPeek.showResultOutput',
 				localize('testing.showResultOutput', "Show Result Output"),
