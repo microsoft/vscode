@@ -117,7 +117,7 @@ export class IconLabel extends Disposable {
 		this.nameContainer = dom.append(this.labelContainer, dom.$('span.monaco-icon-name-container'));
 
 		if (options?.supportHighlights || options?.supportIcons) {
-			this.nameNode = this._register(new LabelWithHighlights(this.nameContainer));
+			this.nameNode = this._register(new LabelWithHighlights(this.nameContainer, !!options.supportIcons));
 		} else {
 			this.nameNode = new Label(this.nameContainer);
 		}
@@ -332,7 +332,7 @@ class LabelWithHighlights extends Disposable {
 	private singleLabel: HighlightedLabel | undefined = undefined;
 	private options: IIconLabelValueOptions | undefined;
 
-	constructor(private container: HTMLElement) {
+	constructor(private container: HTMLElement, private supportIcons: boolean) {
 		super();
 	}
 
@@ -344,6 +344,9 @@ class LabelWithHighlights extends Disposable {
 		this.label = label;
 		this.options = options;
 
+		// Determine supportIcons: use option if provided, otherwise use constructor value
+		const supportIcons = options?.supportIcons ?? this.supportIcons;
+
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
 				this.container.textContent = '';
@@ -351,7 +354,7 @@ class LabelWithHighlights extends Disposable {
 				this.singleLabel = this._register(new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { id: options?.domId }))));
 			}
 
-			this.singleLabel.set(label, options?.matches, undefined, options?.labelEscapeNewLines, options?.supportIcons);
+			this.singleLabel.set(label, options?.matches, undefined, options?.labelEscapeNewLines, supportIcons);
 		} else {
 			this.container.textContent = '';
 			this.container.classList.add('multiple');
@@ -367,7 +370,7 @@ class LabelWithHighlights extends Disposable {
 
 				const name = dom.$('a.label-name', { id, 'data-icon-label-count': label.length, 'data-icon-label-index': i, 'role': 'treeitem' });
 				const highlightedLabel = this._register(new HighlightedLabel(dom.append(this.container, name)));
-				highlightedLabel.set(l, m, undefined, options?.labelEscapeNewLines, options?.supportIcons);
+				highlightedLabel.set(l, m, undefined, options?.labelEscapeNewLines, supportIcons);
 
 				if (i < label.length - 1) {
 					dom.append(name, dom.$('span.label-separator', undefined, separator));

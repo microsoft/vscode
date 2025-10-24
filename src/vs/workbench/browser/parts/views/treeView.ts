@@ -1330,64 +1330,64 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		};
 	}
 
-	private processLabel(label: string | IMarkdownString | undefined, matches: { start: number; end: number }[] | undefined): { label: string | undefined; bold: boolean; italic: boolean; strikethrough: boolean; supportIcons: boolean | undefined } {
-		if (isMarkdownString(label)) {
-			let text = label.value.trim();
-			let bold = false;
-			let italic = false;
-			let strikethrough = false;
-
-			function moveMatches(offset: number) {
-				if (matches) {
-					for (const match of matches) {
-						match.start -= offset;
-						match.end -= offset;
-					}
-				}
-			}
-
-			const syntaxes = [
-				{ open: '~~', close: '~~', mark: () => { strikethrough = true; } },
-				{ open: '**', close: '**', mark: () => { bold = true; } },
-				{ open: '*', close: '*', mark: () => { italic = true; } },
-				{ open: '_', close: '_', mark: () => { italic = true; } }
-			];
-
-			function checkSyntaxes(): boolean {
-				let didChange = false;
-				for (const syntax of syntaxes) {
-					if (text.startsWith(syntax.open) && text.endsWith(syntax.close)) {
-						// If there is a match within the markers, stop processing
-						if (matches && matches.some(match => match.start < syntax.open.length || match.end > text.length - syntax.close.length)) {
-							return false;
-						}
-
-						syntax.mark();
-						text = text.substring(syntax.open.length, text.length - syntax.close.length);
-						moveMatches(syntax.open.length);
-						didChange = true;
-					}
-				}
-				return didChange;
-			}
-
-			// Arbitrary max # of iterations
-			for (let i = 0; i < 10; i++) {
-				if (!checkSyntaxes()) {
-					break;
-				}
-			}
-
-			return {
-				label: text,
-				bold,
-				italic,
-				strikethrough,
-				supportIcons: label.supportThemeIcons
-			};
-		} else {
-			return { label, bold: false, italic: false, strikethrough: false, supportIcons: undefined };
+	private processLabel(label: string | IMarkdownString | undefined, matches: { start: number; end: number }[] | undefined): { label: string | undefined; bold?: boolean; italic?: boolean; strikethrough?: boolean; supportIcons?: boolean } {
+		if (!isMarkdownString(label)) {
+			return { label };
 		}
+
+		let text = label.value.trim();
+		let bold = false;
+		let italic = false;
+		let strikethrough = false;
+
+		function moveMatches(offset: number) {
+			if (matches) {
+				for (const match of matches) {
+					match.start -= offset;
+					match.end -= offset;
+				}
+			}
+		}
+
+		const syntaxes = [
+			{ open: '~~', close: '~~', mark: () => { strikethrough = true; } },
+			{ open: '**', close: '**', mark: () => { bold = true; } },
+			{ open: '*', close: '*', mark: () => { italic = true; } },
+			{ open: '_', close: '_', mark: () => { italic = true; } }
+		];
+
+		function checkSyntaxes(): boolean {
+			let didChange = false;
+			for (const syntax of syntaxes) {
+				if (text.startsWith(syntax.open) && text.endsWith(syntax.close)) {
+					// If there is a match within the markers, stop processing
+					if (matches && matches.some(match => match.start < syntax.open.length || match.end > text.length - syntax.close.length)) {
+						return false;
+					}
+
+					syntax.mark();
+					text = text.substring(syntax.open.length, text.length - syntax.close.length);
+					moveMatches(syntax.open.length);
+					didChange = true;
+				}
+			}
+			return didChange;
+		}
+
+		// Arbitrary max # of iterations
+		for (let i = 0; i < 10; i++) {
+			if (!checkSyntaxes()) {
+				break;
+			}
+		}
+
+		return {
+			label: text,
+			bold,
+			italic,
+			strikethrough,
+			supportIcons: label.supportThemeIcons
+		};
 	}
 
 	renderElement(element: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
