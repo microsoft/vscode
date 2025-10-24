@@ -87,7 +87,7 @@ export class TreeSitterCommandParser {
 			(process.arch === 'arm' || process.arch === 'arm64') &&
 			languageId === TreeSitterCommandParserLanguage.PowerShell
 		) {
-			throw new Error('not supported');
+			throw new Error('powershell grammar is not supported on arm or arm64');
 		}
 	}
 }
