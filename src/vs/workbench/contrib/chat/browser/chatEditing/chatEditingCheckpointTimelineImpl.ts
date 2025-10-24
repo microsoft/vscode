@@ -23,7 +23,7 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { INotebookTextModel } from '../../../notebook/common/notebookCommon.js';
+import { CellEditType, CellUri, INotebookTextModel } from '../../../notebook/common/notebookCommon.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { IEditSessionEntryDiff, IModifiedEntryTelemetryInfo } from '../../common/chatEditingService.js';
@@ -422,11 +422,12 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 	}
 
 	private _getFileOperationsInRange(uri: URI, fromEpoch: number, toEpoch: number): readonly FileOperation[] {
-		return this._operations.get().filter(op =>
-			isEqual(op.uri, uri) &&
-			op.epoch >= fromEpoch &&
-			op.epoch <= toEpoch
-		).sort((a, b) => a.epoch - b.epoch);
+		return this._operations.get().filter(op => {
+			const cellUri = CellUri.parse(op.uri);
+			return op.epoch >= fromEpoch &&
+				op.epoch < toEpoch &&
+				(isEqual(op.uri, uri) || (cellUri && isEqual(cellUri.notebook, uri)));
+		}).sort((a, b) => a.epoch - b.epoch);
 	}
 
 	private async _replayOperations(baseline: IFileBaseline, operations: readonly FileOperation[]): Promise<IReconstructedFileState> {
@@ -460,6 +461,10 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 	private async _applyOperationToState(state: IReconstructedFileStateWithNotebook, operation: FileOperation, telemetryInfo: IModifiedEntryTelemetryInfo): Promise<IReconstructedFileStateWithNotebook> {
 		switch (operation.type) {
 			case FileOperationType.Create: {
+				if (state.exists && state.notebook) {
+					state.notebook.dispose();
+				}
+
 				let notebook: INotebookTextModel | undefined;
 				if (operation.notebookViewType) {
 					notebook = await this._notebookEditorModelResolverService.createUntitledNotebookTextModel(operation.notebookViewType);
@@ -494,9 +499,21 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 					uri: operation.newUri
 				};
 
-			case FileOperationType.TextEdit:
+			case FileOperationType.TextEdit: {
 				if (!state.exists) {
 					throw new Error('Cannot apply text edits to non-existent file');
+				}
+
+				const nbCell = operation.cellIndex !== undefined && state.notebook?.cells.at(operation.cellIndex);
+				if (nbCell) {
+					const newContent = this._applyTextEditsToContent(nbCell.getValue(), operation.edits);
+					state.notebook!.applyEdits([{
+						editType: CellEditType.Replace,
+						index: operation.cellIndex,
+						count: 1,
+						cells: [{ cellKind: nbCell.cellKind, language: nbCell.language, mime: nbCell.language, source: newContent, outputs: nbCell.outputs }]
+					}], true, undefined, () => undefined, undefined);
+					return state;
 				}
 
 				// Apply text edits using a temporary text model
@@ -504,7 +521,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 					...state,
 					content: this._applyTextEditsToContent(state.content, operation.edits)
 				};
-
+			}
 			case FileOperationType.NotebookEdit:
 				if (!state.exists) {
 					throw new Error('Cannot apply notebook edits to non-existent file');
@@ -577,7 +594,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 			// Text and notebook edits don't affect file system structure
 			case FileOperationType.TextEdit:
 			case FileOperationType.NotebookEdit:
-				urisToRestore.add(operation.uri);
+				urisToRestore.add(CellUri.parse(operation.uri)?.notebook ?? operation.uri);
 				break;
 
 			default:

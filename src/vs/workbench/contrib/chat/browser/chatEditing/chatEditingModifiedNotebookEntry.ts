@@ -222,6 +222,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this._changesCount.set(countChanges(diffs), undefined);
 	}
 
+	getIndexOfCellHandle(handle: number) {
+		return this.modifiedModel.cells.findIndex(c => c.handle === handle);
+	}
+
 	private computeRequestId: number = 0;
 	async initializeModelsFromDiff() {
 		const id = ++this.computeRequestId;
@@ -253,7 +257,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	updateCellDiffInfo(cellsDiffInfo: ICellDiffInfo[], transcation: ITransaction | undefined) {
 		this._cellsDiffInfo.set(sortCellChanges(cellsDiffInfo), transcation);
 		this._changesCount.set(countChanges(cellsDiffInfo), transcation);
-
 	}
 
 	mirrorNotebookEdits(e: NotebookTextModelChangedEvent) {

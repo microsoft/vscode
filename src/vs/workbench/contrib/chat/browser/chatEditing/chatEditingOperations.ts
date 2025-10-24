@@ -58,6 +58,11 @@ export interface IFileRenameOperation extends IFileOperation {
 export interface ITextEditOperation extends IFileOperation {
 	readonly type: FileOperationType.TextEdit;
 	readonly edits: readonly TextEdit[];
+	/**
+	 * For cell URIs, the cell index that was edited. Needed because the original
+	 * edit URI only contains the `handle` which is not portable between notebooks.
+	 */
+	readonly cellIndex?: number;
 }
 
 /**

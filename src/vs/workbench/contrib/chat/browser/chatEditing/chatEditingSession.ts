@@ -430,9 +430,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		await this._timeline.redoToNextCheckpoint();
 	}
 
-	private async _recordEditOperations(resource: URI, edits: (TextEdit | ICellEditOperation)[], responseModel: IChatResponseModel): Promise<void> {
+	private async _recordEditOperations(entry: AbstractChatEditingModifiedFileEntry, resource: URI, edits: (TextEdit | ICellEditOperation)[], responseModel: IChatResponseModel): Promise<void> {
 		// Determine if these are text edits or notebook edits
-		const isNotebookEdits = edits.length > 0 && 'cell' in edits[0];
+		const isNotebookEdits = edits.length > 0 && 'cells' in edits[0];
 
 		if (isNotebookEdits) {
 			// Record notebook edit operation
@@ -445,14 +445,25 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				cellEdits: notebookEdits
 			});
 		} else {
-			// Record text edit operation
+			let cellIndex: number | undefined;
+			if (entry instanceof ChatEditingModifiedNotebookEntry) {
+				const cellUri = CellUri.parse(resource);
+				if (cellUri) {
+					const i = entry.getIndexOfCellHandle(cellUri.handle);
+					if (i !== -1) {
+						cellIndex = i;
+					}
+				}
+			}
+
 			const textEdits = edits as TextEdit[];
 			this._timeline.recordFileOperation({
 				type: FileOperationType.TextEdit,
 				uri: resource,
 				requestId: responseModel.requestId,
 				epoch: this._timeline.incrementEpoch(),
-				edits: textEdits
+				edits: textEdits,
+				cellIndex,
 			});
 		}
 	}
@@ -519,7 +530,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		// Record edit operations in the timeline if there are actual edits
 		if (textEdits.length > 0) {
-			await this._recordEditOperations(resource, textEdits, responseModel);
+			await this._recordEditOperations(entry, resource, textEdits, responseModel);
 		}
 
 		await entry.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
