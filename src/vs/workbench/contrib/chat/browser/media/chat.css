@@ -1185,6 +1185,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-foreground);
 	display: flex;
 	align-items: center;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-container {

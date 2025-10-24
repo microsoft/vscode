@@ -185,9 +185,8 @@ export class FocusChatInstanceAction extends Action implements IAction {
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		isTerminalHidden: boolean,
-		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
 	) {
 		super(
 			'chat.focusTerminalInstance',
@@ -199,7 +198,6 @@ export class FocusChatInstanceAction extends Action implements IAction {
 
 	public override async run() {
 		this.label = localize('focusTerminal', 'Focus Terminal');
-		this._terminalService.setActiveInstance(this._instance);
 		if (this._instance.target === TerminalLocation.Editor) {
 			this._terminalEditorService.openEditor(this._instance);
 		} else {
