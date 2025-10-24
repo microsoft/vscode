@@ -271,9 +271,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				return bySession;
 			}
 		}
-
-		// Fallback: return the most recently finished command when session linkage is unavailable.
-		return commands[commands.length - 1];
+		return;
 	}
 }
 
