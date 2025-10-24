@@ -775,7 +775,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		if (instance) {
 			this.revealTerminal(instance);
 			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
-			const relevantCommand = commands?.find(c => c.id === resource.query);
+			const relevantCommand = commands?.find(c => c.id === resource.query.replace('command=', ''));
 			if (relevantCommand) {
 				instance.xterm?.markTracker.revealCommand(relevantCommand);
 			}

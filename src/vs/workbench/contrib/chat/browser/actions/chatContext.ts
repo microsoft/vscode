@@ -269,7 +269,7 @@ export class TerminalContext implements IChatContextValueItem {
 	constructor(private readonly _resource: URI, @ITerminalService private readonly _terminalService: ITerminalService) {
 
 	}
-	async isEnabled(widget: IChatWidget) {
+	isEnabled(widget: IChatWidget) {
 		const terminal = this._terminalService.getInstanceFromResource(this._resource);
 		return !!widget.attachmentCapabilities.supportsTerminalAttachments && terminal?.isDisposed === false;
 	}
@@ -279,7 +279,7 @@ export class TerminalContext implements IChatContextValueItem {
 			return;
 		}
 
-		const command = terminal.capabilities.get(TerminalCapability.CommandDetection)?.commands.find(cmd => cmd.id === this._resource.query);
+		const command = terminal.capabilities.get(TerminalCapability.CommandDetection)?.commands.find(cmd => cmd.id === this._resource.query.replace('command=', ''));
 		if (!command) {
 			return;
 		}
