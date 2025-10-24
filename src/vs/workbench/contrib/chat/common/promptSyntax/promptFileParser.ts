@@ -62,6 +62,7 @@ interface ParsedHeader {
 }
 
 export namespace PromptHeaderAttributes {
+	export const name = 'name';
 	export const description = 'description';
 	export const agent = 'agent';
 	export const mode = 'mode';
@@ -72,6 +73,11 @@ export namespace PromptHeaderAttributes {
 	export const advancedOptions = 'advancedOptions';
 	export const argumentHint = 'argument-hint';
 	export const excludeAgent = 'excludeAgent';
+	export const target = 'target';
+}
+
+export namespace GithubPromptHeaderAttributes {
+	export const mcpServers = 'mcp-servers';
 }
 
 export class PromptHeader {
@@ -166,6 +172,10 @@ export class PromptHeader {
 
 	public get argumentHint(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.argumentHint);
+	}
+
+	public get target(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.target);
 	}
 
 	public get tools(): string[] | undefined {

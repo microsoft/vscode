@@ -5,7 +5,7 @@
 
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { matchesSubString } from '../../../../../base/common/filters.js';
-import { IObservable, observableSignal } from '../../../../../base/common/observable.js';
+import { IObservable, ITransaction, observableSignal, observableValue } from '../../../../../base/common/observable.js';
 import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../../../base/common/strings.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
@@ -57,7 +57,7 @@ abstract class InlineSuggestionItemBase {
 	public get isFromExplicitRequest(): boolean { return this._data.context.triggerKind === InlineCompletionTriggerKind.Explicit; }
 	public get forwardStable(): boolean { return this.source.inlineSuggestions.enableForwardStability ?? false; }
 	public get editRange(): Range { return this.getSingleTextEdit().range; }
-	public get targetRange(): Range { return this.displayLocation?.range ?? this.editRange; }
+	public get targetRange(): Range { return this.displayLocation?.range && !this.displayLocation.jumpToEdit ? this.displayLocation?.range : this.editRange; }
 	public get insertText(): string { return this.getSingleTextEdit().text; }
 	public get semanticId(): string { return this.hash; }
 	public get action(): Command | undefined { return this._sourceInlineCompletion.action; }
@@ -143,6 +143,11 @@ export class InlineSuggestionIdentity {
 	private readonly _onDispose = observableSignal(this);
 	public readonly onDispose: IObservable<void> = this._onDispose;
 
+	private readonly _jumpedTo = observableValue(this, false);
+	public get jumpedTo(): IObservable<boolean> {
+		return this._jumpedTo;
+	}
+
 	private _refCount = 1;
 	public readonly id = 'InlineCompletionIdentity' + InlineSuggestionIdentity.idCounter++;
 
@@ -156,6 +161,10 @@ export class InlineSuggestionIdentity {
 			this._onDispose.trigger(undefined);
 		}
 	}
+
+	setJumpTo(tx: ITransaction | undefined): void {
+		this._jumpedTo.set(true, tx);
+	}
 }
 
 class InlineSuggestDisplayLocation implements IDisplayLocation {
@@ -164,14 +173,16 @@ class InlineSuggestDisplayLocation implements IDisplayLocation {
 		return new InlineSuggestDisplayLocation(
 			displayLocation.range,
 			displayLocation.label,
-			displayLocation.kind
+			displayLocation.kind,
+			displayLocation.jumpToEdit
 		);
 	}
 
 	private constructor(
 		public readonly range: Range,
 		public readonly label: string,
-		public readonly kind: InlineCompletionDisplayLocationKind
+		public readonly kind: InlineCompletionDisplayLocationKind,
+		public readonly jumpToEdit: boolean,
 	) { }
 
 	public withEdit(edit: StringEdit, positionOffsetTransformer: PositionOffsetTransformerBase): InlineSuggestDisplayLocation | undefined {
@@ -187,7 +198,7 @@ class InlineSuggestDisplayLocation implements IDisplayLocation {
 
 		const newRange = positionOffsetTransformer.getRange(newOffsetRange);
 
-		return new InlineSuggestDisplayLocation(newRange, this.label, this.kind);
+		return new InlineSuggestDisplayLocation(newRange, this.label, this.kind, this.jumpToEdit);
 	}
 }
 

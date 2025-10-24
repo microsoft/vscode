@@ -8,7 +8,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
-import type { ICommandDetectionCapability, ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
@@ -46,13 +46,20 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 				throw new Error('Xterm is not available');
 			}
 
-			const onDone: Promise<ITerminalCommand | void> = Promise.race([
+			const onDone = Promise.race([
 				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
 					this._log('onDone via end event');
-					return e;
+					return {
+						'type': 'success',
+						command: e
+					} as const;
 				}),
 				Event.toPromise(token.onCancellationRequested as Event<undefined>, store).then(() => {
 					this._log('onDone via cancellation');
+				}),
+				Event.toPromise(this._instance.onDisposed, store).then(() => {
+					this._log('onDone via terminal disposal');
+					return { type: 'disposal' } as const;
 				}),
 				trackIdleOnPrompt(this._instance, 1000, store).then(() => {
 					this._log('onDone via idle prompt');
@@ -73,7 +80,12 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 
 			// Wait for the terminal to idle
 			this._log('Waiting for done event');
-			const finishedCommand = await onDone;
+			const onDoneResult = await onDone;
+			if (onDoneResult && onDoneResult.type === 'disposal') {
+				throw new Error('The terminal was closed');
+			}
+			const finishedCommand = onDoneResult && onDoneResult.type === 'success' ? onDoneResult.command : undefined;
+
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}

@@ -16,7 +16,7 @@ import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { IArrayValue, IHeaderAttribute, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
+import { GithubPromptHeaderAttributes, IArrayValue, IHeaderAttribute, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
@@ -24,6 +24,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { AGENTS_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { Lazy } from '../../../../../../base/common/lazy.js';
 
 const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -40,7 +41,7 @@ export class PromptValidator {
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
 		promptAST.header?.errors.forEach(error => report(toMarker(error.message, error.range, MarkerSeverity.Error)));
 		this.validateHeader(promptAST, promptType, report);
-		await this.validateBody(promptAST, report);
+		await this.validateBody(promptAST, promptType, report);
 		await this.validateFileName(promptAST, promptType, report);
 	}
 
@@ -55,7 +56,7 @@ export class PromptValidator {
 		}
 	}
 
-	private async validateBody(promptAST: ParsedPromptFile, report: (markers: IMarkerData) => void): Promise<void> {
+	private async validateBody(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
 		const body = promptAST.body;
 		if (!body) {
 			return;
@@ -85,8 +86,10 @@ export class PromptValidator {
 			}
 		}
 
+		const isGitHubTarget = isGithubTarget(promptType, promptAST.header?.target);
+
 		// Validate variable references (tool or toolset names)
-		if (body.variableReferences.length) {
+		if (body.variableReferences.length && !isGitHubTarget) {
 			const headerTools = promptAST.header?.tools;
 			const headerToolsMap = headerTools ? this.languageModelToolsService.toToolAndToolSetEnablementMap(headerTools) : undefined;
 
@@ -117,30 +120,16 @@ export class PromptValidator {
 		if (!header) {
 			return;
 		}
-		const validAttributeNames = getValidAttributeNames(promptType, true);
 		const attributes = header.attributes;
-		for (const attribute of attributes) {
-			if (!validAttributeNames.includes(attribute.key)) {
-				const supportedNames = getValidAttributeNames(promptType, false).join(', ');
-				switch (promptType) {
-					case PromptsType.prompt:
-						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
-						break;
-					case PromptsType.agent:
-						report(toMarker(localize('promptValidator.unknownAttribute.agent', "Attribute '{0}' is not supported in custom agent files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
-						break;
-					case PromptsType.instructions:
-						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
-						break;
-				}
-			}
-		}
+		const isGitHubTarget = isGithubTarget(promptType, header.target);
+		this.checkForInvalidArguments(attributes, promptType, isGitHubTarget, report);
+
 		this.validateDescription(attributes, report);
 		this.validateArgumentHint(attributes, report);
 		switch (promptType) {
 			case PromptsType.prompt: {
 				const agent = this.validateAgent(attributes, report);
-				this.validateTools(attributes, agent?.kind ?? ChatModeKind.Agent, report);
+				this.validateTools(attributes, agent?.kind ?? ChatModeKind.Agent, false, report);
 				this.validateModel(attributes, agent?.kind ?? ChatModeKind.Agent, report);
 				break;
 			}
@@ -149,12 +138,40 @@ export class PromptValidator {
 				this.validateExcludeAgent(attributes, report);
 				break;
 
-			case PromptsType.agent:
-				this.validateTools(attributes, ChatModeKind.Agent, report);
-				this.validateModel(attributes, ChatModeKind.Agent, report);
-				this.validateHandoffs(attributes, report);
+			case PromptsType.agent: {
+				this.validateTarget(attributes, report);
+				this.validateTools(attributes, ChatModeKind.Agent, isGitHubTarget, report);
+				if (!isGitHubTarget) {
+					this.validateModel(attributes, ChatModeKind.Agent, report);
+					this.validateHandoffs(attributes, report);
+				}
 				break;
+			}
 
+		}
+	}
+
+	private checkForInvalidArguments(attributes: IHeaderAttribute[], promptType: PromptsType, isGitHubTarget: boolean, report: (markers: IMarkerData) => void): void {
+		const validAttributeNames = getValidAttributeNames(promptType, true, isGitHubTarget);
+		for (const attribute of attributes) {
+			if (!validAttributeNames.includes(attribute.key)) {
+				const supportedNames = new Lazy(() => getValidAttributeNames(promptType, false, isGitHubTarget).sort().join(', '));
+				switch (promptType) {
+					case PromptsType.prompt:
+						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						break;
+					case PromptsType.agent:
+						if (isGitHubTarget) {
+							report(toMarker(localize('promptValidator.unknownAttribute.github-agent', "Attribute '{0}' is not supported in custom GitHub Copilot agent files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						} else {
+							report(toMarker(localize('promptValidator.unknownAttribute.vscode-agent', "Attribute '{0}' is not supported in VS Code agent files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						}
+						break;
+					case PromptsType.instructions:
+						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						break;
+				}
+			}
 		}
 	}
 
@@ -268,7 +285,7 @@ export class PromptValidator {
 		return undefined;
 	}
 
-	private validateTools(attributes: IHeaderAttribute[], agentKind: ChatModeKind, report: (markers: IMarkerData) => void): undefined {
+	private validateTools(attributes: IHeaderAttribute[], agentKind: ChatModeKind, isGitHubTarget: boolean, report: (markers: IMarkerData) => void): undefined {
 		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.tools);
 		if (!attribute) {
 			return;
@@ -279,14 +296,18 @@ export class PromptValidator {
 
 		switch (attribute.value.type) {
 			case 'array':
-				this.validateToolsArray(attribute.value, report);
+				if (isGitHubTarget) {
+					// no validation for github-copilot target
+				} else {
+					this.validateVSCodeTools(attribute.value, report);
+				}
 				break;
 			default:
 				report(toMarker(localize('promptValidator.toolsMustBeArrayOrMap', "The 'tools' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
 		}
 	}
 
-	private validateToolsArray(valueItem: IArrayValue, report: (markers: IMarkerData) => void) {
+	private validateVSCodeTools(valueItem: IArrayValue, report: (markers: IMarkerData) => void) {
 		if (valueItem.items.length > 0) {
 			const available = new Set<string>(this.languageModelToolsService.getQualifiedToolNames());
 			const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
@@ -391,25 +412,60 @@ export class PromptValidator {
 			}
 		}
 	}
+
+	private validateTarget(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.target);
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'string') {
+			report(toMarker(localize('promptValidator.targetMustBeString', "The 'target' attribute must be a string."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+		const targetValue = attribute.value.value.trim();
+		if (targetValue.length === 0) {
+			report(toMarker(localize('promptValidator.targetMustBeNonEmpty', "The 'target' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+		const validTargets = ['github-copilot', 'vscode'];
+		if (!validTargets.includes(targetValue)) {
+			report(toMarker(localize('promptValidator.targetInvalidValue', "The 'target' attribute must be one of: {0}.", validTargets.join(', ')), attribute.value.range, MarkerSeverity.Error));
+		}
+	}
 }
 
 const allAttributeNames = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
-	[PromptsType.agent]: [PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint]
+	[PromptsType.agent]: [PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target]
 };
+const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers];
 const recommendedAttributeNames = {
 	[PromptsType.prompt]: allAttributeNames[PromptsType.prompt].filter(name => !isNonRecommendedAttribute(name)),
 	[PromptsType.instructions]: allAttributeNames[PromptsType.instructions].filter(name => !isNonRecommendedAttribute(name)),
 	[PromptsType.agent]: allAttributeNames[PromptsType.agent].filter(name => !isNonRecommendedAttribute(name))
 };
 
-export function getValidAttributeNames(promptType: PromptsType, includeNonRecommended: boolean): string[] {
+export function getValidAttributeNames(promptType: PromptsType, includeNonRecommended: boolean, isGitHubTarget: boolean): string[] {
+	if (isGitHubTarget && promptType === PromptsType.agent) {
+		return githubCopilotAgentAttributeNames;
+	}
 	return includeNonRecommended ? allAttributeNames[promptType] : recommendedAttributeNames[promptType];
 }
 
 export function isNonRecommendedAttribute(attributeName: string): boolean {
 	return attributeName === PromptHeaderAttributes.advancedOptions || attributeName === PromptHeaderAttributes.excludeAgent || attributeName === PromptHeaderAttributes.mode;
+}
+
+// The list of tools known to be used by GitHub Copilot custom agents
+export const knownGithubCopilotTools: Record<string, string> = {
+	'shell': localize('githubCopilotTools.shell', 'Execute shell commands'),
+	'edit': localize('githubCopilotTools.edit', 'Edit files'),
+	'search': localize('githubCopilotTools.search', 'Search in files'),
+	'custom-agent': localize('githubCopilotTools.customAgent', 'Call custom agents')
+};
+export function isGithubTarget(promptType: PromptsType, target: string | undefined): boolean {
+	return promptType === PromptsType.agent && target === 'github-copilot';
 }
 
 function toMarker(message: string, range: Range, severity = MarkerSeverity.Error): IMarkerData {
