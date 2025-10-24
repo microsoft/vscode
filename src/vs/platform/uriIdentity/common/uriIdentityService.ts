@@ -11,6 +11,7 @@ import { ExtUri, IExtUri, normalizePath } from '../../../base/common/resources.j
 import { SkipList } from '../../../base/common/skipList.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { quickSelect } from '../../../base/common/arrays.js';
 import { compare as strCompare } from '../../../base/common/strings.js';
 
 class Entry {
@@ -140,24 +141,21 @@ export class UriIdentityService extends Disposable implements IUriIdentityServic
 			return;
 		}
 
-		// get all entries, sort by time (MRU) and re-initalize
-		// the uri cache and the entry clock. this is an expensive
-		// operation and should happen rarely
-		const entries = [...this._canonicalUris.entries()].sort((a, b) => {
-			if (a[1].time < b[1].time) {
-				return 1;
-			} else if (a[1].time > b[1].time) {
-				return -1;
-			} else {
-				return 0;
-			}
-		});
-
 		Entry._clock = 0;
-		this._canonicalUris.clear();
-		const newSize = this._limit * 0.5;
-		for (let i = 0; i < newSize; i++) {
-			this._canonicalUris.set(entries[i][0], entries[i][1].touch());
+		const times = [...this._canonicalUris.values()].map(e => e.time);
+		const median = quickSelect(
+			Math.floor(times.length / 2),
+			times,
+			(a, b) => a - b);
+		for (const [key, entry] of this._canonicalUris.entries()) {
+			// Its important to remove the median value here (<= not <).
+			// If we have not touched any items since the last trim, the
+			// median will be 0 and no items will be removed otherwise.
+			if (entry.time <= median) {
+				this._canonicalUris.delete(key);
+			} else {
+				entry.time = 0;
+			}
 		}
 	}
 }
