@@ -466,6 +466,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'navigation',
 	order: 3,
+	when: ChatContextKeys.sessionType.isEqualTo('local'),
 });
 
 // Register the toggle command for the ViewTitle menu
