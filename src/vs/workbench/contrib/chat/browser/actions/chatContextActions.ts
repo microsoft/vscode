@@ -35,6 +35,7 @@ import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, isEditorCommandsContext, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { CTX_INLINE_CHAT_V2_ENABLED } from '../../../inlineChat/common/inlineChat.js';
@@ -67,10 +68,11 @@ export function registerChatContextActions() {
 async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | undefined> {
 	const viewsService = accessor.get(IViewsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
+	const layoutService = accessor.get(IWorkbenchLayoutService);
 
 	const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
 	if (!lastFocusedWidget || lastFocusedWidget.location === ChatAgentLocation.Chat) {
-		return showChatView(viewsService); // only show chat view if we either have no chat view or its located in view container
+		return showChatView(viewsService, layoutService); // only show chat view if we either have no chat view or its located in view container
 	}
 	return lastFocusedWidget;
 }

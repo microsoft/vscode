@@ -12,6 +12,7 @@ import { Position } from '../../../../editor/common/core/position.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IValidEditOperation } from '../../../../editor/common/model.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { showChatView } from '../../chat/browser/chat.js';
 import { IChatEditingSession } from '../../chat/common/chatEditingService.js';
@@ -79,8 +80,9 @@ export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatMo
 
 	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
+	const layoutService = accessor.get(IWorkbenchLayoutService);
 
-	const widget = await showChatView(viewsService);
+	const widget = await showChatView(viewsService, layoutService);
 
 	if (widget && widget.viewModel && model) {
 		let lastRequest: IChatRequestModel | undefined;

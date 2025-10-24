@@ -98,6 +98,16 @@ suite('BooleanPolicy', () => {
 		assert.strictEqual(presentation, '<presentation id="TestBooleanPolicy"><checkBox refId="TestBooleanPolicy">TestBooleanPolicy</checkBox></presentation>');
 	});
 
+	test('should render JSON value correctly', () => {
+		const policy = BooleanPolicy.from(mockCategory, mockPolicy);
+
+		assert.ok(policy);
+
+		const jsonValue = policy.renderJsonValue();
+
+		assert.strictEqual(jsonValue, false);
+	});
+
 	test('should render profile value correctly', () => {
 		const policy = BooleanPolicy.from(mockCategory, mockPolicy);
 
