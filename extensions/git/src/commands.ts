@@ -5216,7 +5216,7 @@ export class CommandCenter {
 							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
 							.filter((line: string) => !!line)
-						[0];
+							.join("\n");
 
 						message = hint
 							? l10n.t('Git: {0}', hint)
