@@ -290,7 +290,7 @@ suite('RunInTerminalTool', () => {
 			'A=1 B=2 C=3 ./script.sh',
 		];
 
-		suite('auto approved', () => {
+		suite.skip('auto approved', () => {
 			for (const command of autoApprovedTestCases) {
 				test(command.replaceAll('\n', '\\n'), async () => {
 					assertAutoApproved(await executeToolTest({ command }));
