@@ -96,6 +96,9 @@ function isWindowsDeviceRoot(code: number) {
 
 // Resolves . and .. elements in a path with directory names
 function normalizeString(path: string, allowAboveRoot: boolean, separator: string, isPathSeparator: (code?: number) => boolean) {
+	if (!path.includes('./') {
+		return path;
+	}
 	let res = '';
 	let lastSegmentLength = 0;
 	let lastSlash = -1;
