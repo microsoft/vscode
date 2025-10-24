@@ -225,7 +225,21 @@ export class ToolBar extends Disposable {
 
 	setToolbarMaxWidth(maxWidth: number) {
 		const getItemsWidth = () => {
-			return this.actionBar.length() * 24 /* minWidth of an action item */;
+			let itemsWidth = this.getItemsWidth();
+
+			// Get the width of the last visible primary action
+			const lastVisiblePrimaryActionIndex = this.originalPrimaryActions.length - this.hiddenActions.length - 1;
+			const lastVisiblePrimaryActionWidth = this.actionBar.getWidth(lastVisiblePrimaryActionIndex);
+
+			// If the last visible primary action is wider than 24px, it means that it has a label. We
+			// needs to adjust the width so that we allow the last visible primary action to shrink until
+			// it becomes an icon.
+			if (lastVisiblePrimaryActionWidth > 24) {
+				/* change to 24 when the sync action is fixed */
+				itemsWidth = itemsWidth - lastVisiblePrimaryActionWidth + 26;
+			}
+
+			return itemsWidth;
 		};
 
 		if (
