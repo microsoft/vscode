@@ -230,7 +230,8 @@ export interface ISCMHistoryItemChangeRangeVariableEntry extends IBaseChatReques
 
 export interface ITerminalVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'terminalCommand';
-	readonly value: URI;
+	readonly value: string;
+	readonly resource: URI;
 	readonly command: string;
 	readonly output?: string;
 	readonly exitCode?: number;

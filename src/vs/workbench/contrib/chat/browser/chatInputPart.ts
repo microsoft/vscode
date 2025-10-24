@@ -1639,7 +1639,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			} else if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
 				attachmentWidget = this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, undefined, this._currentLanguageModel, options, container, this._contextResourceLabels);
 			} else if (resource && attachment.kind === 'terminalCommand') {
-				attachmentWidget = this.instantiationService.createInstance(TerminalCommandAttachmentWidget, resource, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels);
+				attachmentWidget = this.instantiationService.createInstance(TerminalCommandAttachmentWidget, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels);
 			} else if (isImageVariableEntry(attachment)) {
 				attachmentWidget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels);
 			} else if (isElementVariableEntry(attachment)) {

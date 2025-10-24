@@ -262,7 +262,6 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 export class TerminalCommandAttachmentWidget extends AbstractChatAttachmentWidget {
 
 	constructor(
-		resource: URI,
 		attachment: ITerminalVariableEntry,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
@@ -276,7 +275,7 @@ export class TerminalCommandAttachmentWidget extends AbstractChatAttachmentWidge
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, terminalService);
 
 		const ariaLabel = localize('chat.terminalCommand', "Terminal command, {0}", attachment.command);
-		const clickHandler = () => this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
+		const clickHandler = () => this.openResource(attachment.resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 
 		this._register(createTerminalCommandElements(this.element, attachment, ariaLabel, this.hoverService, clickHandler));
 

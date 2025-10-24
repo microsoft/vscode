@@ -31,7 +31,7 @@ import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 
 
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
@@ -286,11 +286,12 @@ export class TerminalContext implements IChatContextValueItem {
 		const attachment: IChatRequestVariableEntry = {
 			kind: 'terminalCommand',
 			id: `terminalCommand:${Date.now()}}`,
-			value: this._resource,
+			value: this.asValue(command),
 			name: command.command,
 			command: command.command,
 			output: command.getOutput(),
 			exitCode: command.exitCode,
+			resource: this._resource
 		};
 		const cleanup = new DisposableStore();
 		let disposed = false;
@@ -312,6 +313,18 @@ export class TerminalContext implements IChatContextValueItem {
 			disposeCleanup();
 		}));
 		return attachment;
+	}
+
+	private asValue(command: ITerminalCommand): string {
+		let value = `Command: ${command.command}`;
+		const output = command.getOutput();
+		if (output) {
+			value += `\nOutput:\n${output}`;
+		}
+		if (typeof command.exitCode === 'number') {
+			value += `\nExit Code: ${command.exitCode}`;
+		}
+		return value;
 	}
 }
 
