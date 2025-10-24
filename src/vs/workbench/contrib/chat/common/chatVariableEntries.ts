@@ -262,6 +262,10 @@ export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is 
 	return obj.kind === 'implicit';
 }
 
+export function isTerminalVariableEntry(obj: IChatRequestVariableEntry): obj is ITerminalVariableEntry {
+	return obj.kind === 'terminalCommand';
+}
+
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
 	return obj.kind === 'paste';
 }
