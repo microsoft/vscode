@@ -10,6 +10,7 @@ export const enum McpGalleryResourceType {
 	McpServersQueryService = 'McpServersQueryService',
 	McpServerWebUri = 'McpServerWebUriTemplate',
 	McpServerVersionUri = 'McpServerVersionUriTemplate',
+	McpServerIdUri = 'McpServerIdUriTemplate',
 	McpServerLatestVersionUri = 'McpServerLatestVersionUriTemplate',
 	McpServerNamedResourceUri = 'McpServerNamedResourceUriTemplate',
 	PublisherUriTemplate = 'PublisherUriTemplate',

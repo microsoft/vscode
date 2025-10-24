@@ -5,12 +5,12 @@
 
 import { IAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import './media/scm.css';
 import { localize } from '../../../../nls.js';
 import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IMenu, IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -325,7 +325,6 @@ export class SCMMenus implements ISCMMenus, IDisposable {
 
 	readonly titleMenu: SCMTitleMenu;
 	private readonly disposables = new DisposableStore();
-	private readonly repositoryMenuDisposables = new DisposableStore();
 	private readonly menus = new Map<ISCMProvider, { menus: SCMRepositoryMenus; dispose: () => void }>();
 
 	constructor(
@@ -334,26 +333,6 @@ export class SCMMenus implements ISCMMenus, IDisposable {
 	) {
 		this.titleMenu = instantiationService.createInstance(SCMTitleMenu);
 		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
-
-		// Duplicate the `SCMTitle` menu items to the `SCMSourceControlInline` menu. We do this
-		// so that menu items can be independently hidden/shown in the "Source Control" and the
-		// "Source Control Repositories" views.
-		this.disposables.add(Event.runAndSubscribe(MenuRegistry.onDidChangeMenu, e => {
-			if (e && !e.has(MenuId.SCMTitle)) {
-				return;
-			}
-
-			this.repositoryMenuDisposables.clear();
-			for (const menuItem of MenuRegistry.getMenuItems(MenuId.SCMTitle)) {
-				// In order to keep the Repositories view clean, we hide the
-				// primary actions by default. Users can always promote actions
-				// from the `...` menu to inline actions.
-				if (isIMenuItem(menuItem) && menuItem.group === 'navigation') {
-					menuItem.isHiddenByDefault = true;
-				}
-				this.repositoryMenuDisposables.add(MenuRegistry.appendMenuItem(MenuId.SCMSourceControlInline, menuItem));
-			}
-		}));
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {

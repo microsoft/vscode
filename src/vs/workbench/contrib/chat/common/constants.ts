@@ -49,11 +49,14 @@ export function isChatMode(mode: unknown): mode is ChatModeKind {
 
 // Thinking display modes for pinned content
 export enum ThinkingDisplayMode {
+	Default = 'default',
 	Collapsed = 'collapsed',
 	CollapsedPreview = 'collapsedPreview',
 	Expanded = 'expanded',
 	None = 'none',
-	CollapsedPerItem = 'collapsedPerItem'
+	CollapsedPerItem = 'collapsedPerItem',
+	FixedScrolling = 'fixedScrolling',
+	FixedScrollingTools = 'fixedScrollingTools'
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
@@ -86,6 +89,6 @@ export namespace ChatAgentLocation {
 
 export const ChatUnsupportedFileSchemes = new Set([Schemas.vscodeChatEditor, Schemas.walkThrough, Schemas.vscodeChatSession, 'ccreq']);
 
-export const VIEWLET_ID = 'workbench.view.chat.sessions';
+export const AGENT_SESSIONS_VIEWLET_ID = 'workbench.view.chat.sessions'; // TODO@bpasero clear once settled
 
 export const ChatEditorTitleMaxLength = 30;
