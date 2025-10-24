@@ -392,6 +392,10 @@ export function getWorkspaceForTerminal(cwd: URI | string | undefined, workspace
 	return workspaceFolder;
 }
 
+/**
+ * Gets the unified duration to wait for shell integration after the terminal launches before
+ * declaring the terminal lacks shell integration.
+ */
 export function getShellIntegrationTimeout(
 	configurationService: IConfigurationService,
 	siInjectionEnabled: boolean,
