@@ -23,7 +23,8 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import { Schemas } from '../../../../../../base/common/network.js';
 import { TreeSitterLibraryService } from '../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
 
-suite('command re-writing', () => {
+// TODO: The powershell grammar can cause an OOM crash on arm https://github.com/microsoft/vscode/issues/273177
+(process.arch === 'arm' || process.arch === 'arm64' ? suite.skip : suite)('command re-writing', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
