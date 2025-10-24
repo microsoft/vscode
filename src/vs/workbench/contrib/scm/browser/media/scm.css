@@ -205,7 +205,7 @@
 }
 
 .scm-view .monaco-list-row .history-item > .label-container > .label > .codicon {
-	font-size: 14px;
+	font-size: 16px;
 	color: inherit !important;
 	padding: 2px;
 }
