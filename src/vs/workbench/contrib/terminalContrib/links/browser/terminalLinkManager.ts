@@ -462,14 +462,7 @@ export class TerminalLinkManager extends DisposableStore {
 
 		const markdown = new MarkdownString('', true);
 		// Escapes markdown in label & uri
-		if (label) {
-			label = markdown.appendText(label).value;
-			markdown.value = '';
-		}
-		if (uri) {
-			uri = markdown.appendText(uri).value;
-			markdown.value = '';
-		}
+		// Don't escape label or uri - use raw values
 
 		label = label || fallbackLabel;
 		// Use the label when uri is '' so the link displays correctly
