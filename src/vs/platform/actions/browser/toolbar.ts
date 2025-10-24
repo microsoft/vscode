@@ -88,6 +88,11 @@ export class WorkbenchToolBar extends ToolBar {
 
 	private readonly _sessionDisposables = this._store.add(new DisposableStore());
 
+	private _primaryActions: ReadonlyArray<IAction> = [];
+	private _secondaryActions: ReadonlyArray<IAction> | undefined;
+	private _menuIds: readonly MenuId[] | undefined;
+	private readonly _resetMenu: MenuId | undefined;
+
 	constructor(
 		container: HTMLElement,
 		private _options: IWorkbenchToolBarOptions | undefined,
@@ -108,6 +113,11 @@ export class WorkbenchToolBar extends ToolBar {
 			skipTelemetry: typeof _options?.telemetrySource === 'string',
 		});
 
+		if (_options?.resetMenu) {
+			this._resetMenu = _options.resetMenu;
+			this.isToggleMenuHidden = this._menuService.getHiddenState(this._resetMenu, this.toggleMenuAction.id);
+		}
+
 		// telemetry logic
 		const telemetrySource = _options?.telemetrySource;
 		if (telemetrySource) {
@@ -119,7 +129,9 @@ export class WorkbenchToolBar extends ToolBar {
 	}
 
 	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[] = [], menuIds?: readonly MenuId[]): void {
-
+		this._primaryActions = _primary;
+		this._secondaryActions = _secondary;
+		this._menuIds = menuIds;
 		this._sessionDisposables.clear();
 		const primary: Array<IAction | undefined> = _primary.slice(); // for hiding and overflow we set some items to undefined
 		const secondary = _secondary.slice();
@@ -200,6 +212,12 @@ export class WorkbenchToolBar extends ToolBar {
 
 				const primaryActions = [];
 
+				// More Actions... submenu if dedicated button has been hidden
+				if (this.isToggleMenuHidden && (secondary.length + extraSecondary.length) > 0) {
+					primaryActions.push(new SubmenuAction(ToggleMenuAction.ID, this.toggleMenuAction.label, Separator.join(extraSecondary, secondary)));
+					primaryActions.push(new Separator());
+				}
+
 				// -- Configure Keybinding Action --
 				if (action instanceof MenuItemAction && action.menuKeybinding) {
 					primaryActions.push(action.menuKeybinding);
@@ -239,6 +257,19 @@ export class WorkbenchToolBar extends ToolBar {
 						}
 						primaryActions.push(action.hideActions.hide);
 
+					} else if (action instanceof ToggleMenuAction && primary.length > 0 && this._resetMenu) {
+						// Only offered if caller provided a reset menu (to persist state on) and at least one primary button remains (from which to access Show 'More Actions...')
+						primaryActions.push(toAction({
+							id: 'label',
+							label: localize('hideToggleMenu', 'Hide \'{0}\'', action.label),
+							run: () => {
+								this.isToggleMenuHidden = true;
+								if (this._resetMenu) {
+									this._menuService.setHiddenState(this._resetMenu, this.toggleMenuAction.id, true);
+								}
+								this.setActions(this._primaryActions, this._secondaryActions, this._menuIds);
+							}
+						}));
 					} else {
 						primaryActions.push(toAction({
 							id: 'label',
@@ -251,12 +282,35 @@ export class WorkbenchToolBar extends ToolBar {
 
 				const actions = Separator.join(primaryActions, toggleActions);
 
+				// Add option to show the More Actions button if it is hidden
+				let separatorAdded = false;
+				if (secondary.length + extraSecondary.length > 0) {
+					if (this.isToggleMenuHidden) {
+						actions.push(new Separator());
+						separatorAdded = true;
+						actions.push(toAction({
+							id: 'showToggleMenu',
+							label: localize('showToggleMenu', 'Show \'{0}\'', this.toggleMenuAction.label),
+							run: () => {
+								this.isToggleMenuHidden = false;
+								if (this._resetMenu) {
+									this._menuService.setHiddenState(this._resetMenu, this.toggleMenuAction.id, false);
+								}
+								this.setActions(this._primaryActions, this._secondaryActions, this._menuIds);
+							}
+						}));
+					}
+				}
+
 				// add "Reset Menu" action
 				if (this._options?.resetMenu && !menuIds) {
 					menuIds = [this._options.resetMenu];
 				}
 				if (someAreHidden && menuIds) {
-					actions.push(new Separator());
+					if (!separatorAdded) {
+						actions.push(new Separator());
+						separatorAdded = true;
+					}
 					actions.push(toAction({
 						id: 'resetThisMenu',
 						label: localize('resetThisMenu', "Reset Menu"),
