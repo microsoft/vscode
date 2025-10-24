@@ -224,18 +224,20 @@ export class ToolBar extends Disposable {
 	}
 
 	setToolbarMaxWidth(maxWidth: number) {
-		const itemsWidth = this.getItemsWidth();
+		const getItemsWidth = () => {
+			return this.actionBar.length() * 24 /* minWidth of an action item */;
+		};
 
 		if (
 			this.actionBar.isEmpty() ||
-			(itemsWidth <= maxWidth && this.hiddenActions.length === 0)
+			(getItemsWidth() <= maxWidth && this.hiddenActions.length === 0)
 		) {
 			return;
 		}
 
-		if (this.getItemsWidth() > maxWidth) {
+		if (getItemsWidth() > maxWidth) {
 			// Hide actions from the right
-			while (this.getItemsWidth() > maxWidth && this.actionBar.length() > 0) {
+			while (getItemsWidth() > maxWidth && this.actionBar.length() > 0) {
 				const index = this.originalPrimaryActions.length - this.hiddenActions.length - 1;
 				if (index < 0) {
 					break;
@@ -264,7 +266,7 @@ export class ToolBar extends Disposable {
 			// Show actions from the top of the toggle menu
 			while (this.hiddenActions.length > 0) {
 				const entry = this.hiddenActions.shift()!;
-				if (this.getItemsWidth() + entry.size > maxWidth) {
+				if (getItemsWidth() + entry.size > maxWidth) {
 					// Not enough space to show the action
 					this.hiddenActions.unshift(entry);
 					break;
