@@ -1033,7 +1033,6 @@ export type LifetimeSummary = {
 	notShownReason: string | undefined;
 	editorType: string;
 	viewKind: string | undefined;
-	error: string | undefined;
 	preceeded: boolean;
 	languageId: string;
 	requestReason: string;
