@@ -751,8 +751,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			}
 
 			try {
-				if ((await this.fileService.stat(resource)).isFile) {
-					return resource;
+				const stat = await this.fileService.stat(resource);
+				if (stat.isFile) {
+					return await this.matchFilenameCasing(resource);
 				}
 			} catch (error) {
 				// ignore if file does not exist
@@ -784,8 +785,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				);
 
 				try {
-					if ((await this.fileService.stat(resource)).isFile) {
-						resources.push(resource);
+					const stat = await this.fileService.stat(resource);
+					if (stat.isFile) {
+						resources.push(await this.matchFilenameCasing(resource));
 					}
 				} catch (error) {
 					// ignore if file does not exist
@@ -796,6 +798,21 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		return;
+	}
+
+	/**
+	 * Attempts to match the filename casing to file system by checking the parent folder's children.
+	 */
+	private async matchFilenameCasing(resource: URI): Promise<URI> {
+		const parent = dirname(resource);
+		const stat = await this.fileService.resolve(parent, { resolveTo: [resource] });
+		if (stat?.children) {
+			const match = stat.children.find(child => this.uriIdentityService.extUri.isEqual(child.resource, resource));
+			if (match) {
+				return URI.joinPath(parent, match.name);
+			}
+		}
+		return resource;
 	}
 
 	//#endregion
