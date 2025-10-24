@@ -115,8 +115,10 @@ export class ActionWidgetDropdown extends BaseDropdown {
 				this.actionWidgetService.hide();
 				action.run();
 			},
-			onHide: () => {
-				if (isHTMLElement(previouslyFocusedElement)) {
+			onHide: (didCancel) => {
+				// Only refocus previous element if the dropdown was not cancelled (e.g., by pressing escape)
+				// This prevents the escape key from propagating to the refocused element
+				if (!didCancel && isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
 			}
