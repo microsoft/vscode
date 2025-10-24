@@ -60,6 +60,7 @@ function createPowerShellModelDescription(shell: string): string {
 		// doesn't parse `&&`. See https://github.com/airbus-cert/tree-sitter-powershell/issues/27
 		'- Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly',
 		'- Prefer pipelines | for object-based data flow',
+		'- Never create a sub-shell (eg. powershell -c "command") unless explicitly asked',
 		'',
 		'Directory Management:',
 		'- Must use absolute paths to avoid navigation issues',
@@ -97,6 +98,7 @@ Command Execution:
 - Does NOT support multi-line commands
 - Use && to chain simple commands on one line
 - Prefer pipelines | over temporary files for data flow
+- Never create a sub-shell (eg. bash -c "command") unless explicitly asked
 
 Directory Management:
 - Must use absolute paths to avoid navigation issues
