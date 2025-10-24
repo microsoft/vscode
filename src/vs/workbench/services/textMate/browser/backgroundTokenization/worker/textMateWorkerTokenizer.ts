@@ -137,22 +137,18 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 
 				tokenizedLines++;
 
-				const lineNumber = lineToTokenize.lineNumber;
-				const text = this._lines[lineNumber - 1];
+				const text = this._lines[lineToTokenize.lineNumber - 1];
 				const r = this._tokenizerWithStateStore.tokenizationSupport.tokenizeEncoded(text, true, lineToTokenize.startState);
-				if (this._tokenizerWithStateStore.store.setEndState(lineNumber, r.endState as StateStack)) {
+				if (this._tokenizerWithStateStore.store.setEndState(lineToTokenize.lineNumber, r.endState as StateStack)) {
 					const delta = this._diffStateStacksRefEqFn(lineToTokenize.startState, r.endState as StateStack);
-					stateDeltaBuilder.setState(lineNumber, delta);
+					stateDeltaBuilder.setState(lineToTokenize.lineNumber, delta);
 				} else {
-					stateDeltaBuilder.setState(lineNumber, null);
+					stateDeltaBuilder.setState(lineToTokenize.lineNumber, null);
 				}
 
 				LineTokens.convertToEndOffset(r.tokens, text.length);
-				tokenBuilder.add(lineNumber, r.tokens);
-				lineFontInfos.push({
-					lineNumber,
-					options: r.fontInfo
-				});
+				tokenBuilder.add(lineToTokenize.lineNumber, r.tokens);
+				lineFontInfos.push({ lineNumber: lineToTokenize.lineNumber, options: r.fontInfo });
 
 				const deltaMs = new Date().getTime() - startTime;
 				if (deltaMs > 20) {
@@ -166,7 +162,6 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			}
 
 			const stateDeltas = stateDeltaBuilder.getStateDeltas();
-			console.log('TextMateWorkerTokenizer lineFontInfos: ', lineFontInfos);
 			this._host.setFontInfo(lineFontInfos);
 			this._host.setTokensAndStates(
 				this._versionId,

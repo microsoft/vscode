@@ -16,7 +16,7 @@ import { Selection } from './core/selection.js';
 import { TextChange } from './core/textChange.js';
 import { WordCharacterClassifier } from './core/wordCharacterClassifier.js';
 import { IWordAtPosition } from './core/wordHelper.js';
-import { FormattingOptions, ILineFontChangedEvent } from './languages.js';
+import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';

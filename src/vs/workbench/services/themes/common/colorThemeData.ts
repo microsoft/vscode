@@ -120,14 +120,15 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 					if (rule.scope === 'token.info-token') {
 						hasDefaultTokens = true;
 					}
+					const ruleSettings = rule.settings;
 					result.push({
 						scope: rule.scope, settings: {
-							foreground: normalizeColor(rule.settings.foreground),
-							background: normalizeColor(rule.settings.background),
-							fontStyle: rule.settings.fontStyle,
-							fontSize: rule.settings.fontSize,
-							fontFamily: rule.settings.fontFamily,
-							lineHeight: rule.settings.lineHeight
+							foreground: normalizeColor(ruleSettings.foreground),
+							background: normalizeColor(ruleSettings.background),
+							fontStyle: ruleSettings.fontStyle,
+							fontSize: ruleSettings.fontSize,
+							fontFamily: ruleSettings.fontFamily,
+							lineHeight: ruleSettings.lineHeight
 						}
 					});
 				}

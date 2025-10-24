@@ -69,13 +69,13 @@ export class TokenizationResult {
  */
 export interface ILineFontChangedEvent {
 	readonly lineNumber: number;
-	readonly options: IVariableFontOption[];
+	readonly options: IFontOption[];
 }
 
 /**
  * @internal
  */
-export interface IVariableFontOption {
+export interface IFontOption {
 	readonly startIndex: number;
 	readonly length: number;
 	readonly fontFamily: string | null;
@@ -97,8 +97,8 @@ export class EncodedTokenizationResult {
 		 *
 		 */
 		public readonly tokens: Uint32Array,
-		public readonly fontInfo: IVariableFontOption[],
-		public readonly endState: IState
+		public readonly fontInfo: IFontOption[],
+		public readonly endState: IState,
 	) {
 	}
 }

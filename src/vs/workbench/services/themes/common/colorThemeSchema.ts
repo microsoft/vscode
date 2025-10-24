@@ -176,11 +176,11 @@ const textmateColorSchema: IJSONSchema = {
 				},
 				fontSize: {
 					type: 'string',
-					description: nls.localize('schema.token.fontSize', 'Font size for the token (e.g., "14px", "1.2em").')
+					description: nls.localize('schema.token.fontSize', 'Font size string for the token (e.g., "14px", "1.2em").')
 				},
 				lineHeight: {
 					type: 'number',
-					description: nls.localize('schema.token.lineHeight', 'Line height for the token (e.g., "20").')
+					description: nls.localize('schema.token.lineHeight', 'Line height number for the token (e.g., "20").')
 				}
 			},
 			additionalProperties: false,
