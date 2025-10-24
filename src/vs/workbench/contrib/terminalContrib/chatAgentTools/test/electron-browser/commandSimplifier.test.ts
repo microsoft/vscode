@@ -331,7 +331,7 @@ suite('command re-writing', () => {
 			test('should not rewrite cd /d when directory does not match cwd', async () => {
 				const testDir = 'C:\\test\\workspace';
 				const differentDir = 'C:\\different\\path';
-				const command = `cd /d ${differentDir} && echo hello`;
+				const command = `cd /d ${differentDir} ; echo hello`;
 				const options = createRewriteParams(command, 'session-1');
 				setWorkspaceFolders([URI.file(testDir)]);
 
