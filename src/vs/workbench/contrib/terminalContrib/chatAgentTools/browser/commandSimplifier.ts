@@ -84,18 +84,21 @@ export class CommandSimplifier {
 	private async _rewriteUnsupportedPwshChainOperators(commandLine: string, os: OperatingSystem, shell: string) {
 		// TODO: This should just be Windows PowerShell in the future when the powershell grammar
 		// supports chain operators https://github.com/airbus-cert/tree-sitter-powershell/issues/27
-		const disablePowerShellRewrites = true; // see https://github.com/microsoft/vscode/issues/273177
-		if (!disablePowerShellRewrites && isPowerShell(shell, os)) {
-			const doubleAmpersandCaptures = await this._treeSitterCommandParser.queryTree(TreeSitterCommandParserLanguage.PowerShell, commandLine, [
-				'(',
-				'  (command',
-				'    (command_elements',
-				'      (generic_token) @double.ampersand',
-				'        (#eq? @double.ampersand "&&")))',
-				')',
-			].join('\n'));
-			for (const capture of doubleAmpersandCaptures.reverse()) {
-				commandLine = `${commandLine.substring(0, capture.node.startIndex)};${commandLine.substring(capture.node.endIndex)}`;
+		if (isPowerShell(shell, os)) {
+			try {
+				const doubleAmpersandCaptures = await this._treeSitterCommandParser.queryTree(TreeSitterCommandParserLanguage.PowerShell, commandLine, [
+					'(',
+					'  (command',
+					'    (command_elements',
+					'      (generic_token) @double.ampersand',
+					'        (#eq? @double.ampersand "&&")))',
+					')',
+				].join('\n'));
+				for (const capture of doubleAmpersandCaptures.reverse()) {
+					commandLine = `${commandLine.substring(0, capture.node.startIndex)};${commandLine.substring(capture.node.endIndex)}`;
+				}
+			} catch {
+				// Swallow tree sitter failures
 			}
 		}
 		return commandLine;

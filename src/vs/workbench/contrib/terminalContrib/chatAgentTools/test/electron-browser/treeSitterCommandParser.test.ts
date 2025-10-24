@@ -15,7 +15,8 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../../browser/treeSitterCommandParser.js';
 
-suite('TreeSitterCommandParser', () => {
+// TODO: The powershell grammar can cause an OOM crash on arm https://github.com/microsoft/vscode/issues/273177
+(process.arch === 'arm' || process.arch === 'arm64' ? suite.skip : suite)('TreeSitterCommandParser', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
