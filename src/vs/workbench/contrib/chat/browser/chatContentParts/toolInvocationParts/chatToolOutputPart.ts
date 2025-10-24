@@ -104,7 +104,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 
 		const progressMessage = dom.$('span');
 		progressMessage.textContent = localize('loading', 'Rendering tool output...');
-		const progressPart = this._register(this.instantiationService.createInstance(ChatProgressSubPart, progressMessage, ThemeIcon.modify(Codicon.loading, 'spin'), 'hello world'));
+		const progressPart = this._register(this.instantiationService.createInstance(ChatProgressSubPart, progressMessage, ThemeIcon.modify(Codicon.loading, 'spin'), undefined));
 		parent.appendChild(progressPart.domNode);
 
 		// TODO: we also need to show the tool output in the UI

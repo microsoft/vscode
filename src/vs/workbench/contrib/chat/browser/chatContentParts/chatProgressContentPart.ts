@@ -122,9 +122,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 					: reason.scope === 'workspace'
 						? localize('chat.autoapprove.lmServicePerTool.workspace', 'Auto approved for this workspace')
 						: localize('chat.autoapprove.lmServicePerTool.profile', 'Auto approved for this profile');
-				if (this.toolInvocation?.toolId) {
-					md += ' (' + markdownCommandLink({ title: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [this.toolInvocation.toolId] }) + ')';
-				}
+				md += ' (' + markdownCommandLink({ title: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [this.toolInvocation.toolId] }) + ')';
 				break;
 			case ToolConfirmKind.UserAction:
 			case ToolConfirmKind.Denied:
