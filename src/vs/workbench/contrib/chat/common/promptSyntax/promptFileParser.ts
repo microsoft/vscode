@@ -294,7 +294,7 @@ export class PromptBody {
 					fileReferences.push({ content: match[2], range, isMarkdownLink: true });
 					markdownLinkRanges.push(new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1));
 				}
-				const reg = /#(\w+:)([^\s#]+)/gi;
+				const reg = /#(\w+:)([^\s#[\](){}]+)/gi;
 				const matches = line.matchAll(reg);
 				for (const match of matches) {
 					const fullRange = new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1);
