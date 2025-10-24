@@ -8,11 +8,9 @@ import { URI } from '../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IFileService, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent } from '../../files/common/files.js';
 import { ExtUri, IExtUri, normalizePath } from '../../../base/common/resources.js';
-import { SkipList } from '../../../base/common/skipList.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { quickSelect } from '../../../base/common/arrays.js';
-import { compare as strCompare } from '../../../base/common/strings.js';
 
 class Entry {
 	static _clock = 0;
@@ -90,7 +88,7 @@ export class UriIdentityService extends Disposable implements IUriIdentityServic
 	readonly extUri: IExtUri;
 
 	private readonly _pathCasingCache: PathCasingCache;
-	private readonly _canonicalUris: SkipList<string, Entry>;
+	private readonly _canonicalUris: Map<string, Entry>;
 	private readonly _limit = 2 ** 16;
 
 	constructor(@IFileService private readonly _fileService: IFileService) {
@@ -102,7 +100,7 @@ export class UriIdentityService extends Disposable implements IUriIdentityServic
 			e => this._handleFileSystemCasingChanged(e)));
 
 		this.extUri = new ExtUri(uri => this._pathCasingCache.shouldIgnorePathCasing(uri));
-		this._canonicalUris = new SkipList(strCompare, this._limit);
+		this._canonicalUris = new Map();
 		this._register(toDisposable(() => this._canonicalUris.clear()));
 	}
 
