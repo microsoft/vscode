@@ -26,7 +26,6 @@ import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { ScrollPosition } from '../../../../terminal/browser/xterm/markNavigationAddon.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -322,6 +321,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		isTerminalHidden: boolean,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+		@ITerminalService private readonly terminalService: ITerminalService,
 	) {
 		super(
 			'chat.focusTerminalInstance',
@@ -333,10 +333,11 @@ export class FocusChatInstanceAction extends Action implements IAction {
 
 	public override async run() {
 		this.label = localize('focusTerminal', 'Focus Terminal');
+		this.terminalService.setActiveInstance(this._instance);
 		if (this._instance.target === TerminalLocation.Editor) {
 			this._terminalEditorService.openEditor(this._instance);
 		} else {
-			this._terminalGroupService.showPanel(true);
+			await this._terminalGroupService.showPanel(true);
 		}
 		await this._instance?.focusWhenReady(true);
 
@@ -347,7 +348,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 			commandToReveal = capability?.commands?.[capability.commands.length - 1];
 		}
 		if (commandToReveal) {
-			this._instance.xterm?.markTracker.revealCommand(commandToReveal, ScrollPosition.Middle);
+			this._instance.xterm?.markTracker.revealCommand(commandToReveal);
 		}
 	}
 }
