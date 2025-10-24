@@ -5,6 +5,7 @@
 
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { derived, waitForState } from '../../../../../base/common/observable.js';
+import { arch } from '../../../../../base/common/process.js';
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import type { Language, Parser, Query, QueryCapture } from '@vscode/tree-sitter-wasm';
 
@@ -84,7 +85,7 @@ export class TreeSitterCommandParser {
 	private _throwIfCanCrash(languageId: TreeSitterCommandParserLanguage) {
 		// TODO: The powershell grammar can cause an OOM crash on arm https://github.com/microsoft/vscode/issues/273177
 		if (
-			(process.arch === 'arm' || process.arch === 'arm64') &&
+			(arch === 'arm' || arch === 'arm64') &&
 			languageId === TreeSitterCommandParserLanguage.PowerShell
 		) {
 			throw new Error('powershell grammar is not supported on arm or arm64');
