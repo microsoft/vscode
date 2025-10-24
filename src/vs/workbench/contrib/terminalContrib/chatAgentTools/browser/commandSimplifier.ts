@@ -84,7 +84,8 @@ export class CommandSimplifier {
 	private async _rewriteUnsupportedPwshChainOperators(commandLine: string, os: OperatingSystem, shell: string) {
 		// TODO: This should just be Windows PowerShell in the future when the powershell grammar
 		// supports chain operators https://github.com/airbus-cert/tree-sitter-powershell/issues/27
-		if (isPowerShell(shell, os)) {
+		const disablePowerShellRewrites = true; // see https://github.com/microsoft/vscode/issues/273177
+		if (disablePowerShellRewrites && isPowerShell(shell, os)) {
 			const doubleAmpersandCaptures = await this._treeSitterCommandParser.queryTree(TreeSitterCommandParserLanguage.PowerShell, commandLine, [
 				'(',
 				'  (command',
