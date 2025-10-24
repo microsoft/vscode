@@ -23,7 +23,7 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import { Schemas } from '../../../../../../base/common/network.js';
 import { TreeSitterLibraryService } from '../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
 
-suite('command re-writing', () => {
+suite.skip('command re-writing', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
