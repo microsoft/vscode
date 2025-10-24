@@ -86,7 +86,7 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		return this.ui.tree.tree.getParentElement(element) as T ?? undefined;
 	}
 
-	setCheckboxState(element: T, checked: boolean | 'partial'): void {
+	setCheckboxState(element: T, checked: boolean | 'mixed'): void {
 		this.ui.tree.check(element, checked);
 	}
 	expand(element: T): void {
@@ -139,7 +139,7 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		}
 		super.show(); // TODO: Why have show() bubble up while update() trickles down?
 
-		// Intial state
+		// Initial state
 		// TODO@TylerLeonhardt: Without this setTimeout, the screen reader will not read out
 		// the final count of checked items correctly. Investigate a better way
 		// to do this. ref https://github.com/microsoft/vscode/issues/258617

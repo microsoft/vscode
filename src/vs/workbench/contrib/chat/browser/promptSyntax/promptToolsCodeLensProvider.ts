@@ -14,13 +14,14 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { showToolsPicker } from '../actions/chatToolPicker.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { ALL_PROMPTS_LANGUAGE_SELECTOR } from '../../common/promptSyntax/promptTypes.js';
+import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { registerEditorFeature } from '../../../../../editor/common/editorFeatures.js';
 import { PromptFileRewriter } from './promptFileRewriter.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IEditorModel } from '../../../../../editor/common/editorCommon.js';
 import { PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
+import { isGithubTarget } from '../../common/promptSyntax/languageProviders/promptValidator.js';
 
 class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider {
 
@@ -48,14 +49,23 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 	}
 
 	async provideCodeLenses(model: ITextModel, token: CancellationToken): Promise<undefined | CodeLensList> {
-
-		const parser = this.promptsService.getParsedPromptFile(model);
-		if (!parser.header) {
+		const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
+		if (!promptType || promptType === PromptsType.instructions) {
+			// if the model is not a prompt, we don't provide any code actions
 			return undefined;
 		}
 
+		const promptAST = this.promptsService.getParsedPromptFile(model);
+		const header = promptAST.header;
+		if (!header) {
+			return undefined;
+		}
 
-		const toolsAttr = parser.header.getAttribute(PromptHeaderAttributes.tools);
+		if (isGithubTarget(promptType, header.target)) {
+			return undefined;
+		}
+
+		const toolsAttr = header.getAttribute(PromptHeaderAttributes.tools);
 		if (!toolsAttr || toolsAttr.value.type !== 'array') {
 			return undefined;
 		}
