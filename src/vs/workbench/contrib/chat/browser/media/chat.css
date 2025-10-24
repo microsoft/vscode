@@ -1094,7 +1094,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget {
-	padding: 6px 8px 6px 12px;
+	padding: 6px 8px 5px 12px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-editor-background);
