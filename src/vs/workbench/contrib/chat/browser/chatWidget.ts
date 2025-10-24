@@ -1051,7 +1051,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			let welcomeContent: IChatViewWelcomeContent;
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 			let additionalMessage: string | IMarkdownString | undefined;
-			if (this.chatEntitlementService.anonymous) {
+			if (this.chatEntitlementService.anonymous && !this.chatEntitlementService.sentiment.installed) {
 				additionalMessage = new MarkdownString(localize({ key: 'settings', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3}).", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
 			} else {
 				additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
