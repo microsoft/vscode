@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, EditorCommand, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
@@ -24,6 +24,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { IMarker } from '../../../../platform/markers/common/markers.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { MarkerNavigationWidget } from './gotoErrorWidget.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class MarkerController implements IEditorContribution {
 
@@ -36,7 +37,9 @@ export class MarkerController implements IEditorContribution {
 	private readonly _editor: ICodeEditor;
 
 	private readonly _widgetVisible: IContextKey<boolean>;
-	private readonly _sessionDispoables = new DisposableStore();
+	private readonly _sessionDisposables = new DisposableStore();
+	private readonly _settingsDisposable: IDisposable;
+	private _showOverlayOnNavigate: boolean;
 
 	private _model?: MarkerList;
 	private _widget?: MarkerNavigationWidget;
@@ -47,19 +50,29 @@ export class MarkerController implements IEditorContribution {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configService: IConfigurationService
 	) {
 		this._editor = editor;
 		this._widgetVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
+
+		this._showOverlayOnNavigate = this._configService.getValue<boolean>('problems.gotoError.showOverlay');
+		this._settingsDisposable = this._configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('problems.gotoError.showOverlay')) {
+				this._showOverlayOnNavigate = this._configService.getValue<boolean>('problems.gotoError.showOverlay');
+				this._cleanUp();
+			}
+		});
 	}
 
 	dispose(): void {
 		this._cleanUp();
-		this._sessionDispoables.dispose();
+		this._sessionDisposables.dispose();
+		this._settingsDisposable.dispose();
 	}
 
 	private _cleanUp(): void {
 		this._widgetVisible.reset();
-		this._sessionDispoables.clear();
+		this._sessionDisposables.clear();
 		this._widget = undefined;
 		this._model = undefined;
 	}
@@ -80,22 +93,22 @@ export class MarkerController implements IEditorContribution {
 			this._model.move(true, this._editor.getModel()!, this._editor.getPosition()!);
 		}
 
-		this._widget = this._instantiationService.createInstance(MarkerNavigationWidget, this._editor);
-		this._widget.onDidClose(() => this.close(), this, this._sessionDispoables);
+		this._widget = this._instantiationService.createInstance(MarkerNavigationWidget, this._editor, this.showsOverlayOnNavigate);
+		this._widget.onDidClose(() => this.close(), this, this._sessionDisposables);
 		this._widgetVisible.set(true);
 
-		this._sessionDispoables.add(this._model);
-		this._sessionDispoables.add(this._widget);
+		this._sessionDisposables.add(this._model);
+		this._sessionDisposables.add(this._widget);
 
 		// follow cursor
-		this._sessionDispoables.add(this._editor.onDidChangeCursorPosition(e => {
+		this._sessionDisposables.add(this._editor.onDidChangeCursorPosition(e => {
 			if (!this._model?.selected || !Range.containsPosition(this._model?.selected.marker, e.position)) {
 				this._model?.resetIndex();
 			}
 		}));
 
 		// update markers
-		this._sessionDispoables.add(this._model.onDidChange(() => {
+		this._sessionDisposables.add(this._model.onDidChange(() => {
 			if (!this._widget || !this._widget.position || !this._model) {
 				return;
 			}
@@ -108,14 +121,14 @@ export class MarkerController implements IEditorContribution {
 		}));
 
 		// open related
-		this._sessionDispoables.add(this._widget.onDidSelectRelatedInformation(related => {
+		this._sessionDisposables.add(this._widget.onDidSelectRelatedInformation(related => {
 			this._editorService.openCodeEditor({
 				resource: related.resource,
 				options: { pinned: true, revealIfOpened: true, selection: Range.lift(related).collapseToStart() }
 			}, this._editor);
 			this.close(false);
 		}));
-		this._sessionDispoables.add(this._editor.onDidChangeModel(() => this._cleanUp()));
+		this._sessionDisposables.add(this._editor.onDidChangeModel(() => this._cleanUp()));
 
 		return this._model;
 	}
@@ -127,7 +140,7 @@ export class MarkerController implements IEditorContribution {
 		}
 	}
 
-	showAtMarker(marker: IMarker): void {
+	showAtMarker(marker: IMarker, forceShowOverlay: boolean = false): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -137,7 +150,15 @@ export class MarkerController implements IEditorContribution {
 		model.resetIndex();
 		model.move(true, textModel, new Position(marker.startLineNumber, marker.startColumn));
 		if (model.selected) {
-			this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
+			const widget = this._widget!;
+			if (widget.options.showOverlay || !forceShowOverlay) {
+				widget.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
+			} else {
+				const showOverlay = widget.options.showOverlay;
+				widget.options.showOverlay = true;
+				widget.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
+				widget.options.showOverlay = showOverlay;
+			}
 		}
 	}
 
@@ -169,6 +190,10 @@ export class MarkerController implements IEditorContribution {
 			// show in this editor
 			this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
 		}
+	}
+
+	get showsOverlayOnNavigate() {
+		return this._showOverlayOnNavigate;
 	}
 }
 
