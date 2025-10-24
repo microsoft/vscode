@@ -280,7 +280,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 	command?: string;
 	commandLineConfidence?: 'low' | 'medium' | 'high';
 	id: string;
-	sessionId?: string | undefined;
+	chatSessionId?: string | undefined;
 
 	isTrusted?: boolean;
 	isInvalid?: boolean;
@@ -340,7 +340,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 				exitCode,
 				commandStartLineContent: this.commandStartLineContent,
 				markProperties,
-				chatSessionId: this.sessionId
+				chatSessionId: this.chatSessionId
 			});
 		}
 

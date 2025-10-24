@@ -638,7 +638,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				let strategy: ITerminalExecuteStrategy;
 				const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
 				if (commandDetection?.currentCommand) {
-					(commandDetection.currentCommand as PartialTerminalCommand).sessionId = toolSpecificData.terminalToolSessionId;
+					(commandDetection.currentCommand as PartialTerminalCommand).chatSessionId = toolSpecificData.terminalToolSessionId;
 				}
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
