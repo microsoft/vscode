@@ -79,6 +79,11 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 	private _name: Lazy<string>;
 
 	private _updateScheduler: RunOnceScheduler;
+	/**
+	 * Scheduler for batching onChange events to improve performance with large result sets.
+	 * Prevents excessive UI updates when adding multiple matches in rapid succession.
+	 */
+	private _changeScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
 
 	private _context: Map<number, string> = new Map();
@@ -102,6 +107,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 		this._textMatches = new Map<string, ISearchTreeMatch>();
 		this._removedTextMatches = new Set<string>();
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
+		this._changeScheduler = new RunOnceScheduler(() => this._doUpdate(), 100);
 		this._name = new Lazy(() => labelService.getUriBasenameLabel(this.resource));
 	}
 
@@ -151,12 +157,20 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 	private unbindModel(): void {
 		if (this._model) {
 			this._updateScheduler.cancel();
+			this._changeScheduler.cancel();
 			this._model.changeDecorations((accessor) => {
 				this._modelDecorations = accessor.deltaDecorations(this._modelDecorations, []);
 			});
 			this._model = null;
 			this._modelListener!.dispose();
 		}
+	}
+
+	/**
+	 * Batches onChange events to improve performance with large result sets
+	 */
+	private _doUpdate(): void {
+		this._onChange.fire({ forceUpdateModel: true });
 	}
 
 	protected updateMatchesForModel(): void {
@@ -211,7 +225,8 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 
 		this.addContext(getTextSearchMatchWithModelContext(textSearchResults, model, this.parent().parent().query!));
 
-		this._onChange.fire({ forceUpdateModel: modelChange });
+		// Use scheduler to batch updates for better performance
+		this._changeScheduler.schedule();
 		this.updateHighlights();
 	}
 
@@ -263,7 +278,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 			this._removedTextMatches.add(match.id());
 		}
 
-		this._onChange.fire({ didRemove: true });
+		this._changeScheduler.schedule();
 	}
 
 	private replaceQ = Promise.resolve();
@@ -322,7 +337,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 	add(match: ISearchTreeMatch, trigger?: boolean) {
 		this._textMatches.set(match.id(), match);
 		if (trigger) {
-			this._onChange.fire({ forceUpdateModel: true });
+			this._changeScheduler.schedule();
 		}
 	}
 
@@ -351,6 +366,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 	override dispose(): void {
 		this.setSelectedMatch(null);
 		this.unbindModel();
+		this._changeScheduler.cancel();
 		this._onDispose.fire();
 		super.dispose();
 	}
