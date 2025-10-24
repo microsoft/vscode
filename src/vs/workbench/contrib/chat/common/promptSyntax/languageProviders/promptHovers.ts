@@ -94,6 +94,10 @@ export class PromptHoverProvider implements HoverProvider {
 			if (tools?.range.containsPosition(position)) {
 				return this.getToolHover(tools, position, localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.'));
 			}
+			const targetRange = header.getAttribute(PromptHeaderAttributes.target)?.range;
+			if (targetRange?.containsPosition(position)) {
+				return this.createHover(localize('promptHeader.agent.target', 'The target to which the header attributes like tools apply to.'), targetRange);
+			}
 		} else {
 			const descriptionRange = header.getAttribute(PromptHeaderAttributes.description)?.range;
 			if (descriptionRange?.containsPosition(position)) {

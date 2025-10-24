@@ -150,6 +150,7 @@ export class PromptValidator {
 				break;
 
 			case PromptsType.agent:
+				this.validateTarget(attributes, report);
 				this.validateTools(attributes, ChatModeKind.Agent, report);
 				this.validateModel(attributes, ChatModeKind.Agent, report);
 				this.validateHandoffs(attributes, report);
@@ -391,12 +392,32 @@ export class PromptValidator {
 			}
 		}
 	}
+
+	private validateTarget(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.target);
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'string') {
+			report(toMarker(localize('promptValidator.targetMustBeString', "The 'target' attribute must be a string."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+		const targetValue = attribute.value.value.trim();
+		if (targetValue.length === 0) {
+			report(toMarker(localize('promptValidator.targetMustBeNonEmpty', "The 'target' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+		const validTargets = ['github-copilot', 'vscode'];
+		if (!validTargets.includes(targetValue)) {
+			report(toMarker(localize('promptValidator.targetInvalidValue', "The 'target' attribute must be one of: {0}.", validTargets.join(', ')), attribute.value.range, MarkerSeverity.Error));
+		}
+	}
 }
 
 const allAttributeNames = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
-	[PromptsType.agent]: [PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint]
+	[PromptsType.agent]: [PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target]
 };
 const recommendedAttributeNames = {
 	[PromptsType.prompt]: allAttributeNames[PromptsType.prompt].filter(name => !isNonRecommendedAttribute(name)),
