@@ -59,7 +59,8 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 	/** Gets the checkpoint, if any, we can 'undo' to. */
 	private readonly _willUndoToCheckpoint = derived(reader => {
 		const currentEpoch = this._currentEpoch.read(reader);
-		const maxEpoch = this._operations.read(reader).findLast(op => op.epoch < currentEpoch)?.epoch || 0;
+		const operations = this._operations.read(reader);
+		const maxEpoch = operations.findLast(op => op.epoch <= currentEpoch)?.epoch || 0;
 		return this._checkpoints.read(reader).findLast(cp => cp.epoch < maxEpoch);
 	});
 
@@ -73,14 +74,17 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 	private readonly _willRedoToEpoch = derived(reader => {
 		const currentEpoch = this._currentEpoch.read(reader);
 		const operations = this._operations.read(reader);
-		const maxOperationEpoch = operations.at(-1)?.epoch || 0;
-		if (currentEpoch > maxOperationEpoch) {
+		const checkpoints = this._checkpoints.read(reader);
+		const maxEncounteredEpoch = Math.max(operations.at(-1)?.epoch || 0, checkpoints.at(-1)?.epoch || 0);
+		if (currentEpoch > maxEncounteredEpoch) {
 			return undefined;
 		}
 
+		// Find either the first checkpoint that would apply operations, or just
+		// use the last checkpoint.
 		const minEpoch = operations.find(op => op.epoch >= currentEpoch)?.epoch;
-		const checkpointEpoch = minEpoch && this._checkpoints.read(reader).find(op => op.epoch > minEpoch)?.epoch;
-		return checkpointEpoch || (maxOperationEpoch + 1);
+		const checkpointEpoch = minEpoch && checkpoints.find(op => op.epoch > minEpoch)?.epoch;
+		return checkpointEpoch || (maxEncounteredEpoch + 1);
 	});
 
 	public readonly canRedo: IObservable<boolean> = this._willRedoToEpoch.map(e => !!e);
@@ -148,7 +152,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 
 		transaction(tx => {
 			this._checkpoints.set([...existingCheckpoints, checkpoint], tx);
-			this._currentEpoch.set(checkpoint.epoch, tx);
+			this._currentEpoch.set(checkpoint.epoch + 1, tx);
 		});
 	}
 
@@ -542,9 +546,9 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		const isMovingForward = toEpoch > fromEpoch;
 		const operations = this._operations.get().filter(op => {
 			if (isMovingForward) {
-				return op.epoch > fromEpoch && op.epoch <= toEpoch;
+				return op.epoch >= fromEpoch && op.epoch < toEpoch;
 			} else {
-				return op.epoch > toEpoch && op.epoch <= fromEpoch;
+				return op.epoch < fromEpoch && op.epoch >= toEpoch;
 			}
 		}).sort((a, b) => isMovingForward ? a.epoch - b.epoch : b.epoch - a.epoch);
 
