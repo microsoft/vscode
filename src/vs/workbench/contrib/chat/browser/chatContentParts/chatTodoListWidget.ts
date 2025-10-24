@@ -448,19 +448,19 @@ export class ChatTodoListWidget extends Disposable {
 		const notStartedTodos = todoList.filter(todo => todo.status === 'not-started');
 		const firstNotStartedTodo = notStartedTodos.length > 0 ? notStartedTodos[0] : undefined;
 
-		const progressText = dom.$('span');
-		if (totalCount === 0) {
-			progressText.textContent = localize('chat.todoList.title', 'Todos');
-		} else {
-			// Show the current task number (1-indexed): completed + in-progress, or just completed if none in-progress
-			// Ensure we show at least 1 when tasks exist
-			const currentTaskNumber = inProgressTodos.length > 0 ? completedCount + 1 : Math.max(1, completedCount);
-			progressText.textContent = localize('chat.todoList.titleWithProgressExpanded', 'Todos ({0}/{1})', currentTaskNumber, totalCount);
-		}
-		titleElement.appendChild(progressText);
+		// Calculate current task number (1-indexed)
+		const currentTaskNumber = inProgressTodos.length > 0 ? completedCount + 1 : Math.max(1, completedCount);
+		const progressCount = totalCount > 0 ? ` (${currentTaskNumber}/${totalCount})` : '';
+
+		const titleText = dom.$('span');
+		titleText.textContent = this._isExpanded
+			? localize('chat.todoList.title', 'Todos') + progressCount
+			: progressCount;
+		titleElement.appendChild(titleText);
+
 		const expandButtonLabel = this._isExpanded
-			? localize('chat.todoList.collapseButtonWithProgress', 'Collapse {0}', progressText.textContent)
-			: localize('chat.todoList.expandButtonWithProgress', 'Expand {0}', progressText.textContent);
+			? localize('chat.todoList.collapseButton', 'Collapse Todos {0}', progressCount)
+			: localize('chat.todoList.expandButton', 'Expand Todos {0}', progressCount);
 		this.expandoElement.setAttribute('aria-label', expandButtonLabel);
 		this.expandoElement.setAttribute('aria-expanded', this._isExpanded ? 'true' : 'false');
 		if (!this._isExpanded) {
@@ -488,6 +488,10 @@ export class ChatTodoListWidget extends Disposable {
 				const todoText = dom.$('span');
 				todoText.textContent = todoToShow.title;
 				todoText.style.verticalAlign = 'middle';
+				todoText.style.overflow = 'hidden';
+				todoText.style.textOverflow = 'ellipsis';
+				todoText.style.whiteSpace = 'nowrap';
+				todoText.style.minWidth = '0';
 				titleElement.appendChild(todoText);
 			}
 			// Show "Done" when all tasks are completed
