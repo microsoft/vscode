@@ -43,9 +43,11 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand(showCommand, async (url?: string) => {
+		const configuration = vscode.workspace.getConfiguration('simpleBrowser');
+		const defaultURL = configuration.get<string>('default.URL', 'http://localhost:3000');
 		if (!url) {
 			url = await vscode.window.showInputBox({
-				placeHolder: vscode.l10n.t("https://example.com"),
+				value: vscode.l10n.t(defaultURL),
 				prompt: vscode.l10n.t("Enter url to visit")
 			});
 		}
