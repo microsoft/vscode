@@ -33,7 +33,7 @@ export function isChatSession(schemes: string[], editor?: EditorInput): boolean 
 		return false;
 	}
 
-	if (!schemes.includes(editor.resource?.scheme)) {
+	if (!schemes.includes(editor.resource?.scheme) && editor.resource?.scheme !== Schemas.vscodeChatSession && editor.resource?.scheme !== Schemas.vscodeChatEditor) {
 		return false;
 	}
 
