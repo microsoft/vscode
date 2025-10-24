@@ -8,8 +8,8 @@ import assert from 'assert';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -22,7 +22,6 @@ import { IChatService } from '../../../common/chatService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/languageModelToolsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
-import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { getPromptFileExtension } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptValidator } from '../../../common/promptSyntax/languageProviders/promptValidator.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
@@ -42,7 +41,6 @@ suite('PromptValidator', () => {
 	setup(async () => {
 
 		const testConfigService = new TestConfigurationService();
-		testConfigService.setUserConfiguration(PromptsConfig.KEY, true);
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
@@ -192,7 +190,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.startsWith(`Attribute 'applyTo' is not supported in agent files.`));
+			assert.ok(markers[0].message.startsWith(`Attribute 'applyTo' is not supported in custom agent files.`));
 		});
 
 		test('tools with invalid handoffs', async () => {
@@ -413,7 +411,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, `The 'tools' attribute is only supported in agent mode. Attribute will be ignored.`);
+			assert.strictEqual(markers[0].message, `The 'tools' attribute is only supported when using agents. Attribute will be ignored.`);
 		});
 	});
 

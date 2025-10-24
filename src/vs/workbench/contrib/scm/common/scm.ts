@@ -233,6 +233,7 @@ export interface ISCMViewService {
 	toggleVisibility(repository: ISCMRepository, visible?: boolean): void;
 
 	toggleSortKey(sortKey: ISCMRepositorySortKey): void;
+	toggleSelectionMode(selectionMode: 'multiple' | 'single'): void;
 
 	readonly focusedRepository: ISCMRepository | undefined;
 	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;

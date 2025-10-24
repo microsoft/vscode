@@ -9,7 +9,6 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
 import { IChatMode, IChatModeService } from '../../chatModes.js';
@@ -17,15 +16,14 @@ import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { IArrayValue, IHeaderAttribute, ParsedPromptFile } from '../promptFileParser.js';
-import { PromptsConfig } from '../config/config.js';
+import { IArrayValue, IHeaderAttribute, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-
+import { AGENTS_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 
 const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -36,12 +34,25 @@ export class PromptValidator {
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IPromptsService private readonly promptsService: IPromptsService
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
 		promptAST.header?.errors.forEach(error => report(toMarker(error.message, error.range, MarkerSeverity.Error)));
 		this.validateHeader(promptAST, promptType, report);
 		await this.validateBody(promptAST, report);
+		await this.validateFileName(promptAST, promptType, report);
+	}
+
+	private async validateFileName(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
+		if (promptType === PromptsType.agent && promptAST.uri.path.endsWith(LEGACY_MODE_FILE_EXTENSION)) {
+			const location = this.promptsService.getAgentFileURIFromModeFile(promptAST.uri);
+			if (location && await this.fileService.canCreateFile(location)) {
+				report(toMarker(localize('promptValidator.chatModesRenamedToAgents', "Chat modes have been renamed to agents. Please move this file to {0}", location.toString()), new Range(1, 1, 1, 4), MarkerSeverity.Warning));
+			} else {
+				report(toMarker(localize('promptValidator.chatModesRenamedToAgentsNoMove', "Chat modes have been renamed to agents. Please move the file to {0}", AGENTS_SOURCE_FOLDER), new Range(1, 1, 1, 4), MarkerSeverity.Warning));
+			}
+		}
 	}
 
 	private async validateBody(promptAST: ParsedPromptFile, report: (markers: IMarkerData) => void): Promise<void> {
@@ -116,7 +127,7 @@ export class PromptValidator {
 						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
 						break;
 					case PromptsType.agent:
-						report(toMarker(localize('promptValidator.unknownAttribute.agent', "Attribute '{0}' is not supported in agent files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.agent', "Attribute '{0}' is not supported in custom agent files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
 						break;
 					case PromptsType.instructions:
 						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
@@ -125,6 +136,7 @@ export class PromptValidator {
 			}
 		}
 		this.validateDescription(attributes, report);
+		this.validateArgumentHint(attributes, report);
 		switch (promptType) {
 			case PromptsType.prompt: {
 				const agent = this.validateAgent(attributes, report);
@@ -147,7 +159,7 @@ export class PromptValidator {
 	}
 
 	private validateDescription(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
-		const descriptionAttribute = attributes.find(attr => attr.key === 'description');
+		const descriptionAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.description);
 		if (!descriptionAttribute) {
 			return;
 		}
@@ -161,9 +173,23 @@ export class PromptValidator {
 		}
 	}
 
+	private validateArgumentHint(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
+		const argumentHintAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.argumentHint);
+		if (!argumentHintAttribute) {
+			return;
+		}
+		if (argumentHintAttribute.value.type !== 'string') {
+			report(toMarker(localize('promptValidator.argumentHintMustBeString', "The 'argument-hint' attribute must be a string."), argumentHintAttribute.range, MarkerSeverity.Error));
+			return;
+		}
+		if (argumentHintAttribute.value.value.trim().length === 0) {
+			report(toMarker(localize('promptValidator.argumentHintShouldNotBeEmpty', "The 'argument-hint' attribute should not be empty."), argumentHintAttribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+	}
 
 	private validateModel(attributes: IHeaderAttribute[], agentKind: ChatModeKind, report: (markers: IMarkerData) => void): void {
-		const attribute = attributes.find(attr => attr.key === 'model');
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.model);
 		if (!attribute) {
 			return;
 		}
@@ -202,8 +228,8 @@ export class PromptValidator {
 	}
 
 	private validateAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): IChatMode | undefined {
-		const agentAttribute = attributes.find(attr => attr.key === 'agent');
-		const modeAttribute = attributes.find(attr => attr.key === 'mode');
+		const agentAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.agent);
+		const modeAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.mode);
 		if (modeAttribute) {
 			if (agentAttribute) {
 				report(toMarker(localize('promptValidator.modeDeprecated', "The 'mode' attribute has been deprecated. The 'agent' attribute is used instead."), modeAttribute.range, MarkerSeverity.Warning));
@@ -212,7 +238,7 @@ export class PromptValidator {
 			}
 		}
 
-		const attribute = attributes.find(attr => attr.key === 'agent') ?? modeAttribute;
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.agent) ?? modeAttribute;
 		if (!attribute) {
 			return undefined; // default agent for prompts is Agent
 		}
@@ -243,12 +269,12 @@ export class PromptValidator {
 	}
 
 	private validateTools(attributes: IHeaderAttribute[], agentKind: ChatModeKind, report: (markers: IMarkerData) => void): undefined {
-		const attribute = attributes.find(attr => attr.key === 'tools');
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.tools);
 		if (!attribute) {
 			return;
 		}
 		if (agentKind !== ChatModeKind.Agent) {
-			report(toMarker(localize('promptValidator.toolsOnlyInAgent', "The 'tools' attribute is only supported in agent mode. Attribute will be ignored."), attribute.range, MarkerSeverity.Warning));
+			report(toMarker(localize('promptValidator.toolsOnlyInAgent', "The 'tools' attribute is only supported when using agents. Attribute will be ignored."), attribute.range, MarkerSeverity.Warning));
 		}
 
 		switch (attribute.value.type) {
@@ -280,7 +306,7 @@ export class PromptValidator {
 	}
 
 	private validateApplyTo(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
-		const attribute = attributes.find(attr => attr.key === 'applyTo');
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.applyTo);
 		if (!attribute) {
 			return;
 		}
@@ -308,7 +334,7 @@ export class PromptValidator {
 	}
 
 	private validateExcludeAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
-		const attribute = attributes.find(attr => attr.key === 'excludeAgent');
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.excludeAgent);
 		if (!attribute) {
 			return;
 		}
@@ -319,7 +345,7 @@ export class PromptValidator {
 	}
 
 	private validateHandoffs(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
-		const attribute = attributes.find(attr => attr.key === 'handoffs');
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.handOffs);
 		if (!attribute) {
 			return;
 		}
@@ -368,9 +394,9 @@ export class PromptValidator {
 }
 
 const allAttributeNames = {
-	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode', 'agent'],
-	[PromptsType.instructions]: ['description', 'applyTo', 'excludeAgent'],
-	[PromptsType.agent]: ['description', 'model', 'tools', 'advancedOptions', 'handoffs']
+	[PromptsType.prompt]: [PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
+	[PromptsType.instructions]: [PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
+	[PromptsType.agent]: [PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint]
 };
 const recommendedAttributeNames = {
 	[PromptsType.prompt]: allAttributeNames[PromptsType.prompt].filter(name => !isNonRecommendedAttribute(name)),
@@ -383,7 +409,7 @@ export function getValidAttributeNames(promptType: PromptsType, includeNonRecomm
 }
 
 export function isNonRecommendedAttribute(attributeName: string): boolean {
-	return attributeName === 'advancedOptions' || attributeName === 'excludeAgent' || attributeName === 'mode';
+	return attributeName === PromptHeaderAttributes.advancedOptions || attributeName === PromptHeaderAttributes.excludeAgent || attributeName === PromptHeaderAttributes.mode;
 }
 
 function toMarker(message: string, range: Range, severity = MarkerSeverity.Error): IMarkerData {
@@ -398,7 +424,6 @@ export class PromptValidatorContribution extends Disposable {
 	constructor(
 		@IModelService private modelService: IModelService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService private configService: IConfigurationService,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -409,18 +434,10 @@ export class PromptValidatorContribution extends Disposable {
 		this.validator = instantiationService.createInstance(PromptValidator);
 
 		this.updateRegistration();
-		this._register(this.configService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(PromptsConfig.KEY)) {
-				this.updateRegistration();
-			}
-		}));
 	}
 
 	updateRegistration(): void {
 		this.localDisposables.clear();
-		if (!PromptsConfig.enabled(this.configService)) {
-			return;
-		}
 		const trackers = new ResourceMap<ModelTracker>();
 		this.localDisposables.add(toDisposable(() => {
 			trackers.forEach(tracker => tracker.dispose());

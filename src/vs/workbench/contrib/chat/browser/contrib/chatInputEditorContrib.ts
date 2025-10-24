@@ -22,6 +22,7 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../comm
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
 import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
@@ -33,6 +34,10 @@ const variableTextDecorationType = 'chat-variable-text';
 
 function agentAndCommandToKey(agent: IChatAgentData, subcommand: string | undefined): string {
 	return subcommand ? `${agent.id}__${subcommand}` : agent.id;
+}
+
+function isWhitespaceOrPromptPart(p: IParsedChatRequestPart): boolean {
+	return (p instanceof ChatRequestTextPart && !p.text.trim().length) || (p instanceof ChatRequestSlashPromptPart);
 }
 
 class InputEditorDecorations extends Disposable {
@@ -50,6 +55,7 @@ class InputEditorDecorations extends Disposable {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 
@@ -69,6 +75,7 @@ class InputEditorDecorations extends Disposable {
 			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
+		this._register(this.promptsService.onDidChangeParsedPromptFilesCache(() => this.updateInputEditorDecorations()));
 		this._register(autorun(reader => {
 			// Watch for changes to the current mode and its properties
 			const currentMode = this.widget.input.currentModeObs.read(reader);
@@ -123,6 +130,8 @@ class InputEditorDecorations extends Disposable {
 		return transparentForeground?.toString();
 	}
 
+
+
 	private async updateInputEditorDecorations() {
 		const inputValue = this.widget.inputEditor.getValue();
 
@@ -133,9 +142,11 @@ class InputEditorDecorations extends Disposable {
 
 		if (!inputValue) {
 			const mode = this.widget.input.currentModeObs.get();
-			let description = mode.description.get();
+			let placeholder;
 			if (this.configurationService.getValue<boolean>('chat.emptyChatState.enabled')) {
-				description = localize('chatPlaceholderHint', "Add context (#), extensions (@), commands (/)");
+				placeholder = localize('chatPlaceholderHint', "Add context (#), extensions (@), commands (/)");
+			} else {
+				placeholder = mode.argumentHint?.get() ?? mode.description.get() ?? '';
 			}
 
 			const decoration: IDecorationOptions[] = [
@@ -148,7 +159,7 @@ class InputEditorDecorations extends Disposable {
 					},
 					renderOptions: {
 						after: {
-							contentText: viewModel.inputPlaceholder || (description ?? ''),
+							contentText: viewModel.inputPlaceholder || placeholder,
 							color: this.getPlaceholderColor()
 						}
 					}
@@ -228,6 +239,26 @@ class InputEditorDecorations extends Disposable {
 					renderOptions: {
 						after: {
 							contentText: agentSubcommandPart.command.description,
+							color: this.getPlaceholderColor(),
+						}
+					}
+				}];
+			}
+		}
+
+		const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(isWhitespaceOrPromptPart);
+		if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(slashPromptPart)) {
+			// Prompt slash command with no other text - show the placeholder
+			// Resolve the prompt file (this will use cache if available)
+			const promptFile = this.promptsService.resolvePromptSlashCommandFromCache(slashPromptPart.slashPromptCommand.command);
+
+			const description = promptFile?.header?.argumentHint ?? promptFile?.header?.description;
+			if (description) {
+				placeholderDecoration = [{
+					range: getRangeForPlaceholder(slashPromptPart),
+					renderOptions: {
+						after: {
+							contentText: description,
 							color: this.getPlaceholderColor(),
 						}
 					}

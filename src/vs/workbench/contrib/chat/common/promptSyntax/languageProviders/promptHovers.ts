@@ -80,20 +80,28 @@ export class PromptHoverProvider implements HoverProvider {
 		} else if (promptType === PromptsType.agent) {
 			const descriptionRange = header.getAttribute(PromptHeaderAttributes.description)?.range;
 			if (descriptionRange?.containsPosition(position)) {
-				return this.createHover(localize('promptHeader.agent.description', 'The description of the agent file. It is a short description of what the agent does.'), descriptionRange);
+				return this.createHover(localize('promptHeader.agent.description', 'The description of the custom agent, what it does and when to use it.'), descriptionRange);
+			}
+			const argumentHintRange = header.getAttribute(PromptHeaderAttributes.argumentHint)?.range;
+			if (argumentHintRange?.containsPosition(position)) {
+				return this.createHover(localize('promptHeader.agent.argumentHint', 'The argument-hint describes what inputs the custom agent expects or supports'), argumentHintRange);
 			}
 			const model = header.getAttribute(PromptHeaderAttributes.model);
 			if (model?.range.containsPosition(position)) {
-				return this.getModelHover(model, model.range, localize('promptHeader.agent.model', 'The model to use in this agent.'));
+				return this.getModelHover(model, model.range, localize('promptHeader.agent.model', 'Specify the model that runs this custom agent.'));
 			}
 			const tools = header.getAttribute(PromptHeaderAttributes.tools);
 			if (tools?.range.containsPosition(position)) {
-				return this.getToolHover(tools, position, localize('promptHeader.agent.tools', 'The tools to use in this agent.'));
+				return this.getToolHover(tools, position, localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.'));
 			}
 		} else {
 			const descriptionRange = header.getAttribute(PromptHeaderAttributes.description)?.range;
 			if (descriptionRange?.containsPosition(position)) {
-				return this.createHover(localize('promptHeader.prompt.description', 'The description of the prompt file. It is a short description of what the prompt does.'), descriptionRange);
+				return this.createHover(localize('promptHeader.prompt.description', 'The description of the reusable prompt, what it does and when to use it.'), descriptionRange);
+			}
+			const argumentHintRange = header.getAttribute(PromptHeaderAttributes.argumentHint)?.range;
+			if (argumentHintRange?.containsPosition(position)) {
+				return this.createHover(localize('promptHeader.prompt.argumentHint', 'The argument-hint describes what inputs the prompt expects or supports'), argumentHintRange);
 			}
 			const model = header.getAttribute(PromptHeaderAttributes.model);
 			if (model?.range.containsPosition(position)) {
@@ -128,7 +136,7 @@ export class PromptHoverProvider implements HoverProvider {
 			if (tool instanceof ToolSet) {
 				return this.getToolsetHover(tool, range);
 			} else {
-				return this.createHover(tool.modelDescription, range);
+				return this.createHover(tool.userDescription ?? tool.modelDescription, range);
 			}
 		}
 		return undefined;
