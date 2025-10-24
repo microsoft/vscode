@@ -57,6 +57,7 @@ interface IBucketTreeItem extends IToolTreeItem {
 	readonly status?: string;
 	readonly children: AnyTreeItem[];
 	checked: boolean | 'mixed' | undefined;
+	readonly sortOrder: number;
 }
 
 /**
@@ -316,6 +317,7 @@ export async function showToolsPicker(
 					collapsed,
 					children,
 					buttons,
+					sortOrder: 2,
 				};
 				const iconPath = mcpServer.serverMetadata.get()?.icons.getUrl(22);
 				if (iconPath) {
@@ -334,7 +336,8 @@ export async function showToolsPicker(
 					children: [],
 					buttons: [],
 					collapsed: true,
-					iconClass: ThemeIcon.asClassName(Codicon.extensions)
+					iconClass: ThemeIcon.asClassName(Codicon.extensions),
+					sortOrder: 3,
 				};
 			} else if (source.type === 'internal') {
 				return {
@@ -345,7 +348,8 @@ export async function showToolsPicker(
 					checked: undefined,
 					children: [],
 					buttons: [],
-					collapsed: false
+					collapsed: false,
+					sortOrder: 1,
 				};
 			} else {
 				return {
@@ -356,7 +360,8 @@ export async function showToolsPicker(
 					checked: undefined,
 					children: [],
 					buttons: [],
-					collapsed: true
+					collapsed: true,
+					sortOrder: 4,
 				};
 			}
 		};
@@ -425,9 +430,22 @@ export async function showToolsPicker(
 		}
 
 		// Convert bucket map to sorted tree items
-		const sortedBuckets = Array.from(bucketMap.values()).sort((a, b) => a.ordinal - b.ordinal);
-		treeItems.push(...sortedBuckets);
-
+		const sortedBuckets = Array.from(bucketMap.values()).sort((a, b) => {
+			if (a.sortOrder !== b.sortOrder) {
+				return a.sortOrder - b.sortOrder;
+			}
+			return a.label.localeCompare(b.label);
+		});
+		for (const bucket of sortedBuckets) {
+			treeItems.push(bucket);
+			// Sort children alphabetically
+			bucket.children.sort((a, b) => a.label.localeCompare(b.label));
+			for (const child of bucket.children) {
+				if (isToolSetTreeItem(child) && child.children) {
+					child.children.sort((a, b) => a.label.localeCompare(b.label));
+				}
+			}
+		}
 		if (treeItems.length === 0) {
 			treePicker.placeholder = localize('noTools', "Add tools to chat");
 		} else {
