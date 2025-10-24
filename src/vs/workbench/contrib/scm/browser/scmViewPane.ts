@@ -11,7 +11,7 @@ import { ViewPane, IViewPaneOptions, ViewAction } from '../../../browser/parts/v
 import { append, $, Dimension, trackFocus, clearNode, isPointerEvent, isActiveElement } from '../../../../base/browser/dom.js';
 import { asCSSUrl } from '../../../../base/browser/cssValue.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext, ViewMode } from '../common/scm.js';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext, ViewMode, ISCMRepositorySelectionMode } from '../common/scm.js';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from '../../../browser/labels.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -1205,7 +1205,7 @@ registerAction2(RepositorySortByNameAction);
 registerAction2(RepositorySortByPathAction);
 
 abstract class RepositorySelectionModeAction extends ViewAction<SCMViewPane> {
-	constructor(private readonly selectionMode: 'single' | 'multiple', title: string, order: number) {
+	constructor(private readonly selectionMode: ISCMRepositorySelectionMode, title: string, order: number) {
 		super({
 			id: `workbench.scm.action.repositories.setSelectionMode.${selectionMode}`,
 			title,
@@ -1226,13 +1226,13 @@ abstract class RepositorySelectionModeAction extends ViewAction<SCMViewPane> {
 
 class RepositorySingleSelectionModeAction extends RepositorySelectionModeAction {
 	constructor() {
-		super('single', localize('repositorySingleSelectionMode', "Select Single Repository"), 1);
+		super(ISCMRepositorySelectionMode.Single, localize('repositorySingleSelectionMode', "Select Single Repository"), 1);
 	}
 }
 
 class RepositoryMultiSelectionModeAction extends RepositorySelectionModeAction {
 	constructor() {
-		super('multiple', localize('repositoryMultiSelectionMode', "Select Multiple Repositories"), 2);
+		super(ISCMRepositorySelectionMode.Multiple, localize('repositoryMultiSelectionMode', "Select Multiple Repositories"), 2);
 	}
 }
 
