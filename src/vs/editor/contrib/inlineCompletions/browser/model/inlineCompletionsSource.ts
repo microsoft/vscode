@@ -268,7 +268,7 @@ export class InlineCompletionsSource extends Disposable {
 					const result = suggestions.map(c => ({
 						range: c.editRange.toString(),
 						text: c.insertText,
-						displayLocation: c.displayLocation ? { label: c.displayLocation.label, range: c.displayLocation.range.toString(), kind: c.displayLocation.kind, jumpToEdit: c.displayLocation.jumpToEdit } : undefined,
+						hint: c.hint,
 						isInlineEdit: c.isInlineEdit,
 						showInlineEditMenu: c.showInlineEditMenu,
 						providerId: c.source.provider.providerId?.toString(),
