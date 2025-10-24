@@ -4,16 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Color, RGBA } from '../../../../../base/common/color.js';
 import { DefaultDocumentColorProvider } from '../../browser/defaultDocumentColorProvider.js';
 import { IColorInformation } from '../../../../common/languages.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ITextModel } from '../../../../common/model.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IEditorWorkerService } from '../../../../common/services/editorWorker.js';
 
 suite('DefaultDocumentColorProvider', () => {
 
 	let provider: DefaultDocumentColorProvider;
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(() => {
-		provider = new DefaultDocumentColorProvider({} as any);
+		provider = new DefaultDocumentColorProvider({} as IEditorWorkerService);
 	});
 
 	suite('provideColorPresentations', () => {
@@ -24,8 +29,8 @@ suite('DefaultDocumentColorProvider', () => {
 				color: { red: 0, green: 0, blue: 0, alpha: 0 }
 			};
 
-			const presentations = provider.provideColorPresentations({} as any, transparentBlackInfo, {} as any);
-			
+			const presentations = provider.provideColorPresentations({} as ITextModel, transparentBlackInfo, CancellationToken.None);
+
 			// Find the hex presentation
 			const hexPresentation = presentations.find(p => p.label.startsWith('#'));
 			assert.ok(hexPresentation, 'Should have a hex presentation');
@@ -38,8 +43,8 @@ suite('DefaultDocumentColorProvider', () => {
 				color: { red: 0, green: 0, blue: 0, alpha: 1 }
 			};
 
-			const presentations = provider.provideColorPresentations({} as any, opaqueBlackInfo, {} as any);
-			
+			const presentations = provider.provideColorPresentations({} as ITextModel, opaqueBlackInfo, CancellationToken.None);
+
 			// Find the hex presentation
 			const hexPresentation = presentations.find(p => p.label.startsWith('#'));
 			assert.ok(hexPresentation, 'Should have a hex presentation');
@@ -52,8 +57,8 @@ suite('DefaultDocumentColorProvider', () => {
 				color: { red: 0, green: 0, blue: 0, alpha: 0.5 }
 			};
 
-			const presentations = provider.provideColorPresentations({} as any, semiTransparentBlackInfo, {} as any);
-			
+			const presentations = provider.provideColorPresentations({} as ITextModel, semiTransparentBlackInfo, CancellationToken.None);
+
 			// Find the hex presentation
 			const hexPresentation = presentations.find(p => p.label.startsWith('#'));
 			assert.ok(hexPresentation, 'Should have a hex presentation');
@@ -66,8 +71,8 @@ suite('DefaultDocumentColorProvider', () => {
 				color: { red: 1, green: 0, blue: 0, alpha: 0 }
 			};
 
-			const presentations = provider.provideColorPresentations({} as any, transparentRedInfo, {} as any);
-			
+			const presentations = provider.provideColorPresentations({} as ITextModel, transparentRedInfo, CancellationToken.None);
+
 			// Find the hex presentation
 			const hexPresentation = presentations.find(p => p.label.startsWith('#'));
 			assert.ok(hexPresentation, 'Should have a hex presentation');
@@ -80,10 +85,10 @@ suite('DefaultDocumentColorProvider', () => {
 				color: { red: 0.5, green: 0.5, blue: 0.5, alpha: 0.75 }
 			};
 
-			const presentations = provider.provideColorPresentations({} as any, colorInfo, {} as any);
-			
+			const presentations = provider.provideColorPresentations({} as ITextModel, colorInfo, CancellationToken.None);
+
 			assert.strictEqual(presentations.length, 3, 'Should provide exactly 3 color presentations');
-			
+
 			const labels = presentations.map(p => p.label);
 			assert.ok(labels.some(l => l.startsWith('rgba(')), 'Should include rgba format');
 			assert.ok(labels.some(l => l.startsWith('hsla(')), 'Should include hsla format');
