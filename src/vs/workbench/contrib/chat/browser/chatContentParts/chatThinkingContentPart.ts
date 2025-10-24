@@ -379,12 +379,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return false;
 		}
 
-		const otherId = other?.id;
-		const thisId = this.id;
-
-		const otherValueRaw = Array.isArray(other.value) ? other.value.join('') : (other.value ?? '');
-		const isEqual = this.parseContent(otherValueRaw.trim()) === this.currentThinkingValue;
-		return isEqual || otherId !== thisId;
+		return other?.id !== this.id;
 	}
 
 	override dispose(): void {
