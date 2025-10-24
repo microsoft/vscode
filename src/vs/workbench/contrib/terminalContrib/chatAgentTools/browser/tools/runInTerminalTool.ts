@@ -582,16 +582,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					resultText += `\n\ The command is still running, with output:\n${pollingResult.output}`;
 				}
 
-				const toolResultMessage = toolSpecificData.autoApproveInfo;
 				return {
-					toolResultMessage: toolResultMessage,
 					toolMetadata: {
 						exitCode: undefined // Background processes don't have immediate exit codes
 					},
 					content: [{
 						kind: 'text',
 						value: resultText,
-					}]
+					}],
 				};
 			} catch (e) {
 				if (termId) {
@@ -723,17 +721,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			resultText.push(terminalResult);
 
-			let resolvedToolResultMessage: IMarkdownString | undefined;
-			if (toolSpecificData.autoApproveInfo) {
-				if (toolResultMessage) {
-					resolvedToolResultMessage = new MarkdownString(`${toolSpecificData.autoApproveInfo.value}\n\n${toolResultMessage}`, toolSpecificData.autoApproveInfo);
-				} else {
-					resolvedToolResultMessage = toolSpecificData.autoApproveInfo;
-				}
-			}
-
 			return {
-				toolResultMessage: resolvedToolResultMessage,
+				toolResultMessage,
 				toolMetadata: {
 					exitCode: exitCode
 				},
@@ -936,23 +925,23 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const isGlobalAutoApproved = config?.value ?? config.defaultValue;
 		if (isGlobalAutoApproved) {
 			const settingsUri = createCommandUri(openTerminalSettingsLinkCommandId, 'global');
-			return new MarkdownString(`*${localize('autoApprove.global', 'Auto approved by setting {0}', `[\`${ChatConfiguration.GlobalAutoApprove}\`](${settingsUri.toString()} "${localize('ruleTooltip.global', 'View settings')}")`)}*`, mdTrustSettings);
+			return new MarkdownString(`${localize('autoApprove.global', 'Auto approved by setting {0}', `[\`${ChatConfiguration.GlobalAutoApprove}\`](${settingsUri.toString()} "${localize('ruleTooltip.global', 'View settings')}")`)}`, mdTrustSettings);
 		}
 
 		if (isAutoApproved) {
 			switch (autoApproveReason) {
 				case 'commandLine': {
 					if (commandLineResult.rule) {
-						return new MarkdownString(`*${localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(commandLineResult))}*`, mdTrustSettings);
+						return new MarkdownString(localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(commandLineResult)), mdTrustSettings);
 					}
 					break;
 				}
 				case 'subCommand': {
 					const uniqueRules = dedupeRules(subCommandResults);
 					if (uniqueRules.length === 1) {
-						return new MarkdownString(`*${localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(uniqueRules))}*`, mdTrustSettings);
+						return new MarkdownString(localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(uniqueRules)), mdTrustSettings);
 					} else if (uniqueRules.length > 1) {
-						return new MarkdownString(`*${localize('autoApprove.rules', 'Auto approved by rules {0}', formatRuleLinks(uniqueRules))}*`, mdTrustSettings);
+						return new MarkdownString(localize('autoApprove.rules', 'Auto approved by rules {0}', formatRuleLinks(uniqueRules)), mdTrustSettings);
 					}
 					break;
 				}
@@ -961,16 +950,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			switch (autoApproveReason) {
 				case 'commandLine': {
 					if (commandLineResult.rule) {
-						return new MarkdownString(`*${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(commandLineResult))}*`, mdTrustSettings);
+						return new MarkdownString(localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(commandLineResult)), mdTrustSettings);
 					}
 					break;
 				}
 				case 'subCommand': {
 					const uniqueRules = dedupeRules(subCommandResults.filter(e => e.result === 'denied'));
 					if (uniqueRules.length === 1) {
-						return new MarkdownString(`*${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(uniqueRules))}*`);
+						return new MarkdownString(localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(uniqueRules)));
 					} else if (uniqueRules.length > 1) {
-						return new MarkdownString(`*${localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', formatRuleLinks(uniqueRules))}*`);
+						return new MarkdownString(localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', formatRuleLinks(uniqueRules)));
 					}
 					break;
 				}
