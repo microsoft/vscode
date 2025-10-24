@@ -30,6 +30,7 @@ import { ScrollPosition } from '../../../../terminal/browser/xterm/markNavigatio
 import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import * as dom from '../../../../../../base/browser/dom.js';
 import { localize } from '../../../../../../nls.js';
 import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -183,10 +184,17 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				this._outputContainer.classList.toggle('collapsed', !expanded);
 
 				if (expanded) {
+					let didCreate = false;
 					if (!this._outputContent && this._terminalForOutput) {
 						const output = await this._collectOutput(this._terminalForOutput);
 						this._outputContent = this._renderOutput(output);
 						this._outputContainer.replaceChildren(this._outputContent);
+						didCreate = true;
+					}
+					if (didCreate) {
+						dom.getActiveWindow().requestAnimationFrame(() => {
+							this._outputContainer.scrollTop = this._outputContainer.scrollHeight;
+						});
 					}
 					this._showOutputAction.label = localize('hideTerminalOutput', 'Hide Output');
 					this._showOutputAction.class = ThemeIcon.asClassName(Codicon.chevronDown);
