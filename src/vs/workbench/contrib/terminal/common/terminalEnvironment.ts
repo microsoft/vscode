@@ -13,7 +13,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { sanitizeProcessEnvironment } from '../../../../base/common/processes.js';
 import { IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, TerminalShellType, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
-import { IProcessEnvironment, isWindows, isMacintosh, language, OperatingSystem } from '../../../../base/common/platform.js';
+import { IProcessEnvironment, isWindows, language, OperatingSystem } from '../../../../base/common/platform.js';
 import { escapeNonWindowsPath, sanitizeCwd } from '../../../../platform/terminal/common/terminalEnvironment.js';
 import { isString } from '../../../../base/common/types.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
@@ -270,23 +270,23 @@ export async function createTerminalEnvironment(
 		}
 
 		// Workaround for https://github.com/microsoft/vscode/issues/204005
+		// and https://github.com/microsoft/vscode/issues/231076
 		// We should restore the following environment variables when a user
 		// launches the application using the CLI so that integrated terminal
-		// can still inherit these variables.
+		// can still inherit these variables across all platforms.
 		// We are not bypassing the restrictions implied in https://github.com/electron/electron/pull/40770
 		// since this only affects integrated terminal and not the application itself.
-		if (isMacintosh) {
-			// Restore NODE_OPTIONS if it was set
-			if (env['VSCODE_NODE_OPTIONS']) {
-				env['NODE_OPTIONS'] = env['VSCODE_NODE_OPTIONS'];
-				delete env['VSCODE_NODE_OPTIONS'];
-			}
 
-			// Restore NODE_REPL_EXTERNAL_MODULE if it was set
-			if (env['VSCODE_NODE_REPL_EXTERNAL_MODULE']) {
-				env['NODE_REPL_EXTERNAL_MODULE'] = env['VSCODE_NODE_REPL_EXTERNAL_MODULE'];
-				delete env['VSCODE_NODE_REPL_EXTERNAL_MODULE'];
-			}
+		// Restore NODE_OPTIONS if it was set
+		if (env['VSCODE_NODE_OPTIONS']) {
+			env['NODE_OPTIONS'] = env['VSCODE_NODE_OPTIONS'];
+			delete env['VSCODE_NODE_OPTIONS'];
+		}
+
+		// Restore NODE_REPL_EXTERNAL_MODULE if it was set
+		if (env['VSCODE_NODE_REPL_EXTERNAL_MODULE']) {
+			env['NODE_REPL_EXTERNAL_MODULE'] = env['VSCODE_NODE_REPL_EXTERNAL_MODULE'];
+			delete env['VSCODE_NODE_REPL_EXTERNAL_MODULE'];
 		}
 
 		// Sanitize the environment, removing any undesirable VS Code and Electron environment
