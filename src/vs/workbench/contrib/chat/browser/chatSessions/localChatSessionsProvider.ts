@@ -146,7 +146,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 
 	private isLocalChatSession(editor?: EditorInput): boolean {
 		// For the LocalChatSessionsProvider, we only want to track sessions that are actually 'local' type
-		if (!isChatSession(editor)) {
+		if (!isChatSession(this.chatSessionsService.getContentProviderSchemes(), editor)) {
 			return false;
 		}
 
