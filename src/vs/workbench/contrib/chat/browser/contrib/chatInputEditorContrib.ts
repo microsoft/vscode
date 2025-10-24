@@ -146,7 +146,7 @@ class InputEditorDecorations extends Disposable {
 			if (this.configurationService.getValue<boolean>('chat.emptyChatState.enabled')) {
 				placeholder = localize('chatPlaceholderHint', "Add context (#), extensions (@), commands (/)");
 			} else {
-				placeholder = mode.description.get() ?? '';
+				placeholder = mode.argumentHint?.get() ?? mode.description.get() ?? '';
 			}
 
 			const decoration: IDecorationOptions[] = [
@@ -252,7 +252,7 @@ class InputEditorDecorations extends Disposable {
 			// Resolve the prompt file (this will use cache if available)
 			const promptFile = this.promptsService.resolvePromptSlashCommandFromCache(slashPromptPart.slashPromptCommand.command);
 
-			const description = promptFile?.header?.description;
+			const description = promptFile?.header?.argumentHint ?? promptFile?.header?.description;
 			if (description) {
 				placeholderDecoration = [{
 					range: getRangeForPlaceholder(slashPromptPart),
