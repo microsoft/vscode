@@ -270,6 +270,7 @@ export class InlineCompletionsSource extends Disposable {
 						text: c.insertText,
 						isInlineEdit: !!c.isInlineEdit,
 						source: c.source.provider.groupId,
+						displayLocation: c.displayLocation ? { label: c.displayLocation.label, range: c.displayLocation.range.toString(), kind: c.displayLocation.kind, jumpToEdit: c.displayLocation.jumpToEdit } : undefined,
 					}));
 					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now(), didAllProvidersReturn });
 				}
