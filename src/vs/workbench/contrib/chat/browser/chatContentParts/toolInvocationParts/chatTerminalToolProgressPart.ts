@@ -222,7 +222,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		let text = this._attachedCommand?.getOutput() ?? '';
 
 		if (!text && terminalInstance.xterm) {
-			text = await terminalInstance.xterm.getContentsAsHtml();
+			text = await terminalInstance.xterm.getContentsAsText();
 		}
 
 		if (!text) {
