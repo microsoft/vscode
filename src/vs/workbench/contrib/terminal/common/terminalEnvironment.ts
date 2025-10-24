@@ -397,7 +397,7 @@ export async function formatUriForShellDisplay(uri: URI | string, shellType?: Te
 			if (backend) {
 				return backend.getWslPath(path.replace(/\//g, '\\'), 'win-to-unix');
 			} else {
-				return path.replace(/\\/g, '//');
+				return path.replace(/\\/g, '/');
 			}
 		} else if (shellType === WindowsShellType.GitBash) {
 			// Convert \ to / and replace 'c:\' with '/c/'.

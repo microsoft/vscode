@@ -11,6 +11,25 @@ import { addTerminalEnvironmentKeys, createTerminalEnvironment, formatUriForShel
 import { GeneralShellType, PosixShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
+const wslPathBackend = {
+	getWslPath: async (original: string, direction: 'unix-to-win' | 'win-to-unix') => {
+		if (direction === 'unix-to-win') {
+			const match = original.match(/^\/mnt\/(?<drive>[a-zA-Z])\/(?<path>.+)$/);
+			const groups = match?.groups;
+			if (!groups) {
+				return original;
+			}
+			return `${groups.drive}:\\${groups.path.replace(/\//g, '\\')}`;
+		}
+		const match = original.match(/(?<drive>[a-zA-Z]):\\(?<path>.+)/);
+		const groups = match?.groups;
+		if (!groups) {
+			return original;
+		}
+		return `/mnt/${groups.drive.toLowerCase()}/${groups.path.replace(/\\/g, '/')}`;
+	}
+};
+
 suite('Workbench - TerminalEnvironment', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -213,25 +232,6 @@ suite('Workbench - TerminalEnvironment', () => {
 		});
 	});
 
-	const wslPathBackend = {
-		getWslPath: async (original: string, direction: 'unix-to-win' | 'win-to-unix') => {
-			if (direction === 'unix-to-win') {
-				const match = original.match(/^\/mnt\/(?<drive>[a-zA-Z])\/(?<path>.+)$/);
-				const groups = match?.groups;
-				if (!groups) {
-					return original;
-				}
-				return `${groups.drive}:\\${groups.path.replace(/\//g, '\\')}`;
-			}
-			const match = original.match(/(?<drive>[a-zA-Z]):\\(?<path>.+)/);
-			const groups = match?.groups;
-			if (!groups) {
-				return original;
-			}
-			return `/mnt/${groups.drive.toLowerCase()}/${groups.path.replace(/\\/g, '/')}`;
-		}
-	};
-
 	suite('preparePathForShell', () => {
 		suite('Windows frontend, Windows backend', () => {
 			test('Command Prompt', async () => {
@@ -324,6 +324,8 @@ suite('Workbench - TerminalEnvironment', () => {
 		test('Windows backend', async () => {
 			strictEqual(await formatUriForShellDisplay('c:\\foo\\bar', WindowsShellType.Wsl, OperatingSystem.Windows, wslPathBackend, true), '/mnt/c/foo/bar');
 			strictEqual(await formatUriForShellDisplay('c:/foo/bar', WindowsShellType.Wsl, OperatingSystem.Windows, wslPathBackend, false), '/mnt/c/foo/bar');
+			strictEqual(await formatUriForShellDisplay('c:\\foo\\bar', WindowsShellType.Wsl, OperatingSystem.Windows, undefined, true), 'c:/foo/bar');
+			strictEqual(await formatUriForShellDisplay('c:/foo/bar', WindowsShellType.Wsl, OperatingSystem.Windows, undefined, false), 'c:/foo/bar');
 			strictEqual(await formatUriForShellDisplay('c:\\foo\\bar', WindowsShellType.GitBash, OperatingSystem.Windows, wslPathBackend, true), '/c/foo/bar');
 			strictEqual(await formatUriForShellDisplay('c:/foo/bar', WindowsShellType.GitBash, OperatingSystem.Windows, wslPathBackend, false), '/c/foo/bar');
 			strictEqual(await formatUriForShellDisplay('c:\\foo\\bar', WindowsShellType.CommandPrompt, OperatingSystem.Windows, wslPathBackend, true), 'c:\\foo\\bar');
