@@ -56,8 +56,9 @@ function createPowerShellModelDescription(shell: string): string {
 		`This tool allows you to execute ${isWinPwsh ? 'Windows PowerShell 5.1' : 'PowerShell'} commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.`,
 		'',
 		'Command Execution:',
-		// Even for pwsh 7+ we want to use `;` to chain commands since the tree sitter grammar
-		// doesn't parse `&&`. See https://github.com/airbus-cert/tree-sitter-powershell/issues/27
+		// TODO: Even for pwsh 7+ we want to use `;` to chain commands since the tree sitter grammar
+		// doesn't parse `&&`. We want to change this to avoid `&&` only in Windows PowerShell when
+		// the grammar supports it https://github.com/airbus-cert/tree-sitter-powershell/issues/27
 		'- Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly',
 		'- Prefer pipelines | for object-based data flow',
 		'',
@@ -292,8 +293,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._osBackend = this._remoteAgentService.getEnvironment().then(remoteEnv => remoteEnv?.os ?? OS);
 
 		this._terminalToolCreator = _instantiationService.createInstance(ToolTerminalCreator);
-		this._commandSimplifier = _instantiationService.createInstance(CommandSimplifier, this._osBackend);
 		this._treeSitterCommandParser = this._instantiationService.createInstance(TreeSitterCommandParser);
+		this._commandSimplifier = _instantiationService.createInstance(CommandSimplifier, this._osBackend, this._treeSitterCommandParser);
 		this._telemetry = _instantiationService.createInstance(RunInTerminalToolTelemetry);
 		this._commandLineAutoApprover = this._register(_instantiationService.createInstance(CommandLineAutoApprover));
 		this._profileFetcher = _instantiationService.createInstance(TerminalProfileFetcher);
