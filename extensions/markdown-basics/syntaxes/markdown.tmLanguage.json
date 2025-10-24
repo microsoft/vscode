@@ -25,6 +25,9 @@
 					"include": "#heading"
 				},
 				{
+        			"include": "#latex"
+      			},
+				{
 					"include": "#blockquote"
 				},
 				{
@@ -50,6 +53,12 @@
 				}
 			]
 		},
+		"latex": {
+    		"name": "markup.math.latex.markdown",
+    		"begin": "\\$\\$?",
+    		"end": "\\$\\$?",
+    		"patterns": []
+  			},
 		"blockquote": {
 			"begin": "(^|\\G)[ ]{0,3}(>) ?",
 			"captures": {
