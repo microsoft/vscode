@@ -27,7 +27,6 @@ import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { autorun } from '../../../../../../base/common/observable.js';
-import { ChatMcpServersInteractionContentPart } from '../chatMcpServersInteractionContentPart.js';
 import { localize } from '../../../../../../nls.js';
 import { markdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 
