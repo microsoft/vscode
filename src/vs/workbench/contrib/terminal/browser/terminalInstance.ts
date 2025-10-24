@@ -72,7 +72,7 @@ import { IEnvironmentVariableInfo } from '../common/environmentVariable.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
-import { formatUriForShellDisplay, getShellIntegrationTimeout, getWorkspaceForTerminal, preparePathForShell } from '../common/terminalEnvironment.js';
+import { getUriLabelForShell, getShellIntegrationTimeout, getWorkspaceForTerminal, preparePathForShell } from '../common/terminalEnvironment.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
@@ -1343,10 +1343,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os);
 	}
 
-	async formatUriForShellDisplay(uri: URI): Promise<string> {
+	async getUriLabelForShell(uri: URI): Promise<string> {
 		// Wait for shell type to be ready
 		await this.processReady;
-		return formatUriForShellDisplay(uri, this.shellType, this.os, this._processManager.backend);
+		return getUriLabelForShell(uri, this._processManager.backend!, this.shellType, this.os);
 	}
 
 	setVisible(visible: boolean): void {

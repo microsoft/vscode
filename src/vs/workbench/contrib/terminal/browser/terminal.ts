@@ -1043,7 +1043,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * Formats a file system URI for display in UI so that it appears in the terminal shell's format.
 	 * @param uri The URI to format.
 	 */
-	formatUriForShellDisplay(uri: URI): Promise<string>;
+	getUriLabelForShell(uri: URI): Promise<string>;
 
 	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;

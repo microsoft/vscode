@@ -30,6 +30,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { getCommandHistory, getDirectoryHistory, getShellFileHistory } from '../common/history.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { extUri, extUriIgnorePathCase } from '../../../../../base/common/resources.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
 
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
@@ -48,6 +49,7 @@ export async function showRunRecentQuickPick(
 	const instantiationService = accessor.get(IInstantiationService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const storageService = accessor.get(IStorageService);
+	const pathService = accessor.get(IPathService);
 
 	const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${instance.shellType}`;
 	let placeholder: string;
@@ -212,7 +214,7 @@ export async function showRunRecentQuickPick(
 				if (!uniqueUris.has(itemUri)) {
 					uniqueUris.add(itemUri);
 					items.push({
-						label: await instance.formatUriForShellDisplay(itemUri),
+						label: await instance.getUriLabelForShell(itemUri),
 						rawLabel: label
 					});
 				}
@@ -226,14 +228,16 @@ export async function showRunRecentQuickPick(
 		const previousSessionItems: (IQuickPickItem & { rawLabel: string })[] = [];
 		// Only add previous session item if it's not in this session and it matches the remote authority
 		for (const [label, info] of history.entries) {
-			const itemUri = URI.file(label);
-			if ((info === null || info.remoteAuthority === instance.remoteAuthority) && !uniqueUris.has(itemUri)) {
-				uniqueUris.add(itemUri);
-				previousSessionItems.unshift({
-					label: await instance.formatUriForShellDisplay(itemUri),
-					rawLabel: label,
-					buttons: [removeFromCommandHistoryButton]
-				});
+			if (info === null || info.remoteAuthority === instance.remoteAuthority) {
+				const itemUri = info?.remoteAuthority ? await pathService.fileURI(label) : URI.file(label);
+				if (!uniqueUris.has(itemUri)) {
+					uniqueUris.add(itemUri);
+					previousSessionItems.unshift({
+						label: await instance.getUriLabelForShell(itemUri),
+						rawLabel: label,
+						buttons: [removeFromCommandHistoryButton]
+					});
+				}
 			}
 		}
 		if (previousSessionItems.length > 0) {

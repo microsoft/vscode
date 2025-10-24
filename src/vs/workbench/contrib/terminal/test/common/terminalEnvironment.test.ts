@@ -7,7 +7,7 @@ import { deepStrictEqual, strictEqual } from 'assert';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI as Uri } from '../../../../../base/common/uri.js';
-import { addTerminalEnvironmentKeys, createTerminalEnvironment, formatUriForShellDisplay, getCwd, getLangEnvVariable, mergeEnvironments, preparePathForShell, shouldSetLangEnvVariable } from '../../common/terminalEnvironment.js';
+import { addTerminalEnvironmentKeys, createTerminalEnvironment, getUriLabelForShell, getCwd, getLangEnvVariable, mergeEnvironments, preparePathForShell, shouldSetLangEnvVariable } from '../../common/terminalEnvironment.js';
 import { GeneralShellType, PosixShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
@@ -321,23 +321,33 @@ suite('Workbench - TerminalEnvironment', () => {
 		});
 	});
 	suite('formatUriForShellDisplay', () => {
-		test('Windows backend', async () => {
-			strictEqual(await formatUriForShellDisplay('c:\\foo\\bar', WindowsShellType.Wsl, OperatingSystem.Windows, wslPathBackend, true), '/mnt/c/foo/bar');
-			strictEqual(await formatUriForShellDisplay('c:/foo/bar', WindowsShellType.Wsl, OperatingSystem.Windows, wslPathBackend, false), '/mnt/c/foo/bar');
-			strictEqual(await formatUriForShellDisplay('c:\\foo\\bar', WindowsShellType.Wsl, OperatingSystem.Windows, undefined, true), 'c:/foo/bar');
-			strictEqual(await formatUriForShellDisplay('c:/foo/bar', WindowsShellType.Wsl, OperatingSystem.Windows, undefined, false), 'c:/foo/bar');
-			strictEqual(await formatUriForShellDisplay('c:\\foo\\bar', WindowsShellType.GitBash, OperatingSystem.Windows, wslPathBackend, true), '/c/foo/bar');
-			strictEqual(await formatUriForShellDisplay('c:/foo/bar', WindowsShellType.GitBash, OperatingSystem.Windows, wslPathBackend, false), '/c/foo/bar');
-			strictEqual(await formatUriForShellDisplay('c:\\foo\\bar', WindowsShellType.CommandPrompt, OperatingSystem.Windows, wslPathBackend, true), 'c:\\foo\\bar');
-			strictEqual(await formatUriForShellDisplay('c:/foo/bar', WindowsShellType.CommandPrompt, OperatingSystem.Windows, wslPathBackend, false), 'c:\\foo\\bar');
-			strictEqual(await formatUriForShellDisplay('C:\\Foo\\Bar', WindowsShellType.CommandPrompt, OperatingSystem.Windows, wslPathBackend, true), 'C:\\Foo\\Bar');
-			strictEqual(await formatUriForShellDisplay('C:/Foo/Bar', WindowsShellType.CommandPrompt, OperatingSystem.Windows, wslPathBackend, false), 'C:\\Foo\\Bar');
+		test('Wsl', async () => {
+			strictEqual(await getUriLabelForShell('c:\\foo\\bar', wslPathBackend, WindowsShellType.Wsl, OperatingSystem.Windows, true), '/mnt/c/foo/bar');
+			strictEqual(await getUriLabelForShell('c:/foo/bar', wslPathBackend, WindowsShellType.Wsl, OperatingSystem.Windows, false), '/mnt/c/foo/bar');
 		});
-		test('Non-Windows backend', async () => {
-			strictEqual(await formatUriForShellDisplay('\\foo\\bar', PosixShellType.Bash, OperatingSystem.Linux, wslPathBackend, true), '/foo/bar');
-			strictEqual(await formatUriForShellDisplay('/foo/bar', PosixShellType.Bash, OperatingSystem.Linux, wslPathBackend, true), '/foo/bar');
-			strictEqual(await formatUriForShellDisplay('\\foo\\bar', PosixShellType.Bash, OperatingSystem.Linux, wslPathBackend, false), '\\foo\\bar');
-			strictEqual(await formatUriForShellDisplay('/foo/bar', PosixShellType.Bash, OperatingSystem.Linux, wslPathBackend, false), '/foo/bar');
+		test('GitBash', async () => {
+			strictEqual(await getUriLabelForShell('c:\\foo\\bar', wslPathBackend, WindowsShellType.GitBash, OperatingSystem.Windows, true), '/c/foo/bar');
+			strictEqual(await getUriLabelForShell('c:/foo/bar', wslPathBackend, WindowsShellType.GitBash, OperatingSystem.Windows, false), '/c/foo/bar');
+		});
+		suite('PowerShell', () => {
+			test('Windows frontend', async () => {
+				strictEqual(await getUriLabelForShell('c:\\foo\\bar', wslPathBackend, GeneralShellType.PowerShell, OperatingSystem.Windows, true), 'c:\\foo\\bar');
+				strictEqual(await getUriLabelForShell('C:\\Foo\\Bar', wslPathBackend, GeneralShellType.PowerShell, OperatingSystem.Windows, true), 'C:\\Foo\\Bar');
+			});
+			test('Non-Windows frontend', async () => {
+				strictEqual(await getUriLabelForShell('c:/foo/bar', wslPathBackend, GeneralShellType.PowerShell, OperatingSystem.Windows, false), 'c:\\foo\\bar');
+				strictEqual(await getUriLabelForShell('C:/Foo/Bar', wslPathBackend, GeneralShellType.PowerShell, OperatingSystem.Windows, false), 'C:\\Foo\\Bar');
+			});
+		});
+		suite('Bash', () => {
+			test('Windows frontend', async () => {
+				strictEqual(await getUriLabelForShell('\\foo\\bar', wslPathBackend, PosixShellType.Bash, OperatingSystem.Linux, true), '/foo/bar');
+				strictEqual(await getUriLabelForShell('/foo/bar', wslPathBackend, PosixShellType.Bash, OperatingSystem.Linux, true), '/foo/bar');
+			});
+			test('Non-Windows frontend', async () => {
+				strictEqual(await getUriLabelForShell('\\foo\\bar', wslPathBackend, PosixShellType.Bash, OperatingSystem.Linux, false), '\\foo\\bar');
+				strictEqual(await getUriLabelForShell('/foo/bar', wslPathBackend, PosixShellType.Bash, OperatingSystem.Linux, false), '/foo/bar');
+			});
 		});
 	});
 });

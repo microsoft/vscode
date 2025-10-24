@@ -391,26 +391,22 @@ export function getWorkspaceForTerminal(cwd: URI | string | undefined, workspace
 	return workspaceFolder;
 }
 
-export async function formatUriForShellDisplay(uri: URI | string, shellType?: TerminalShellType, os?: OperatingSystem, backend?: Pick<ITerminalBackend, 'getWslPath'>, isWindowsFrontend: boolean = isWindows): Promise<string> {
+export async function getUriLabelForShell(uri: URI | string, backend: Pick<ITerminalBackend, 'getWslPath'>, shellType?: TerminalShellType, os?: OperatingSystem, isWindowsFrontend: boolean = isWindows): Promise<string> {
 	let path = typeof uri === 'string' ? uri : uri.fsPath;
 	if (os === OperatingSystem.Windows) {
 		if (shellType === WindowsShellType.Wsl) {
-			if (backend) {
-				return backend.getWslPath(path.replace(/\//g, '\\'), 'win-to-unix');
-			} else {
-				return path.replace(/\\/g, '/');
-			}
+			return backend.getWslPath(path.replaceAll('/', '\\'), 'win-to-unix');
 		} else if (shellType === WindowsShellType.GitBash) {
 			// Convert \ to / and replace 'c:\' with '/c/'.
-			return path.replace(/\\/g, '/').replace(/^([a-zA-Z]):\//, '/$1/');
+			return path.replaceAll('\\', '/').replace(/^([a-zA-Z]):\//, '/$1/');
 		} else {
 			// If the frontend is not Windows but the terminal is, convert / to \.
 			path = typeof uri === 'string' ? path : uriToFsPath(uri, true);
-			return !isWindowsFrontend ? path.replace(/\//g, '\\') : path;
+			return !isWindowsFrontend ? path.replaceAll('/', '\\') : path;
 		}
 	} else {
 		// If the frontend is Windows but the terminal is not, convert \ to /.
-		return isWindowsFrontend ? path.replace(/\\/g, '/') : path;
+		return isWindowsFrontend ? path.replaceAll('\\', '/') : path;
 	}
 }
 
