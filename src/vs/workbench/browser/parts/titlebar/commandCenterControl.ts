@@ -142,6 +142,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							super.render(container);
 							container.classList.toggle('command-center-quick-pick');
 							container.role = 'button';
+							container.setAttribute('aria-description', this.getTooltip());
 							const action = this.action;
 
 							// icon (search)

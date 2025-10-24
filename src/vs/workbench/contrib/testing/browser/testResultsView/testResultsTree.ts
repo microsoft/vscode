@@ -57,7 +57,7 @@ interface ITreeElement {
 	context: unknown;
 	id: string;
 	label: string;
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 	labelWithIcons?: readonly (HTMLSpanElement | string)[];
 	icon?: ThemeIcon;
 	description?: string;
@@ -69,7 +69,7 @@ interface ITreeElement {
 	context: unknown;
 	id: string;
 	label: string;
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 	labelWithIcons?: readonly (HTMLSpanElement | string)[];
 	icon?: ThemeIcon;
 	description?: string;
@@ -301,7 +301,7 @@ export class OutputPeekTree extends Disposable {
 
 	constructor(
 		container: HTMLElement,
-		onDidReveal: Event<{ subject: InspectSubject; preserveFocus: boolean }>,
+		readonly onDidReveal: Event<{ subject: InspectSubject; preserveFocus: boolean }>,
 		options: { showRevealLocationOnMessages: boolean; locationForProgress: string },
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITestResultService results: ITestResultService,

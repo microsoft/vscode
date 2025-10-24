@@ -19,6 +19,8 @@ import { IPromptsService } from '../../common/promptSyntax/service/promptsServic
 import { registerEditorFeature } from '../../../../../editor/common/editorFeatures.js';
 import { PromptFileRewriter } from './promptFileRewriter.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { IEditorModel } from '../../../../../editor/common/editorCommon.js';
+import { PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 
 class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider {
 
@@ -38,8 +40,9 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 
 		this._register(CommandsRegistry.registerCommand(this.cmdId, (_accessor, ...args) => {
 			const [first, second, third] = args;
-			if (isITextModel(first) && Range.isIRange(second) && Array.isArray(third)) {
-				this.updateTools(first, Range.lift(second), third);
+			const model = first as IEditorModel;
+			if (isITextModel(model) && Range.isIRange(second) && Array.isArray(third)) {
+				this.updateTools(model as ITextModel, Range.lift(second), third);
 			}
 		}));
 	}
@@ -52,7 +55,7 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 		}
 
 
-		const toolsAttr = parser.header.getAttribute('tools');
+		const toolsAttr = parser.header.getAttribute(PromptHeaderAttributes.tools);
 		if (!toolsAttr || toolsAttr.value.type !== 'array') {
 			return undefined;
 		}

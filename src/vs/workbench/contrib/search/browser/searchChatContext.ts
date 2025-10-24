@@ -34,6 +34,7 @@ import { ResourceSet } from '../../../../base/common/map.js';
 import { SymbolsQuickAccessProvider } from './symbolsQuickAccess.js';
 import { SymbolKinds } from '../../../../editor/common/languages.js';
 import { ChatUnsupportedFileSchemes } from '../../chat/common/constants.js';
+import { IChatWidget } from '../../chat/browser/chat.js';
 
 export class SearchChatContextContribution extends Disposable implements IWorkbenchContribution {
 
@@ -63,8 +64,8 @@ class SearchViewResultChatContextPick implements IChatContextValueItem {
 		@ILabelService private readonly _labelService: ILabelService,
 	) { }
 
-	isEnabled(): Promise<boolean> | boolean {
-		return !!SearchContext.HasSearchResults.getValue(this._contextKeyService);
+	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
+		return !!SearchContext.HasSearchResults.getValue(this._contextKeyService) && !!widget.attachmentCapabilities.supportsSearchResultAttachments;
 	}
 
 	async asAttachment(): Promise<IChatRequestVariableEntry[]> {
@@ -100,6 +101,9 @@ class SymbolsContextPickerPick implements IChatContextPickerItem {
 		this._provider?.dispose();
 	}
 
+	isEnabled(widget: IChatWidget): boolean {
+		return !!widget.attachmentCapabilities.supportsSymbolAttachments;
+	}
 	asPicker() {
 
 		return {
@@ -209,9 +213,7 @@ class FilesAndFoldersPickerPick implements IChatContextPickerItem {
 		return {
 			label: basename(resource),
 			description: this._labelService.getUriLabel(dirname(resource), { relative: true }),
-			iconClass: kind === FileKind.FILE
-				? getIconClasses(this._modelService, this._languageService, resource, FileKind.FILE).join(' ')
-				: ThemeIcon.asClassName(Codicon.folder),
+			iconClasses: getIconClasses(this._modelService, this._languageService, resource, kind),
 			asAttachment: () => {
 				return {
 					kind: kind === FileKind.FILE ? 'file' : 'directory',

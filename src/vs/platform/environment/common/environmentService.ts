@@ -214,7 +214,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		const result: [string, string][] = [];
 		for (const entry of this.args.log || []) {
 			const matches = EXTENSION_IDENTIFIER_WITH_LOG_REGEX.exec(entry);
-			if (matches && matches[1] && matches[2]) {
+			if (matches?.[1] && matches[2]) {
 				result.push([matches[1], matches[2]]);
 			}
 		}
@@ -253,6 +253,10 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	}
 
 	get editSessionId(): string | undefined { return this.args['editSessionId']; }
+
+	get exportPolicyData(): string | undefined {
+		return this.args['export-policy-data'];
+	}
 
 	get continueOn(): string | undefined {
 		return this.args['continueOn'];

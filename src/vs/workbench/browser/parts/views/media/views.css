@@ -101,7 +101,7 @@
 	max-width: 300px;
 }
 
-.monaco-workbench:not(.reduce-motion) .pane > .pane-body .welcome-view-content > .button-container {
+.monaco-workbench.monaco-enable-motion .pane > .pane-body .welcome-view-content > .button-container {
 	transition: 0.2s max-width ease-out;
 }
 
@@ -182,6 +182,11 @@
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
+}
+
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-highlighted-label .codicon {
+	position: relative;
+	top: 2px;
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .monaco-icon-label-container::after {

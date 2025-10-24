@@ -48,6 +48,7 @@ const CustomEditorsContribution: IJSONSchema = {
 			Fields.displayName,
 			Fields.selector,
 		],
+		additionalProperties: false,
 		properties: {
 			[Fields.viewType]: {
 				type: 'string',
@@ -67,6 +68,7 @@ const CustomEditorsContribution: IJSONSchema = {
 							filenamePattern: '$1',
 						}
 					}],
+					additionalProperties: false,
 					properties: {
 						filenamePattern: {
 							type: 'string',
@@ -96,11 +98,11 @@ export const customEditorsExtensionPoint = ExtensionsRegistry.registerExtensionP
 	extensionPoint: 'customEditors',
 	deps: [languagesExtPoint],
 	jsonSchema: CustomEditorsContribution,
-	activationEventsGenerator: (contribs: ICustomEditorsExtensionPoint[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs: readonly ICustomEditorsExtensionPoint[]) {
 		for (const contrib of contribs) {
 			const viewType = contrib[Fields.viewType];
 			if (viewType) {
-				result.push(`onCustomEditor:${viewType}`);
+				yield `onCustomEditor:${viewType}`;
 			}
 		}
 	},

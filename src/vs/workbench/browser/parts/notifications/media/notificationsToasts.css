@@ -91,7 +91,7 @@
 	border-radius: 4px;
 }
 
-.monaco-workbench.reduce-motion > .notifications-toasts .notification-toast-container > .notification-toast {
+.monaco-workbench.monaco-reduce-motion > .notifications-toasts .notification-toast-container > .notification-toast {
 	transition: transform 0ms ease-out, opacity 0ms ease-out;
 }
 

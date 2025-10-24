@@ -27,25 +27,14 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { ChatSessionUri } from '../../common/chatUri.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { ChatConfiguration, AGENT_SESSIONS_VIEWLET_ID } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem } from '../chatSessions/common.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CHAT_CATEGORY } from './chatActions.js';
+import { ACTION_ID_OPEN_CHAT, CHAT_CATEGORY } from './chatActions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { VIEWLET_ID } from '../chatSessions/view/chatSessionsView.js';
-
-export interface IChatSessionContext {
-	sessionId: string;
-	sessionType: 'editor' | 'widget';
-	currentTitle: string;
-	editorInput?: any;
-	editorGroup?: any;
-	widget?: any;
-}
 
 interface IMarshalledChatSessionContext {
 	$mid: MarshalledId.ChatSessionContext;
@@ -85,7 +74,7 @@ export class RenameChatSessionAction extends Action2 {
 		try {
 			// Find the chat sessions view and trigger inline rename mode
 			// This is similar to how file renaming works in the explorer
-			await chatSessionsService.setEditableSession(sessionId, {
+			await chatSessionsService.setEditableSession(context.session.resource, {
 				validationMessage: (value: string) => {
 					if (!value || value.trim().length === 0) {
 						return { content: localize('renameSession.emptyName', "Name cannot be empty"), severity: Severity.Error };
@@ -111,7 +100,7 @@ export class RenameChatSessionAction extends Action2 {
 							);
 						}
 					}
-					await chatSessionsService.setEditableSession(sessionId, null);
+					await chatSessionsService.setEditableSession(context.session.resource, null);
 				}
 			});
 		} catch (error) {
@@ -177,7 +166,7 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenChatSessionInNewWindowAction.id,
-			title: localize('chat.openSessionInNewWindow.label', "Open Chat in New Window"),
+			title: localize('chat.openSessionInNewWindow.label', "Move Chat into New Window"),
 			category: CHAT_CATEGORY,
 			f1: false,
 		});
@@ -193,7 +182,8 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 		const sessionId = context.session.id;
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		if (context.session.provider?.chatSessionType) {
-			const uri = ChatSessionUri.forSession(context.session.provider.chatSessionType, sessionId);
+			const uri = context.session.resource;
+
 			// Check if this session is already open in another editor
 			const existingEditor = findExistingChatEditorByUri(uri, sessionId, editorGroupsService);
 			if (existingEditor) {
@@ -234,7 +224,7 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenChatSessionInNewEditorGroupAction.id,
-			title: localize('chat.openSessionInNewEditorGroup.label', "Open Chat to the Side"),
+			title: localize('chat.openSessionInNewEditorGroup.label', "Move Chat to the Side"),
 			category: CHAT_CATEGORY,
 			f1: false,
 		});
@@ -250,7 +240,7 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 		const sessionId = context.session.id;
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		if (context.session.provider?.chatSessionType) {
-			const uri = ChatSessionUri.forSession(context.session.provider.chatSessionType, sessionId);
+			const uri = context.session.resource;
 			// Check if this session is already open in another editor
 			const existingEditor = findExistingChatEditorByUri(uri, sessionId, editorGroupsService);
 			if (existingEditor) {
@@ -291,7 +281,7 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenChatSessionInSidebarAction.id,
-			title: localize('chat.openSessionInSidebar.label', "Open Chat in Sidebar"),
+			title: localize('chat.openSessionInSidebar.label', "Move Chat into Side Bar"),
 			category: CHAT_CATEGORY,
 			f1: false,
 		});
@@ -308,9 +298,8 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const sessionId = context.session.id;
 		if (context.session.provider?.chatSessionType) {
-			const uri = ChatSessionUri.forSession(context.session.provider.chatSessionType, sessionId);
 			// Check if this session is already open in another editor
-			const existingEditor = findExistingChatEditorByUri(uri, sessionId, editorGroupsService);
+			const existingEditor = findExistingChatEditorByUri(context.session.resource, sessionId, editorGroupsService);
 			if (existingEditor) {
 				await editorService.openEditor(existingEditor.editor, existingEditor.groupId);
 				return;
@@ -326,10 +315,7 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 			if (context.session && (isLocalChatSessionItem(context.session))) {
 				await chatViewPane.loadSession(sessionId);
 			} else {
-				// For external provider sessions, create a URI and load using that
-				const providerType = context.session.provider?.chatSessionType || 'external';
-				const sessionUri = ChatSessionUri.forSession(providerType, sessionId);
-				await chatViewPane.loadSession(sessionUri);
+				await chatViewPane.loadSession(context.session.resource);
 			}
 
 			// Focus the chat input
@@ -476,6 +462,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'navigation',
 	order: 3,
+	when: ChatContextKeys.sessionType.isEqualTo('local'),
 });
 
 // Register the toggle command for the ViewTitle menu
@@ -487,16 +474,16 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 	},
 	group: '1_config',
 	order: 1,
-	when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
+	when: ContextKeyExpr.equals('viewContainer', AGENT_SESSIONS_VIEWLET_ID),
 });
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	command: {
-		id: 'workbench.action.openChat',
+		id: ACTION_ID_OPEN_CHAT,
 		title: nls.localize2('interactiveSession.open', "New Chat Editor"),
 		icon: Codicon.plus
 	},
 	group: 'navigation',
 	order: 1,
-	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+	when: ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.local`),
 });

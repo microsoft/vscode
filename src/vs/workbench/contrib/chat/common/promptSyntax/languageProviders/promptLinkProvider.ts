@@ -7,20 +7,14 @@ import { IPromptsService } from '../service/promptsService.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ILink, ILinksList, LinkProvider } from '../../../../../../editor/common/languages.js';
-import { ALL_PROMPTS_LANGUAGE_SELECTOR } from '../promptTypes.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 
 /**
  * Provides link references for prompt files.
  */
-export class PromptLinkProvider extends Disposable implements LinkProvider {
+export class PromptLinkProvider implements LinkProvider {
 	constructor(
-		@ILanguageFeaturesService languageService: ILanguageFeaturesService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
-		super();
-		this._register(languageService.linkProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, this));
 	}
 
 	/**

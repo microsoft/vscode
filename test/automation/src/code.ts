@@ -24,6 +24,7 @@ export interface LaunchOptions {
 	readonly logger: Logger;
 	logsPath: string;
 	crashesPath: string;
+	readonly videosPath?: string;
 	verbose?: boolean;
 	useInMemorySecretStorage?: boolean;
 	readonly extraArgs?: string[];
@@ -124,6 +125,7 @@ export class Code {
 					throw new Error('Invalid usage');
 				}
 
+				// eslint-disable-next-line local/code-no-any-casts
 				const targetProp = (target as any)[prop];
 				if (typeof targetProp !== 'function') {
 					return targetProp;

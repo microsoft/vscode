@@ -15,8 +15,7 @@ import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } 
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import { AvatarQuery, AvatarQueryCommit } from './api/git';
 import { LRUCache } from './cache';
-
-const AVATAR_SIZE = 20;
+import { AVATAR_SIZE, getHistoryItemHover, getHistoryItemHoverCommitHashCommands, processHistoryItemRemoteHoverCommands } from './historyProvider';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -242,80 +241,26 @@ export class GitBlameController {
 				this._model, repository, commitInformation?.message ?? blameInformation.subject ?? '');
 		}
 
-		const markdownString = new MarkdownString();
-		markdownString.isTrusted = true;
-		markdownString.supportThemeIcons = true;
-
-		// Author, date
 		const hash = commitInformation?.hash ?? blameInformation.hash;
 		const authorName = commitInformation?.authorName ?? blameInformation.authorName;
 		const authorEmail = commitInformation?.authorEmail ?? blameInformation.authorEmail;
 		const authorDate = commitInformation?.authorDate ?? blameInformation.authorDate;
-		const avatar = commitAvatar ? `![${authorName}](${commitAvatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})` : '$(account)';
-
-
-		if (authorName) {
-			if (authorEmail) {
-				const emailTitle = l10n.t('Email');
-				markdownString.appendMarkdown(`${avatar} [**${authorName}**](mailto:${authorEmail} "${emailTitle} ${authorName}")`);
-			} else {
-				markdownString.appendMarkdown(`${avatar} **${authorName}**`);
-			}
-
-			if (authorDate) {
-				const dateString = new Date(authorDate).toLocaleString(undefined, {
-					year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric'
-				});
-				markdownString.appendMarkdown(`, $(history) ${fromNow(authorDate, true, true)} (${dateString})`);
-			}
-
-			markdownString.appendMarkdown('\n\n');
-		}
-
-		// Subject | Message
 		const message = commitMessageWithLinks ?? commitInformation?.message ?? blameInformation.subject ?? '';
-		markdownString.appendMarkdown(`${emojify(message.replace(/\r\n|\r|\n/g, '\n\n'))}\n\n`);
-		markdownString.appendMarkdown(`---\n\n`);
-
-		// Short stats
-		if (commitInformation?.shortStat) {
-			markdownString.appendMarkdown(`<span>${commitInformation.shortStat.files === 1 ?
-				l10n.t('{0} file changed', commitInformation.shortStat.files) :
-				l10n.t('{0} files changed', commitInformation.shortStat.files)}</span>`);
-
-			if (commitInformation.shortStat.insertions) {
-				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${commitInformation.shortStat.insertions === 1 ?
-					l10n.t('{0} insertion{1}', commitInformation.shortStat.insertions, '(+)') :
-					l10n.t('{0} insertions{1}', commitInformation.shortStat.insertions, '(+)')}</span>`);
-			}
-
-			if (commitInformation.shortStat.deletions) {
-				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${commitInformation.shortStat.deletions === 1 ?
-					l10n.t('{0} deletion{1}', commitInformation.shortStat.deletions, '(-)') :
-					l10n.t('{0} deletions{1}', commitInformation.shortStat.deletions, '(-)')}</span>`);
-			}
-
-			markdownString.appendMarkdown(`\n\n---\n\n`);
-		}
 
 		// Commands
-		markdownString.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(documentUri, hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, hash, documentUri]))} "${l10n.t('Open Commit')}")`);
-		markdownString.appendMarkdown('&nbsp;');
-		markdownString.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(hash))} "${l10n.t('Copy Commit Hash')}")`);
+		const commands: Command[][] = [
+			getHistoryItemHoverCommitHashCommands(documentUri, hash),
+			processHistoryItemRemoteHoverCommands(remoteHoverCommands, hash)
+		];
 
-		// Remote hover commands
-		if (remoteHoverCommands.length > 0) {
-			markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
+		commands.push([{
+			title: `$(gear)`,
+			tooltip: l10n.t('Open Settings'),
+			command: 'workbench.action.openSettings',
+			arguments: ['git.blame']
+		}] satisfies Command[]);
 
-			const remoteCommandsMarkdown = remoteHoverCommands
-				.map(command => `[${command.title}](command:${command.command}?${encodeURIComponent(JSON.stringify([...command.arguments ?? [], hash]))} "${command.tooltip}")`);
-			markdownString.appendMarkdown(remoteCommandsMarkdown.join('&nbsp;'));
-		}
-
-		markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
-		markdownString.appendMarkdown(`[$(gear)](command:workbench.action.openSettings?%5B%22git.blame%22%5D "${l10n.t('Open Settings')}")`);
-
-		return markdownString;
+		return getHistoryItemHover(commitAvatar, authorName, authorEmail, authorDate, message, commitInformation?.shortStat, commands);
 	}
 
 	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {

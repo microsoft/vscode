@@ -27,6 +27,7 @@ With `$name` or `${name:default}` you can insert the value of a variable. When a
 * `TM_FILENAME` The filename of the current document
 * `TM_FILENAME_BASE` The filename of the current document without its extensions
 * `TM_DIRECTORY` The directory of the current document
+* `TM_DIRECTORY_BASE` The base directory name of the current document
 * `TM_FILEPATH` The full file path of the current document
 * `RELATIVE_FILEPATH` The relative (to the opened workspace or folder) file path of the current document
 * `CLIPBOARD` The contents of your clipboard

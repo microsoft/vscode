@@ -146,3 +146,61 @@ export function cancelOnDispose(store: DisposableStore): CancellationToken {
 	store.add({ dispose() { source.cancel(); } });
 	return source.token;
 }
+
+/**
+ * A pool that aggregates multiple cancellation tokens. The pool's own token
+ * (accessible via `pool.token`) is cancelled only after every token added
+ * to the pool has been cancelled. Adding tokens after the pool token has
+ * been cancelled has no effect.
+ */
+export class CancellationTokenPool {
+
+	private readonly _source = new CancellationTokenSource();
+	private readonly _listeners = new DisposableStore();
+
+	private _total: number = 0;
+	private _cancelled: number = 0;
+	private _isDone: boolean = false;
+
+	get token(): CancellationToken {
+		return this._source.token;
+	}
+
+	/**
+	 * Add a token to the pool. If the token is already cancelled it is counted
+	 * immediately. Tokens added after the pool token has been cancelled are ignored.
+	 */
+	add(token: CancellationToken): void {
+		if (this._isDone) {
+			return;
+		}
+
+		this._total++;
+
+		if (token.isCancellationRequested) {
+			this._cancelled++;
+			this._check();
+			return;
+		}
+
+		const d = token.onCancellationRequested(() => {
+			d.dispose();
+			this._cancelled++;
+			this._check();
+		});
+		this._listeners.add(d);
+	}
+
+	private _check(): void {
+		if (!this._isDone && this._total > 0 && this._total === this._cancelled) {
+			this._isDone = true;
+			this._listeners.dispose();
+			this._source.cancel();
+		}
+	}
+
+	dispose(): void {
+		this._listeners.dispose();
+		this._source.dispose();
+	}
+}

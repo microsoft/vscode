@@ -47,7 +47,7 @@ function watch(root: string): Stream {
 				path: changePathFull,
 				base: root
 			});
-			(<any>file).event = toChangeType(changeType);
+			file.event = toChangeType(changeType);
 			result.emit('data', file);
 		}
 	});
