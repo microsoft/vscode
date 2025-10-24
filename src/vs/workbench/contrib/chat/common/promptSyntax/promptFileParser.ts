@@ -286,6 +286,7 @@ export class PromptBody {
 			const bodyOffset = Iterable.reduce(Iterable.slice(this.linesWithEOL, 0, this.range.startLineNumber - 1), (len, line) => line.length + len, 0);
 			for (let i = this.range.startLineNumber - 1, lineStartOffset = bodyOffset; i < this.range.endLineNumber - 1; i++) {
 				const line = this.linesWithEOL[i];
+				// Match markdown links: [text](link)
 				const linkMatch = line.matchAll(/\[(.*?)\]\((.+?)\)/g);
 				for (const match of linkMatch) {
 					const linkEndOffset = match.index + match[0].length - 1; // before the parenthesis
@@ -294,8 +295,9 @@ export class PromptBody {
 					fileReferences.push({ content: match[2], range, isMarkdownLink: true });
 					markdownLinkRanges.push(new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1));
 				}
-				// Regarding the <toolMatch> pattern below, see also the variableReg regex in chatRequestParser.ts.
-				const reg = /#file:(?<fileMatch>[^\s#]+)|#tool:(?<toolMatch>[\w_\-]+)/gi;
+				// Match #file:<filePath> and #tool:<toolName>
+				// Regarding the <toolName> pattern below, see also the variableReg regex in chatRequestParser.ts.
+				const reg = /#file:(?<filePath>[^\s#]+)|#tool:(?<toolName>[\w_\-]+)/gi;
 				const matches = line.matchAll(reg);
 				for (const match of matches) {
 					const fullMatch = match[0];
@@ -303,17 +305,17 @@ export class PromptBody {
 					if (markdownLinkRanges.some(mdRange => Range.areIntersectingOrTouching(mdRange, fullRange))) {
 						continue;
 					}
-					const contentMatch = match.groups?.['fileMatch'] || match.groups?.['toolMatch'];
+					const contentMatch = match.groups?.['filePath'] || match.groups?.['toolName'];
 					if (!contentMatch) {
 						continue;
 					}
 					const startOffset = match.index + fullMatch.length - contentMatch.length;
 					const endOffset = match.index + fullMatch.length;
 					const range = new Range(i + 1, startOffset + 1, i + 1, endOffset + 1);
-					if (match.groups?.['fileMatch']) {
-						fileReferences.push({ content: match.groups?.['fileMatch'], range, isMarkdownLink: false });
-					} else if (match.groups?.['toolMatch']) {
-						variableReferences.push({ name: match.groups?.['toolMatch'], range, offset: lineStartOffset + match.index });
+					if (match.groups?.['filePath']) {
+						fileReferences.push({ content: match.groups?.['filePath'], range, isMarkdownLink: false });
+					} else if (match.groups?.['toolName']) {
+						variableReferences.push({ name: match.groups?.['toolName'], range, offset: lineStartOffset + match.index });
 					}
 				}
 				lineStartOffset += line.length;
