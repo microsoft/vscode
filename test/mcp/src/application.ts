@@ -260,7 +260,7 @@ export async function getApplication({ recordVideo }: { recordVideo?: boolean } 
 		verbose: opts.verbose,
 		remote: opts.remote,
 		web: opts.web,
-		tracing: true,
+		tracing: opts.tracing,
 		headless: opts.headless,
 		browser: opts.browser,
 		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg),
