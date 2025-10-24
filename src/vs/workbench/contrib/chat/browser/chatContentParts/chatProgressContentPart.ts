@@ -22,6 +22,7 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -161,10 +162,7 @@ export class ChatProgressSubPart extends Disposable {
 		if (tooltip) {
 			this._register(hoverService.setupDelayedHover(iconElement, {
 				content: tooltip,
-				appearance: {
-					compact: true,
-					showPointer: true,
-				},
+				style: HoverStyle.Pointer,
 			}));
 		}
 		append(this.domNode, iconElement);
