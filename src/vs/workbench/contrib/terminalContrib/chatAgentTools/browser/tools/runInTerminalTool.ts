@@ -94,7 +94,6 @@ function createPowerShellModelDescription(shell: string): string {
 
 const genericDescription = `
 Command Execution:
-- Does NOT support multi-line commands
 - Use && to chain simple commands on one line
 - Prefer pipelines | over temporary files for data flow
 

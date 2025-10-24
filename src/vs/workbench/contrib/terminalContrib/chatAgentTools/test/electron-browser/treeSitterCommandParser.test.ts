@@ -90,6 +90,7 @@ suite('TreeSitterCommandParser', () => {
 			test('mixed quote types', () => t('echo "hello \`world\`" && echo \'test\'', ['echo "hello \`world\`"', 'world', 'echo \'test\'']));
 			test('deeply nested structures', () => t('echo $(echo $(echo $(echo nested))) && ls', ['echo $(echo $(echo $(echo nested)))', 'echo $(echo $(echo nested))', 'echo $(echo nested)', 'echo nested', 'ls']));
 			test('unicode command names', () => t('测试命令 && echo done', ['测试命令', 'echo done']));
+			test('multi-line', () => t('echo a\necho b', ['echo a', 'echo b']));
 		});
 
 		// TODO: These should be common but the pwsh grammar doesn't handle && yet https://github.com/microsoft/vscode/issues/272704
