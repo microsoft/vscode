@@ -31,8 +31,8 @@ import { IChatContextPickService } from '../../../chat/browser/chatContextPickSe
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalContext } from '../../../chat/browser/actions/chatContext.js';
-import { getTerminalUri } from '../terminalUri.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { getTerminalUri, parseTerminalUri } from '../terminalUri.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 
@@ -51,7 +51,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 	readonly onDidRequestCopyAsHtml = this._onDidRequestCopyAsHtml.event;
 
 	constructor(
-		private readonly _instanceId: number,
+		private readonly _resource: URI | undefined,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -66,8 +66,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IChatContextPickService private readonly _contextPickService: IChatContextPickService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._register(toDisposable(() => this._dispose()));
@@ -525,10 +524,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		return {
 			class: undefined, tooltip: labelAttachToChat, id: 'terminal.attachToChat', label: labelAttachToChat, enabled: true,
 			run: async () => {
-				const workspaceId = this._workspaceContextService.getWorkspace().id;
 				const widget = this._chatWidgetService.lastFocusedWidget;
-				const terminalContext = this._instantiationService.createInstance(TerminalContext, getTerminalUri(workspaceId, this._instanceId, undefined, command.id));
-				if (widget && widget.attachmentCapabilities.supportsTerminalAttachments) {
+				let terminalContext: TerminalContext | undefined;
+				if (this._resource) {
+					const parsedUri = parseTerminalUri(this._resource);
+					terminalContext = this._instantiationService.createInstance(TerminalContext, getTerminalUri(parsedUri.workspaceId, parsedUri.instanceId!, undefined, command.id));
+				}
+				if (terminalContext && widget && widget.attachmentCapabilities.supportsTerminalAttachments) {
 					try {
 						const attachment = await terminalContext.asAttachment(widget);
 						if (attachment) {
