@@ -963,6 +963,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.initializeModelsFromDiff();
 	}
 
+	public restoreModifiedModelFromSnapshot(snapshot: string) {
+		this.restoreSnapshotInModifiedModel(snapshot);
+		return this.initializeModelsFromDiff();
+	}
+
 	private restoreSnapshotInModifiedModel(snapshot: string) {
 		if (snapshot === createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService)) {
 			return;

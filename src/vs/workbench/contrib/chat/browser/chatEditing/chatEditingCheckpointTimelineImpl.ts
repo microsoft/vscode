@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals as arraysEqual } from '../../../../../base/common/arrays.js';
-import { findLast } from '../../../../../base/common/arraysFind.js';
+import { findLast, findLastIdx } from '../../../../../base/common/arraysFind.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -29,7 +29,7 @@ import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { IEditSessionEntryDiff, IModifiedEntryTelemetryInfo } from '../../common/chatEditingService.js';
 import { IChatRequestDisablement } from '../../common/chatModel.js';
 import { IChatEditingCheckpointTimeline } from './chatEditingCheckpointTimeline.js';
-import { FileOperation, FileOperationType, IChatEditingTimelineState, ICheckpoint, IFileBaseline, IFileCreateOperation, IFileDeleteOperation, IFileRenameOperation, IReconstructedFileExistsState, IReconstructedFileNotExistsState, IReconstructedFileState } from './chatEditingOperations.js';
+import { FileOperation, FileOperationType, IChatEditingTimelineState, ICheckpoint, IFileBaseline, IFileCreateOperation, IReconstructedFileExistsState, IReconstructedFileNotExistsState, IReconstructedFileState } from './chatEditingOperations.js';
 import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 import { createSnapshot as createNotebookSnapshot, restoreSnapshot as restoreNotebookSnapshot } from './notebook/chatEditingModifiedNotebookSnapshot.js';
 
@@ -38,6 +38,18 @@ const STOP_ID_EPOCH_PREFIX = '__epoch_';
 
 type IReconstructedFileStateWithNotebook = IReconstructedFileNotExistsState | (Mutable<IReconstructedFileExistsState> & { notebook?: INotebookTextModel });
 
+/**
+ * A filesystem delegate used by the checkpointing timeline such that
+ * navigating in the timeline tracks the changes as agent-initiated.
+ */
+export interface IChatEditingTimelineFsDelegate {
+	/** Delete a URI */
+	deleteFile: (uri: URI) => Promise<void>;
+	/** Rename a URI, retaining contents */
+	renameFile: (fromUri: URI, toUri: URI) => Promise<void>;
+	/** Set a URI contents, should create it if it does not already exist */
+	setContents(uri: URI, content: string, telemetryInfo: IModifiedEntryTelemetryInfo): Promise<void>;
+}
 
 /**
  * Implementation of the checkpoint-based timeline system.
@@ -60,8 +72,24 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 	private readonly _willUndoToCheckpoint = derived(reader => {
 		const currentEpoch = this._currentEpoch.read(reader);
 		const operations = this._operations.read(reader);
-		const maxEpoch = operations.findLast(op => op.epoch <= currentEpoch)?.epoch || 0;
-		return this._checkpoints.read(reader).findLast(cp => cp.epoch < maxEpoch);
+		const checkpoints = this._checkpoints.read(reader);
+
+		const previousOperationEpoch = operations.findLast(op => op.epoch <= currentEpoch)?.epoch || 0;
+		const previousCheckpointIdx = findLastIdx(checkpoints, cp => cp.epoch < previousOperationEpoch);
+		if (previousCheckpointIdx === -1) {
+			return undefined;
+		}
+
+		// If we're backing up to a checkpoint and there are no other operations between
+		// that checkpoint at the checkpoint marking the start of the request, undo the
+		// entire request.
+		const previousCheckpoint = checkpoints[previousCheckpointIdx];
+		const startOfRequest = findLast(checkpoints, cp => cp.undoStopId === undefined, previousCheckpointIdx);
+		if (startOfRequest && !operations.some(op => op.epoch > startOfRequest.epoch && op.epoch < previousCheckpoint.epoch)) {
+			return startOfRequest;
+		}
+
+		return previousCheckpoint;
 	});
 
 	public readonly canUndo: IObservable<boolean> = this._willUndoToCheckpoint.map(cp => !!cp);
@@ -111,14 +139,12 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 				}
 			}
 
-			return [...disablement].map(([requestId, undoStopId]) => ({ requestId, undoStopId }));
+			return [...disablement].map(([requestId, afterUndoStop]): IChatRequestDisablement => ({ requestId, afterUndoStop }));
 		});
 
 	constructor(
 		private readonly chatSessionId: string,
-		private readonly _delegate: {
-			setContents(uri: URI, content: string, telemetryInfo: IModifiedEntryTelemetryInfo): Promise<void>;
-		},
+		private readonly _delegate: IChatEditingTimelineFsDelegate,
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelResolverService: INotebookEditorModelResolverService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -189,10 +215,10 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 			return; // Already at target epoch
 		}
 
-		await this._applyFileSystemOperations(currentEpoch, targetEpoch);
+		const urisToRestore = await this._applyFileSystemOperations(currentEpoch, targetEpoch);
 
 		// Reconstruct content for files affected by operations in the range
-		await this._reconstructAllFileContents(targetEpoch);
+		await this._reconstructAllFileContents(targetEpoch, urisToRestore);
 
 		// Update current epoch
 		this._currentEpoch.set(targetEpoch, undefined);
@@ -323,62 +349,14 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		return checkpoints.find(c => c.requestId === requestId && c.undoStopId === undoStopId)?.checkpointId;
 	}
 
-	private async _reconstructAllFileContents(targetEpoch: number): Promise<void> {
-		const currentEpoch = this._currentEpoch.get();
-		const isMovingForward = targetEpoch > currentEpoch;
-
-		// Get operations between current and target epochs
-		const relevantOperations = this._operations.get().filter(op => {
-			return op.epoch > Math.min(currentEpoch, targetEpoch) &&
-				op.epoch <= Math.max(currentEpoch, targetEpoch);
-		}).sort((a, b) => isMovingForward ? a.epoch - b.epoch : b.epoch - a.epoch);
-
-		const filesToReconstruct = new ResourceSet();
-		for (const operation of relevantOperations) {
-			switch (operation.type) {
-				case FileOperationType.Create:
-					if (isMovingForward) {
-						filesToReconstruct.add(operation.uri);
-					} else {
-						filesToReconstruct.delete(operation.uri);
-					}
-					break;
-
-				case FileOperationType.Delete:
-					if (isMovingForward) {
-						filesToReconstruct.delete(operation.uri);
-					} else {
-						filesToReconstruct.add(operation.uri);
-					}
-					break;
-
-				case FileOperationType.Rename: {
-					const renameOp = operation as IFileRenameOperation;
-					if (isMovingForward) {
-						filesToReconstruct.delete(renameOp.oldUri);
-						filesToReconstruct.add(renameOp.newUri);
-					} else {
-						filesToReconstruct.delete(renameOp.newUri);
-						filesToReconstruct.add(renameOp.oldUri);
-					}
-					break;
-				}
-				case FileOperationType.TextEdit:
-				case FileOperationType.NotebookEdit:
-					filesToReconstruct.add(operation.uri);
-					break;
-			}
-		}
-
-		// Reconstruct content for each file that needs it
-		for (const uri of filesToReconstruct) {
+	private async _reconstructAllFileContents(targetEpoch: number, filesToReconstruct: ResourceSet): Promise<void> {
+		await Promise.all(Array.from(filesToReconstruct).map(async uri => {
 			const reconstructedState = await this._reconstructFileState(uri, targetEpoch);
 			if (reconstructedState.exists) {
-				this._delegate.setContents(reconstructedState.uri, reconstructedState.content, reconstructedState.telemetryInfo);
+				await this._delegate.setContents(reconstructedState.uri, reconstructedState.content, reconstructedState.telemetryInfo);
 			}
-		}
+		}));
 	}
-
 
 	private _getBaselineKey(uri: URI, requestId: string): string {
 		return `${uri.toString()}::${requestId}`;
@@ -424,6 +402,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 					content: replayed.exists ? replayed.content : '',
 					requestId: operation.requestId,
 					telemetryInfo: prev.telemetryInfo,
+					notebookViewType: replayed.exists ? replayed.notebookViewType : undefined,
 				};
 			}
 
@@ -516,7 +495,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 				};
 
 			case FileOperationType.TextEdit:
-				if (!state.exists || !state.content) {
+				if (!state.exists) {
 					throw new Error('Cannot apply text edits to non-existent file');
 				}
 
@@ -527,7 +506,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 				};
 
 			case FileOperationType.NotebookEdit:
-				if (!state.exists || !state.content) {
+				if (!state.exists) {
 					throw new Error('Cannot apply notebook edits to non-existent file');
 				}
 				if (!state.notebook) {
@@ -542,7 +521,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		}
 	}
 
-	private async _applyFileSystemOperations(fromEpoch: number, toEpoch: number): Promise<void> {
+	private async _applyFileSystemOperations(fromEpoch: number, toEpoch: number): Promise<ResourceSet> {
 		const isMovingForward = toEpoch > fromEpoch;
 		const operations = this._operations.get().filter(op => {
 			if (isMovingForward) {
@@ -553,48 +532,56 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		}).sort((a, b) => isMovingForward ? a.epoch - b.epoch : b.epoch - a.epoch);
 
 		// Apply file system operations in the correct direction
+		const urisToRestore = new ResourceSet();
 		for (const operation of operations) {
-			await this._applyFileSystemOperation(operation, isMovingForward);
+			await this._applyFileSystemOperation(operation, isMovingForward, urisToRestore);
 		}
+
+		return urisToRestore;
 	}
 
-	private async _applyFileSystemOperation(operation: FileOperation, isMovingForward: boolean): Promise<void> {
+	private async _applyFileSystemOperation(operation: FileOperation, isMovingForward: boolean, urisToRestore: ResourceSet): Promise<void> {
 		switch (operation.type) {
 			case FileOperationType.Create:
 				if (isMovingForward) {
-					// Moving forward: create the file
 					await this._createFile(operation.uri, (operation as IFileCreateOperation).initialContent);
+					urisToRestore.add(operation.uri);
 				} else {
-					// Moving backward: delete the file
-					await this._deleteFile(operation.uri);
+					await this._delegate.deleteFile(operation.uri);
+					urisToRestore.delete(operation.uri);
 				}
 				break;
 
 			case FileOperationType.Delete:
 				if (isMovingForward) {
-					// Moving forward: delete the file
-					await this._deleteFile(operation.uri);
+					await this._delegate.deleteFile(operation.uri);
+					urisToRestore.delete(operation.uri);
 				} else {
-					// Moving backward: recreate the file with its final content
-					const deleteOp = operation as IFileDeleteOperation;
-					await this._createFile(operation.uri, deleteOp.finalContent);
+					await this._createFile(operation.uri, operation.finalContent);
+					urisToRestore.add(operation.uri);
 				}
 				break;
 
 			case FileOperationType.Rename:
 				if (isMovingForward) {
-					// Moving forward: rename from old to new
-					await this._renameFile(operation.oldUri, operation.newUri);
+					await this._delegate.renameFile(operation.oldUri, operation.newUri);
+					urisToRestore.delete(operation.oldUri);
+					urisToRestore.add(operation.newUri);
 				} else {
-					// Moving backward: rename from new to old
-					await this._renameFile(operation.newUri, operation.oldUri);
+					await this._delegate.renameFile(operation.newUri, operation.oldUri);
+					urisToRestore.delete(operation.newUri);
+					urisToRestore.add(operation.oldUri);
 				}
 				break;
 
 			// Text and notebook edits don't affect file system structure
 			case FileOperationType.TextEdit:
 			case FileOperationType.NotebookEdit:
+				urisToRestore.add(operation.uri);
 				break;
+
+			default:
+				assertNever(operation);
 		}
 	}
 
@@ -611,14 +598,6 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		});
 	}
 
-	private async _deleteFile(uri: URI): Promise<void> {
-		await this._bulkEditService.apply({ edits: [{ oldResource: uri }] });
-	}
-
-	private async _renameFile(fromUri: URI, toUri: URI): Promise<void> {
-		await this._bulkEditService.apply({ edits: [{ oldResource: fromUri, newResource: toUri }] });
-	}
-
 	private _applyTextEditsToContent(content: string, edits: readonly TextEdit[]): string {
 		// Use the example pattern provided by the user
 		const makeModel = (uri: URI, contents: string) => this._instantiationService.createInstance(TextModel, contents, '', this._modelService.getCreationOptions('', uri, true), uri);
@@ -628,15 +607,8 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		const model = makeModel(tempUri, content);
 
 		try {
-			// Sort edits by position (end to start) to avoid position shifts
-			const sortedEdits = [...edits].sort((a, b) => {
-				const aStart = a.range.startLineNumber * 1000000 + a.range.startColumn;
-				const bStart = b.range.startLineNumber * 1000000 + b.range.startColumn;
-				return bStart - aStart; // reverse order
-			});
-
 			// Apply edits
-			model.applyEdits(sortedEdits.map(edit => ({
+			model.applyEdits(edits.map(edit => ({
 				range: {
 					startLineNumber: edit.range.startLineNumber,
 					startColumn: edit.range.startColumn,

@@ -32,13 +32,11 @@ import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
-import { FileOperation, FileOperationType } from './chatEditingOperations.js';
 import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 interface IMultiDiffEntryDelegate {
 	collapse: (transaction: ITransaction | undefined) => void;
-	recordOperation?: (operation: FileOperation) => void;
 }
 
 
@@ -273,21 +271,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	protected override async _doReject(): Promise<void> {
 		if (this.createdInRequestId === this._telemetryInfo.requestId) {
-			// Record file deletion operation before actually deleting
-			const finalContent = this.modifiedModel.getValue();
-			if (this._multiDiffEntryDelegate.recordOperation) {
-				this._multiDiffEntryDelegate.recordOperation({
-					type: FileOperationType.Delete,
-					uri: this.modifiedURI,
-					requestId: this._telemetryInfo.requestId,
-					epoch: 0,
-					finalContent,
-				});
-			}
-
 			if (isTextFileEditorModel(this._docFileEditorModel)) {
 				await this._docFileEditorModel.revert({ soft: true });
-				await this._fileService.del(this.modifiedURI);
+				await this._fileService.del(this.modifiedURI).catch(err => {
+					// don't block if file is already deleted
+				});
 			}
 			this._onDidDelete.fire();
 		} else {
