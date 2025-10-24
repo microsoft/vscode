@@ -135,7 +135,7 @@ function processAlertsHtml(html: string): string {
 	return html.replace(alertRegex, (_, alertType: string, separator: string) => {
 		// Create the alert structure with a heading, keeping the rest of the content intact
 		const alertTypeCapitalized = alertType.charAt(0).toUpperCase() + alertType.slice(1).toLowerCase();
-		const iconHtml = renderIcon({ id: alertIcons[alertType] }).outerHTML;
+		const iconHtml = renderIcon({ id: alertIcons[alertType.toUpperCase()] }).outerHTML;
 		const severity = alertType.toLowerCase();
 		return `<blockquote data-severity="${severity}"><p><span title="">${iconHtml}${alertTypeCapitalized}</span>${separator}`;
 	});
