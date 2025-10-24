@@ -56,7 +56,7 @@ interface IBucketTreeItem extends IToolTreeItem {
 	toolset?: ToolSet; // For MCP servers where the bucket represents the ToolSet - mutable
 	readonly status?: string;
 	readonly children: AnyTreeItem[];
-	checked: boolean | 'partial' | undefined;
+	checked: boolean | 'mixed' | undefined;
 }
 
 /**
@@ -67,7 +67,7 @@ interface IToolSetTreeItem extends IToolTreeItem {
 	readonly itemType: 'toolset';
 	readonly toolset: ToolSet;
 	children: AnyTreeItem[] | undefined;
-	checked: boolean | 'partial';
+	checked: boolean | 'mixed';
 }
 
 /**

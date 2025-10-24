@@ -1136,7 +1136,7 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	 * @param element The item to update.
 	 * @param checked The new checkbox state.
 	 */
-	setCheckboxState(element: T, checked: boolean | 'partial'): void;
+	setCheckboxState(element: T, checked: boolean | 'mixed'): void;
 
 	/**
 	 * Expands an item.
@@ -1180,12 +1180,12 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
  */
 export interface IQuickTreeItem extends IQuickItem {
 	/**
-	 * The checked state of the item. Can be true, false, or 'partial' for tri-state.
+	 * The checked state of the item. Can be true, false, or 'mixed' for tri-state.
 	 * When canSelectMany is false, this is ignored and the item is treated as a single selection.
 	 * When canSelectMany is true, this indicates the checkbox state of the item.
 	 * If undefined, the item is unchecked by default.
 	 */
-	checked?: boolean | 'partial';
+	checked?: boolean | 'mixed';
 
 	/**
 	 * The collapsible state of the tree item. Defaults to 'Expanded' if children are present.
@@ -1217,7 +1217,7 @@ export interface IQuickTreeCheckboxEvent<T extends IQuickTreeItem> {
 	/**
 	 * The new checked state.
 	 */
-	checked: boolean | 'partial';
+	checked: boolean | 'mixed';
 }
 
 /**

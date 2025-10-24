@@ -313,7 +313,7 @@ export class QuickInputTreeController extends Disposable {
 		return this._tree.getFocus().filter((item): item is IQuickTreeItem => item !== null);
 	}
 
-	check(element: IQuickTreeItem, checked: boolean | 'partial') {
+	check(element: IQuickTreeItem, checked: boolean | 'mixed') {
 		if (element.checked === checked) {
 			return;
 		}
@@ -321,7 +321,7 @@ export class QuickInputTreeController extends Disposable {
 		this._onDidCheckedLeafItemsChange.fire(this.getCheckedLeafItems());
 	}
 
-	checkAll(checked: boolean | 'partial') {
+	checkAll(checked: boolean | 'mixed') {
 		const updated = new Set<IQuickTreeItem>();
 		const toUpdate = [...this._tree.getNode().children];
 		let fireCheckedChangeEvent = false;
