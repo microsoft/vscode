@@ -353,6 +353,58 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('mouseBackForwardToNavigate', "Enables the use of mouse buttons four and five for commands 'Go Back' and 'Go Forward'."),
 				'default': true
 			},
+			'workbench.editor.swipeToNavigate': {
+				'oneOf': [
+					{
+						'type': 'string',
+						'enum': [
+							'disabled',
+							'editor',
+							'editorInGroup',
+							'history',
+							'historyInGroup',
+							'group',
+							'navigation',
+							'edit',
+							'navigationEdit'
+						],
+						'enumDescriptions': [
+							localize('swipeToNavigate.disabled', "Disable swipe navigation."),
+							localize('swipeToNavigate.editor', "Switch editor tabs across all groups (previous/next)."),
+							localize('swipeToNavigate.editorInGroup', "Switch editor tabs within the current group only (previous/next)."),
+							localize('swipeToNavigate.history', "Move through most recently used editors (MRU) across all groups (previous/next)."),
+							localize('swipeToNavigate.historyInGroup', "Move through most recently used editors (MRU) within the current group (previous/next)."),
+							localize('swipeToNavigate.group', "Change focus to neighboring editor groups (left/right/up/down)."),
+							localize('swipeToNavigate.navigation', "Move through navigational history (Go To References)."),
+							localize('swipeToNavigate.edit', "Navigate cursor edit locations."),
+							localize('swipeToNavigate.navigationEdit', "Navigate combined navigation and edit history.")
+						]
+					},
+					{
+						'type': 'object',
+						'additionalProperties': false,
+						'properties': {
+							'horizontal': {
+								'default': 'navigationEdit',
+								'oneOf': [
+									{ 'type': 'string', 'enum': ['disabled', 'editor', 'editorInGroup', 'history', 'historyInGroup', 'group', 'navigation', 'edit', 'navigationEdit'] },
+									{ 'type': 'object', 'additionalProperties': false, 'properties': { 'previous': { 'type': 'string' }, 'next': { 'type': 'string' } } }
+								]
+							},
+							'vertical': {
+								'default': 'disabled',
+								'oneOf': [
+									{ 'type': 'string', 'enum': ['disabled', 'editor', 'editorInGroup', 'history', 'historyInGroup', 'group', 'navigation', 'edit', 'navigationEdit'] },
+									{ 'type': 'object', 'additionalProperties': false, 'properties': { 'previous': { 'type': 'string' }, 'next': { 'type': 'string' } } }
+								],
+								'description': localize('swipeToNavigate.vertical', "Override vertical swipe behavior. Note: 'default' is not supported for vertical; use explicit options or omit to disable.")
+							}
+						}
+					}
+				],
+				'markdownDescription': localize('swipeToNavigate', "Configure swipe gesture navigation on macOS touchpads. Accepts 'default'/'disabled', a specific mode (e.g. 'editor', 'history'), or an object that specifies separate 'horizontal' and 'vertical' behavior."),
+				'default': 'navigationEdit'
+			},
 			'workbench.editor.navigationScope': {
 				'type': 'string',
 				'enum': ['default', 'editorGroup', 'editor'],
