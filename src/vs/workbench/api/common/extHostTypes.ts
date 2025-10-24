@@ -1566,6 +1566,11 @@ export namespace ViewBadge {
 	}
 }
 
+export enum TreeItemAlignment {
+	Left = 'left',
+	Right = 'right'
+}
+
 @es5ClassCompat
 export class TreeItem {
 
@@ -1611,6 +1616,10 @@ export class TreeItem {
 		}
 		if ((treeItemThing.description !== undefined) && !isString(treeItemThing.description) && (typeof treeItemThing.description !== 'boolean')) {
 			console.log('INVALID tree item, invalid description', treeItemThing.description);
+			return false;
+		}
+		if ((treeItemThing.alignment !== undefined) && (treeItemThing.alignment !== 'left') && (treeItemThing.alignment !== 'right')) {
+			console.log('INVALID tree item, invalid alignment', treeItemThing.alignment);
 			return false;
 		}
 		if ((treeItemThing.resourceUri !== undefined) && !URI.isUri(treeItemThing.resourceUri)) {
