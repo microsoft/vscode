@@ -67,7 +67,7 @@ export class TokenizationResult {
 /**
  * @internal
  */
-export interface ILineVariableFontInfo {
+export interface ILineFontChangedEvent {
 	readonly lineNumber: number;
 	readonly options: IVariableFontOption[];
 }
@@ -160,7 +160,7 @@ export interface IBackgroundTokenizer extends IDisposable {
 export interface IBackgroundTokenizationStore {
 	setTokens(tokens: ContiguousMultilineTokens[]): void;
 
-	setFontInfo(fontInfo: ILineVariableFontInfo[]): void;
+	setFontInfo(fontInfo: ILineFontChangedEvent[]): void;
 
 	setEndState(lineNumber: number, state: IState): void;
 

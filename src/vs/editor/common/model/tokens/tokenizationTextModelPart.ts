@@ -27,7 +27,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { TokenizerSyntaxTokenBackend } from './tokenizerSyntaxTokenBackend.js';
 import { ITreeSitterLibraryService } from '../../services/treeSitter/treeSitterLibraryService.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
-import { ILineVariableFontInfo } from '../../languages.js';
+import { ILineFontChangedEvent } from '../../languages.js';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _semanticTokens: SparseTokensStore;
@@ -41,8 +41,8 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent>;
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent>;
 
-	private readonly _onDidChangeFontInfo: Emitter<ILineVariableFontInfo[]> = this._register(new Emitter<ILineVariableFontInfo[]>());
-	public readonly onDidChangeFontInfo: Event<ILineVariableFontInfo[]> = this._onDidChangeFontInfo.event;
+	private readonly _onDidChangeFontInfo: Emitter<ILineFontChangedEvent[]> = this._register(new Emitter<ILineFontChangedEvent[]>());
+	public readonly onDidChangeFontInfo: Event<ILineFontChangedEvent[]> = this._onDidChangeFontInfo.event;
 
 	public readonly tokens: IObservable<AbstractSyntaxTokenBackend>;
 	private readonly _useTreeSitter: IObservable<boolean>;
@@ -85,7 +85,9 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 				this._emitModelTokensChangedEvent(e);
 			}));
 			reader.store.add(tokens.onDidChangeFontInfo(e => {
-				this._onDidChangeFontInfo.fire(e);
+				if (!this._textModel._isDisposing()) {
+					this._onDidChangeFontInfo.fire(e);
+				}
 			}));
 
 			reader.store.add(tokens.onDidChangeBackgroundTokenizationState(e => {
@@ -111,7 +113,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this.onDidChangeLanguageConfiguration = this._onDidChangeLanguageConfiguration.event;
 		this._onDidChangeTokens = this._register(new Emitter<IModelTokensChangedEvent>());
 		this.onDidChangeTokens = this._onDidChangeTokens.event;
-		this._onDidChangeFontInfo = this._register(new Emitter<ILineVariableFontInfo[]>());
+		this._onDidChangeFontInfo = this._register(new Emitter<ILineFontChangedEvent[]>());
 		this.onDidChangeFontInfo = this._onDidChangeFontInfo.event;
 	}
 

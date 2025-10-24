@@ -13,7 +13,7 @@ import { TextMateWorkerTokenizer } from './textMateWorkerTokenizer.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { IWebWorkerServerRequestHandler, IWebWorkerServer } from '../../../../../../base/common/worker/webWorker.js';
 import { TextMateWorkerHost } from './textMateWorkerHost.js';
-import { ILineVariableFontInfo } from '../../../../../../editor/common/languages.js';
+import { ILineFontChangedEvent } from '../../../../../../editor/common/languages.js';
 
 export function create(workerServer: IWebWorkerServer): TextMateTokenizationWorker {
 	return new TextMateTokenizationWorker(workerServer);
@@ -110,7 +110,7 @@ export class TextMateTokenizationWorker implements IWebWorkerServerRequestHandle
 				}
 				return that._grammarCache[encodedLanguageId];
 			},
-			setFontInfo(fontInfo: ILineVariableFontInfo[]): void {
+			setFontInfo(fontInfo: ILineFontChangedEvent[]): void {
 				that._host.$setFontInfo(data.controllerId, fontInfo);
 			},
 			setTokensAndStates(versionId: number, tokens: Uint8Array, stateDeltas: StateDeltas[]): void {

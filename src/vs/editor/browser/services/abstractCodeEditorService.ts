@@ -178,8 +178,8 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		};
 	}
 
-	public hasDecorationType(key: string): boolean {
-		return this._decorationOptionProviders.has(key);
+	public hasDecorationType(type: string): boolean {
+		return this._decorationOptionProviders.has(type);
 	}
 
 	public listDecorationTypes(): string[] {
@@ -456,7 +456,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
 	public refCount: number;
 
-	public typeKey: string;
+	public type: string;
 	public description: string;
 	public className: string | undefined;
 	public inlineClassName: string | undefined;
@@ -475,9 +475,9 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public beforeInjectedText: InjectedTextOptions | undefined;
 	public afterInjectedText: InjectedTextOptions | undefined;
 
-	constructor(description: string, decorationTypeKey: string, themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
+	constructor(description: string, type: string, themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
 		this.description = description;
-		this.typeKey = decorationTypeKey;
+		this.type = type;
 		this._styleSheet = styleSheet;
 		this._styleSheet.ref();
 		this.refCount = 0;
@@ -557,7 +557,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		}
 
 		return {
-			typeKey: this.typeKey,
+			type: this.type,
 			description: this.description,
 			inlineClassName: this.inlineClassName,
 			beforeContentClassName: this.beforeContentClassName,
