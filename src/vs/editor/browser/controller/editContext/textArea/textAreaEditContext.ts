@@ -263,8 +263,15 @@ export class TextAreaEditContext extends AbstractEditContext {
 					return TextAreaState.EMPTY;
 				}
 
-				const screenReaderContentState = simplePagedScreenReaderStrategy.fromEditorSelection(this._context.viewModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
-				return TextAreaState.fromScreenReaderContentState(screenReaderContentState);
+				const selection = this._selections[0];
+				const screenReaderContentState = simplePagedScreenReaderStrategy.fromEditorSelection(
+					this._context.viewModel,
+					selection,
+					this._accessibilityPageSize,
+					this._accessibilitySupport === AccessibilitySupport.Unknown);
+				return TextAreaState.fromScreenReaderContentState(
+					screenReaderContentState,
+					selection.getDirection());
 			},
 
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
