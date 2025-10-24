@@ -54,6 +54,9 @@ export interface IChatContextPicker {
 	 */
 	readonly picks: Promise<ChatContextPick[]> | ((query: IObservable<string>, token: CancellationToken) => IObservable<{ busy: boolean; picks: ChatContextPick[] }>);
 
+	/** Return true to cancel the default behavior */
+	readonly goBack?: () => boolean;
+
 	readonly configure?: {
 		label: string;
 		commandId: string;
