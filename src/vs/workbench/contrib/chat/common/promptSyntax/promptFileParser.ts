@@ -294,7 +294,7 @@ export class PromptBody {
 					fileReferences.push({ content: match[2], range, isMarkdownLink: true });
 					markdownLinkRanges.push(new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1));
 				}
-				// Related to <toolMatch> here, see also the variableReg regex in chatRequestParser.ts.
+				// Regarding the <toolMatch> pattern below, see also the variableReg regex in chatRequestParser.ts.
 				const reg = /#file:(?<fileMatch>[^\s#]+)|#tool:(?<toolMatch>[\w_\-]+)/gi;
 				const matches = line.matchAll(reg);
 				for (const match of matches) {
