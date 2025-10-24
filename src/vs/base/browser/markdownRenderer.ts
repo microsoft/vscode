@@ -137,7 +137,7 @@ function processAlertsHtml(html: string): string {
 		const alertTypeCapitalized = alertType.charAt(0).toUpperCase() + alertType.slice(1).toLowerCase();
 		const iconHtml = renderIcon({ id: alertIcons[alertType.toUpperCase()] }).outerHTML;
 		const severity = alertType.toLowerCase();
-		return `<blockquote data-severity="${severity}"><p><span title="">${iconHtml}${alertTypeCapitalized}</span>${separator}`;
+		return `<blockquote data-severity="${severity}"><p><span>${iconHtml}${alertTypeCapitalized}</span>${separator}`;
 	});
 }
 
