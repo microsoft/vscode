@@ -863,9 +863,7 @@ export interface InlineCompletionHint {
 	jumpToEdit: boolean;
 }
 
-/**
- * TODO: add `| URI | { light: URI; dark: URI }`.
-*/
+// TODO: add `| URI | { light: URI; dark: URI }`.
 export type IconPath = ThemeIcon;
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
