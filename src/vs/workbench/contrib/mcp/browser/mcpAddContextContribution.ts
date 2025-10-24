@@ -49,7 +49,9 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 	private _getResourcePicks(token: CancellationToken) {
 		const observable = observableValue<{ busy: boolean; picks: ChatContextPick[] }>(this, { busy: true, picks: [] });
 
-		this._helper.getPicks(servers => {
+		const picksObservable = this._helper.getPicks(token);
+		this._register(autorun(reader => {
+			const servers = picksObservable.read(reader);
 			const picks: ChatContextPick[] = [];
 			for (const [server, resources] of servers) {
 				if (resources.length === 0) {
@@ -60,7 +62,14 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 				for (const resource of resources) {
 					picks.push({
 						...McpResourcePickHelper.item(resource),
-						asAttachment: () => this._helper.toAttachment(resource).then(r => {
+						validateForAttachment: (): Promise<boolean> => {
+							if (this._helper.validateForAttachment) {
+								return this._helper.validateForAttachment(resource, server);
+							} else {
+								return Promise.resolve(true);
+							}
+						},
+						asAttachment: () => this._helper.toAttachment(resource, server).then(r => {
 							if (!r) {
 								throw new CancellationError();
 							} else {
@@ -70,10 +79,8 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 					});
 				}
 			}
-			observable.set({ picks, busy: true }, undefined);
-		}, token).finally(() => {
-			observable.set({ busy: false, picks: observable.get().picks }, undefined);
-		});
+			observable.set({ picks, busy: false }, undefined);
+		}));
 
 		return observable;
 	}

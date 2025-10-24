@@ -633,14 +633,19 @@ export class AttachContextAction extends Action2 {
 		const defer = new DeferredPromise<boolean>();
 		const addPromises: Promise<void>[] = [];
 
-		store.add(qp.onDidAccept(e => {
+		store.add(qp.onDidAccept(async e => {
 			const [selected] = qp.selectedItems;
 			if (isChatContextPickerPickItem(selected)) {
-				const attachment = selected.asAttachment();
-				if (isThenable(attachment)) {
-					addPromises.push(attachment.then(v => widget.attachmentModel.addContext(v)));
+				const isValidForAttachment = await selected.validateForAttachment?.();
+				if (isValidForAttachment) {
+					const attachment = selected.asAttachment();
+					if (isThenable(attachment)) {
+						addPromises.push(attachment.then(v => widget.attachmentModel.addContext(v)));
+					} else {
+						widget.attachmentModel.addContext(attachment);
+					}
 				} else {
-					widget.attachmentModel.addContext(attachment);
+					return; // stay in picker
 				}
 			}
 			if (selected === goBackItem) {

@@ -27,6 +27,7 @@ import { IMcpDevModeConfig, IMcpServerConfiguration } from '../../../../platform
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchLocalMcpServer, IWorkbencMcpServerInstallOptions } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IChatRequestVariableEntry } from '../../chat/common/chatVariableEntries.js';
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { IMcpServerSamplingConfiguration } from './mcpConfiguration.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
@@ -294,6 +295,49 @@ export namespace McpServerTrust {
 		Unknown,
 	}
 }
+
+/**
+ * Service for helping with MCP resource picking and navigation.
+ * Provides utilities for formatting resource pick items, navigating directories,
+ * and converting resource templates to attachments and URIs.
+ */
+export interface IMcpResourcePickHelper {
+	_serviceBrand: undefined;
+
+	/**
+	 * Gets an observable of whether there are servers with resources capability.
+	 */
+	hasServersWithResources: IObservable<boolean>;
+
+	/**
+	 * Optional override to scope picks to specific servers.
+	 */
+	explicitServers?: IMcpServer[];
+
+	/**
+	 * Navigate to a resource if it's a directory.
+	 * Returns true if the resource is a directory with children (navigation succeeded).
+	 * Returns false if the resource is a leaf file (no navigation).
+	 */
+	navigate(resource: IMcpResource | IMcpResourceTemplate, server: IMcpServer): Promise<boolean>;
+
+	/**
+	 * Convert a resource or template to a chat attachment.
+	 */
+	toAttachment(resource: IMcpResource | IMcpResourceTemplate, server: IMcpServer): Promise<IChatRequestVariableEntry | undefined>;
+
+	/**
+	 * Convert a resource or template to a URI.
+	 */
+	toURI(resource: IMcpResource | IMcpResourceTemplate): Promise<URI | undefined>;
+
+	/**
+	 * Get picks from all servers as an observable.
+	 */
+	getPicks(token?: CancellationToken): IObservable<Map<IMcpServer, (IMcpResourceTemplate | IMcpResource)[]>>;
+}
+
+export const IMcpResourcePickHelper = createDecorator<IMcpResourcePickHelper>('IMcpResourcePickHelper');
 
 
 export interface IMcpServer extends IDisposable {
