@@ -38,12 +38,12 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
-import { EnablementState } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { LocalWebWorkerRunningLocation } from '../../../services/extensions/common/extensionRunningLocation.js';
 import { IExtensionHostProfile, IExtensionService, IExtensionsStatus } from '../../../services/extensions/common/extensions.js';
 import { IExtension, IExtensionsWorkbenchService } from '../common/extensions.js';
 import { RuntimeExtensionsInput } from '../common/runtimeExtensionsInput.js';
 import { errorIcon, warningIcon } from './extensionsIcons.js';
+import { DisableForWorkspaceAction, DisableGloballyAction, ExtensionRuntimeStateAction } from './extensionsActions.js';
 import { ExtensionIconWidget } from './extensionsWidgets.js';
 import './media/runtimeExtensionsEditor.css';
 
@@ -104,6 +104,11 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateSoon.schedule()));
 		this._register(this._extensionFeaturesManagementService.onDidChangeAccessData(() => this._updateSoon.schedule()));
+		this._register(this._extensionsWorkbenchService.onChange(extension => {
+			if (extension) {
+				this._updateSoon.schedule();
+			}
+		}));
 		this._updateExtensions();
 	}
 
@@ -293,6 +298,15 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				}
 
 				data.actionbar.clear();
+
+				if (element.marketplaceInfo) {
+					const runtimeStateAction = this._instantiationService.createInstance(ExtensionRuntimeStateAction);
+					runtimeStateAction.extension = element.marketplaceInfo;
+					if (runtimeStateAction.enabled) {
+						data.actionbar.push(runtimeStateAction, { icon: true, label: true, index: 0 });
+					}
+				}
+
 				const slowExtensionAction = this._createSlowExtensionAction(element);
 				if (slowExtensionAction) {
 					data.actionbar.push(slowExtensionAction, { icon: false, label: true });
@@ -487,8 +501,12 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			actions.push(new Separator());
 
 			if (e.element.marketplaceInfo) {
-				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledWorkspace)));
-				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledGlobally)));
+				const disableForWorkspaceAction = this._instantiationService.createInstance(DisableForWorkspaceAction);
+				disableForWorkspaceAction.extension = e.element.marketplaceInfo;
+				actions.push(disableForWorkspaceAction);
+				const disableGloballyAction = this._instantiationService.createInstance(DisableGloballyAction);
+				disableGloballyAction.extension = e.element.marketplaceInfo;
+				actions.push(disableGloballyAction);
 			}
 			actions.push(new Separator());
 
