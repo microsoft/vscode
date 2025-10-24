@@ -24,26 +24,32 @@ export class TreeSitterCommandParser {
 	}
 
 	async extractSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
-		const parser = await this._parser;
-		const language = await waitForState(derived(reader => {
-			return this._treeSitterLibraryService.getLanguage(languageId, true, reader);
-		}));
-		parser.setLanguage(language);
+		const disableSubCommandExtraction = true; // see https://github.com/microsoft/vscode/issues/273177
 
-		const tree = parser.parse(commandLine);
-		if (!tree) {
-			throw new BugIndicatingError('Failed to parse tree');
+		if (disableSubCommandExtraction) {
+			throw new Error('not supported');
+		} else {
+			const parser = await this._parser;
+			const language = await waitForState(derived(reader => {
+				return this._treeSitterLibraryService.getLanguage(languageId, true, reader);
+			}));
+			parser.setLanguage(language);
+
+			const tree = parser.parse(commandLine);
+			if (!tree) {
+				throw new BugIndicatingError('Failed to parse tree');
+			}
+
+			const query = await this._getQuery(language);
+			if (!query) {
+				throw new BugIndicatingError('Failed to create tree sitter query');
+			}
+
+			const captures = query.captures(tree.rootNode);
+			const subCommands = captures.map(e => e.node.text);
+
+			return subCommands;
 		}
-
-		const query = await this._getQuery(language);
-		if (!query) {
-			throw new BugIndicatingError('Failed to create tree sitter query');
-		}
-
-		const captures = query.captures(tree.rootNode);
-		const subCommands = captures.map(e => e.node.text);
-
-		return subCommands;
 	}
 
 	async queryTree(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<QueryCapture[]> {
