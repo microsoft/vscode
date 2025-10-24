@@ -1440,6 +1440,7 @@ class InlineCompletionAdapter {
 						range: typeConvert.Range.from(item.displayLocation.range),
 						label: item.displayLocation.label,
 						kind: item.displayLocation.kind ? typeConvert.InlineCompletionDisplayLocationKind.from(item.displayLocation.kind) : InlineCompletionDisplayLocationKind.Code,
+						jumpToEdit: item.displayLocation.jumpToEdit ?? false,
 					} : undefined,
 					warning: (item.warning && this._isAdditionsProposedApiEnabled) ? {
 						message: typeConvert.MarkdownString.from(item.warning.message),
