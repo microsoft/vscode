@@ -664,6 +664,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 	}
 
 	private async createWithChatSessions(
+		targetAgentId: string,
 		chatSessionsService: IChatSessionsService,
 		chatService: IChatService,
 		quickPickService: IQuickInputService,
@@ -675,16 +676,8 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			history?: string;
 		}
 	) {
-		const contributions = chatSessionsService.getAllChatSessionContributions();
-		const agent = await this.pickCodingAgent(quickPickService, contributions);
-		if (!agent) {
-			throw new Error('No coding agent selected');
-		}
-		// TODO(jospicer): The previous chat history doesn't get sent to chat participants!
-		const { type } = agent;
-
 		await chatService.sendRequest(sessionId, userPrompt, {
-			agentIdSilent: type,
+			agentIdSilent: targetAgentId,
 			attachedContext: attachedContext.asArray(),
 			chatSummary,
 		});
@@ -839,6 +832,14 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
 
+			const contributions = chatSessionsService.getAllChatSessionContributions();
+			const agent = await this.pickCodingAgent(quickPickService, contributions);
+			if (!agent) {
+				widget.setInput(userPrompt); // Restore prompt
+				throw new Error('No coding agent selected');
+			}
+			const { type } = agent;
+
 			// Add the request to the model first
 			const parsedRequest = requestParser.parseChatRequest(sessionId, userPrompt, ChatAgentLocation.Chat);
 			const addedRequest = chatModel.addRequest(
@@ -917,6 +918,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			if (isChatSessionsExperimentEnabled) {
 				await chatService.removeRequest(sessionId, addedRequest.id);
 				return await this.createWithChatSessions(
+					type,
 					chatSessionsService,
 					chatService,
 					quickPickService,
@@ -929,6 +931,8 @@ export class CreateRemoteAgentJobAction extends Action2 {
 					},
 				);
 			}
+
+			// -- Below is the legacy implementation
 
 			chatModel.acceptResponseProgress(addedRequest, {
 				kind: 'progressMessage',
