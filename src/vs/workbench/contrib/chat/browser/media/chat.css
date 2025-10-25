@@ -763,20 +763,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session {
-	margin-bottom: -4px;
+	margin-bottom: -4px; /* Counter the flex gap */
 	/* reset the 4px gap of the container for editing sessions */
 	width: 100%;
 	position: relative;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
-	margin-bottom: -13px;
-	padding: 6px 8px 18px 8px;
+	padding: 6px 3px 6px 3px;
 	box-sizing: border-box;
 	background-color: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-bottom: none;
-	border-radius: 4px;
+	border-radius: 4px 4px 0 0;
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
@@ -1094,7 +1093,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget {
-	padding: 6px 8px 5px 12px;
+	padding: 6px 3px 6px 3px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-editor-background);
@@ -1120,6 +1119,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand .todo-list-title-section {
+	padding-left: 3px;
 	display: flex;
 	align-items: center;
 	gap: 4px;
@@ -1130,7 +1130,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 	text-overflow: ellipsis;
 	line-height: 16px;
-	margin-left: -1px;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand .todo-list-title-section .codicon {
@@ -1140,6 +1139,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container {
+	padding-right: 2px;
 	display: flex;
 	align-items: center;
 	opacity: 1;
@@ -1245,6 +1245,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	min-width: 0;
+}
+
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
+	border-radius: 2px;
 }
 
 .interactive-session .interactive-input-part.compact .chat-input-container {
