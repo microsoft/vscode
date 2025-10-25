@@ -76,7 +76,7 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 			this.cleanUpActiveLinkDecoration();
 		}));
 		this._register(editor.onDidChangeConfiguration((e) => {
-			if (!e.hasChanged(EditorOption.links)) {
+			if (!e.hasChanged(EditorOption.links) && !e.hasChanged(EditorOption.linkUnderline)) {
 				return;
 			}
 			// Remove any links (for the getting disabled case)
