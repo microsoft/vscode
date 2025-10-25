@@ -24,6 +24,7 @@ import { applyNotebookTools } from './notebook.js';
 import { applyLocalizationTools } from './localization.js';
 import { applyTaskTools } from './task.js';
 import { applyProfilerTools } from './profiler.js';
+import { applyChatTools } from './chat.js';
 import { ApplicationService } from '../application';
 
 /**
@@ -89,6 +90,9 @@ export function applyAllTools(server: McpServer, appService: ApplicationService)
 	// Profiler Tools
 	tools = tools.concat(applyProfilerTools(server, appService));
 
+	// Chat Tools
+	tools = tools.concat(applyChatTools(server, appService));
+
 	// Return all registered tools
 	return tools;
 }
@@ -112,5 +116,6 @@ export {
 	applyNotebookTools,
 	applyLocalizationTools,
 	applyTaskTools,
-	applyProfilerTools
+	applyProfilerTools,
+	applyChatTools
 };
