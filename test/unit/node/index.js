@@ -54,8 +54,6 @@ Options:
 	process.exit(0);
 }
 
-const TEST_GLOB = '**/test/**/*.test.js';
-
 const excludeGlobs = [
 	'**/{browser,electron-browser,electron-main,electron-utility}/**/*.test.js',
 	'**/vs/platform/environment/test/node/nativeModules.test.js', // native modules are compiled against Electron and this test would fail with node.js
@@ -67,6 +65,11 @@ const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const out = args.build ? 'out-build' : 'out';
 const src = path.join(REPO_ROOT, out);
 const baseUrl = pathToFileURL(src);
+
+const testGlobConfigs = [
+	{ pattern: '**/test/**/*.test.js', cwd: src },
+	{ pattern: 'build/lib/**/*.test.js', cwd: REPO_ROOT }
+];
 
 //@ts-ignore
 const requiredNodeVersion = semver.parse(/^target="(.*)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8'))[1]);
@@ -176,16 +179,29 @@ function main() {
 		};
 	} else {
 		loadFunc = (cb) => {
-			glob(TEST_GLOB, { cwd: src }, function (err, files) {
-				/** @type {string[]} */
-				const modules = [];
-				for (const file of files) {
-					if (!excludeGlobs.some(excludeGlob => minimatch(file, excludeGlob))) {
-						modules.push(file.replace(/\.js$/, ''));
+			/** @type {string[]} */
+			const modules = [];
+			let completed = 0;
+
+			for (const config of testGlobConfigs) {
+				glob(config.pattern, { cwd: config.cwd }, function (err, files) {
+					if (err) {
+						return cb(err);
 					}
-				}
-				loadModules(modules).then(() => cb(null), cb);
-			});
+					for (const file of files) {
+						const modulePath = config.cwd !== src
+							? path.relative(src, path.join(config.cwd, file))
+							: file;
+						if (!excludeGlobs.some(excludeGlob => minimatch(modulePath, excludeGlob))) {
+							modules.push(modulePath.replace(/\.js$/, '').replace(/\\/g, '/'));
+						}
+					}
+					completed++;
+					if (completed === testGlobConfigs.length) {
+						loadModules(modules).then(() => cb(null), cb);
+					}
+				});
+			}
 		};
 	}
 
