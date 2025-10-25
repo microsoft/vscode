@@ -28,12 +28,12 @@ export class PromptFileRewriter {
 		}
 		const model = editor.getModel();
 
-		const parser = this._promptsService.getParsedPromptFile(model);
-		if (!parser.header) {
+		const promptAST = this._promptsService.getParsedPromptFile(model);
+		if (!promptAST.header) {
 			return undefined;
 		}
 
-		const toolsAttr = parser.header.getAttribute(PromptHeaderAttributes.tools);
+		const toolsAttr = promptAST.header.getAttribute(PromptHeaderAttributes.tools);
 		if (!toolsAttr) {
 			return undefined;
 		}

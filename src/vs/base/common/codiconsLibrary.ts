@@ -630,4 +630,7 @@ export const codiconsLibrary = {
 	indexZero: register('index-zero', 0xec66),
 	agent: register('agent', 0xec67),
 	editCode: register('edit-code', 0xec68),
+	repoSelected: register('repo-selected', 0xec69),
+	skip: register('skip', 0xec6a),
+	mergeInto: register('merge-into', 0xec6b),
 } as const;
