@@ -6,6 +6,7 @@
   initialLocation: "panel",
   requests: [
     {
+      requestId: undefined,
       message: {
         parts: [
           {
@@ -26,10 +27,12 @@
                 value: "nullExtensionDescription",
                 _lower: "nullextensiondescription"
               },
+              extensionVersion: undefined,
               extensionPublisherId: "",
               publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
+              modes: [ "ask" ],
               metadata: {  },
               slashCommands: [  ],
               disambiguation: [  ]
@@ -55,7 +58,10 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
+      shouldBeRemovedOnSend: undefined,
       result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
+      responseMarkdownInfo: undefined,
       followups: undefined,
       isCanceled: false,
       vote: undefined,
@@ -67,10 +73,12 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionVersion: undefined,
         extensionPublisherId: "",
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: {  },
         slashCommands: [  ],
         disambiguation: [  ]
@@ -78,7 +86,11 @@
       slashCommand: undefined,
       usedContext: undefined,
       contentReferences: [  ],
-      codeCitations: [  ]
+      codeCitations: [  ],
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined
     }
   ]
 }

@@ -50,7 +50,12 @@ const enum StatsConstants {
  */
 const PREDICTION_OMIT_RE = /^(\x1b\[(\??25[hl]|\??[0-9;]+n))+/;
 
-const core = (terminal: Terminal): IXtermCore => (terminal as any)._core;
+const core = (terminal: Terminal): IXtermCore => {
+	interface XtermWithCore extends Terminal {
+		_core: IXtermCore;
+	}
+	return (terminal as XtermWithCore)._core;
+};
 const flushOutput = (terminal: Terminal) => {
 	// TODO: Flushing output is not possible anymore without async
 };
@@ -1290,8 +1295,8 @@ export const enum CharPredictState {
 
 export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private _typeaheadStyle?: TypeAheadStyle;
-	private _typeaheadThreshold = this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoLatencyThreshold;
-	private _excludeProgramRe = compileExcludeRegexp(this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoExcludePrograms);
+	private _typeaheadThreshold: number;
+	private _excludeProgramRe: RegExp;
 	protected _lastRow?: { y: number; startingX: number; endingX: number; charState: CharPredictState };
 	protected _timeline?: PredictionTimeline;
 	private _terminalTitle = '';
@@ -1308,6 +1313,8 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
+		this._typeaheadThreshold = this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoLatencyThreshold;
+		this._excludeProgramRe = compileExcludeRegexp(this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoExcludePrograms);
 		this._register(toDisposable(() => this._clearPredictionDebounce?.dispose()));
 	}
 
@@ -1344,7 +1351,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		}));
 		this._register(this._processManager.onBeforeProcessData(e => this._onBeforeProcessData(e)));
 
-		let nextStatsSend: any;
+		let nextStatsSend: Timeout | undefined;
 		this._register(stats.onChange(() => {
 			if (!nextStatsSend) {
 				nextStatsSend = setTimeout(() => {

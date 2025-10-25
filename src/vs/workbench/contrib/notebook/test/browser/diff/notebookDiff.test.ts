@@ -540,7 +540,7 @@ suite('NotebookDiff', () => {
 		], async (model) => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
-			prettyChanges(model, diffResult);
+			prettyChanges(model.original.notebook, model.modified.notebook, diffResult);
 
 			assert.deepStrictEqual(diffResult.changes.map(change => ({
 				originalStart: change.originalStart,
@@ -592,7 +592,7 @@ suite('NotebookDiff', () => {
 		], async (model) => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
-			prettyChanges(model, diffResult);
+			prettyChanges(model.original.notebook, model.modified.notebook, diffResult);
 
 			assert.deepStrictEqual(diffResult.changes.map(change => ({
 				originalStart: change.originalStart,
@@ -649,7 +649,9 @@ suite('NotebookDiff', () => {
 			assert.strictEqual(diffViewModel.items.length, 2);
 			assert.strictEqual(diffViewModel.items[0].type, 'placeholder');
 			diffViewModel.items[0].showHiddenCells();
+			// eslint-disable-next-line local/code-no-any-casts
 			assert.strictEqual((diffViewModel.items[0] as unknown as SideBySideDiffElementViewModel).original!.textModel.equal((diffViewModel.items[0] as any).modified!.textModel), true);
+			// eslint-disable-next-line local/code-no-any-casts
 			assert.strictEqual((diffViewModel.items[1] as any).original!.textModel.equal((diffViewModel.items[1] as any).modified!.textModel), false);
 
 			await verifyChangeEventIsNotFired(diffViewModel);

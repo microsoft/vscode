@@ -5,7 +5,7 @@
 
 import { UriComponents } from '../../../base/common/uri.js';
 import { ISerializableEnvironmentVariableCollection, ISerializableEnvironmentVariableCollections } from './environmentVariable.js';
-import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, IReconnectionProperties, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TerminalType, TitleEventSource, WaitOnExitValue } from './terminal.js';
+import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, IReconnectionProperties, ITerminalEnvironment, ITerminalTabAction, ITerminalTabLayoutInfoById, TerminalIcon, TerminalType, TitleEventSource, WaitOnExitValue } from './terminal.js';
 
 export interface ISingleTerminalConfiguration<T> {
 	userValue: T | undefined;
@@ -32,6 +32,7 @@ export interface IWorkspaceFolderData {
 export interface ISetTerminalLayoutInfoArgs {
 	workspaceId: string;
 	tabs: ITerminalTabLayoutInfoById[];
+	background: number[] | null;
 }
 
 export interface IGetTerminalLayoutInfoArgs {
@@ -58,6 +59,7 @@ export interface IProcessDetails {
 	type?: TerminalType;
 	hasChildProcesses: boolean;
 	shellIntegrationNonce: string;
+	tabActions?: ITerminalTabAction[];
 }
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;

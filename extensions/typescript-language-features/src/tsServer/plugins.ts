@@ -26,7 +26,7 @@ namespace TypeScriptServerPlugin {
 }
 
 export class PluginManager extends Disposable {
-	private readonly _pluginConfigurations = new Map<string, {}>();
+	private readonly _pluginConfigurations = new Map<string, unknown>();
 
 	private _plugins?: Map<string, ReadonlyArray<TypeScriptServerPlugin>>;
 
@@ -54,15 +54,15 @@ export class PluginManager extends Disposable {
 	private readonly _onDidUpdatePlugins = this._register(new vscode.EventEmitter<this>());
 	public readonly onDidChangePlugins = this._onDidUpdatePlugins.event;
 
-	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string; config: {} }>());
+	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string; config: unknown }>());
 	public readonly onDidUpdateConfig = this._onDidUpdateConfig.event;
 
-	public setConfiguration(pluginId: string, config: {}) {
+	public setConfiguration(pluginId: string, config: unknown) {
 		this._pluginConfigurations.set(pluginId, config);
 		this._onDidUpdateConfig.fire({ pluginId, config });
 	}
 
-	public configurations(): IterableIterator<[string, {}]> {
+	public configurations(): IterableIterator<[string, unknown]> {
 		return this._pluginConfigurations.entries();
 	}
 

@@ -78,14 +78,6 @@ export const UPLOAD_LABEL = nls.localize('upload', "Upload...");
 const CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 const MAX_UNDO_FILE_SIZE = 5000000; // 5mb
 
-function onError(notificationService: INotificationService, error: any): void {
-	if (error.message === 'string') {
-		error = error.message;
-	}
-
-	notificationService.error(toErrorMessage(error, false));
-}
-
 async function refreshIfSeparator(value: string, explorerService: IExplorerService): Promise<void> {
 	if (value && ((value.indexOf('/') >= 0) || (value.indexOf('\\') >= 0))) {
 		// New input contains separator, multiple resources will get created workaround for #68204
@@ -93,7 +85,7 @@ async function refreshIfSeparator(value: string, explorerService: IExplorerServi
 	}
 }
 
-async function deleteFiles(explorerService: IExplorerService, workingCopyFileService: IWorkingCopyFileService, dialogService: IDialogService, configurationService: IConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false, ignoreIfNotExists = false): Promise<void> {
+async function deleteFiles(explorerService: IExplorerService, workingCopyFileService: IWorkingCopyFileService, dialogService: IDialogService, configurationService: IConfigurationService, filesConfigurationService: IFilesConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false, ignoreIfNotExists = false): Promise<void> {
 	let primaryButton: string;
 	if (useTrash) {
 		primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash");
@@ -109,7 +101,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 			dirtyWorkingCopies.add(dirtyWorkingCopy);
 		}
 	}
-	let confirmed = true;
+
 	if (dirtyWorkingCopies.size) {
 		let message: string;
 		if (distinctElements.length > 1) {
@@ -132,18 +124,40 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 		});
 
 		if (!response.confirmed) {
-			confirmed = false;
+			return;
 		} else {
 			skipConfirm = true;
 		}
 	}
 
-	// Check if file is dirty in editor and save it to avoid data loss
-	if (!confirmed) {
-		return;
+	// Handle readonly
+	if (!skipConfirm) {
+		const readonlyResources = distinctElements.filter(e => filesConfigurationService.isReadonly(e.resource));
+		if (readonlyResources.length) {
+			let message: string;
+			if (readonlyResources.length > 1) {
+				message = nls.localize('readonlyMessageFilesDelete', "You are deleting files that are configured to be read-only. Do you want to continue?");
+			} else if (readonlyResources[0].isDirectory) {
+				message = nls.localize('readonlyMessageFolderOneDelete', "You are deleting a folder {0} that is configured to be read-only. Do you want to continue?", distinctElements[0].name);
+			} else {
+				message = nls.localize('readonlyMessageFolderDelete', "You are deleting a file {0} that is configured to be read-only. Do you want to continue?", distinctElements[0].name);
+			}
+
+			const response = await dialogService.confirm({
+				type: 'warning',
+				message,
+				detail: nls.localize('continueDetail', "The read-only protection will be overridden if you continue."),
+				primaryButton: nls.localize('continueButtonLabel', "Continue")
+			});
+
+			if (!response.confirmed) {
+				return;
+			}
+		}
 	}
 
 	let confirmation: IConfirmationResult;
+
 	// We do not support undo of folders, so in that case the delete action is irreversible
 	const deleteDetail = distinctElements.some(e => e.isDirectory) ? nls.localize('irreversible', "This action is irreversible!") :
 		distinctElements.length > 1 ? nls.localize('restorePlural', "You can restore these files using the Undo command.") : nls.localize('restore', "You can restore this file using the Undo command.");
@@ -234,7 +248,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 			skipConfirm = true;
 			ignoreIfNotExists = true;
 
-			return deleteFiles(explorerService, workingCopyFileService, dialogService, configurationService, elements, useTrash, skipConfirm, ignoreIfNotExists);
+			return deleteFiles(explorerService, workingCopyFileService, dialogService, configurationService, filesConfigurationService, elements, useTrash, skipConfirm, ignoreIfNotExists);
 		}
 	}
 }
@@ -578,7 +592,7 @@ abstract class BaseSaveAllAction extends Action {
 		try {
 			await this.doRun(context);
 		} catch (error) {
-			onError(this.notificationService, error);
+			this.notificationService.error(toErrorMessage(error, false));
 		}
 	}
 }
@@ -664,7 +678,7 @@ export class ShowActiveFileInExplorer extends Action2 {
 export class OpenActiveFileInEmptyWorkspace extends Action2 {
 
 	static readonly ID = 'workbench.action.files.showOpenedFileInNewWindow';
-	static readonly LABEL = nls.localize2('openFileInEmptyWorkspace', "Open Active File in New Empty Workspace");
+	static readonly LABEL = nls.localize2('openFileInEmptyWorkspace', "Open Active Editor in New Empty Workspace");
 
 	constructor(
 	) {
@@ -675,7 +689,7 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 			category: Categories.File,
 			precondition: EmptyWorkspaceSupportContext,
 			metadata: {
-				description: nls.localize2('openFileInEmptyWorkspaceMetadata', "Opens the active file in a new window with no folders open.")
+				description: nls.localize2('openFileInEmptyWorkspaceMetadata', "Opens the active editor in a new window with no folders open.")
 			}
 		});
 	}
@@ -687,12 +701,10 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 		const fileService = accessor.get(IFileService);
 
 		const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (fileResource) {
-			if (fileService.hasProvider(fileResource)) {
-				hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
-			} else {
-				dialogService.error(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
-			}
+		if (fileResource && fileService.hasProvider(fileResource)) {
+			hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
+		} else {
+			dialogService.error(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
 		}
 	}
 }
@@ -1020,7 +1032,7 @@ export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 	if (stats.length) {
-		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
+		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFilesConfigurationService), stats, true);
 	}
 };
 
@@ -1029,7 +1041,7 @@ export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 
 	if (stats.length) {
-		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
+		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFilesConfigurationService), stats, false);
 	}
 };
 
@@ -1259,7 +1271,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 			}
 		}
 	} catch (e) {
-		onError(notificationService, new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))));
+		notificationService.error(toErrorMessage(new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))), false));
 	} finally {
 		if (pasteShouldMove) {
 			// Cut is done. Make sure to clear cut state.

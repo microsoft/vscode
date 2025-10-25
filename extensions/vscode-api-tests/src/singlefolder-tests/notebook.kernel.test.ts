@@ -14,7 +14,9 @@ async function createRandomNotebookFile() {
 }
 
 async function openRandomNotebookDocument() {
+	console.log('Creating a random notebook file');
 	const uri = await createRandomNotebookFile();
+	console.log('Created a random notebook file');
 	return vscode.workspace.openNotebookDocument(uri);
 }
 
@@ -119,6 +121,7 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 				}
 			]
 		};
+		console.log('Returning NotebookData in deserializeNotebook');
 		return dto;
 	}
 };
@@ -159,39 +162,61 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 	});
 
 	test('cell execute command takes arguments', async () => {
+		console.log('Step1.cell execute command takes arguments');
 		const notebook = await openRandomNotebookDocument();
+		console.log('Step2.cell execute command takes arguments');
 		await vscode.window.showNotebookDocument(notebook);
+		console.log('Step3.cell execute command takes arguments');
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.notebook.cellAt(0);
 
+		console.log('Step4.cell execute command takes arguments');
 		await withEvent(vscode.workspace.onDidChangeNotebookDocument, async event => {
+			console.log('Step5.cell execute command takes arguments');
 			await vscode.commands.executeCommand('notebook.execute');
+			console.log('Step6.cell execute command takes arguments');
 			await event;
+			console.log('Step7.cell execute command takes arguments');
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 		});
 
+		console.log('Step8.cell execute command takes arguments');
 		await withEvent(vscode.workspace.onDidChangeNotebookDocument, async event => {
+			console.log('Step9.cell execute command takes arguments');
 			await vscode.commands.executeCommand('notebook.cell.clearOutputs');
+			console.log('Step10.cell execute command takes arguments');
 			await event;
+			console.log('Step11.cell execute command takes arguments');
 			assert.strictEqual(cell.outputs.length, 0, 'should clear');
 		});
 
+		console.log('Step12.cell execute command takes arguments');
 		const secondResource = await createRandomNotebookFile();
+		console.log('Step13.cell execute command takes arguments');
 		const secondDocument = await vscode.workspace.openNotebookDocument(secondResource);
+		console.log('Step14.cell execute command takes arguments');
 		await vscode.window.showNotebookDocument(secondDocument);
+		console.log('Step15.cell execute command takes arguments');
 
 		await withEvent<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument, async event => {
+			console.log('Step16.cell execute command takes arguments');
 			await vscode.commands.executeCommand('notebook.cell.execute', { start: 0, end: 1 }, notebook.uri);
+			console.log('Step17.cell execute command takes arguments');
 			await event;
+			console.log('Step18.cell execute command takes arguments');
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(vscode.window.activeNotebookEditor?.notebook.uri.fsPath, secondResource.fsPath);
 		});
+		console.log('Step19.cell execute command takes arguments');
 	});
 
 	test('cell execute command takes arguments 2', async () => {
+		console.log('Step1.cell execute command takes arguments 2');
 		const notebook = await openRandomNotebookDocument();
+		console.log('Step2.cell execute command takes arguments 2');
 		await vscode.window.showNotebookDocument(notebook);
+		console.log('Step3.cell execute command takes arguments 2');
 
 		let firstCellExecuted = false;
 		let secondCellExecuted = false;
@@ -213,7 +238,7 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 			}
 		}));
 
-		vscode.commands.executeCommand('notebook.cell.execute', { document: notebook.uri, ranges: [{ start: 0, end: 1 }, { start: 1, end: 2 }] });
+		await vscode.commands.executeCommand('notebook.cell.execute', { document: notebook.uri, ranges: [{ start: 0, end: 1 }, { start: 1, end: 2 }] });
 
 		await def.p;
 		await saveAllFilesAndCloseAll();
@@ -276,38 +301,6 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 			assert.strictEqual(cell.outputs[0].items[0].mime, 'text/plain');
 			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].items[0].data), 'my second output');
 		});
-	});
-
-	test('onDidChangeCellExecutionState is fired', async () => {
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
-		const cell = editor.notebook.cellAt(0);
-
-		let eventCount = 0;
-		const def = new DeferredPromise<void>();
-		testDisposables.push(vscode.notebooks.onDidChangeNotebookCellExecutionState(e => {
-			try {
-				assert.strictEqual(e.cell.document.uri.toString(), cell.document.uri.toString(), 'event should be fired for the executing cell');
-
-				if (eventCount === 0) {
-					assert.strictEqual(e.state, vscode.NotebookCellExecutionState.Pending, 'should be set to Pending');
-				} else if (eventCount === 1) {
-					assert.strictEqual(e.state, vscode.NotebookCellExecutionState.Executing, 'should be set to Executing');
-					assert.strictEqual(cell.outputs.length, 0, 'no outputs yet: ' + JSON.stringify(cell.outputs[0]));
-				} else if (e.state === vscode.NotebookCellExecutionState.Idle) {
-					assert.strictEqual(cell.outputs.length, 1, 'should have an output');
-					def.complete();
-				}
-
-				eventCount++;
-			} catch (err) {
-				def.error(err);
-			}
-		}));
-
-		vscode.commands.executeCommand('notebook.cell.execute', { document: notebook.uri, ranges: [{ start: 0, end: 1 }] });
-
-		await def.p;
 	});
 
 	test('Output changes are applied once the promise resolves', async function () {

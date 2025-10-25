@@ -19,7 +19,7 @@ let localHistoryDateFormatter: ILocalHistoryDateFormatter | undefined = undefine
 export function getLocalHistoryDateFormatter(): ILocalHistoryDateFormatter {
 	if (!localHistoryDateFormatter) {
 		const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' };
-		const formatter = safeIntl.DateTimeFormat(language, options);
+		const formatter = safeIntl.DateTimeFormat(language, options).value;
 		localHistoryDateFormatter = {
 			format: date => formatter.format(date)
 		};

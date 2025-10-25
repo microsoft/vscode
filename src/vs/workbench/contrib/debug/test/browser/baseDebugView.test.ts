@@ -31,7 +31,7 @@ suite('Debug - Base Debug View', () => {
 	let renderer: DebugExpressionRenderer;
 	let configurationService: TestConfigurationService;
 
-	function assertVariable(session: MockSession, scope: Scope, disposables: Pick<DisposableStore, "add">, displayType: boolean) {
+	function assertVariable(session: MockSession, scope: Scope, disposables: Pick<DisposableStore, 'add'>, displayType: boolean) {
 		let variable = new Variable(session, 1, scope, 2, 'foo', 'bar.foo', undefined, 0, 0, undefined, {}, 'string');
 		let expression = $('.');
 		let name = $('.');
@@ -106,7 +106,7 @@ suite('Debug - Base Debug View', () => {
 		const container = $('.container');
 		const treeContainer = renderViewTree(container);
 
-		assert.strictEqual(treeContainer.className, 'debug-view-content');
+		assert.strictEqual(treeContainer.className, 'debug-view-content file-icon-themable-tree');
 		assert.strictEqual(container.childElementCount, 1);
 		assert.strictEqual(container.firstChild, treeContainer);
 		assert.strictEqual(dom.isHTMLDivElement(treeContainer), true);

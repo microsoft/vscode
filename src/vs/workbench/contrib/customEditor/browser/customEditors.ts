@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { RedoCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
 import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
@@ -21,7 +21,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { DEFAULT_EDITOR_ASSOCIATION, EditorExtensions, GroupIdentifier, IEditorFactoryRegistry, IResourceDiffEditorInput } from '../../../common/editor.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorService } from '../common/customEditor.js';
+import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorModelManager, ICustomEditorService } from '../common/customEditor.js';
 import { CustomEditorModelManager } from '../common/customEditorModelManager.js';
 import { IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorResolverService, IEditorType, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
@@ -37,7 +37,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	private readonly _editorResolverDisposables = this._register(new DisposableStore());
 	private readonly _editorCapabilities = new Map<string, CustomEditorCapabilities>();
 
-	private readonly _models = new CustomEditorModelManager();
+	private readonly _models: ICustomEditorModelManager;
 
 	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
 	public readonly onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
@@ -54,6 +54,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 	) {
 		super();
+
+		this._models = new CustomEditorModelManager();
 
 		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
 		// Register the contribution points only emitting one change from the resolver
@@ -136,10 +138,10 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 					},
 					{
 						createEditorInput: ({ resource }, group) => {
-							return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id) };
+							return { editor: CustomEditorInput.create(this.instantiationService, { resource, viewType: contributedEditor.id, webviewTitle: undefined, iconPath: undefined }, group.id) };
 						},
 						createUntitledEditorInput: ({ resource }, group) => {
-							return { editor: CustomEditorInput.create(this.instantiationService, resource ?? URI.from({ scheme: Schemas.untitled, authority: `Untitled-${this._untitledCounter++}` }), contributedEditor.id, group.id) };
+							return { editor: CustomEditorInput.create(this.instantiationService, { resource: resource ?? URI.from({ scheme: Schemas.untitled, authority: `Untitled-${this._untitledCounter++}` }), viewType: contributedEditor.id, webviewTitle: undefined, iconPath: undefined }, group.id) };
 						},
 						createDiffEditorInput: (diffEditorInput, group) => {
 							return { editor: this.createDiffEditorInput(diffEditorInput, contributedEditor.id, group) };
@@ -155,8 +157,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		editorID: string,
 		group: IEditorGroup
 	): DiffEditorInput {
-		const modifiedOverride = CustomEditorInput.create(this.instantiationService, assertIsDefined(editor.modified.resource), editorID, group.id, { customClasses: 'modified' });
-		const originalOverride = CustomEditorInput.create(this.instantiationService, assertIsDefined(editor.original.resource), editorID, group.id, { customClasses: 'original' });
+		const modifiedOverride = CustomEditorInput.create(this.instantiationService, { resource: assertReturnsDefined(editor.modified.resource), viewType: editorID, webviewTitle: undefined, iconPath: undefined }, group.id, { customClasses: 'modified' });
+		const originalOverride = CustomEditorInput.create(this.instantiationService, { resource: assertReturnsDefined(editor.original.resource), viewType: editorID, webviewTitle: undefined, iconPath: undefined }, group.id, { customClasses: 'original' });
 		return this.instantiationService.createInstance(DiffEditorInput, editor.label, editor.description, originalOverride, modifiedOverride, true);
 	}
 
@@ -257,7 +259,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				let replacement: EditorInput | IResourceEditorInput;
 				if (possibleEditors.defaultEditor) {
 					const viewType = possibleEditors.defaultEditor.id;
-					replacement = CustomEditorInput.create(this.instantiationService, newResource, viewType, group);
+					replacement = CustomEditorInput.create(this.instantiationService, { resource: newResource, viewType, webviewTitle: undefined, iconPath: undefined }, group);
 				} else {
 					replacement = { resource: newResource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } };
 				}

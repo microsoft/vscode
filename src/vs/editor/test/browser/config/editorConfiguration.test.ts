@@ -66,7 +66,8 @@ suite('Common Editor Config', () => {
 				outerHeight: 100,
 				emptySelectionClipboard: true,
 				pixelRatio: 1,
-				accessibilitySupport: AccessibilitySupport.Unknown
+				accessibilitySupport: AccessibilitySupport.Unknown,
+				editContextSupported: true,
 			};
 		}
 	}
@@ -86,6 +87,7 @@ suite('Common Editor Config', () => {
 
 	test('wordWrap compat false', () => {
 		const config = new TestWrappingConfiguration({
+			// eslint-disable-next-line local/code-no-any-casts
 			wordWrap: <any>false
 		});
 		assertWrapping(config, false, -1);
@@ -94,6 +96,7 @@ suite('Common Editor Config', () => {
 
 	test('wordWrap compat true', () => {
 		const config = new TestWrappingConfiguration({
+			// eslint-disable-next-line local/code-no-any-casts
 			wordWrap: <any>true
 		});
 		assertWrapping(config, true, 80);
@@ -254,13 +257,13 @@ suite('Common Editor Config', () => {
 		const actual = config.options.get(EditorOption.unicodeHighlighting);
 		assert.deepStrictEqual(actual,
 			{
-				nonBasicASCII: "inUntrustedWorkspace",
+				nonBasicASCII: 'inUntrustedWorkspace',
 				invisibleCharacters: true,
 				ambiguousCharacters: true,
-				includeComments: "inUntrustedWorkspace",
-				includeStrings: "inUntrustedWorkspace",
-				allowedCharacters: { "x": true },
-				allowedLocales: { "_os": true, "_vscode": true }
+				includeComments: 'inUntrustedWorkspace',
+				includeStrings: 'inUntrustedWorkspace',
+				allowedCharacters: { 'x': true },
+				allowedLocales: { '_os': true, '_vscode': true }
 			}
 		);
 		config.dispose();

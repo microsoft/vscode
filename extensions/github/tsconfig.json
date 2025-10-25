@@ -1,14 +1,21 @@
 {
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
 		"outDir": "./out",
-		"experimentalDecorators": true,
+		"skipLibCheck": true,
+		"allowSyntheticDefaultImports": false,
 		"typeRoots": [
 			"./node_modules/@types"
 		]
 	},
 	"include": [
 		"src/**/*",
-		"../../src/vscode-dts/vscode.d.ts"
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.canonicalUriProvider.d.ts",
+		"../../src/vscode-dts/vscode.proposed.scmHistoryProvider.d.ts",
+		"../../src/vscode-dts/vscode.proposed.shareProvider.d.ts",
+		"../../src/vscode-dts/vscode.proposed.timeline.d.ts"
 	]
 }

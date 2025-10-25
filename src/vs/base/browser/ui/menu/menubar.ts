@@ -583,17 +583,17 @@ export class MenuBar extends Disposable {
 			const replaceDoubleEscapes = (str: string) => str.replace(/&amp;&amp;/g, '&amp;');
 
 			if (escMatch) {
-				titleElement.innerText = '';
+				titleElement.textContent = '';
 				titleElement.append(
 					strings.ltrim(replaceDoubleEscapes(cleanLabel.substr(0, escMatch.index)), ' '),
 					$('mnemonic', { 'aria-hidden': 'true' }, escMatch[3]),
 					strings.rtrim(replaceDoubleEscapes(cleanLabel.substr(escMatch.index + escMatch[0].length)), ' ')
 				);
 			} else {
-				titleElement.innerText = replaceDoubleEscapes(cleanLabel).trim();
+				titleElement.textContent = replaceDoubleEscapes(cleanLabel).trim();
 			}
 		} else {
-			titleElement.innerText = cleanMenuLabel.replace(/&&/g, '&');
+			titleElement.textContent = cleanMenuLabel.replace(/&&/g, '&');
 		}
 
 		const mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
@@ -741,6 +741,12 @@ export class MenuBar extends Disposable {
 				}
 
 				if (this.focusedMenu) {
+					// When the menu is toggled on, it may be in compact state and trying to
+					// focus the first menu. In this case we should focus the overflow instead.
+					if (this.focusedMenu.index === 0 && this.numMenusShown === 0) {
+						this.focusedMenu.index = MenuBar.OVERFLOW_INDEX;
+					}
+
 					if (this.focusedMenu.index === MenuBar.OVERFLOW_INDEX) {
 						this.overflowMenu.buttonElement.focus();
 					} else {

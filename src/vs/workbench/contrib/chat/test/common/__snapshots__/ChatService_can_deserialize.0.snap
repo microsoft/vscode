@@ -6,6 +6,7 @@
   initialLocation: "panel",
   requests: [
     {
+      requestId: undefined,
       message: {
         text: "@ChatProviderWithUsedContext test request",
         parts: [
@@ -31,6 +32,7 @@
               publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
+              modes: [ "ask" ],
               metadata: {  },
               slashCommands: [  ],
               disambiguation: [  ]
@@ -55,7 +57,10 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
+      shouldBeRemovedOnSend: undefined,
       result: { metadata: { metadataKey: "value" } },
+      responseMarkdownInfo: undefined,
       followups: undefined,
       isCanceled: false,
       vote: undefined,
@@ -71,6 +76,7 @@
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: {  },
         slashCommands: [  ],
         disambiguation: [  ]
@@ -94,7 +100,11 @@
         kind: "usedContext"
       },
       contentReferences: [  ],
-      codeCitations: [  ]
+      codeCitations: [  ],
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined
     }
   ]
 }

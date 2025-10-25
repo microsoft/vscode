@@ -5,6 +5,7 @@
 
 import './media/interactive.css';
 import * as DOM from '../../../../base/browser/dom.js';
+import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -59,6 +60,8 @@ import { ReplInputHintContentWidget } from '../../interactive/browser/replInputH
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { localize } from '../../../../nls.js';
+import { NotebookViewModel } from '../../notebook/browser/viewModel/notebookViewModelImpl.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
 
@@ -129,7 +132,8 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super(
 			REPL_EDITOR_ID,
@@ -159,7 +163,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 				this._editorOptions = this._computeEditorOptions();
 			}
 		}));
-		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false });
+		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false, disableRulers: true });
 		this._editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateInputHint, this));
@@ -210,7 +214,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 	}
 
 	private _createLayoutStyles(): void {
-		this._styleElement = DOM.createStyleSheet(this._rootElement);
+		this._styleElement = domStylesheets.createStyleSheet(this._rootElement);
 		const styleSheets: string[] = [];
 
 		const {
@@ -285,7 +289,8 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 				},
 				hover: {
 					enabled: true
-				}
+				},
+				rulers: []
 			}
 		});
 
@@ -379,10 +384,16 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 			codeWindow: this.window
 		}, undefined, this.window);
 
+		const skipContributions = [
+			'workbench.notebook.cellToolbar',
+			'editor.contrib.inlineCompletionsController'
+		];
+
+		const inputContributions = getDefaultNotebookCreationOptions().cellEditorContributions?.filter(c => skipContributions.indexOf(c.id) === -1);
 		this._codeEditorWidget = this._instantiationService.createInstance(CodeEditorWidget, this._inputEditorContainer, this._editorOptions, {
 			...{
 				isSimpleWidget: false,
-				contributions: getDefaultNotebookCreationOptions().cellEditorContributions
+				contributions: inputContributions,
 			}
 		});
 
@@ -474,11 +485,11 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 			}
 		}));
 
-		this._codeEditorWidget.onDidChangeModelDecorations(() => {
+		this._widgetDisposableStore.add(this._codeEditorWidget.onDidChangeModelDecorations(() => {
 			if (this.isVisible()) {
 				this._updateInputHint();
 			}
-		});
+		}));
 
 		const cursorAtBoundaryContext = INTERACTIVE_INPUT_CURSOR_BOUNDARY.bindTo(this._contextKeyService);
 		if (input.resource && input.historyService.has(input.resource)) {
@@ -540,9 +551,27 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 			if (addedCells.length) {
 				const viewModel = notebookWidget.viewModel;
 				if (viewModel) {
-					this._notebookWidgetService.updateReplContextKey(viewModel.notebookDocument.uri.toString());
+					this.handleAppend(notebookWidget, viewModel);
 					break;
 				}
+			}
+		}
+	}
+
+	private handleAppend(notebookWidget: NotebookEditorWidget, viewModel: NotebookViewModel) {
+		this._notebookWidgetService.updateReplContextKey(viewModel.notebookDocument.uri.toString());
+		const navigateToCell = this._configurationService.getValue('accessibility.replEditor.autoFocusReplExecution');
+		if (this._accessibilityService.isScreenReaderOptimized()) {
+			if (navigateToCell === 'lastExecution') {
+				setTimeout(() => {
+					const lastCellIndex = viewModel.length - 1;
+					if (lastCellIndex >= 0) {
+						const cell = viewModel.viewCells[lastCellIndex];
+						notebookWidget.focusNotebookCell(cell, 'container');
+					}
+				}, 0);
+			} else if (navigateToCell === 'input') {
+				this._codeEditorWidget.focus();
 			}
 		}
 	}

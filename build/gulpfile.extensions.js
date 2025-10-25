@@ -47,11 +47,12 @@ const compilations = [
 	'extensions/jake/tsconfig.json',
 	'extensions/json-language-features/client/tsconfig.json',
 	'extensions/json-language-features/server/tsconfig.json',
-	'extensions/markdown-language-features/preview-src/tsconfig.json',
 	'extensions/markdown-language-features/tsconfig.json',
 	'extensions/markdown-math/tsconfig.json',
 	'extensions/media-preview/tsconfig.json',
 	'extensions/merge-conflict/tsconfig.json',
+	'extensions/mermaid-chat-features/tsconfig.json',
+	'extensions/terminal-suggest/tsconfig.json',
 	'extensions/microsoft-authentication/tsconfig.json',
 	'extensions/notebook-renderers/tsconfig.json',
 	'extensions/npm/tsconfig.json',
@@ -60,7 +61,6 @@ const compilations = [
 	'extensions/search-result/tsconfig.json',
 	'extensions/simple-browser/tsconfig.json',
 	'extensions/tunnel-forwarding/tsconfig.json',
-	'extensions/typescript-language-features/test-workspace/tsconfig.json',
 	'extensions/typescript-language-features/web/tsconfig.json',
 	'extensions/typescript-language-features/tsconfig.json',
 	'extensions/vscode-api-tests/tsconfig.json',
@@ -91,16 +91,6 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const out = path.join(srcRoot, 'out');
 	const baseUrl = getBaseUrl(out);
 
-	let headerId, headerOut;
-	const index = relativeDirname.indexOf('/');
-	if (index < 0) {
-		headerId = 'vscode.' + relativeDirname;
-		headerOut = 'out';
-	} else {
-		headerId = 'vscode.' + relativeDirname.substr(0, index);
-		headerOut = relativeDirname.substr(index + 1) + '/out';
-	}
-
 	function createPipeline(build, emitError, transpileOnly) {
 		const tsb = require('./lib/tsb');
 		const sourcemaps = require('gulp-sourcemaps');
@@ -110,7 +100,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		overrideOptions.inlineSources = Boolean(build);
 		overrideOptions.base = path.dirname(absolutePath);
 
-		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly, transpileWithSwc: true }, err => reporter(err.toString()));
+		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly, transpileWithEsbuild: true }, err => reporter(err.toString()));
 
 		const pipeline = function () {
 			const input = es.through();
@@ -230,27 +220,61 @@ exports.compileExtensionMediaBuildTask = compileExtensionMediaBuildTask;
 
 //#region Azure Pipelines
 
+/**
+ * Cleans the build directory for extensions
+ */
 const cleanExtensionsBuildTask = task.define('clean-extensions-build', util.rimraf('.build/extensions'));
-const compileExtensionsBuildTask = task.define('compile-extensions-build', task.series(
-	cleanExtensionsBuildTask,
-	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false).pipe(gulp.dest('.build'))),
-	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream(false, false).pipe(gulp.dest('.build'))),
-));
+exports.cleanExtensionsBuildTask = cleanExtensionsBuildTask;
 
-gulp.task(compileExtensionsBuildTask);
-gulp.task(task.define('extensions-ci', task.series(compileExtensionsBuildTask, compileExtensionMediaBuildTask)));
+/**
+ * brings in the marketplace extensions for the build
+ */
+const bundleMarketplaceExtensionsBuildTask = task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false).pipe(gulp.dest('.build')));
+
+/**
+ * Compiles the non-native extensions for the build
+ * @note this does not clean the directory ahead of it. See {@link cleanExtensionsBuildTask} for that.
+ */
+const compileNonNativeExtensionsBuildTask = task.define('compile-non-native-extensions-build', task.series(
+	bundleMarketplaceExtensionsBuildTask,
+	task.define('bundle-non-native-extensions-build', () => ext.packageNonNativeLocalExtensionsStream(false, false).pipe(gulp.dest('.build')))
+));
+gulp.task(compileNonNativeExtensionsBuildTask);
+exports.compileNonNativeExtensionsBuildTask = compileNonNativeExtensionsBuildTask;
+
+/**
+ * Compiles the native extensions for the build
+ * @note this does not clean the directory ahead of it. See {@link cleanExtensionsBuildTask} for that.
+ */
+const compileNativeExtensionsBuildTask = task.define('compile-native-extensions-build', () => ext.packageNativeLocalExtensionsStream(false, false).pipe(gulp.dest('.build')));
+gulp.task(compileNativeExtensionsBuildTask);
+exports.compileNativeExtensionsBuildTask = compileNativeExtensionsBuildTask;
+
+/**
+ * Compiles the extensions for the build.
+ * This is essentially a helper task that combines {@link cleanExtensionsBuildTask}, {@link compileNonNativeExtensionsBuildTask} and {@link compileNativeExtensionsBuildTask}
+ */
+const compileAllExtensionsBuildTask = task.define('compile-extensions-build', task.series(
+	cleanExtensionsBuildTask,
+	bundleMarketplaceExtensionsBuildTask,
+	task.define('bundle-extensions-build', () => ext.packageAllLocalExtensionsStream(false, false).pipe(gulp.dest('.build'))),
+));
+gulp.task(compileAllExtensionsBuildTask);
+exports.compileAllExtensionsBuildTask = compileAllExtensionsBuildTask;
+
+// This task is run in the compilation stage of the CI pipeline. We only compile the non-native extensions since those can be fully built regardless of platform.
+// This defers the native extensions to the platform specific stage of the CI pipeline.
+gulp.task(task.define('extensions-ci', task.series(compileNonNativeExtensionsBuildTask, compileExtensionMediaBuildTask)));
 
 const compileExtensionsBuildPullRequestTask = task.define('compile-extensions-build-pr', task.series(
 	cleanExtensionsBuildTask,
-	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false).pipe(gulp.dest('.build'))),
-	task.define('bundle-extensions-build-pr', () => ext.packageLocalExtensionsStream(false, true).pipe(gulp.dest('.build'))),
+	bundleMarketplaceExtensionsBuildTask,
+	task.define('bundle-extensions-build-pr', () => ext.packageAllLocalExtensionsStream(false, true).pipe(gulp.dest('.build'))),
 ));
-
 gulp.task(compileExtensionsBuildPullRequestTask);
+
+// This task is run in the compilation stage of the PR pipeline. We compile all extensions in it to verify compilation.
 gulp.task(task.define('extensions-ci-pr', task.series(compileExtensionsBuildPullRequestTask, compileExtensionMediaBuildTask)));
-
-
-exports.compileExtensionsBuildTask = compileExtensionsBuildTask;
 
 //#endregion
 

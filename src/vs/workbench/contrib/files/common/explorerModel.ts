@@ -19,7 +19,7 @@ import { IFilesConfiguration, SortOrder } from './files.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ExplorerFileNestingTrie } from './explorerFileNestingTrie.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
@@ -191,8 +191,8 @@ export class ExplorerItem {
 	getId(): string {
 		let id = this.root.resource.toString() + '::' + this.resource.toString();
 
-		if (this.markedAsFindResult) {
-			id += '::findResult';
+		if (this.isMarkedAsFiltered()) {
+			id += '::findFilterResult';
 		}
 
 		return id;
@@ -355,7 +355,7 @@ export class ExplorerItem {
 					if (nestedItems !== undefined) {
 						fileEntryItem.nestedChildren = [];
 						for (const name of nestedItems.keys()) {
-							const child = assertIsDefined(this.children.get(name));
+							const child = assertReturnsDefined(this.children.get(name));
 							fileEntryItem.nestedChildren.push(child);
 							child.nestedParent = fileEntryItem;
 						}
@@ -502,13 +502,13 @@ export class ExplorerItem {
 
 	// Find
 	private markedAsFindResult = false;
-	isMarkedAsFound(): boolean {
+	isMarkedAsFiltered(): boolean {
 		return this.markedAsFindResult;
 	}
 
-	markItemAndParents(): void {
+	markItemAndParentsAsFiltered(): void {
 		this.markedAsFindResult = true;
-		this.parent?.markItemAndParents();
+		this.parent?.markItemAndParentsAsFiltered();
 	}
 
 	unmarkItemAndChildren(): void {

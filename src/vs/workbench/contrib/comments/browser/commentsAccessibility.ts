@@ -12,7 +12,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { CommentCommandId } from '../common/commentCommandIds.js';
 import { ToggleTabFocusModeAction } from '../../../../editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode.js';
 import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 
 
@@ -44,7 +44,7 @@ export class CommentsAccessibilityHelpProvider extends Disposable implements IAc
 	}
 }
 
-export class CommentsAccessibilityHelp implements IAccessibleViewImplentation {
+export class CommentsAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 110;
 	readonly name = 'comments';
 	readonly type = AccessibleViewType.Help;

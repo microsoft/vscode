@@ -84,8 +84,11 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.Position(0, -1));
 
 		const pos = new types.Position(0, 0);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (pos as any).line = -1);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (pos as any).character = -1);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (pos as any).line = 12);
 
 		const { line, character } = pos.toJSON();
@@ -203,7 +206,9 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.Range(null!, new types.Position(0, 0)));
 
 		const range = new types.Range(1, 0, 0, 0);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => { (range as any).start = null; });
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => { (range as any).start = new types.Position(0, 3); });
 	});
 
@@ -582,26 +587,26 @@ suite('ExtHostTypes', function () {
 	test('Snippet choices are incorrectly escaped/applied #180132', function () {
 		{
 			const s = new types.SnippetString();
-			s.appendChoice(["aaa$aaa"]);
-			s.appendText("bbb$bbb");
+			s.appendChoice(['aaa$aaa']);
+			s.appendText('bbb$bbb');
 			assert.strictEqual(s.value, '${1|aaa$aaa|}bbb\\$bbb');
 		}
 		{
 			const s = new types.SnippetString();
-			s.appendChoice(["aaa,aaa"]);
-			s.appendText("bbb$bbb");
+			s.appendChoice(['aaa,aaa']);
+			s.appendText('bbb$bbb');
 			assert.strictEqual(s.value, '${1|aaa\\,aaa|}bbb\\$bbb');
 		}
 		{
 			const s = new types.SnippetString();
-			s.appendChoice(["aaa|aaa"]);
-			s.appendText("bbb$bbb");
+			s.appendChoice(['aaa|aaa']);
+			s.appendText('bbb$bbb');
 			assert.strictEqual(s.value, '${1|aaa\\|aaa|}bbb\\$bbb');
 		}
 		{
 			const s = new types.SnippetString();
-			s.appendChoice(["aaa\\aaa"]);
-			s.appendText("bbb$bbb");
+			s.appendChoice(['aaa\\aaa']);
+			s.appendText('bbb$bbb');
 			assert.strictEqual(s.value, '${1|aaa\\\\aaa|}bbb\\$bbb');
 		}
 	});
@@ -774,22 +779,6 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => types.FileDecoration.validate({ badge: '👋👋👋' }));
 		assert.throws(() => types.FileDecoration.validate({ badge: 'புன்சிரிப்போடு' }));
 		assert.throws(() => types.FileDecoration.validate({ badge: 'ããã' }));
-	});
-
-	test('No longer possible to set content on LanguageModelChatMessage', function () {
-		const m = types.LanguageModelChatMessage.Assistant('');
-		m.content = [new types.LanguageModelToolCallPart('toolCall.call.callId', 'toolCall.tool.name', 'toolCall.call.parameters')];
-
-		assert.equal(m.content.length, 1);
-		assert.equal(m.content2?.length, 1);
-
-
-		m.content2 = ['foo'];
-		assert.equal(m.content.length, 1);
-		assert.ok(m.content[0] instanceof types.LanguageModelTextPart);
-
-		assert.equal(m.content2?.length, 1);
-		assert.ok(typeof m.content2[0] === 'string');
 	});
 
 	test('runtime stable, type-def changed', function () {

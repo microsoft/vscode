@@ -8,13 +8,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IExtensionTerminalProfile, ITerminalProfile } from '../../../../platform/terminal/common/terminal.js';
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { ColorScheme, isDark } from '../../../../platform/theme/common/theme.js';
 import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ITerminalInstance } from './terminal.js';
 import { ITerminalProfileResolverService } from '../common/terminal.js';
 import { ansiColorMap } from '../common/terminalColorRegistry.js';
-import { createStyleSheet } from '../../../../base/browser/dom.js';
+import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 
 
@@ -111,7 +111,7 @@ export function getUriClasses(terminal: ITerminalInstance | IExtensionTerminalPr
 	if (icon instanceof URI) {
 		uri = icon;
 	} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
-		uri = colorScheme === ColorScheme.LIGHT ? icon.light : icon.dark;
+		uri = isDark(colorScheme) ? icon.dark : icon.light;
 	}
 	if (uri instanceof URI) {
 		const uriIconKey = hash(uri.path).toString(36);

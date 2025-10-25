@@ -361,14 +361,11 @@ export function areApiProposalsCompatible(apiProposals: string[], arg1?: any): b
 	const incompatibleProposals: string[] = [];
 	const parsedProposals = parseApiProposals(apiProposals);
 	for (const { proposalName, version } of parsedProposals) {
-		const existingProposal = productApiProposals[proposalName];
-		if (!existingProposal) {
-			continue;
-		}
 		if (!version) {
 			continue;
 		}
-		if (existingProposal.version !== version) {
+		const existingProposal = productApiProposals[proposalName];
+		if (existingProposal?.version !== version) {
 			incompatibleProposals.push(proposalName);
 		}
 	}
@@ -420,7 +417,7 @@ function isVersionValid(currentVersion: string, date: ProductDate, requestedVers
 	return true;
 }
 
-function isStringArray(arr: string[]): boolean {
+function isStringArray(arr: readonly string[]): boolean {
 	if (!Array.isArray(arr)) {
 		return false;
 	}

@@ -43,6 +43,14 @@ export class PlaywrightDriver {
 	) {
 	}
 
+	get browserContext(): playwright.BrowserContext {
+		return this.context;
+	}
+
+	get currentPage(): playwright.Page {
+		return this.page;
+	}
+
 	async startTracing(name: string): Promise<void> {
 		if (!this.options.tracing) {
 			return; // tracing disabled
@@ -174,7 +182,7 @@ export class PlaywrightDriver {
 		await this.page.reload();
 	}
 
-	async exitApplication() {
+	async close() {
 
 		// Stop tracing
 		try {
@@ -194,22 +202,11 @@ export class PlaywrightDriver {
 			}
 		}
 
-		// Web: exit via `close` method
-		if (this.options.web) {
-			try {
-				await measureAndLog(() => this.application.close(), 'playwright.close()', this.options.logger);
-			} catch (error) {
-				this.options.logger.log(`Error closing appliction (${error})`);
-			}
-		}
-
-		// Desktop: exit via `driver.exitApplication`
-		else {
-			try {
-				await measureAndLog(() => this.evaluateWithDriver(([driver]) => driver.exitApplication()), 'driver.exitApplication()', this.options.logger);
-			} catch (error) {
-				this.options.logger.log(`Error exiting appliction (${error})`);
-			}
+		//  exit via `close` method
+		try {
+			await measureAndLog(() => this.application.close(), 'playwright.close()', this.options.logger);
+		} catch (error) {
+			this.options.logger.log(`Error closing application (${error})`);
 		}
 
 		// Server: via `teardown`
@@ -229,7 +226,7 @@ export class PlaywrightDriver {
 		}
 	}
 
-	async dispatchKeybinding(keybinding: string) {
+	async sendKeybinding(keybinding: string, accept?: () => Promise<void> | void) {
 		const chords = keybinding.split(' ');
 		for (let i = 0; i < chords.length; i++) {
 			const chord = chords[i];
@@ -256,7 +253,7 @@ export class PlaywrightDriver {
 			}
 		}
 
-		await this.wait(100);
+		await accept?.();
 	}
 
 	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
@@ -288,6 +285,10 @@ export class PlaywrightDriver {
 		return this.page.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this.getDriverHandle(), selector, text] as const);
 	}
 
+	async getEditorSelection(selector: string) {
+		return this.page.evaluate(([driver, selector]) => driver.getEditorSelection(selector), [await this.getDriverHandle(), selector] as const);
+	}
+
 	async getTerminalBuffer(selector: string) {
 		return this.page.evaluate(([driver, selector]) => driver.getTerminalBuffer(selector), [await this.getDriverHandle(), selector] as const);
 	}
@@ -313,7 +314,7 @@ export class PlaywrightDriver {
 	}
 
 	wait(ms: number): Promise<void> {
-		return new Promise<void>(resolve => setTimeout(resolve, ms));
+		return wait(ms);
 	}
 
 	whenWorkbenchRestored(): Promise<void> {
@@ -323,4 +324,17 @@ export class PlaywrightDriver {
 	private async getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
 		return this.page.evaluateHandle('window.driver');
 	}
+
+	async isAlive(): Promise<boolean> {
+		try {
+			await this.getDriverHandle();
+			return true;
+		} catch (error) {
+			return false;
+		}
+	}
+}
+
+export function wait(ms: number): Promise<void> {
+	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }

@@ -64,12 +64,13 @@ export class TestConfigurationService implements IConfigurationService {
 	}
 
 	public inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
-		const config = this.getValue(undefined, overrides);
+		const value = this.getValue(key, overrides);
 
 		return {
-			value: getConfigurationValue<T>(config, key),
-			defaultValue: getConfigurationValue<T>(config, key),
-			userValue: getConfigurationValue<T>(config, key),
+			value,
+			defaultValue: undefined,
+			userValue: value,
+			userLocalValue: value,
 			overrideIdentifiers: this.overrideIdentifiers.get(key)
 		};
 	}
@@ -77,6 +78,7 @@ export class TestConfigurationService implements IConfigurationService {
 	public keys() {
 		return {
 			default: Object.keys(Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()),
+			policy: [],
 			user: Object.keys(this.configuration),
 			workspace: [],
 			workspaceFolder: []

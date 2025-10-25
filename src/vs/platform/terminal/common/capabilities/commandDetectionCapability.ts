@@ -8,7 +8,7 @@ import { debounce } from '../../../../base/common/decorators.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, MandatoryMutableDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../log/common/log.js';
-import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker, TerminalCapability } from './capabilities.js';
+import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, TerminalCapability } from './capabilities.js';
 import { ITerminalOutputMatcher } from '../terminal.js';
 import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from './commandDetection/terminalCommand.js';
 import { PromptInputModel, type IPromptInputModel } from './commandDetection/promptInputModel.js';
@@ -28,13 +28,13 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	protected _commands: TerminalCommand[] = [];
 	private _cwd: string | undefined;
 	private _promptTerminator: string | undefined;
-	private _currentCommand: PartialTerminalCommand = new PartialTerminalCommand(this._terminal);
+	private _currentCommand: PartialTerminalCommand;
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
-
-	private _commitCommandFinished?: RunOnceScheduler;
+	private _hasRichCommandDetection: boolean = false;
+	get hasRichCommandDetection() { return this._hasRichCommandDetection; }
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
 	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
@@ -49,6 +49,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		return undefined;
 	}
+	get executingCommandConfidence(): 'low' | 'medium' | 'high' | undefined {
+		const casted = this._currentCommand as PartialTerminalCommand | ITerminalCommand;
+		return 'commandLineConfidence' in casted ? casted.commandLineConfidence : undefined;
+	}
 	get currentCommand(): ICurrentPartialCommand {
 		return this._currentCommand;
 	}
@@ -57,6 +61,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	private readonly _onCommandStarted = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandStarted = this._onCommandStarted.event;
+	private readonly _onCommandStartChanged = this._register(new Emitter<void>());
+	readonly onCommandStartChanged = this._onCommandStartChanged.event;
 	private readonly _onBeforeCommandFinished = this._register(new Emitter<ITerminalCommand>());
 	readonly onBeforeCommandFinished = this._onBeforeCommandFinished.event;
 	private readonly _onCommandFinished = this._register(new Emitter<ITerminalCommand>());
@@ -67,14 +73,16 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 	private readonly _onCurrentCommandInvalidated = this._register(new Emitter<ICommandInvalidationRequest>());
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
+	private readonly _onSetRichCommandDetection = this._register(new Emitter<boolean>());
+	readonly onSetRichCommandDetection = this._onSetRichCommandDetection.event;
 
 	constructor(
 		private readonly _terminal: Terminal,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
-
-		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandExecuted, this._logService));
+		this._currentCommand = new PartialTerminalCommand(this._terminal);
+		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandStartChanged, this.onCommandExecuted, this._logService));
 
 		// Pull command line from the buffer if it was not set explicitly
 		this._register(this.onCommandExecuted(command => {
@@ -124,10 +132,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			get commandMarkers() { return that._commandMarkers; }
 			set commandMarkers(value) { that._commandMarkers = value; }
 			get clearCommandsInViewport() { return that._clearCommandsInViewport.bind(that); }
-			commitCommandFinished() {
-				that._commitCommandFinished?.flush();
-				that._commitCommandFinished = undefined;
-			}
 		};
 		this._ptyHeuristics = this._register(new MandatoryMutableDisposable(new UnixPtyHeuristics(this._terminal, this, this._ptyHeuristicsHooks, this._logService)));
 
@@ -215,16 +219,17 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 					get commandMarkers() { return that._commandMarkers; }
 					set commandMarkers(value) { that._commandMarkers = value; }
 					get clearCommandsInViewport() { return that._clearCommandsInViewport.bind(that); }
-					commitCommandFinished() {
-						that._commitCommandFinished?.flush();
-						that._commitCommandFinished = undefined;
-					}
 				},
 				this._logService
 			);
 		} else if (!value && !(this._ptyHeuristics.value instanceof UnixPtyHeuristics)) {
 			this._ptyHeuristics.value = new UnixPtyHeuristics(this._terminal, this, this._ptyHeuristicsHooks, this._logService);
 		}
+	}
+
+	setHasRichCommandDetection(value: boolean): void {
+		this._hasRichCommandDetection = value;
+		this._onSetRichCommandDetection.fire(value);
 	}
 
 	setIsCommandStorageDisabled(): void {
@@ -276,15 +281,19 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	handlePromptStart(options?: IHandleCommandOptions): void {
 		// Adjust the last command's finished marker when needed. The standard position for the
 		// finished marker `D` to appear is at the same position as the following prompt started
-		// `A`.
+		// `A`. Only do this when it would not extend past the current cursor position.
 		const lastCommand = this.commands.at(-1);
-		if (lastCommand?.endMarker && lastCommand?.executedMarker && lastCommand.endMarker.line === lastCommand.executedMarker.line) {
+		if (
+			lastCommand?.endMarker &&
+			lastCommand?.executedMarker &&
+			lastCommand.endMarker.line === lastCommand.executedMarker.line &&
+			lastCommand.executedMarker.line < this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY
+		) {
 			this._logService.debug('CommandDetectionCapability#handlePromptStart adjusted commandFinished', `${lastCommand.endMarker.line} -> ${lastCommand.executedMarker.line + 1}`);
 			lastCommand.endMarker = cloneMarker(this._terminal, lastCommand.executedMarker, 1);
 		}
 
 		this._currentCommand.promptStartMarker = options?.marker || (lastCommand?.endMarker ? cloneMarker(this._terminal, lastCommand.endMarker) : this._terminal.registerMarker(0));
-
 		this._logService.debug('CommandDetectionCapability#handlePromptStart', this._terminal.buffer.active.cursorX, this._currentCommand.promptStartMarker?.line);
 	}
 
@@ -326,20 +335,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._currentCommand.commandStartMarker = options?.marker || this._currentCommand.commandStartMarker;
 		if (this._currentCommand.commandStartMarker?.line === this._terminal.buffer.active.cursorY) {
 			this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
+			this._onCommandStartChanged.fire();
 			this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 			return;
 		}
 		this._ptyHeuristics.value.handleCommandStart(options);
-	}
-
-	handleGenericCommand(options?: IHandleCommandOptions): void {
-		if (options?.markProperties?.disableCommandStorage) {
-			this.setIsCommandStorageDisabled();
-		}
-		this.handlePromptStart(options);
-		this.handleCommandStart(options);
-		this.handleCommandExecuted(options);
-		this.handleCommandFinished(undefined, options);
 	}
 
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
@@ -348,13 +348,21 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
+		// Command executed may not have happened yet, if not handle it now so the expected events
+		// properly propagate. This may cause the output to show up in the computed command line,
+		// but the command line confidence will be low in the extension host for example and
+		// therefore cannot be trusted anyway.
+		if (!this._currentCommand.commandExecutedMarker) {
+			this.handleCommandExecuted();
+		}
+
 		this._currentCommand.markFinishedTime();
 		this._ptyHeuristics.value.preHandleCommandFinished?.();
 
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, options?.marker?.line, this._currentCommand.command, this._currentCommand);
 
 		// HACK: Handle a special case on some versions of bash where identical commands get merged
-		// in the output of `history`, this detects that case and sets the exit code to the the last
+		// in the output of `history`, this detects that case and sets the exit code to the last
 		// command's exit code. This covered the majority of cases but will fail if the same command
 		// runs with a different exit code, that will need a more robust fix where we send the
 		// command ID and exit code over to the capability to adjust there.
@@ -377,14 +385,12 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 		if (newCommand) {
 			this._commands.push(newCommand);
-			this._commitCommandFinished = new RunOnceScheduler(() => {
-				this._onBeforeCommandFinished.fire(newCommand);
-				if (!this._currentCommand.isInvalid) {
-					this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
-					this._onCommandFinished.fire(newCommand);
-				}
-			}, 50);
-			this._commitCommandFinished.schedule();
+			this._onBeforeCommandFinished.fire(newCommand);
+			// NOTE: onCommandFinished used to not fire if the command was invalid, but this causes
+			// problems especially with the associated execution event never firing in the extension
+			// API. See https://github.com/microsoft/vscode/issues/252489
+			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
+			this._onCommandFinished.fire(newCommand);
 		}
 		this._currentCommand = new PartialTerminalCommand(this._terminal);
 		this._handleCommandStartOptions = undefined;
@@ -409,6 +415,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		return {
 			isWindowsPty: this._ptyHeuristics.value instanceof WindowsPtyHeuristics,
+			hasRichCommandDetection: this._hasRichCommandDetection,
 			commands,
 			promptInputModel: this._promptInputModel.serialize(),
 		};
@@ -417,6 +424,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	deserialize(serialized: ISerializedCommandDetectionCapability): void {
 		if (serialized.isWindowsPty) {
 			this.setIsWindowsPty(serialized.isWindowsPty);
+		}
+		if (serialized.hasRichCommandDetection) {
+			this.setHasRichCommandDetection(serialized.hasRichCommandDetection);
 		}
 		const buffer = this._terminal.buffer.normal;
 		for (const e of serialized.commands) {
@@ -466,7 +476,6 @@ interface ICommandDetectionHeuristicsHooks {
 	commandMarkers: IMarker[];
 
 	clearCommandsInViewport(): void;
-	commitCommandFinished(): void;
 }
 
 type IPtyHeuristics = (
@@ -498,8 +507,6 @@ class UnixPtyHeuristics extends Disposable {
 	}
 
 	handleCommandStart(options?: IHandleCommandOptions) {
-		this._hooks.commitCommandFinished();
-
 		const currentCommand = this._capability.currentCommand;
 		currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		currentCommand.commandStartMarker = options?.marker || this._terminal.registerMarker(0);
@@ -529,24 +536,7 @@ class UnixPtyHeuristics extends Disposable {
 			return;
 		}
 
-		// Calculate the command
-		currentCommand.command = this._hooks.isCommandStorageDisabled ? '' : this._terminal.buffer.active.getLine(currentCommand.commandStartMarker.line)?.translateToString(true, currentCommand.commandStartX, currentCommand.commandRightPromptStartX).trim();
-		let y = currentCommand.commandStartMarker.line + 1;
-		const commandExecutedLine = currentCommand.commandExecutedMarker.line;
-		for (; y < commandExecutedLine; y++) {
-			const line = this._terminal.buffer.active.getLine(y);
-			if (line) {
-				const continuation = currentCommand.continuations?.find(e => e.marker.line === y);
-				if (continuation) {
-					currentCommand.command += '\n';
-				}
-				const startColumn = continuation?.end ?? 0;
-				currentCommand.command += line.translateToString(true, startColumn);
-			}
-		}
-		if (y === commandExecutedLine) {
-			currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, currentCommand.commandExecutedX) || '';
-		}
+		currentCommand.command = this._capability.promptInputModel.ghostTextIndex > -1 ? this._capability.promptInputModel.value.substring(0, this._capability.promptInputModel.ghostTextIndex) : this._capability.promptInputModel.value;
 		this._hooks.onCommandExecutedEmitter.fire(currentCommand as ITerminalCommand);
 	}
 }
@@ -642,7 +632,20 @@ class WindowsPtyHeuristics extends Disposable {
 					// function an embedder could easily do damage with. Additionally, this
 					// can't really be upstreamed since the event relies on shell integration to
 					// verify the shifting is necessary.
-					(this._terminal as any)._core._bufferService.buffer.lines.onDeleteEmitter.fire({
+					interface IXtermWithCore extends Terminal {
+						_core: {
+							_bufferService: {
+								buffer: {
+									lines: {
+										onDeleteEmitter: {
+											fire(data: { index: number; amount: number }): void;
+										};
+									};
+								};
+							};
+						};
+					}
+					(this._terminal as IXtermWithCore)._core._bufferService.buffer.lines.onDeleteEmitter.fire({
 						index: this._terminal.buffer.active.baseY,
 						amount: potentialShiftedLineCount
 					});
@@ -753,8 +756,6 @@ class WindowsPtyHeuristics extends Disposable {
 			this._tryAdjustCommandStartMarkerScheduler.flush();
 			this._tryAdjustCommandStartMarkerScheduler = undefined;
 		}
-
-		this._hooks.commitCommandFinished();
 
 		if (!this._capability.currentCommand.commandExecutedMarker) {
 			this._onCursorMoveListener.value = this._terminal.onCursorMove(() => {
@@ -1055,6 +1056,6 @@ function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number
 	return content;
 }
 
-function cloneMarker(xterm: Terminal, marker: IXtermMarker, offset: number = 0): IXtermMarker | undefined {
+function cloneMarker(xterm: Terminal, marker: IMarker, offset: number = 0): IMarker | undefined {
 	return xterm.registerMarker(marker.line - (xterm.buffer.active.baseY + xterm.buffer.active.cursorY) + offset);
 }

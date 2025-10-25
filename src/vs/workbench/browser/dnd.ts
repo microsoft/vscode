@@ -23,7 +23,7 @@ import { CodeDataTransfers, Extensions, IDragAndDropContributionRegistry, IDragg
 import { IFileService } from '../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../platform/label/common/label.js';
-import { extractSelection } from '../../platform/opener/common/opener.js';
+import { extractSelection, withSelection } from '../../platform/opener/common/opener.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { IWindowOpenable } from '../../platform/window/common/window.js';
 import { IWorkspaceContextService, hasWorkspaceFileExtension, isTemporaryWorkspace } from '../../platform/workspace/common/workspace.js';
@@ -203,7 +203,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 	// Extract resources from URIs or Editors that
 	// can be handled by the file service
-	const resources = coalesce(resourcesOrEditors.map(resourceOrEditor => {
+	const resources = coalesce(resourcesOrEditors.map((resourceOrEditor): IResourceStat | undefined => {
 		if (URI.isUri(resourceOrEditor)) {
 			return { resource: resourceOrEditor };
 		}
@@ -216,7 +216,11 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 			return undefined; // editor without resource
 		}
 
-		return resourceOrEditor;
+		return {
+			resource: resourceOrEditor.selection ? withSelection(resourceOrEditor.resource, resourceOrEditor.selection) : resourceOrEditor.resource,
+			isDirectory: resourceOrEditor.isDirectory,
+			selection: resourceOrEditor.selection,
+		};
 	}));
 
 	const fileSystemResources = resources.filter(({ resource }) => fileService.hasProvider(resource));
@@ -269,7 +273,12 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 			const { selection, uri } = extractSelection(resourceOrEditor);
 			editor = { resource: uri, options: selection ? { selection } : undefined };
 		} else if (!resourceOrEditor.isDirectory) {
-			editor = { resource: resourceOrEditor.resource };
+			editor = {
+				resource: resourceOrEditor.resource,
+				options: {
+					selection: resourceOrEditor.selection,
+				}
+			};
 		}
 
 		if (!editor) {
@@ -329,12 +338,15 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 	if (draggedEditors.length) {
 		event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify(draggedEditors));
+	}
 
-		// Add a URI list entry
-		const uriListEntries: URI[] = [];
+	// Add a URI list entry
+	const draggedDirectories: URI[] = fileSystemResources.filter(({ isDirectory }) => isDirectory).map(({ resource }) => resource);
+	if (draggedEditors.length || draggedDirectories.length) {
+		const uriListEntries: URI[] = [...draggedDirectories];
 		for (const editor of draggedEditors) {
 			if (editor.resource) {
-				uriListEntries.push(editor.resource);
+				uriListEntries.push(editor.options?.selection ? withSelection(editor.resource, editor.options.selection) : editor.resource);
 			} else if (isResourceDiffEditorInput(editor)) {
 				if (editor.modified.resource) {
 					uriListEntries.push(editor.modified.resource);
@@ -458,7 +470,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 	private readDragData(type: ViewType): CompositeDragAndDropData | undefined {
 		if (this.transferData.hasData(type === 'view' ? DraggedViewIdentifier.prototype : DraggedCompositeIdentifier.prototype)) {
 			const data = this.transferData.getData(type === 'view' ? DraggedViewIdentifier.prototype : DraggedCompositeIdentifier.prototype);
-			if (data && data[0]) {
+			if (data?.[0]) {
 				return new CompositeDragAndDropData(type, data[0].id);
 			}
 		}
@@ -641,16 +653,22 @@ export class ResourceListDnDHandler<T> implements IListDragAndDrop<T> {
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		const resources: URI[] = [];
-		for (const element of (data as ElementsDragAndDropData<T>).elements) {
+		const elements = (data as ElementsDragAndDropData<T>).elements;
+		for (const element of elements) {
 			const resource = this.toResource(element);
 			if (resource) {
 				resources.push(resource);
 			}
 		}
+		this.onWillDragElements(elements, originalEvent);
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
 		}
+	}
+
+	protected onWillDragElements(elements: readonly T[], originalEvent: DragEvent): void {
+		// noop
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {

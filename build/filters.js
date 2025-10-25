@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
 
 /**
  * Hygiene works by creating cascading subsets of all our files and
@@ -24,8 +25,10 @@ module.exports.all = [
 	'test/**/*',
 	'!cli/**/*',
 	'!out*/**',
+	'!extensions/**/out*/**',
 	'!test/**/out/**',
 	'!**/node_modules/**',
+	'!**/*.js.map',
 ];
 
 module.exports.unicodeFilter = [
@@ -49,6 +52,7 @@ module.exports.unicodeFilter = [
 	'!extensions/ipynb/notebook-out/**',
 	'!extensions/notebook-renderers/renderer-out/**',
 	'!extensions/php-language-features/src/features/phpGlobalFunctions.ts',
+	'!extensions/terminal-suggest/src/completions/upstream/**',
 	'!extensions/typescript-language-features/test-workspace/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
@@ -56,9 +60,11 @@ module.exports.unicodeFilter = [
 	'!extensions/**/out/**',
 	'!extensions/**/snippets/**',
 	'!extensions/**/colorize-fixtures/**',
+	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
 
 	'!src/vs/base/browser/dompurify/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
+	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
 ];
 
 module.exports.indentationFilter = [
@@ -78,6 +84,7 @@ module.exports.indentationFilter = [
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
 	'!src/vs/editor/common/languages/highlights/*.scm',
+	'!src/vs/editor/common/languages/injections/*.scm',
 	'!test/unit/assert.js',
 	'!resources/linux/snap/electron-launch',
 	'!build/ext.js',
@@ -88,6 +95,9 @@ module.exports.indentationFilter = [
 	'!test/automation/out/**',
 	'!test/monaco/out/**',
 	'!test/smoke/out/**',
+	'!extensions/terminal-suggest/src/shell/zshBuiltinsCache.ts',
+	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
+	'!extensions/terminal-suggest/src/completions/upstream/**',
 	'!extensions/typescript-language-features/test-workspace/**',
 	'!extensions/typescript-language-features/resources/walkthroughs/**',
 	'!extensions/typescript-language-features/package-manager/node-maintainer/**',
@@ -97,6 +107,8 @@ module.exports.indentationFilter = [
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!build/monaco/**',
 	'!build/win32/**',
+	'!build/checker/**',
+	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
 
 	// except multiple specific files
 	'!**/package.json',
@@ -170,10 +182,11 @@ module.exports.copyrightFilter = [
 	'!extensions/markdown-math/notebook-out/**',
 	'!extensions/ipynb/notebook-out/**',
 	'!extensions/simple-browser/media/codicon.css',
+	'!extensions/terminal-suggest/src/completions/upstream/**',
 	'!extensions/typescript-language-features/node-maintainer/**',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
-	'!src/vs/editor/test/node/classification/typescript-test.ts',
+	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
 ];
 
 module.exports.tsFormattingFilter = [
@@ -191,6 +204,8 @@ module.exports.tsFormattingFilter = [
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!extensions/**/*.test.ts',
 	'!extensions/html-language-features/server/lib/jquery.d.ts',
+	'!extensions/terminal-suggest/src/shell/zshBuiltinsCache.ts',
+	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
 ];
 
 module.exports.eslintFilter = [
@@ -198,6 +213,7 @@ module.exports.eslintFilter = [
 	'**/*.cjs',
 	'**/*.mjs',
 	'**/*.ts',
+	'.eslint-plugin-local/**/*.ts',
 	...readFileSync(join(__dirname, '..', '.eslint-ignore'))
 		.toString()
 		.split(/\r\n|\n/)

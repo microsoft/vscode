@@ -92,6 +92,7 @@ class ReplaceAllAction extends Action {
 	}
 }
 
+const hoverLifecycleOptions = { groupId: 'search-widget' };
 const ctrlKeyMod = (isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 
 function stopPropagationForMultiLineUpwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
@@ -394,6 +395,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
+		const history = options.searchHistory || [];
 		const inputOptions: IFindInputOptions = {
 			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'),
 			validation: (value: string) => this.validateSearchInput(value),
@@ -401,13 +403,14 @@ export class SearchWidget extends Widget {
 			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.ToggleCaseSensitiveCommandId)),
 			appendWholeWordsLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.ToggleWholeWordCommandId)),
 			appendRegexLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.ToggleRegexCommandId)),
-			history: options.searchHistory,
+			history: new Set(history),
 			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
 			flexibleHeight: true,
 			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT,
 			showCommonFindToggles: true,
 			inputBoxStyles: options.inputBoxStyles,
-			toggleStyles: options.toggleStyles
+			toggleStyles: options.toggleStyles,
+			hoverLifecycleOptions,
 		};
 
 		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
@@ -464,7 +467,7 @@ export class SearchWidget extends Widget {
 			isChecked: false,
 			title: appendKeyBindingLabel(nls.localize('showContext', "Toggle Context Lines"), this.keybindingService.lookupKeybinding(ToggleSearchEditorContextLinesCommandId)),
 			icon: searchShowContextIcon,
-			hoverDelegate: getDefaultHoverDelegate('element'),
+			hoverLifecycleOptions,
 			...defaultToggleStyles
 		});
 		this._register(this.showContextToggle.onChange(() => this.onContextLinesChanged()));
@@ -511,12 +514,13 @@ export class SearchWidget extends Widget {
 			label: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
 			appendPreserveCaseLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.TogglePreserveCaseId)),
-			history: options.replaceHistory,
+			history: new Set(options.replaceHistory),
 			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
 			flexibleHeight: true,
 			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT,
 			inputBoxStyles: options.inputBoxStyles,
-			toggleStyles: options.toggleStyles
+			toggleStyles: options.toggleStyles,
+			hoverLifecycleOptions
 		}, this.contextKeyService, true));
 
 		this._register(this.replaceInput.onDidOptionChange(viaKeyboard => {

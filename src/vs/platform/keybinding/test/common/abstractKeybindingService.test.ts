@@ -5,7 +5,7 @@
 import assert from 'assert';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { createSimpleKeybinding, ResolvedKeybinding, KeyCodeChord, Keybinding } from '../../../../base/common/keybindings.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { OS } from '../../../../base/common/platform.js';
 import Severity from '../../../../base/common/severity.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -93,8 +93,8 @@ suite('AbstractKeybindingService', () => {
 			return '';
 		}
 
-		public registerSchemaContribution() {
-			// noop
+		public registerSchemaContribution(): IDisposable {
+			return Disposable.None;
 		}
 
 		public enableKeybindingHoldMode() {
@@ -104,7 +104,7 @@ suite('AbstractKeybindingService', () => {
 
 	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null!;
 	let currentContextValue: IContext | null = null;
-	let executeCommandCalls: { commandId: string; args: any[] }[] = null!;
+	let executeCommandCalls: { commandId: string; args: unknown[] }[] = null!;
 	let showMessageCalls: { sev: Severity; message: any }[] = null!;
 	let statusMessageCalls: string[] | null = null;
 	let statusMessageCallsDisposed: string[] | null = null;
@@ -148,7 +148,7 @@ suite('AbstractKeybindingService', () => {
 				_serviceBrand: undefined,
 				onWillExecuteCommand: () => Disposable.None,
 				onDidExecuteCommand: () => Disposable.None,
-				executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
+				executeCommand: (commandId: string, ...args: unknown[]): Promise<any> => {
 					executeCommandCalls.push({
 						commandId: commandId,
 						args: args
@@ -159,8 +159,6 @@ suite('AbstractKeybindingService', () => {
 
 			const notificationService: INotificationService = {
 				_serviceBrand: undefined,
-				onDidAddNotification: undefined!,
-				onDidRemoveNotification: undefined!,
 				onDidChangeFilter: undefined!,
 				notify: (notification: INotification) => {
 					showMessageCalls.push({ sev: notification.severity, message: notification.message });
@@ -184,7 +182,7 @@ suite('AbstractKeybindingService', () => {
 				status(message: string, options?: IStatusMessageOptions) {
 					statusMessageCalls!.push(message);
 					return {
-						dispose: () => {
+						close: () => {
 							statusMessageCallsDisposed!.push(message);
 						}
 					};
@@ -237,7 +235,7 @@ suite('AbstractKeybindingService', () => {
 			currentContextValue = createContext({});
 			const shouldPreventDefault = kbService.testDispatch(key);
 			assert.deepStrictEqual(shouldPreventDefault, true);
-			assert.deepStrictEqual(executeCommandCalls, ([{ commandId: "myCommand", args: [null] }]));
+			assert.deepStrictEqual(executeCommandCalls, ([{ commandId: 'myCommand', args: [null] }]));
 			assert.deepStrictEqual(showMessageCalls, []);
 			assert.deepStrictEqual(statusMessageCalls, []);
 			assert.deepStrictEqual(statusMessageCallsDisposed, []);
@@ -265,7 +263,7 @@ suite('AbstractKeybindingService', () => {
 
 			shouldPreventDefault = kbService.testDispatch(chord1);
 			assert.deepStrictEqual(shouldPreventDefault, true);
-			assert.deepStrictEqual(executeCommandCalls, ([{ commandId: "myCommand", args: [null] }]));
+			assert.deepStrictEqual(executeCommandCalls, ([{ commandId: 'myCommand', args: [null] }]));
 			assert.deepStrictEqual(showMessageCalls, []);
 			assert.deepStrictEqual(statusMessageCalls, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`]));
 			assert.deepStrictEqual(statusMessageCallsDisposed, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`]));

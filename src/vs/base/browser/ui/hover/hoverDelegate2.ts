@@ -7,13 +7,18 @@ import { Disposable } from '../../../common/lifecycle.js';
 import type { IHoverDelegate2 } from './hover.js';
 
 let baseHoverDelegate: IHoverDelegate2 = {
-	showHover: () => undefined,
+	showInstantHover: () => undefined,
 	showDelayedHover: () => undefined,
 	setupDelayedHover: () => Disposable.None,
 	setupDelayedHoverAtMouse: () => Disposable.None,
 	hideHover: () => undefined,
 	showAndFocusLastHover: () => undefined,
-	setupManagedHover: () => null!,
+	setupManagedHover: () => ({
+		dispose: () => undefined,
+		show: () => undefined,
+		hide: () => undefined,
+		update: () => undefined,
+	}),
 	showManagedHover: () => undefined
 };
 

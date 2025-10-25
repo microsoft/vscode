@@ -53,7 +53,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	private readonly _webviewPanel: vscode.WebviewPanel;
 
 	private _line: number | undefined;
-	private _scrollToFragment: string | undefined;
+	private readonly _scrollToFragment: string | undefined;
 	private _firstUpdate = true;
 	private _currentVersion?: PreviewDocumentVersion;
 	private _isScrolling = false;
@@ -221,7 +221,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			return;
 		}
 
-		this._logger.verbose('MarkdownPreview', 'updateForView', { markdownFile: this._resource });
+		this._logger.trace('MarkdownPreview', 'updateForView', { markdownFile: this._resource });
 		this._line = topLine;
 		this.postMessage({
 			type: 'updateView',
@@ -428,7 +428,17 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	}
 
 	get cspSource() {
-		return this._webviewPanel.webview.cspSource;
+		return [
+			this._webviewPanel.webview.cspSource,
+
+			// On web, we also need to allow loading of resources from contributed extensions
+			...this._contributionProvider.contributions.previewResourceRoots
+				.filter(root => root.scheme === 'http' || root.scheme === 'https')
+				.map(root => {
+					const dirRoot = root.path.endsWith('/') ? root : root.with({ path: root.path + '/' });
+					return dirRoot.toString();
+				}),
+		].join(' ');
 	}
 
 	//#endregion

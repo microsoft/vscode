@@ -4,20 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { themeColorFromId } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
+import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { inputPlaceholderForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
+import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestParser } from '../../common/chatRequestParser.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
 import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
-import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
-import { ChatRequestParser } from '../../common/chatRequestParser.js';
 
 const decorationDescription = 'chat';
 const placeholderDecorationType = 'chat-session-detail';
@@ -26,6 +32,10 @@ const variableTextDecorationType = 'chat-variable-text';
 
 function agentAndCommandToKey(agent: IChatAgentData, subcommand: string | undefined): string {
 	return subcommand ? `${agent.id}__${subcommand}` : agent.id;
+}
+
+function isWhitespaceOrPromptPart(p: IParsedChatRequestPart): boolean {
+	return (p instanceof ChatRequestTextPart && !p.text.trim().length) || (p instanceof ChatRequestSlashPromptPart);
 }
 
 class InputEditorDecorations extends Disposable {
@@ -41,13 +51,14 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 
 		this.codeEditorService.registerDecorationType(decorationDescription, placeholderDecorationType, {});
 
-		this._register(this.themeService.onDidColorThemeChange(() => this.updateRegisteredDecorationTypes()));
-		this.updateRegisteredDecorationTypes();
+		this.registeredDecorationTypes();
 
 		this.updateInputEditorDecorations();
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.updateInputEditorDecorations()));
@@ -61,6 +72,17 @@ class InputEditorDecorations extends Disposable {
 			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
+		this._register(this.promptsService.onDidChangeParsedPromptFilesCache(() => this.updateInputEditorDecorations()));
+		this._register(autorun(reader => {
+			// Watch for changes to the current mode and its properties
+			const currentMode = this.widget.input.currentModeObs.read(reader);
+			if (currentMode) {
+				// Also watch the mode's description to react to any changes
+				currentMode.description.read(reader);
+			}
+			// Trigger decoration update when mode or its properties change
+			this.updateInputEditorDecorations();
+		}));
 
 		this.registerViewModelListeners();
 	}
@@ -73,28 +95,30 @@ class InputEditorDecorations extends Disposable {
 		});
 	}
 
-	private updateRegisteredDecorationTypes() {
-		this.codeEditorService.removeDecorationType(variableTextDecorationType);
-		this.codeEditorService.removeDecorationType(dynamicVariableDecorationType);
-		this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
+	private registeredDecorationTypes() {
 
-		const theme = this.themeService.getColorTheme();
 		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
-			color: theme.getColor(chatSlashCommandForeground)?.toString(),
-			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
+			color: themeColorFromId(chatSlashCommandForeground),
+			backgroundColor: themeColorFromId(chatSlashCommandBackground),
 			borderRadius: '3px'
 		});
 		this.codeEditorService.registerDecorationType(decorationDescription, variableTextDecorationType, {
-			color: theme.getColor(chatSlashCommandForeground)?.toString(),
-			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
+			color: themeColorFromId(chatSlashCommandForeground),
+			backgroundColor: themeColorFromId(chatSlashCommandBackground),
 			borderRadius: '3px'
 		});
 		this.codeEditorService.registerDecorationType(decorationDescription, dynamicVariableDecorationType, {
-			color: theme.getColor(chatSlashCommandForeground)?.toString(),
-			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
-			borderRadius: '3px'
+			color: themeColorFromId(chatSlashCommandForeground),
+			backgroundColor: themeColorFromId(chatSlashCommandBackground),
+			borderRadius: '3px',
+			rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 		});
-		this.updateInputEditorDecorations();
+
+		this._register(toDisposable(() => {
+			this.codeEditorService.removeDecorationType(variableTextDecorationType);
+			this.codeEditorService.removeDecorationType(dynamicVariableDecorationType);
+			this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
+		}));
 	}
 
 	private getPlaceholderColor(): string | undefined {
@@ -102,6 +126,8 @@ class InputEditorDecorations extends Disposable {
 		const transparentForeground = theme.getColor(inputPlaceholderForeground);
 		return transparentForeground?.toString();
 	}
+
+
 
 	private async updateInputEditorDecorations() {
 		const inputValue = this.widget.inputEditor.getValue();
@@ -112,7 +138,9 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (!inputValue) {
-			const defaultAgent = this.chatAgentService.getDefaultAgent(this.widget.location);
+			const mode = this.widget.input.currentModeObs.get();
+			const placeholder = mode.argumentHint?.get() ?? mode.description.get() ?? '';
+
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
@@ -123,7 +151,7 @@ class InputEditorDecorations extends Disposable {
 					},
 					renderOptions: {
 						after: {
-							contentText: viewModel.inputPlaceholder || (defaultAgent?.description ?? ''),
+							contentText: viewModel.inputPlaceholder || placeholder,
 							color: this.getPlaceholderColor()
 						}
 					}
@@ -139,6 +167,7 @@ class InputEditorDecorations extends Disposable {
 		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
 		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
 		const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
+		const slashPromptPart = parsedRequest.find((p): p is ChatRequestSlashPromptPart => p instanceof ChatRequestSlashPromptPart);
 
 		const exactlyOneSpaceAfterPart = (part: IParsedChatRequestPart): boolean => {
 			const partIdx = parsedRequest.indexOf(part);
@@ -209,6 +238,26 @@ class InputEditorDecorations extends Disposable {
 			}
 		}
 
+		const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(isWhitespaceOrPromptPart);
+		if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(slashPromptPart)) {
+			// Prompt slash command with no other text - show the placeholder
+			// Resolve the prompt file (this will use cache if available)
+			const promptFile = this.promptsService.resolvePromptSlashCommandFromCache(slashPromptPart.slashPromptCommand.command);
+
+			const description = promptFile?.header?.argumentHint ?? promptFile?.header?.description;
+			if (description) {
+				placeholderDecoration = [{
+					range: getRangeForPlaceholder(slashPromptPart),
+					renderOptions: {
+						after: {
+							contentText: description,
+							color: this.getPlaceholderColor(),
+						}
+					}
+				}];
+			}
+		}
+
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
 
 		const textDecorations: IDecorationOptions[] | undefined = [];
@@ -223,17 +272,25 @@ class InputEditorDecorations extends Disposable {
 			textDecorations.push({ range: slashCommandPart.editorRange });
 		}
 
+		if (slashPromptPart) {
+			textDecorations.push({ range: slashPromptPart.editorRange });
+		}
+
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
 
 		const varDecorations: IDecorationOptions[] = [];
-		const variableParts = parsedRequest.filter((p): p is ChatRequestVariablePart => p instanceof ChatRequestVariablePart);
-		for (const variable of variableParts) {
-			varDecorations.push({ range: variable.editorRange });
-		}
-
-		const toolParts = parsedRequest.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
+		const toolParts = parsedRequest.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart || p instanceof ChatRequestToolSetPart);
 		for (const tool of toolParts) {
 			varDecorations.push({ range: tool.editorRange });
+		}
+
+		const dynamicVariableParts = parsedRequest.filter((p): p is ChatRequestDynamicVariablePart => p instanceof ChatRequestDynamicVariablePart);
+
+		const isEditingPreviousRequest = !!this.widget.viewModel?.editing;
+		if (isEditingPreviousRequest) {
+			for (const variable of dynamicVariableParts) {
+				varDecorations.push({ range: variable.editorRange, hoverMessage: URI.isUri(variable.data) ? new MarkdownString(this.labelService.getUriLabel(variable.data, { relative: true })) : undefined });
+			}
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);
@@ -306,10 +363,10 @@ class ChatTokenDeleter extends Disposable {
 
 			// If this was a simple delete, try to find out whether it was inside a token
 			if (!change.text && this.widget.viewModel) {
-				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent });
+				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentModeKind });
 
 				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
-				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestVariablePart || p instanceof ChatRequestToolPart);
+				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestSlashPromptPart || p instanceof ChatRequestToolPart);
 				deletableTokens.forEach(token => {
 					const deletedRangeOfToken = Range.intersectRanges(token.editorRange, change.range);
 					// Part of this token was deleted, or the space after it was deleted, and the deletion range doesn't go off the front of the token, for simpler math

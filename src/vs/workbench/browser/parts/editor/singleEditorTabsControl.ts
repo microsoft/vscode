@@ -10,10 +10,10 @@ import { EditorTabsControl } from './editorTabsControl.js';
 import { ResourceLabel, IResourceLabel } from '../../labels.js';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from '../../../common/theme.js';
 import { EventType as TouchEventType, GestureEvent, Gesture } from '../../../../base/browser/touch.js';
-import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor, DragAndDropObserver, isHTMLElement } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor, DragAndDropObserver, isHTMLElement, $ } from '../../../../base/browser/dom.js';
 import { CLOSE_EDITOR_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from './editorCommands.js';
 import { Color } from '../../../../base/common/color.js';
-import { assertIsDefined, assertAllDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined, assertReturnsAllDefined } from '../../../../base/common/types.js';
 import { equals } from '../../../../base/common/objects.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { defaultBreadcrumbsWidgetStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -46,8 +46,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		// Gesture Support
 		this._register(Gesture.addTarget(titleContainer));
 
-		const labelContainer = document.createElement('div');
-		labelContainer.classList.add('label-container');
+		const labelContainer = $('.label-container');
 		titleContainer.appendChild(labelContainer);
 
 		// Editor Label
@@ -60,7 +59,8 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 			showSymbolIcons: true,
 			showDecorationColors: false,
 			widgetStyles: { ...defaultBreadcrumbsWidgetStyles, breadcrumbsBackground: Color.transparent.toString() },
-			showPlaceholder: false
+			showPlaceholder: false,
+			dragEditor: true,
 		}));
 		this._register(this.breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange()));
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
@@ -197,7 +197,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 
 	updateEditorDirty(editor: EditorInput): void {
 		this.ifEditorIsActive(editor, () => {
-			const titleContainer = assertIsDefined(this.titleContainer);
+			const titleContainer = assertReturnsDefined(this.titleContainer);
 
 			// Signal dirty (unless saving)
 			if (editor.isDirty() && !editor.isSaving()) {
@@ -224,7 +224,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	}
 
 	protected handleBreadcrumbsEnablementChange(): void {
-		const titleContainer = assertIsDefined(this.titleContainer);
+		const titleContainer = assertReturnsDefined(this.titleContainer);
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 
 		this.redraw();
@@ -280,7 +280,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		}
 
 		// Clear if there is no editor
-		const [titleContainer, editorLabel] = assertAllDefined(this.titleContainer, this.editorLabel);
+		const [titleContainer, editorLabel] = assertReturnsAllDefined(this.titleContainer, this.editorLabel);
 		if (!editor) {
 			titleContainer.classList.remove('dirty');
 			editorLabel.clear();

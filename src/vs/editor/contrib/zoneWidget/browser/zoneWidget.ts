@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { IHorizontalSashLayoutProvider, ISashEvent, Orientation, Sash, SashState } from '../../../../base/browser/ui/sash/sash.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
 import { IdGenerator } from '../../../../base/common/idGenerator.js';
@@ -28,7 +29,6 @@ export interface IOptions {
 	frameColor?: Color | string;
 	arrowColor?: Color;
 	keepEditorSelection?: boolean;
-	allowUnlimitedHeight?: boolean;
 	ordinal?: number;
 	showInHiddenAreas?: boolean;
 }
@@ -117,17 +117,19 @@ class Arrow {
 	private static readonly _IdGenerator = new IdGenerator('.arrow-decoration-');
 
 	private readonly _ruleName = Arrow._IdGenerator.nextId();
-	private readonly _decorations = this._editor.createDecorationsCollection();
+	private readonly _decorations: IEditorDecorationsCollection;
 	private _color: string | null = null;
 	private _height: number = -1;
 
 	constructor(
 		private readonly _editor: ICodeEditor
-	) { }
+	) {
+		this._decorations = this._editor.createDecorationsCollection();
+	}
 
 	dispose(): void {
 		this.hide();
-		dom.removeCSSRulesContainingSelector(this._ruleName);
+		domStylesheetsJs.removeCSSRulesContainingSelector(this._ruleName);
 	}
 
 	set color(value: string) {
@@ -145,8 +147,8 @@ class Arrow {
 	}
 
 	private _updateStyle(): void {
-		dom.removeCSSRulesContainingSelector(this._ruleName);
-		dom.createCSSRule(
+		domStylesheetsJs.removeCSSRulesContainingSelector(this._ruleName);
+		domStylesheetsJs.createCSSRule(
 			`.monaco-editor ${this._ruleName}`,
 			`border-style: solid; border-color: transparent; border-bottom-color: ${this._color}; border-width: ${this._height}px; bottom: -${this._height}px !important; margin-left: -${this._height}px; `
 		);
@@ -336,7 +338,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 				range: Range.isIRange(rangeOrPos) ? rangeOrPos : Range.fromPositions(rangeOrPos),
 				options: ModelDecorationOptions.EMPTY
 			}]);
-
+			this._updateSashEnablement();
 		}
 	}
 
@@ -368,11 +370,16 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 
 		if (this.options.showFrame) {
-			const frameThickness = Math.round(lineHeight / 9);
+			const frameThickness = this.options.frameWidth ?? Math.round(lineHeight / 9);
 			result += 2 * frameThickness;
 		}
 
 		return result;
+	}
+
+	/** Gets the maximum widget height in lines. */
+	protected _getMaximumHeightInLines(): number | undefined {
+		return Math.max(12, (this.editor.getLayoutInfo().height / this.editor.getOption(EditorOption.lineHeight)) * 0.8);
 	}
 
 	private _showImpl(where: Range, heightInLines: number): void {
@@ -388,8 +395,8 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 
 		// adjust heightInLines to viewport
-		if (!this.options.allowUnlimitedHeight) {
-			const maxHeightInLines = Math.max(12, (this.editor.getLayoutInfo().height / lineHeight) * 0.8);
+		const maxHeightInLines = this._getMaximumHeightInLines();
+		if (maxHeightInLines !== undefined) {
 			heightInLines = Math.min(heightInLines, maxHeightInLines);
 		}
 
@@ -432,6 +439,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this._overlayWidget = new OverlayWidgetDelegate(WIDGET_ID + this._viewZone.id, this.domNode);
 			this.editor.addOverlayWidget(this._overlayWidget);
 		});
+		this._updateSashEnablement();
 
 		if (this.container && this.options.showFrame) {
 			const width = this.options.frameWidth ? this.options.frameWidth : frameThickness;
@@ -491,7 +499,9 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		// implement in subclass
 	}
 
-	protected _relayout(newHeightInLines: number): void {
+	protected _relayout(_newHeightInLines: number, useMax?: boolean): void {
+		const maxHeightInLines = this._getMaximumHeightInLines();
+		const newHeightInLines = (useMax && (maxHeightInLines !== undefined)) ? Math.min(maxHeightInLines, _newHeightInLines) : _newHeightInLines;
 		if (this._viewZone && this._viewZone.heightInLines !== newHeightInLines) {
 			this.editor.changeViewZones(accessor => {
 				if (this._viewZone) {
@@ -499,6 +509,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 					accessor.layoutZone(this._viewZone.id);
 				}
 			});
+			this._updateSashEnablement();
 		}
 	}
 
@@ -541,6 +552,13 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 				}
 			}
 		}));
+	}
+
+	private _updateSashEnablement(): void {
+		if (this._resizeSash) {
+			const { minLines, maxLines } = this._getResizeBounds();
+			this._resizeSash.state = minLines === maxLines ? SashState.Disabled : SashState.Enabled;
+		}
 	}
 
 	protected get _usesResizeHeight(): boolean {

@@ -71,7 +71,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 
 		if (dragData.type === 'view') {
 			const viewToMove = this.viewDescriptorService.getViewDescriptorById(dragData.id)!;
-			if (viewToMove && viewToMove.canMoveView) {
+			if (viewToMove.canMoveView) {
 				this.viewDescriptorService.moveViewToLocation(viewToMove, this.targetContainerLocation, 'dnd');
 
 				const newContainer = this.viewDescriptorService.getViewContainerByViewId(viewToMove.id)!;
@@ -425,7 +425,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		if (item) {
 			// TODO @lramos15 how do we tell the activity to re-render the badge? This triggers an onDidChange but isn't the right way to do it.
 			// I could add another specific function like `activity.updateBadgeEnablement` would then the activity store the sate?
-			item.activityAction.activity = item.activityAction.activity;
+			item.activityAction.activities = item.activityAction.activities;
 		}
 	}
 

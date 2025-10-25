@@ -9,10 +9,10 @@ import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.j
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { DetailedLineRangeMapping } from './mapping.js';
 import { LineRangeEdit } from './editing.js';
-import { LineRange } from './lineRange.js';
+import { MergeEditorLineRange } from './lineRange.js';
 import { ReentrancyBarrier } from '../../../../../base/common/controlFlow.js';
 import { IMergeDiffComputer } from './diffComputer.js';
-import { autorun, IObservable, IReader, ITransaction, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, IObservableWithChange, IReader, ITransaction, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo.js';
 
 export class TextModelDiffs extends Disposable {
@@ -61,14 +61,14 @@ export class TextModelDiffs extends Disposable {
 		}));
 	}
 
-	public get state(): IObservable<TextModelDiffState, TextModelDiffChangeReason> {
+	public get state(): IObservableWithChange<TextModelDiffState, TextModelDiffChangeReason> {
 		return this._state;
 	}
 
 	/**
 	 * Diffs from base to input.
 	*/
-	public get diffs(): IObservable<DetailedLineRangeMapping[], TextModelDiffChangeReason> {
+	public get diffs(): IObservableWithChange<DetailedLineRangeMapping[], TextModelDiffChangeReason> {
 		return this._diffs;
 	}
 
@@ -145,7 +145,7 @@ export class TextModelDiffs extends Disposable {
 
 			diffs = diffs.map((d) =>
 				d.outputRange.isAfter(diffToRemove.outputRange)
-					? d.addOutputLineDelta(diffToRemove.inputRange.lineCount - diffToRemove.outputRange.lineCount)
+					? d.addOutputLineDelta(diffToRemove.inputRange.length - diffToRemove.outputRange.length)
 					: d
 			);
 		}
@@ -162,7 +162,7 @@ export class TextModelDiffs extends Disposable {
 		const editMapping = new DetailedLineRangeMapping(
 			edit.range,
 			this.baseTextModel,
-			new LineRange(edit.range.startLineNumber, edit.newLines.length),
+			MergeEditorLineRange.fromLength(edit.range.startLineNumber, edit.newLines.length),
 			this.textModel
 		);
 
@@ -170,7 +170,7 @@ export class TextModelDiffs extends Disposable {
 		let delta = 0;
 		const newDiffs = new Array<DetailedLineRangeMapping>();
 		for (const diff of this.diffs.get()) {
-			if (diff.inputRange.touches(edit.range)) {
+			if (diff.inputRange.intersectsOrTouches(edit.range)) {
 				throw new BugIndicatingError('Edit must be conflict free.');
 			} else if (diff.inputRange.isAfter(edit.range)) {
 				if (!firstAfter) {
@@ -178,13 +178,13 @@ export class TextModelDiffs extends Disposable {
 					newDiffs.push(editMapping.addOutputLineDelta(delta));
 				}
 
-				newDiffs.push(diff.addOutputLineDelta(edit.newLines.length - edit.range.lineCount));
+				newDiffs.push(diff.addOutputLineDelta(edit.newLines.length - edit.range.length));
 			} else {
 				newDiffs.push(diff);
 			}
 
 			if (!firstAfter) {
-				delta += diff.outputRange.lineCount - diff.inputRange.lineCount;
+				delta += diff.outputRange.length - diff.inputRange.length;
 			}
 		}
 
@@ -200,8 +200,8 @@ export class TextModelDiffs extends Disposable {
 		this._diffs.set(newDiffs, transaction, TextModelDiffChangeReason.other);
 	}
 
-	public findTouchingDiffs(baseRange: LineRange): DetailedLineRangeMapping[] {
-		return this.diffs.get().filter(d => d.inputRange.touches(baseRange));
+	public findTouchingDiffs(baseRange: MergeEditorLineRange): DetailedLineRangeMapping[] {
+		return this.diffs.get().filter(d => d.inputRange.intersectsOrTouches(baseRange));
 	}
 
 	private getResultLine(lineNumber: number, reader?: IReader): number | DetailedLineRangeMapping {
@@ -219,7 +219,7 @@ export class TextModelDiffs extends Disposable {
 		return lineNumber + offset;
 	}
 
-	public getResultLineRange(baseRange: LineRange, reader?: IReader): LineRange {
+	public getResultLineRange(baseRange: MergeEditorLineRange, reader?: IReader): MergeEditorLineRange {
 		let start = this.getResultLine(baseRange.startLineNumber, reader);
 		if (typeof start !== 'number') {
 			start = start.outputRange.startLineNumber;
@@ -229,7 +229,7 @@ export class TextModelDiffs extends Disposable {
 			endExclusive = endExclusive.outputRange.endLineNumberExclusive;
 		}
 
-		return LineRange.fromLineNumbers(start, endExclusive);
+		return MergeEditorLineRange.fromLineNumbers(start, endExclusive);
 	}
 }
 

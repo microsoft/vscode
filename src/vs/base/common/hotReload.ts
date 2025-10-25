@@ -4,14 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from './lifecycle.js';
-import { env } from './process.js';
-
-function hotReloadDisabled() {
-	return true; // TODO@hediet fix hot reload.
-}
 
 export function isHotReloadEnabled(): boolean {
-	return !hotReloadDisabled() && env && !!env['VSCODE_DEV'];
+	// return env && !!env['VSCODE_DEV_DEBUG'];
+	return false; // TODO@hediet investigate how to get hot reload
 }
 export function registerHotReloadHandler(handler: HotReloadHandler): IDisposable {
 	if (!isHotReloadEnabled()) {
@@ -98,12 +94,14 @@ if (isHotReloadEnabled()) {
 					if (oldExportedItem) {
 						for (const prop of Object.getOwnPropertyNames(exportedItem.prototype)) {
 							const descriptor = Object.getOwnPropertyDescriptor(exportedItem.prototype, prop)!;
+							// eslint-disable-next-line local/code-no-any-casts
 							const oldDescriptor = Object.getOwnPropertyDescriptor((oldExportedItem as any).prototype, prop);
 
 							if (descriptor?.value?.toString() !== oldDescriptor?.value?.toString()) {
 								console.log(`[hot-reload] Patching prototype method '${key}.${prop}'`);
 							}
 
+							// eslint-disable-next-line local/code-no-any-casts
 							Object.defineProperty((oldExportedItem as any).prototype, prop, descriptor);
 						}
 						newExports[key] = oldExportedItem;

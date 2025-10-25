@@ -1,7 +1,7 @@
 [
 	{
 		"c": "/**\n * @typedef {{\n *   id: number,\n *   fn: !Function,\n *   context: (!Object|undefined)\n * }}\n * @private\n */",
-		"t": "comment",
+		"t": "comment.ts",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -15,7 +15,7 @@
 	},
 	{
 		"c": "goog",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -29,7 +29,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -43,7 +43,7 @@
 	},
 	{
 		"c": "dom",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -57,7 +57,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -71,7 +71,7 @@
 	},
 	{
 		"c": "animationFrame",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -85,7 +85,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -99,7 +99,7 @@
 	},
 	{
 		"c": "Task_",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -113,7 +113,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -127,7 +127,7 @@
 	},
 	{
 		"c": "/**\n * @typedef {{\n *   measureTask: goog.dom.animationFrame.Task_,\n *   mutateTask: goog.dom.animationFrame.Task_,\n *   state: (!Object|undefined),\n *   args: (!Array|undefined),\n *   isScheduled: boolean\n * }}\n * @private\n */",
-		"t": "comment",
+		"t": "comment.ts",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -141,7 +141,7 @@
 	},
 	{
 		"c": "goog",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -169,7 +169,7 @@
 	},
 	{
 		"c": "dom",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -183,7 +183,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -197,7 +197,7 @@
 	},
 	{
 		"c": "animationFrame",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -211,7 +211,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -225,7 +225,7 @@
 	},
 	{
 		"c": "TaskSet_",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -239,7 +239,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

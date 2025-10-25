@@ -1,0 +1,28 @@
+{
+	"extends": "../../src/tsconfig.base.json",
+	"compilerOptions": {
+		"lib": [
+			"ES2022",
+			"WebWorker",
+			"Webworker.Iterable",
+			"WebWorker.AsyncIterable"
+		],
+		"types": [],
+		"noEmit": true,
+		"skipLibCheck": true
+	},
+	"include": [
+		"../../src/**/common/**/*.ts",
+		"../../src/**/worker/**/*.ts",
+		"../../src/typings/*.d.ts",
+		"../../src/vs/monaco.d.ts",
+		"../../src/vscode-dts/vscode.proposed.*.d.ts",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../node_modules/@types/trusted-types/index.d.ts",
+		"../../node_modules/@types/wicg-file-system-access/index.d.ts"
+	],
+	"exclude": [
+		"../../src/**/test/**",
+		"../../src/**/fixtures/**"
+	]
+}

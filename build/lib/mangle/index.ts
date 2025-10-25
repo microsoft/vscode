@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as v8 from 'node:v8';
-import * as fs from 'fs';
-import * as path from 'path';
+import v8 from 'node:v8';
+import fs from 'fs';
+import path from 'path';
 import { argv } from 'process';
 import { Mapping, SourceMapGenerator } from 'source-map';
-import * as ts from 'typescript';
+import ts from 'typescript';
 import { pathToFileURL } from 'url';
-import * as workerpool from 'workerpool';
+import workerpool from 'workerpool';
 import { StaticLanguageServiceHost } from './staticLanguageServiceHost';
 const buildfile = require('../../buildfile');
 
@@ -269,8 +269,14 @@ class ClassData {
 	}
 }
 
+declare module 'typescript' {
+	interface SourceFile {
+		identifiers?: Map<string, true>;
+	}
+}
+
 function isNameTakenInFile(node: ts.Node, name: string): boolean {
-	const identifiers = (<any>node.getSourceFile()).identifiers;
+	const identifiers = node.getSourceFile().identifiers;
 	if (identifiers instanceof Map) {
 		if (identifiers.has(name)) {
 			return true;
@@ -280,8 +286,6 @@ function isNameTakenInFile(node: ts.Node, name: string): boolean {
 }
 
 const skippedExportMangledFiles = [
-	// Build
-	'css.build',
 
 	// Monaco
 	'editorCommon',
@@ -407,7 +411,7 @@ export class Mangler {
 	) {
 
 		this.renameWorkerPool = workerpool.pool(path.join(__dirname, 'renameWorker.js'), {
-			maxWorkers: 1,
+			maxWorkers: 4,
 			minWorkers: 'max'
 		});
 	}

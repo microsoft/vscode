@@ -46,8 +46,8 @@ import { ILifecycleService } from '../../../lifecycle/common/lifecycle.js';
 import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
 import { IUserDataProfileService } from '../../../userDataProfile/common/userDataProfile.js';
 import { WorkspaceTrustEnablementService } from '../../../workspaces/common/workspaceTrust.js';
-import { TestEnvironmentService, TestFileService, TestLifecycleService, TestRemoteAgentService, TestRemoteExtensionsScannerService, TestUserDataProfileService, TestWebExtensionsScannerService, TestWorkbenchExtensionEnablementService, TestWorkbenchExtensionManagementService } from '../../../../test/browser/workbenchTestServices.js';
-import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { TestEnvironmentService, TestLifecycleService, TestRemoteAgentService, TestRemoteExtensionsScannerService, TestWebExtensionsScannerService, TestWorkbenchExtensionEnablementService, TestWorkbenchExtensionManagementService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestContextService, TestFileService, TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('BrowserExtensionService', () => {
 
@@ -163,6 +163,7 @@ suite('ExtensionService', () => {
 				}
 			};
 			super(
+				{ allowRemoteExtensionsInLocalWebWorker: false, hasLocalProcess: true },
 				extensionsProposedApi,
 				extensionHostFactory,
 				null!,
@@ -201,6 +202,9 @@ suite('ExtensionService', () => {
 				override disconnect() {
 					return Promise.resolve();
 				}
+				override start(): Promise<void> {
+					return Promise.resolve();
+				}
 				override dispose(): void {
 					order.push(`dispose ${extensionHostId}`);
 				}
@@ -209,7 +213,7 @@ suite('ExtensionService', () => {
 				}
 			};
 		}
-		protected _resolveExtensions(): Promise<ResolvedExtensions> {
+		protected _resolveExtensions(): AsyncIterable<ResolvedExtensions> {
 			throw new Error('Method not implemented.');
 		}
 		protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {

@@ -8,7 +8,6 @@ import * as cssJs from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { renderFormattedText, renderText } from '../../formattedTextRenderer.js';
 import { IHistoryNavigationWidget } from '../../history.js';
-import { MarkdownRenderOptions } from '../../markdownRenderer.js';
 import { ActionBar } from '../actionbar/actionbar.js';
 import * as aria from '../aria/aria.js';
 import { AnchorAlignment, IContextViewProvider } from '../contextview/contextview.js';
@@ -17,7 +16,7 @@ import { ScrollableElement } from '../scrollbar/scrollableElement.js';
 import { Widget } from '../widget.js';
 import { IAction } from '../../../common/actions.js';
 import { Emitter, Event } from '../../../common/event.js';
-import { HistoryNavigator } from '../../../common/history.js';
+import { HistoryNavigator, IHistory } from '../../../common/history.js';
 import { equals } from '../../../common/objects.js';
 import { ScrollbarVisibility } from '../../../common/scrollable.js';
 import './inputBox.css';
@@ -39,6 +38,7 @@ export interface IInputOptions {
 	readonly flexibleMaxHeight?: number;
 	readonly actions?: ReadonlyArray<IAction>;
 	readonly inputBoxStyles: IInputBoxStyles;
+	readonly history?: IHistory<string>;
 }
 
 export interface IInputBoxStyles {
@@ -117,10 +117,10 @@ export class InputBox extends Widget {
 	private readonly hover: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private _onDidChange = this._register(new Emitter<string>());
-	public readonly onDidChange: Event<string> = this._onDidChange.event;
+	public get onDidChange(): Event<string> { return this._onDidChange.event; }
 
 	private _onDidHeightChange = this._register(new Emitter<number>());
-	public readonly onDidHeightChange: Event<number> = this._onDidHeightChange.event;
+	public get onDidHeightChange(): Event<number> { return this._onDidHeightChange.event; }
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IInputOptions) {
 		super();
@@ -236,7 +236,7 @@ export class InputBox extends Widget {
 		this.tooltip = tooltip;
 		if (!this.hover.value) {
 			this.hover.value = this._register(getBaseLayerHoverDelegate().setupDelayedHoverAtMouse(this.input, () => ({
-				content: tooltip,
+				content: this.tooltip,
 				appearance: {
 					compact: true,
 				}
@@ -484,14 +484,14 @@ export class InputBox extends Widget {
 				div = dom.append(container, $('.monaco-inputbox-container'));
 				layout();
 
-				const renderOptions: MarkdownRenderOptions = {
-					inline: true,
-					className: 'monaco-inputbox-message'
-				};
 
-				const spanElement = (this.message.formatContent
-					? renderFormattedText(this.message.content!, renderOptions)
-					: renderText(this.message.content!, renderOptions));
+				const spanElement = $('span.monaco-inputbox-message');
+				if (this.message.formatContent) {
+					renderFormattedText(this.message.content!, undefined, spanElement);
+				} else {
+					renderText(this.message.content!, undefined, spanElement);
+				}
+
 				spanElement.classList.add(this.classForType(this.message.type));
 
 				const styles = this.stylesForType(this.message.type);
@@ -624,7 +624,6 @@ export class InputBox extends Widget {
 }
 
 export interface IHistoryInputOptions extends IInputOptions {
-	history: string[];
 	readonly showHistoryHint?: () => boolean;
 }
 
@@ -650,7 +649,7 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		}, ' ({0} for history)', `\u21C5`);
 
 		super(container, contextViewProvider, options);
-		this.history = new HistoryNavigator<string>(options.history, 100);
+		this.history = this._register(new HistoryNavigator<string>(options.history, 100));
 
 		// Function to append the history suffix to the placeholder if necessary
 		const addSuffix = () => {
