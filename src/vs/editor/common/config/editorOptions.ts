@@ -182,6 +182,11 @@ export interface IEditorOptions {
 	 */
 	readOnlyMessage?: IMarkdownString;
 	/**
+	 * Controls whether the Paste action should be removed from the editor context menu.
+	 * Defaults to false.
+	 */
+	removePasteFromEditorContextMenu?: boolean;
+	/**
 	 * Should the textarea used for input use the DOM `readonly` attribute.
 	 * Defaults to false.
 	 */
@@ -5880,7 +5885,8 @@ export const enum EditorOption {
 	inlineCompletionsAccessibilityVerbose,
 	effectiveEditContext,
 	scrollOnMiddleClick,
-	effectiveAllowVariableFonts
+	effectiveAllowVariableFonts,
+	removePasteFromEditorContextMenu
 }
 
 export const EditorOptions = {
@@ -6788,7 +6794,11 @@ export const EditorOptions = {
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
 	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled()),
-	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts())
+	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts()),
+	removePasteFromEditorContextMenu: register(new EditorBooleanOption(
+		EditorOption.removePasteFromEditorContextMenu, 'removePasteFromEditorContextMenu', false,
+		{ description: nls.localize('removePasteFromEditorContextMenu', "Controls whether the Paste action should be removed from the editor context menu.") }
+	))
 };
 
 type EditorOptionsType = typeof EditorOptions;
