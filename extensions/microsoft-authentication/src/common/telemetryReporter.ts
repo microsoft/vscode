@@ -36,11 +36,22 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		);
 	}
 
-	sendActivatedWithClassicImplementationEvent(): void {
+	sendActivatedWithMsalNoBrokerEvent(): void {
 		/* __GDPR__
-			"activatingClassic" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users use the classic login flow." }
+			"activatingMsalNoBroker" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users use the msal-no-broker login flow. This only fires if the user explictly opts in to this." }
 		*/
-		this._telemetryReporter.sendTelemetryEvent('activatingClassic');
+		this._telemetryReporter.sendTelemetryEvent('activatingmsalnobroker');
+	}
+
+	sendActivatedWithClassicImplementationEvent(reason: 'setting' | 'web'): void {
+		/* __GDPR__
+			"activatingClassic" : {
+				"owner": "TylerLeonhardt",
+				"comment": "Used to determine how often users use the classic login flow.",
+				"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why classic was used" }
+			}
+		*/
+		this._telemetryReporter.sendTelemetryEvent('activatingClassic', { reason });
 	}
 
 	sendLoginEvent(scopes: readonly string[]): void {
@@ -75,7 +86,7 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		this._telemetryReporter.sendTelemetryEvent('logoutFailed');
 	}
 
-	sendTelemetryErrorEvent(error: unknown): void {
+	sendTelemetryErrorEvent(error: Error | string): void {
 		let errorMessage: string | undefined;
 		let errorName: string | undefined;
 		let errorCode: string | undefined;
@@ -83,7 +94,7 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		if (typeof error === 'string') {
 			errorMessage = error;
 		} else {
-			const authError: AuthError = error as any;
+			const authError: AuthError = error as AuthError;
 			// don't set error message or stack because it contains PII
 			errorCode = authError.errorCode;
 			errorCorrelationId = authError.correlationId;

@@ -7,8 +7,26 @@ import { splitLines } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { Position } from '../core/position.js';
 import { IRange } from '../core/range.js';
-import { IModelContentChange } from '../textModelEvents.js';
 import { PrefixSumComputer } from './prefixSumComputer.js';
+
+export interface IModelContentChange {
+	/**
+	 * The old range that got replaced.
+	 */
+	readonly range: IRange;
+	/**
+	 * The offset of the range that got replaced.
+	 */
+	readonly rangeOffset: number;
+	/**
+	 * The length of the range that got replaced.
+	 */
+	readonly rangeLength: number;
+	/**
+	 * The new text for the range.
+	 */
+	readonly text: string;
+}
 
 export interface IModelChangedEvent {
 	/**

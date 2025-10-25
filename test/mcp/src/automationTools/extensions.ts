@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Application } from '../../../automation';
+import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ApplicationService } from '../application';
 import { z } from 'zod';
 
 /**
  * Extensions Tools
  */
-export function applyExtensionsTools(server: McpServer, app: Application) {
+export function applyExtensionsTools(server: McpServer, appService: ApplicationService): RegisteredTool[] {
+	const tools: RegisteredTool[] = [];
+
 	// Playwright can probably figure this out
 	// server.tool(
 	// 	'vscode_automation_extensions_search',
@@ -30,7 +32,7 @@ export function applyExtensionsTools(server: McpServer, app: Application) {
 	// 	}
 	// );
 
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_extensions_open',
 		'Open an extension by ID',
 		{
@@ -38,6 +40,7 @@ export function applyExtensionsTools(server: McpServer, app: Application) {
 		},
 		async (args) => {
 			const { extensionId } = args;
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.extensions.openExtension(extensionId);
 			return {
 				content: [{
@@ -46,7 +49,7 @@ export function applyExtensionsTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
 
 	// Playwright can probably figure this out
 	// server.tool(
@@ -67,7 +70,7 @@ export function applyExtensionsTools(server: McpServer, app: Application) {
 	// 	}
 	// );
 
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_extensions_install',
 		'Install an extension by ID',
 		{
@@ -76,6 +79,7 @@ export function applyExtensionsTools(server: McpServer, app: Application) {
 		},
 		async (args) => {
 			const { extensionId, waitUntilEnabled = true } = args;
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.extensions.installExtension(extensionId, waitUntilEnabled);
 			return {
 				content: [{
@@ -84,5 +88,7 @@ export function applyExtensionsTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
+
+	return tools;
 }

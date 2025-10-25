@@ -33,8 +33,8 @@ interface INavigableContainer {
 }
 
 interface IFocusNotifier {
-	readonly onDidFocus: Event<any>;
-	readonly onDidBlur: Event<any>;
+	readonly onDidFocus: Event<void>;
+	readonly onDidBlur: Event<void>;
 }
 
 function handleFocusEventsGroup(group: readonly IFocusNotifier[], handler: (isFocus: boolean) => void, onPartFocusChange?: (index: number, state: string) => void): IDisposable {
@@ -88,7 +88,7 @@ class NavigableContainerManager implements IDisposable {
 		return this.configurationService.getValue('workbench.navigibleContainer.enableDebug');
 	}
 
-	private log(msg: string, ...args: any[]): void {
+	private log(msg: string, ...args: unknown[]): void {
 		if (this.debugEnabled) {
 			this.logService.debug(msg, ...args);
 		}

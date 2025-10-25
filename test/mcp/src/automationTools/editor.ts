@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Application } from '../../../automation';
+import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ApplicationService } from '../application';
 import { z } from 'zod';
 
 /**
  * Editor Management Tools
  */
-export function applyEditorTools(server: McpServer, app: Application) {
+export function applyEditorTools(server: McpServer, appService: ApplicationService): RegisteredTool[] {
+	const tools: RegisteredTool[] = [];
 	// Playwright can probably figure this one out
 	// server.tool(
 	// 	'vscode_automation_editor_open_file',
@@ -31,7 +32,7 @@ export function applyEditorTools(server: McpServer, app: Application) {
 	// );
 
 	// This one is critical as Playwright had trouble typing in monaco
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_editor_type_text',
 		'Type text in the currently active editor',
 		{
@@ -40,6 +41,7 @@ export function applyEditorTools(server: McpServer, app: Application) {
 		},
 		async (args) => {
 			const { text, filename } = args;
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.editor.waitForTypeInEditor(filename, text);
 			return {
 				content: [{
@@ -48,7 +50,7 @@ export function applyEditorTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
 
 	// Doesn't seem particularly useful
 	// server.tool(
@@ -161,10 +163,11 @@ export function applyEditorTools(server: McpServer, app: Application) {
 	// );
 
 	// Editor File Management Tools
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_editor_new_untitled_file',
 		'Create a new untitled file',
 		async () => {
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.editors.newUntitledFile();
 			return {
 				content: [{
@@ -173,12 +176,13 @@ export function applyEditorTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
 
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_editor_save_file',
 		'Save the currently active file',
 		async () => {
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.editors.saveOpenedFile();
 			return {
 				content: [{
@@ -187,7 +191,7 @@ export function applyEditorTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
 
 	// Playwright can probably figure this out
 	// server.tool(
@@ -247,4 +251,6 @@ export function applyEditorTools(server: McpServer, app: Application) {
 	// 		};
 	// 	}
 	// );
+
+	return tools;
 }

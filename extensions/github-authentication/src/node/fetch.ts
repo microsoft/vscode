@@ -7,9 +7,11 @@ import * as http from 'http';
 import * as https from 'https';
 import { workspace } from 'vscode';
 import { Log } from '../common/logger';
+import { Readable } from 'stream';
 
 export interface FetchOptions {
 	logger: Log;
+	retryFallbacks: boolean;
 	expectJSON: boolean;
 	method?: 'GET' | 'POST' | 'DELETE';
 	headers?: Record<string, string>;
@@ -64,62 +66,72 @@ _fetchers.push({
 });
 
 export function createFetch(): Fetch {
-	let _fetcher: Fetcher | undefined;
+	let fetchers: readonly Fetcher[] = _fetchers;
 	return async (url, options) => {
-		if (!_fetcher) {
-			let firstResponse: FetchResponse | undefined;
-			let firstError: any;
-			for (const fetcher of _fetchers) {
-				try {
-					const res = await fetcher.fetch(url, options);
-					if (fetcher === _fetchers[0]) {
-						firstResponse = res;
-					}
-					if (!res.ok) {
-						options.logger.info(`fetching: ${fetcher.name} failed with status: ${res.status} ${res.statusText}`);
-						continue;
-					}
-					if (!options.expectJSON) {
-						options.logger.info(`fetching: ${fetcher.name} succeeded (not JSON)`);
-						_fetcher = fetcher;
-						return res;
-					}
-					const text = await res.text();
-					if (fetcher === _fetchers[0]) {
-						// Update to unconsumed response
-						firstResponse = new FetchResponseImpl(
-							res.status,
-							res.statusText,
-							res.headers,
-							async () => text,
-							async () => JSON.parse(text),
-						);
-					}
-					const json = JSON.parse(text); // Verify JSON
-					options.logger.info(`fetching: ${fetcher.name} succeeded (JSON)`);
-					_fetcher = fetcher;
-					return new FetchResponseImpl(
-						res.status,
-						res.statusText,
-						res.headers,
-						async () => text,
-						async () => json,
-					);
-				} catch (err) {
-					if (fetcher === _fetchers[0]) {
-						firstError = err;
-					}
-					options.logger.info(`fetching: ${fetcher.name} failed with error: ${err.message}`);
-				}
-			}
-			_fetcher = _fetchers[0]; // Do this only once
-			if (firstResponse) {
-				return firstResponse;
-			}
-			throw firstError;
+		const result = await fetchWithFallbacks(fetchers, url, options, options.logger);
+		if (result.updatedFetchers) {
+			fetchers = result.updatedFetchers;
 		}
-		return _fetcher.fetch(url, options);
+		return result.response;
 	};
+}
+
+async function fetchWithFallbacks(availableFetchers: readonly Fetcher[], url: string, options: FetchOptions, logService: Log): Promise<{ response: FetchResponse; updatedFetchers?: Fetcher[] }> {
+	if (options.retryFallbacks && availableFetchers.length > 1) {
+		let firstResult: { ok: boolean; response: FetchResponse } | { ok: false; err: any } | undefined;
+		for (const fetcher of availableFetchers) {
+			const result = await tryFetch(fetcher, url, options, logService);
+			if (fetcher === availableFetchers[0]) {
+				firstResult = result;
+			}
+			if (!result.ok) {
+				continue;
+			}
+			if (fetcher !== availableFetchers[0]) {
+				const retry = await tryFetch(availableFetchers[0], url, options, logService);
+				if (retry.ok) {
+					return { response: retry.response };
+				}
+				logService.info(`FetcherService: using ${fetcher.name} from now on`);
+				const updatedFetchers = availableFetchers.slice();
+				updatedFetchers.splice(updatedFetchers.indexOf(fetcher), 1);
+				updatedFetchers.unshift(fetcher);
+				return { response: result.response, updatedFetchers };
+			}
+			return { response: result.response };
+		}
+		if ('response' in firstResult!) {
+			return { response: firstResult.response };
+		}
+		throw firstResult!.err;
+	}
+	return { response: await availableFetchers[0].fetch(url, options) };
+}
+
+async function tryFetch(fetcher: Fetcher, url: string, options: FetchOptions, logService: Log): Promise<{ ok: boolean; response: FetchResponse } | { ok: false; err: any }> {
+	try {
+		const response = await fetcher.fetch(url, options);
+		if (!response.ok) {
+			logService.info(`FetcherService: ${fetcher.name} failed with status: ${response.status} ${response.statusText}`);
+			return { ok: false, response };
+		}
+		if (!options.expectJSON) {
+			logService.debug(`FetcherService: ${fetcher.name} succeeded (not JSON)`);
+			return { ok: response.ok, response };
+		}
+		const text = await response.text();
+		try {
+			const json = JSON.parse(text); // Verify JSON
+			logService.debug(`FetcherService: ${fetcher.name} succeeded (JSON)`);
+			return { ok: true, response: new FetchResponseImpl(response.status, response.statusText, response.headers, async () => text, async () => json, async () => Readable.from([text])) };
+		} catch (err) {
+			logService.info(`FetcherService: ${fetcher.name} failed to parse JSON: ${err.message}`);
+			return { ok: false, err, response: new FetchResponseImpl(response.status, response.statusText, response.headers, async () => text, async () => { throw err; }, async () => Readable.from([text])) };
+		}
+	} catch (err) {
+		logService.info(`FetcherService: ${fetcher.name} failed with error: ${err.message}`);
+		return { ok: false, err };
+	}
 }
 
 export const fetching = createFetch();
@@ -132,6 +144,7 @@ class FetchResponseImpl implements FetchResponse {
 		public readonly headers: FetchHeaders,
 		public readonly text: () => Promise<string>,
 		public readonly json: () => Promise<any>,
+		public readonly body: () => Promise<NodeJS.ReadableStream | null>,
 	) {
 		this.ok = this.status >= 200 && this.status < 300;
 	}
@@ -156,6 +169,7 @@ async function nodeHTTP(url: string, options: FetchOptions): Promise<FetchRespon
 				nodeFetcherResponse.headers,
 				async () => nodeFetcherResponse.text(),
 				async () => nodeFetcherResponse.json(),
+				async () => nodeFetcherResponse.body(),
 			));
 		});
 		req.setTimeout(60 * 1000); // time out after 60s of receiving no data

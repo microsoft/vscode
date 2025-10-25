@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
+
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
 import { isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
@@ -63,7 +63,6 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IRemoteCodingAg
 
 export class RemoteCodingAgentsContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@ILogService private readonly logService: ILogService,
 		@IRemoteCodingAgentsService private readonly remoteCodingAgentsService: IRemoteCodingAgentsService
 	) {
 		super();
@@ -89,7 +88,6 @@ export class RemoteCodingAgentsContribution extends Disposable implements IWorkb
 						followUpRegex: contribution.followUpRegex,
 						when: contribution.when
 					};
-					this.logService.trace(`Registering remote coding agent: ${agent.displayName} (${agent.command})`);
 					this.remoteCodingAgentsService.registerAgent(agent);
 				}
 			}

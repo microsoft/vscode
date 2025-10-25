@@ -214,7 +214,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			this.getTokenEntitlements(session.accessToken, tokenEntitlementUrl),
 		]);
 
-		const mcpRegistryProvider = tokenEntitlements.mcp ? await this.getMcpRegistryProvider(session.accessToken, mcpRegistryDataUrl) : undefined;
+		const mcpRegistryProvider = this.productService.quality !== 'stable' && tokenEntitlements.mcp ? await this.getMcpRegistryProvider(session.accessToken, mcpRegistryDataUrl) : undefined;
 
 		return {
 			sessionId: session.id,

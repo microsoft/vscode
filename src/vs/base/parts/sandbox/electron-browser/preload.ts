@@ -109,19 +109,19 @@
 
 		ipcRenderer: {
 
-			send(channel: string, ...args: any[]): void {
+			send(channel: string, ...args: unknown[]): void {
 				if (validateIPC(channel)) {
 					ipcRenderer.send(channel, ...args);
 				}
 			},
 
-			invoke(channel: string, ...args: any[]): Promise<any> {
+			invoke(channel: string, ...args: unknown[]): Promise<unknown> {
 				validateIPC(channel);
 
 				return ipcRenderer.invoke(channel, ...args);
 			},
 
-			on(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void) {
+			on(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void) {
 				validateIPC(channel);
 
 				ipcRenderer.on(channel, listener);
@@ -129,7 +129,7 @@
 				return this;
 			},
 
-			once(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void) {
+			once(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void) {
 				validateIPC(channel);
 
 				ipcRenderer.once(channel, listener);
@@ -137,7 +137,7 @@
 				return this;
 			},
 
-			removeListener(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void) {
+			removeListener(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void) {
 				validateIPC(channel);
 
 				ipcRenderer.removeListener(channel, listener);
@@ -215,7 +215,7 @@
 				return process.getProcessMemoryInfo();
 			},
 
-			on(type: string, callback: (...args: any[]) => void): void {
+			on(type: string, callback: (...args: unknown[]) => void): void {
 				process.on(type, callback);
 			}
 		},
@@ -246,16 +246,10 @@
 		}
 	};
 
-	// Use `contextBridge` APIs to expose globals to VSCode
-	// only if context isolation is enabled, otherwise just
-	// add to the DOM global.
-	if (process.contextIsolated) {
-		try {
-			contextBridge.exposeInMainWorld('vscode', globals);
-		} catch (error) {
-			console.error(error);
-		}
-	} else {
-		(window as any).vscode = globals;
+	try {
+		// Use `contextBridge` APIs to expose globals to VSCode
+		contextBridge.exposeInMainWorld('vscode', globals);
+	} catch (error) {
+		console.error(error);
 	}
 }());

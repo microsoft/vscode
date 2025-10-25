@@ -6,6 +6,10 @@
 import type * as vscode from 'vscode';
 import { es5ClassCompat } from './es5ClassCompat.js';
 import { illegalArgument } from '../../../../base/common/errors.js';
+import { Mimes, normalizeMimeType, isTextStreamMime } from '../../../../base/common/mime.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+
+/* eslint-disable local/code-no-native-private */
 
 export enum NotebookCellKind {
 	Markup = 1,
@@ -174,3 +178,117 @@ export class NotebookEdit implements vscode.NotebookEdit {
 		this.newCells = newCells;
 	}
 }
+
+export class NotebookCellOutputItem {
+
+	static isNotebookCellOutputItem(obj: unknown): obj is vscode.NotebookCellOutputItem {
+		if (obj instanceof NotebookCellOutputItem) {
+			return true;
+		}
+		if (!obj) {
+			return false;
+		}
+		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string'
+			&& (<vscode.NotebookCellOutputItem>obj).data instanceof Uint8Array;
+	}
+
+	static error(err: Error | { name: string; message?: string; stack?: string }): NotebookCellOutputItem {
+		const obj = {
+			name: err.name,
+			message: err.message,
+			stack: err.stack
+		};
+		return NotebookCellOutputItem.json(obj, 'application/vnd.code.notebook.error');
+	}
+
+	static stdout(value: string): NotebookCellOutputItem {
+		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stdout');
+	}
+
+	static stderr(value: string): NotebookCellOutputItem {
+		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stderr');
+	}
+
+	static bytes(value: Uint8Array, mime: string = 'application/octet-stream'): NotebookCellOutputItem {
+		return new NotebookCellOutputItem(value, mime);
+	}
+
+	static #encoder = new TextEncoder();
+
+	static text(value: string, mime: string = Mimes.text): NotebookCellOutputItem {
+		const bytes = NotebookCellOutputItem.#encoder.encode(String(value));
+		return new NotebookCellOutputItem(bytes, mime);
+	}
+
+	static json(value: any, mime: string = 'text/x-json'): NotebookCellOutputItem {
+		const rawStr = JSON.stringify(value, undefined, '\t');
+		return NotebookCellOutputItem.text(rawStr, mime);
+	}
+
+	constructor(
+		public data: Uint8Array,
+		public mime: string
+	) {
+		const mimeNormalized = normalizeMimeType(mime, true);
+		if (!mimeNormalized) {
+			throw new Error(`INVALID mime type: ${mime}. Must be in the format "type/subtype[;optionalparameter]"`);
+		}
+		this.mime = mimeNormalized;
+	}
+}
+
+export class NotebookCellOutput {
+
+	static isNotebookCellOutput(candidate: any): candidate is vscode.NotebookCellOutput {
+		if (candidate instanceof NotebookCellOutput) {
+			return true;
+		}
+		if (!candidate || typeof candidate !== 'object') {
+			return false;
+		}
+		return typeof (<NotebookCellOutput>candidate).id === 'string' && Array.isArray((<NotebookCellOutput>candidate).items);
+	}
+
+	static ensureUniqueMimeTypes(items: NotebookCellOutputItem[], warn: boolean = false): NotebookCellOutputItem[] {
+		const seen = new Set<string>();
+		const removeIdx = new Set<number>();
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			const normalMime = normalizeMimeType(item.mime);
+			// We can have multiple text stream mime types in the same output.
+			if (!seen.has(normalMime) || isTextStreamMime(normalMime)) {
+				seen.add(normalMime);
+				continue;
+			}
+			// duplicated mime types... first has won
+			removeIdx.add(i);
+			if (warn) {
+				console.warn(`DUPLICATED mime type '${item.mime}' will be dropped`);
+			}
+		}
+		if (removeIdx.size === 0) {
+			return items;
+		}
+		return items.filter((_item, index) => !removeIdx.has(index));
+	}
+
+	id: string;
+	items: NotebookCellOutputItem[];
+	metadata?: Record<string, any>;
+
+	constructor(
+		items: NotebookCellOutputItem[],
+		idOrMetadata?: string | Record<string, any>,
+		metadata?: Record<string, any>
+	) {
+		this.items = NotebookCellOutput.ensureUniqueMimeTypes(items, true);
+		if (typeof idOrMetadata === 'string') {
+			this.id = idOrMetadata;
+			this.metadata = metadata;
+		} else {
+			this.id = generateUuid();
+			this.metadata = idOrMetadata ?? metadata;
+		}
+	}
+}
+

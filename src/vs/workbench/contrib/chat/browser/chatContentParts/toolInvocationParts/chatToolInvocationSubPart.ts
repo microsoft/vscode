@@ -28,23 +28,19 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 		protected readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 	) {
 		super();
-
-		if (toolInvocation.kind === 'toolInvocation' && !toolInvocation.isComplete) {
-			toolInvocation.isCompletePromise.then(() => this._onNeedsRerender.fire());
-		}
 	}
 
 	protected getIcon() {
 		const toolInvocation = this.toolInvocation;
-		const isConfirmed = typeof toolInvocation.isConfirmed === 'boolean'
-			? toolInvocation.isConfirmed
-			: toolInvocation.isConfirmed?.type === ToolConfirmKind.UserAction || toolInvocation.isConfirmed?.type === ToolConfirmKind.ConfirmationNotNeeded;
-		const isSkipped = typeof toolInvocation.isConfirmed !== 'boolean' && toolInvocation.isConfirmed?.type === ToolConfirmKind.Skipped;
-		return isSkipped ?
-			Codicon.circleSlash :
-			(!isConfirmed ?
-				Codicon.error :
-				toolInvocation.isComplete ?
-					Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin'));
+		const confirmState = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation);
+		const isSkipped = confirmState?.type === ToolConfirmKind.Skipped;
+		if (isSkipped) {
+			return Codicon.circleSlash;
+		}
+
+		return confirmState?.type === ToolConfirmKind.Denied ?
+			Codicon.error :
+			IChatToolInvocation.isComplete(toolInvocation) ?
+				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
 	}
 }

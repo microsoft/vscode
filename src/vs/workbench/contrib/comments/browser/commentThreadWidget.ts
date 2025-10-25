@@ -10,7 +10,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as languages from '../../../../editor/common/languages.js';
-import { IMarkdownRendererOptions } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererExtraOptions } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CommentMenus } from './commentMenus.js';
@@ -69,7 +69,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		private _commentThread: languages.CommentThread<T>,
 		private _pendingComment: languages.PendingComment | undefined,
 		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
-		private _markdownOptions: IMarkdownRendererOptions,
+		private _markdownOptions: IMarkdownRendererExtraOptions,
 		private _commentOptions: languages.CommentOptions | undefined,
 		private _containerDelegate: {
 			actionRunner: (() => void) | null;
@@ -186,13 +186,13 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		let hasMouse = false;
 		let hasFocus = false;
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_ENTER, (e) => {
-			if ((<any>e).toElement === this.container) {
+			if (e.relatedTarget === this.container) {
 				hasMouse = true;
 				this.updateCurrentThread(hasMouse, hasFocus);
 			}
 		}, true));
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_LEAVE, (e) => {
-			if ((<any>e).fromElement === this.container) {
+			if (e.relatedTarget === this.container) {
 				hasMouse = false;
 				this.updateCurrentThread(hasMouse, hasFocus);
 			}

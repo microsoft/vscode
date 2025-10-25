@@ -108,7 +108,7 @@ export class QuickDiffPickerBaseAction extends Action {
 
 class QuickDiffWidgetActionRunner extends ActionRunner {
 
-	protected override runAction(action: IAction, context: any): Promise<any> {
+	protected override runAction(action: IAction, context: unknown[]): Promise<void> {
 		if (action instanceof MenuItemAction) {
 			return action.run(...context);
 		}
@@ -140,7 +140,7 @@ class QuickDiffWidgetEditorAction extends Action {
 		this.editor = editor;
 	}
 
-	override run(): Promise<any> {
+	override run(): Promise<void> {
 		return Promise.resolve(this.instantiationService.invokeFunction(accessor => this.action.run(accessor, this.editor, null)));
 	}
 }

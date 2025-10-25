@@ -3,27 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Application } from '../../../automation';
+import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ApplicationService } from '../application';
 
 /**
  * Core Application Management Tools
  */
-export function applyCoreTools(server: McpServer, app: Application) {
-	// A dummy start tool just so that the model has something to hold on to.
-	server.tool(
-		'vscode_automation_start',
-		'Start VS Code Build',
-		{},
-		async () => {
-			return {
-				content: [{
-					type: 'text' as const,
-					text: `VS Code started successfully`
-				}]
-			};
-		}
-	);
+export function applyCoreTools(server: McpServer, appService: ApplicationService): RegisteredTool[] {
+	const tools: RegisteredTool[] = [];
+
 	// Playwright keeps using this as a start... maybe it needs some massaging
 	// server.tool(
 	// 	'vscode_automation_restart',
@@ -44,20 +32,20 @@ export function applyCoreTools(server: McpServer, app: Application) {
 	// 	}
 	// );
 
-	// I don't think Playwright needs this
-	// server.tool(
-	// 	'vscode_automation_stop',
-	// 	'Stop the VS Code application',
-	// 	async () => {
-	// 		await app.stop();
-	// 		return {
-	// 			content: [{
-	// 				type: 'text' as const,
-	// 				text: 'VS Code stopped successfully'
-	// 			}]
-	// 		};
-	// 	}
-	// );
+	tools.push(server.tool(
+		'vscode_automation_stop',
+		'Stop the VS Code application',
+		async () => {
+			const app = await appService.getOrCreateApplication();
+			await app.stop();
+			return {
+				content: [{
+					type: 'text' as const,
+					text: 'VS Code stopped successfully'
+				}]
+			};
+		}
+	));
 
 	// This doesn't seem particularly useful
 	// server.tool(
@@ -166,4 +154,6 @@ export function applyCoreTools(server: McpServer, app: Application) {
 	// 		};
 	// 	}
 	// );
+
+	return tools;
 }

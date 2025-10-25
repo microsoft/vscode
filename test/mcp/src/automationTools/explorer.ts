@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Application } from '../../../automation';
+import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ApplicationService } from '../application';
 
 /**
  * Explorer and File Management Tools
  */
-export function applyExplorerTools(server: McpServer, app: Application) {
+export function applyExplorerTools(server: McpServer, appService: ApplicationService): RegisteredTool[] {
+	const tools: RegisteredTool[] = [];
+
 	// Playwright can probably figure this out
 	// server.tool(
 	// 	'vscode_automation_explorer_open',
@@ -24,4 +26,6 @@ export function applyExplorerTools(server: McpServer, app: Application) {
 	// 		};
 	// 	}
 	// );
+
+	return tools;
 }

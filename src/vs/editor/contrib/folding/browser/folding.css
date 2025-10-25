@@ -17,10 +17,10 @@
 	z-index: 1;
 }
 
-.monaco-workbench.reduce-motion .monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed,
-.monaco-workbench.reduce-motion .monaco-editor .margin-view-overlays .codicon-folding-manual-expanded,
-.monaco-workbench.reduce-motion .monaco-editor .margin-view-overlays .codicon-folding-expanded,
-.monaco-workbench.reduce-motion .monaco-editor .margin-view-overlays .codicon-folding-collapsed {
+.monaco-reduce-motion .monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed,
+.monaco-reduce-motion .monaco-editor .margin-view-overlays .codicon-folding-manual-expanded,
+.monaco-reduce-motion .monaco-editor .margin-view-overlays .codicon-folding-expanded,
+.monaco-reduce-motion .monaco-editor .margin-view-overlays .codicon-folding-collapsed {
 	transition: initial;
 }
 

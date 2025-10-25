@@ -21,7 +21,7 @@
 	border-bottom-right-radius: 4px;
 }
 
-.monaco-workbench.reduce-motion .simple-fr-find-part-wrapper {
+.monaco-workbench.monaco-reduce-motion .simple-fr-find-part-wrapper {
 	transition: top 0ms linear;
 }
 

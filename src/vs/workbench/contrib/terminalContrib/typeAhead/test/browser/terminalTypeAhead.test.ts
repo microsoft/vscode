@@ -36,6 +36,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			succeed = ds.add(new Emitter<IPrediction>());
 			fail = ds.add(new Emitter<IPrediction>());
 
+			// eslint-disable-next-line local/code-no-any-casts
 			stats = ds.add(new PredictionStats({
 				onPredictionAdded: add.event,
 				onPredictionSucceeded: succeed.event,

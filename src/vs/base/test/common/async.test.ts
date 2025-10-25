@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as async from '../../common/async.js';
-import * as MicrotaskDelay from "../../common/symbols.js";
+import * as MicrotaskDelay from '../../common/symbols.js';
 import { CancellationToken, CancellationTokenSource } from '../../common/cancellation.js';
 import { isCancellationError } from '../../common/errors.js';
 import { Event } from '../../common/event.js';
@@ -1209,6 +1209,22 @@ suite('Async', () => {
 			deferred.cancel();
 			assert.strictEqual((await deferred.p.catch(e => e)).name, 'Canceled');
 			assert.strictEqual(deferred.isRejected, true);
+		});
+
+		test('retains the original settled value', async () => {
+			const deferred = new async.DeferredPromise<number>();
+			assert.strictEqual(deferred.isResolved, false);
+			assert.strictEqual(deferred.value, undefined);
+
+			deferred.complete(42);
+			assert.strictEqual(await deferred.p, 42);
+			assert.strictEqual(deferred.value, 42);
+			assert.strictEqual(deferred.isResolved, true);
+
+			deferred.complete(-1);
+			assert.strictEqual(await deferred.p, 42);
+			assert.strictEqual(deferred.value, 42);
+			assert.strictEqual(deferred.isResolved, true);
 		});
 	});
 

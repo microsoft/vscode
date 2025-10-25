@@ -78,6 +78,7 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 		// If the input is a string, wrap it in an object so we can use the same logic
 		if (typeof object === 'string') {
 			this.stringRoot = true;
+			// eslint-disable-next-line local/code-no-any-casts
 			this.root = { value: object } as any;
 		} else {
 			this.stringRoot = false;
@@ -102,6 +103,7 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 	}
 
 	private applyPlatformSpecificKeys() {
+		// eslint-disable-next-line local/code-no-any-casts
 		const config = this.root as any; // already cloned by ctor, safe to change
 		const key = isWindows ? 'windows' : isMacintosh ? 'osx' : isLinux ? 'linux' : undefined;
 
@@ -301,6 +303,7 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 	public toObject(): T {
 		// If we wrapped a string, unwrap it
 		if (this.stringRoot) {
+			// eslint-disable-next-line local/code-no-any-casts
 			return (this.root as any).value as T;
 		}
 

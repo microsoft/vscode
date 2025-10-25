@@ -12,7 +12,11 @@ import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -21,14 +25,20 @@ import { IWorkbenchAssignmentService } from '../../../../services/assignment/com
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
 import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestWorkerService } from '../../../inlineChat/test/browser/testWorkerService.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ChatEditingService } from '../../browser/chatEditing/chatEditingServiceImpl.js';
+import { ChatSessionsService } from '../../browser/chatSessions.contribution.js';
 import { ChatAgentService, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatService } from '../../common/chatServiceImpl.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { ChatTransferService, IChatTransferService } from '../../common/chatTransferService.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
@@ -36,16 +46,6 @@ import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { NullLanguageModelsService } from '../common/languageModels.js';
 import { MockChatVariablesService } from '../common/mockChatVariables.js';
-import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
-import { TestWorkerService } from '../../../inlineChat/test/browser/testWorkerService.js';
-import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
-import { Position } from '../../../../../editor/common/core/position.js';
-import { ChatModel } from '../../common/chatModel.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
-import { IMcpService } from '../../../mcp/common/mcpTypes.js';
-import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { ChatSessionsService } from '../../browser/chatSessions.contribution.js';
 
 function getAgentData(id: string): IChatAgentData {
 	return {
@@ -56,7 +56,7 @@ function getAgentData(id: string): IChatAgentData {
 		extensionPublisherId: '',
 		publisherDisplayName: '',
 		extensionDisplayName: '',
-		locations: [ChatAgentLocation.Panel],
+		locations: [ChatAgentLocation.Chat],
 		modes: [ChatModeKind.Ask],
 		metadata: {},
 		slashCommands: [],
@@ -137,7 +137,7 @@ suite('ChatEditingService', function () {
 	test('create session', async function () {
 		assert.ok(editingService);
 
-		const model = chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
+		const model = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
 		const session = await editingService.createEditingSession(model, true);
 
 		assert.strictEqual(session.chatSessionId, model.sessionId);
@@ -157,7 +157,7 @@ suite('ChatEditingService', function () {
 
 		const uri = URI.from({ scheme: 'test', path: 'HelloWorld' });
 
-		const model = chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
+		const model = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
 		const session = await model.editingSessionObs?.promise;
 		if (!session) {
 			assert.fail('session not created');
@@ -214,7 +214,7 @@ suite('ChatEditingService', function () {
 
 		const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-		const model = store.add(chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+		const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
 		const session = await model.editingSessionObs?.promise;
 		assertType(session, 'session not created');
 
@@ -245,7 +245,7 @@ suite('ChatEditingService', function () {
 
 		const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-		const model = store.add(chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+		const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
 		const session = await model.editingSessionObs?.promise;
 		assertType(session, 'session not created');
 
@@ -276,7 +276,7 @@ suite('ChatEditingService', function () {
 
 		const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-		const model = store.add(chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+		const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
 		const session = await model.editingSessionObs?.promise;
 		assertType(session, 'session not created');
 

@@ -47,6 +47,10 @@ export class PlaywrightDriver {
 		return this.context;
 	}
 
+	get currentPage(): playwright.Page {
+		return this.page;
+	}
+
 	async startTracing(name: string): Promise<void> {
 		if (!this.options.tracing) {
 			return; // tracing disabled

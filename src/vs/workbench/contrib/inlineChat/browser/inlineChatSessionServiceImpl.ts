@@ -35,7 +35,7 @@ import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession.js';
 import { IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService.js';
 
@@ -108,7 +108,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 	async createSession(editor: IActiveCodeEditor, options: { headless?: boolean; wholeRange?: Range; session?: Session }, token: CancellationToken): Promise<Session | undefined> {
 
-		const agent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Editor);
+		const agent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline);
 
 		if (!agent) {
 			this._logService.trace('[IE] NO agent found');
@@ -123,7 +123,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const store = new DisposableStore();
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${agent.extensionId}`);
 
-		const chatModel = options.session?.chatModel ?? this._chatService.startSession(ChatAgentLocation.Editor, token);
+		const chatModel = options.session?.chatModel ?? this._chatService.startSession(ChatAgentLocation.EditorInline, token);
 		if (!chatModel) {
 			this._logService.trace('[IE] NO chatModel found');
 			return undefined;
@@ -348,7 +348,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		this._onWillStartSession.fire(editor as IActiveCodeEditor);
 
-		const chatModel = this._chatService.startSession(ChatAgentLocation.Panel, token, false);
+		const chatModel = this._chatService.startSession(ChatAgentLocation.Chat, token, false);
 
 		const editingSession = await chatModel.editingSessionObs?.promise!;
 		const widget = this._chatWidgetService.getWidgetBySessionId(chatModel.sessionId);
@@ -417,6 +417,8 @@ export class InlineChatEnabler {
 
 	private readonly _ctxHasProvider: IContextKey<boolean>;
 	private readonly _ctxHasProvider2: IContextKey<boolean>;
+	private readonly _ctxHasNotebookInline: IContextKey<boolean>;
+	private readonly _ctxHasNotebookProvider: IContextKey<boolean>;
 	private readonly _ctxPossible: IContextKey<boolean>;
 
 	private readonly _store = new DisposableStore();
@@ -429,10 +431,14 @@ export class InlineChatEnabler {
 	) {
 		this._ctxHasProvider = CTX_INLINE_CHAT_HAS_AGENT.bindTo(contextKeyService);
 		this._ctxHasProvider2 = CTX_INLINE_CHAT_HAS_AGENT2.bindTo(contextKeyService);
+		this._ctxHasNotebookInline = CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE.bindTo(contextKeyService);
+		this._ctxHasNotebookProvider = CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT.bindTo(contextKeyService);
 		this._ctxPossible = CTX_INLINE_CHAT_POSSIBLE.bindTo(contextKeyService);
 
-		const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.Editor));
+		const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline));
 		const inlineChat2Obs = observableConfigValue(InlineChatConfigKeys.EnableV2, false, configService);
+		const notebookAgentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.Notebook));
+		const notebookAgentConfigObs = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configService);
 
 		this._store.add(autorun(r => {
 			const v2 = inlineChat2Obs.read(r);
@@ -447,6 +453,11 @@ export class InlineChatEnabler {
 				this._ctxHasProvider.set(true);
 				this._ctxHasProvider2.reset();
 			}
+		}));
+
+		this._store.add(autorun(r => {
+			this._ctxHasNotebookInline.set(!notebookAgentConfigObs.read(r) && !!agentObs.read(r));
+			this._ctxHasNotebookProvider.set(notebookAgentConfigObs.read(r) && !!notebookAgentObs.read(r));
 		}));
 
 		const updateEditor = () => {
