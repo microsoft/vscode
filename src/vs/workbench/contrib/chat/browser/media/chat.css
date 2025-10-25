@@ -2185,8 +2185,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
 		color: var(--vscode-icon-foreground) !important;
 
-		&.codicon-check {
-			color: var(--vscode-debugIcon-startForeground) !important;
+		&.codicon-error {
+			color: var(--vscode-editorError-foreground) !important;
 		}
 	}
 
