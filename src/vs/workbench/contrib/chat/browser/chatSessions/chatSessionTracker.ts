@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { GroupModelChangeKind } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -17,6 +17,7 @@ import { ChatSessionUri } from '../../common/chatUri.js';
 
 export class ChatSessionTracker extends Disposable {
 	private readonly _onDidChangeEditors = this._register(new Emitter<{ sessionType: string; kind: GroupModelChangeKind }>());
+	private readonly groupDisposables = this._register(new DisposableMap<number>());
 	readonly onDidChangeEditors = this._onDidChangeEditors.event;
 
 	constructor(
@@ -33,15 +34,18 @@ export class ChatSessionTracker extends Disposable {
 		this.editorGroupsService.groups.forEach(group => {
 			this.registerGroupListeners(group);
 		});
-
 		// Listen for new groups
 		this._register(this.editorGroupsService.onDidAddGroup(group => {
 			this.registerGroupListeners(group);
 		}));
+		// Listen for deleted groups
+		this._register(this.editorGroupsService.onDidRemoveGroup(group => {
+			this.groupDisposables.deleteAndDispose(group.id);
+		}));
 	}
 
 	private registerGroupListeners(group: IEditorGroup): void {
-		this._register(group.onDidModelChange(e => {
+		this.groupDisposables.set(group.id, group.onDidModelChange(e => {
 			if (!isChatSession(this.chatSessionsService.getContentProviderSchemes(), e.editor)) {
 				return;
 			}
