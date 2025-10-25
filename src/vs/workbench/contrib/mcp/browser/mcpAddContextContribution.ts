@@ -7,25 +7,40 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatContextPick, IChatContextPickService } from '../../chat/browser/chatContextPickService.js';
+import { IMcpService, McpCapability } from '../common/mcpTypes.js';
 import { McpResourcePickHelper } from './mcpResourceQuickAccess.js';
 
 export class McpAddContextContribution extends Disposable implements IWorkbenchContribution {
-	private readonly _helper: McpResourcePickHelper;
 	private readonly _addContextMenu = this._register(new MutableDisposable());
 	constructor(
 		@IChatContextPickService private readonly _chatContextPickService: IChatContextPickService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IMcpService mcpService: IMcpService
 	) {
 		super();
 
-		this._helper = instantiationService.createInstance(McpResourcePickHelper);
+		const hasServersWithResources = derived(reader => {
+			let enabled = false;
+			for (const server of mcpService.servers.read(reader)) {
+				const cap = server.capabilities.read(undefined);
+				if (cap === undefined) {
+					enabled = true; // until we know more
+				} else if (cap & McpCapability.Resources) {
+					enabled = true;
+					break;
+				}
+			}
+
+			return enabled;
+		});
+
 		this._register(autorun(reader => {
-			const enabled = this._helper.hasServersWithResources.read(reader);
+			const enabled = hasServersWithResources.read(reader);
 			if (enabled && !this._addContextMenu.value) {
 				this._registerAddContextMenu();
 			} else {
@@ -51,8 +66,11 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 
 	private _getResourcePicks(token: CancellationToken) {
 		const observable = observableValue<{ busy: boolean; picks: ChatContextPick[] }>(this, { busy: true, picks: [] });
-
-		this._helper.getPicks(servers => {
+		const helper = this._instantiationService.createInstance(McpResourcePickHelper);
+		// TODO: still need to dispose helper
+		const picksObservable = helper.getPicks(token);
+		this._register(autorun(reader => {
+			const servers = picksObservable.read(reader);
 			const picks: ChatContextPick[] = [];
 			for (const [server, resources] of servers) {
 				if (resources.length === 0) {
@@ -63,7 +81,14 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 				for (const resource of resources) {
 					picks.push({
 						...McpResourcePickHelper.item(resource),
-						asAttachment: () => this._helper.toAttachment(resource).then(r => {
+						validateForAttachment: (): Promise<boolean> => {
+							if (helper.validateForAttachment) {
+								return helper.validateForAttachment(resource, server);
+							} else {
+								return Promise.resolve(true);
+							}
+						},
+						asAttachment: () => helper.toAttachment(resource, server).then(r => {
 							if (!r) {
 								throw new CancellationError();
 							} else {
@@ -73,10 +98,8 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 					});
 				}
 			}
-			observable.set({ picks, busy: true }, undefined);
-		}, token).finally(() => {
-			observable.set({ busy: false, picks: observable.get().picks }, undefined);
-		});
+			observable.set({ picks, busy: false }, undefined);
+		}));
 
 		return observable;
 	}

@@ -21,6 +21,7 @@ export interface IChatContextPickerPickItem extends Partial<IQuickItem> {
 	description?: string;
 	detail?: string;
 	disabled?: boolean;
+	validateForAttachment?(): Promise<boolean>;
 	asAttachment(): IChatRequestVariableEntry | Promise<IChatRequestVariableEntry>;
 }
 
@@ -52,6 +53,9 @@ export interface IChatContextPicker {
 	 * - A function that maps input query into items to display.
 	 */
 	readonly picks: Promise<ChatContextPick[]> | ((query: IObservable<string>, token: CancellationToken) => IObservable<{ busy: boolean; picks: ChatContextPick[] }>);
+
+	/** Return true to cancel the default behavior */
+	readonly goBack?: () => boolean;
 
 	readonly configure?: {
 		label: string;

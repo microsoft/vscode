@@ -31,6 +31,16 @@ interface IReadData {
 	forSameURI: (MCP.TextResourceContents | MCP.BlobResourceContents)[];
 }
 
+/**
+ * Helper function to check if a resource path represents a directory.
+ * Works cross-platform by checking if the path ends with a forward slash.
+ * @param path The resource path to check
+ * @returns true if the path represents a directory, false otherwise
+ */
+function isDirectoryPath(path: string): boolean {
+	return path.endsWith('/');
+}
+
 export class McpResourceFilesystem extends Disposable implements IWorkbenchContribution,
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithFileAtomicReadCapability,
@@ -146,7 +156,7 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 	}
 
 	public async stat(resource: URI): Promise<IStat> {
-		const { forSameURI, contents } = await this._readURI(resource);
+		const { contents } = await this._readURI(resource);
 		if (!contents.length) {
 			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 		}
@@ -155,16 +165,15 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 			ctime: 0,
 			mtime: 0,
 			size: sumBy(contents, c => contentToBuffer(c).byteLength),
-			type: forSameURI.length ? FileType.File : FileType.Directory,
+			type: isDirectoryPath(resource.path) ? FileType.Directory : FileType.File,
 		};
 	}
 
 	public async readdir(resource: URI): Promise<[string, FileType][]> {
-		const { forSameURI, contents, resourceURI } = await this._readURI(resource);
-		if (forSameURI.length > 0) {
+		const { contents, resourceURI } = await this._readURI(resource);
+		if (!isDirectoryPath(resource.path)) {
 			throw createFileSystemProviderError(`File is not a directory`, FileSystemProviderErrorCode.FileNotADirectory);
 		}
-
 		const resourcePathParts = resourceURI.pathname.split('/');
 
 		const output = new Map<string, FileType>();
@@ -274,11 +283,10 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 	private async _readURIInner(uri: URI, token?: CancellationToken): Promise<IReadData> {
 		const { resourceURI, server } = this._decodeURI(uri);
 		const res = await McpServer.callOn(server, r => r.readResource({ uri: resourceURI.toString() }, token), token);
-
 		return {
 			contents: res.contents,
 			resourceURI,
-			forSameURI: res.contents.filter(c => equalsUrlPath(c.uri, resourceURI)),
+			forSameURI: res.contents.filter(c => equalsUrlPath(c.uri, resourceURI))
 		};
 	}
 }
@@ -286,6 +294,7 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 function equalsUrlPath(a: string, b: URL): boolean {
 	// MCP doesn't specify either way, but underlying systems may can be case-sensitive.
 	// It's better to treat case-sensitive paths as case-insensitive than vise-versa.
+	// if the resource name is a directory, MCP may return with a trailing slash.
 	return equalsIgnoreCase(new URL(a).pathname, b.pathname);
 }
 
