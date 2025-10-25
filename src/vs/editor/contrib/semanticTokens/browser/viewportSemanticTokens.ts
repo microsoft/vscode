@@ -34,7 +34,7 @@ export class ViewportSemanticTokensContribution extends Disposable implements IE
 	private readonly _provider: LanguageFeatureRegistry<DocumentRangeSemanticTokensProvider>;
 	private readonly _debounceInformation: IFeatureDebounceInformation;
 	private readonly _tokenizeViewport: RunOnceScheduler;
-	private _outstandingRequests: CancelablePromise<any>[];
+	private _outstandingRequests: CancelablePromise<unknown>[];
 	private _rangeProvidersChangeListeners: IDisposable[];
 
 	constructor(
@@ -122,7 +122,7 @@ export class ViewportSemanticTokensContribution extends Disposable implements IE
 		this._outstandingRequests = [];
 	}
 
-	private _removeOutstandingRequest(req: CancelablePromise<any>): void {
+	private _removeOutstandingRequest(req: CancelablePromise<unknown>): void {
 		for (let i = 0, len = this._outstandingRequests.length; i < len; i++) {
 			if (this._outstandingRequests[i] === req) {
 				this._outstandingRequests.splice(i, 1);
@@ -156,7 +156,7 @@ export class ViewportSemanticTokensContribution extends Disposable implements IE
 		this._outstandingRequests = this._outstandingRequests.concat(visibleRanges.map(range => this._requestRange(model, range)));
 	}
 
-	private _requestRange(model: ITextModel, range: Range): CancelablePromise<any> {
+	private _requestRange(model: ITextModel, range: Range): CancelablePromise<unknown> {
 		const requestVersionId = model.getVersionId();
 		const request = createCancelablePromise(token => Promise.resolve(getDocumentRangeSemanticTokens(this._provider, model, range, token)));
 		const sw = new StopWatch(false);

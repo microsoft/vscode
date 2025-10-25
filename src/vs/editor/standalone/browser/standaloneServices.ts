@@ -195,7 +195,7 @@ class StandaloneEditorProgressService implements IEditorProgressService {
 		return StandaloneEditorProgressService.NULL_PROGRESS_RUNNER;
 	}
 
-	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
 		await promise;
 	}
 }
@@ -403,7 +403,7 @@ export class StandaloneCommandService implements ICommandService {
 export interface IKeybindingRule {
 	keybinding: number;
 	command?: string | null;
-	commandArgs?: any;
+	commandArgs?: unknown;
 	when?: ContextKeyExpression | null;
 }
 
@@ -616,11 +616,11 @@ class DomNodeListeners extends Disposable {
 	}
 }
 
-function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
-	return thing
+function isConfigurationOverrides(thing: unknown): thing is IConfigurationOverrides {
+	return !!thing
 		&& typeof thing === 'object'
-		&& (!thing.overrideIdentifier || typeof thing.overrideIdentifier === 'string')
-		&& (!thing.resource || thing.resource instanceof URI);
+		&& (!(thing as IConfigurationOverrides).overrideIdentifier || typeof (thing as IConfigurationOverrides).overrideIdentifier === 'string')
+		&& (!(thing as IConfigurationOverrides).resource || (thing as IConfigurationOverrides).resource instanceof URI);
 }
 
 export class StandaloneConfigurationService implements IConfigurationService {
@@ -655,13 +655,13 @@ export class StandaloneConfigurationService implements IConfigurationService {
 	getValue<T>(section: string): T;
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
-	getValue(arg1?: any, arg2?: any): any {
+	getValue(arg1?: unknown, arg2?: unknown): unknown {
 		const section = typeof arg1 === 'string' ? arg1 : undefined;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
 		return this._configuration.getValue(section, overrides, undefined);
 	}
 
-	public updateValues(values: [string, any][]): Promise<void> {
+	public updateValues(values: [string, unknown][]): Promise<void> {
 		const previous = { data: this._configuration.toData() };
 
 		const changedKeys: string[] = [];
@@ -684,7 +684,7 @@ export class StandaloneConfigurationService implements IConfigurationService {
 		return Promise.resolve();
 	}
 
-	public updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
+	public updateValue(key: string, value: unknown, arg3?: unknown, arg4?: unknown): Promise<void> {
 		return this.updateValues([[key, value]]);
 	}
 
@@ -737,7 +737,7 @@ class StandaloneResourceConfigurationService implements ITextResourceConfigurati
 
 	getValue<T>(resource: URI, section?: string): T;
 	getValue<T>(resource: URI, position?: IPosition, section?: string): T;
-	getValue<T>(resource: URI | undefined, arg2?: any, arg3?: any) {
+	getValue<T>(resource: URI | undefined, arg2?: unknown, arg3?: unknown) {
 		const position: IPosition | null = Pos.isIPosition(arg2) ? arg2 : null;
 		const section: string | undefined = position ? (typeof arg3 === 'string' ? arg3 : undefined) : (typeof arg2 === 'string' ? arg2 : undefined);
 		const language = resource ? this.getLanguage(resource, position) : undefined;
@@ -766,7 +766,7 @@ class StandaloneResourceConfigurationService implements ITextResourceConfigurati
 		return this.languageService.guessLanguageIdByFilepathOrFirstLine(resource);
 	}
 
-	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
+	updateValue(resource: URI, key: string, value: unknown, configurationTarget?: ConfigurationTarget): Promise<void> {
 		return this.configurationService.updateValue(key, value, { resource }, configurationTarget);
 	}
 }
@@ -869,7 +869,7 @@ export function updateConfigurationService(configurationService: IConfigurationS
 	if (!(configurationService instanceof StandaloneConfigurationService)) {
 		return;
 	}
-	const toUpdate: [string, any][] = [];
+	const toUpdate: [string, unknown][] = [];
 	Object.keys(source).forEach((key) => {
 		if (isEditorConfigurationKey(key)) {
 			toUpdate.push([`editor.${key}`, source[key]]);
@@ -1128,7 +1128,7 @@ class StandaloneAccessbilitySignalService implements IAccessibilitySignalService
 }
 
 export interface IEditorOverrideServices {
-	[index: string]: any;
+	[index: string]: unknown;
 }
 
 

@@ -1224,7 +1224,7 @@ declare namespace monaco.editor {
 		/**
 		 * An object that can be used by the web worker to make calls back to the main thread.
 		 */
-		host?: any;
+		host?: Record<string, Function>;
 		/**
 		 * Keep idle models.
 		 * Defaults to false, which means that idle models will stop syncing after a while.
@@ -1274,7 +1274,7 @@ declare namespace monaco.editor {
 		 * Method that will be executed when the action is triggered.
 		 * @param editor The editor instance is passed in as a convenience
 		 */
-		run(editor: ICodeEditor, ...args: any[]): void | Promise<void>;
+		run(editor: ICodeEditor, ...args: unknown[]): void | Promise<void>;
 	}
 
 	/**
@@ -1448,7 +1448,7 @@ declare namespace monaco.editor {
 	export type ContextKeyValue = null | undefined | boolean | number | string | Array<null | undefined | boolean | number | string> | Record<string, null | undefined | boolean | number | string>;
 
 	export interface IEditorOverrideServices {
-		[index: string]: any;
+		[index: string]: unknown;
 	}
 
 	export interface IMarker {
