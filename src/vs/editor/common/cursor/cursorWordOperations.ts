@@ -745,11 +745,11 @@ export class WordOperations {
 			let startColumn: number;
 			let endColumn: number;
 
-			if (prevWord && prevWord.wordType === WordType.Regular && prevWord.start <= position.column - 1 && position.column - 1 <= prevWord.end) {
+			if (prevWord && prevWord.wordType !== WordType.None && prevWord.start <= position.column - 1 && position.column - 1 <= prevWord.end) {
 				// isTouchingPrevWord
 				startColumn = prevWord.start + 1;
 				endColumn = prevWord.end + 1;
-			} else if (nextWord && nextWord.wordType === WordType.Regular && nextWord.start <= position.column - 1 && position.column - 1 <= nextWord.end) {
+			} else if (nextWord && nextWord.wordType !== WordType.None && nextWord.start <= position.column - 1 && position.column - 1 <= nextWord.end) {
 				// isTouchingNextWord
 				startColumn = nextWord.start + 1;
 				endColumn = nextWord.end + 1;
@@ -775,11 +775,11 @@ export class WordOperations {
 		let startColumn: number;
 		let endColumn: number;
 
-		if (prevWord && prevWord.wordType === WordType.Regular && prevWord.start < position.column - 1 && position.column - 1 < prevWord.end) {
+		if (prevWord && prevWord.wordType !== WordType.None && prevWord.start < position.column - 1 && position.column - 1 < prevWord.end) {
 			// isInsidePrevWord
 			startColumn = prevWord.start + 1;
 			endColumn = prevWord.end + 1;
-		} else if (nextWord && nextWord.wordType === WordType.Regular && nextWord.start < position.column - 1 && position.column - 1 < nextWord.end) {
+		} else if (nextWord && nextWord.wordType !== WordType.None && nextWord.start < position.column - 1 && position.column - 1 < nextWord.end) {
 			// isInsideNextWord
 			startColumn = nextWord.start + 1;
 			endColumn = nextWord.end + 1;
