@@ -745,12 +745,20 @@ export class WordOperations {
 			let startColumn: number;
 			let endColumn: number;
 
-			if (prevWord && prevWord.wordType !== WordType.None && prevWord.start <= position.column - 1 && position.column - 1 <= prevWord.end) {
-				// isTouchingPrevWord
+			if (prevWord && prevWord.wordType === WordType.Regular && prevWord.start <= position.column - 1 && position.column - 1 <= prevWord.end) {
+				// isTouchingPrevWord (Regular word)
 				startColumn = prevWord.start + 1;
 				endColumn = prevWord.end + 1;
-			} else if (nextWord && nextWord.wordType !== WordType.None && nextWord.start <= position.column - 1 && position.column - 1 <= nextWord.end) {
-				// isTouchingNextWord
+			} else if (prevWord && prevWord.wordType === WordType.Separator && prevWord.start <= position.column - 1 && position.column - 1 < prevWord.end) {
+				// isTouchingPrevWord (Separator word) - stricter check, don't include end boundary
+				startColumn = prevWord.start + 1;
+				endColumn = prevWord.end + 1;
+			} else if (nextWord && nextWord.wordType === WordType.Regular && nextWord.start <= position.column - 1 && position.column - 1 <= nextWord.end) {
+				// isTouchingNextWord (Regular word)
+				startColumn = nextWord.start + 1;
+				endColumn = nextWord.end + 1;
+			} else if (nextWord && nextWord.wordType === WordType.Separator && nextWord.start <= position.column - 1 && position.column - 1 < nextWord.end) {
+				// isTouchingNextWord (Separator word) - stricter check, don't include end boundary
 				startColumn = nextWord.start + 1;
 				endColumn = nextWord.end + 1;
 			} else {
@@ -775,12 +783,12 @@ export class WordOperations {
 		let startColumn: number;
 		let endColumn: number;
 
-		if (prevWord && prevWord.wordType !== WordType.None && prevWord.start < position.column - 1 && position.column - 1 < prevWord.end) {
-			// isInsidePrevWord
+		if (prevWord && prevWord.wordType === WordType.Regular && prevWord.start < position.column - 1 && position.column - 1 < prevWord.end) {
+			// isInsidePrevWord (Regular word)
 			startColumn = prevWord.start + 1;
 			endColumn = prevWord.end + 1;
-		} else if (nextWord && nextWord.wordType !== WordType.None && nextWord.start < position.column - 1 && position.column - 1 < nextWord.end) {
-			// isInsideNextWord
+		} else if (nextWord && nextWord.wordType === WordType.Regular && nextWord.start < position.column - 1 && position.column - 1 < nextWord.end) {
+			// isInsideNextWord (Regular word)
 			startColumn = nextWord.start + 1;
 			endColumn = nextWord.end + 1;
 		} else {

@@ -2465,17 +2465,17 @@ suite('Editor Controller', () => {
 		);
 
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
-			// Test double-click on '@' at position 21
-			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 21) });
-			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 21, 1, 22), 'Should select @ character');
+			// Test double-click on '@' at position 20
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 20) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 20, 1, 21), 'Should select @ character');
 
-			// Test double-click on '#' at position 23
-			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 23) });
-			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 23, 1, 24), 'Should select # character');
+			// Test double-click on '#' at position 22
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 22) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 22, 1, 23), 'Should select # character');
 
-			// Test double-click on '!' at position 19
-			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 19) });
-			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 19, 1, 20), 'Should select ! character');
+			// Test double-click on '!' at position 18
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 18) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 18, 1, 19), 'Should select ! character');
 
 			// Test double-click on first '/' in '//' at position 1
 			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 1) });
@@ -2485,9 +2485,9 @@ suite('Editor Controller', () => {
 			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 2) });
 			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 1, 1, 3), 'Should select // token');
 
-			// Test double-click on '\' at position 43
-			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 43) });
-			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 43, 1, 44), 'Should select \\ character');
+			// Test double-click on '\' at position 42
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 42) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 42, 1, 43), 'Should select \\ character');
 		});
 	});
 
