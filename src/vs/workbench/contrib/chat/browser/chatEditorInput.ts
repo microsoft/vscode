@@ -140,15 +140,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			return false;
 		}
 
-		if (this.resource.scheme === Schemas.vscodeChatSession) {
-			return isEqual(this.resource, otherInput.resource);
-		}
-
 		if (this.resource.scheme === Schemas.vscodeChatEditor && otherInput.resource.scheme === Schemas.vscodeChatEditor) {
 			return this.sessionId === otherInput.sessionId;
 		}
 
-		return false;
+		return isEqual(this.resource, otherInput.resource);
 	}
 
 	override get typeId(): string {
