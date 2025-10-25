@@ -19,6 +19,8 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditableData } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
@@ -234,7 +236,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeOptions: Map<string, IChatSessionProviderOptionGroup[]> = new Map();
-	private readonly _sessionTypeIcons: Map<string, ThemeIcon | URI> = new Map();
+	private readonly _sessionTypeIcons: Map<string, ThemeIcon | { light: URI; dark: URI }> = new Map();
 	private readonly _sessionTypeWelcomeTitles: Map<string, string> = new Map();
 	private readonly _sessionTypeWelcomeMessages: Map<string, string> = new Map();
 	private readonly _sessionTypeWelcomeTips: Map<string, string> = new Map();
@@ -250,6 +252,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
 		this._register(extensionPoint.setHandler(extensions => {
@@ -357,12 +360,20 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		// Store icon mapping if provided
-		let icon: ThemeIcon | URI | undefined;
+		let icon: ThemeIcon | { dark: URI; light: URI } | undefined;
 
 		if (contribution.icon) {
 			// Parse icon string - support ThemeIcon format or file path from extension
-			const themeIcon = ThemeIcon.fromString(contribution.icon);
-			icon = themeIcon || resources.joinPath(contribution.extensionDescription.extensionLocation, contribution.icon);
+			if (typeof contribution.icon === 'string') {
+				icon = contribution.icon.startsWith('$(') && contribution.icon.endsWith(')')
+					? ThemeIcon.fromString(contribution.icon)
+					: ThemeIcon.fromId(contribution.icon);
+			} else {
+				icon = {
+					dark: resources.joinPath(contribution.extensionDescription.extensionLocation, contribution.icon.dark),
+					light: resources.joinPath(contribution.extensionDescription.extensionLocation, contribution.icon.light)
+				};
+			}
 		}
 
 		if (icon) {
@@ -880,7 +891,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 * Get the icon for a specific session type
 	 */
 	public getIconForSessionType(chatSessionType: string): ThemeIcon | URI | undefined {
-		return this._sessionTypeIcons.get(chatSessionType);
+		const sessionTypeIcon = this._sessionTypeIcons.get(chatSessionType);
+
+		if (ThemeIcon.isThemeIcon(sessionTypeIcon)) {
+			return sessionTypeIcon;
+		}
+
+		if (isDark(this._themeService.getColorTheme().type)) {
+			return sessionTypeIcon?.dark;
+		} else {
+			return sessionTypeIcon?.light;
+		}
 	}
 
 	/**

@@ -83,7 +83,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	getIconForSessionType(chatSessionType: string): ThemeIcon | URI | undefined {
 		const contribution = this.contributions.find(c => c.type === chatSessionType);
-		return contribution?.icon ? ThemeIcon.fromId(contribution.icon) : undefined;
+		return contribution?.icon && typeof contribution.icon === 'string' ? ThemeIcon.fromId(contribution.icon) : undefined;
 	}
 
 	getWelcomeTitleForSessionType(chatSessionType: string): string | undefined {
