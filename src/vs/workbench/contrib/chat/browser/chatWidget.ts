@@ -257,6 +257,7 @@ const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 	supportsSourceControlAttachments: true,
 	supportsProblemAttachments: true,
 	supportsSymbolAttachments: true,
+	supportsTerminalAttachments: true,
 };
 
 export class ChatWidget extends Disposable implements IChatWidget {
