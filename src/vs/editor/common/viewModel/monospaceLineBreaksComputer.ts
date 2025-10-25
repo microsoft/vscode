@@ -43,11 +43,11 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 					const injectedText = injectedTexts[i];
 					const previousLineBreakData = previousBreakingData[i];
 					const lineText = requests[i];
-					const wrapEscapedLineFeeds = wrapOnEscapedLineFeeds && lineText.includes('"');
-					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText && !wrapEscapedLineFeeds) {
+					const isLineFeedWrappingEnabled = wrapOnEscapedLineFeeds && lineText.includes('"') && lineText.includes('\\n');
+					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText && !isLineFeedWrappingEnabled) {
 						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, lineText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					} else {
-						result[i] = createLineBreaks(this.classifier, lineText, injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak, wrapEscapedLineFeeds);
+						result[i] = createLineBreaks(this.classifier, lineText, injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak, isLineFeedWrappingEnabled);
 					}
 				}
 				arrPool1.length = 0;
