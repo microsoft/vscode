@@ -168,7 +168,7 @@ export class ChatViewWelcomePart extends Disposable {
 			const expEmptyState = this.configurationService.getValue<boolean>('chat.emptyChatState.enabled');
 			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent && !expEmptyState) {
 				const container = dom.append(this.element, $('.chat-welcome-view-indicator-container'));
-				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Agent")));
+				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Plan")));
 			}
 
 			const message = dom.append(this.element, content.isNew ? $('.chat-welcome-new-view-message') : $('.chat-welcome-view-message'));
