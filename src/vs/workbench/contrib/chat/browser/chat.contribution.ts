@@ -30,6 +30,8 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { ITodoDetectionService } from '../../../services/todoDetection/common/todoDetectionService.js';
+import { TodoDetectionService } from '../../../services/todoDetection/browser/todoDetectionServiceImpl.js';
 import { AddConfigurationType, AssistedTypes } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
 import { allDiscoverySources, discoverySourceSettingsLabel, mcpDiscoverySection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
 import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
@@ -123,6 +125,9 @@ import { LanguageModelToolsService, globalAutoApproveDescription } from './langu
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
+import { DelegateTodoToAgentAction } from './actions/chatTodoDelegationActions.js';
+import { TodoCodeActions } from './todoCodeActionProvider.js';
+import { TodoCodeLenses } from './todoCodeLensProvider.js';
 import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
@@ -303,6 +308,29 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
+		},
+		'chat.delegation.enabled': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.delegation.enabled', "Enables delegation of TODO comments to chat agents."),
+		},
+		'chat.delegation.triggers': {
+			type: 'array',
+			items: {
+				type: 'string'
+			},
+			default: ['TODO', 'FIXME', 'BUG', 'HACK', 'NOTE', 'ISSUE'],
+			description: nls.localize('chat.delegation.triggers', "Keywords that trigger TODO detection for agent delegation."),
+		},
+		'chat.delegation.showCodeLens': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.delegation.showCodeLens', "Shows CodeLens above TODO comments for delegating to chat agents."),
+		},
+		'chat.delegation.caseSensitive': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.delegation.caseSensitive', "Makes TODO trigger detection case-sensitive."),
 		},
 		'chat.emptyChatState.enabled': {
 			type: 'boolean',
@@ -1034,6 +1062,7 @@ registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, I
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
+registerSingleton(ITodoDetectionService, TodoDetectionService, InstantiationType.Delayed);
 
 registerAction2(ConfigureToolSets);
 registerAction2(RenameChatSessionAction);
@@ -1043,5 +1072,9 @@ registerAction2(OpenChatSessionInNewEditorGroupAction);
 registerAction2(OpenChatSessionInSidebarAction);
 registerAction2(ToggleChatSessionsDescriptionDisplayAction);
 registerAction2(ChatSessionsGettingStartedAction);
+registerAction2(DelegateTodoToAgentAction);
+
+registerWorkbenchContribution2('TodoCodeActions', TodoCodeActions, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2('TodoCodeLenses', TodoCodeLenses, WorkbenchPhase.Eventually);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
