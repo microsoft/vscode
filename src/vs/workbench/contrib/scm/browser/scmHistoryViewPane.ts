@@ -59,11 +59,12 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { groupBy as groupBy2 } from '../../../../base/common/collections.js';
 import { getActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
-import { FileKind } from '../../../../platform/files/common/files.js';
+import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { basename } from '../../../../base/common/path.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ScmHistoryItemResolver } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -369,6 +370,53 @@ registerAction2(class extends Action2 {
 		await editorService.openEditor({
 			resource: historyItemChange.modifiedUri,
 			label: `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItem.displayId ?? historyItem.id})`,
+		});
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.graph.editSource',
+			title: localize('editSource', "Edit Source"),
+			icon: Codicon.edit,
+			f1: false,
+			menu: [
+				{
+					id: MenuId.SCMHistoryItemChangeContext,
+					group: 'inline',
+					order: 2
+				},
+				{
+					id: MenuId.SCMHistoryItemChangeContext,
+					group: '0_view',
+					order: 2
+				}
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, historyItem: ISCMHistoryItem, historyItemChange: ISCMHistoryItemChange) {
+		const editorService = accessor.get(IEditorService);
+		const fileService = accessor.get(IFileService);
+		const notificationService = accessor.get(INotificationService);
+
+		if (!historyItem || !historyItemChange.uri) {
+			return;
+		}
+
+		// Check if the file exists in the current workspace
+		const fileExists = await fileService.exists(historyItemChange.uri);
+
+		if (!fileExists) {
+			notificationService.error(localize('fileNotFound', "The file '{0}' does not exist in the current workspace.", basename(historyItemChange.uri.fsPath)));
+			return;
+		}
+
+		// Open the file for editing
+		await editorService.openEditor({
+			resource: historyItemChange.uri,
+			options: { preserveFocus: false }
 		});
 	}
 });
