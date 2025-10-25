@@ -312,7 +312,9 @@ function createTerminalCommandElements(
 	element.appendChild(textLabel);
 
 	disposable.add(dom.addDisposableListener(element, dom.EventType.CLICK, e => {
-		void clickHandler();
+		e.preventDefault();
+		e.stopPropagation();
+		clickHandler();
 	}));
 
 	const hoverElement = dom.$('div.chat-attached-context-hover');
