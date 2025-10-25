@@ -24,8 +24,22 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 	static PREFIX = ':';
 
-	constructor(private useZeroBasedOffset: { value: boolean } = { value: false }) {
+	private _useZeroBasedOffset: boolean;
+
+	constructor(private useZeroBasedOffsetSetting?: { value: boolean }) {
 		super({ canAcceptInBackground: true });
+		this._useZeroBasedOffset = useZeroBasedOffsetSetting?.value === true;
+	}
+
+	private get useZeroBasedOffset() {
+		return this._useZeroBasedOffset;
+	}
+
+	private set useZeroBasedOffset(value: boolean) {
+		this._useZeroBasedOffset = value;
+		if (this.useZeroBasedOffsetSetting) {
+			this.useZeroBasedOffsetSetting.value = value;
+		}
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>): IDisposable {
@@ -98,7 +112,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		const toggle = new Toggle({
 			title: localize('gotoLineToggle', "Use zero-based offset"),
 			icon: Codicon.indexZero,
-			isChecked: this.useZeroBasedOffset.value,
+			isChecked: this.useZeroBasedOffset,
 			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
 			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
 			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
@@ -106,7 +120,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		disposables.add(
 			toggle.onChange(() => {
-				this.useZeroBasedOffset.value = !this.useZeroBasedOffset.value;
+				this.useZeroBasedOffset = !this.useZeroBasedOffset;
 				updatePickerAndEditor();
 			}));
 
@@ -147,7 +161,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			let offset = parseInt(value.substring(1), 10);
 			if (!isNaN(offset) && model) {
 				const reverse = offset < 0;
-				if (!this.useZeroBasedOffset.value) {
+				if (!this.useZeroBasedOffset) {
 					// Convert 1-based offset to model's 0-based.
 					offset -= Math.sign(offset);
 				}
