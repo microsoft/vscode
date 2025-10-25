@@ -21,6 +21,7 @@ import { OutputMonitor } from './tools/monitoring/outputMonitor.js';
 import { IExecution, IPollingResult, OutputMonitorState } from './tools/monitoring/types.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IReconnectionTaskData } from '../../../tasks/browser/terminalTaskSystem.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 
 
 export function getTaskDefinition(id: string) {
@@ -149,6 +150,7 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
 export async function collectTerminalResults(
 	terminals: ITerminalInstance[],
 	task: Task,
+	tasksService: ITaskService,
 	instantiationService: IInstantiationService,
 	invocationContext: IToolInvocationContext,
 	progress: ToolProgress,
@@ -217,7 +219,31 @@ export async function collectTerminalResults(
 			dependencyTasks,
 			sessionId: invocationContext.sessionId
 		};
-
+		if (task.configurationProperties.problemMatchers?.length) {
+			// Wait until either (a) the task (or a dependency) is observed busy OR
+			// (b) a short timeout elapses. This avoids hanging while still capturing
+			// the common case where the busy phase starts slightly after launch.
+			const initialBusyTasks = await tasksService.getBusyTasks();
+			const ids = new Set<string>([task._id, ...(dependencyTasks?.map(t => t._id) ?? [])]);
+			if (!initialBusyTasks.some(t => ids.has(t._id))) {
+				const maxWaitMs = 1000; // 1s safety timeout
+				const pollIntervalMs = 100;
+				const start = Date.now();
+				await new Promise<void>(resolve => {
+					const interval = mainWindow.setInterval(async () => {
+						if (token.isCancellationRequested) {
+							mainWindow.clearInterval(interval);
+							return resolve();
+						}
+						const updatedBusyTasks = await tasksService.getBusyTasks();
+						if (updatedBusyTasks.some(t => ids.has(t._id)) || Date.now() - start >= maxWaitMs) {
+							mainWindow.clearInterval(interval);
+							resolve();
+						}
+					}, pollIntervalMs);
+				});
+			}
+		}
 		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, taskProblemPollFn, invocationContext, token, task._label));
 		await Event.toPromise(outputMonitor.onDidFinishCommand);
 		const pollingResult = outputMonitor.pollingResult;
@@ -279,6 +305,14 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 		}
 	}
 	throw new Error('Polling failed');
+}
+
+export async function isTaskBusy(task: Task, tasksService: ITaskService): Promise<boolean> {
+	const busyTasks = await tasksService.getBusyTasks();
+	if (!busyTasks.length) {
+		return false;
+	}
+	return busyTasks.some(t => t._id === task._id);
 }
 
 export interface ILinkLocation { uri: URI; range?: Range }
