@@ -601,6 +601,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (arrayVisibleRanges.length !== 0) {
 			const fullVisibleRange = new StickyRange(arrayVisibleRanges[0].startLineNumber, arrayVisibleRanges[arrayVisibleRanges.length - 1].endLineNumber);
 			const candidateRanges = this._stickyLineCandidateProvider.getCandidateStickyLinesIntersecting(fullVisibleRange);
+			const innerScopes = this._editor.getOption(EditorOption.stickyScroll).innerScopes === 'innerScopes';
 			for (const range of candidateRanges) {
 				const start = range.startLineNumber;
 				const end = range.endLineNumber;
@@ -608,14 +609,20 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				const bottomOfElement = topOfElement + range.height;
 				const topOfBeginningLine = this._editor.getTopForLineNumber(start) - scrollTop;
 				const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
-				if (topOfElement > topOfBeginningLine && topOfElement <= bottomOfEndLine) {
+
+				if (topOfBeginningLine < bottomOfElement && bottomOfEndLine >= bottomOfElement) {
 					startLineNumbers.push(start);
 					endLineNumbers.push(end + 1);
 					if (bottomOfElement > bottomOfEndLine) {
 						lastLineRelativePosition = bottomOfEndLine - bottomOfElement;
 					}
+
+					if (innerScopes && startLineNumbers.length === maxNumberStickyLines) {
+						startLineNumbers.shift();
+						endLineNumbers.shift();
+					}
 				}
-				if (startLineNumbers.length === maxNumberStickyLines) {
+				if (startLineNumbers.length === maxNumberStickyLines && !innerScopes) {
 					break;
 				}
 			}
