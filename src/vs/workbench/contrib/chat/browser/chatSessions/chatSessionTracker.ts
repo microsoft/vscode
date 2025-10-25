@@ -35,20 +35,18 @@ export class ChatSessionTracker extends Disposable {
 		this.editorGroupsService.groups.forEach(group => {
 			this.registerGroupListeners(group);
 		});
-
 		// Listen for new groups
 		this._register(this.editorGroupsService.onDidAddGroup(group => {
 			this.registerGroupListeners(group);
 		}));
-		this._register(
-			this.editorGroupsService.onDidRemoveGroup(group => {
-				this.groupDisposables.deleteAndDispose(group.id);
-			})
-		);
+		// listen for deleted groups
+		this._register(this.editorGroupsService.onDidRemoveGroup(group => {
+			this.groupDisposables.deleteAndDispose(group.id);
+		}));
 	}
 
 	private registerGroupListeners(group: IEditorGroup): void {
-		this._register(group.onDidModelChange(e => {
+		this.groupDisposables.set(group.id, group.onDidModelChange(e => {
 			if (!isChatSession(this.chatSessionsService.getContentProviderSchemes(), e.editor)) {
 				return;
 			}
