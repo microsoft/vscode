@@ -47,6 +47,9 @@ import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/brow
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
+import { ChatSessionUri } from '../../../common/chatUri.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -198,7 +201,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		let editableData: IEditableData | undefined;
 		if (isLocalChatSessionItem(session)) {
 			templateData.container.classList.add('local-session');
-			editableData = this.chatSessionsService.getEditableData(session.id);
+			editableData = this.chatSessionsService.getEditableData(session.resource);
 		} else {
 			templateData.container.classList.remove('local-session');
 		}
@@ -281,7 +284,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				templateData.elementDisposable.add(
 					this.hoverService.setupDelayedHover(templateData.container, () => ({
 						content: tooltipContent,
-						appearance: { showPointer: true },
+						style: HoverStyle.Pointer,
 						position: { hoverPosition: this.getHoverPosition() }
 					}), { groupId: 'chat.sessions' })
 				);
@@ -289,7 +292,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				templateData.elementDisposable.add(
 					this.hoverService.setupDelayedHover(templateData.container, () => ({
 						content: tooltipContent.markdown,
-						appearance: { showPointer: true },
+						style: HoverStyle.Pointer,
 						position: { hoverPosition: this.getHoverPosition() }
 					}), { groupId: 'chat.sessions' })
 				);
@@ -310,7 +313,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				templateData.elementDisposable.add(
 					this.hoverService.setupDelayedHover(templateData.timestamp, () => ({
 						content: nls.localize('chat.sessions.lastActivity', 'Last Activity: {0}', fullDateTime),
-						appearance: { showPointer: true },
+						style: HoverStyle.Pointer,
 						position: { hoverPosition: this.getHoverPosition() }
 					}), { groupId: 'chat.sessions' })
 				);
@@ -544,11 +547,13 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 				// Add hybrid local editor sessions for this provider using the centralized service
 				if (this.provider.chatSessionType !== 'local') {
 					const hybridSessions = await this.sessionTracker.getHybridSessionsForProvider(this.provider);
-					const existingIds = new Set(itemsWithProvider.map(s => s.id));
+					const existingSessions = new ResourceSet();
+					itemsWithProvider.forEach(s => existingSessions.add(s.resource));
+
 					hybridSessions.forEach(session => {
-						if (!existingIds.has(session.id)) {
+						if (!existingSessions.has(session.resource)) {
 							itemsWithProvider.push(session as ChatSessionItemWithProvider);
-							existingIds.add(session.id);
+							existingSessions.add(session.resource);
 						}
 					});
 					processSessionsWithTimeGrouping(itemsWithProvider);
@@ -575,8 +580,9 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 			const allHistory = await this.chatService.getHistory();
 
 			// Create history items with provider reference and timestamps
-			const historyItems = allHistory.map((historyDetail: any): ChatSessionItemWithProvider => ({
+			const historyItems = allHistory.map((historyDetail): ChatSessionItemWithProvider => ({
 				id: historyDetail.sessionId,
+				resource: ChatSessionUri.forSession(this.provider.chatSessionType, historyDetail.sessionId),
 				label: historyDetail.title,
 				iconPath: Codicon.chatSparkle,
 				provider: this.provider,

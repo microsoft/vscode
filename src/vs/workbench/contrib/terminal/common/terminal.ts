@@ -277,6 +277,7 @@ export const isTerminalProcessManager = (t: ITerminalProcessInfo | ITerminalProc
 
 export interface ITerminalProcessManager extends IDisposable, ITerminalProcessInfo {
 	readonly processTraits: IProcessReadyEvent | undefined;
+	readonly processReadyTimestamp: number;
 
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
@@ -443,6 +444,7 @@ export const enum TerminalCommandId {
 	SizeToContentWidthActiveTab = 'workbench.action.terminal.sizeToContentWidthActiveTab',
 	ResizePaneDown = 'workbench.action.terminal.resizePaneDown',
 	Focus = 'workbench.action.terminal.focus',
+	FocusInstance = 'workbench.action.terminal.focusInstance',
 	FocusNext = 'workbench.action.terminal.focusNext',
 	FocusPrevious = 'workbench.action.terminal.focusPrevious',
 	Paste = 'workbench.action.terminal.paste',
@@ -485,6 +487,7 @@ export const enum TerminalCommandId {
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
 	StartVoice = 'workbench.action.terminal.startVoice',
 	StopVoice = 'workbench.action.terminal.stopVoice',
+	RevealCommand = 'workbench.action.terminal.revealCommand',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

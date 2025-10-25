@@ -31,6 +31,7 @@ export interface IIconLabelValueOptions {
 	suffix?: string;
 	hideIcon?: boolean;
 	extraClasses?: readonly string[];
+	bold?: boolean;
 	italic?: boolean;
 	strikethrough?: boolean;
 	matches?: readonly IMatch[];
@@ -40,6 +41,7 @@ export interface IIconLabelValueOptions {
 	readonly separator?: string;
 	readonly domId?: string;
 	iconPath?: URI;
+	supportIcons?: boolean;
 }
 
 class FastLabelNode {
@@ -136,6 +138,10 @@ export class IconLabel extends Disposable {
 				labelClasses.push(...options.extraClasses);
 			}
 
+			if (options.bold) {
+				labelClasses.push('bold');
+			}
+
 			if (options.italic) {
 				labelClasses.push('italic');
 			}
@@ -185,7 +191,7 @@ export class IconLabel extends Disposable {
 		if (description || this.descriptionNode) {
 			const descriptionNode = this.getOrCreateDescriptionNode();
 			if (descriptionNode instanceof HighlightedLabel) {
-				descriptionNode.set(description || '', options ? options.descriptionMatches : undefined, undefined, options?.labelEscapeNewLines);
+				descriptionNode.set(description || '', options ? options.descriptionMatches : undefined, undefined, options?.labelEscapeNewLines, options?.supportIcons);
 				this.setupHover(descriptionNode.element, options?.descriptionTitle);
 			} else {
 				descriptionNode.textContent = description && options?.labelEscapeNewLines ? HighlightedLabel.escapeNewLines(description, []) : (description || '');
@@ -247,7 +253,7 @@ export class IconLabel extends Disposable {
 		if (!this.descriptionNode) {
 			const descriptionContainer = this._register(new FastLabelNode(dom.append(this.labelContainer, dom.$('span.monaco-icon-description-container'))));
 			if (this.creationOptions?.supportDescriptionHighlights) {
-				this.descriptionNode = this._register(new HighlightedLabel(dom.append(descriptionContainer.element, dom.$('span.label-description')), { supportIcons: !!this.creationOptions.supportIcons }));
+				this.descriptionNode = this._register(new HighlightedLabel(dom.append(descriptionContainer.element, dom.$('span.label-description'))));
 			} else {
 				this.descriptionNode = this._register(new FastLabelNode(dom.append(descriptionContainer.element, dom.$('span.label-description'))));
 			}
@@ -338,14 +344,17 @@ class LabelWithHighlights extends Disposable {
 		this.label = label;
 		this.options = options;
 
+		// Determine supportIcons: use option if provided, otherwise use constructor value
+		const supportIcons = options?.supportIcons ?? this.supportIcons;
+
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
 				this.container.textContent = '';
 				this.container.classList.remove('multiple');
-				this.singleLabel = this._register(new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { id: options?.domId })), { supportIcons: this.supportIcons }));
+				this.singleLabel = this._register(new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { id: options?.domId }))));
 			}
 
-			this.singleLabel.set(label, options?.matches, undefined, options?.labelEscapeNewLines);
+			this.singleLabel.set(label, options?.matches, undefined, options?.labelEscapeNewLines, supportIcons);
 		} else {
 			this.container.textContent = '';
 			this.container.classList.add('multiple');
@@ -360,8 +369,8 @@ class LabelWithHighlights extends Disposable {
 				const id = options?.domId && `${options?.domId}_${i}`;
 
 				const name = dom.$('a.label-name', { id, 'data-icon-label-count': label.length, 'data-icon-label-index': i, 'role': 'treeitem' });
-				const highlightedLabel = this._register(new HighlightedLabel(dom.append(this.container, name), { supportIcons: this.supportIcons }));
-				highlightedLabel.set(l, m, undefined, options?.labelEscapeNewLines);
+				const highlightedLabel = this._register(new HighlightedLabel(dom.append(this.container, name)));
+				highlightedLabel.set(l, m, undefined, options?.labelEscapeNewLines, supportIcons);
 
 				if (i < label.length - 1) {
 					dom.append(name, dom.$('span.label-separator', undefined, separator));
