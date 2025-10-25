@@ -12,7 +12,7 @@ import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
 import { EventMultiplexer } from '../../../common/event.js';
 import { ResolvedKeybinding } from '../../../common/keybindings.js';
-import { Disposable, DisposableStore } from '../../../common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../common/lifecycle.js';
 import './toolbar.css';
 import * as nls from '../../../../nls.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
@@ -47,6 +47,11 @@ export interface IToolBarOptions {
 	 * Render action with label (default: `false`)
 	 */
 	label?: boolean;
+
+	/**
+	 * Hiding actions that are not visible
+	 */
+	responsive?: boolean;
 }
 
 /**
@@ -145,6 +150,15 @@ export class ToolBar extends Disposable {
 				return undefined;
 			}
 		}));
+
+		// Responsive support
+		if (this.options.responsive) {
+			const observer = new ResizeObserver(() => {
+				this.setToolbarMaxWidth(this.element.getBoundingClientRect().width);
+			});
+			observer.observe(this.element);
+			this._store.add(toDisposable(() => observer.disconnect()));
+		}
 	}
 
 	set actionRunner(actionRunner: IActionRunner) {
@@ -219,46 +233,59 @@ export class ToolBar extends Disposable {
 			this.actionBar.push(action, { icon: this.options.icon ?? true, label: this.options.label ?? false, keybinding: this.getKeybindingLabel(action) });
 		});
 
-		// Reset hidden actions
-		this.hiddenActions.length = 0;
+		if (this.options.responsive) {
+			// Reset hidden actions
+			this.hiddenActions.length = 0;
+
+			// Update toolbar to fit with container width
+			this.setToolbarMaxWidth(this.element.getBoundingClientRect().width);
+		}
 	}
 
-	setToolbarMaxWidth(maxWidth: number) {
-		const getItemsWidth = () => {
-			let itemsWidth = this.getItemsWidth();
+	isEmpty(): boolean {
+		return this.actionBar.isEmpty();
+	}
 
-			// Get the width of the last visible primary action
-			const lastVisiblePrimaryActionIndex = this.originalPrimaryActions.length - this.hiddenActions.length - 1;
-			const lastVisiblePrimaryActionWidth = this.actionBar.getWidth(lastVisiblePrimaryActionIndex);
+	private getKeybindingLabel(action: IAction): string | undefined {
+		const key = this.options.getKeyBinding?.(action);
 
+		return key?.getLabel() ?? undefined;
+	}
+
+	private getItemsWidthResponsive(): number {
+		let itemsWidth = 0;
+		for (let index = 0; index < this.actionBar.length(); index++) {
 			// If the last visible primary action is wider than 24px, it means that it has a label. We
-			// needs to adjust the width so that we allow the last visible primary action to shrink until
-			// it becomes an icon.
-			if (lastVisiblePrimaryActionWidth > 24) {
-				/* change to 24 when the sync action is fixed */
-				itemsWidth = itemsWidth - lastVisiblePrimaryActionWidth + 26;
-			}
+			// need to return the minimum width (24px) for this action so that we allow it to shrink to
+			// the minimum width.
+			const width = index === this.originalPrimaryActions.length - this.hiddenActions.length - 1
+				? Math.min(24, this.actionBar.getWidth(index))
+				: this.actionBar.getWidth(index);
 
-			return itemsWidth;
-		};
+			itemsWidth += width;
+		}
 
+		return itemsWidth;
+	}
+
+	private setToolbarMaxWidth(maxWidth: number) {
 		if (
 			this.actionBar.isEmpty() ||
-			(getItemsWidth() <= maxWidth && this.hiddenActions.length === 0)
+			(this.getItemsWidthResponsive() <= maxWidth && this.hiddenActions.length === 0)
 		) {
 			return;
 		}
 
-		if (getItemsWidth() > maxWidth) {
+		if (this.getItemsWidthResponsive() > maxWidth) {
 			// Hide actions from the right
-			while (getItemsWidth() > maxWidth && this.actionBar.length() > 0) {
+			while (this.getItemsWidthResponsive() > maxWidth && this.actionBar.length() > 0) {
 				const index = this.originalPrimaryActions.length - this.hiddenActions.length - 1;
 				if (index < 0) {
 					break;
 				}
 
 				// Store the action and its size
-				const size = this.getItemWidth(index);
+				const size = Math.min(24, this.getItemWidth(index));
 				const action = this.originalPrimaryActions[index];
 				this.hiddenActions.unshift({ action, size });
 
@@ -280,7 +307,7 @@ export class ToolBar extends Disposable {
 			// Show actions from the top of the toggle menu
 			while (this.hiddenActions.length > 0) {
 				const entry = this.hiddenActions.shift()!;
-				if (getItemsWidth() + entry.size > maxWidth) {
+				if (this.getItemsWidthResponsive() + entry.size > maxWidth) {
 					// Not enough space to show the action
 					this.hiddenActions.unshift(entry);
 					break;
@@ -312,16 +339,6 @@ export class ToolBar extends Disposable {
 			const secondaryActions = this.originalSecondaryActions.slice(0);
 			this.toggleMenuAction.menuActions = hiddenActions.concat(secondaryActions);
 		}
-	}
-
-	isEmpty(): boolean {
-		return this.actionBar.isEmpty();
-	}
-
-	private getKeybindingLabel(action: IAction): string | undefined {
-		const key = this.options.getKeyBinding?.(action);
-
-		return key?.getLabel() ?? undefined;
 	}
 
 	private clear(): void {
