@@ -202,6 +202,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * by screen readers
 	 */
 	private readonly _announcedToolProgressKeys = new Set<string>();
+	private readonly _rowContainerTemplateMap = new WeakMap<HTMLElement, IChatListItemTemplate>();
+	private readonly _rowResizeObserver: ResizeObserver;
 
 	constructor(
 		editorOptions: ChatEditorOptions,
@@ -221,6 +223,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
 	) {
 		super();
+
+		this._rowResizeObserver = new ResizeObserver(entries => {
+			for (const entry of entries) {
+				const target = entry.target as HTMLElement;
+				const template = this._rowContainerTemplateMap.get(target);
+				if (template) {
+					this.updateItemHeight(template);
+				}
+			}
+		});
+		this._register(toDisposable(() => this._rowResizeObserver.disconnect()));
 
 		this.chatContentMarkdownRenderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
 		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
@@ -760,6 +773,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.renderChatContentDiff(diff, content, element, index, templateData);
 
 		this.updateItemHeightOnRender(element, templateData);
+		this.updateItemHeightOnRowContainerResize(templateData);
 	}
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[]): boolean {
@@ -909,6 +923,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		this.updateItemHeightOnRender(element, templateData);
+		this.updateItemHeightOnRowContainerResize(templateData);
 	}
 
 	updateItemHeightOnRender(element: ChatTreeItem, templateData: IChatListItemTemplate) {
@@ -924,6 +939,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this._onDidChangeItemHeight.fire({ element, height: element.currentRenderedHeight });
 			}));
 		}
+	}
+
+	private updateItemHeightOnRowContainerResize(templateData: IChatListItemTemplate): void {
+		const rowContainer = templateData.rowContainer;
+		if (this._rowContainerTemplateMap.get(rowContainer) === templateData) {
+			return;
+		}
+
+		this._rowContainerTemplateMap.set(rowContainer, templateData);
+		this._rowResizeObserver.observe(rowContainer);
+		templateData.elementDisposables.add(toDisposable(() => {
+			this._rowContainerTemplateMap.delete(rowContainer);
+			this._rowResizeObserver.unobserve(rowContainer);
+		}));
 	}
 
 	private updateItemHeight(templateData: IChatListItemTemplate): void {
