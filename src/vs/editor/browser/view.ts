@@ -64,6 +64,7 @@ import { RulersGpu } from './viewParts/rulersGpu/rulersGpu.js';
 import { GpuMarkOverlay } from './viewParts/gpuMark/gpuMark.js';
 import { AccessibilitySupport } from '../../platform/accessibility/common/accessibility.js';
 import { Event, Emitter } from '../../base/common/event.js';
+import { RulersInfo } from './viewParts/rulersInfo/rulersInfo.js';
 
 
 export interface IContentWidgetData {

@@ -2,15 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import 'vs/css!./rulersInfo';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { EditorOption, IRulerOption } from 'vs/editor/common/config/editorOptions';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
+import './rulersInfo.css';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
+import { ViewPart } from '../../view/viewPart.js';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { IRulerOption, EditorOption } from '../../../common/config/editorOptions.js';
+import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
+import { applyFontInfo } from '../../config/domFontInfo.js';
 
 export class RulersInfo extends ViewPart {
 
