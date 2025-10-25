@@ -8568,6 +8568,11 @@ declare module 'vscode' {
 		extensionKind: ExtensionKind;
 
 		/**
+		 * `true` if the extension is a built-in extension.
+		 */
+		isBuiltin: boolean;
+
+		/**
 		 * The public API exported by this extension (return value of `activate`).
 		 * It is an invalid action to access this field before this extension has been activated.
 		 */
