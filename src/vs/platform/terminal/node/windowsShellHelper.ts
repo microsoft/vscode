@@ -54,12 +54,23 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	get onShellTypeChanged(): Event<TerminalShellType | undefined> { return this._onShellTypeChanged.event; }
 
 	constructor(
-		private _rootProcessId: number
+		private _rootProcessId: number,
+		initialExecutable?: string
 	) {
 		super();
 
 		if (!isWindows) {
 			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform}`);
+		}
+
+		// If we have an initial executable, try to determine shell type immediately
+		if (initialExecutable) {
+			const executableBasename = initialExecutable.split(/[/\\]/).pop() || '';
+			const initialShellType = this.getShellType(executableBasename);
+			if (initialShellType) {
+				this._shellType = initialShellType;
+				this._shellTitle = executableBasename;
+			}
 		}
 
 		this._startMonitoringShell();
