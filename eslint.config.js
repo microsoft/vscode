@@ -89,6 +89,7 @@ export default tseslint.config(
 			'local/code-declare-service-brand': 'warn',
 			'local/code-no-reader-after-await': 'warn',
 			'local/code-no-observable-get-in-reactive-context': 'warn',
+			'local/code-policy-localization-key-match': 'warn',
 			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
 			'local/code-layering': [
 				'warn',
