@@ -44,7 +44,7 @@ export abstract class EditingSessionAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const context = getEditingSessionContext(accessor, args);
 		if (!context || !context.editingSession) {
 			return;
@@ -53,9 +53,12 @@ export abstract class EditingSessionAction extends Action2 {
 		return this.runEditingSessionAction(accessor, context.editingSession, context.chatWidget, ...args);
 	}
 
-	abstract runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): any;
+	abstract runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]): any;
 }
 
+/**
+ * Resolve view title toolbar context. If none, return context from the lastFocusedWidget.
+ */
 export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]): { editingSession?: IChatEditingSession; chatWidget: IChatWidget } | undefined {
 	const arg0 = args.at(0);
 	const context = isChatViewTitleActionContext(arg0) ? arg0 : undefined;
@@ -64,7 +67,7 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 	const chatEditingService = accessor.get(IChatEditingService);
 	let chatWidget = context ? chatWidgetService.getWidgetBySessionId(context.sessionId) : undefined;
 	if (!chatWidget) {
-		chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel).find(w => w.supportsChangingModes);
+		chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).find(w => w.supportsChangingModes);
 	}
 
 	if (!chatWidget?.viewModel) {
@@ -74,17 +77,13 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 	const chatSessionId = chatWidget.viewModel.model.sessionId;
 	const editingSession = chatEditingService.getEditingSession(chatSessionId);
 
-	if (!editingSession) {
-		return;
-	}
-
 	return { editingSession, chatWidget };
 }
 
 
 abstract class WorkingSetAction extends EditingSessionAction {
 
-	runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
+	runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]) {
 
 		const uris: URI[] = [];
 		if (URI.isUri(args[0])) {
@@ -144,7 +143,6 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 			id: 'chatEditing.acceptFile',
 			title: localize2('accept.file', 'Keep'),
 			icon: Codicon.check,
-			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
@@ -170,7 +168,6 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 			id: 'chatEditing.discardFile',
 			title: localize2('discard.file', 'Undo'),
 			icon: Codicon.discard,
-			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
@@ -198,10 +195,10 @@ export class ChatEditingAcceptAllAction extends EditingSessionAction {
 			title: localize('accept', 'Keep'),
 			icon: Codicon.check,
 			tooltip: localize('acceptAllEdits', 'Keep All Edits'),
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: hasUndecidedChatEditingResourceContextKey,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.inChatInput),
+				when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey, ChatContextKeys.inChatInput),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -216,7 +213,7 @@ export class ChatEditingAcceptAllAction extends EditingSessionAction {
 		});
 	}
 
-	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]) {
 		await editingSession.accept();
 	}
 }
@@ -230,7 +227,7 @@ export class ChatEditingDiscardAllAction extends EditingSessionAction {
 			title: localize('discard', 'Undo'),
 			icon: Codicon.discard,
 			tooltip: localize('discardAllEdits', 'Undo All Edits'),
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: hasUndecidedChatEditingResourceContextKey,
 			menu: [
 				{
 					id: MenuId.ChatEditingWidgetToolbar,
@@ -240,14 +237,14 @@ export class ChatEditingDiscardAllAction extends EditingSessionAction {
 				}
 			],
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.inChatInput, ChatContextKeys.inputHasText.negate()),
+				when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey, ChatContextKeys.inChatInput, ChatContextKeys.inputHasText.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 			},
 		});
 	}
 
-	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]) {
 		await discardAllEditsWithConfirmation(accessor, editingSession);
 	}
 }
@@ -300,7 +297,7 @@ export class ChatEditingShowChangesAction extends EditingSessionAction {
 		});
 	}
 
-	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]): Promise<void> {
 		await editingSession.show();
 	}
 }
@@ -404,8 +401,8 @@ registerAction2(class RemoveAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		let item: ChatTreeItem | undefined = args[0];
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const configurationService = accessor.get(IConfigurationService);
 		const widget = chatWidgetService.lastFocusedWidget;
@@ -453,8 +450,8 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		let item: ChatTreeItem | undefined = args[0];
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const widget = chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
@@ -494,8 +491,8 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		let item: ChatTreeItem | undefined = args[0];
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const chatService = accessor.get(IChatService);
 		const widget = chatWidgetService.lastFocusedWidget;
@@ -554,8 +551,8 @@ registerAction2(class EditAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		let item: ChatTreeItem | undefined = args[0];
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const widget = chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
@@ -587,8 +584,8 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const context: { sessionId: string; requestId: string; uri: URI; stopId: string | undefined } | undefined = args[0];
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const context = args[0] as { sessionId: string; requestId: string; uri: URI; stopId: string | undefined } | undefined;
 		if (!context?.sessionId) {
 			return;
 		}
@@ -613,8 +610,8 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const context: { sessionId: string; requestId: string; uri: URI; stopId: string | undefined } | undefined = args[0];
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const context = args[0] as { sessionId: string; requestId: string; uri: URI; stopId: string | undefined } | undefined;
 		if (!context?.sessionId) {
 			return;
 		}
@@ -630,7 +627,7 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 
 		const snapshot = chatEditingService.getEditingSession(chatModel.sessionId)?.getSnapshotUri(context.requestId, context.uri, context.stopId);
 		if (snapshot) {
-			const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Snapshot)', basename(context.uri)), options: { transient: true, activation: EditorActivation.ACTIVATE } });
+			const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Snapshot)', basename(context.uri)), options: { activation: EditorActivation.ACTIVATE } });
 			if (isCodeEditor(editor)) {
 				editor.updateOptions({ readOnly: true });
 			}
@@ -654,7 +651,7 @@ registerAction2(class ResolveSymbolsContextAction extends EditingSessionAction {
 		});
 	}
 
-	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]): Promise<void> {
 		if (args.length === 0 || !isLocation(args[0])) {
 			return;
 		}
@@ -741,7 +738,7 @@ export class ViewPreviousEditsAction extends EditingSessionAction {
 		});
 	}
 
-	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]): Promise<void> {
 		await editingSession.show(true);
 	}
 }

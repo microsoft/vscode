@@ -152,6 +152,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 				const pty = this._ptys.get(e.id);
 				if (pty) {
 					pty.handleExit(e.event);
+					pty.dispose();
 					this._ptys.delete(e.id);
 				}
 			}));
@@ -299,7 +300,8 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId(),
-			tabs: layoutInfo ? layoutInfo.tabs : []
+			tabs: layoutInfo ? layoutInfo.tabs : [],
+			background: layoutInfo ? layoutInfo.background : null
 		};
 		await this._proxy.setTerminalLayoutInfo(args);
 		// Store in the storage service as well to be used when reviving processes as normally this

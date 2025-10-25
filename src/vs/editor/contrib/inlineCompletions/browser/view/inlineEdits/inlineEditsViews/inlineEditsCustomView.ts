@@ -71,7 +71,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 
 		const view = state.map(s => s ? this.getRendering(s, styles) : undefined);
 
-		this.minEditorScrollHeight = derived(reader => {
+		this.minEditorScrollHeight = derived(this, reader => {
 			const s = state.read(reader);
 			if (!s) {
 				return 0;
@@ -129,7 +129,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 
 	private getState(displayLocation: InlineCompletionDisplayLocation): { rect: IObservable<Rect>; label: string; kind: InlineCompletionDisplayLocationKind } {
 
-		const contentState = derived((reader) => {
+		const contentState = derived(this, (reader) => {
 			const startLineNumber = displayLocation.range.startLineNumber;
 			const endLineNumber = displayLocation.range.endLineNumber;
 			const startColumn = displayLocation.range.startColumn;
@@ -156,7 +156,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 		// only check viewport once in the beginning when rendering the view
 		const fitsInsideViewport = this.fitsInsideViewport(new LineRange(startLineNumber, endLineNumber + 1), displayLocation.label, undefined);
 
-		const rect = derived((reader) => {
+		const rect = derived(this, reader => {
 			const w = this._editorObs.getOption(EditorOption.fontInfo).read(reader).typicalHalfwidthCharacterWidth;
 
 			const { lineWidth, lineWidthBelow, lineWidthAbove, startContentLeftOffset, endContentLeftOffset } = contentState.read(reader);

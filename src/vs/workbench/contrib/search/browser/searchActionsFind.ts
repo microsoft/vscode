@@ -125,6 +125,48 @@ registerAction2(class ExcludeFolderFromSearchAction extends Action2 {
 	}
 });
 
+registerAction2(class ExcludeFileTypeFromSearchAction extends Action2 {
+	constructor() {
+		super({
+			id: Constants.SearchCommandIds.ExcludeFileTypeFromSearchId,
+			title: nls.localize2('excludeFileTypeFromSearch', "Exclude File Type from Search"),
+			category,
+			menu: [
+				{
+					id: MenuId.SearchContext,
+					group: 'search',
+					order: 5,
+					when: Constants.SearchContext.FileFocusKey
+				}
+			]
+		});
+	}
+	async run(accessor: ServicesAccessor, fileMatch?: ISearchTreeFileMatch) {
+		await modifySearchFileTypePattern(accessor, fileMatch, true);
+	}
+});
+
+registerAction2(class IncludeFileTypeInSearchAction extends Action2 {
+	constructor() {
+		super({
+			id: Constants.SearchCommandIds.IncludeFileTypeInSearchId,
+			title: nls.localize2('includeFileTypeInSearch', "Include File Type from Search"),
+			category,
+			menu: [
+				{
+					id: MenuId.SearchContext,
+					group: 'search',
+					order: 6,
+					when: Constants.SearchContext.FileFocusKey
+				}
+			]
+		});
+	}
+	async run(accessor: ServicesAccessor, fileMatch?: ISearchTreeFileMatch) {
+		await modifySearchFileTypePattern(accessor, fileMatch, false);
+	}
+});
+
 registerAction2(class RevealInSideBarForSearchResultsAction extends Action2 {
 
 	constructor(
@@ -306,6 +348,31 @@ async function expandSelectSubtree(accessor: ServicesAccessor) {
 	}
 }
 
+function extractSearchFilePattern(fileName: string): string {
+	const parts = fileName.split('.');
+
+	if (parts.length <= 1) {
+		return fileName;
+	}
+
+	const extensionParts = parts.slice(1);
+	return `*.${extensionParts.join('.')}`;
+}
+
+function mergeSearchPatternIfNotExists(currentPatterns: string, newPattern: string): string {
+	if (!currentPatterns.trim()) {
+		return newPattern;
+	}
+
+	const existingPatterns = currentPatterns.split(',').map(pattern => pattern.trim()).filter(pattern => pattern.length > 0);
+
+	if (existingPatterns.includes(newPattern)) {
+		return currentPatterns;
+	}
+
+	return `${currentPatterns}, ${newPattern}`;
+}
+
 async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplorer: boolean, isIncludes: boolean, resource?: URI, folderMatch?: ISearchTreeFolderMatchWithResource) {
 	const fileService = accessor.get(IFileService);
 	const viewsService = accessor.get(IViewsService);
@@ -390,6 +457,7 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 			const name = entry[0];
 			const value = entry[1];
 			if (value !== undefined) {
+				// eslint-disable-next-line local/code-no-any-casts
 				(args as any)[name as any] = (typeof value === 'string') ? await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, value) : value;
 			}
 		}
@@ -429,4 +497,29 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 		commandService.executeCommand(SearchEditorConstants.OpenEditorCommandId, convertArgs(args));
 	}
 }
+
+async function modifySearchFileTypePattern(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | undefined, isExclude: boolean) {
+	const viewsService = accessor.get(IViewsService);
+	const searchView = getSearchView(viewsService);
+
+	if (!searchView || !fileMatch) {
+		return;
+	}
+
+	const resource = fileMatch.resource;
+	const fileName = resource.path.split('/').pop() || '';
+
+	const newPattern = extractSearchFilePattern(fileName);
+	const patternWidget = isExclude ? searchView.searchExcludePattern : searchView.searchIncludePattern;
+	const currentPatterns = patternWidget.getValue();
+	const updatedPatterns = mergeSearchPatternIfNotExists(currentPatterns, newPattern);
+
+	if (updatedPatterns !== currentPatterns) {
+		patternWidget.setValue(updatedPatterns);
+		searchView.toggleQueryDetails(false, true);
+		searchView.triggerQueryChange({ preserveFocus: false });
+	}
+}
+
+
 //#endregion

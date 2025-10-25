@@ -383,13 +383,13 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('window.titleBarStyle', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
-			case 'chat.disableAIFeatures':
+			case 'workbench.secondarySideBar.defaultVisibility':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'bpasero';
-					comment: 'This is used to know if AI features are disabled or not';
+					comment: 'This is used to know if secondary side bar is visible or not';
 					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('chat.disableAIFeatures', { settingValue: this.getValueToReport(key, target), source });
+				}>('workbench.secondarySideBar.defaultVisibility', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case VerifyExtensionSignatureConfigKey:

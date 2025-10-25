@@ -14,6 +14,7 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ICodeEditor, getCodeEditor, isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -43,7 +44,7 @@ import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.
 import { ISearchService } from '../../../../services/search/common/search.js';
 import { McpPromptArgumentPick } from '../../../mcp/browser/mcpPromptArgumentPick.js';
 import { IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpService, McpResourceURI } from '../../../mcp/common/mcpTypes.js';
-import { searchFilesAndFolders } from '../../../search/browser/chatContributions.js';
+import { searchFilesAndFolders } from '../../../search/browser/searchChatContext.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { getAttachableImageExtension } from '../../common/chatModel.js';
@@ -51,7 +52,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashP
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
-import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatUnsupportedFileSchemes } from '../../common/constants.js';
 import { ToolSet } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
@@ -75,6 +76,10 @@ class SlashCommandCompletions extends Disposable {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
+					return null;
+				}
+
+				if (widget.lockedAgentId) {
 					return null;
 				}
 
@@ -140,6 +145,10 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				if (widget.lockedAgentId) {
+					return null;
+				}
+
 				return {
 					suggestions: slashCommands.map((c, i): CompletionItem => {
 						const withSlash = `${chatSubcommandLeader}${c.command}`;
@@ -188,10 +197,14 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				if (widget.lockedAgentId) {
+					return null;
+				}
+
 				return {
 					suggestions: promptCommands.map((c, i): CompletionItem => {
 						const label = `/${c.command}`;
-						const description = c.promptPath?.storage === 'user' ? localize('promptFileDescription', 'User Prompt File') : localize('promptFileDescriptionWorkspace', 'Workspace Prompt File');
+						const description = c.promptPath ? this.promptsService.getPromptLocationLabel(c.promptPath) : undefined;
 						return {
 							label: { label, description },
 							insertText: `${label} `,
@@ -223,6 +236,10 @@ class SlashCommandCompletions extends Disposable {
 				if (!isEmptyUpToCompletionWord(model, range)) {
 					// No text allowed before the completion
 					return;
+				}
+
+				if (widget.lockedAgentId) {
+					return null;
 				}
 
 				return {
@@ -269,30 +286,15 @@ class AgentCompletions extends Disposable {
 
 				const range = computeCompletionRanges(model, position, /\/\w*/g);
 				if (!range) {
-					return null;
-				}
-
-				const parsedRequest = widget.parsedInput.parts;
-				const usedAgentIdx = parsedRequest.findIndex((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
-				if (usedAgentIdx < 0) {
 					return;
 				}
 
-				const usedOtherCommand = parsedRequest.find(p => p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashPromptPart);
-				if (usedOtherCommand) {
+				const usedAgent = this.getCurrentAgentForWidget(widget);
+				if (!usedAgent || usedAgent.command) {
 					// Only one allowed
 					return;
 				}
 
-				for (const partAfterAgent of parsedRequest.slice(usedAgentIdx + 1)) {
-					// Could allow text after 'position'
-					if (!(partAfterAgent instanceof ChatRequestTextPart) || !partAfterAgent.text.trim().match(/^(\/\w*)?$/)) {
-						// No text allowed between agent and subcommand
-						return;
-					}
-				}
-
-				const usedAgent = parsedRequest[usedAgentIdx] as ChatRequestAgentPart;
 				return {
 					suggestions: usedAgent.agent.slashCommands.map((c, i): CompletionItem => {
 						const withSlash = `/${c.name}`;
@@ -317,6 +319,10 @@ class AgentCompletions extends Disposable {
 				const viewModel = widget?.viewModel;
 				if (!widget || !viewModel) {
 					return;
+				}
+
+				if (widget.lockedAgentId) {
+					return null;
 				}
 
 				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
@@ -409,6 +415,10 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
+				if (widget.lockedAgentId) {
+					return null;
+				}
+
 				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
 				if (!range) {
 					return null;
@@ -466,8 +476,12 @@ class AgentCompletions extends Disposable {
 				}
 
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (widget?.location !== ChatAgentLocation.Panel || widget.input.currentModeKind !== ChatModeKind.Ask) {
+				if (widget?.location !== ChatAgentLocation.Chat || widget.input.currentModeKind !== ChatModeKind.Ask) {
 					return;
+				}
+
+				if (widget.lockedAgentId) {
+					return null;
 				}
 
 				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
@@ -498,6 +512,40 @@ class AgentCompletions extends Disposable {
 		}));
 	}
 
+	private getCurrentAgentForWidget(widget: IChatWidget): { agent: IChatAgentData; command?: string } | undefined {
+		if (widget.lockedAgentId) {
+			const usedAgent = this.chatAgentService.getAgent(widget.lockedAgentId);
+			return usedAgent && { agent: usedAgent };
+		}
+
+		const parsedRequest = widget.parsedInput.parts;
+		const usedAgentIdx = parsedRequest.findIndex((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+		if (usedAgentIdx < 0) {
+			return;
+		}
+
+		const usedAgent = parsedRequest[usedAgentIdx] as ChatRequestAgentPart;
+
+		const usedOtherCommand = parsedRequest.find(p => p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashPromptPart);
+		if (usedOtherCommand) {
+			// Only one allowed
+			return {
+				agent: usedAgent.agent,
+				command: usedOtherCommand instanceof ChatRequestAgentSubcommandPart ? usedOtherCommand.command.name : undefined
+			};
+		}
+
+		for (const partAfterAgent of parsedRequest.slice(usedAgentIdx + 1)) {
+			// Could allow text after 'position'
+			if (!(partAfterAgent instanceof ChatRequestTextPart) || !partAfterAgent.text.trim().match(/^(\/\w*)?$/)) {
+				// No text allowed between agent and subcommand
+				return;
+			}
+		}
+
+		return { agent: usedAgent.agent };
+	}
+
 	private getAgentCompletionDetails(agent: IChatAgentData): { label: string; isDupe: boolean } {
 		const isAllowed = this.chatAgentNameService.getAgentNameRestriction(agent);
 		const agentLabel = `${chatAgentLeader}${isAllowed ? agent.name : getFullyQualifiedId(agent)}`;
@@ -522,8 +570,8 @@ class AssignSelectedAgentAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const arg: AssignSelectedAgentActionArgs = args[0];
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const arg = args[0] as AssignSelectedAgentActionArgs | undefined;
 		if (!arg || !arg.widget || !arg.agent) {
 			return;
 		}
@@ -742,6 +790,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -751,7 +800,16 @@ class BuiltinDynamicCompletions extends Disposable {
 			if (!widget.supportsFileReferences) {
 				return;
 			}
+
 			const result: CompletionList = { suggestions: [] };
+
+			// If locked to an agent that doesn't support file attachments, skip
+			if (widget.lockedAgentId) {
+				const agent = this.chatAgentService.getAgent(widget.lockedAgentId);
+				if (agent && !agent.capabilities?.supportsFileAttachments) {
+					return result;
+				}
+			}
 			await this.addFileAndFolderEntries(widget, result, range, token);
 			return result;
 
@@ -763,7 +821,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				return;
 			}
 
-			if (widget.location === ChatAgentLocation.Editor) {
+			if (widget.location === ChatAgentLocation.EditorInline) {
 				return;
 			}
 
@@ -818,7 +876,10 @@ class BuiltinDynamicCompletions extends Disposable {
 			return result;
 		});
 
-		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addReferenceCommand, (_services, arg) => this.cmdAddReference(arg)));
+		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addReferenceCommand, (_services, arg) => {
+			assertType(arg instanceof ReferenceArgument);
+			return this.cmdAddReference(arg);
+		}));
 	}
 
 	private findActiveCodeEditor(): ICodeEditor | undefined {
@@ -911,7 +972,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		// HISTORY
 		// always take the last N items
 		for (const [i, item] of this.historyService.getHistory().entries()) {
-			if (!item.resource || seen.has(item.resource)) {
+			if (!item.resource || seen.has(item.resource) || ChatUnsupportedFileSchemes.has(item.resource.scheme)) {
 				// ignore editors without a resource
 				continue;
 			}
@@ -1098,6 +1159,7 @@ class ToolCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -1108,6 +1170,14 @@ class ToolCompletions extends Disposable {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget) {
 					return null;
+				}
+
+				// If locked to an agent that doesn't support tool attachments, skip
+				if (widget.lockedAgentId) {
+					const agent = this.chatAgentService.getAgent(widget.lockedAgentId);
+					if (agent && !agent.capabilities?.supportsToolAttachments) {
+						return null;
+					}
 				}
 
 				const range = computeCompletionRanges(model, position, ToolCompletions.VariableNameDef, true);

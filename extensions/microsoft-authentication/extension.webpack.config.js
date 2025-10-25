@@ -8,6 +8,25 @@ import CopyWebpackPlugin from 'copy-webpack-plugin';
 import path from 'path';
 
 const isWindows = process.platform === 'win32';
+const windowsArches = ['x64'];
+const isMacOS = process.platform === 'darwin';
+const macOSArches = ['arm64'];
+
+const arch = process.arch;
+console.log(`Building Microsoft Authentication Extension for ${process.platform} (${arch})`);
+
+const plugins = [...nodePlugins(import.meta.dirname)];
+if ((isWindows && windowsArches.includes(arch)) || (isMacOS && macOSArches.includes(arch))) {
+	plugins.push(new CopyWebpackPlugin({
+		patterns: [
+			{
+				// The native files we need to ship with the extension
+				from: '**/dist/(lib|)msal*.(node|dll|dylib)',
+				to: '[name][ext]'
+			}
+		]
+	}));
+}
 
 export default withDefaults({
 	context: import.meta.dirname,
@@ -25,18 +44,5 @@ export default withDefaults({
 			'keytar': path.resolve(import.meta.dirname, 'packageMocks', 'keytar', 'index.js')
 		}
 	},
-	plugins: [
-		...nodePlugins(import.meta.dirname),
-		new CopyWebpackPlugin({
-			patterns: [
-				{
-					// The native files we need to ship with the extension
-					from: '**/dist/msal*.(node|dll)',
-					to: '[name][ext]',
-					// These will only be present on Windows for now
-					noErrorOnMissing: !isWindows
-				}
-			]
-		})
-	]
+	plugins
 });

@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Application } from '../../../automation';
+import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 // Import all tool modules
 import { applyCoreTools } from './core.js';
@@ -25,66 +24,73 @@ import { applyNotebookTools } from './notebook.js';
 import { applyLocalizationTools } from './localization.js';
 import { applyTaskTools } from './task.js';
 import { applyProfilerTools } from './profiler.js';
+import { ApplicationService } from '../application';
 
 /**
  * Apply all VS Code automation tools to the MCP server
  * @param server - The MCP server instance
- * @param app - The VS Code application instance
+ * @param appService - The application service instance
+ * @returns The registered tools from the server
  */
-export function applyAllTools(server: McpServer, app: Application): void {
+export function applyAllTools(server: McpServer, appService: ApplicationService): RegisteredTool[] {
+	let tools: RegisteredTool[] = [];
+
 	// Core Application Management Tools
-	applyCoreTools(server, app);
+	tools = tools.concat(applyCoreTools(server, appService));
 
 	// Editor Management Tools
-	applyEditorTools(server, app);
+	tools = tools.concat(applyEditorTools(server, appService));
 
 	// Terminal Management Tools
-	applyTerminalTools(server, app);
+	tools = tools.concat(applyTerminalTools(server, appService));
 
 	// Debug Tools
-	applyDebugTools(server, app);
+	tools = tools.concat(applyDebugTools(server, appService));
 
 	// Search Tools
-	applySearchTools(server, app);
+	tools = tools.concat(applySearchTools(server, appService));
 
 	// Extensions Tools
-	applyExtensionsTools(server, app);
+	tools = tools.concat(applyExtensionsTools(server, appService));
 
 	// Command Palette and Quick Access Tools
-	applyQuickAccessTools(server, app);
+	tools = tools.concat(applyQuickAccessTools(server, appService));
 
 	// Explorer and File Management Tools
-	applyExplorerTools(server, app);
+	tools = tools.concat(applyExplorerTools(server, appService));
 
 	// Activity Bar Tools
-	applyActivityBarTools(server, app);
+	tools = tools.concat(applyActivityBarTools(server, appService));
 
 	// Source Control Management Tools
-	applySCMTools(server, app);
+	tools = tools.concat(applySCMTools(server, appService));
 
 	// Status Bar Tools
-	applyStatusBarTools(server, app);
+	tools = tools.concat(applyStatusBarTools(server, appService));
 
 	// Problems Panel Tools
-	applyProblemsTools(server, app);
+	tools = tools.concat(applyProblemsTools(server, appService));
 
 	// Settings Editor Tools
-	applySettingsTools(server, app);
+	tools = tools.concat(applySettingsTools(server, appService));
 
 	// Keybindings Editor Tools
-	applyKeybindingsTools(server, app);
+	tools = tools.concat(applyKeybindingsTools(server, appService));
 
 	// Notebook Tools
-	applyNotebookTools(server, app);
+	tools = tools.concat(applyNotebookTools(server, appService));
 
 	// Localization Tools
-	applyLocalizationTools(server, app);
+	tools = tools.concat(applyLocalizationTools(server, appService));
 
 	// Task Tools
-	applyTaskTools(server, app);
+	tools = tools.concat(applyTaskTools(server, appService));
 
 	// Profiler Tools
-	applyProfilerTools(server, app);
+	tools = tools.concat(applyProfilerTools(server, appService));
+
+	// Return all registered tools
+	return tools;
 }
 
 // Re-export individual tool functions for selective use

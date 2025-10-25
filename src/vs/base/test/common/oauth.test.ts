@@ -17,6 +17,8 @@ import {
 	isAuthorizationTokenResponse,
 	parseWWWAuthenticateHeader,
 	fetchDynamicRegistration,
+	fetchResourceMetadata,
+	fetchAuthorizationServerMetadata,
 	scopesMatch,
 	IAuthorizationJWTClaims,
 	IAuthorizationServerMetadata,
@@ -52,18 +54,93 @@ suite('OAuth', () => {
 		});
 
 		test('isAuthorizationServerMetadata should correctly identify server metadata', () => {
-			// Valid metadata
+			// Valid metadata with minimal required fields
 			assert.strictEqual(isAuthorizationServerMetadata({
 				issuer: 'https://example.com',
 				response_types_supported: ['code']
 			}), true);
 
-			// Invalid cases
+			// Valid metadata with valid URLs
+			assert.strictEqual(isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				authorization_endpoint: 'https://example.com/auth',
+				token_endpoint: 'https://example.com/token',
+				registration_endpoint: 'https://example.com/register',
+				jwks_uri: 'https://example.com/jwks',
+				response_types_supported: ['code']
+			}), true);
+
+			// Valid metadata with http URLs (for localhost/testing)
+			assert.strictEqual(isAuthorizationServerMetadata({
+				issuer: 'http://localhost:8080',
+				authorization_endpoint: 'http://localhost:8080/auth',
+				token_endpoint: 'http://localhost:8080/token',
+				response_types_supported: ['code']
+			}), true);
+
+			// Invalid cases - not an object
 			assert.strictEqual(isAuthorizationServerMetadata(null), false);
 			assert.strictEqual(isAuthorizationServerMetadata(undefined), false);
-			assert.strictEqual(isAuthorizationServerMetadata({}), false);
-			assert.strictEqual(isAuthorizationServerMetadata({ response_types_supported: ['code'] }), false);
 			assert.strictEqual(isAuthorizationServerMetadata('not an object'), false);
+
+			// Invalid cases - missing issuer should throw
+			assert.throws(() => isAuthorizationServerMetadata({}), /Authorization server metadata must have an issuer/);
+			assert.throws(() => isAuthorizationServerMetadata({ response_types_supported: ['code'] }), /Authorization server metadata must have an issuer/);
+
+			// Invalid cases - URI fields must be strings when provided (truthy values)
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				authorization_endpoint: 123,
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'authorization_endpoint' must be a string/);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				token_endpoint: 123,
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'token_endpoint' must be a string/);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				registration_endpoint: [],
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'registration_endpoint' must be a string/);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				jwks_uri: {},
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'jwks_uri' must be a string/);
+
+			// Invalid cases - URI fields must start with http:// or https://
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'ftp://example.com',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'issuer' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				authorization_endpoint: 'ftp://example.com/auth',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'authorization_endpoint' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				token_endpoint: 'file:///path/to/token',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'token_endpoint' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				registration_endpoint: 'mailto:admin@example.com',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'registration_endpoint' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				jwks_uri: 'data:application/json,{}',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'jwks_uri' must start with http:\/\/ or https:\/\//);
 		});
 
 		test('isAuthorizationDynamicClientRegistrationResponse should correctly identify registration response', () => {
@@ -234,6 +311,18 @@ suite('OAuth', () => {
 			const scopes2 = ['scope2', 'scope1', 'scope1'];
 			assert.strictEqual(scopesMatch(scopes1, scopes2), true);
 		});
+
+		test('scopesMatch should handle undefined values', () => {
+			assert.strictEqual(scopesMatch(undefined, undefined), true);
+			assert.strictEqual(scopesMatch(['read'], undefined), false);
+			assert.strictEqual(scopesMatch(undefined, ['write']), false);
+		});
+
+		test('scopesMatch should handle mixed undefined and empty arrays', () => {
+			assert.strictEqual(scopesMatch([], undefined), false);
+			assert.strictEqual(scopesMatch(undefined, []), false);
+			assert.strictEqual(scopesMatch([], []), true);
+		});
 	});
 
 	suite('Utility Functions', () => {
@@ -266,6 +355,15 @@ suite('OAuth', () => {
 				realm: 'api',
 				error: 'invalid_token',
 				error_description: 'The access token expired'
+			});
+		});
+
+		test('parseWWWAuthenticateHeader should correctly parse parameters with equal signs', () => {
+			const result = parseWWWAuthenticateHeader('Bearer resource_metadata="https://example.com/.well-known/oauth-protected-resource?v=1"');
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].scheme, 'Bearer');
+			assert.deepStrictEqual(result[0].params, {
+				resource_metadata: 'https://example.com/.well-known/oauth-protected-resource?v=1'
 			});
 		});
 
@@ -389,9 +487,7 @@ suite('OAuth', () => {
 			assert.deepStrictEqual(requestBody.redirect_uris, [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				'http://localhost/',
 				'http://127.0.0.1/',
-				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
 				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
 			]);
 
@@ -747,6 +843,918 @@ suite('OAuth', () => {
 				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
 				/Registration to https:\/\/auth\.example\.com\/register failed: DCR not supported/
 			);
+		});
+	});
+
+	suite('fetchResourceMetadata', () => {
+		let sandbox: sinon.SinonSandbox;
+		let fetchStub: sinon.SinonStub;
+
+		setup(() => {
+			sandbox = sinon.createSandbox();
+			fetchStub = sandbox.stub();
+		});
+
+		teardown(() => {
+			sandbox.restore();
+		});
+
+		test('should successfully fetch and validate resource metadata', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const expectedMetadata = {
+				resource: 'https://example.com/api',
+				scopes_supported: ['read', 'write']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				resourceMetadataUrl,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+			assert.strictEqual(fetchStub.firstCall.args[0], resourceMetadataUrl);
+			assert.strictEqual(fetchStub.firstCall.args[1].method, 'GET');
+			assert.strictEqual(fetchStub.firstCall.args[1].headers['Accept'], 'application/json');
+		});
+
+		test('should include same-origin headers when origins match', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const sameOriginHeaders = {
+				'X-Test-Header': 'test-value',
+				'X-Custom-Header': 'value'
+			};
+			const expectedMetadata = {
+				resource: 'https://example.com/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			await fetchResourceMetadata(
+				targetResource,
+				resourceMetadataUrl,
+				{ fetch: fetchStub, sameOriginHeaders }
+			);
+
+			const headers = fetchStub.firstCall.args[1].headers;
+			assert.strictEqual(headers['Accept'], 'application/json');
+			assert.strictEqual(headers['X-Test-Header'], 'test-value');
+			assert.strictEqual(headers['X-Custom-Header'], 'value');
+		});
+
+		test('should not include same-origin headers when origins differ', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://other-domain.com/.well-known/oauth-protected-resource';
+			const sameOriginHeaders = {
+				'X-Test-Header': 'test-value'
+			};
+			const expectedMetadata = {
+				resource: 'https://example.com/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			await fetchResourceMetadata(
+				targetResource,
+				resourceMetadataUrl,
+				{ fetch: fetchStub, sameOriginHeaders }
+			);
+
+			const headers = fetchStub.firstCall.args[1].headers;
+			assert.strictEqual(headers['Accept'], 'application/json');
+			assert.strictEqual(headers['X-Test-Header'], undefined);
+		});
+
+		test('should throw error when fetch returns non-200 status', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+
+			fetchStub.resolves({
+				status: 404,
+				text: async () => 'Not Found'
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
+				/Failed to fetch resource metadata from.*404 Not Found/
+			);
+		});
+
+		test('should handle error when response.text() throws', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+
+			fetchStub.resolves({
+				status: 500,
+				statusText: 'Internal Server Error',
+				text: async () => { throw new Error('Cannot read response'); }
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
+				/Failed to fetch resource metadata from.*500 Internal Server Error/
+			);
+		});
+
+		test('should throw error when resource property does not match target resource', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const metadata = {
+				resource: 'https://different.com/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
+				/Protected Resource Metadata resource property value.*does not match target server url.*These MUST match to follow OAuth spec/
+			);
+		});
+
+		test('should normalize URLs when comparing resource values', async () => {
+			const targetResource = 'https://EXAMPLE.COM/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const metadata = {
+				resource: 'https://example.com/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			});
+
+			// URL normalization should handle hostname case differences
+			const result = await fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub });
+			assert.deepStrictEqual(result, metadata);
+		});
+
+		test('should normalize hostnames when comparing resource values', async () => {
+			const targetResource = 'https://EXAMPLE.COM/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const metadata = {
+				resource: 'https://example.com/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			});
+
+			const result = await fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub });
+			assert.deepStrictEqual(result, metadata);
+		});
+
+		test('should throw error when response is not valid resource metadata', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const invalidMetadata = {
+				// Missing required 'resource' property
+				scopes_supported: ['read', 'write']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => invalidMetadata,
+				text: async () => JSON.stringify(invalidMetadata)
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
+				/Invalid resource metadata.*Expected to follow shape of.*is scopes_supported an array\? Is resource a string\?/
+			);
+		});
+
+		test('should throw error when scopes_supported is not an array', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const invalidMetadata = {
+				resource: 'https://example.com/api',
+				scopes_supported: 'not an array'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => invalidMetadata,
+				text: async () => JSON.stringify(invalidMetadata)
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
+				/Invalid resource metadata/
+			);
+		});
+
+		test('should handle metadata with optional fields', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const metadata = {
+				resource: 'https://example.com/api',
+				resource_name: 'Example API',
+				authorization_servers: ['https://auth.example.com'],
+				jwks_uri: 'https://example.com/jwks',
+				scopes_supported: ['read', 'write', 'admin'],
+				bearer_methods_supported: ['header', 'body'],
+				resource_documentation: 'https://example.com/docs'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			});
+
+			const result = await fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub });
+			assert.deepStrictEqual(result, metadata);
+		});
+
+		test('should use global fetch when custom fetch is not provided', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const metadata = {
+				resource: 'https://example.com/api'
+			};
+
+			// eslint-disable-next-line local/code-no-any-casts
+			const globalFetchStub = sandbox.stub(globalThis, 'fetch').resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			} as any);
+
+			const result = await fetchResourceMetadata(targetResource, resourceMetadataUrl);
+
+			assert.deepStrictEqual(result, metadata);
+			assert.strictEqual(globalFetchStub.callCount, 1);
+		});
+
+		test('should handle same origin with different ports', async () => {
+			const targetResource = 'https://example.com:8080/api';
+			const resourceMetadataUrl = 'https://example.com:9090/.well-known/oauth-protected-resource';
+			const sameOriginHeaders = {
+				'X-Test-Header': 'test-value'
+			};
+			const metadata = {
+				resource: 'https://example.com:8080/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			});
+
+			await fetchResourceMetadata(
+				targetResource,
+				resourceMetadataUrl,
+				{ fetch: fetchStub, sameOriginHeaders }
+			);
+
+			// Different ports mean different origins
+			const headers = fetchStub.firstCall.args[1].headers;
+			assert.strictEqual(headers['X-Test-Header'], undefined);
+		});
+
+		test('should handle same origin with different protocols', async () => {
+			const targetResource = 'http://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const sameOriginHeaders = {
+				'X-Test-Header': 'test-value'
+			};
+			const metadata = {
+				resource: 'http://example.com/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			});
+
+			await fetchResourceMetadata(
+				targetResource,
+				resourceMetadataUrl,
+				{ fetch: fetchStub, sameOriginHeaders }
+			);
+
+			// Different protocols mean different origins
+			const headers = fetchStub.firstCall.args[1].headers;
+			assert.strictEqual(headers['X-Test-Header'], undefined);
+		});
+
+		test('should include error details in message with length information', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const metadata = {
+				resource: 'https://different.com/other'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			});
+
+			try {
+				await fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub });
+				assert.fail('Should have thrown an error');
+			} catch (error: any) {
+				assert.ok(/length:/.test(error.message), 'Error message should include length information');
+				assert.ok(/https:\/\/different\.com\/other/.test(error.message), 'Error message should include actual resource value');
+				assert.ok(/https:\/\/example\.com\/api/.test(error.message), 'Error message should include expected resource value');
+			}
+		});
+
+		test('should fallback to well-known URI with path when no resourceMetadataUrl provided', async () => {
+			const targetResource = 'https://example.com/api/v1';
+			const expectedMetadata = {
+				resource: 'https://example.com/api/v1',
+				scopes_supported: ['read', 'write']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+			// Should try path-appended version first
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource/api/v1');
+		});
+
+		test('should fallback to well-known URI at root when path version fails', async () => {
+			const targetResource = 'https://example.com/api/v1';
+			const expectedMetadata = {
+				resource: 'https://example.com/api/v1',
+				scopes_supported: ['read', 'write']
+			};
+
+			// First call fails, second succeeds
+			fetchStub.onFirstCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found'
+			});
+
+			fetchStub.onSecondCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 2);
+			// First attempt with path
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource/api/v1');
+			// Second attempt at root
+			assert.strictEqual(fetchStub.secondCall.args[0], 'https://example.com/.well-known/oauth-protected-resource');
+		});
+
+		test('should throw error when all well-known URIs fail', async () => {
+			const targetResource = 'https://example.com/api/v1';
+
+			fetchStub.resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found'
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, undefined, { fetch: fetchStub }),
+				(error: any) => {
+					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
+					assert.strictEqual(error.errors.length, 2, 'Should contain 2 errors');
+					assert.ok(/Failed to fetch resource metadata from.*\/api\/v1.*404/.test(error.errors[0].message), 'First error should mention /api/v1 and 404');
+					assert.ok(/Failed to fetch resource metadata from.*\.well-known.*404/.test(error.errors[1].message), 'Second error should mention .well-known and 404');
+					return true;
+				}
+			); assert.strictEqual(fetchStub.callCount, 2);
+		});
+
+		test('should not append path when target resource is root', async () => {
+			const targetResource = 'https://example.com/';
+			const expectedMetadata = {
+				resource: 'https://example.com/',
+				scopes_supported: ['read']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+			// Both URLs should be the same when path is /
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource');
+		});
+
+		test('should include same-origin headers when using well-known fallback', async () => {
+			const targetResource = 'https://example.com/api';
+			const sameOriginHeaders = {
+				'X-Test-Header': 'test-value',
+				'X-Custom-Header': 'value'
+			};
+			const expectedMetadata = {
+				resource: 'https://example.com/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub, sameOriginHeaders }
+			);
+
+			const headers = fetchStub.firstCall.args[1].headers;
+			assert.strictEqual(headers['Accept'], 'application/json');
+			assert.strictEqual(headers['X-Test-Header'], 'test-value');
+			assert.strictEqual(headers['X-Custom-Header'], 'value');
+		});
+	});
+
+	suite('fetchAuthorizationServerMetadata', () => {
+		let sandbox: sinon.SinonSandbox;
+		let fetchStub: sinon.SinonStub;
+
+		setup(() => {
+			sandbox = sinon.createSandbox();
+			fetchStub = sandbox.stub();
+		});
+
+		teardown(() => {
+			sandbox.restore();
+		});
+
+		test('should successfully fetch metadata from OAuth discovery endpoint with path insertion', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant',
+				authorization_endpoint: 'https://auth.example.com/tenant/authorize',
+				token_endpoint: 'https://auth.example.com/tenant/token',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+			// Should try OAuth discovery with path insertion: https://auth.example.com/.well-known/oauth-authorization-server/tenant
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://auth.example.com/.well-known/oauth-authorization-server/tenant');
+			assert.strictEqual(fetchStub.firstCall.args[1].method, 'GET');
+		});
+
+		test('should fallback to OpenID Connect discovery with path insertion', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant',
+				authorization_endpoint: 'https://auth.example.com/tenant/authorize',
+				token_endpoint: 'https://auth.example.com/tenant/token',
+				response_types_supported: ['code']
+			};
+
+			// First call fails, second succeeds
+			fetchStub.onFirstCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			fetchStub.onSecondCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 2);
+			// First attempt: OAuth discovery
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://auth.example.com/.well-known/oauth-authorization-server/tenant');
+			// Second attempt: OpenID Connect discovery with path insertion
+			assert.strictEqual(fetchStub.secondCall.args[0], 'https://auth.example.com/.well-known/openid-configuration/tenant');
+		});
+
+		test('should fallback to OpenID Connect discovery with path addition', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant',
+				authorization_endpoint: 'https://auth.example.com/tenant/authorize',
+				token_endpoint: 'https://auth.example.com/tenant/token',
+				response_types_supported: ['code']
+			};
+
+			// First two calls fail, third succeeds
+			fetchStub.onFirstCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			fetchStub.onSecondCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			fetchStub.onThirdCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 3);
+			// First attempt: OAuth discovery
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://auth.example.com/.well-known/oauth-authorization-server/tenant');
+			// Second attempt: OpenID Connect discovery with path insertion
+			assert.strictEqual(fetchStub.secondCall.args[0], 'https://auth.example.com/.well-known/openid-configuration/tenant');
+			// Third attempt: OpenID Connect discovery with path addition
+			assert.strictEqual(fetchStub.thirdCall.args[0], 'https://auth.example.com/tenant/.well-known/openid-configuration');
+		});
+
+		test('should handle authorization server at root without extra path', async () => {
+			const authorizationServer = 'https://auth.example.com';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/',
+				authorization_endpoint: 'https://auth.example.com/authorize',
+				token_endpoint: 'https://auth.example.com/token',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+			// For root URLs, no extra path is added
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://auth.example.com/.well-known/oauth-authorization-server');
+		});
+
+		test('should handle authorization server with trailing slash', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant/';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant/',
+				authorization_endpoint: 'https://auth.example.com/tenant/authorize',
+				token_endpoint: 'https://auth.example.com/tenant/token',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+		});
+
+		test('should include additional headers in all requests', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant';
+			const additionalHeaders = {
+				'X-Custom-Header': 'custom-value',
+				'Authorization': 'Bearer token123'
+			};
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub, additionalHeaders });
+
+			const headers = fetchStub.firstCall.args[1].headers;
+			assert.strictEqual(headers['X-Custom-Header'], 'custom-value');
+			assert.strictEqual(headers['Authorization'], 'Bearer token123');
+			assert.strictEqual(headers['Accept'], 'application/json');
+		});
+		test('should throw error when all discovery endpoints fail', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant';
+
+			fetchStub.resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			await assert.rejects(
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				/Failed to fetch authorization server metadata: 404 Not Found/
+			);
+
+			// Should have tried all three endpoints
+			assert.strictEqual(fetchStub.callCount, 3);
+		});
+
+		test('should handle invalid JSON response', async () => {
+			const authorizationServer = 'https://auth.example.com';
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => { throw new Error('Invalid JSON'); },
+				text: async () => 'Invalid JSON',
+				statusText: 'OK'
+			});
+
+			await assert.rejects(
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				/Failed to fetch authorization server metadata/
+			);
+		});
+
+		test('should handle valid JSON but invalid metadata structure', async () => {
+			const authorizationServer = 'https://auth.example.com';
+			const invalidMetadata = {
+				// Missing required 'issuer' field
+				authorization_endpoint: 'https://auth.example.com/authorize'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => invalidMetadata,
+				text: async () => JSON.stringify(invalidMetadata),
+				statusText: 'OK'
+			});
+
+			await assert.rejects(
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				/Failed to fetch authorization server metadata/
+			);
+		});
+
+		test('should use global fetch when custom fetch is not provided', async () => {
+			const authorizationServer = 'https://auth.example.com';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/',
+				response_types_supported: ['code']
+			};
+
+			// eslint-disable-next-line local/code-no-any-casts
+			const globalFetchStub = sandbox.stub(globalThis, 'fetch').resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			} as any);
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer);
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(globalFetchStub.callCount, 1);
+		});
+
+		test('should handle network fetch failure', async () => {
+			const authorizationServer = 'https://auth.example.com';
+
+			fetchStub.rejects(new Error('Network error'));
+
+			await assert.rejects(
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				/Network error/
+			);
+		});
+
+		test('should handle response.text() failure in error case', async () => {
+			const authorizationServer = 'https://auth.example.com';
+
+			fetchStub.resolves({
+				status: 500,
+				text: async () => { throw new Error('Cannot read text'); },
+				statusText: 'Internal Server Error',
+				json: async () => { throw new Error('Cannot read json'); }
+			});
+
+			await assert.rejects(
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				/Failed to fetch authorization server metadata: 500 Internal Server Error/
+			);
+		});
+
+		test('should correctly handle path addition with trailing slash', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant/';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant/',
+				response_types_supported: ['code']
+			};
+
+			// First two calls fail, third succeeds
+			fetchStub.onFirstCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			fetchStub.onSecondCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			fetchStub.onThirdCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 3);
+			// Third attempt should correctly handle trailing slash (not double-slash)
+			assert.strictEqual(fetchStub.thirdCall.args[0], 'https://auth.example.com/tenant/.well-known/openid-configuration');
+		});
+
+		test('should handle deeply nested paths', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant/org/sub';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant/org/sub',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+			// Should correctly insert well-known path with nested paths
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://auth.example.com/.well-known/oauth-authorization-server/tenant/org/sub');
+		});
+
+		test('should handle 200 response with non-metadata JSON', async () => {
+			const authorizationServer = 'https://auth.example.com';
+			const invalidResponse = {
+				error: 'not_supported',
+				message: 'Metadata not available'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => invalidResponse,
+				text: async () => JSON.stringify(invalidResponse),
+				statusText: 'OK'
+			});
+
+			await assert.rejects(
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				/Failed to fetch authorization server metadata/
+			);
+
+			// Should try all three endpoints
+			assert.strictEqual(fetchStub.callCount, 3);
+		});
+
+		test('should validate metadata according to isAuthorizationServerMetadata', async () => {
+			const authorizationServer = 'https://auth.example.com';
+			// Valid metadata with all required fields
+			const validMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/',
+				authorization_endpoint: 'https://auth.example.com/authorize',
+				token_endpoint: 'https://auth.example.com/token',
+				jwks_uri: 'https://auth.example.com/jwks',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code', 'token']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => validMetadata,
+				text: async () => JSON.stringify(validMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, validMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+		});
+
+		test('should handle URLs with query parameters', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant?version=v2';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant?version=v2',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+		});
+
+		test('should handle empty additionalHeaders', async () => {
+			const authorizationServer = 'https://auth.example.com';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub, additionalHeaders: {} });
+
+			const headers = fetchStub.firstCall.args[1].headers;
+			assert.strictEqual(headers['Accept'], 'application/json');
 		});
 	});
 });

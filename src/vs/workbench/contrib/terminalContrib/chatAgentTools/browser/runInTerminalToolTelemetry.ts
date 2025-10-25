@@ -106,6 +106,11 @@ export class RunInTerminalToolTelemetry {
 		inputToolManualAcceptCount: number | undefined;
 		inputToolManualRejectCount: number | undefined;
 		inputToolManualChars: number | undefined;
+		inputToolAutoAcceptCount: number | undefined;
+		inputToolAutoChars: number | undefined;
+		inputToolManualShownCount: number | undefined;
+		inputToolFreeFormInputShownCount: number | undefined;
+		inputToolFreeFormInputCount: number | undefined;
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
@@ -129,6 +134,9 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualAcceptCount: number;
 			inputToolManualRejectCount: number;
 			inputToolManualChars: number;
+			inputToolManualShownCount: number;
+			inputToolFreeFormInputShownCount: number;
+			inputToolFreeFormInputCount: number;
 		};
 		type TelemetryClassification = {
 			owner: 'tyriar';
@@ -155,6 +163,9 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually accepted a detected suggestion' };
 			inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
 			inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of a suggestion' };
+			inputToolManualShownCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user was prompted to manually accept an input suggestion' };
+			inputToolFreeFormInputShownCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user was prompted to provide free form input' };
+			inputToolFreeFormInputCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user entered free form input after prompting' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
@@ -178,6 +189,9 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualAcceptCount: state.inputToolManualAcceptCount ?? 0,
 			inputToolManualRejectCount: state.inputToolManualRejectCount ?? 0,
 			inputToolManualChars: state.inputToolManualChars ?? 0,
+			inputToolManualShownCount: state.inputToolManualShownCount ?? 0,
+			inputToolFreeFormInputShownCount: state.inputToolFreeFormInputShownCount ?? 0,
+			inputToolFreeFormInputCount: state.inputToolFreeFormInputCount ?? 0,
 		});
 	}
 }

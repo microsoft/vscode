@@ -13,7 +13,13 @@ import { createSys } from './serverHost';
 import { findArgument, findArgumentStringArray, hasArgument, parseServerMode } from './util/args';
 import { StartSessionOptions, startWorkerSession } from './workerSession';
 
-const setSys: (s: ts.System) => void = (ts as any).setSys;
+type TsModule = typeof ts;
+
+interface TsInternals extends TsModule {
+	setSys(sys: ts.System): void;
+}
+
+const setSys: (s: ts.System) => void = (ts as TsInternals).setSys;
 
 async function initializeSession(
 	args: readonly string[],

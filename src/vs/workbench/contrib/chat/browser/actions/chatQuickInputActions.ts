@@ -69,7 +69,7 @@ class QuickChatGlobalAction extends Action2 {
 	constructor() {
 		super({
 			id: ASK_QUICK_QUESTION_ACTION_ID,
-			title: localize2('quickChat', 'Quick Chat'),
+			title: localize2('quickChat', 'Open Quick Chat'),
 			precondition: ChatContextKeys.enabled,
 			icon: Codicon.chatSparkle,
 			f1: false,

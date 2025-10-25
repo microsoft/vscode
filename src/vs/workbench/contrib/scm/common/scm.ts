@@ -210,6 +210,11 @@ export const enum ISCMRepositorySortKey {
 	Path = 'path'
 }
 
+export const enum ISCMRepositorySelectionMode {
+	Single = 'single',
+	Multiple = 'multiple'
+}
+
 export const ISCMViewService = createDecorator<ISCMViewService>('scmView');
 
 export interface ISCMViewVisibleRepositoryChangeEvent {
@@ -221,6 +226,7 @@ export interface ISCMViewService {
 	readonly _serviceBrand: undefined;
 
 	readonly menus: ISCMMenus;
+	readonly selectionModeConfig: IObservable<ISCMRepositorySelectionMode>;
 
 	repositories: ISCMRepository[];
 	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
@@ -232,14 +238,17 @@ export interface ISCMViewService {
 	toggleVisibility(repository: ISCMRepository, visible?: boolean): void;
 
 	toggleSortKey(sortKey: ISCMRepositorySortKey): void;
+	toggleSelectionMode(selectionMode: ISCMRepositorySelectionMode): void;
 
 	readonly focusedRepository: ISCMRepository | undefined;
 	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;
 	focus(repository: ISCMRepository): void;
 
 	/**
-	 * Focused repository or the repository for the active editor
+	 * The active repository is the repository selected in the Source Control Repositories view
+	 * or the repository associated with the active editor. The active repository is shown in the
+	 * Source Control Repository status bar item.
 	 */
-	readonly activeRepository: IObservable<ISCMRepository | undefined>;
+	readonly activeRepository: IObservable<{ repository: ISCMRepository; pinned: boolean } | undefined>;
 	pinActiveRepository(repository: ISCMRepository | undefined): void;
 }

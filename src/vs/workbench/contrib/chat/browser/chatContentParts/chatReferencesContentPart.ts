@@ -31,10 +31,10 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IResourceLabel, IResourceLabelProps, ResourceLabels } from '../../../../browser/labels.js';
-import { ColorScheme } from '../../../../browser/web.api.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
@@ -310,6 +310,13 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		const templateDisposables = new DisposableStore();
 		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, supportIcons: true }));
 
+		const fileDiffsContainer = $('.working-set-line-counts');
+		const addedSpan = dom.$('.working-set-lines-added');
+		const removedSpan = dom.$('.working-set-lines-removed');
+		fileDiffsContainer.appendChild(addedSpan);
+		fileDiffsContainer.appendChild(removedSpan);
+		label.element.appendChild(fileDiffsContainer);
+
 		let toolbar;
 		let actionBarContainer;
 		let contextKeyService;
@@ -321,13 +328,6 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			label.element.appendChild(actionBarContainer);
 		}
 
-		const fileDiffsContainer = $('.working-set-line-counts');
-		const addedSpan = dom.$('.working-set-lines-added');
-		const removedSpan = dom.$('.working-set-lines-removed');
-		fileDiffsContainer.appendChild(addedSpan);
-		fileDiffsContainer.appendChild(removedSpan);
-		label.element.appendChild(fileDiffsContainer);
-
 		return { templateDisposables, label, toolbar, actionBarContainer, contextKeyService, fileDiffsContainer, addedSpan, removedSpan };
 	}
 
@@ -336,7 +336,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		if (ThemeIcon.isThemeIcon(data.iconPath)) {
 			return data.iconPath;
 		} else {
-			return this.themeService.getColorTheme().type === ColorScheme.DARK && data.iconPath?.dark
+			return isDark(this.themeService.getColorTheme().type) && data.iconPath?.dark
 				? data.iconPath?.dark
 				: data.iconPath?.light;
 		}

@@ -285,7 +285,9 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 			container,
 			new CollapsibleChangesSummaryListDelegate(),
 			[this.instantiationService.createInstance(CollapsibleChangesSummaryListRenderer, resourceLabels)],
-			{}
+			{
+				alwaysConsumeMouseWheel: false
+			}
 		));
 		return {
 			list: list,
