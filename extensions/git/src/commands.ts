@@ -682,6 +682,10 @@ class CommandErrorOutputTextDocumentContentProvider implements TextDocumentConte
 	}
 }
 
+// Delay to wait for diagnostic updates. Diagnostics are debounced with a 50ms
+// delay, so we wait slightly longer to ensure fresh diagnostics.
+const DIAGNOSTIC_UPDATE_DELAY = 100;
+
 async function evaluateDiagnosticsCommitHook(repository: Repository, options: CommitOptions): Promise<boolean> {
 	const config = workspace.getConfiguration('git', Uri.file(repository.root));
 	const enabled = config.get<boolean>('diagnosticsCommitHook.enabled', false) === true;
@@ -704,6 +708,18 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 		// All files
 		resources.push(...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri));
 		resources.push(...repository.untrackedGroup.resourceStates.map(r => r.resourceUri));
+	}
+
+	// Check if any of the resources are currently open documents. If so, wait for
+	// pending diagnostic updates to complete. Diagnostics are debounced with a 50ms
+	// delay, so we wait slightly longer to ensure fresh diagnostics. This prevents
+	// false positives when files are quickly fixed, saved, and staged.
+	const resourcePaths = new Set(resources.map(r => r.fsPath));
+	const openDocuments = workspace.textDocuments
+		.filter(doc => resourcePaths.has(doc.uri.fsPath));
+	
+	if (openDocuments.length > 0) {
+		await new Promise(resolve => setTimeout(resolve, DIAGNOSTIC_UPDATE_DELAY));
 	}
 
 	const diagnostics: Map<Uri, number> = new Map();
