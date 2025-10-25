@@ -1401,6 +1401,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				message,
 				icon: providerIcon ?? Codicon.sendToRemoteAgent,
 				additionalMessage,
+				useLargeIcon: !!providerIcon,
 			};
 		}
 
@@ -1460,7 +1461,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			inputPart: this.inputPart.element,
 			additionalMessage,
 			isNew: true,
-			suggestedPrompts
+			suggestedPrompts,
+			useLargeIcon: !!providerIcon,
 		};
 
 		// Add contributed tips if available

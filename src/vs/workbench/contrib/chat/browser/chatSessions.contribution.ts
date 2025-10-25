@@ -8,6 +8,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import * as resources from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -233,7 +234,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeOptions: Map<string, IChatSessionProviderOptionGroup[]> = new Map();
-	private readonly _sessionTypeIcons: Map<string, ThemeIcon> = new Map();
+	private readonly _sessionTypeIcons: Map<string, ThemeIcon | URI> = new Map();
 	private readonly _sessionTypeWelcomeTitles: Map<string, string> = new Map();
 	private readonly _sessionTypeWelcomeMessages: Map<string, string> = new Map();
 	private readonly _sessionTypeWelcomeTips: Map<string, string> = new Map();
@@ -356,13 +357,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		// Store icon mapping if provided
-		let icon: ThemeIcon | undefined;
+		let icon: ThemeIcon | URI | undefined;
 
 		if (contribution.icon) {
-			// Parse icon string - support both "$(iconId)" and "iconId" formats
-			icon = contribution.icon.startsWith('$(') && contribution.icon.endsWith(')')
-				? ThemeIcon.fromString(contribution.icon)
-				: ThemeIcon.fromId(contribution.icon);
+			// Parse icon string - support ThemeIcon format or file path from extension
+			const themeIcon = ThemeIcon.fromString(contribution.icon);
+			icon = themeIcon || resources.joinPath(contribution.extensionDescription.extensionLocation, contribution.icon);
 		}
 
 		if (icon) {
@@ -879,7 +879,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	/**
 	 * Get the icon for a specific session type
 	 */
-	public getIconForSessionType(chatSessionType: string): ThemeIcon | undefined {
+	public getIconForSessionType(chatSessionType: string): ThemeIcon | URI | undefined {
 		return this._sessionTypeIcons.get(chatSessionType);
 	}
 

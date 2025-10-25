@@ -205,17 +205,17 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return contribution?.displayName;
 	}
 
-	override getIcon(): ThemeIcon | undefined {
+	override getIcon(): ThemeIcon | URI | undefined {
 		// Return cached icon if available
 		if (this.cachedIcon) {
-			return ThemeIcon.isThemeIcon(this.cachedIcon) ? this.cachedIcon : undefined;
+			return this.cachedIcon;
 		}
 
 		// Try to resolve icon and cache it
 		const resolvedIcon = this.resolveIcon();
 		if (resolvedIcon) {
 			this.cachedIcon = resolvedIcon;
-			return ThemeIcon.isThemeIcon(resolvedIcon) ? resolvedIcon : undefined;
+			return resolvedIcon;
 		}
 
 		// Fall back to default icon
