@@ -10,6 +10,7 @@ import { type IConfigurationPropertySchema } from '../../../../../platform/confi
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import product from '../../../../../platform/product/common/product.js';
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
+import { PolicyCategory } from '../../../../../base/common/policy.js';
 
 export const enum TerminalChatAgentToolsSettingId {
 	EnableAutoApprove = 'chat.tools.terminal.enableAutoApprove',
@@ -62,6 +63,22 @@ const terminalChatAgentProfileSchema: IJSONSchema = {
 };
 
 export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
+	[TerminalChatAgentToolsSettingId.EnableAutoApprove]: {
+		description: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
+		type: 'boolean',
+		default: true,
+		policy: {
+			name: 'ChatToolsTerminalEnableAutoApprove',
+			category: PolicyCategory.IntegratedTerminal,
+			minimumVersion: '1.104',
+			localization: {
+				description: {
+					key: 'autoApproveMode.description',
+					value: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
+				}
+			}
+		}
+	},
 	[TerminalChatAgentToolsSettingId.AutoApprove]: {
 		markdownDescription: [
 			localize('autoApprove.description.intro', "A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in {0} characters followed by optional flags such as {1} for case-insensitivity.", '`/`', '`i`'),
