@@ -700,6 +700,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agent.thinkingStyle', "Controls how thinking is rendered."),
 			tags: ['experimental'],
 		},
+		'chat.agent.thinking.collapsedTools': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.agent.thinking.collapsedTools', "When enabled, tool calls will be added by default inside the thinking block."),
+			tags: ['experimental'],
+		},
 		'chat.disableAIFeatures': {
 			type: 'boolean',
 			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
