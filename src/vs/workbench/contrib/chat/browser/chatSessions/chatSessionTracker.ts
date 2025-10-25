@@ -20,7 +20,6 @@ export class ChatSessionTracker extends Disposable {
 	private readonly groupDisposables = this._register(new DisposableMap<number>());
 	readonly onDidChangeEditors = this._onDidChangeEditors.event;
 
-
 	constructor(
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IChatService private readonly chatService: IChatService,
