@@ -147,8 +147,8 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 			),
 			this.createToggleAction(
 				'policySettingsSearch',
-				localize('policySettingsSearch', "Policy services"),
-				localize('policySettingsSearchTooltip', "Show settings for policy services"),
+				localize('policySettingsSearch', "Organization policies"),
+				localize('policySettingsSearchTooltip', "Show organization policy settings"),
 				`@${POLICY_SETTING_TAG}`
 			),
 			new Separator(),

@@ -7566,6 +7566,7 @@ declare namespace monaco.languages {
 		range: IRange;
 		kind: InlineCompletionDisplayLocationKind;
 		label: string;
+		jumpToEdit: boolean;
 	}
 
 	/**

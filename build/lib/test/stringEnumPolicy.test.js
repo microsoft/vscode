@@ -95,6 +95,12 @@ suite('StringEnumPolicy', () => {
         const presentation = policy.renderADMLPresentation();
         assert_1.default.strictEqual(presentation, '<presentation id="TestStringEnumPolicy"><dropdownList refId="TestStringEnumPolicy" /></presentation>');
     });
+    test('should render JSON value correctly', () => {
+        const policy = stringEnumPolicy_js_1.StringEnumPolicy.from(mockCategory, mockPolicy);
+        assert_1.default.ok(policy);
+        const jsonValue = policy.renderJsonValue();
+        assert_1.default.strictEqual(jsonValue, 'auto');
+    });
     test('should render profile value correctly', () => {
         const policy = stringEnumPolicy_js_1.StringEnumPolicy.from(mockCategory, mockPolicy);
         assert_1.default.ok(policy);

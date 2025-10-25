@@ -45,6 +45,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { showChatView } from '../../chat/browser/chat.js';
 import { IChatAttachmentResolveService } from '../../chat/browser/chatAttachmentResolveService.js';
@@ -1677,8 +1678,9 @@ async function moveToPanelChat(accessor: ServicesAccessor, model: ChatModel | un
 
 	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
+	const layoutService = accessor.get(IWorkbenchLayoutService);
 
-	const widget = await showChatView(viewsService);
+	const widget = await showChatView(viewsService, layoutService);
 
 	if (widget && widget.viewModel && model) {
 		for (const request of model.getRequests().slice()) {

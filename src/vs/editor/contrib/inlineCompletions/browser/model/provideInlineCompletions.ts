@@ -231,7 +231,8 @@ function toInlineSuggestData(
 	const displayLocation = inlineCompletion.displayLocation ? {
 		range: Range.lift(inlineCompletion.displayLocation.range),
 		label: inlineCompletion.displayLocation.label,
-		kind: inlineCompletion.displayLocation.kind
+		kind: inlineCompletion.displayLocation.kind,
+		jumpToEdit: inlineCompletion.displayLocation.jumpToEdit,
 	} : undefined;
 
 	return new InlineSuggestData(
@@ -476,6 +477,7 @@ export interface IDisplayLocation {
 	range: Range;
 	label: string;
 	kind: InlineCompletionDisplayLocationKind;
+	jumpToEdit: boolean;
 }
 
 export enum InlineCompletionEditorType {
