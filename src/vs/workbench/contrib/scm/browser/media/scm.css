@@ -45,7 +45,7 @@
 	display: none;
 }
 
-.scm-view .scm-provider > .icon {
+.scm-view .scm-provider > .codicon {
 	padding-right: 2px;
 }
 
@@ -94,8 +94,8 @@
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:nth-child(2) {
 	min-width: 20px;
 
-	.action-label > span:nth-child(1) {
-		margin-right: 2px;
+	.action-label > span:not(.codicon) {
+		margin-left: 2px;
 	}
 }
 
