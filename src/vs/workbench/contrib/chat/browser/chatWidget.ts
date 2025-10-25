@@ -257,6 +257,7 @@ const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 	supportsSourceControlAttachments: true,
 	supportsProblemAttachments: true,
 	supportsSymbolAttachments: true,
+	supportsTerminalAttachments: true,
 };
 
 export class ChatWidget extends Disposable implements IChatWidget {
@@ -2537,11 +2538,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<void> {
-		if (!PromptsConfig.enabled(this.configurationService)) {
-			// if prompts are not enabled, we don't need to do anything
-			return undefined;
-		}
-
 		let parseResult: ParsedPromptFile | undefined;
 
 		// first check if the input has a prompt slash command
@@ -2975,16 +2971,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * - instructions referenced in an already included instruction file
 	 */
 	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
-		const promptsConfigEnabled = PromptsConfig.enabled(this.configurationService);
-		this.logService.debug(`ChatWidget#_autoAttachInstructions: ${PromptsConfig.KEY}: ${promptsConfigEnabled}`);
+		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are always enabled`);
 
-		if (promptsConfigEnabled) {
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this._getReadTool());
-			await computer.collect(attachedContext, CancellationToken.None);
-		} else {
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, undefined);
-			await computer.collectAgentInstructionsOnly(attachedContext, CancellationToken.None);
-		}
+		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this._getReadTool());
+		await computer.collect(attachedContext, CancellationToken.None);
 	}
 
 	private _getReadTool(): IToolData | undefined {

@@ -200,7 +200,7 @@ export interface IMarkTracker {
 	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void;
 
 	scrollToLine(line: number, position: ScrollPosition): void;
-	revealCommand(command: ITerminalCommand | ICurrentPartialCommand, position?: ScrollPosition): void;
+	revealCommand(command: ITerminalCommand | ICurrentPartialCommand | URI, position?: ScrollPosition): void;
 	revealRange(range: IBufferRange): void;
 	registerTemporaryDecoration(marker: IMarker, endMarker: IMarker | undefined, showOutline: boolean): void;
 	showCommandGuide(command: ITerminalCommand | undefined): void;
@@ -445,6 +445,12 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * @param getEvent Maps the capability to the event.
 	 */
 	createOnInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }>;
+
+	/**
+	 * Reveals the terminal and, if provided, scrolls to the command mark.
+	 * @param resource the terminal resource
+	 */
+	openResource(resource: URI): void;
 }
 
 /**

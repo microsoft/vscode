@@ -193,8 +193,7 @@ export interface CloneOptions {
 	/**
 	 * If no postCloneAction is provided, then the users setting for git.openAfterClone is used.
 	 */
-	postCloneAction?: 'none' | 'open' | 'prompt';
-	skipCache?: boolean;
+	postCloneAction?: 'none';
 }
 
 export interface RefQuery {
@@ -379,9 +378,12 @@ export interface API {
 	toGitUri(uri: Uri, ref: string): Uri;
 	getRepository(uri: Uri): Repository | null;
 	getRepositoryRoot(uri: Uri): Promise<Uri | null>;
+	getRepositoryWorkspace(uri: Uri): Promise<Uri[] | null>;
 	init(root: Uri, options?: InitOptions): Promise<Repository | null>;
 	/**
-	 * @returns The URI of either the cloned repository, or the workspace file or folder which contains the cloned repository.
+	 * Checks the cache of known cloned repositories, and clones if the repository is not found.
+	 * Make sure to pass `postCloneAction` 'none' if you want to have the uri where you can find the repository returned.
+	 * @returns The URI of a folder or workspace file which, when opened, will open the cloned repository.
 	 */
 	clone(uri: Uri, options?: CloneOptions): Promise<Uri | null>;
 	openRepository(root: Uri): Promise<Repository | null>;

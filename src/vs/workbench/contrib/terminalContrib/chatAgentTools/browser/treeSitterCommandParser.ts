@@ -5,8 +5,9 @@
 
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { derived, waitForState } from '../../../../../base/common/observable.js';
+import { arch } from '../../../../../base/common/process.js';
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-import type { Language, Parser, Query } from '@vscode/tree-sitter-wasm';
+import type { Language, Parser, Query, QueryCapture } from '@vscode/tree-sitter-wasm';
 
 export const enum TreeSitterCommandParserLanguage {
 	Bash = 'bash',
@@ -24,6 +25,8 @@ export class TreeSitterCommandParser {
 	}
 
 	async extractSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
+		this._throwIfCanCrash(languageId);
+
 		const parser = await this._parser;
 		const language = await waitForState(derived(reader => {
 			return this._treeSitterLibraryService.getLanguage(languageId, true, reader);
@@ -42,7 +45,32 @@ export class TreeSitterCommandParser {
 
 		const captures = query.captures(tree.rootNode);
 		const subCommands = captures.map(e => e.node.text);
+
 		return subCommands;
+	}
+
+	async queryTree(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<QueryCapture[]> {
+		this._throwIfCanCrash(languageId);
+
+		const parser = await this._parser;
+		const language = await waitForState(derived(reader => {
+			return this._treeSitterLibraryService.getLanguage(languageId, true, reader);
+		}));
+		parser.setLanguage(language);
+
+		const tree = parser.parse(commandLine);
+		if (!tree) {
+			throw new BugIndicatingError('Failed to parse tree');
+		}
+
+		const query = await this._treeSitterLibraryService.createQuery(language, querySource);
+		if (!query) {
+			throw new BugIndicatingError('Failed to create tree sitter query');
+		}
+
+		const captures = query.captures(tree.rootNode);
+
+		return captures;
 	}
 
 	private async _getQuery(language: Language): Promise<Query> {
@@ -52,5 +80,15 @@ export class TreeSitterCommandParser {
 			this._queries.set(language, query);
 		}
 		return query;
+	}
+
+	private _throwIfCanCrash(languageId: TreeSitterCommandParserLanguage) {
+		// TODO: The powershell grammar can cause an OOM crash on arm https://github.com/microsoft/vscode/issues/273177
+		if (
+			(arch === 'arm' || arch === 'arm64') &&
+			languageId === TreeSitterCommandParserLanguage.PowerShell
+		) {
+			throw new Error('powershell grammar is not supported on arm or arm64');
+		}
 	}
 }

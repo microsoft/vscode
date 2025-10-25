@@ -182,7 +182,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	private getEntryProps(): IStatusbarEntry {
 		let text = '$(copilot)';
-		let ariaLabel = localize('chatStatus', "Copilot Status");
+		let ariaLabel = localize('chatStatusAria', "Copilot status");
 		let kind: StatusbarEntryKind | undefined;
 
 		if (isNewUser(this.chatEntitlementService)) {
@@ -195,7 +195,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				isProUser(entitlement) ||						// user is already pro
 				entitlement === ChatEntitlement.Free			// user is already free
 			) {
-				const finishSetup = localize('copilotLaterStatus', "Finish Setup");
+				const finishSetup = localize('finishSetup', "Finish Setup");
 
 				text = `$(copilot) ${finishSetup}`;
 				ariaLabel = finishSetup;
@@ -224,7 +224,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			// Signed out
 			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
-				const signedOutWarning = localize('notSignedIntoCopilot', "Signed out");
+				const signedOutWarning = localize('notSignedIn', "Signed out");
 
 				text = `${this.chatEntitlementService.anonymous ? '$(copilot)' : '$(copilot-not-connected)'} ${signedOutWarning}`;
 				ariaLabel = signedOutWarning;
@@ -282,17 +282,17 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 }
 
 function isNewUser(chatEntitlementService: IChatEntitlementService): boolean {
-	return !chatEntitlementService.sentiment.installed ||					// copilot not installed
-		chatEntitlementService.entitlement === ChatEntitlement.Available;	// not yet signed up to copilot
+	return !chatEntitlementService.sentiment.installed ||					// chat not installed
+		chatEntitlementService.entitlement === ChatEntitlement.Available;	// not yet signed up to chat
 }
 
-function canUseCopilot(chatEntitlementService: IChatEntitlementService): boolean {
+function canUseChat(chatEntitlementService: IChatEntitlementService): boolean {
 	if (!chatEntitlementService.sentiment.installed || chatEntitlementService.sentiment.disabled || chatEntitlementService.sentiment.untrusted) {
-		return false; // copilot not installed or not enabled
+		return false; // chat not installed or not enabled
 	}
 
 	if (chatEntitlementService.entitlement === ChatEntitlement.Unknown || chatEntitlementService.entitlement === ChatEntitlement.Available) {
-		return chatEntitlementService.anonymous; // signed out or not-yet-signed-up users can only use Copilot if anonymous access is allowed
+		return chatEntitlementService.anonymous; // signed out or not-yet-signed-up users can only use Chat if anonymous access is allowed
 	}
 
 	if (chatEntitlementService.entitlement === ChatEntitlement.Free && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0) {
@@ -402,7 +402,7 @@ class ChatStatusDashboard extends Disposable {
 			}
 
 			if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (Number(chatQuota?.percentRemaining) <= 25 || Number(completionsQuota?.percentRemaining) <= 25)) {
-				const upgradeProButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
+				const upgradeProButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: canUseChat(this.chatEntitlementService) /* use secondary color when chat can still be used */ }));
 				upgradeProButton.label = localize('upgradeToCopilotPro', "Upgrade to GitHub Copilot Pro");
 				disposables.add(upgradeProButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
 			}
@@ -513,12 +513,12 @@ class ChatStatusDashboard extends Disposable {
 		}
 
 		// Completions Snooze
-		if (canUseCopilot(this.chatEntitlementService)) {
+		if (canUseChat(this.chatEntitlementService)) {
 			const snooze = append(this.element, $('div.snooze-completions'));
 			this.createCompletionsSnooze(snooze, localize('settings.snooze', "Snooze"), disposables);
 		}
 
-		// New to Copilot / Signed out
+		// New to Chat / Signed out
 		{
 			const newUser = isNewUser(this.chatEntitlementService);
 			const anonymousUser = this.chatEntitlementService.anonymous;
@@ -544,13 +544,13 @@ class ChatStatusDashboard extends Disposable {
 
 				let buttonLabel: string;
 				if (newUser) {
-					buttonLabel = localize('activateCopilotButton', "Set up Copilot");
+					buttonLabel = localize('enableAIFeatures', "Use AI Features");
 				} else if (anonymousUser) {
-					buttonLabel = localize('enableMoreCopilotButton', "Enable more AI Features");
+					buttonLabel = localize('enableMoreAIFeatures', "Enable more AI Features");
 				} else if (disabled) {
-					buttonLabel = localize('enableCopilotButton', "Enable Copilot");
+					buttonLabel = localize('enableCopilotButton', "Enable AI Features");
 				} else {
-					buttonLabel = localize('signInToUseCopilotButton', "Sign in to use Copilot");
+					buttonLabel = localize('signInToUseAIFeatures', "Sign in to use AI Features");
 				}
 
 				let commandId: string;
@@ -755,7 +755,7 @@ class ChatStatusDashboard extends Disposable {
 			}
 		}));
 
-		if (!canUseCopilot(this.chatEntitlementService)) {
+		if (!canUseChat(this.chatEntitlementService)) {
 			container.classList.add('disabled');
 			checkbox.disable();
 			checkbox.checked = false;
@@ -817,7 +817,7 @@ class ChatStatusDashboard extends Disposable {
 
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(completionsSettingId)) {
-				if (completionsSettingAccessor.readSetting() && canUseCopilot(this.chatEntitlementService)) {
+				if (completionsSettingAccessor.readSetting() && canUseChat(this.chatEntitlementService)) {
 					checkbox.enable();
 					container.classList.remove('disabled');
 				} else {

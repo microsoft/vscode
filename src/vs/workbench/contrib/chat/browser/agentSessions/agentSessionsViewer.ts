@@ -10,15 +10,15 @@ import { IIdentityProvider, IListVirtualDelegate } from '../../../../../base/bro
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
-import { ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
-import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeFilter, ITreeSorter, TreeFilterResult, TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
+import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter } from '../../../../../base/browser/ui/tree/tree.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { AgentSessionStatus, IAgentSessionViewModel, IAgentSessionsViewModel, isAgentSession, isAgentSessionsViewModel } from './agentSessionViewModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../base/common/date.js';
-import { FuzzyScore, createMatches, matchesFuzzy } from '../../../../../base/common/filters.js';
+import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -196,33 +196,6 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 	}
 }
 
-export class AgentSessionsFilter extends Disposable implements ITreeFilter<IAgentSessionViewModel, FuzzyScore> {
-
-	private _pattern: string = '';
-	set pattern(pattern: string) { this._pattern = pattern; }
-
-	filter(element: IAgentSessionViewModel, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
-		if (!this._pattern) {
-			return TreeVisibility.Visible;
-		}
-
-		const score = matchesFuzzy(this._pattern, element.label, true);
-		if (score) {
-			const fuzzyScore: FuzzyScore = [0, 0];
-			for (let matchIndex = score.length - 1; matchIndex >= 0; matchIndex--) {
-				const match = score[matchIndex];
-				for (let i = match.end - 1; i >= match.start; i--) {
-					fuzzyScore.push(i);
-				}
-			}
-
-			return { data: fuzzyScore, visibility: TreeVisibility.Visible };
-		}
-
-		return TreeVisibility.Hidden;
-	}
-}
-
 export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegate<IAgentSessionViewModel> {
 
 	isIncompressible(element: IAgentSessionViewModel): boolean {
@@ -245,5 +218,16 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSessionViewModel> 
 
 		// Both in-progress or finished: sort by start time (most recent first)
 		return sessionB.timing.startTime - sessionA.timing.startTime;
+	}
+}
+
+export class AgentSessionsKeyboardNavigationLabelProvider implements ICompressibleKeyboardNavigationLabelProvider<IAgentSessionViewModel> {
+
+	getKeyboardNavigationLabel(element: IAgentSessionViewModel): string {
+		return element.label;
+	}
+
+	getCompressedNodeKeyboardNavigationLabel(elements: IAgentSessionViewModel[]): { toString(): string | undefined } | undefined {
+		return undefined; // not enabled
 	}
 }

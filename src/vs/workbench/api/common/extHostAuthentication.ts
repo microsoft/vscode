@@ -86,7 +86,27 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
 		const keys: (keyof vscode.AuthenticationGetSessionOptions)[] = Object.keys(options) as (keyof vscode.AuthenticationGetSessionOptions)[];
-		const optionsStr = keys.sort().map(key => `${key}:${!!options[key]}`).join(', ');
+		// TODO: pull this out into a utility function somewhere
+		const optionsStr = keys
+			.map(key => {
+				switch (key) {
+					case 'account':
+						return `${key}:${options.account?.id}`;
+					case 'createIfNone':
+					case 'forceNewSession': {
+						const value = typeof options[key] === 'boolean'
+							? `${options[key]}`
+							: `'${options[key]?.detail}/${options[key]?.learnMore?.toString()}'`;
+						return `${key}:${value}`;
+					}
+					case 'authorizationServer':
+						return `${key}:${options.authorizationServer?.toString(true)}`;
+					default:
+						return `${key}:${!!options[key]}`;
+				}
+			})
+			.sort()
+			.join(', ');
 
 		let singlerKey: string;
 		if (isAuthenticationWwwAuthenticateRequest(scopesOrRequest)) {

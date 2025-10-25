@@ -159,11 +159,15 @@ class ConfigureToolsAction extends Action2 {
 		switch (entriesScope) {
 			case ToolsScope.Session:
 				placeholder = localize('chat.tools.placeholder.session', "Select tools for this chat session");
-				description = localize('chat.tools.description.session', "The selected tools were configured by a prompt command and only apply to this chat session.");
+				description = localize('chat.tools.description.session', "The selected tools were configured only for this chat session.");
 				break;
-			case ToolsScope.Mode:
-				placeholder = localize('chat.tools.placeholder.mode', "Select tools for this custom agent");
-				description = localize('chat.tools.description.mode', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will be applied to the custom agent file as well.", widget.input.currentModeObs.get().label);
+			case ToolsScope.Agent:
+				placeholder = localize('chat.tools.placeholder.agent', "Select tools for this custom agent");
+				description = localize('chat.tools.description.agent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will be applied to the custom agent file as well.", widget.input.currentModeObs.get().label);
+				break;
+			case ToolsScope.Agent_ReadOnly:
+				placeholder = localize('chat.tools.placeholder.readOnlyAgent', "Select tools for this custom agent");
+				description = localize('chat.tools.description.readOnlyAgent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will only be used for this session and will not change the '{0}' custom agent.", widget.input.currentModeObs.get().label);
 				break;
 			case ToolsScope.Global:
 				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat.");
