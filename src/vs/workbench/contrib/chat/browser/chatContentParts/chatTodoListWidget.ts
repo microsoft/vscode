@@ -107,12 +107,12 @@ class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
 	private getStatusIconClass(status: string): string {
 		switch (status) {
 			case 'completed':
-				return 'codicon-check';
+				return 'codicon-pass';
 			case 'in-progress':
 				return 'codicon-record';
 			case 'not-started':
 			default:
-				return 'codicon-circle-large-outline';
+				return 'codicon-circle-outline';
 		}
 	}
 
@@ -477,7 +477,7 @@ export class ChatTodoListWidget extends Disposable {
 					icon.classList.add('codicon-record');
 					icon.style.color = 'var(--vscode-charts-blue)';
 				} else {
-					icon.classList.add('codicon-circle-large-outline');
+					icon.classList.add('codicon-circle-outline');
 					icon.style.color = 'var(--vscode-foreground)';
 				}
 				icon.style.marginLeft = '4px';
