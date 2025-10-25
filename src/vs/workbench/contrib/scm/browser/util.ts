@@ -120,6 +120,11 @@ class StatusBarActionViewItem extends ActionViewItem {
 		super(null, action, { ...options, icon: false, label: true });
 	}
 
+	override render(container: HTMLElement): void {
+		container.classList.add('scm-status-bar-action');
+		super.render(container);
+	}
+
 	protected override updateLabel(): void {
 		if (this.options.label && this.label) {
 			// Convert text nodes to span elements to enable
