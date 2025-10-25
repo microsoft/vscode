@@ -135,7 +135,7 @@ export class ChatTodoListWidget extends Disposable {
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
-	private _isExpanded: boolean = true;
+	private _isExpanded: boolean = false;
 	private _userManuallyExpanded: boolean = false;
 	private expandoElement!: HTMLElement;
 	private todoListContainer!: HTMLElement;
