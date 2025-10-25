@@ -263,6 +263,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 				),
 				feature: this._telemetryInfo.feature,
 				languageId: action.languageId,
+				source: undefined,
 			});
 		}
 

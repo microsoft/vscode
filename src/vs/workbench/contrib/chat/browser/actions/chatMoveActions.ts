@@ -33,7 +33,7 @@ export function registerMoveActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.openInEditor',
-				title: localize2('chat.openInEditor.label', "Open Chat in Editor"),
+				title: localize2('chat.openInEditor.label', "Move Chat into Editor Area"),
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				f1: true,
@@ -46,7 +46,7 @@ export function registerMoveActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const context = args[0];
 			executeMoveToAction(accessor, MoveToNewLocation.Editor, isChatViewTitleActionContext(context) ? context.sessionId : undefined);
 		}
@@ -56,7 +56,7 @@ export function registerMoveActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.openInNewWindow',
-				title: localize2('chat.openInNewWindow.label', "Open Chat in New Window"),
+				title: localize2('chat.openInNewWindow.label', "Move Chat into New Window"),
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				f1: true,
@@ -69,7 +69,7 @@ export function registerMoveActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const context = args[0];
 			executeMoveToAction(accessor, MoveToNewLocation.Window, isChatViewTitleActionContext(context) ? context.sessionId : undefined);
 		}
@@ -79,14 +79,14 @@ export function registerMoveActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.openInSidebar',
-				title: localize2('interactiveSession.openInSidebar.label', "Open Chat in Side Bar"),
+				title: localize2('interactiveSession.openInSidebar.label', "Move Chat into Side Bar"),
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				f1: true
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			return moveToSidebar(accessor);
 		}
 	});
@@ -104,9 +104,9 @@ export function registerMoveActions() {
 	}
 
 	[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].forEach(id => {
-		appendOpenChatInViewMenuItem(id, localize('interactiveSession.openInSecondarySidebar.label', "Open Chat in Secondary Side Bar"), Codicon.layoutSidebarRightDock, ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar));
-		appendOpenChatInViewMenuItem(id, localize('interactiveSession.openInPrimarySidebar.label', "Open Chat in Primary Side Bar"), Codicon.layoutSidebarLeftDock, ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.Sidebar));
-		appendOpenChatInViewMenuItem(id, localize('interactiveSession.openInPanel.label', "Open Chat in Panel"), Codicon.layoutPanelDock, ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.Panel));
+		appendOpenChatInViewMenuItem(id, localize('interactiveSession.openInSecondarySidebar.label', "Move Chat into Secondary Side Bar"), Codicon.layoutSidebarRightDock, ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar));
+		appendOpenChatInViewMenuItem(id, localize('interactiveSession.openInPrimarySidebar.label', "Move Chat into Primary Side Bar"), Codicon.layoutSidebarLeftDock, ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.Sidebar));
+		appendOpenChatInViewMenuItem(id, localize('interactiveSession.openInPanel.label', "Move Chat into Panel"), Codicon.layoutPanelDock, ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.Panel));
 	});
 }
 

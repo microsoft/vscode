@@ -30,7 +30,7 @@ export interface ILabelService {
 	getSeparator(scheme: string, authority?: string): '/' | '\\';
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
-	onDidChangeFormatters: Event<IFormatterChangeEvent>;
+	readonly onDidChangeFormatters: Event<IFormatterChangeEvent>;
 
 	/**
 	 * Registers a formatter that's cached for the machine beyond the lifecycle

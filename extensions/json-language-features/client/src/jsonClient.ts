@@ -771,8 +771,8 @@ function getSchemaId(schema: JSONSchemaSettings, settingsLocation?: Uri): string
 	return url;
 }
 
-function isThenable<T>(obj: ProviderResult<T>): obj is Thenable<T> {
-	return obj && (<any>obj)['then'];
+function isThenable<T>(obj: unknown): obj is Thenable<T> {
+	return !!obj && typeof (obj as unknown as Thenable<T>).then === 'function';
 }
 
 function updateMarkdownString(h: MarkdownString): MarkdownString {

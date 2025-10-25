@@ -37,12 +37,14 @@ export class McpResourcePickHelper {
 	}
 
 	public static item(resource: IMcpResource | IMcpResourceTemplate): IQuickPickItem {
+		const iconPath = resource.icons.getUrl(22);
 		if (isMcpResourceTemplate(resource)) {
 			return {
 				id: resource.template.template,
 				label: resource.title || resource.name,
 				description: resource.description,
 				detail: localize('mcp.resource.template', 'Resource template: {0}', resource.template.template),
+				iconPath,
 			};
 		}
 
@@ -51,6 +53,7 @@ export class McpResourcePickHelper {
 			label: resource.title || resource.name,
 			description: resource.description,
 			detail: resource.mcpUri + (resource.sizeInBytes !== undefined ? ' (' + ByteSize.formatSize(resource.sizeInBytes) + ')' : ''),
+			iconPath,
 		};
 	}
 

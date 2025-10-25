@@ -40,7 +40,7 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 		|| !!argv['telemetry'];
 }
 
-export async function main(argv: string[]): Promise<any> {
+export async function main(argv: string[]): Promise<void> {
 	let args: NativeParsedArgs;
 
 	try {
@@ -185,7 +185,7 @@ export async function main(argv: string[]): Promise<any> {
 			// Check for readonly status and chmod if so if we are told so
 			let targetMode: number = 0;
 			let restoreMode = false;
-			if (!!args['file-chmod']) {
+			if (args['file-chmod']) {
 				targetMode = statSync(target).mode;
 				if (!(targetMode & 0o200 /* File mode indicating writable by owner */)) {
 					chmodSync(target, targetMode | 0o200);
@@ -567,7 +567,7 @@ export async function main(argv: string[]): Promise<any> {
 			child = spawn('open', spawnArgs, { ...options, env: {} });
 		}
 
-		return Promise.all(processCallbacks.map(callback => callback(child)));
+		await Promise.all(processCallbacks.map(callback => callback(child)));
 	}
 }
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import * as ESTree from 'estree';
 import { TSESTree } from '@typescript-eslint/utils';
 
 /**
@@ -28,15 +29,14 @@ export = new class implements eslint.Rule.RuleModule {
 
 			const classCtor = classDeclaration.body.body.find(node => node.type === 'MethodDefinition' && node.kind === 'constructor');
 
-			if (!classCtor) {
+			if (!classCtor || classCtor.type === 'StaticBlock') {
 				return;
 			}
 
 			const name = classDeclaration.id.name;
-			const valueText = context.sourceCode.getText(<any>propertyDefinition.value);
+			const valueText = context.sourceCode.getText(propertyDefinition.value as ESTree.Node);
 
 			if (valueText.includes(name + '.')) {
-
 				if (classCtor.value?.type === 'FunctionExpression' && !classCtor.value.params.find((param: any) => param.type === 'TSParameterProperty' && param.decorators?.length > 0)) {
 					return;
 				}

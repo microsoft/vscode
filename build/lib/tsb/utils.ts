@@ -5,7 +5,7 @@
 
 export namespace strings {
 
-    export function format(value: string, ...rest: any[]): string {
+    export function format(value: string, ...rest: unknown[]): string {
         return value.replace(/({\d+})/g, function (match) {
             const index = Number(match.substring(1, match.length - 1));
             return String(rest[index]) || match;

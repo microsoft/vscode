@@ -287,7 +287,15 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			return undefined;
 		}
 		const resolverResult = await this._remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
-		return resolverResult.options?.extensionHostEnv as any;
+		const envResult: IProcessEnvironment = {};
+		if (resolverResult.options?.extensionHostEnv) {
+			for (const [key, value] of Object.entries(resolverResult.options.extensionHostEnv)) {
+				if (value !== null) {
+					envResult[key] = value;
+				}
+			}
+		}
+		return envResult;
 	}
 
 	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {

@@ -2,10 +2,13 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./out",
-		"esModuleInterop": true,
 		"types": [
 			"node"
 		],
+		"typeRoots": [
+			"./node_modules/@types"
+		],
+		"esModuleInterop": true,
 		// Needed to suppress warnings in upstream completions
 		"noImplicitReturns": false,
 		"noUnusedParameters": false
