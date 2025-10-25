@@ -44,7 +44,7 @@ export function getInstanceHoverInfo(instance: ITerminalInstance, storageService
 	});
 
 	const shellProcessString = getShellProcessTooltip(instance, !!showDetailed);
-	const content = new MarkdownString(instance.title + shellProcessString + statusString, { supportThemeIcons: true });
+	const content = new MarkdownString(instance.title + shellProcessString + statusString, { supportThemeIcons: true, supportHtml: true });
 
 	return { content, actions };
 }
@@ -109,7 +109,7 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 	}
 	const combinedString = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString();
 	if (combinedString !== undefined) {
-		detailedAdditions.push(`Prompt input: \`${combinedString}\``);
+		detailedAdditions.push(`Prompt input: <code>${combinedString.replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</code>`);
 	}
 	const detailedAdditionsString = detailedAdditions.length > 0
 		? '\n\n' + detailedAdditions.map(e => `- ${e}`).join('\n')
