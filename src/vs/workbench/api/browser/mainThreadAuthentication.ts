@@ -154,9 +154,15 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			create: async (authorizationServer, serverMetadata, resource) => {
 				// Auth Provider Id is a combination of the authorization server and the resource, if provided.
 				const authProviderId = resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
-				const clientDetails = await this.dynamicAuthProviderStorageService.getClientRegistration(authProviderId);
+
+				// Client registration is shared across all resources for the same auth server
+				// This allows multiple MCP servers using the same auth server to share the same OAuth client
+				const authServerStr = authorizationServer.toString(true);
+				const clientDetails = await this.dynamicAuthProviderStorageService.getClientRegistration(authServerStr);
 				let clientId = clientDetails?.clientId;
 				const clientSecret = clientDetails?.clientSecret;
+
+				// Sessions are still stored per provider ID (auth server + resource) for proper token isolation
 				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
 				if (clientId) {
 					initialTokens = await this.dynamicAuthProviderStorageService.getSessionsForDynamicAuthProvider(authProviderId, clientId);
@@ -269,7 +275,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	async $registerDynamicAuthenticationProvider(id: string, label: string, authorizationServer: UriComponents, clientId: string, clientSecret?: string): Promise<void> {
 		await this.$registerAuthenticationProvider(id, label, true, [authorizationServer]);
-		await this.dynamicAuthProviderStorageService.storeClientRegistration(id, URI.revive(authorizationServer).toString(true), clientId, clientSecret, label);
+		const authServerStr = URI.revive(authorizationServer).toString(true);
+		// Store client credentials by auth server (not provider ID) so all resources sharing the same auth server use the same client
+		await this.dynamicAuthProviderStorageService.storeClientRegistration(authServerStr, authServerStr, clientId, clientSecret, label);
+		// Also track the provider info for UI display
+		await this.dynamicAuthProviderStorageService.storeClientRegistration(id, authServerStr, clientId, clientSecret, label);
 	}
 
 	async $setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void> {
@@ -283,13 +293,25 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			throw new Error(`Dynamic authentication provider ${providerId} not found. Has it been registered?`);
 		}
 
-		// Store client credentials together
+		const authServerStr = authorizationServer ? URI.revive(authorizationServer).toString(true) : existing.authorizationServer;
+		const finalClientId = clientId || existing.clientId;
+		const finalLabel = label || existing.label;
+
+		// Store client credentials by auth server so all resources share the same client
+		await this.dynamicAuthProviderStorageService.storeClientRegistration(
+			authServerStr,
+			authServerStr,
+			finalClientId,
+			clientSecret,
+			finalLabel
+		);
+		// Also track the provider info for UI display
 		await this.dynamicAuthProviderStorageService.storeClientRegistration(
 			providerId || existing.providerId,
-			authorizationServer ? URI.revive(authorizationServer).toString(true) : existing.authorizationServer,
-			clientId || existing.clientId,
+			authServerStr,
+			finalClientId,
 			clientSecret,
-			label || existing.label
+			finalLabel
 		);
 	}
 
