@@ -114,6 +114,23 @@
 	min-width: 0;
 }
 
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:nth-child(1) > .action-label > .codicon {
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.scm-view .scm-provider > .actions > .monaco-toolbar.responsive {
+	.monaco-action-bar > .actions-container > .action-item {
+		flex-shrink: 0;
+		min-width: 20px;
+	}
+
+	.monaco-action-bar.has-secondary-actions > .actions-container > .action-item:nth-last-child(2),
+	.monaco-action-bar:not(.has-secondary-actions) > .actions-container > .action-item:nth-last-child(1) {
+		flex-shrink: 10000;
+	}
+}
+
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label,
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .monaco-dropdown > .dropdown-label > .action-label {
 	display: flex;

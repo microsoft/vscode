@@ -153,6 +153,8 @@ export class ToolBar extends Disposable {
 
 		// Responsive support
 		if (this.options.responsive) {
+			this.element.classList.add('responsive');
+
 			const observer = new ResizeObserver(() => {
 				this.setToolbarMaxWidth(this.element.getBoundingClientRect().width);
 			});
@@ -236,6 +238,10 @@ export class ToolBar extends Disposable {
 		if (this.options.responsive) {
 			// Reset hidden actions
 			this.hiddenActions.length = 0;
+
+			// The `has-secondary-actions` class is used to apply a large flex-shrink
+			// to the last visible primary action so that it shrinks to its minimum width.
+			this.actionBar.domNode.classList.toggle('has-secondary-actions', this.originalSecondaryActions.length > 0);
 
 			// Update toolbar to fit with container width
 			this.setToolbarMaxWidth(this.element.getBoundingClientRect().width);
@@ -329,6 +335,11 @@ export class ToolBar extends Disposable {
 				}
 			}
 		}
+
+		// The `has-secondary-actions` class is used to apply a large flex-shrink
+		// to the last visible primary action so that it shrinks to its minimum width.
+		this.actionBar.domNode.classList.toggle('has-secondary-actions',
+			this.originalSecondaryActions.length > 0 || this.hiddenActions.length > 0);
 
 		// Update overflow menu
 		const hiddenActions = this.hiddenActions.map(entry => entry.action);
