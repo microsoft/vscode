@@ -601,7 +601,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (arrayVisibleRanges.length !== 0) {
 			const fullVisibleRange = new StickyRange(arrayVisibleRanges[0].startLineNumber, arrayVisibleRanges[arrayVisibleRanges.length - 1].endLineNumber);
 			const candidateRanges = this._stickyLineCandidateProvider.getCandidateStickyLinesIntersecting(fullVisibleRange);
-			const innerScopes = this._editor.getOption(EditorOption.stickyScroll).innerScopes === 'innerScopes';
+			const innerScopes = this._editor.getOption(EditorOption.stickyScroll).scopePreference === 'innerScopes';
 			for (const range of candidateRanges) {
 				const start = range.startLineNumber;
 				const end = range.endLineNumber;
