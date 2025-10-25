@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
 
 export interface BaseTask {
 	displayName?: string;
@@ -24,10 +24,7 @@ export interface CallbackTask extends BaseTask {
 export type Task = PromiseTask | StreamTask | CallbackTask;
 
 function _isPromise(p: Promise<void> | NodeJS.ReadWriteStream): p is Promise<void> {
-	if (typeof (<any>p).then === 'function') {
-		return true;
-	}
-	return false;
+	return typeof (p as Promise<void>).then === 'function';
 }
 
 function _renderTime(time: number): string {

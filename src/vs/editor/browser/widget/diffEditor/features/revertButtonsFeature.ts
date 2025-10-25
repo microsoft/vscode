@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, h, EventType } from 'vs/base/browser/dom';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorunWithStore, derived } from 'vs/base/common/observable';
-import { IGlyphMarginWidget, IGlyphMarginWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
-import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
-import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { LineRange, LineRangeSet } from 'vs/editor/common/core/lineRange';
-import { Range } from 'vs/editor/common/core/range';
-import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { GlyphMarginLane } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
+import { addDisposableListener, h, EventType } from '../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, autorunWithStore, derived } from '../../../../../base/common/observable.js';
+import { IGlyphMarginWidget, IGlyphMarginWidgetPosition } from '../../../editorBrowser.js';
+import { DiffEditorEditors } from '../components/diffEditorEditors.js';
+import { DiffEditorOptions } from '../diffEditorOptions.js';
+import { DiffEditorViewModel } from '../diffEditorViewModel.js';
+import { DiffEditorWidget } from '../diffEditorWidget.js';
+import { LineRange, LineRangeSet } from '../../../../common/core/ranges/lineRange.js';
+import { Range } from '../../../../common/core/range.js';
+import { LineRangeMapping, RangeMapping } from '../../../../common/diff/rangeMapping.js';
+import { GlyphMarginLane } from '../../../../common/model.js';
+import { localize } from '../../../../../nls.js';
 
 const emptyArr: never[] = [];
 
@@ -107,17 +107,11 @@ export class RevertButtonsFeature extends Disposable {
 export class RevertButton extends Disposable implements IGlyphMarginWidget {
 	public static counter = 0;
 
-	private readonly _id: string = `revertButton${RevertButton.counter++}`;
+	private readonly _id: string;
 
 	getId(): string { return this._id; }
 
-	private readonly _domNode = h('div.revertButton', {
-		title: this._revertSelection
-			? localize('revertSelectedChanges', 'Revert Selected Changes')
-			: localize('revertChange', 'Revert Change')
-	},
-		[renderIcon(Codicon.arrowRight)]
-	).root;
+	private readonly _domNode;
 
 	constructor(
 		private readonly _lineNumber: number,
@@ -126,6 +120,14 @@ export class RevertButton extends Disposable implements IGlyphMarginWidget {
 		private readonly _revertSelection: boolean,
 	) {
 		super();
+		this._id = `revertButton${RevertButton.counter++}`;
+		this._domNode = h('div.revertButton', {
+			title: this._revertSelection
+				? localize('revertSelectedChanges', 'Revert Selected Changes')
+				: localize('revertChange', 'Revert Change')
+		},
+			[renderIcon(Codicon.arrowRight)]
+		).root;
 
 
 		this._register(addDisposableListener(this._domNode, EventType.MOUSE_DOWN, e => {

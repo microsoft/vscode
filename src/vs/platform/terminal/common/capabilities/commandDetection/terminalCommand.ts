@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkProperties, IMarker, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalOutputMatcher, ITerminalOutputMatch } from 'vs/platform/terminal/common/terminal';
-
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
-import type { IBuffer, IBufferLine, Terminal } from '@xterm/headless';
+import { IMarkProperties, ISerializedTerminalCommand, ITerminalCommand } from '../capabilities.js';
+import { ITerminalOutputMatcher, ITerminalOutputMatch } from '../../terminal.js';
+import type { IBuffer, IBufferLine, IMarker, Terminal } from '@xterm/headless';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 export interface ITerminalCommandProperties {
 	command: string;
@@ -16,7 +14,8 @@ export interface ITerminalCommandProperties {
 	isTrusted: boolean;
 	timestamp: number;
 	duration: number;
-	marker: IXtermMarker | undefined;
+	id: string;
+	marker: IMarker | undefined;
 	cwd: string | undefined;
 	exitCode: number | undefined;
 	commandStartLineContent: string | undefined;
@@ -25,8 +24,8 @@ export interface ITerminalCommandProperties {
 	startX: number | undefined;
 
 	promptStartMarker?: IMarker | undefined;
-	endMarker?: IXtermMarker | undefined;
-	executedMarker?: IXtermMarker | undefined;
+	endMarker?: IMarker | undefined;
+	executedMarker?: IMarker | undefined;
 	aliases?: string[][] | undefined;
 	wasReplayed?: boolean | undefined;
 }
@@ -41,7 +40,7 @@ export class TerminalCommand implements ITerminalCommand {
 	get promptStartMarker() { return this._properties.promptStartMarker; }
 	get marker() { return this._properties.marker; }
 	get endMarker() { return this._properties.endMarker; }
-	set endMarker(value: IXtermMarker | undefined) { this._properties.endMarker = value; }
+	set endMarker(value: IMarker | undefined) { this._properties.endMarker = value; }
 	get executedMarker() { return this._properties.executedMarker; }
 	get aliases() { return this._properties.aliases; }
 	get wasReplayed() { return this._properties.wasReplayed; }
@@ -51,6 +50,7 @@ export class TerminalCommand implements ITerminalCommand {
 	get markProperties() { return this._properties.markProperties; }
 	get executedX() { return this._properties.executedX; }
 	get startX() { return this._properties.startX; }
+	get id() { return this._properties.id; }
 
 	constructor(
 		private readonly _xterm: Terminal,
@@ -75,6 +75,7 @@ export class TerminalCommand implements ITerminalCommand {
 			command: isCommandStorageDisabled ? '' : serialized.command,
 			commandLineConfidence: serialized.commandLineConfidence ?? 'low',
 			isTrusted: serialized.isTrusted,
+			id: serialized.id,
 			promptStartMarker,
 			marker,
 			startX: serialized.startX,
@@ -110,6 +111,7 @@ export class TerminalCommand implements ITerminalCommand {
 			timestamp: this.timestamp,
 			duration: this.duration,
 			markProperties: this.markProperties,
+			id: this.id,
 		};
 	}
 
@@ -274,6 +276,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 	cwd?: string;
 	command?: string;
 	commandLineConfidence?: 'low' | 'medium' | 'high';
+	id: string;
 
 	isTrusted?: boolean;
 	isInvalid?: boolean;
@@ -281,6 +284,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 	constructor(
 		private readonly _xterm: Terminal,
 	) {
+		this.id = generateUuid();
 	}
 
 	serialize(cwd: string | undefined): ISerializedTerminalCommand | undefined {
@@ -303,7 +307,8 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 			commandStartLineContent: undefined,
 			timestamp: 0,
 			duration: 0,
-			markProperties: undefined
+			markProperties: undefined,
+			id: this.id
 		};
 	}
 
@@ -318,6 +323,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 				command: ignoreCommandLine ? '' : (this.command || ''),
 				commandLineConfidence: ignoreCommandLine ? 'low' : (this.commandLineConfidence || 'low'),
 				isTrusted: !!this.isTrusted,
+				id: this.id,
 				promptStartMarker: this.promptStartMarker,
 				marker: this.commandStartMarker,
 				startX: this.commandStartX,
@@ -364,9 +370,9 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 function extractCommandLine(
 	buffer: IBuffer,
 	cols: number,
-	commandStartMarker: IXtermMarker | undefined,
+	commandStartMarker: IMarker | undefined,
 	commandStartX: number | undefined,
-	commandExecutedMarker: IXtermMarker | undefined,
+	commandExecutedMarker: IMarker | undefined,
 	commandExecutedX: number | undefined
 ): string {
 	if (!commandStartMarker || !commandExecutedMarker || commandStartX === undefined || commandExecutedX === undefined) {

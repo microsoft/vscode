@@ -7,15 +7,14 @@
   "enabledApiProposals": [
     "activeComment",
     "authSession",
-    "defaultChatParticipant",
-    "chatVariableResolver",
-    "contribViewsRemote",
+    "chatParticipantPrivate",
+    "chatProvider",
     "contribStatusBarItems",
-    "createFileSystemWatcher",
+    "contribViewsRemote",
     "customEditorMove",
+    "defaultChatParticipant",
     "diffCommand",
     "documentFiltersExclusive",
-    "documentPaste",
     "editorInsets",
     "embeddings",
     "extensionRuntime",
@@ -26,33 +25,36 @@
     "findTextInFiles",
     "fsChunks",
     "interactive",
-    "mappedEditsProvider",
-    "notebookCellExecutionState",
+    "languageStatusText",
+    "nativeWindowHandle",
     "notebookDeprecated",
     "notebookLiveShare",
     "notebookMessaging",
     "notebookMime",
     "portsAttributes",
+    "quickInputButtonLocation",
     "quickPickSortByLabel",
-    "languageStatusText",
+    "quickPickItemResource",
     "resolvers",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",
     "scmValidation",
     "taskPresentationGroup",
+    "telemetry",
     "terminalDataWriteEvent",
     "terminalDimensions",
-    "terminalShellIntegration",
-    "tunnels",
     "testObserver",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
     "treeViewActiveItem",
     "treeViewReveal",
+    "tunnels",
     "workspaceTrust",
-    "telemetry"
+    "inlineCompletionsAdditions",
+    "devDeviceId",
+    "languageModelProxy"
   ],
   "private": true,
   "activationEvents": [],
@@ -62,6 +64,12 @@
   },
   "icon": "media/icon.png",
   "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "test-lm-vendor",
+        "displayName": "Test LM Vendor"
+      }
+    ],
     "chatParticipants": [
       {
         "id": "api-test.participant",
@@ -73,6 +81,11 @@
             "name": "hello",
             "description": "Hello"
           }
+        ],
+        "modes": [
+          "agent",
+          "ask",
+          "edit"
         ]
       },
       {
@@ -80,6 +93,17 @@
         "name": "participant2",
         "description": "test",
         "commands": []
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "requires_confirmation_tool",
+        "toolReferenceName": "requires_confirmation_tool",
+        "displayName": "Requires Confirmation Tool",
+        "modelDescription": "A noop tool to trigger confirmation.",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(files)",
+        "inputSchema": {}
       }
     ],
     "configuration": {
@@ -102,6 +126,13 @@
           "type": "string"
         },
         "farboo.get": {
+          "type": "string",
+          "default": "get-prop"
+        },
+        "integration-test.http.proxy": {
+          "type": "string"
+        },
+        "integration-test.http.proxyAuth": {
           "type": "string",
           "default": "get-prop"
         }
@@ -240,8 +271,11 @@
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-api-tests ./tsconfig.json"
   },
   "devDependencies": {
-    "@types/mocha": "^9.1.1",
-    "@types/node": "20.x"
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@types/node-forge": "^1.3.11",
+    "node-forge": "^1.3.1",
+    "straightforward": "^4.2.2"
   },
   "repository": {
     "type": "git",

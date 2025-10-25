@@ -11,6 +11,32 @@ import { FileWatcherManager } from './fileWatcherManager';
 import { Logger } from './logging';
 import { PathMapper, looksLikeNodeModules, mapUri } from './pathMapper';
 import { findArgument, hasArgument } from './util/args';
+import { URI } from 'vscode-uri';
+
+type TsModule = typeof ts;
+
+interface TsInternals extends TsModule {
+	combinePaths(path: string, ...paths: (string | undefined)[]): string;
+
+	matchFiles(
+		path: string,
+		extensions: readonly string[] | undefined,
+		excludes: readonly string[] | undefined,
+		includes: readonly string[] | undefined,
+		useCaseSensitiveFileNames: boolean,
+		currentDirectory: string,
+		depth: number | undefined,
+		getFileSystemEntries: (path: string) => { files: readonly string[]; directories: readonly string[] },
+		realpath: (path: string) => string
+	): string[];
+
+	generateDjb2Hash(data: string): string;
+
+	memoize: <T>(callback: () => T) => () => T;
+	ensureTrailingDirectorySeparator: (path: string) => string;
+	getDirectoryPath: (path: string) => string;
+	directorySeparator: string;
+}
 
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
 
@@ -28,26 +54,16 @@ function createServerHost(
 	const fs = apiClient?.vscode.workspace.fileSystem;
 
 	// Internals
-	const combinePaths: (path: string, ...paths: (string | undefined)[]) => string = (ts as any).combinePaths;
+	const combinePaths = (ts as TsInternals).combinePaths;
 	const byteOrderMarkIndicator = '\uFEFF';
-	const matchFiles: (
-		path: string,
-		extensions: readonly string[] | undefined,
-		excludes: readonly string[] | undefined,
-		includes: readonly string[] | undefined,
-		useCaseSensitiveFileNames: boolean,
-		currentDirectory: string,
-		depth: number | undefined,
-		getFileSystemEntries: (path: string) => { files: readonly string[]; directories: readonly string[] },
-		realpath: (path: string) => string
-	) => string[] = (ts as any).matchFiles;
-	const generateDjb2Hash = (ts as any).generateDjb2Hash;
+	const matchFiles = (ts as TsInternals).matchFiles;
+	const generateDjb2Hash = (ts as TsInternals).generateDjb2Hash;
 
 	// Legacy web
-	const memoize: <T>(callback: () => T) => () => T = (ts as any).memoize;
-	const ensureTrailingDirectorySeparator: (path: string) => string = (ts as any).ensureTrailingDirectorySeparator;
-	const getDirectoryPath: (path: string) => string = (ts as any).getDirectoryPath;
-	const directorySeparator: string = (ts as any).directorySeparator;
+	const memoize = (ts as TsInternals).memoize;
+	const ensureTrailingDirectorySeparator = (ts as TsInternals).ensureTrailingDirectorySeparator;
+	const getDirectoryPath = (ts as TsInternals).getDirectoryPath;
+	const directorySeparator = (ts as TsInternals).directorySeparator;
 	const executingFilePath = findArgument(args, '--executingFilePath') || location + '';
 	const getExecutingDirectoryPath = memoize(() => memoize(() => ensureTrailingDirectorySeparator(getDirectoryPath(executingFilePath))));
 	const getWebPath = (path: string) => path.startsWith(directorySeparator) ? path.replace(directorySeparator, getExecutingDirectoryPath()) : undefined;
@@ -58,16 +74,16 @@ function createServerHost(
 	return {
 		watchFile: watchManager.watchFile.bind(watchManager),
 		watchDirectory: watchManager.watchDirectory.bind(watchManager),
-		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): any {
+		setTimeout(callback: (...args: unknown[]) => void, ms: number, ...args: unknown[]): unknown {
 			return setTimeout(callback, ms, ...args);
 		},
 		clearTimeout(timeoutId: any): void {
 			clearTimeout(timeoutId);
 		},
-		setImmediate(callback: (...args: any[]) => void, ...args: any[]): any {
+		setImmediate(callback: (...args: unknown[]) => void, ...args: unknown[]): unknown {
 			return this.setTimeout(callback, 0, ...args);
 		},
-		clearImmediate(timeoutId: any): void {
+		clearImmediate(timeoutId: unknown): void {
 			this.clearTimeout(timeoutId);
 		},
 		importPlugin: async (root, moduleName) => {
@@ -338,13 +354,29 @@ function createServerHost(
 	// For module resolution only. `node_modules` is also automatically mapped
 	// as if all node_modules-like paths are symlinked.
 	function realpath(path: string): string {
-		const isNm = looksLikeNodeModules(path) && !path.startsWith('/vscode-global-typings/');
-		// skip paths without .. or ./ or /. And things that look like node_modules
+		if (path.startsWith('/^/')) {
+			// In memory file. No mapping needed
+			return path;
+		}
+
+		const isNm = looksLikeNodeModules(path)
+			&& !path.startsWith('/vscode-global-typings/')
+			// Handle the case where a local folder has been opened in VS Code
+			// In these cases we do not want to use the mapped node_module
+			&& !path.startsWith('/file/');
+
+		// skip paths without .. or ./ or /
 		if (!isNm && !path.match(/\.\.|\/\.|\.\//)) {
 			return path;
 		}
 
-		let uri = pathMapper.toResource(path);
+		let uri: URI;
+		try {
+			uri = pathMapper.toResource(path);
+		} catch {
+			return path;
+		}
+
 		if (isNm) {
 			uri = mapUri(uri, 'vscode-node-modules');
 		}

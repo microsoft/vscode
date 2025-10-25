@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEnvConfiguration } from 'vs/editor/browser/config/editorConfiguration';
-import { migrateOptions } from 'vs/editor/browser/config/migrateOptions';
-import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IEnvConfiguration } from '../../../browser/config/editorConfiguration.js';
+import { migrateOptions } from '../../../browser/config/migrateOptions.js';
+import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from '../../../common/config/editorOptions.js';
+import { EditorZoom } from '../../../common/config/editorZoom.js';
+import { TestConfiguration } from './testConfiguration.js';
+import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
 
 suite('Common Editor Config', () => {
 
@@ -66,7 +66,8 @@ suite('Common Editor Config', () => {
 				outerHeight: 100,
 				emptySelectionClipboard: true,
 				pixelRatio: 1,
-				accessibilitySupport: AccessibilitySupport.Unknown
+				accessibilitySupport: AccessibilitySupport.Unknown,
+				editContextSupported: true,
 			};
 		}
 	}
@@ -86,6 +87,7 @@ suite('Common Editor Config', () => {
 
 	test('wordWrap compat false', () => {
 		const config = new TestWrappingConfiguration({
+			// eslint-disable-next-line local/code-no-any-casts
 			wordWrap: <any>false
 		});
 		assertWrapping(config, false, -1);
@@ -94,6 +96,7 @@ suite('Common Editor Config', () => {
 
 	test('wordWrap compat true', () => {
 		const config = new TestWrappingConfiguration({
+			// eslint-disable-next-line local/code-no-any-casts
 			wordWrap: <any>true
 		});
 		assertWrapping(config, true, 80);
@@ -254,13 +257,13 @@ suite('Common Editor Config', () => {
 		const actual = config.options.get(EditorOption.unicodeHighlighting);
 		assert.deepStrictEqual(actual,
 			{
-				nonBasicASCII: "inUntrustedWorkspace",
+				nonBasicASCII: 'inUntrustedWorkspace',
 				invisibleCharacters: true,
 				ambiguousCharacters: true,
-				includeComments: "inUntrustedWorkspace",
-				includeStrings: "inUntrustedWorkspace",
-				allowedCharacters: { "x": true },
-				allowedLocales: { "_os": true, "_vscode": true }
+				includeComments: 'inUntrustedWorkspace',
+				includeStrings: 'inUntrustedWorkspace',
+				allowedCharacters: { 'x': true },
+				allowedLocales: { '_os': true, '_vscode': true }
 			}
 		);
 		config.dispose();

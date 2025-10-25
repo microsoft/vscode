@@ -3,20 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from 'vs/base/browser/window';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError } from '../common/errors.js';
+
+type TrustedTypePolicyOptions = import('trusted-types/lib/index.d.ts').TrustedTypePolicyOptions;
 
 export function createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
 	policyName: string,
 	policyOptions?: Options,
-): undefined | Pick<TrustedTypePolicy<Options>, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>> {
+): undefined | Pick<TrustedTypePolicy, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>> {
 
 	interface IMonacoEnvironment {
 		createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
 			policyName: string,
 			policyOptions?: Options,
-		): undefined | Pick<TrustedTypePolicy<Options>, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>>;
+		): undefined | Pick<TrustedTypePolicy, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>>;
 	}
+	// eslint-disable-next-line local/code-no-any-casts
 	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
 
 	if (monacoEnvironment?.createTrustedTypesPolicy) {
@@ -28,7 +30,8 @@ export function createTrustedTypesPolicy<Options extends TrustedTypePolicyOption
 		}
 	}
 	try {
-		return mainWindow.trustedTypes?.createPolicy(policyName, policyOptions);
+		// eslint-disable-next-line local/code-no-any-casts
+		return (globalThis as any).trustedTypes?.createPolicy(policyName, policyOptions);
 	} catch (err) {
 		onUnexpectedError(err);
 		return undefined;

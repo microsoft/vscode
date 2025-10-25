@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { basename } from 'vs/base/common/resources';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { deepClone } from 'vs/base/common/objects';
+import { Event } from '../../../base/common/event.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { basename } from '../../../base/common/resources.js';
+import Severity from '../../../base/common/severity.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ITelemetryData } from '../../telemetry/common/telemetry.js';
+import { MessageBoxOptions } from '../../../base/parts/sandbox/common/electronTypes.js';
+import { mnemonicButtonLabel } from '../../../base/common/labels.js';
+import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { IProductService } from '../../product/common/productService.js';
+import { deepClone } from '../../../base/common/objects.js';
 
 export interface IDialogArgs {
 	readonly confirmArgs?: IConfirmDialogArgs;
@@ -216,7 +216,7 @@ export interface ISaveDialogOptions {
 	/**
 	 * A human-readable string for the ok button
 	 */
-	readonly saveLabel?: string;
+	readonly saveLabel?: { readonly withMnemonic: string; readonly withoutMnemonic: string } | string;
 
 	/**
 	 * Specifies a list of schemas for the file systems the user can save to. If not specified, uses the schema of the defaultURI or, if also not specified,
@@ -240,7 +240,7 @@ export interface IOpenDialogOptions {
 	/**
 	 * A human-readable string for the open button.
 	 */
-	readonly openLabel?: string;
+	readonly openLabel?: { readonly withMnemonic: string; readonly withoutMnemonic: string } | string;
 
 	/**
 	 * Allow to select files, defaults to `true`.
@@ -283,6 +283,8 @@ export interface ICustomDialogOptions {
 export interface ICustomDialogMarkdown {
 	readonly markdown: IMarkdownString;
 	readonly classes?: string[];
+	/** Custom link handler for markdown content, see {@link IContentActionHandler}. Defaults to {@link openLinkFromMarkdown}. */
+	actionHandler?(link: string): Promise<boolean>;
 }
 
 /**
@@ -308,7 +310,7 @@ export interface IDialogHandler {
 	/**
 	 * Present the about dialog to the user.
 	 */
-	about(): Promise<void>;
+	about(title: string, details: string, detailsToCopy: string): Promise<void>;
 }
 
 enum DialogKind {
@@ -438,7 +440,7 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 	abstract confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
 	abstract input(input: IInput): Promise<IInputResult>;
 	abstract prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>>;
-	abstract about(): Promise<void>;
+	abstract about(title: string, details: string, detailsToCopy: string): Promise<void>;
 }
 
 /**
@@ -454,12 +456,12 @@ export interface IDialogService {
 	/**
 	 * An event that fires when a dialog is about to show.
 	 */
-	onWillShowDialog: Event<void>;
+	readonly onWillShowDialog: Event<void>;
 
 	/**
 	 * An event that fires when a dialog did show (closed).
 	 */
-	onDidShowDialog: Event<void>;
+	readonly onDidShowDialog: Event<void>;
 
 	/**
 	 * Ask the user for confirmation with a modal dialog.
@@ -639,7 +641,7 @@ export interface IMassagedMessageBoxOptions {
 export function massageMessageBoxOptions(options: MessageBoxOptions, productService: IProductService): IMassagedMessageBoxOptions {
 	const massagedOptions = deepClone(options);
 
-	let buttons = (massagedOptions.buttons ?? []).map(button => mnemonicButtonLabel(button));
+	let buttons = (massagedOptions.buttons ?? []).map(button => mnemonicButtonLabel(button).withMnemonic);
 	let buttonIndeces = (options.buttons || []).map((button, index) => index);
 
 	let defaultId = 0; // by default the first button is default button

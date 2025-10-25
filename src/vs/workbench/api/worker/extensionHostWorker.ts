@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter } from 'vs/base/common/event';
-import { isMessageOfType, MessageType, createMessageOfType, IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostMain } from 'vs/workbench/api/common/extensionHostMain';
-import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { NestedWorker } from 'vs/workbench/services/extensions/worker/polyfillNestedWorker';
-import * as path from 'vs/base/common/path';
-import * as performance from 'vs/base/common/performance';
+import { IMessagePassingProtocol } from '../../../base/parts/ipc/common/ipc.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Emitter } from '../../../base/common/event.js';
+import { isMessageOfType, MessageType, createMessageOfType, IExtensionHostInitData } from '../../services/extensions/common/extensionHostProtocol.js';
+import { ExtensionHostMain } from '../common/extensionHostMain.js';
+import { IHostUtils } from '../common/extHostExtensionService.js';
+import { NestedWorker } from '../../services/extensions/worker/polyfillNestedWorker.js';
+import * as path from '../../../base/common/path.js';
+import * as performance from '../../../base/common/performance.js';
 
-import 'vs/workbench/api/common/extHost.common.services';
-import 'vs/workbench/api/worker/extHost.worker.services';
-import { FileAccess } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+import '../common/extHost.common.services.js';
+import './extHost.worker.services.js';
+import { FileAccess } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
 
 //#region --- Define, capture, and override some globals
 
@@ -80,19 +80,30 @@ self.importScripts = () => { throw new Error(`'importScripts' has been blocked`)
 // const nativeAddEventListener = addEventListener.bind(self);
 self.addEventListener = () => console.trace(`'addEventListener' has been blocked`);
 
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['AMDLoader'] = undefined;
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['NLSLoaderPlugin'] = undefined;
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['define'] = undefined;
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['require'] = undefined;
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['webkitRequestFileSystem'] = undefined;
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['webkitRequestFileSystemSync'] = undefined;
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['webkitResolveLocalFileSystemSyncURL'] = undefined;
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['webkitResolveLocalFileSystemURL'] = undefined;
 
+// eslint-disable-next-line local/code-no-any-casts
 if ((<any>self).Worker) {
 
 	// make sure new Worker(...) always uses blob: (to maintain current origin)
+	// eslint-disable-next-line local/code-no-any-casts
 	const _Worker = (<any>self).Worker;
+	// eslint-disable-next-line local/code-no-any-casts
 	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
 		if (/^file:/i.test(stringUrl.toString())) {
 			stringUrl = FileAccess.uriToBrowserUri(URI.parse(stringUrl.toString())).toString(true);
@@ -144,6 +155,7 @@ if ((<any>self).Worker) {
 	};
 
 } else {
+	// eslint-disable-next-line local/code-no-any-casts
 	(<any>self).Worker = class extends NestedWorker {
 		constructor(stringOrUrl: string | URL, options?: WorkerOptions) {
 			super(nativePostMessage, stringOrUrl, { name: path.basename(stringOrUrl.toString()), ...options });

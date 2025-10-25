@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-import * as fs from 'fs';
-import * as path from 'path';
+import es from 'event-stream';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
+import fs from 'fs';
+import path from 'path';
 
 class ErrorLog {
 	constructor(public id: string) {
@@ -87,10 +87,18 @@ export interface IReporter {
 	end(emitError: boolean): NodeJS.ReadWriteStream;
 }
 
+class ReporterError extends Error {
+	__reporter__ = true;
+}
+
+interface Errors extends Array<string> {
+	__logged__?: boolean;
+}
+
 export function createReporter(id?: string): IReporter {
 	const errorLog = getErrorLog(id);
 
-	const errors: string[] = [];
+	const errors: Errors = [];
 	errorLog.allErrors.push(errors);
 
 	const result = (err: string) => errors.push(err);
@@ -105,14 +113,13 @@ export function createReporter(id?: string): IReporter {
 			errorLog.onEnd();
 
 			if (emitError && errors.length > 0) {
-				if (!(errors as any).__logged__) {
+				if (!errors.__logged__) {
 					errorLog.log();
 				}
 
-				(errors as any).__logged__ = true;
+				errors.__logged__ = true;
 
-				const err = new Error(`Found ${errors.length} errors`);
-				(err as any).__reporter__ = true;
+				const err = new ReporterError(`Found ${errors.length} errors`);
 				this.emit('error', err);
 			} else {
 				this.emit('end');

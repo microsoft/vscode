@@ -2,19 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
+import withDefaults, { nodePlugins } from '../shared.webpack.config.mjs';
+import path from 'path';
 
-//@ts-check
-
-'use strict';
-
-const withDefaults = require('../shared.webpack.config');
-
-module.exports = withDefaults({
-	context: __dirname,
+export default withDefaults({
+	context: import.meta.dirname,
 	entry: {
-		extension: './src/ipynbMain.ts',
+		['ipynbMain.node']: './src/ipynbMain.node.ts',
+		notebookSerializerWorker: './src/notebookSerializerWorker.ts',
 	},
 	output: {
-		filename: 'ipynbMain.js'
-	}
+		path: path.resolve(import.meta.dirname, 'dist'),
+		filename: '[name].js'
+	},
+	plugins: [
+		...nodePlugins(import.meta.dirname), // add plugins, don't replace inherited
+	]
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extname } from 'vs/base/common/path';
+import { extname } from './path.js';
 
 export const Mimes = Object.freeze({
 	text: 'text/plain',
@@ -12,6 +12,7 @@ export const Mimes = Object.freeze({
 	markdown: 'text/markdown',
 	latex: 'text/latex',
 	uriList: 'text/uri-list',
+	html: 'text/html',
 });
 
 interface MapExtToMediaMimes {
@@ -123,4 +124,11 @@ export function normalizeMimeType(mimeType: string, strict?: true): string | und
 	// https://datatracker.ietf.org/doc/html/rfc2045#section-5.1
 	// media and subtype must ALWAYS be lowercase, parameter not
 	return `${match[1].toLowerCase()}/${match[2].toLowerCase()}${match[3] ?? ''}`;
+}
+
+/**
+ * Whether the provided mime type is a text stream like `stdout`, `stderr`.
+ */
+export function isTextStreamMime(mimeType: string) {
+	return ['application/vnd.code.notebook.stdout', 'application/vnd.code.notebook.stderr'].includes(mimeType);
 }

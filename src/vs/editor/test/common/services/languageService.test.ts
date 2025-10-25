@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { LanguageService } from 'vs/editor/common/services/languageService';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../common/languages/modesRegistry.js';
+import { LanguageService } from '../../../common/services/languageService.js';
 
 suite('LanguageService', () => {
 

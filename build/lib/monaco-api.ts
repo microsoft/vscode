@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+import fs from 'fs';
 import type * as ts from 'typescript';
-import * as path from 'path';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
+import path from 'path';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
+import { IFileMap, TypeScriptLanguageServiceHost } from './typeScriptLanguageServiceHost';
 
 const dtsv = '3';
 
@@ -17,7 +18,7 @@ const SRC = path.join(__dirname, '../../src');
 export const RECIPE_PATH = path.join(__dirname, '../monaco/monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 
-function logErr(message: any, ...rest: any[]): void {
+function logErr(message: any, ...rest: unknown[]): void {
 	fancyLog(ansiColors.yellow(`[monaco.d.ts]`), message, ...rest);
 }
 
@@ -206,7 +207,14 @@ function getMassagedTopLevelDeclarationText(ts: typeof import('typescript'), sou
 	return result;
 }
 
-function format(ts: typeof import('typescript'), text: string, endl: string): string {
+interface Formatting<TContext> {
+	getFormatContext(options: ts.FormatCodeSettings): TContext;
+	formatDocument(file: ts.SourceFile, ruleProvider: TContext, options: ts.FormatCodeSettings): ts.TextChange[];
+}
+
+type Typescript = typeof import('typescript') & { readonly formatting: Formatting<unknown> };
+
+function format(ts: Typescript, text: string, endl: string): string {
 	const REALLY_FORMAT = false;
 
 	text = preformat(text, endl);
@@ -218,7 +226,7 @@ function format(ts: typeof import('typescript'), text: string, endl: string): st
 	const sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
 
 	// Get the formatting edits on the input sources
-	const edits = (<any>ts).formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
+	const edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
 
 	// Apply the edits on the input code
 	return applyEdits(text, edits);
@@ -324,7 +332,8 @@ function format(ts: typeof import('typescript'), text: string, endl: string): st
 	function getRuleProvider(options: ts.FormatCodeSettings) {
 		// Share this between multiple formatters using the same options.
 		// This represents the bulk of the space the formatter uses.
-		return (ts as any).formatting.getFormatContext(options);
+
+		return ts.formatting.getFormatContext(options);
 	}
 
 	function applyEdits(text: string, edits: ts.TextChange[]): string {
@@ -380,7 +389,7 @@ interface IEnumEntry {
 	text: string;
 }
 
-function generateDeclarationFile(ts: typeof import('typescript'), recipe: string, sourceFileGetter: SourceFileGetter): ITempResult | null {
+function generateDeclarationFile(ts: Typescript, recipe: string, sourceFileGetter: SourceFileGetter): ITempResult | null {
 	const endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
 
 	const lines = recipe.split(endl);
@@ -397,7 +406,7 @@ function generateDeclarationFile(ts: typeof import('typescript'), recipe: string
 
 	const generateUsageImport = (moduleId: string) => {
 		const importName = 'm' + (++usageCounter);
-		usageImports.push(`import * as ${importName} from './${moduleId.replace(/\.d\.ts$/, '')}';`);
+		usageImports.push(`import * as ${importName} from './${moduleId}';`);
 		return importName;
 	};
 
@@ -555,7 +564,7 @@ export interface IMonacoDeclarationResult {
 	isTheSame: boolean;
 }
 
-function _run(ts: typeof import('typescript'), sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult | null {
+function _run(ts: Typescript, sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult | null {
 	const recipe = fs.readFileSync(RECIPE_PATH).toString();
 	const t = generateDeclarationFile(ts, recipe, sourceFileGetter);
 	if (!t) {
@@ -632,6 +641,9 @@ export class DeclarationResolver {
 		if (/\.d\.ts$/.test(moduleId)) {
 			return path.join(SRC, moduleId);
 		}
+		if (/\.js$/.test(moduleId)) {
+			return path.join(SRC, moduleId.replace(/\.js$/, '.ts'));
+		}
 		return path.join(SRC, `${moduleId}.ts`);
 	}
 
@@ -650,10 +662,10 @@ export class DeclarationResolver {
 			);
 		}
 		const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
-		const fileMap: IFileMap = {
-			'file.ts': fileContents
-		};
-		const service = this.ts.createLanguageService(new TypeScriptLanguageServiceHost(this.ts, {}, fileMap, {}));
+		const fileMap: IFileMap = new Map([
+			['file.ts', fileContents]
+		]);
+		const service = this.ts.createLanguageService(new TypeScriptLanguageServiceHost(this.ts, fileMap, {}));
 		const text = service.getEmitOutput('file.ts', true, true).outputFiles[0].text;
 		return new CacheEntry(
 			this.ts.createSourceFile(fileName, text, this.ts.ScriptTarget.ES5),
@@ -664,75 +676,9 @@ export class DeclarationResolver {
 
 export function run3(resolver: DeclarationResolver): IMonacoDeclarationResult | null {
 	const sourceFileGetter = (moduleId: string) => resolver.getDeclarationSourceFile(moduleId);
-	return _run(resolver.ts, sourceFileGetter);
+	return _run(resolver.ts as Typescript, sourceFileGetter);
 }
 
-
-
-
-interface ILibMap { [libName: string]: string }
-interface IFileMap { [fileName: string]: string }
-
-class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
-
-	private readonly _ts: typeof import('typescript');
-	private readonly _libs: ILibMap;
-	private readonly _files: IFileMap;
-	private readonly _compilerOptions: ts.CompilerOptions;
-
-	constructor(ts: typeof import('typescript'), libs: ILibMap, files: IFileMap, compilerOptions: ts.CompilerOptions) {
-		this._ts = ts;
-		this._libs = libs;
-		this._files = files;
-		this._compilerOptions = compilerOptions;
-	}
-
-	// --- language service host ---------------
-
-	getCompilationSettings(): ts.CompilerOptions {
-		return this._compilerOptions;
-	}
-	getScriptFileNames(): string[] {
-		return (
-			([] as string[])
-				.concat(Object.keys(this._libs))
-				.concat(Object.keys(this._files))
-		);
-	}
-	getScriptVersion(_fileName: string): string {
-		return '1';
-	}
-	getProjectVersion(): string {
-		return '1';
-	}
-	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
-		if (this._files.hasOwnProperty(fileName)) {
-			return this._ts.ScriptSnapshot.fromString(this._files[fileName]);
-		} else if (this._libs.hasOwnProperty(fileName)) {
-			return this._ts.ScriptSnapshot.fromString(this._libs[fileName]);
-		} else {
-			return this._ts.ScriptSnapshot.fromString('');
-		}
-	}
-	getScriptKind(_fileName: string): ts.ScriptKind {
-		return this._ts.ScriptKind.TS;
-	}
-	getCurrentDirectory(): string {
-		return '';
-	}
-	getDefaultLibFileName(_options: ts.CompilerOptions): string {
-		return 'defaultLib:es5';
-	}
-	isDefaultLibFileName(fileName: string): boolean {
-		return fileName === this.getDefaultLibFileName(this._compilerOptions);
-	}
-	readFile(path: string, _encoding?: string): string | undefined {
-		return this._files[path] || this._libs[path];
-	}
-	fileExists(path: string): boolean {
-		return path in this._files || path in this._libs;
-	}
-}
 
 export function execute(): IMonacoDeclarationResult {
 	const r = run3(new DeclarationResolver(new FSProvider()));

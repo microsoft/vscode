@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jtbandes/swift-tmlanguage/commit/ab893c684dd7eeb7c249139e29e931334316fda7",
+	"version": "https://github.com/jtbandes/swift-tmlanguage/commit/45ac01d47c6d63402570c2c36bcfbadbd1c7bca6",
 	"name": "Swift",
 	"scopeName": "source.swift",
 	"comment": "See swift.tmbundle/grammar-test.swift for test cases.",
@@ -52,7 +52,7 @@
 					},
 					"patterns": [
 						{
-							"match": "\\b(swift|(?:iOS|macOS|OSX|watchOS|tvOS|UIKitForMac)(?:ApplicationExtension)?)\\b(?:\\s+([0-9]+(?:\\.[0-9]+)*\\b))?",
+							"match": "\\b(swift|(?:iOS|macOS|OSX|watchOS|tvOS|visionOS|UIKitForMac)(?:ApplicationExtension)?)\\b(?:\\s+([0-9]+(?:\\.[0-9]+)*\\b))?",
 							"captures": {
 								"1": {
 									"name": "keyword.other.platform.os.swift"
@@ -580,7 +580,7 @@
 							}
 						},
 						{
-							"match": "\\b(os)\\s*(\\()\\s*(?:(macOS|OSX|iOS|tvOS|watchOS|Android|Linux|FreeBSD|Windows|PS4)|\\w+)\\s*(\\))",
+							"match": "\\b(os)\\s*(\\()\\s*(?:(macOS|OSX|iOS|tvOS|watchOS|visionOS|Android|Linux|FreeBSD|Windows|PS4)|\\w+)\\s*(\\))",
 							"captures": {
 								"1": {
 									"name": "keyword.other.condition.swift"
@@ -940,6 +940,17 @@
 					"include": "#declarations-available-types"
 				},
 				{
+					"include": "#literals-numeric"
+				},
+				{
+					"name": "support.variable.inferred.swift",
+					"match": "\\b_\\b"
+				},
+				{
+					"name": "keyword.other.inline-array.swift",
+					"match": "(?<=\\s)\\bof\\b(?=\\s+[\\p{L}_\\d\\p{N}\\p{M}\\[(])"
+				},
+				{
 					"begin": ":",
 					"end": "(?=\\]|[>){}])",
 					"beginCaptures": {
@@ -980,28 +991,24 @@
 		},
 		"declarations-extension": {
 			"name": "meta.definition.type.$1.swift",
-			"begin": "\\b(extension)\\s+((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))",
+			"begin": "\\b(extension)\\s+",
 			"end": "(?<=\\})",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.type.$1.swift"
-				},
-				"2": {
+				}
+			},
+			"patterns": [
+				{
 					"name": "entity.name.type.swift",
+					"begin": "\\G(?!\\s*[:{\\n])",
+					"end": "(?=\\s*[:{\\n])|(?!\\G)(?=\\s*where\\b)",
 					"patterns": [
 						{
 							"include": "#declarations-available-types"
 						}
 					]
 				},
-				"3": {
-					"name": "punctuation.definition.identifier.swift"
-				},
-				"4": {
-					"name": "punctuation.definition.identifier.swift"
-				}
-			},
-			"patterns": [
 				{
 					"include": "#comments"
 				},
@@ -1159,6 +1166,10 @@
 			},
 			"patterns": [
 				{
+					"name": "storage.modifier.swift",
+					"match": "\\bsending\\b"
+				},
+				{
 					"include": "#declarations-available-types"
 				}
 			]
@@ -1229,6 +1240,9 @@
 			},
 			"patterns": [
 				{
+					"include": "#literals-numeric"
+				},
+				{
 					"include": "#declarations-available-types"
 				}
 			]
@@ -1254,6 +1268,10 @@
 				{
 					"comment": "Swift 2: constraints inside the generic param list",
 					"include": "#declarations-generic-where-clause"
+				},
+				{
+					"name": "keyword.other.declaration-specifier.swift",
+					"match": "\\blet\\b"
 				},
 				{
 					"name": "keyword.control.loop.swift",
@@ -1470,6 +1488,9 @@
 					"end": "(?!\\G)$|(?=[={}]|(?!\\G)\\bwhere\\b)",
 					"patterns": [
 						{
+							"include": "#attributes"
+						},
+						{
 							"include": "#comments"
 						},
 						{
@@ -1500,6 +1521,9 @@
 			"begin": ",\\s*",
 			"end": "(?!\\G)(?!//|/\\*)|(?=[,={}]|(?!\\G)\\bwhere\\b)",
 			"patterns": [
+				{
+					"include": "#attributes"
+				},
 				{
 					"include": "#comments"
 				},
@@ -1736,6 +1760,10 @@
 					"begin": ":\\s*(?!\\s)",
 					"end": "(?=[,)])",
 					"patterns": [
+						{
+							"name": "storage.modifier.swift",
+							"match": "\\bsending\\b"
+						},
 						{
 							"include": "#declarations-available-types"
 						},
@@ -2586,7 +2614,7 @@
 			},
 			"patterns": [
 				{
-					"match": "\\s*\\b((?:iOS|macOS|OSX|watchOS|tvOS|UIKitForMac)(?:ApplicationExtension)?)\\b(?:\\s+([0-9]+(?:\\.[0-9]+)*\\b))",
+					"match": "\\s*\\b((?:iOS|macOS|OSX|watchOS|tvOS|visionOS|UIKitForMac)(?:ApplicationExtension)?)\\b(?:\\s+([0-9]+(?:\\.[0-9]+)*\\b))",
 					"captures": {
 						"1": {
 							"name": "keyword.other.platform.os.swift"
@@ -2807,11 +2835,15 @@
 				},
 				{
 					"name": "keyword.control.transfer.swift",
-					"match": "(?<!\\.)\\b(?:continue|break|fallthrough|return)\\b"
+					"match": "(?<!\\.)\\b(?:continue|break|fallthrough|return|yield)\\b"
 				},
 				{
 					"name": "keyword.control.loop.swift",
 					"match": "(?<!\\.)\\b(?:while|for|in|each)\\b"
+				},
+				{
+					"name": "keyword.other.inline-array.swift",
+					"match": "(?<=\\s)\\bof\\b(?=\\s+[\\p{L}_\\d\\p{N}\\p{M}\\[(])"
 				},
 				{
 					"name": "keyword.other.operator.type.existential.swift",
@@ -2889,7 +2921,7 @@
 				},
 				{
 					"name": "storage.type.function.swift",
-					"match": "\\binit[?!]|\\binit\\b|(?<!\\.)\\b(?:func|deinit|subscript|didSet|get|set|willSet)\\b"
+					"match": "\\binit[?!]|\\binit\\b|(?<!\\.)\\b(?:func|deinit|subscript|didSet|get|set|willSet|yielding\\s+borrow|yielding\\s+mutate)\\b"
 				},
 				{
 					"name": "keyword.other.declaration-specifier.accessibility.swift",
@@ -3081,7 +3113,7 @@
 				{
 					"comment": "Single-line regular expression literals must be matched all in one go\n in order to avoid ambiguities with operators, and to adhere to certain\n parsing rules in SE-0354/SE-0355, such as:\n - A regex literal will not be parsed if it contains an unbalanced ).\n - A regex may end with a space only if it began with an escaped space",
 					"name": "string.regexp.line.swift",
-					"match": "(?x)\n(((\\#+)?)/)     # (1) for captures, (2) for matching end, (3) for conditionals\n(?(3)|(?!/))   # is not a comment\n(?(3)|(?!\\s))  # does not start with a space or tab\n(\\\\\\s)? # (4) may start with an escaped space or tab\n(?<guts>\n  (?>   # no backtracking, avoids issues with negative lookbehind at end\n    (?:\n      \\\\Q\n        (?:(?!\\\\E)(?!/\\2).)*+\n        (?:\\\\E\n          # A quoted sequence may not have a closing E, in which case it extends to the end of the regex\n          | (?(3)|(?<!\\s))(?=/\\2)\n        )\n      | \\\\.\n      | \\(\\?\\#[^)]*\\)\n      | \\(\\?\n          # we only support a fixed maximum number of braces because otherwise we can't balance the number of open and close braces\n          \\{(?<g1>\\{)?+(?<g2>\\{)?+(?<g3>\\{)?+(?<g4>\\{)?+(?<g5>\\{)?+\n          .+?\n          \\}(?(<g1>)\\})(?(<g2>)\\})(?(<g3>)\\})(?(<g4>)\\})(?(<g5>)\\})\n          (?:\\[(?!\\d)\\w+\\])?\n          [X<>]?\n        \\)\n      | (?<class>\\[ (?:\\\\. | [^\\[\\]] | \\g<class>)+ \\])\n      | \\(\\g<guts>?+\\)\n      | (?:(?!/\\2)[^()\\[\\\\])+  # any character (until end)\n    )+\n  )\n)?+\n# may end with a space only if it is an extended literal or contains only a single escaped space\n(?(3)|(?(5)(?<!\\s)))\n(/\\2)     # (12)\n| \\#+/.+(\\n)",
+					"match": "(?x)\n(/)\n(?!\\s)         # non-extended regex literals may not start with a space or tab\n(?!/)          # disambiguation with line comments (redundant since comment rules occur earlier)\n(?:\n  \\\\\\s(?=/)    # may end with a space only if it contains only a single escaped space, i.e. /\\ /\n  | (?<guts>\n    (?>   # no backtracking, avoids issues with negative lookbehind at end\n      (?:\n        \\\\Q\n          (?:(?!\\\\E)(?!/).)*+\n          # A quoted sequence may not have a closing E, in which case it extends to the end of the regex\n          (?:\\\\E | (?=/))\n        | \\\\.\n        | \\(\\?\\#[^)]*\\)\n        | \\(\\?\n            # InterpolatedCallout\n            (?>\n              {[^{].*?}\n              | {{[^{].*?}}\n              | {{{[^{].*?}}}\n              | {{{{[^{].*?}}}}\n              | {{{{{[^{].*?}}}}}\n              | {{{{{{.+?}}}}}}\n            )\n            (?:\\[(?!\\d)\\w+\\])?\n            [X<>]?\n          \\)\n        # Allow nested character classes to a limited depth\n        | \\[(?:\n            \\\\. |\n            [^\\[\\]\\\\] |\n            \\[(?:\n              \\\\. |\n              [^\\[\\]\\\\] |\n              \\[(?:\n                \\\\. |\n                [^\\[\\]\\\\] |\n                \\[(?:\n                  \\\\. |\n                  [^\\[\\]\\\\]\n                )+\\]\n              )+\\]\n            )+\\]\n          )+\\]\n        | \\(\\g<guts>?+\\)\n        | (?:(?!/)[^()\\[\\\\])+  # any character (until end)\n      )+\n    )\n  )?+\n  (?<!\\s)\n)\n(/)",
 					"captures": {
 						"0": {
 							"patterns": [
@@ -3093,10 +3125,29 @@
 						"1": {
 							"name": "punctuation.definition.string.begin.regexp.swift"
 						},
-						"12": {
+						"3": {
+							"name": "punctuation.definition.string.end.regexp.swift"
+						}
+					}
+				},
+				{
+					"name": "string.regexp.line.extended.swift",
+					"match": "(?x)\n((\\#+)/)     # (1) for captures, (2) for matching end\n(?<guts>\n  (?>   # no backtracking, avoids issues with negative lookbehind at end\n    (?:\n      \\\\Q\n        (?:(?!\\\\E)(?!/\\2).)*+\n        # A quoted sequence may not have a closing E, in which case it extends to the end of the regex\n        (?:\\\\E | (?=/\\2))\n      | \\\\.\n      | \\(\\?\\#[^)]*\\)\n      | \\(\\?\n          # InterpolatedCallout\n          (?>\n            {[^{].*?}\n            | {{[^{].*?}}\n            | {{{[^{].*?}}}\n            | {{{{[^{].*?}}}}\n            | {{{{{[^{].*?}}}}}\n            | {{{{{{.+?}}}}}}\n          )\n          (?:\\[(?!\\d)\\w+\\])?\n          [X<>]?\n        \\)\n      # Allow nested character classes to a limited depth\n      | \\[(?:\n          \\\\. |\n          [^\\[\\]\\\\] |\n          \\[(?:\n            \\\\. |\n            [^\\[\\]\\\\] |\n            \\[(?:\n              \\\\. |\n              [^\\[\\]\\\\] |\n              \\[(?:\n                \\\\. |\n                [^\\[\\]\\\\]\n              )+\\]\n            )+\\]\n          )+\\]\n        )+\\]\n      | \\(\\g<guts>?+\\)\n      | (?:(?!/\\2)[^()\\[\\\\])+  # any character (until end)\n    )+\n  )\n)?+\n(/\\2)     # (4)\n| \\#+/.+(\\n)",
+					"captures": {
+						"0": {
+							"patterns": [
+								{
+									"include": "#literals-regular-expression-literal-regex-guts"
+								}
+							]
+						},
+						"1": {
+							"name": "punctuation.definition.string.begin.regexp.swift"
+						},
+						"4": {
 							"name": "punctuation.definition.string.end.regexp.swift"
 						},
-						"13": {
+						"5": {
 							"name": "invalid.illegal.returns-not-allowed.regexp"
 						}
 					}
@@ -3155,31 +3206,61 @@
 					}
 				},
 				{
-					"comment": "'\\k<' NamedOrNumberRef '>'\n \"\\k'\" NamedOrNumberRef \"'\"\n '\\g<' NamedOrNumberRef '>'\n \"\\g'\" NamedOrNumberRef \"'\"",
-					"match": "(?x)(\\\\[gk](<)|\\\\[gk]') (?: ((?!\\d)\\w+) (?:([+-])(\\d+))? | ([+-]?\\d+) (?:([+-])(\\d+))? ) ((?(2)>|'))",
+					"comment": "'\\k<' NamedOrNumberRef '>'\n '\\g<' NamedOrNumberRef '>'",
+					"match": "(?x)(\\\\[gk]<) (?: ((?!\\d)\\w+) (?:([+-])(\\d+))? | ([+-]?\\d+) (?:([+-])(\\d+))? ) (>)",
 					"captures": {
 						"1": {
 							"name": "constant.character.escape.backslash.regexp"
 						},
-						"3": {
+						"2": {
 							"name": "variable.other.group-name.regexp"
 						},
-						"4": {
+						"3": {
 							"name": "keyword.operator.recursion-level.regexp"
+						},
+						"4": {
+							"name": "constant.numeric.integer.decimal.regexp"
 						},
 						"5": {
 							"name": "constant.numeric.integer.decimal.regexp"
 						},
 						"6": {
-							"name": "constant.numeric.integer.decimal.regexp"
-						},
-						"7": {
 							"name": "keyword.operator.recursion-level.regexp"
 						},
-						"8": {
+						"7": {
 							"name": "constant.numeric.integer.decimal.regexp"
 						},
-						"9": {
+						"8": {
+							"name": "constant.character.escape.backslash.regexp"
+						}
+					}
+				},
+				{
+					"comment": "\"\\k'\" NamedOrNumberRef \"'\"\n \"\\g'\" NamedOrNumberRef \"'\"",
+					"match": "(?x)(\\\\[gk]') (?: ((?!\\d)\\w+) (?:([+-])(\\d+))? | ([+-]?\\d+) (?:([+-])(\\d+))? ) (')",
+					"captures": {
+						"1": {
+							"name": "constant.character.escape.backslash.regexp"
+						},
+						"2": {
+							"name": "variable.other.group-name.regexp"
+						},
+						"3": {
+							"name": "keyword.operator.recursion-level.regexp"
+						},
+						"4": {
+							"name": "constant.numeric.integer.decimal.regexp"
+						},
+						"5": {
+							"name": "constant.numeric.integer.decimal.regexp"
+						},
+						"6": {
+							"name": "keyword.operator.recursion-level.regexp"
+						},
+						"7": {
+							"name": "constant.numeric.integer.decimal.regexp"
+						},
+						"8": {
 							"name": "constant.character.escape.backslash.regexp"
 						}
 					}
@@ -3291,7 +3372,7 @@
 		},
 		"literals-regular-expression-literal-callout": {
 			"name": "meta.callout.regexp",
-			"match": "(?x)\n# PCRECallout\n(\\()(?<keyw>\\?C)\n  (?:\n    (?<num>\\d+)\n    | `(?<name>(?:[^`]|``)*)`\n    | '(?<name>(?:[^']|'')*)'\n    | \"(?<name>(?:[^\"]|\"\")*)\"\n    | \\^(?<name>(?:[^\\^]|\\^\\^)*)\\^\n    | %(?<name>(?:[^%]|%%)*)%\n    | \\#(?<name>(?:[^#]|\\#\\#)*)\\#\n    | \\$(?<name>(?:[^$]|\\$\\$)*)\\$\n    | \\{(?<name>(?:[^}]|\\}\\})*)\\}\n  )?\n(\\))\n# NamedCallout\n| (\\()(?<keyw>\\*)\n    (?<name>(?!\\d)\\w+)\n    (?:\\[(?<tag>(?!\\d)\\w+)\\])?\n    (?:\\{ [^,}]+ (?:,[^,}]+)* \\})?\n  (\\))\n# InterpolatedCallout\n| (\\()(?<keyw>\\?)\n    # we only support a fixed maximum number of braces because otherwise we can't balance the number of open and close braces\n    (\\{(?<g1>\\{)?+(?<g2>\\{)?+(?<g3>\\{)?+(?<g4>\\{)?+(?<g5>\\{)?+) .+? \\}(?(<g1>)\\})(?(<g2>)\\})(?(<g3>)\\})(?(<g4>)\\})(?(<g5>)\\})\n    (?:\\[(?<tag>(?!\\d)\\w+)\\])?\n    (?<keyw>[X<>]?)\n  (\\))",
+			"match": "(?x)\n# PCRECallout\n(\\()(?<keyw>\\?C)\n  (?:\n    (?<num>\\d+)\n    | `(?<name>(?:[^`]|``)*)`\n    | '(?<name>(?:[^']|'')*)'\n    | \"(?<name>(?:[^\"]|\"\")*)\"\n    | \\^(?<name>(?:[^\\^]|\\^\\^)*)\\^\n    | %(?<name>(?:[^%]|%%)*)%\n    | \\#(?<name>(?:[^#]|\\#\\#)*)\\#\n    | \\$(?<name>(?:[^$]|\\$\\$)*)\\$\n    | \\{(?<name>(?:[^}]|\\}\\})*)\\}\n  )?\n(\\))\n# NamedCallout\n| (\\()(?<keyw>\\*)\n    (?<name>(?!\\d)\\w+)\n    (?:\\[(?<tag>(?!\\d)\\w+)\\])?\n    (?:\\{ [^,}]+ (?:,[^,}]+)* \\})?\n  (\\))\n# InterpolatedCallout\n| (\\()(?<keyw>\\?)\n    (?>(\\{(?:\\g<-1>|(?!{).*?)\\}))\n    (?:\\[(?<tag>(?!\\d)\\w+)\\])?\n    (?<keyw>[X<>]?)\n  (\\))",
 			"captures": {
 				"1": {
 					"name": "punctuation.definition.group.regexp"
@@ -3350,13 +3431,13 @@
 				"19": {
 					"name": "keyword.control.callout.regexp"
 				},
-				"26": {
+				"21": {
 					"name": "variable.language.tag-name.regexp"
 				},
-				"27": {
+				"22": {
 					"name": "keyword.control.callout.regexp"
 				},
-				"28": {
+				"23": {
 					"name": "punctuation.definition.group.regexp"
 				}
 			}
@@ -3922,7 +4003,7 @@
 					"contentName": "source.swift",
 					"name": "meta.embedded.line.swift",
 					"begin": "\\\\#\\(",
-					"end": "(\\))",
+					"end": "\\)",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.begin.swift"
@@ -3931,9 +4012,6 @@
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.swift"
-						},
-						"1": {
-							"name": "source.swift"
 						}
 					},
 					"patterns": [
@@ -3967,7 +4045,7 @@
 					"contentName": "source.swift",
 					"name": "meta.embedded.line.swift",
 					"begin": "\\\\\\(",
-					"end": "(\\))",
+					"end": "\\)",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.begin.swift"
@@ -3976,9 +4054,6 @@
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.swift"
-						},
-						"1": {
-							"name": "source.swift"
 						}
 					},
 					"patterns": [

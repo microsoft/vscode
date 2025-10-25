@@ -1,0 +1,68 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-codeblock-pill-widget {
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	border-radius: 4px;
+	text-wrap: nowrap;
+	width: fit-content;
+	font-weight: normal;
+	text-decoration: none;
+	font-size: var(--vscode-chat-font-size-body-xs);
+	padding: 0 3px;
+	cursor: pointer;
+}
+
+.chat-codeblock-pill-widget .icon-label {
+	padding: 0px 3px;
+	text-wrap: wrap;
+}
+
+.interactive-item-container .value .rendered-markdown .chat-codeblock-pill-widget {
+	color: inherit;
+}
+
+.chat-codeblock-pill-widget:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.chat-codeblock-pill-widget .icon {
+	vertical-align: middle;
+	line-height: 1em;
+	font-size: 90%;
+	overflow: hidden;
+}
+
+.show-file-icons.chat-codeblock-pill-widget .icon::before {
+	display: inline-block;
+	line-height: 100%;
+	overflow: hidden;
+	background-size: contain;
+	background-position: center;
+	background-repeat: no-repeat;
+	flex-shrink: 0;
+}
+
+span.label-detail {
+	padding-left: 4px;
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+
+	&:empty {
+		display: none;
+	}
+}
+
+span.label-added {
+	font-weight: bold;
+	padding-left: 4px;
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+span.label-removed {
+	font-weight: bold;
+	padding-left: 4px;
+	color: var(--vscode-chat-linesRemovedForeground);
+}

@@ -14,7 +14,6 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - bash: |
       TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
@@ -34,7 +33,7 @@ steps:
 
   - bash: |
       # Install build dependencies
-      (cd build && yarn)
+      (cd build && npm ci)
       node build/azure-pipelines/publish-types/check-version.js
     displayName: Check version
 

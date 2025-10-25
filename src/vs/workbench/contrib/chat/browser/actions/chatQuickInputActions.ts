@@ -3,18 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Selection } from 'vs/editor/common/core/selection';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IQuickChatOpenOptions, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { CHAT_CATEGORY } from './chatActions.js';
+import { IQuickChatOpenOptions, IQuickChatService } from '../chat.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 
 export const ASK_QUICK_QUESTION_ACTION_ID = 'workbench.action.quickchat.toggle';
 export function registerQuickChatActions() {
@@ -28,7 +26,7 @@ export function registerQuickChatActions() {
 				title: localize2('chat.openInChatView.label', "Open in Chat View"),
 				f1: false,
 				category: CHAT_CATEGORY,
-				icon: Codicon.commentDiscussion,
+				icon: Codicon.chatSparkle,
 				menu: {
 					id: MenuId.ChatInputSide,
 					group: 'navigation',
@@ -65,54 +63,25 @@ export function registerQuickChatActions() {
 		}
 	});
 
-	registerAction2(class LaunchInlineChatFromQuickChatAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.quickchat.launchInlineChat',
-				title: localize2('chat.launchInlineChat.label', "Launch Inline Chat"),
-				f1: false,
-				category: CHAT_CATEGORY
-			});
-		}
-
-		async run(accessor: ServicesAccessor) {
-			const quickChatService = accessor.get(IQuickChatService);
-			const codeEditorService = accessor.get(ICodeEditorService);
-			if (quickChatService.focused) {
-				quickChatService.close();
-			}
-			const codeEditor = codeEditorService.getActiveCodeEditor();
-			if (!codeEditor) {
-				return;
-			}
-
-			const controller = InlineChatController.get(codeEditor);
-			if (!controller) {
-				return;
-			}
-
-			await controller.run();
-			controller.focus();
-		}
-	});
-
 }
 
 class QuickChatGlobalAction extends Action2 {
 	constructor() {
 		super({
 			id: ASK_QUICK_QUESTION_ACTION_ID,
-			title: localize2('quickChat', 'Quick Chat'),
-			precondition: CONTEXT_CHAT_ENABLED,
-			icon: Codicon.commentDiscussion,
+			title: localize2('quickChat', 'Open Quick Chat'),
+			precondition: ChatContextKeys.enabled,
+			icon: Codicon.chatSparkle,
 			f1: false,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
-				linux: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyI
-				}
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyL,
+			},
+			menu: {
+				id: MenuId.ChatTitleBarMenu,
+				group: 'a_open',
+				order: 4
 			},
 			metadata: {
 				description: localize('toggle.desc', 'Toggle the quick chat'),
@@ -165,6 +134,7 @@ class AskQuickChatAction extends Action2 {
 			id: `workbench.action.openQuickChat`,
 			category: CHAT_CATEGORY,
 			title: localize2('interactiveSession.open', "Open Quick Chat"),
+			precondition: ChatContextKeys.enabled,
 			f1: true
 		});
 	}

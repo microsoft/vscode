@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService, ICommandEvent, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { timeout } from 'vs/base/common/async';
+import { CancelablePromise, notCancellablePromise, raceCancellablePromises, timeout } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { CommandsRegistry, ICommandEvent, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
 
 export class CommandService extends Disposable implements ICommandService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private _extensionHostIsReady: boolean = false;
-	private _starActivation: Promise<void> | null;
+	private _starActivation: CancelablePromise<void> | null;
 
 	private readonly _onWillExecuteCommand: Emitter<ICommandEvent> = this._register(new Emitter<ICommandEvent>());
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
@@ -37,16 +37,19 @@ export class CommandService extends Disposable implements ICommandService {
 
 	private _activateStar(): Promise<void> {
 		if (!this._starActivation) {
-			// wait for * activation, limited to at most 30s
-			this._starActivation = Promise.race<any>([
+			// wait for * activation, limited to at most 30s.
+			this._starActivation = raceCancellablePromises([
 				this._extensionService.activateByEvent(`*`),
 				timeout(30000)
 			]);
 		}
-		return this._starActivation;
+
+		// This is wrapped with notCancellablePromise so it doesn't get cancelled
+		// early because it is shared between consumers.
+		return notCancellablePromise(this._starActivation);
 	}
 
-	async executeCommand<T>(id: string, ...args: any[]): Promise<T> {
+	async executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
 		this._logService.trace('CommandService#executeCommand', id);
 
 		const activationEvent = `onCommand:${id}`;
@@ -76,16 +79,17 @@ export class CommandService extends Disposable implements ICommandService {
 		// as well as a * activation event raced against registration and against 30s
 		await Promise.all([
 			this._extensionService.activateByEvent(activationEvent),
-			Promise.race<any>([
+			raceCancellablePromises<unknown>([
 				// race * activation against command registration
 				this._activateStar(),
 				Event.toPromise(Event.filter(CommandsRegistry.onDidRegisterCommand, e => e === id))
 			]),
 		]);
+
 		return this._tryExecuteCommand(id, args);
 	}
 
-	private _tryExecuteCommand(id: string, args: any[]): Promise<any> {
+	private _tryExecuteCommand(id: string, args: unknown[]): Promise<any> {
 		const command = CommandsRegistry.getCommand(id);
 		if (!command) {
 			return Promise.reject(new Error(`command '${id}' not found`));
@@ -98,6 +102,11 @@ export class CommandService extends Disposable implements ICommandService {
 		} catch (err) {
 			return Promise.reject(err);
 		}
+	}
+
+	public override dispose(): void {
+		super.dispose();
+		this._starActivation?.cancel();
 	}
 }
 

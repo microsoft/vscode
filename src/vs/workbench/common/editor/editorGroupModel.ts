@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, EditorCloseContext, IMatchEditorOptions, GroupModelChangeKind } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { coalesce } from 'vs/base/common/arrays';
+import { Event, Emitter } from '../../../base/common/event.js';
+import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, EditorCloseContext, IMatchEditorOptions, GroupModelChangeKind } from '../editor.js';
+import { EditorInput } from './editorInput.js';
+import { SideBySideEditorInput } from './sideBySideEditorInput.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { dispose, Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { coalesce } from '../../../base/common/arrays.js';
 
 const EditorOpenPositioning = {
 	LEFT: 'left',
@@ -53,23 +53,6 @@ export function isSerializedEditorGroupModel(group?: unknown): group is ISeriali
 	const candidate = group as ISerializedEditorGroupModel | undefined;
 
 	return !!(candidate && typeof candidate === 'object' && Array.isArray(candidate.editors) && Array.isArray(candidate.mru));
-}
-
-export interface IMatchOptions {
-
-	/**
-	 * Whether to consider a side by side editor as matching.
-	 * By default, side by side editors will not be considered
-	 * as matching, even if the editor is opened in one of the sides.
-	 */
-	readonly supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
-
-	/**
-	 * Only consider an editor to match when the
-	 * `candidate === editor` but not when
-	 * `candidate.matches(editor)`.
-	 */
-	readonly strictEquals?: boolean;
 }
 
 export interface IGroupModelChangeEvent {
@@ -657,7 +640,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	}
 
 	setActive(candidate: EditorInput | undefined): EditorInput | undefined {
-		let result: EditorInput | undefined = undefined;
+		let result: EditorInput | undefined;
 
 		if (!candidate) {
 			this.setGroupActive();
@@ -1248,7 +1231,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		}
 
 		this.editors = coalesce(data.editors.map((e, index) => {
-			let editor: EditorInput | undefined = undefined;
+			let editor: EditorInput | undefined;
 
 			const editorSerializer = registry.getEditorSerializer(e.id);
 			if (editorSerializer) {

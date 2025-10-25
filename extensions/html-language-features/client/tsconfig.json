@@ -1,7 +1,14 @@
 {
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
-		"outDir": "./out"
+		"outDir": "./out",
+		"lib": [
+			"webworker"
+		],
+		"module": "Node16",
+		"typeRoots": [
+			"../node_modules/@types"
+		]
 	},
 	"include": [
 		"src/**/*",

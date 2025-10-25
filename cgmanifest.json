@@ -6,7 +6,7 @@
 				"git": {
 					"name": "chromium",
 					"repositoryUrl": "https://chromium.googlesource.com/chromium/src",
-					"commitHash": "f1a45d7ded05d64ca8136cc142ddc0c271b1dd43"
+					"commitHash": "54008792bf952b599e1a7416663711f6a07c8ce3"
 				}
 			},
 			"licenseDetail": [
@@ -40,7 +40,7 @@
 				"SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 			],
 			"isOnlyProductionDependency": true,
-			"version": "122.0.6261.156"
+			"version": "138.0.7204.251"
 		},
 		{
 			"component": {
@@ -48,7 +48,7 @@
 				"git": {
 					"name": "ffmpeg",
 					"repositoryUrl": "https://chromium.googlesource.com/chromium/third_party/ffmpeg",
-					"commitHash": "17525de887d54b970ffdd421a0879c1db1952307"
+					"commitHash": "092f84b6141055bfab609b6b2666b724eee2e130"
 				}
 			},
 			"isOnlyProductionDependency": true,
@@ -516,11 +516,12 @@
 				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
-					"commitHash": "9b1bf44ea9e7785e38c93b7d22d32dbca262df6c"
+					"commitHash": "caa20e28dc1f21a97f7b2a7134973fd6435b65f0",
+					"tag": "22.20.0"
 				}
 			},
 			"isOnlyProductionDependency": true,
-			"version": "20.11.1"
+			"version": "22.20.0"
 		},
 		{
 			"component": {
@@ -528,12 +529,13 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "f9ed0eaee4b172733872c2f84e5061882dd08e5c"
+					"commitHash": "dfc60f0f4246a542a45601f93572eca77bdff2f9",
+					"tag": "37.7.0"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "29.4.0"
+			"version": "37.7.0"
 		},
 		{
 			"component": {
@@ -587,12 +589,12 @@
 				"git": {
 					"name": "spdlog original",
 					"repositoryUrl": "https://github.com/gabime/spdlog",
-					"commitHash": "4fba14c79f356ae48d6141c561bf9fd7ba33fabd"
+					"commitHash": "7e635fca68d014934b4af8a1cf874f63989352b7"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "0.14.0"
+			"version": "1.12.0"
 		},
 		{
 			"component": {
@@ -634,12 +636,13 @@
 				"git": {
 					"name": "ripgrep",
 					"repositoryUrl": "https://github.com/BurntSushi/ripgrep",
-					"commitHash": "973de50c9ef451da2cfcdfa86f2b2711d8d6ff48"
+					"commitHash": "af6b6c543b224d348a8876f0c06245d9ea7929c5",
+					"tag": "13.0.0"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "0.10.0"
+			"version": "13.0.0"
 		},
 		{
 			"name": "@vscode/win32-app-container-tokens",
@@ -730,6 +733,39 @@
 				"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
 				"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
 				"SOFTWARE."
+			],
+			"license": "MIT"
+		},
+		{
+			"component": {
+				"type": "npm",
+				"npm": {
+					"name": "cacheable-request",
+					"version": "7.0.4"
+				}
+			},
+			"licenseDetail": [
+				"Copyright (c) cacheable-request authors",
+				"",
+				"MIT License",
+				"",
+				"Permission is hereby granted, free of charge, to any person obtaining a copy",
+				"of this software and associated documentation files (the \"Software\"), to",
+				"deal in the Software without restriction, including without limitation the",
+				"rights to use, copy, modify, merge, publish, distribute, sublicense, and/or",
+				"sell copies of the Software, and to permit persons to whom the Software is",
+				"furnished to do so, subject to the following conditions:",
+				"",
+				"The above copyright notice and this permission notice shall be included in",
+				"all copies or substantial portions of the Software.",
+				"",
+				"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+				"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+				"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+				"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+				"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING",
+				"FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER",
+				"DEALINGS IN THE SOFTWARE."
 			],
 			"license": "MIT"
 		}

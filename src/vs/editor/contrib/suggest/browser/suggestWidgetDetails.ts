@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Emitter, Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
-import * as nls from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CompletionItem } from './suggest';
+import * as dom from '../../../../base/browser/dom.js';
+import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import * as nls from '../../../../nls.js';
+import { isHighContrast } from '../../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../browser/editorBrowser.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { CompletionItem } from './suggest.js';
 
 export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
@@ -40,19 +41,17 @@ export class SuggestDetailsWidget {
 	private readonly _docs: HTMLElement;
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _markdownRenderer: MarkdownRenderer;
 	private readonly _renderDisposeable = new DisposableStore();
-	private _borderWidth: number = 1;
 	private _size = new dom.Dimension(330, 0);
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IInstantiationService instaService: IInstantiationService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 		this.domNode = dom.$('.suggest-details');
 		this.domNode.classList.add('no-docs');
 
-		this._markdownRenderer = instaService.createInstance(MarkdownRenderer, { editor: _editor });
 
 		this._body = dom.$('.body');
 
@@ -65,6 +64,8 @@ export class SuggestDetailsWidget {
 		this._header = dom.append(this._body, dom.$('.header'));
 		this._close = dom.append(this._header, dom.$('span' + ThemeIcon.asCSSSelector(Codicon.close)));
 		this._close.title = nls.localize('details.close', "Close");
+		this._close.role = 'button';
+		this._close.tabIndex = -1;
 		this._type = dom.append(this._header, dom.$('p.type'));
 
 		this._docs = dom.append(this._body, dom.$('p.docs'));
@@ -104,7 +105,7 @@ export class SuggestDetailsWidget {
 
 	getLayoutInfo() {
 		const lineHeight = this._editor.getOption(EditorOption.suggestLineHeight) || this._editor.getOption(EditorOption.fontInfo).lineHeight;
-		const borderWidth = this._borderWidth;
+		const borderWidth = isHighContrast(this._themeService.getColorTheme().type) ? 2 : 1;
 		const borderHeight = borderWidth * 2;
 		return {
 			lineHeight,
@@ -172,14 +173,18 @@ export class SuggestDetailsWidget {
 		} else if (documentation) {
 			this._docs.classList.add('markdown-docs');
 			dom.clearNode(this._docs);
-			const renderedContents = this._markdownRenderer.render(documentation);
+			const renderedContents = this._markdownRendererService.render(documentation, {
+				context: this._editor,
+				asyncRenderCallback: () => {
+					this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
+					this._onDidChangeContents.fire(this);
+				}
+			});
 			this._docs.appendChild(renderedContents.element);
 			this._renderDisposeable.add(renderedContents);
-			this._renderDisposeable.add(this._markdownRenderer.onDidRenderAsync(() => {
-				this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
-				this._onDidChangeContents.fire(this);
-			}));
 		}
+
+		this.domNode.classList.toggle('detail-and-doc', !!detail && !!documentation);
 
 		this.domNode.style.userSelect = 'text';
 		this.domNode.tabIndex = -1;
@@ -247,12 +252,8 @@ export class SuggestDetailsWidget {
 		this.scrollUp(80);
 	}
 
-	set borderWidth(width: number) {
-		this._borderWidth = width;
-	}
-
-	get borderWidth() {
-		return this._borderWidth;
+	focus() {
+		this.domNode.focus();
 	}
 }
 

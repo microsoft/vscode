@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as cp from 'child_process';
-import * as fs from 'fs';
-import * as File from 'vinyl';
-import * as es from 'event-stream';
-import * as filter from 'gulp-filter';
+import path from 'path';
+import cp from 'child_process';
+import fs from 'fs';
+import File from 'vinyl';
+import es from 'event-stream';
+import filter from 'gulp-filter';
 import { Stream } from 'stream';
 
 const watcherPath = path.join(__dirname, 'watcher.exe');
@@ -47,7 +47,7 @@ function watch(root: string): Stream {
 				path: changePathFull,
 				base: root
 			});
-			(<any>file).event = toChangeType(changeType);
+			file.event = toChangeType(changeType);
 			result.emit('data', file);
 		}
 	});

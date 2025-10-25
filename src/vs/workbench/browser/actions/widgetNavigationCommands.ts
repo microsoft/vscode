@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { WorkbenchListFocusContextKey, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey } from 'vs/platform/list/browser/listService';
-import { Event } from 'vs/base/common/event';
-import { combinedDisposable, toDisposable, IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { KeyMod, KeyCode } from '../../../base/common/keyCodes.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight, KeybindingsRegistry } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { WorkbenchListFocusContextKey, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey } from '../../../platform/list/browser/listService.js';
+import { Event } from '../../../base/common/event.js';
+import { combinedDisposable, toDisposable, IDisposable, Disposable } from '../../../base/common/lifecycle.js';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 
 /** INavigableContainer represents a logical container composed of widgets that can
 	be navigated back and forth with key shortcuts */
@@ -33,8 +33,8 @@ interface INavigableContainer {
 }
 
 interface IFocusNotifier {
-	readonly onDidFocus: Event<any>;
-	readonly onDidBlur: Event<any>;
+	readonly onDidFocus: Event<void>;
+	readonly onDidBlur: Event<void>;
 }
 
 function handleFocusEventsGroup(group: readonly IFocusNotifier[], handler: (isFocus: boolean) => void, onPartFocusChange?: (index: number, state: string) => void): IDisposable {
@@ -88,7 +88,7 @@ class NavigableContainerManager implements IDisposable {
 		return this.configurationService.getValue('workbench.navigibleContainer.enableDebug');
 	}
 
-	private log(msg: string, ...args: any[]): void {
+	private log(msg: string, ...args: unknown[]): void {
 		if (this.debugEnabled) {
 			this.logService.debug(msg, ...args);
 		}

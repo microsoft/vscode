@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
-import { localize } from 'vs/nls';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
-import { IAuthenticationUsageService } from 'vs/workbench/services/authentication/browser/authenticationUsageService';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
+import Severity from '../../../../../base/common/severity.js';
+import { localize } from '../../../../../nls.js';
+import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IAuthenticationAccessService } from '../../../../services/authentication/browser/authenticationAccessService.js';
+import { IAuthenticationUsageService } from '../../../../services/authentication/browser/authenticationUsageService.js';
+import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 
 export class SignOutOfAccountAction extends Action2 {
 	constructor() {

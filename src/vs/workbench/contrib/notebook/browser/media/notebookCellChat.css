@@ -180,20 +180,13 @@
 }
 
 .monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .markdownMessage .message {
+	line-clamp: initial;
 	-webkit-line-clamp: initial;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
 	display: -webkit-box;
 	-webkit-user-select: text;
 	user-select: text;
-}
-
-.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .markdownMessage .message[state="cropped"] {
-	-webkit-line-clamp: var(--vscode-inline-chat-cropped, 3);
-}
-
-.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .markdownMessage .message[state="expanded"] {
-	-webkit-line-clamp: var(--vscode-inline-chat-expanded, 10);
 }
 
 .monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .label A {
@@ -352,4 +345,3 @@
 .monaco-workbench .notebookOverlay .cell-chat-part .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover {
 	opacity: 1;
 }
-

@@ -3,16 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Memento } from '../../../common/memento.js';
+import { ModifiedFileEntryState } from './chatEditingService.js';
+import { CHAT_PROVIDER_ID } from './chatParticipantContribTypes.js';
+import { IChatRequestVariableEntry } from './chatVariableEntries.js';
+import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
 export interface IChatHistoryEntry {
 	text: string;
-	state?: any;
+	state?: IChatInputState;
+}
+
+/** The collected input state of ChatWidget contribs + attachments */
+export interface IChatInputState {
+	[key: string]: any;
+	chatContextAttachments?: ReadonlyArray<IChatRequestVariableEntry>;
+	chatWorkingSet?: ReadonlyArray<{ uri: URI; state: ModifiedFileEntryState }>;
+
+	/**
+	 * This should be a mode id (ChatMode | string).
+	 * { id: string } is the old IChatMode. This is deprecated but may still be in persisted data.
+	 */
+	chatMode?: ChatModeKind | string | { id: string };
 }
 
 export const IChatWidgetHistoryService = createDecorator<IChatWidgetHistoryService>('IChatWidgetHistoryService');
@@ -27,13 +43,15 @@ export interface IChatWidgetHistoryService {
 }
 
 interface IChatHistory {
-	history: { [providerId: string]: IChatHistoryEntry[] };
+	history?: { [providerId: string]: IChatHistoryEntry[] };
 }
+
+export const ChatInputHistoryMaxEntries = 40;
 
 export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 	_serviceBrand: undefined;
 
-	private memento: Memento;
+	private memento: Memento<IChatHistory>;
 	private viewState: IChatHistory;
 
 	private readonly _onDidClearHistory = new Emitter<void>();
@@ -42,8 +60,8 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 	constructor(
 		@IStorageService storageService: IStorageService
 	) {
-		this.memento = new Memento('interactive-session', storageService);
-		const loadedState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IChatHistory;
+		this.memento = new Memento<IChatHistory>('interactive-session', storageService);
+		const loadedState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		for (const provider in loadedState.history) {
 			// Migration from old format
 			loadedState.history[provider] = loadedState.history[provider].map(entry => typeof entry === 'string' ? { text: entry } : entry);
@@ -59,7 +77,7 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 
 	private getKey(location: ChatAgentLocation): string {
 		// Preserve history for panel by continuing to use the same old provider id. Use the location as a key for other chat locations.
-		return location === ChatAgentLocation.Panel ? CHAT_PROVIDER_ID : location;
+		return location === ChatAgentLocation.Chat ? CHAT_PROVIDER_ID : location;
 	}
 
 	saveHistory(location: ChatAgentLocation, history: IChatHistoryEntry[]): void {
@@ -68,7 +86,7 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 		}
 
 		const key = this.getKey(location);
-		this.viewState.history[key] = history;
+		this.viewState.history[key] = history.slice(-ChatInputHistoryMaxEntries);
 		this.memento.saveMemento();
 	}
 
