@@ -118,15 +118,13 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			const isVisible = this.scmViewService.isVisible(repository);
 			templateData.label.element.classList.toggle('visible', isVisible);
 
-			if (ThemeIcon.isThemeIcon(repository.provider.iconPath)) {
-				if (isVisible && repository.provider.iconPath.id === Codicon.repo.id) {
-					templateData.icon.className = ThemeIcon.asClassName(Codicon.repoSelected);
-				} else {
-					templateData.icon.className = ThemeIcon.asClassName(repository.provider.iconPath);
-				}
-			} else {
-				templateData.icon.className = ThemeIcon.asClassName(Codicon.repo);
-			}
+			const icon = ThemeIcon.isThemeIcon(repository.provider.iconPath)
+				? repository.provider.iconPath
+				: Codicon.repo;
+
+			templateData.icon.className = icon.id === Codicon.repo.id && isVisible
+				? `icon ${ThemeIcon.asClassName(Codicon.repoSelected)}`
+				: `icon ${ThemeIcon.asClassName(icon)}`;
 		}));
 
 		// Use the description to disambiguate repositories with the same name and have
