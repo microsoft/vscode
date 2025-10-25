@@ -104,6 +104,68 @@ const ignoredErrors = [
 	2792, /* Cannot_find_module_0_Did_you_mean_to_set_the_moduleResolution_option_to_node_or_to_add_aliases_to_the_paths_option */
 ];
 
+/**
+ * Convert TypeScript display parts to markdown, handling {@link} tags for MDN references and other links.
+ * This converts {@link https://...} to proper markdown links.
+ */
+function displayPartsToMarkdown(parts: ts.SymbolDisplayPart[] | string | undefined): string {
+	if (!parts) {
+		return '';
+	}
+	
+	if (typeof parts === 'string') {
+		return parts;
+	}
+	
+	const result: string[] = [];
+	let currentLink: { name?: string; text?: string } | undefined;
+	
+	for (const part of parts) {
+		switch (part.kind) {
+			case 'link':
+				// Start or end of a link
+				if (currentLink) {
+					// End of link - format it as markdown
+					const text = currentLink.text ?? currentLink.name ?? '';
+					if (text) {
+						// Check if it's a URL
+						if (/^https?:/.test(text)) {
+							const urlParts = text.split(' ');
+							const url = urlParts[0];
+							const linkText = urlParts.length > 1 ? urlParts.slice(1).join(' ') : url;
+							result.push(`[${linkText}](${url})`);
+						} else {
+							result.push(text);
+						}
+					}
+					currentLink = undefined;
+				} else {
+					// Start of link
+					currentLink = {};
+				}
+				break;
+				
+			case 'linkName':
+				if (currentLink) {
+					currentLink.name = part.text;
+				}
+				break;
+				
+			case 'linkText':
+				if (currentLink) {
+					currentLink.text = part.text;
+				}
+				break;
+				
+			default:
+				result.push(part.text);
+				break;
+		}
+	}
+	
+	return result.join('');
+}
+
 export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript', workspace: Workspace): LanguageMode {
 	const jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument(languageId));
 
@@ -185,10 +247,30 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			const jsLanguageService = await host.getLanguageService(jsDocument);
 			const info = jsLanguageService.getQuickInfoAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
 			if (info) {
-				const contents = ts.displayPartsToString(info.displayParts);
+				const displayString = ts.displayPartsToString(info.displayParts);
+				
+				// Convert documentation display parts to markdown with link support
+				const documentation = displayPartsToMarkdown(info.documentation);
+				
+				// Convert tags to markdown
+				const tags = info.tags?.map(tag => {
+					const tagText = displayPartsToMarkdown(tag.text);
+					return `*@${tag.name}*${tagText ? ` — ${tagText}` : ''}`;
+				}).join('  \n\n') || '';
+				
+				const markdownContent: string[] = ['```typescript', displayString, '```'];
+				
+				if (documentation) {
+					markdownContent.push('', documentation);
+				}
+				
+				if (tags) {
+					markdownContent.push('', tags);
+				}
+				
 				return {
 					range: convertRange(jsDocument, info.textSpan),
-					contents: ['```typescript', contents, '```'].join('\n')
+					contents: markdownContent.join('\n')
 				};
 			}
 			return null;
