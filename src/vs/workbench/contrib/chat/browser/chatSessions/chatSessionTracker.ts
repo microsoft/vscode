@@ -49,7 +49,7 @@ export class ChatSessionTracker extends Disposable {
 
 	private registerGroupListeners(group: IEditorGroup): void {
 		this._register(group.onDidModelChange(e => {
-			if (!isChatSession(e.editor)) {
+			if (!isChatSession(this.chatSessionsService.getContentProviderSchemes(), e.editor)) {
 				return;
 			}
 
