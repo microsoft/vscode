@@ -14,16 +14,17 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../../browser/treeSitterCommandParser.js';
+import { arch } from '../../../../../../base/common/process.js';
 
-suite('TreeSitterCommandParser', () => {
+// TODO: The powershell grammar can cause an OOM crash on arm https://github.com/microsoft/vscode/issues/273177
+(arch === 'arm' || arch === 'arm64' ? suite.skip : suite)('TreeSitterCommandParser', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
 	let parser: TreeSitterCommandParser;
 
 	setup(() => {
-		const logService = new NullLogService();
-		const fileService = store.add(new FileService(logService));
+		const fileService = store.add(new FileService(new NullLogService()));
 		const fileSystemProvider = new TestIPCFileSystemProvider();
 		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 

@@ -140,15 +140,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			return false;
 		}
 
-		if (this.resource.scheme === Schemas.vscodeChatSession) {
-			return isEqual(this.resource, otherInput.resource);
-		}
-
 		if (this.resource.scheme === Schemas.vscodeChatEditor && otherInput.resource.scheme === Schemas.vscodeChatEditor) {
 			return this.sessionId === otherInput.sessionId;
 		}
 
-		return false;
+		return isEqual(this.resource, otherInput.resource);
 	}
 
 	override get typeId(): string {
@@ -289,8 +285,9 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const newIcon = this.resolveIcon();
 		if (newIcon && (!this.cachedIcon || !this.iconsEqual(this.cachedIcon, newIcon))) {
 			this.cachedIcon = newIcon;
-			this._onDidChangeLabel.fire();
 		}
+
+		this._onDidChangeLabel.fire();
 
 		return this._register(new ChatEditorModel(this.model));
 	}
