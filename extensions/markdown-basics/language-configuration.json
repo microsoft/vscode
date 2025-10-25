@@ -39,7 +39,7 @@
 			"open": "<",
 			"close": ">",
 			"notIn": [
-				"string"
+				"string", "latex"
 			]
 		},
 	],
