@@ -66,7 +66,22 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 				},
 				icon: {
 					description: localize('chatSessionsExtPoint.icon', 'Icon identifier (codicon ID) for the chat session editor tab. For example, "$(github)" or "$(cloud)".'),
-					type: 'string'
+					anyOf: [{
+						type: 'string'
+					},
+					{
+						type: 'object',
+						properties: {
+							light: {
+								description: localize('icon.light', 'Icon path when a light theme is used'),
+								type: 'string'
+							},
+							dark: {
+								description: localize('icon.dark', 'Icon path when a dark theme is used'),
+								type: 'string'
+							}
+						}
+					}]
 				},
 				order: {
 					description: localize('chatSessionsExtPoint.order', 'Order in which this item should be displayed.'),
