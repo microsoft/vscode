@@ -29,6 +29,7 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { editorSuggestWidgetForeground, editorSuggestWidgetSelectedBackground } from '../../../../editor/contrib/suggest/browser/suggestWidget.js';
 import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { activeContrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 const $ = dom.$;
 
@@ -102,6 +103,15 @@ export const enum SuggestSelectionMode {
 
 const enum Classes {
 	PartialSelection = 'partial-selection',
+}
+
+interface IResolvableCompletionItem {
+	resolve(token: CancellationToken): Promise<void>;
+}
+
+function isResolvableCompletionItem(item: SimpleCompletionItem): item is SimpleCompletionItem & IResolvableCompletionItem {
+	const candidate = item as SimpleCompletionItem & IResolvableCompletionItem;
+	return typeof candidate.resolve === 'function';
 }
 
 export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TItem extends SimpleCompletionItem> extends Disposable {
@@ -365,6 +375,10 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 				}, 250);
 				const sub = token.onCancellationRequested(() => loading.dispose());
 				try {
+					// Check if the item has a resolve method and call it
+					if (isResolvableCompletionItem(item)) {
+						return await item.resolve(token);
+					}
 					return await Promise.resolve();
 				} finally {
 					loading.dispose();
