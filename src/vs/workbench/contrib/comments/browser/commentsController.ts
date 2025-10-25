@@ -121,30 +121,33 @@ class CommentingRangeDecorator {
 	private _onDidChangeDecorationsCount: Emitter<number> = new Emitter();
 	public readonly onDidChangeDecorationsCount = this._onDidChangeDecorationsCount.event;
 
-	constructor() {
+	constructor(editor: ICodeEditor) {
+		this._editor = editor;
+		this.decorationOptions = this.createDecorationOptions('comment-range-glyph comment-diff-added');
+		this.hoverDecorationOptions = this.createDecorationOptions('comment-range-glyph line-hover');
+		this.multilineDecorationOptions = this.createDecorationOptions('comment-range-glyph multiline-add');
+	}
+
+	private createDecorationOptions(className: string): ModelDecorationOptions {
+		const wordWrap = this._editor?.getOption(EditorOption.wordWrap);
+		const isWordWrapEnabled = wordWrap !== 'off';
+		
 		const decorationOptions: IModelDecorationOptions = {
 			description: CommentingRangeDecorator.description,
 			isWholeLine: true,
-			linesDecorationsClassName: 'comment-range-glyph comment-diff-added'
+			// When word wrap is enabled, use firstLineDecorationClassName to only show on first line
+			// When word wrap is disabled, use linesDecorationsClassName for the whole line
+			linesDecorationsClassName: isWordWrapEnabled ? undefined : className,
+			firstLineDecorationClassName: isWordWrapEnabled ? className : undefined,
 		};
 
-		this.decorationOptions = ModelDecorationOptions.createDynamic(decorationOptions);
+		return ModelDecorationOptions.createDynamic(decorationOptions);
+	}
 
-		const hoverDecorationOptions: IModelDecorationOptions = {
-			description: CommentingRangeDecorator.description,
-			isWholeLine: true,
-			linesDecorationsClassName: `comment-range-glyph line-hover`
-		};
-
-		this.hoverDecorationOptions = ModelDecorationOptions.createDynamic(hoverDecorationOptions);
-
-		const multilineDecorationOptions: IModelDecorationOptions = {
-			description: CommentingRangeDecorator.description,
-			isWholeLine: true,
-			linesDecorationsClassName: `comment-range-glyph multiline-add`
-		};
-
-		this.multilineDecorationOptions = ModelDecorationOptions.createDynamic(multilineDecorationOptions);
+	public updateDecorationOptions(): void {
+		this.decorationOptions = this.createDecorationOptions('comment-range-glyph comment-diff-added');
+		this.hoverDecorationOptions = this.createDecorationOptions('comment-range-glyph line-hover');
+		this.multilineDecorationOptions = this.createDecorationOptions('comment-range-glyph multiline-add');
 	}
 
 	public updateHover(hoverLine?: number) {
@@ -504,12 +507,23 @@ export class CommentController implements IEditorContribution {
 
 		this.editor = editor;
 
-		this._commentingRangeDecorator = new CommentingRangeDecorator();
+		this._commentingRangeDecorator = new CommentingRangeDecorator(editor);
 		this.globalToDispose.add(this._commentingRangeDecorator.onDidChangeDecorationsCount(count => {
 			if (count === 0) {
 				this.clearEditorListeners();
 			} else if (this._editorDisposables.length === 0) {
 				this.registerEditorListeners();
+			}
+		}));
+
+		// Listen to word wrap changes and update decorations accordingly
+		this.globalToDispose.add(this.editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.wordWrap)) {
+				this._commentingRangeDecorator.updateDecorationOptions();
+				// Re-apply decorations with updated options
+				if (this._commentingRangeDecorator && this._infos) {
+					this._commentingRangeDecorator.update(this.editor, this._infos, this.editor?.getPosition()?.lineNumber, this.editor?.getSelection() ?? undefined);
+				}
 			}
 		}));
 
