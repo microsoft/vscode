@@ -39,7 +39,7 @@ export class ChatSessionTracker extends Disposable {
 		this._register(this.editorGroupsService.onDidAddGroup(group => {
 			this.registerGroupListeners(group);
 		}));
-		// listen for deleted groups
+		// Listen for deleted groups
 		this._register(this.editorGroupsService.onDidRemoveGroup(group => {
 			this.groupDisposables.deleteAndDispose(group.id);
 		}));
