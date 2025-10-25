@@ -67,10 +67,10 @@ export class LazyCreateExtensionHostManager extends Disposable implements IExten
 	}
 
 	override dispose(): void {
-		super.dispose();
 		if (!this._actual) {
 			this._extensionHost.dispose();
 		}
+		super.dispose();
 	}
 
 	private _createActual(reason: string): ExtensionHostManager {
