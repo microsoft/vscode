@@ -380,20 +380,19 @@ export class ChatTodoListWidget extends Disposable {
 		const firstNotStartedTodo = notStartedTodos.length > 0 ? notStartedTodos[0] : undefined;
 		const currentTaskNumber = inProgressTodos.length > 0 ? completedCount + 1 : Math.max(1, completedCount);
 
+		const expandButtonLabel = this._isExpanded
+			? localize('chat.todoList.collapseButton', 'Collapse Todos')
+			: localize('chat.todoList.expandButton', 'Expand Todos');
+		this.expandoElement.setAttribute('aria-label', expandButtonLabel);
+		this.expandoElement.setAttribute('aria-expanded', this._isExpanded ? 'true' : 'false');
+
 		if (this._isExpanded) {
 			const titleText = dom.$('span');
 			titleText.textContent = totalCount > 0 ?
 				localize('chat.todoList.titleWithCount', 'Todos ({0}/{1})', currentTaskNumber, totalCount) :
 				localize('chat.todoList.title', 'Todos');
 			titleElement.appendChild(titleText);
-		}
-
-		const expandButtonLabel = this._isExpanded
-			? localize('chat.todoList.collapseButton', 'Collapse Todos')
-			: localize('chat.todoList.expandButton', 'Expand Todos');
-		this.expandoElement.setAttribute('aria-label', expandButtonLabel);
-		this.expandoElement.setAttribute('aria-expanded', this._isExpanded ? 'true' : 'false');
-		if (!this._isExpanded) {
+		} else {
 			// Show first in-progress todo, or if none, the first not-started todo
 			const todoToShow = firstInProgressTodo || firstNotStartedTodo;
 			if (todoToShow) {
