@@ -8,22 +8,35 @@ import { Emitter, Event, PauseableEmitter } from '../../../base/common/event.js'
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ISocket, SocketCloseEvent, SocketDiagnostics, SocketDiagnosticsEventType } from '../../../base/parts/ipc/common/ipc.net.js';
 
-export const makeRawSocketHeaders = (path: string, query: string, deubgLabel: string) => {
-	// https://tools.ietf.org/html/rfc6455#section-4
-	const buffer = new Uint8Array(16);
-	for (let i = 0; i < 16; i++) {
-		buffer[i] = Math.round(Math.random() * 256);
-	}
-	const nonce = encodeBase64(VSBuffer.wrap(buffer));
+const needsIPv6Encapsulation = (host: string): boolean => host.includes(':') && !(host.startsWith('[') && host.endsWith(']'));
 
-	const headers = [
-		`GET ws://localhost${path}?${query}&skipWebSocketFrames=true HTTP/1.1`,
-		`Connection: Upgrade`,
-		`Upgrade: websocket`,
-		`Sec-WebSocket-Key: ${nonce}`
-	];
+export const formatWebSocketAuthority = (host: string, port?: number): string => {
+        const authorityHost = needsIPv6Encapsulation(host) ? `[${host}]` : host;
+        return typeof port === 'number' ? `${authorityHost}:${port}` : authorityHost;
+};
 
-	return headers.join('\r\n') + '\r\n\r\n';
+export const makeRawSocketHeaders = (authority: string, path: string, query: string, deubgLabel: string, skipWebSocketFrames = true) => {
+        // https://tools.ietf.org/html/rfc6455#section-4
+        const buffer = new Uint8Array(16);
+        for (let i = 0; i < 16; i++) {
+                buffer[i] = Math.floor(Math.random() * 256);
+        }
+        const nonce = encodeBase64(VSBuffer.wrap(buffer));
+
+        const skipFramesValue = skipWebSocketFrames ? 'true' : 'false';
+        const querySuffix = query ? `${query}&skipWebSocketFrames=${skipFramesValue}` : `skipWebSocketFrames=${skipFramesValue}`;
+        const requestPath = `${path}?${querySuffix}`;
+
+        const headers = [
+                `GET ws://${authority}${requestPath} HTTP/1.1`,
+                `Host: ${authority}`,
+                `Connection: Upgrade`,
+                `Upgrade: websocket`,
+                `Sec-WebSocket-Version: 13`,
+                `Sec-WebSocket-Key: ${nonce}`
+        ];
+
+        return headers.join('\r\n') + '\r\n\r\n';
 };
 
 export const socketRawEndHeaderSequence = VSBuffer.fromString('\r\n\r\n');
@@ -36,11 +49,12 @@ export interface RemoteSocketHalf {
 
 /** Should be called immediately after making a ManagedSocket to make it ready for data flow. */
 export async function connectManagedSocket<T extends ManagedSocket>(
-	socket: T,
-	path: string, query: string, debugLabel: string,
-	half: RemoteSocketHalf
+        socket: T,
+        path: string, query: string, debugLabel: string,
+        half: RemoteSocketHalf,
+        authority: string = 'localhost'
 ): Promise<T> {
-	socket.write(VSBuffer.fromString(makeRawSocketHeaders(path, query, debugLabel)));
+        socket.write(VSBuffer.fromString(makeRawSocketHeaders(authority, path, query, debugLabel)));
 
 	const d = new DisposableStore();
 	try {
