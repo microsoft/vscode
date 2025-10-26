@@ -1122,7 +1122,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-left: 3px;
 	display: flex;
 	align-items: center;
-	gap: 4px;
 	flex: 1;
 	color: var(--vscode-foreground);
 	font-size: 11px;
@@ -1178,6 +1177,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .expand-icon {
 	flex-shrink: 0;
+	margin-right: 3px;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-title {

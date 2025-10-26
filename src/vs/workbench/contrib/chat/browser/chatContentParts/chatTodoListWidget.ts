@@ -378,31 +378,25 @@ export class ChatTodoListWidget extends Disposable {
 		const firstInProgressTodo = inProgressTodos.length > 0 ? inProgressTodos[0] : undefined;
 		const notStartedTodos = todoList.filter(todo => todo.status === 'not-started');
 		const firstNotStartedTodo = notStartedTodos.length > 0 ? notStartedTodos[0] : undefined;
-
-		// Calculate current task number (1-indexed)
 		const currentTaskNumber = inProgressTodos.length > 0 ? completedCount + 1 : Math.max(1, completedCount);
-		const progressCount = totalCount > 0 ? ` (${currentTaskNumber}/${totalCount})` : '';
 
-		const titleText = dom.$('span');
-		titleText.textContent = this._isExpanded
-			? localize('chat.todoList.title', 'Todos') + progressCount
-			: progressCount;
-		titleElement.appendChild(titleText);
+		if (this._isExpanded) {
+			const titleText = dom.$('span');
+			titleText.textContent = totalCount > 0 ?
+				localize('chat.todoList.titleWithCount', 'Todos ({0}/{1})', currentTaskNumber, totalCount) :
+				localize('chat.todoList.title', 'Todos');
+			titleElement.appendChild(titleText);
+		}
 
 		const expandButtonLabel = this._isExpanded
-			? localize('chat.todoList.collapseButton', 'Collapse Todos {0}', progressCount)
-			: localize('chat.todoList.expandButton', 'Expand Todos {0}', progressCount);
+			? localize('chat.todoList.collapseButton', 'Collapse Todos')
+			: localize('chat.todoList.expandButton', 'Expand Todos');
 		this.expandoElement.setAttribute('aria-label', expandButtonLabel);
 		this.expandoElement.setAttribute('aria-expanded', this._isExpanded ? 'true' : 'false');
 		if (!this._isExpanded) {
 			// Show first in-progress todo, or if none, the first not-started todo
 			const todoToShow = firstInProgressTodo || firstNotStartedTodo;
 			if (todoToShow) {
-				const separator = dom.$('span');
-				separator.textContent = ' - ';
-				separator.style.marginLeft = '4px';
-				titleElement.appendChild(separator);
-
 				const icon = dom.$('.codicon');
 				if (todoToShow === firstInProgressTodo) {
 					icon.classList.add('codicon-record');
@@ -411,13 +405,12 @@ export class ChatTodoListWidget extends Disposable {
 					icon.classList.add('codicon-circle-outline');
 					icon.style.color = 'var(--vscode-foreground)';
 				}
-				icon.style.marginLeft = '4px';
 				icon.style.marginRight = '4px';
 				icon.style.verticalAlign = 'middle';
 				titleElement.appendChild(icon);
 
 				const todoText = dom.$('span');
-				todoText.textContent = todoToShow.title;
+				todoText.textContent = localize('chat.todoList.currentTask', '{0} ({1}/{2})', todoToShow.title, currentTaskNumber, totalCount);
 				todoText.style.verticalAlign = 'middle';
 				todoText.style.overflow = 'hidden';
 				todoText.style.textOverflow = 'ellipsis';
@@ -427,14 +420,8 @@ export class ChatTodoListWidget extends Disposable {
 			}
 			// Show "Done" when all tasks are completed
 			else if (completedCount > 0 && completedCount === totalCount) {
-				const separator = dom.$('span');
-				separator.textContent = ' - ';
-				separator.style.marginLeft = '4px';
-				titleElement.appendChild(separator);
-
 				const doneText = dom.$('span');
 				doneText.textContent = localize('chat.todoList.allDone', 'Done');
-				doneText.style.marginLeft = '4px';
 				doneText.style.verticalAlign = 'middle';
 				titleElement.appendChild(doneText);
 			}
