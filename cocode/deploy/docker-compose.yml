@@ -1,0 +1,60 @@
+version: "3.9"
+
+services:
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/gateway.Dockerfile
+    container_name: cocode_gateway
+    env_file:
+      - ./env
+    ports:
+      - "8080:8080"
+    depends_on:
+      - openvscode
+      - yjs-ws
+      - builder
+    networks:
+      - cocode
+
+  openvscode:
+    build:
+      context: ..
+      dockerfile: docker/openvscode.Dockerfile
+    container_name: cocode_openvscode
+    environment:
+      - OPENVSCODE_SERVER_ROOT=/home/.openvscode-server
+      - DISABLE_TELEMETRY=true
+    volumes:
+      - ../examples:/workspaces/examples:rw
+      - ../workspaces:/workspaces:rw
+    expose:
+      - "3000"
+    networks:
+      - cocode
+
+  yjs-ws:
+    build:
+      context: ..
+      dockerfile: docker/yjs-ws.Dockerfile
+    container_name: cocode_yjs
+    expose:
+      - "1234"
+    networks:
+      - cocode
+
+  builder:
+    build:
+      context: ..
+      dockerfile: docker/builder.Dockerfile
+    container_name: cocode_builder
+    volumes:
+      - ../workspaces:/workspaces:rw
+    expose:
+      - "7070"
+    networks:
+      - cocode
+
+networks:
+  cocode:
+    driver: bridge

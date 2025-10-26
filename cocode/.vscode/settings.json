@@ -1,0 +1,19 @@
+{
+  "workbench.enableExperiments": false,
+  "telemetry.telemetryLevel": "off",
+  "extensions.autoCheckUpdates": false,
+  "extensions.autoUpdate": false,
+  "update.mode": "none",
+  "extensions.gallery.enabled": false,
+  "python.analysis.typeCheckingMode": "basic",
+  "editor.formatOnSave": true,
+  "[cpp]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools"
+  },
+  "[c]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools"
+  },
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "name": "cocode-collab-extension",
+  "displayName": "CoCode Collaboration",
+  "description": "Real-time collaboration for CoCode",
+  "version": "1.0.0",
+  "publisher": "cocode",
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "",
+  "browser": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cocode.toggleCollaboration",
+        "title": "CoCode: Toggle Collaboration"
+      }
+    ],
+    "configuration": {
+      "title": "CoCode Collaboration",
+      "properties": {
+        "cocodeCollab.yjsUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Override Yjs WebSocket endpoint. Leave empty to auto-detect based on current origin."
+        },
+        "cocodeCollab.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable real-time collaboration"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "package:vsix": "npm run package && vsce package",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/vscode": "^1.92.0",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "@vscode/vsce": "^3.6.2",
+    "eslint": "^8.55.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.3",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "y-monaco": "^0.1.4",
+    "y-websocket": "^1.5.0",
+    "yjs": "^13.6.10"
+  }
+}

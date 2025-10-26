@@ -1,0 +1,40 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Python: Run current file",
+			"type": "shell",
+			"command": "python3",
+			"args": [
+				"${file}"
+			],
+			"group": {
+				"kind": "test",
+				"isDefault": true
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "shared"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Python: Run hello.py",
+			"type": "shell",
+			"command": "python3",
+			"args": [
+				"hello.py"
+			],
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "shared"
+			},
+			"problemMatcher": []
+		}
+	]
+}

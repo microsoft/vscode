@@ -1,0 +1,10 @@
+node_modules/
+src/
+.vscode/
+.gitignore
+tsconfig.json
+webpack.config.js
+*.md
+*.log
+.eslintrc.json
+.prettierrc

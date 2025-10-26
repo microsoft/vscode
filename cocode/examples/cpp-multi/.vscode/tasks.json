@@ -1,0 +1,62 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "C++: Configure (CMake)",
+			"type": "shell",
+			"command": "cmake",
+			"args": [
+				"-S",
+				".",
+				"-B",
+				"build"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "C++: Build",
+			"type": "shell",
+			"command": "cmake",
+			"args": [
+				"--build",
+				"build"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"dependsOn": ["C++: Configure (CMake)"],
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"problemMatcher": ["$gcc"]
+		},
+		{
+			"label": "C++: Run",
+			"type": "shell",
+			"command": "./build/main",
+			"dependsOn": ["C++: Build"],
+			"group": {
+				"kind": "test",
+				"isDefault": true
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "shared"
+			},
+			"problemMatcher": []
+		}
+	]
+}

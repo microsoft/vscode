@@ -1,0 +1,25 @@
+{
+  "name": "cocode-yjs-ws",
+  "version": "1.0.0",
+  "description": "CoCode Yjs WebSocket collaboration server",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "ts-node src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "y-websocket": "^1.5.0",
+    "yjs": "^13.6.10",
+    "y-leveldb": "^0.1.2",
+    "level": "^8.0.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.10",
+    "@types/node": "^20.10.5",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2"
+  }
+}

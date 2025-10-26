@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "C++: Configure (CMake)",
+      "type": "shell",
+      "command": "cmake -S . -B build",
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "C++: Build",
+      "type": "shell",
+      "command": "cmake --build build -j",
+      "problemMatcher": "$gcc",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "C++: Run",
+      "type": "shell",
+      "command": "./build/main",
+      "problemMatcher": [],
+      "dependsOn": ["C++: Build"]
+    },
+    {
+      "label": "Python: Run current file",
+      "type": "shell",
+      "command": "python3 ${file}",
+      "problemMatcher": []
+    }
+  ]
+}

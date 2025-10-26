@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+out/
+*.js.map
+
+# Environment
+.env
+.env.local
+.env.*.local
+deploy/env
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
+.docker/
+
+# Workspaces
+workspaces/*
+!workspaces/.gitkeep
+
+# Temporary
+*.tmp
+*.temp
+.cache/
+
+# TypeScript
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/

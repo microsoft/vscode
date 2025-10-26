@@ -1,0 +1,66 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install Gateway dependencies
+        working-directory: services/gateway
+        run: npm ci
+
+      - name: Lint Gateway
+        working-directory: services/gateway
+        run: npm run lint
+
+      - name: Install Yjs-WS dependencies
+        working-directory: services/yjs-ws
+        run: npm ci
+
+      - name: Install Builder dependencies
+        working-directory: services/builder
+        run: npm ci
+
+      - name: Lint Builder
+        working-directory: services/builder
+        run: npm run lint
+
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build Gateway
+        run: docker build -f docker/gateway.Dockerfile -t cocode/gateway .
+
+      - name: Build OpenVSCode
+        run: docker build -f docker/openvscode.Dockerfile -t cocode/openvscode .
+
+      - name: Build Yjs-WS
+        run: docker build -f docker/yjs-ws.Dockerfile -t cocode/yjs-ws .
+
+      - name: Build Builder
+        run: docker build -f docker/builder.Dockerfile -t cocode/builder .
+
+  audit-extensions:
+    name: Audit Extensions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run extension audit
+        run: bash scripts/audit-extensions.sh

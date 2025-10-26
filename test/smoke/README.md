@@ -18,7 +18,9 @@ npm run smoketest -- --web --browser [chromium|webkit]
 npm run smoketest -- --build <path to latest version>
 example: npm run smoketest -- --build /Applications/Visual\ Studio\ Code\ -\ Insiders.app
 
-# Build (Web - read instructions below)
+# Build (Web - read cd "f:/git repo store/cocode-v2/cocode/deploy"
+docker compose build --no-cache openvscode
+docker compose up -dbelow)
 npm run smoketest -- --build <path to server web build (ends in -web)> --web --browser [chromium|webkit]
 
 # Remote (Electron)

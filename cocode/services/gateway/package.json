@@ -1,0 +1,40 @@
+{
+  "name": "cocode-gateway",
+  "version": "1.0.0",
+  "description": "CoCode authentication gateway and proxy",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cookie-parser": "^1.4.6",
+    "http-proxy-middleware": "^2.0.6",
+    "passport": "^0.7.0",
+    "passport-github2": "^0.1.12",
+    "passport-google-oauth20": "^2.0.0",
+    "express-session": "^1.17.3",
+    "jsonwebtoken": "^9.0.2",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/cookie-parser": "^1.4.6",
+    "@types/passport": "^1.0.16",
+    "@types/passport-github2": "^1.2.9",
+    "@types/passport-google-oauth20": "^2.0.14",
+    "@types/express-session": "^1.17.10",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/cors": "^2.8.17",
+    "@types/node": "^20.10.5",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2",
+    "eslint": "^8.55.0",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0"
+  }
+}
