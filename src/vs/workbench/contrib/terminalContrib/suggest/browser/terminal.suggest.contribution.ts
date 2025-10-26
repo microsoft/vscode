@@ -275,7 +275,7 @@ registerTerminalAction({
 });
 
 registerActiveInstanceAction({
-	id: TerminalSuggestCommandId.RequestCompletions,
+	id: TerminalSuggestCommandId.TriggerSuggest,
 	title: localize2('workbench.action.terminal.triggerSuggest', 'Trigger Suggest'),
 	f1: false,
 	keybinding: {
