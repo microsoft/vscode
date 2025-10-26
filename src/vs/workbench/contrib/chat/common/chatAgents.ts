@@ -70,7 +70,7 @@ export interface IChatAgentData {
 	isDynamic?: boolean;
 	/** This agent is contributed from core and not from an extension */
 	isCore?: boolean;
-	/** Is this agent registered via that chat session API */
+	/** Is this agent registered via the chat session API */
 	isContributedChatSession?: boolean;
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
