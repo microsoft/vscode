@@ -225,5 +225,6 @@ CommandsRegistry.registerCommand('_executeNotebookToData', async (accessor, note
 });
 
 function isFileOperationError(error: unknown): error is FileOperationError {
-	return typeof (error as FileOperationError | undefined)?.fileOperationResult === 'number' && typeof (error as FileOperationError).message === 'string';
+	const candidate = error as FileOperationError | undefined;
+	return typeof candidate?.fileOperationResult === 'number' && typeof candidate?.message === 'string';
 }
