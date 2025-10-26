@@ -49,7 +49,7 @@ export interface IChatSessionsExtensionPoint {
 	readonly description: string;
 	readonly extensionDescription: IRelaxedExtensionDescription;
 	readonly when?: string;
-	readonly icon?: string;
+	readonly icon?: string | { light: string; dark: string };
 	readonly order?: number;
 	readonly alternativeIds?: string[];
 	readonly welcomeTitle?: string;
