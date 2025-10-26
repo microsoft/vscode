@@ -17,6 +17,7 @@ import './toolbar.css';
 import * as nls from '../../../../nls.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { BaseActionViewItem } from '../actionbar/actionViewItems.js';
 
 export interface IToolBarOptions {
 	orientation?: ActionsOrientation;
@@ -239,9 +240,8 @@ export class ToolBar extends Disposable {
 			// Reset hidden actions
 			this.hiddenActions.length = 0;
 
-			// The `has-secondary-actions` class is used to apply a large flex-shrink
-			// to the last visible primary action so that it shrinks to its minimum width.
-			this.actionBar.domNode.classList.toggle('has-secondary-actions', this.originalSecondaryActions.length > 0);
+			// Set `responsive` class
+			this.setToolbarResponsiveAction();
 
 			// Update toolbar to fit with container width
 			this.setToolbarMaxWidth(this.element.getBoundingClientRect().width);
@@ -336,19 +336,24 @@ export class ToolBar extends Disposable {
 			}
 		}
 
-		// The `has-secondary-actions` class is used to apply a large flex-shrink
-		// to the last visible primary action so that it shrinks to its minimum width.
-		this.actionBar.domNode.classList.toggle('has-secondary-actions',
-			this.originalSecondaryActions.length > 0 || this.hiddenActions.length > 0);
+		// Update `responsive` class
+		this.setToolbarResponsiveAction();
 
 		// Update overflow menu
 		const hiddenActions = this.hiddenActions.map(entry => entry.action);
 		if (this.originalSecondaryActions.length > 0 || hiddenActions.length > 0) {
-			if (this.originalSecondaryActions.length > 0) {
-				hiddenActions.push(new Separator());
-			}
 			const secondaryActions = this.originalSecondaryActions.slice(0);
-			this.toggleMenuAction.menuActions = hiddenActions.concat(secondaryActions);
+			this.toggleMenuAction.menuActions = Separator.join(hiddenActions, secondaryActions);
+		}
+	}
+
+	private setToolbarResponsiveAction(): void {
+		// Set the `responsive` class on the last visible primary action
+		for (let index = 0; index < this.actionBar.viewItems.length; index++) {
+			if (this.actionBar.viewItems[index] instanceof BaseActionViewItem) {
+				const isLastVisiblePrimaryAction = index === this.originalPrimaryActions.length - this.hiddenActions.length - 1;
+				(this.actionBar.viewItems[index] as BaseActionViewItem).element?.classList.toggle('responsive', isLastVisiblePrimaryAction);
+			}
 		}
 	}
 
