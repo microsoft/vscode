@@ -5,7 +5,7 @@
 
 import { IAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
 import { localize } from '../../../../../nls.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -21,7 +21,6 @@ import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPic
 import { ManageModelsAction } from '../actions/manageModelsActions.js';
 import { IActionProvider } from '../../../../../base/browser/ui/dropdown/dropdown.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 
 /**
  * Builds an enhanced tooltip for a language model that includes information about
