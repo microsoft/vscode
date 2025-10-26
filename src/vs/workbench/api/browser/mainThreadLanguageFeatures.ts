@@ -222,7 +222,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.codeLensProvider.register(selector, provider));
 	}
 
-	$emitCodeLensEvent(eventHandle: number, event?: any): void {
+	$emitCodeLensEvent(eventHandle: number, event?: unknown): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
 			obj.fire(event);
@@ -314,7 +314,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.inlineValuesProvider.register(selector, provider));
 	}
 
-	$emitInlineValuesEvent(eventHandle: number, event?: any): void {
+	$emitInlineValuesEvent(eventHandle: number, event?: unknown): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
 			obj.fire(event);
@@ -964,7 +964,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.foldingRangeProvider.register(selector, provider));
 	}
 
-	$emitFoldingRangeEvent(eventHandle: number, event?: any): void {
+	$emitFoldingRangeEvent(eventHandle: number, event?: unknown): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
 			obj.fire(event);
@@ -1009,7 +1009,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				outgoing.forEach(value => {
 					value.to = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.to);
 				});
-				// eslint-disable-next-line local/code-no-any-casts
+				// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 				return <any>outgoing;
 			},
 			provideIncomingCalls: async (item, token) => {
@@ -1020,7 +1020,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				incoming.forEach(value => {
 					value.from = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.from);
 				});
-				// eslint-disable-next-line local/code-no-any-casts
+				// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 				return <any>incoming;
 			}
 		}));
