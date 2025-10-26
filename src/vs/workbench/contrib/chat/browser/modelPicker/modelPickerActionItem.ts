@@ -21,6 +21,48 @@ import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPic
 import { ManageModelsAction } from '../actions/manageModelsActions.js';
 import { IActionProvider } from '../../../../../base/browser/ui/dropdown/dropdown.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
+
+/**
+ * Builds an enhanced tooltip for a language model that includes information about
+ * its capabilities and context window size.
+ * @internal exported for testing
+ */
+export function buildModelTooltip(metadata: ILanguageModelChatMetadata): string {
+	const parts: string[] = [];
+
+	// Start with the custom tooltip or model name
+	parts.push(metadata.tooltip ?? metadata.name);
+
+	// Add context window information
+	const contextInfo: string[] = [];
+	if (metadata.maxInputTokens > 0) {
+		contextInfo.push(localize('modelPicker.maxInputTokens', "Input: {0} tokens", metadata.maxInputTokens));
+	}
+	if (metadata.maxOutputTokens > 0) {
+		contextInfo.push(localize('modelPicker.maxOutputTokens', "Output: {0} tokens", metadata.maxOutputTokens));
+	}
+	if (contextInfo.length > 0) {
+		parts.push(contextInfo.join(', '));
+	}
+
+	// Add capabilities information
+	const capabilities: string[] = [];
+	if (metadata.capabilities?.vision) {
+		capabilities.push(localize('modelPicker.supportsVision', "Vision"));
+	}
+	if (metadata.capabilities?.toolCalling) {
+		capabilities.push(localize('modelPicker.supportsToolCalling', "Tool Calling"));
+	}
+	if (metadata.capabilities?.agentMode) {
+		capabilities.push(localize('modelPicker.supportsAgentMode', "Agent Mode"));
+	}
+	if (capabilities.length > 0) {
+		parts.push(localize('modelPicker.capabilities', "Capabilities: {0}", capabilities.join(', ')));
+	}
+
+	return parts.join('\n');
+}
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -54,7 +96,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
 					description: model.metadata.detail,
-					tooltip: model.metadata.tooltip ?? model.metadata.name,
+					tooltip: buildModelTooltip(model.metadata),
 					label: model.metadata.name,
 					run: () => {
 						telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
