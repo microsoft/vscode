@@ -49,16 +49,19 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 
 			if (charIndex < startOffset) {
 				if (isTab) {
-					width += -width & (tabSize - 1) || tabSize;
+					const remainder = width % tabSize;
+					width += remainder === 0 ? tabSize : tabSize - remainder;
 				}
 				continue;
 			}
 
 			switch (charCode) {
 				case CharCode.Tab: {
-					let insertSpacesCount = -width & (tabSize - 1) || tabSize;
+					const remainder = width % tabSize;
+					const insertSpacesCount = remainder === 0 ? tabSize : tabSize - remainder;
 					width += insertSpacesCount;
-					while (insertSpacesCount > 0) {
+					let spacesRemaining = insertSpacesCount;
+					while (spacesRemaining > 0) {
 						if (useNbsp && prevIsSpace) {
 							partContent += '&#160;';
 							prevIsSpace = false;
@@ -66,7 +69,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 							partContent += ' ';
 							prevIsSpace = true;
 						}
-						insertSpacesCount--;
+						spacesRemaining--;
 					}
 					break;
 				}
