@@ -116,13 +116,16 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			this.onDidChangeVisibleRepositoriesSignal.read(reader);
 
 			const isVisible = this.scmViewService.isVisible(repository);
-			templateData.label.element.classList.toggle('visible', isVisible);
+			templateData.label.element.classList.toggle('visible', isVisible && this.scmViewService.repositories.length > 1);
 
 			const icon = ThemeIcon.isThemeIcon(repository.provider.iconPath)
 				? repository.provider.iconPath
 				: Codicon.repo;
 
-			templateData.icon.className = icon.id === Codicon.repo.id && isVisible
+			// Only show the selected icon if there are multiple repositories in the workspace
+			const showSelectedIcon = icon.id === Codicon.repo.id && isVisible && this.scmViewService.repositories.length > 1;
+
+			templateData.icon.className = showSelectedIcon
 				? `icon ${ThemeIcon.asClassName(Codicon.repoSelected)}`
 				: `icon ${ThemeIcon.asClassName(icon)}`;
 		}));
