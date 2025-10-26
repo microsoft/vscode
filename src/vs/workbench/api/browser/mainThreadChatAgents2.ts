@@ -189,13 +189,16 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return [];
 				}
 
-				return this._proxy.$provideFollowups(request, handle, result, { history }, token);
+				const agentData = this._chatAgentService.getAgent(id);
+				return this._proxy.$provideFollowups(request, handle, result, { history, isContributedChatSession: agentData?.isContributedChatSession }, token);
 			},
 			provideChatTitle: (history, token) => {
-				return this._proxy.$provideChatTitle(handle, history, token);
+				const agentData = this._chatAgentService.getAgent(id);
+				return this._proxy.$provideChatTitle(handle, history, agentData?.isContributedChatSession, token);
 			},
 			provideChatSummary: (history, token) => {
-				return this._proxy.$provideChatSummary(handle, history, token);
+				const agentData = this._chatAgentService.getAgent(id);
+				return this._proxy.$provideChatSummary(handle, history, agentData?.isContributedChatSession, token);
 			},
 		};
 
