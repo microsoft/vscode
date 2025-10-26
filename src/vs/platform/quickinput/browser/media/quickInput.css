@@ -54,6 +54,10 @@
 	justify-content: flex-end;
 }
 
+.quick-input-right-action-bar > .actions-container > .action-item {
+	margin-left: 4px;
+}
+
 .quick-input-titlebar .monaco-action-bar .action-label.codicon {
 	background-position: center;
 	background-repeat: no-repeat;
@@ -92,6 +96,10 @@
 .quick-input-check-all {
 	align-self: center;
 	margin: 0;
+}
+
+.quick-input-widget .quick-input-header .monaco-checkbox {
+	margin-top: 6px;
 }
 
 .quick-input-filter {
@@ -189,10 +197,6 @@
 	padding: 0 6px;
 }
 
-.quick-input-list .quick-input-list-entry.indented {
-	padding-left: 1.3em;
-}
-
 .quick-input-list .quick-input-list-entry.quick-input-list-separator-border {
 	border-top-width: 1px;
 	border-top-style: solid;
@@ -215,7 +219,11 @@
 
 .quick-input-widget .monaco-checkbox {
 	margin-right: 0;
-	align-self: center;
+}
+
+.quick-input-widget .quick-input-list .monaco-checkbox,
+.quick-input-widget .quick-input-tree .monaco-checkbox {
+	margin-top: 4px;
 }
 
 .quick-input-list .quick-input-list-icon {
@@ -373,26 +381,106 @@
 	display: none !important;
 }
 
-/* Quick input snap lines visible while DnD */
-.quick-input-widget-snapline {
-	position: absolute;
-	z-index: 2549;
+/* Tree */
+
+.quick-input-tree .monaco-list {
+	overflow: hidden;
+	max-height: calc(20 * 22px);
+	padding-bottom: 5px;
 }
 
-.quick-input-widget-snapline.hidden {
+.quick-input-tree .quick-input-tree-entry {
+	box-sizing: border-box;
+	overflow: hidden;
+	display: flex;
+	padding: 0 6px;
+}
+
+.quick-input-tree .quick-input-tree-label {
+	overflow: hidden;
+	display: flex;
+	height: 100%;
+	flex: 1;
+}
+
+.quick-input-tree .quick-input-tree-icon {
+	background-size: 16px;
+	background-position: left center;
+	background-repeat: no-repeat;
+	padding-right: 6px;
+	width: 16px;
+	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.quick-input-tree .quick-input-tree-rows {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	flex: 1;
+	margin-left: 5px;
+}
+
+.quick-input-tree .quick-input-tree-rows > .quick-input-tree-row {
+	display: flex;
+	align-items: center;
+}
+
+.quick-input-tree .quick-input-tree-rows > .quick-input-tree-row .monaco-icon-label,
+.quick-input-tree .quick-input-tree-rows > .quick-input-tree-row .monaco-icon-label .monaco-icon-label-container > .monaco-icon-name-container {
+	flex: 1;
+	/* make sure the icon label grows within the row */
+}
+
+.quick-input-tree .quick-input-tree-rows > .quick-input-tree-row .codicon[class*='codicon-'] {
+	vertical-align: text-bottom;
+}
+
+.quick-input-tree .quick-input-tree-rows .monaco-highlighted-label > span {
+	opacity: 1;
+}
+
+.quick-input-tree .quick-input-tree-entry-action-bar {
+	display: flex;
+	flex: 0;
+	overflow: visible;
+}
+
+.quick-input-tree .quick-input-tree-entry-action-bar .action-label {
+	/*
+	 * By default, actions in the quick input action bar are hidden
+	 * until hovered over them or selected.
+	 */
 	display: none;
 }
 
-.quick-input-widget-snapline.horizontal {
-	border-top: 1px dashed var(--vscode-editorRuler-foreground);
-	height: 0;
-	width: 100%;
-	left: 0;
+.quick-input-tree .quick-input-tree-entry-action-bar .action-label.codicon {
+	margin-right: 4px;
+	padding: 2px;
 }
 
-.quick-input-widget-snapline.vertical {
-	border-left: 1px dashed var(--vscode-editorRuler-foreground);
-	height: 100%;
-	width: 0;
-	top: 0;
+.quick-input-tree .quick-input-tree-entry-action-bar {
+	margin-top: 1px;
+}
+
+.quick-input-tree .quick-input-tree-entry-action-bar {
+	margin-right: 4px;
+	/* separate from scrollbar */
+}
+
+.quick-input-tree .quick-input-tree-entry .quick-input-tree-entry-action-bar .action-label.always-visible,
+.quick-input-tree .quick-input-tree-entry:hover .quick-input-tree-entry-action-bar .action-label,
+.quick-input-tree .quick-input-tree-entry.focus-inside .quick-input-tree-entry-action-bar .action-label,
+.quick-input-tree .monaco-list-row.focused .quick-input-tree-entry-action-bar .action-label,
+.quick-input-tree .monaco-list-row.passive-focused .quick-input-tree-entry-action-bar .action-label {
+	display: flex;
+}
+
+.quick-input-tree > .monaco-list:focus .monaco-list-row.focused {
+	outline: 1px solid var(--vscode-list-focusOutline) !important;
+	outline-offset: -1px;
 }

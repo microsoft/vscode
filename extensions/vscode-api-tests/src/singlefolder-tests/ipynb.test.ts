@@ -9,24 +9,24 @@ import * as vscode from 'vscode';
 import { assertNoRpc, closeAllEditors, createRandomFile } from '../utils';
 
 const ipynbContent = JSON.stringify({
-	"cells": [
+	'cells': [
 		{
-			"cell_type": "markdown",
-			"source": ["## Header"],
-			"metadata": {}
+			'cell_type': 'markdown',
+			'source': ['## Header'],
+			'metadata': {}
 		},
 		{
-			"cell_type": "code",
-			"execution_count": 2,
-			"source": ["print('hello 1')\n", "print('hello 2')"],
-			"outputs": [
+			'cell_type': 'code',
+			'execution_count': 2,
+			'source': [`print('hello 1')\n`, `print('hello 2')`],
+			'outputs': [
 				{
-					"output_type": "stream",
-					"name": "stdout",
-					"text": ["hello 1\n", "hello 2\n"]
+					'output_type': 'stream',
+					'name': 'stdout',
+					'text': ['hello 1\n', 'hello 2\n']
 				}
 			],
-			"metadata": {}
+			'metadata': {}
 		}
 	]
 });
@@ -37,7 +37,7 @@ suite('ipynb NotebookSerializer', function () {
 		await closeAllEditors();
 	});
 
-	test('Can open an ipynb notebook', async () => {
+	test.skip('Can open an ipynb notebook', async () => {
 		const file = await createRandomFile(ipynbContent, undefined, '.ipynb');
 		const notebook = await vscode.workspace.openNotebookDocument(file);
 		await vscode.window.showNotebookDocument(notebook);

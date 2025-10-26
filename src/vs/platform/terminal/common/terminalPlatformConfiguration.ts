@@ -33,17 +33,13 @@ export const terminalIconSchema: IJSONSchema = {
 	markdownEnumDescriptions: Array.from(getAllCodicons(), icon => `$(${icon.id})`),
 };
 
-const terminalProfileBaseProperties: IJSONSchemaMap = {
+export const terminalProfileBaseProperties: IJSONSchemaMap = {
 	args: {
 		description: localize('terminalProfile.args', 'An optional set of arguments to run the shell executable with.'),
 		type: 'array',
 		items: {
 			type: 'string'
 		}
-	},
-	overrideName: {
-		description: localize('terminalProfile.overrideName', 'Whether or not to replace the dynamic terminal title that detects what program is running with the static profile name.'),
-		type: 'boolean'
 	},
 	icon: {
 		description: localize('terminalProfile.icon', 'A codicon ID to associate with the terminal icon.'),
@@ -74,6 +70,10 @@ const terminalProfileSchema: IJSONSchema = {
 				type: 'string'
 			}
 		},
+		overrideName: {
+			description: localize('terminalProfile.overrideName', 'Whether or not to replace the dynamic terminal title that detects what program is running with the static profile name.'),
+			type: 'boolean'
+		},
 		...terminalProfileBaseProperties
 	}
 };
@@ -83,7 +83,7 @@ const terminalAutomationProfileSchema: IJSONSchema = {
 	required: ['path'],
 	properties: {
 		path: {
-			description: localize('terminalAutomationProfile.path', 'A single path to a shell executable.'),
+			description: localize('terminalAutomationProfile.path', 'A path to a shell executable.'),
 			type: ['string'],
 			items: {
 				type: 'string'

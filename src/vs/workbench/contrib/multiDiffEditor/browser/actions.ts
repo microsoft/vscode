@@ -35,7 +35,7 @@ export class GoToFileAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const uri = args[0] as URI;
 		const editorService = accessor.get(IEditorService);
 		const activeEditorPane = editorService.activeEditorPane;
@@ -56,6 +56,7 @@ export class GoToFileAction extends Action2 {
 		}
 
 		await editorService.openEditor({
+			label: item?.goToFileEditorTitle,
 			resource: targetUri,
 			options: {
 				selection: selections?.[0],

@@ -26,6 +26,7 @@ import { ContiguousMultilineTokens } from './tokens/contiguousMultilineTokens.js
 import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
+import { EditDeltaInfo } from './textModelEditSource.js';
 
 /**
  * @internal
@@ -456,7 +457,7 @@ export namespace CompletionItemKinds {
 	const data = new Map<string, CompletionItemKind>();
 	data.set('method', CompletionItemKind.Method);
 	data.set('function', CompletionItemKind.Function);
-	data.set('constructor', <any>CompletionItemKind.Constructor);
+	data.set('constructor', CompletionItemKind.Constructor);
 	data.set('field', CompletionItemKind.Field);
 	data.set('variable', CompletionItemKind.Variable);
 	data.set('class', CompletionItemKind.Class);
@@ -757,6 +758,8 @@ export interface InlineCompletionContext {
 
 	readonly includeInlineEdits: boolean;
 	readonly includeInlineCompletions: boolean;
+	readonly requestIssuedDateTime: number;
+	readonly earliestShownDateTime: number;
 }
 
 export class SelectedSuggestionInfo {
@@ -830,6 +833,11 @@ export interface InlineCompletion {
 	readonly warning?: InlineCompletionWarning;
 
 	readonly displayLocation?: InlineCompletionDisplayLocation;
+
+	/**
+	 * Used for telemetry.
+	 */
+	readonly correlationId?: string | undefined;
 }
 
 export interface InlineCompletionWarning {
@@ -837,9 +845,16 @@ export interface InlineCompletionWarning {
 	icon?: IconPath;
 }
 
+export enum InlineCompletionDisplayLocationKind {
+	Code = 1,
+	Label = 2
+}
+
 export interface InlineCompletionDisplayLocation {
 	range: IRange;
+	kind: InlineCompletionDisplayLocationKind;
 	label: string;
+	jumpToEdit: boolean;
 }
 
 /**
@@ -873,7 +888,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 * Will be called when an item is shown.
 	 * @param updatedInsertText Is useful to understand bracket completion.
 	*/
-	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
+	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string, editDeltaInfo: EditDeltaInfo): void;
 
 	/**
 	 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
@@ -914,6 +929,8 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 */
 	yieldsToGroupIds?: InlineCompletionProviderGroupId[];
 
+	excludesGroupIds?: InlineCompletionProviderGroupId[];
+
 	displayName?: string;
 
 	debounceDelayMs?: number;
@@ -951,14 +968,33 @@ export class ProviderId {
 		}
 		return result;
 	}
+
+	toStringWithoutVersion(): string {
+		let result = '';
+		if (this.extensionId) {
+			result += this.extensionId;
+		}
+		if (this.providerId) {
+			result += `:${this.providerId}`;
+		}
+		return result;
+	}
 }
 
 /** @internal */
 export class VersionedExtensionId {
+	public static tryCreate(extensionId: string | undefined, version: string | undefined): VersionedExtensionId | undefined {
+		if (!extensionId || !version) {
+			return undefined;
+		}
+		return new VersionedExtensionId(extensionId, version);
+	}
+
 	constructor(
 		public readonly extensionId: string,
 		public readonly version: string,
 	) { }
+
 	toString(): string {
 		return `${this.extensionId}@${this.version}`;
 	}
@@ -984,11 +1020,18 @@ export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion
 
 export type LifetimeSummary = {
 	requestUuid: string;
+	correlationId: string | undefined;
 	partiallyAccepted: number;
+	partiallyAcceptedCountSinceOriginal: number;
+	partiallyAcceptedRatioSinceOriginal: number;
+	partiallyAcceptedCharactersSinceOriginal: number;
 	shown: boolean;
 	shownDuration: number;
 	shownDurationUncollapsed: number;
 	timeUntilShown: number | undefined;
+	timeUntilProviderRequest: number;
+	timeUntilProviderResponse: number;
+	notShownReason: string | undefined;
 	editorType: string;
 	viewKind: string | undefined;
 	error: string | undefined;
@@ -1005,6 +1048,8 @@ export type LifetimeSummary = {
 	sameShapeReplacements?: boolean;
 	typingInterval: number;
 	typingIntervalCharacterCount: number;
+	selectedSuggestionInfo: boolean;
+	availableProviders: string;
 };
 
 export interface CodeAction {
@@ -1390,8 +1435,8 @@ export interface LocationLink {
 /**
  * @internal
  */
-export function isLocationLink(thing: any): thing is LocationLink {
-	return thing
+export function isLocationLink(thing: unknown): thing is LocationLink {
+	return !!thing
 		&& URI.isUri((thing as LocationLink).uri)
 		&& Range.isIRange((thing as LocationLink).range)
 		&& (Range.isIRange((thing as LocationLink).originSelectionRange) || Range.isIRange((thing as LocationLink).targetSelectionRange));
@@ -1400,8 +1445,8 @@ export function isLocationLink(thing: any): thing is LocationLink {
 /**
  * @internal
  */
-export function isLocation(thing: any): thing is Location {
-	return thing
+export function isLocation(thing: unknown): thing is Location {
+	return !!thing
 		&& URI.isUri((thing as Location).uri)
 		&& Range.isIRange((thing as Location).range);
 }
@@ -1653,7 +1698,7 @@ export abstract class TextEdit {
 			? EditOperation.insert(range.getStartPosition(), edit.text) // moves marker
 			: EditOperation.replace(range, edit.text);
 	}
-	static isTextEdit(thing: any): thing is TextEdit {
+	static isTextEdit(thing: unknown): thing is TextEdit {
 		const possibleTextEdit = thing as TextEdit;
 		return typeof possibleTextEdit.text === 'string' && Range.isIRange(possibleTextEdit.range);
 	}
@@ -2024,7 +2069,7 @@ export interface Command {
 	id: string;
 	title: string;
 	tooltip?: string;
-	arguments?: any[];
+	arguments?: unknown[];
 }
 
 /**
@@ -2035,7 +2080,7 @@ export namespace Command {
 	/**
 	 * @internal
 	 */
-	export function is(obj: any): obj is Command {
+	export function is(obj: unknown): obj is Command {
 		if (!obj || typeof obj !== 'object') {
 			return false;
 		}
@@ -2110,7 +2155,7 @@ export interface CommentWidget {
 	commentThread: CommentThread;
 	comment?: Comment;
 	input: string;
-	onDidChangeInput: Event<string>;
+	readonly onDidChangeInput: Event<string>;
 }
 
 /**
@@ -2140,19 +2185,19 @@ export interface CommentThread<T = IRange> {
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: ReadonlyArray<Comment> | undefined;
-	onDidChangeComments: Event<readonly Comment[] | undefined>;
+	readonly onDidChangeComments: Event<readonly Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
 	initialCollapsibleState?: CommentThreadCollapsibleState;
-	onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
+	readonly onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	state?: CommentThreadState;
 	applicability?: CommentThreadApplicability;
 	canReply: boolean | CommentAuthorInformation;
 	input?: CommentInput;
-	onDidChangeInput: Event<CommentInput | undefined>;
-	onDidChangeLabel: Event<string | undefined>;
-	onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
-	onDidChangeState: Event<CommentThreadState | undefined>;
-	onDidChangeCanReply: Event<boolean>;
+	readonly onDidChangeInput: Event<CommentInput | undefined>;
+	readonly onDidChangeLabel: Event<string | undefined>;
+	readonly onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
+	readonly onDidChangeState: Event<CommentThreadState | undefined>;
+	readonly onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;
 	isTemplate: boolean;
 }
@@ -2283,7 +2328,7 @@ export interface CodeLens {
 }
 
 export interface CodeLensList {
-	lenses: CodeLens[];
+	readonly lenses: readonly CodeLens[];
 	dispose?(): void;
 }
 
@@ -2351,13 +2396,14 @@ export interface SemanticTokensEdits {
 }
 
 export interface DocumentSemanticTokensProvider {
-	onDidChange?: Event<void>;
+	readonly onDidChange?: Event<void>;
 	getLegend(): SemanticTokensLegend;
 	provideDocumentSemanticTokens(model: model.ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
 	releaseDocumentSemanticTokens(resultId: string | undefined): void;
 }
 
 export interface DocumentRangeSemanticTokensProvider {
+	readonly onDidChange?: Event<void>;
 	getLegend(): SemanticTokensLegend;
 	provideDocumentRangeSemanticTokens(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 }
@@ -2414,7 +2460,7 @@ export interface ITokenizationRegistry<TSupport> {
 	 *  - a tokenization support is registered, unregistered or changed.
 	 *  - the color map is changed.
 	 */
-	onDidChange: Event<ITokenizationSupportChangedEvent>;
+	readonly onDidChange: Event<ITokenizationSupportChangedEvent>;
 
 	/**
 	 * Fire a change event for a language.

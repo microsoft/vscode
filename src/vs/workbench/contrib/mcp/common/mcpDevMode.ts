@@ -20,8 +20,6 @@ import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { IMcpServer, McpServerDefinition, McpServerLaunch, McpServerTransportType } from './mcpTypes.js';
 
 export class McpDevModeServerAttache extends Disposable {
-	public active: boolean = false;
-
 	constructor(
 		server: IMcpServer,
 		fwdRef: { lastModeDebugged: boolean },
@@ -37,7 +35,7 @@ export class McpDevModeServerAttache extends Disposable {
 		const restart = async () => {
 			const lastDebugged = fwdRef.lastModeDebugged;
 			await server.stop();
-			await server.start({ isFromInteraction: false, debug: lastDebugged });
+			await server.start({ debug: lastDebugged });
 		};
 
 		// 1. Auto-start the server, restart if entering debug mode

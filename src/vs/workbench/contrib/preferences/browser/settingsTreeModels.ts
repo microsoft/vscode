@@ -42,8 +42,9 @@ export abstract class SettingsTreeElement extends Disposable {
 	parent?: SettingsTreeGroupElement;
 
 	private _tabbable = false;
-	protected readonly _onDidChangeTabbable = this._register(new Emitter<void>());
-	readonly onDidChangeTabbable = this._onDidChangeTabbable.event;
+
+	private readonly _onDidChangeTabbable = this._register(new Emitter<void>());
+	get onDidChangeTabbable() { return this._onDidChangeTabbable.event; }
 
 	constructor(_id: string) {
 		super();

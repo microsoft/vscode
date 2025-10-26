@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 import which from 'which';
 import { EventEmitter } from 'events';
 import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback } from './util';
+import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
@@ -307,8 +307,8 @@ export class GitError extends Error {
 			stderr: this.stderr
 		}, null, 2);
 
-		if (this.error) {
-			result += (<any>this.error).stack;
+		if (this.error?.stack) {
+			result += this.error.stack;
 		}
 
 		return result;
@@ -349,8 +349,13 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.DirtyWorkTree;
 	} else if (/detected dubious ownership in repository at/.test(stderr)) {
 		return GitErrorCodes.NotASafeGitRepository;
+	} else if (/contains modified or untracked files|use --force to delete it/.test(stderr)) {
+		return GitErrorCodes.WorktreeContainsChanges;
+	} else if (/fatal: '[^']+' already exists/.test(stderr)) {
+		return GitErrorCodes.WorktreeAlreadyExists;
+	} else if (/is already used by worktree at/.test(stderr)) {
+		return GitErrorCodes.WorktreeBranchAlreadyUsed;
 	}
-
 	return undefined;
 }
 
@@ -863,6 +868,7 @@ export class GitStatusParser {
 export interface Worktree {
 	readonly name: string;
 	readonly path: string;
+	readonly ref: string;
 }
 
 export interface Submodule {
@@ -2033,8 +2039,26 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async deleteWorktree(path: string): Promise<void> {
-		const args = ['worktree', 'remove', path];
+	async addWorktree(options: { path: string; commitish: string; branch?: string }): Promise<void> {
+		const args = ['worktree', 'add'];
+
+		if (options.branch) {
+			args.push('-b', options.branch);
+		}
+
+		args.push(options.path, options.commitish);
+
+		await this.exec(args);
+	}
+
+	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
+		const args = ['worktree', 'remove'];
+
+		if (options?.force) {
+			args.push('--force');
+		}
+
+		args.push(path);
 		await this.exec(args);
 	}
 
@@ -2755,10 +2779,17 @@ export class Repository {
 	}
 
 	private async getWorktreesFS(): Promise<Worktree[]> {
-		const worktreesPath = path.join(this.repositoryRoot, '.git', 'worktrees');
+		const config = workspace.getConfiguration('git', Uri.file(this.repositoryRoot));
+		const shouldDetectWorktrees = config.get<boolean>('detectWorktrees') === true;
+
+		if (!shouldDetectWorktrees) {
+			this.logger.info('[Git][getWorktreesFS] Worktree detection is disabled, skipping worktree detection');
+			return [];
+		}
 
 		try {
 			// List all worktree folder names
+			const worktreesPath = path.join(this.dotGit.commonPath ?? this.dotGit.path, 'worktrees');
 			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
 			const result: Worktree[] = [];
 
@@ -2767,13 +2798,20 @@ export class Repository {
 					continue;
 				}
 
-				const gitdirPath = path.join(worktreesPath, dirent.name, 'gitdir');
-
 				try {
+					const headPath = path.join(worktreesPath, dirent.name, 'HEAD');
+					const headContent = (await fs.readFile(headPath, 'utf8')).trim();
+
+					const gitdirPath = path.join(worktreesPath, dirent.name, 'gitdir');
 					const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
-					// Remove trailing '/.git'
-					const gitdirTrimmed = gitdirContent.replace(/\.git.*$/, '');
-					result.push({ name: dirent.name, path: gitdirTrimmed });
+
+					result.push({
+						name: dirent.name,
+						// Remove '/.git' suffix
+						path: gitdirContent.replace(/\/.git.*$/, ''),
+						// Remove 'ref: ' prefix
+						ref: headContent.replace(/^ref: /, ''),
+					});
 				} catch (err) {
 					if (/ENOENT/.test(err.message)) {
 						continue;
@@ -2786,7 +2824,7 @@ export class Repository {
 			return result;
 		}
 		catch (err) {
-			if (/ENOENT/.test(err.message)) {
+			if (/ENOENT/.test(err.message) || /ENOTDIR/.test(err.message)) {
 				return [];
 			}
 
@@ -2934,8 +2972,8 @@ export class Repository {
 					const result = await this.exec(['rev-list', '--left-right', '--count', `${branch.name}...${branch.upstream.remote}/${branch.upstream.name}`]);
 					const [ahead, behind] = result.stdout.trim().split('\t');
 
-					(branch as any).ahead = Number(ahead) || 0;
-					(branch as any).behind = Number(behind) || 0;
+					(branch as Mutable<Branch>).ahead = Number(ahead) || 0;
+					(branch as Mutable<Branch>).behind = Number(behind) || 0;
 				} catch { }
 			}
 
@@ -3015,9 +3053,27 @@ export class Repository {
 		return commits[0];
 	}
 
-	async showCommit(ref: string): Promise<string> {
+	async showChanges(ref: string): Promise<string> {
 		try {
-			const result = await this.exec(['show', ref]);
+			const result = await this.exec(['log', '-p', '-n1', ref, '--']);
+			return result.stdout.trim();
+		} catch (err) {
+			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.BadRevision;
+			}
+
+			throw err;
+		}
+	}
+
+	async showChangesBetween(ref1: string, ref2: string, path?: string): Promise<string> {
+		try {
+			const args = ['log', '-p', `${ref1}..${ref2}`, '--'];
+			if (path) {
+				args.push(this.sanitizeRelativePath(path));
+			}
+
+			const result = await this.exec(args);
 			return result.stdout.trim();
 		} catch (err) {
 			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {

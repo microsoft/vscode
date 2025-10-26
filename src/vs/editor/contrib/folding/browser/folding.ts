@@ -242,6 +242,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.localToDispose.add(this.hiddenRangeModel.onDidChange(hr => this.onHiddenRangesChanges(hr)));
 
 		this.updateScheduler = new Delayer<FoldingModel>(this.updateDebounceInfo.get(model));
+		this.localToDispose.add(this.updateScheduler);
 
 		this.cursorChangedScheduler = new RunOnceScheduler(() => this.revealCursor(), 200);
 		this.localToDispose.add(this.cursorChangedScheduler);
@@ -523,7 +524,7 @@ export class RangesLimitReporter extends Disposable implements FoldingLimitRepor
 	}
 
 	private _onDidChange = this._register(new Emitter<void>());
-	public readonly onDidChange: Event<void> = this._onDidChange.event;
+	public get onDidChange(): Event<void> { return this._onDidChange.event; }
 
 	private _computed: number = 0;
 	private _limited: number | false = false;

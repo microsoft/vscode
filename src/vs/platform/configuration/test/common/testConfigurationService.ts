@@ -70,6 +70,7 @@ export class TestConfigurationService implements IConfigurationService {
 			value,
 			defaultValue: undefined,
 			userValue: value,
+			userLocalValue: value,
 			overrideIdentifiers: this.overrideIdentifiers.get(key)
 		};
 	}
@@ -77,6 +78,7 @@ export class TestConfigurationService implements IConfigurationService {
 	public keys() {
 		return {
 			default: Object.keys(Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()),
+			policy: [],
 			user: Object.keys(this.configuration),
 			workspace: [],
 			workspaceFolder: []

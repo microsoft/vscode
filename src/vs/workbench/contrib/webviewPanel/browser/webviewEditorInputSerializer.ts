@@ -8,8 +8,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorSerializer } from '../../../common/editor.js';
 import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from '../../webview/browser/webview.js';
-import { WebviewIcons } from './webviewIconManager.js';
-import { WebviewInput } from './webviewEditorInput.js';
+import { WebviewIcons, WebviewInput } from './webviewEditorInput.js';
 import { IWebviewWorkbenchService } from './webviewWorkbenchService.js';
 
 export type SerializedWebviewOptions = WebviewOptions & WebviewContentOptions;

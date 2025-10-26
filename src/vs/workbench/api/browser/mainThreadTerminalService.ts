@@ -164,7 +164,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment,
-			isTransient: launchConfig.isTransient
+			isTransient: launchConfig.isTransient,
+			shellIntegrationNonce: launchConfig.shellIntegrationNonce
 		};
 		const terminal = Promises.withAsyncBody<ITerminalInstance>(async r => {
 			const terminal = await this._terminalService.createTerminal({
@@ -276,12 +277,29 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $registerCompletionProvider(id: string, extensionIdentifier: string, ...triggerCharacters: string[]): void {
 		this._completionProviders.set(id, this._terminalCompletionService.registerTerminalCompletionProvider(extensionIdentifier, id, {
 			id,
-			provideCompletions: async (commandLine, cursorPosition, allowFallbackCompletions, token) => {
-				const completions = await this._proxy.$provideTerminalCompletions(id, { commandLine, cursorPosition, allowFallbackCompletions }, token);
-				return {
-					items: completions?.items.map(c => ({ ...c, provider: id })),
-					resourceRequestConfig: completions?.resourceRequestConfig
-				};
+			provideCompletions: async (commandLine, cursorIndex, token) => {
+				const completions = await this._proxy.$provideTerminalCompletions(id, { commandLine, cursorIndex }, token);
+				if (!completions) {
+					return undefined;
+				}
+				if (completions.resourceOptions) {
+					const { cwd, globPattern, ...rest } = completions.resourceOptions;
+					return {
+						items: completions.items?.map(c => ({
+							provider: `ext:${id}`,
+							...c,
+						})),
+						resourceOptions: {
+							...rest,
+							cwd,
+							globPattern
+						}
+					};
+				}
+				return completions.items?.map(c => ({
+					provider: `ext:${id}`,
+					...c,
+				}));
 			}
 		}, ...triggerCharacters));
 	}

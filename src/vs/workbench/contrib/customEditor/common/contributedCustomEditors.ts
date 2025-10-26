@@ -15,13 +15,17 @@ import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from './ext
 import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IExtensionPointUser } from '../../../services/extensions/common/extensionsRegistry.js';
 
+interface CustomEditorsMemento {
+	editors?: CustomEditorDescriptor[];
+}
+
 export class ContributedCustomEditors extends Disposable {
 
 	private static readonly CUSTOM_EDITORS_STORAGE_ID = 'customEditors';
 	private static readonly CUSTOM_EDITORS_ENTRY_ID = 'editors';
 
 	private readonly _editors = new Map<string, CustomEditorInfo>();
-	private readonly _memento: Memento;
+	private readonly _memento: Memento<CustomEditorsMemento>;
 
 	constructor(storageService: IStorageService) {
 		super();
@@ -33,9 +37,9 @@ export class ContributedCustomEditors extends Disposable {
 			this.add(new CustomEditorInfo(info));
 		}
 
-		customEditorsExtensionPoint.setHandler(extensions => {
+		this._register(customEditorsExtensionPoint.setHandler(extensions => {
 			this.update(extensions);
-		});
+		}));
 	}
 
 	private readonly _onChange = this._register(new Emitter<void>());
