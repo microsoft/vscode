@@ -489,7 +489,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		);
 	}
 
-	private async _createRequest(requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; isDefault?: boolean }, extension: IExtensionDescription) {
+	private async _createRequest(requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; isDefault?: boolean; isContributedChatSession?: boolean }, extension: IExtensionDescription) {
 		const request = revive<IChatAgentRequest>(requestDto);
 		const convertedHistory = await this.prepareHistoryTurns(extension, request.agentId, context);
 
@@ -541,7 +541,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		this._onDidChangeChatRequestTools.fire(request.extRequest);
 	}
 
-	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContextDto; chatSummary?: { prompt?: string; history?: string } }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
+	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContextDto; chatSummary?: { prompt?: string; history?: string }; isContributedChatSession?: boolean }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
