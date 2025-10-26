@@ -178,7 +178,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	},
 	[TerminalSuggestSettingId.InsertTrailingSpace]: {
 		restricted: true,
-		markdownDescription: localize('suggest.insertTrailingSpace', "Controls whether a space is automatically inserted after accepting a suggestion. Folders and symbolic link folders will never have a trailing space added."),
+		markdownDescription: localize('suggest.insertTrailingSpace', "Controls whether a space is automatically inserted after accepting a suggestion and re-trigger suggestions. Folders and symbolic link folders will never have a trailing space added."),
 		type: 'boolean',
 		default: false,
 	},
