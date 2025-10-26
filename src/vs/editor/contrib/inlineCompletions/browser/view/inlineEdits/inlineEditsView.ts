@@ -46,7 +46,7 @@ export class InlineEditsView extends Disposable {
 
 	private readonly _tabAction;
 
-	private _previousView: {
+	private _previousView: { // TODO, move into identity
 		id: string;
 		view: ReturnType<typeof InlineEditsView.prototype.determineView>;
 		editorWidth: number;
@@ -384,7 +384,7 @@ export class InlineEditsView extends Disposable {
 	private determineView(model: IInlineEditModel, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText): InlineCompletionViewKind {
 		// Check if we can use the previous view if it is the same InlineCompletion as previously shown
 		const inlineEdit = model.inlineEdit;
-		const canUseCache = this._previousView?.id === this.getCacheId(model);
+		const canUseCache = this._previousView?.id === this.getCacheId(model) && !model.displayLocation?.jumpToEdit;
 		const reconsiderViewEditorWidthChange = this._previousView?.editorWidth !== this._editorObs.layoutInfoWidth.read(reader) &&
 			(
 				this._previousView?.view === InlineCompletionViewKind.SideBySide ||
@@ -395,7 +395,7 @@ export class InlineEditsView extends Disposable {
 			return this._previousView!.view;
 		}
 
-		if (model.displayLocation) {
+		if (model.displayLocation && !model.inlineEdit.inlineCompletion.identity.jumpedTo.read(reader)) {
 			return InlineCompletionViewKind.Custom;
 		}
 

@@ -63,7 +63,6 @@ import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../common/chatSessionsService.js';
-import { ChatSessionUri } from '../../common/chatUri.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, AGENT_SESSIONS_VIEWLET_ID } from '../../common/constants.js';
@@ -639,7 +638,7 @@ export function registerChatActions() {
 			picker.show();
 		};
 
-		private showIntegratedPicker = async (
+		private async showIntegratedPicker(
 			chatService: IChatService,
 			quickInputService: IQuickInputService,
 			commandService: ICommandService,
@@ -651,7 +650,7 @@ export function registerChatActions() {
 			menuService: IMenuService,
 			showAllChats: boolean = false,
 			showAllAgents: boolean = false
-		) => {
+		) {
 			const clearChatHistoryButton: IQuickInputButton = {
 				iconClass: ThemeIcon.asClassName(Codicon.clearAll),
 				tooltip: localize('interactiveSession.history.clear', "Clear All Workspace Chats"),
@@ -836,7 +835,7 @@ export function registerChatActions() {
 				};
 			};
 
-			const store = new (DisposableStore as { new(): DisposableStore })();
+			const store = new DisposableStore();
 			const picker = store.add(quickInputService.createQuickPick<IChatPickerItem | ICodingAgentPickerItem>({ useSeparators: true }));
 			picker.title = (showAllChats || showAllAgents) ?
 				localize('interactiveSession.history.titleAll', "All Workspace Chat History") :
@@ -991,7 +990,7 @@ export function registerChatActions() {
 			store.add(picker.onDidHide(() => store.dispose()));
 
 			picker.show();
-		};
+		}
 
 		async run(accessor: ServicesAccessor) {
 			const chatService = accessor.get(IChatService);
@@ -1047,7 +1046,7 @@ export function registerChatActions() {
 		private async showChatSessionInEditor(providerType: string, session: IChatSessionItem, editorService: IEditorService) {
 			// Open the chat editor
 			await editorService.openEditor({
-				resource: ChatSessionUri.forSession(providerType, session.id),
+				resource: session.resource,
 				options: {} satisfies IChatEditorOptions
 			});
 		}

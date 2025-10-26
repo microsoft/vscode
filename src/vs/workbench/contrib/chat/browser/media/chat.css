@@ -763,23 +763,28 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session {
-	margin-bottom: -4px; /* reset the 4px gap of the container for editing sessions */
+	margin-bottom: -4px; /* Counter the flex gap */
+	/* reset the 4px gap of the container for editing sessions */
 	width: 100%;
 	position: relative;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
-	margin-bottom: -13px;
-	padding: 6px 8px 18px 8px;
+	padding: 6px 3px 6px 3px;
 	box-sizing: border-box;
 	background-color: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-bottom: none;
-	border-radius: 4px;
+	border-radius: 4px 4px 0 0;
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
 	overflow: hidden;
+}
+
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container:has(.chat-todo-list-widget.has-todos) + .chat-editing-session .chat-editing-session-container {
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
 }
 
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
@@ -1088,12 +1093,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget {
-	padding: 4px 8px 4px 12px;
+	padding: 6px 3px 6px 3px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-editor-background);
 	border-bottom: none;
-	border-radius: 4px;
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
 	flex-direction: column;
 	gap: 2px;
 	overflow: hidden;
@@ -1104,7 +1110,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	gap: 4px;
 	cursor: pointer;
-	padding: 2px 0;
 	justify-content: space-between;
 	width: 100%;
 }
@@ -1114,6 +1119,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand .todo-list-title-section {
+	padding-left: 3px;
 	display: flex;
 	align-items: center;
 	gap: 4px;
@@ -1133,6 +1139,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container {
+	padding-right: 2px;
 	display: flex;
 	align-items: center;
 	opacity: 1;
@@ -1177,6 +1184,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-weight: normal;
 	font-size: 11px;
 	color: var(--vscode-foreground);
+	display: flex;
+	align-items: center;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-container {
@@ -1203,7 +1214,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-item {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 6px;
 	scroll-snap-align: start;
 	min-height: 22px;
 	font-size: var(--vscode-chat-font-size-body-m);
@@ -1234,6 +1245,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	min-width: 0;
+}
+
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
+	border-radius: 2px;
 }
 
 .interactive-session .interactive-input-part.compact .chat-input-container {
@@ -2170,8 +2185,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
 		color: var(--vscode-icon-foreground) !important;
 
-		&.codicon-check {
-			color: var(--vscode-debugIcon-startForeground) !important;
+		&.codicon-error {
+			color: var(--vscode-editorError-foreground) !important;
 		}
 	}
 
@@ -2275,6 +2290,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	right: 0;
 	position: absolute;
 	margin-top: 2px;
+}
+
+.chat-attached-context-hover .chat-terminal-command-block,
+.chat-attached-context-hover .chat-terminal-command-output {
+	font-family: var(--monaco-monospace-font);
+	white-space: pre-wrap;
+	word-break: break-word;
+	margin: 4px 0;
+}
+
+.chat-attached-context-hover .chat-terminal-command-output {
+	max-height: 200px;
+	overflow: auto;
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill {
@@ -2991,6 +3019,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin-bottom: 0;
 		position: relative;
 		overflow: hidden;
+
+		.chat-tool-invocation-part {
+			.chat-used-context {
+				margin-bottom: 0px;
+				margin-left: 2px;
+			}
+
+			.progress-container {
+				margin-left: 6px;
+			}
+		}
 
 		.chat-thinking-item.markdown-content {
 			padding: 3px 12px 3px 24px;

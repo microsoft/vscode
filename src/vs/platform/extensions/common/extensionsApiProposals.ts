@@ -62,7 +62,7 @@ const _allApiProposals = {
 	},
 	chatSessionsProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatSessionsProvider.d.ts',
-		version: 2
+		version: 3
 	},
 	chatStatusItem: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatStatusItem.d.ts',
@@ -441,6 +441,9 @@ const _allApiProposals = {
 	},
 	toolProgress: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.toolProgress.d.ts',
+	},
+	treeItemMarkdownLabel: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.treeItemMarkdownLabel.d.ts',
 	},
 	treeViewActiveItem: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.treeViewActiveItem.d.ts',

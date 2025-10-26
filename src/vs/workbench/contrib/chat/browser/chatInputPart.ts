@@ -90,7 +90,7 @@ import { ChatOpenModelPickerActionId, ChatSessionPrimaryPickerAction, ChatSubmit
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
-import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from './chatAttachmentWidgets.js';
+import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from './chatAttachmentWidgets.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
@@ -662,7 +662,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (!ctx) {
 				continue;
 			}
-			if (!this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionId, optionGroup.id)) {
+			if (!this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionResource, optionGroup.id)) {
 				// This session does not have a value to contribute for this option group
 				continue;
 			}
@@ -682,7 +682,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					this.getOrCreateOptionEmitter(optionGroup.id).fire(option);
 					this.chatSessionsService.notifySessionOptionsChange(
 						ctx.chatSessionType,
-						ctx.chatSessionId,
+						ctx.chatSessionResource,
 						[{ optionId: optionGroup.id, value: option.id }]
 					).catch(err => this.logService.error(`Failed to notify extension of ${optionGroup.id} change:`, err));
 				},
@@ -1139,7 +1139,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return hideAll();
 		}
 
-		if (!this.chatSessionsService.hasAnySessionOptions(ctx.chatSessionType, ctx.chatSessionId)) {
+		if (!this.chatSessionsService.hasAnySessionOptions(ctx.chatSessionResource)) {
 			return hideAll();
 		}
 
@@ -1167,7 +1167,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		for (const [optionGroupId] of this.chatSessionPickerWidgets.entries()) {
-			const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionId, optionGroupId);
+			const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionResource, optionGroupId);
 			if (currentOption) {
 				const optionGroup = optionGroups.find(g => g.id === optionGroupId);
 				if (optionGroup) {
@@ -1212,7 +1212,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		const currentOptionId = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionId, optionGroupId);
+		const currentOptionId = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionResource, optionGroupId);
 		return optionGroup.items.find(m => m.id === currentOptionId);
 	}
 
@@ -1612,6 +1612,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				attachmentWidget = this.instantiationService.createInstance(PromptTextAttachmentWidget, attachment, undefined, options, container, this._contextResourceLabels);
 			} else if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
 				attachmentWidget = this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, undefined, this._currentLanguageModel, options, container, this._contextResourceLabels);
+			} else if (attachment.kind === 'terminalCommand') {
+				attachmentWidget = this.instantiationService.createInstance(TerminalCommandAttachmentWidget, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels);
 			} else if (isImageVariableEntry(attachment)) {
 				attachmentWidget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels);
 			} else if (isElementVariableEntry(attachment)) {
@@ -2095,7 +2097,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			followupsHeight: this.followupsContainer.offsetHeight,
 			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight),
 			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : 32,
-			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : (16 /* entire part */ + 6 /* input container */ + (2 * 4) /* flex gap: edits|input */),
+			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : (16 /* entire part */ + 6 /* input container */ + (1 * 4) /* flex gap: todo|edits|input */),
 			attachmentsHeight: this.attachmentsHeight,
 			editorBorder: 2,
 			inputPartHorizontalPaddingInside: 12,

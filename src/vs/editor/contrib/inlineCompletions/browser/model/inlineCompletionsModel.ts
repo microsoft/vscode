@@ -73,14 +73,7 @@ export class InlineCompletionsModel extends Disposable {
 			return false;
 		}
 
-		const targetRange = state.inlineCompletion.targetRange;
-		const visibleRanges = this._editorObs.editor.getVisibleRanges();
-		if (visibleRanges.length < 1) {
-			return false;
-		}
-
-		const viewportRange = new Range(visibleRanges[0].startLineNumber, visibleRanges[0].startColumn, visibleRanges[visibleRanges.length - 1].endLineNumber, visibleRanges[visibleRanges.length - 1].endColumn);
-		return viewportRange.containsRange(targetRange);
+		return isSuggestionInViewport(this._editor, state.inlineCompletion);
 	});
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
 
@@ -810,7 +803,7 @@ export class InlineCompletionsModel extends Disposable {
 			return true;
 		}
 
-		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader)) {
+		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader) && !s.inlineCompletion.displayLocation?.jumpToEdit) {
 			return false;
 		}
 
@@ -828,7 +821,7 @@ export class InlineCompletionsModel extends Disposable {
 		if (this._tabShouldIndent.read(reader)) {
 			return false;
 		}
-		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader)) {
+		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader) && !s.inlineCompletion.displayLocation?.jumpToEdit) {
 			return true;
 		}
 		if (s.inlineCompletion.targetRange.startLineNumber === this._editorObs.cursorLineNumber.read(reader)) {
@@ -1120,6 +1113,8 @@ export class InlineCompletionsModel extends Disposable {
 				this._editor.revealRange(revealRange, ScrollType.Immediate);
 			}
 
+			s.inlineCompletion.identity.setJumpTo(tx);
+
 			this._editor.focus();
 		});
 	}
@@ -1209,4 +1204,15 @@ class FadeoutDecoration extends Disposable {
 			}
 		}));
 	}
+}
+
+function isSuggestionInViewport(editor: ICodeEditor, suggestion: InlineSuggestionItem): boolean {
+	const targetRange = suggestion.targetRange;
+	const visibleRanges = editor.getVisibleRanges();
+	if (visibleRanges.length < 1) {
+		return false;
+	}
+
+	const viewportRange = new Range(visibleRanges[0].startLineNumber, visibleRanges[0].startColumn, visibleRanges[visibleRanges.length - 1].endLineNumber, visibleRanges[visibleRanges.length - 1].endColumn);
+	return viewportRange.containsRange(targetRange);
 }

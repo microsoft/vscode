@@ -969,10 +969,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatStatusItem');
 				return extHostChatStatus.createChatStatusItem(extension, id);
 			},
-			showChatSession: (chatSessionType: string, sessionId: string, options?: vscode.ChatSessionShowOptions) => {
-				checkProposedApiEnabled(extension, 'chatSessionsProvider');
-				return extHostChatSessions.showChatSession(extension, chatSessionType, sessionId, options);
-			},
 		};
 
 		// namespace: workspace
@@ -1530,9 +1526,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
 				return extHostChatSessions.registerChatSessionItemProvider(extension, chatSessionType, provider);
 			},
-			registerChatSessionContentProvider(chatSessionType: string, provider: vscode.ChatSessionContentProvider, chatParticipant: vscode.ChatParticipant, capabilities?: vscode.ChatSessionCapabilities) {
+			registerChatSessionContentProvider(scheme: string, provider: vscode.ChatSessionContentProvider, chatParticipant: vscode.ChatParticipant, capabilities?: vscode.ChatSessionCapabilities) {
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
-				return extHostChatSessions.registerChatSessionContentProvider(extension, chatSessionType, chatParticipant, provider, capabilities);
+				return extHostChatSessions.registerChatSessionContentProvider(extension, scheme, chatParticipant, provider, capabilities);
 			},
 			registerChatOutputRenderer: (viewType: string, renderer: vscode.ChatOutputRenderer) => {
 				checkProposedApiEnabled(extension, 'chatOutputRenderer');
