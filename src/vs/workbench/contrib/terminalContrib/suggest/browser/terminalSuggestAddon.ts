@@ -93,6 +93,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _currentSuggestionDetails?: CancelablePromise<void>;
 	private _focusedItem?: TerminalCompletionItem;
 	private _ignoreFocusEvents: boolean = false;
+	private _requestCompletionsOnNextSync: boolean = false;
 
 	isPasting: boolean = false;
 	shellType: TerminalShellType | undefined;
@@ -505,6 +506,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
 		{
 			let sent = false;
+
+			// If completions were requested from the addon
+			if (this._requestCompletionsOnNextSync) {
+				this._requestCompletionsOnNextSync = false;
+				sent = this._requestTriggerCharQuickSuggestCompletions();
+			}
 
 			// If the cursor moved to the right
 			if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
@@ -1004,6 +1011,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
 		if (config.insertTrailingSpace && completion.kind !== TerminalCompletionItemKind.Folder && completion.kind !== TerminalCompletionItemKind.SymbolicLinkFolder) {
 			resultSequence += ' ';
+			this._lastUserDataTimestamp = Date.now();
+			this._requestCompletionsOnNextSync = true;
 		}
 
 		// Send the completion
