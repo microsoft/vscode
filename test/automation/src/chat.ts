@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Code } from './code';
+import { Notification } from './notification';
 
 const CHAT_VIEW = 'div[id="workbench.panel.chat"]';
 const CHAT_INPUT = `${CHAT_VIEW} .monaco-editor[role="code"]`;
@@ -11,7 +12,7 @@ const CHAT_INPUT_FOCUSED = `${CHAT_VIEW} .monaco-editor.focused[role="code"]`;
 
 export class Chat {
 
-	constructor(private code: Code) { }
+	constructor(private code: Code, private notification: Notification) { }
 
 	async waitForChatView(): Promise<void> {
 		await this.code.waitForElement(CHAT_VIEW);
@@ -22,6 +23,9 @@ export class Chat {
 	}
 
 	async sendMessage(message: string): Promise<void> {
+		if (await this.notification.isNotificationVisible()) {
+			throw new Error('Notification is visible');
+		}
 		// Click on the chat input to focus it
 		await this.code.waitAndClick(CHAT_INPUT);
 
@@ -44,6 +48,6 @@ export class Chat {
 		}, { selector: CHAT_INPUT, text: message });
 
 		// Submit the message
-		await this.code.dispatchKeybinding('enter', async () => { });
+		await this.code.dispatchKeybinding('enter', () => Promise.resolve());
 	}
 }

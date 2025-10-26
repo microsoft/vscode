@@ -22,13 +22,22 @@ export function applyChatTools(server: McpServer, appService: ApplicationService
 		async (args) => {
 			const { message } = args;
 			const app = await appService.getOrCreateApplication();
-			await app.workbench.chat.sendMessage(message);
-			return {
-				content: [{
-					type: 'text' as const,
-					text: `Sent chat message: "${message}"`
-				}]
-			};
+			try {
+				await app.workbench.chat.sendMessage(message);
+				return {
+					content: [{
+						type: 'text' as const,
+						text: `Sent chat message: "${message}"`
+					}]
+				};
+			} catch (error) {
+				return {
+					content: [{
+						type: 'text' as const,
+						text: `Failed to send chat message: ${error}`
+					}]
+				};
+			}
 		}
 	));
 
