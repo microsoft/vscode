@@ -1124,7 +1124,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	gap: 4px;
 	flex: 1;
-	color: var(--vscode-foreground);
 	font-size: 11px;
 	white-space: nowrap;
 	overflow: hidden;
@@ -1183,7 +1182,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-title {
 	font-weight: normal;
 	font-size: 11px;
-	color: var(--vscode-foreground);
 	display: flex;
 	align-items: center;
 	overflow: hidden;
@@ -1239,7 +1237,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-content {
-	color: var(--vscode-foreground);
 	flex-grow: 1;
 	overflow: hidden;
 	white-space: nowrap;
