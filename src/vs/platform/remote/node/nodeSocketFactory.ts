@@ -6,7 +6,7 @@
 import * as net from 'net';
 import { ISocket } from '../../../base/parts/ipc/common/ipc.net.js';
 import { NodeSocket } from '../../../base/parts/ipc/node/ipc.net.js';
-import { makeRawSocketHeaders } from '../common/managedSocket.js';
+import { formatWebSocketAuthority, makeRawSocketHeaders } from '../common/managedSocket.js';
 import { RemoteConnectionType, WebSocketRemoteConnection } from '../common/remoteAuthorityResolver.js';
 import { ISocketFactory } from '../common/remoteSocketFactoryService.js';
 
@@ -18,10 +18,11 @@ export const nodeSocketFactory = new class implements ISocketFactory<RemoteConne
 
 	connect({ host, port }: WebSocketRemoteConnection, path: string, query: string, debugLabel: string): Promise<ISocket> {
 		return new Promise<ISocket>((resolve, reject) => {
-			const socket = net.createConnection({ host: host, port: port }, () => {
-				socket.removeListener('error', reject);
+                        const socket = net.createConnection({ host: host, port: port }, () => {
+                                socket.removeListener('error', reject);
 
-				socket.write(makeRawSocketHeaders(path, query, debugLabel));
+                                const authority = formatWebSocketAuthority(host, port);
+                                socket.write(makeRawSocketHeaders(authority, path, query, debugLabel));
 
 				const onData = (data: Buffer) => {
 					const strData = data.toString();

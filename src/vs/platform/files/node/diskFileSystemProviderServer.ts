@@ -320,10 +320,11 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 	}
 
 	watch(req: number, resource: URI, opts: IWatchOptions): IDisposable {
-		const extraExcludes = this.getExtraExcludes(this.environmentService);
-		if (Array.isArray(extraExcludes)) {
-			opts.excludes = [...opts.excludes, ...extraExcludes];
-		}
+                const extraExcludes = this.getExtraExcludes(this.environmentService);
+                if (Array.isArray(extraExcludes) && extraExcludes.length) {
+                        const existingExcludes = Array.isArray(opts.excludes) ? opts.excludes : [];
+                        opts.excludes = [...existingExcludes, ...extraExcludes];
+                }
 
 		this.watcherRequests.set(req, this.fileWatcher.watch(resource, opts));
 

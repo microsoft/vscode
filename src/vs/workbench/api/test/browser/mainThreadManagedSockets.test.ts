@@ -73,7 +73,7 @@ suite('MainThreadManagedSockets', () => {
 
 		async function doConnect() {
 			const socket = MainThreadManagedSocket.connect(1, extHost, '/hello', 'world=true', '', half);
-			await extHost.expectEvent(evt => evt.data && evt.data.startsWith('GET ws://localhost/hello?world=true&skipWebSocketFrames=true HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key:'), 'websocket open event');
+                        await extHost.expectEvent(evt => evt.data && evt.data.startsWith('GET ws://localhost/hello?world=true&skipWebSocketFrames=true HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key:'), 'websocket open event');
 			half.onData.fire(VSBuffer.fromString('Opened successfully ;)\r\n\r\n'));
 			return ds.add(await socket);
 		}
