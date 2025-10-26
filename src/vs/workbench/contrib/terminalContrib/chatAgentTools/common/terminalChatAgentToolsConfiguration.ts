@@ -319,7 +319,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		type: 'integer',
 		minimum: -1,
 		maximum: 60000,
-		default: -1
+		default: -1,
+		markdownDeprecationMessage: localize('shellIntegrationTimeout.deprecated', 'Use {0} instead', `\`#${TerminalSettingId.ShellIntegrationTimeout}#\``)
 	},
 	[TerminalChatAgentToolsSettingId.TerminalProfileLinux]: {
 		restricted: true,

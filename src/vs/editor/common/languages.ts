@@ -854,6 +854,7 @@ export interface InlineCompletionDisplayLocation {
 	range: IRange;
 	kind: InlineCompletionDisplayLocationKind;
 	label: string;
+	jumpToEdit: boolean;
 }
 
 /**

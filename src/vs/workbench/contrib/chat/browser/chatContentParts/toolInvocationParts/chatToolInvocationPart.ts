@@ -5,10 +5,8 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { markdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
 import { IChatRendererContent } from '../../../common/chatViewModel.js';
@@ -29,6 +27,8 @@ import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { autorun } from '../../../../../../base/common/observable.js';
+import { localize } from '../../../../../../nls.js';
+import { markdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -94,8 +94,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			partStore.add(this.subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			partStore.add(this.subPart.onNeedsRerender(render));
 
-			// todo@connor4312/tyriar: standardize how these are displayed
-			if (!(this.subPart instanceof ChatTerminalToolProgressPart)) {
+			// todo@connor4312: Move MCP spinner to left to get consistent auto approval presentation
+			if (this.subPart instanceof ChatInputOutputMarkdownProgressPart) {
 				const approval = this.createApprovalMessage();
 				if (approval) {
 					this.domNode.appendChild(approval);
@@ -107,6 +107,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		render();
 	}
 
+	/** @deprecated Approval should be centrally managed by passing tool invocation ChatProgressContentPart */
 	private get autoApproveMessageContent() {
 		const reason = IChatToolInvocation.executionConfirmedOrDenied(this.toolInvocation);
 		if (!reason || typeof reason === 'boolean') {
@@ -137,6 +138,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		return md;
 	}
 
+	/** @deprecated Approval should be centrally managed by passing tool invocation ChatProgressContentPart */
 	private createApprovalMessage(): HTMLElement | undefined {
 		const md = this.autoApproveMessageContent;
 		if (!md) {

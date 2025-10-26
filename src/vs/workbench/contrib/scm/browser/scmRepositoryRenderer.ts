@@ -5,7 +5,7 @@
 
 import './media/scm.css';
 import { IDisposable, DisposableStore, combinedDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { append, $ } from '../../../../base/browser/dom.js';
 import { ISCMProvider, ISCMRepository, ISCMViewService } from '../common/scm.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
@@ -30,6 +30,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { shorten } from '../../../../base/common/labels.js';
 import { dirname } from '../../../../base/common/resources.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 export class RepositoryActionRunner extends ActionRunner {
 	constructor(private readonly getSelectedRepositories: () => ISCMRepository[]) {
@@ -69,6 +70,8 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	static readonly TEMPLATE_ID = 'repository';
 	get templateId(): string { return RepositoryRenderer.TEMPLATE_ID; }
 
+	private readonly onDidChangeVisibleRepositoriesSignal: IObservable<void>;
+
 	constructor(
 		private readonly toolbarMenuId: MenuId,
 		private readonly actionViewItemProvider: IActionViewItemProvider,
@@ -81,7 +84,9 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		@ISCMViewService private scmViewService: ISCMViewService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IUriIdentityService private uriIdentityService: IUriIdentityService
-	) { }
+	) {
+		this.onDidChangeVisibleRepositoriesSignal = observableSignalFromEvent(this, this.scmViewService.onDidChangeVisibleRepositories);
+	}
 
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
 		// hack
@@ -107,9 +112,20 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	renderElement(arg: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate): void {
 		const repository = isSCMRepository(arg) ? arg : arg.element;
 
-		if (ThemeIcon.isThemeIcon(repository.provider.iconPath)) {
-			templateData.icon.classList.add(...ThemeIcon.asClassNameArray(repository.provider.iconPath));
-		}
+		templateData.elementDisposables.add(autorun(reader => {
+			this.onDidChangeVisibleRepositoriesSignal.read(reader);
+
+			const isVisible = this.scmViewService.isVisible(repository);
+			templateData.label.element.classList.toggle('visible', isVisible);
+
+			const icon = ThemeIcon.isThemeIcon(repository.provider.iconPath)
+				? repository.provider.iconPath
+				: Codicon.repo;
+
+			templateData.icon.className = icon.id === Codicon.repo.id && isVisible
+				? `icon ${ThemeIcon.asClassName(Codicon.repoSelected)}`
+				: `icon ${ThemeIcon.asClassName(icon)}`;
+		}));
 
 		// Use the description to disambiguate repositories with the same name and have
 		// a `rootUri`. Use the `provider.rootUri` for disambiguation. If they have the

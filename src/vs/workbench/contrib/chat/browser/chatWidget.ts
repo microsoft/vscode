@@ -256,6 +256,7 @@ const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 	supportsSourceControlAttachments: true,
 	supportsProblemAttachments: true,
 	supportsSymbolAttachments: true,
+	supportsTerminalAttachments: true,
 };
 
 export class ChatWidget extends Disposable implements IChatWidget {
@@ -1364,6 +1365,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				message,
 				icon: providerIcon ?? Codicon.sendToRemoteAgent,
 				additionalMessage,
+				useLargeIcon: !!providerIcon,
 			};
 		}
 
