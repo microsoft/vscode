@@ -633,8 +633,6 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/debug/browser/variablesView.ts',
 			'src/vs/workbench/contrib/debug/browser/watchExpressionsView.ts',
 			'src/vs/workbench/contrib/debug/common/abstractDebugAdapter.ts',
-			'src/vs/workbench/contrib/debug/common/debug.ts',
-			'src/vs/workbench/contrib/debug/common/debugModel.ts',
 			'src/vs/workbench/contrib/debug/common/debugger.ts',
 			'src/vs/workbench/contrib/debug/common/replModel.ts',
 			'src/vs/workbench/contrib/debug/test/common/mockDebug.ts',
