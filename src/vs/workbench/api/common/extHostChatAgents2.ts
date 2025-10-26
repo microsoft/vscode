@@ -789,23 +789,23 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return items.map((i) => typeConvert.ChatAgentCompletionItem.from(i, this._commands.converter, disposables));
 	}
 
-	async $provideChatTitle(handle: number, context: IChatAgentHistoryEntryDto[], isContributedChatSession: boolean | undefined, token: CancellationToken): Promise<string | undefined> {
+	async $provideChatTitle(handle: number, context: { history: IChatAgentHistoryEntryDto[]; isContributedChatSession?: boolean }, token: CancellationToken): Promise<string | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
 		}
 
-		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context, isContributedChatSession });
+		const history = await this.prepareHistoryTurns(agent.extension, agent.id, context);
 		return await agent.provideTitle({ history }, token);
 	}
 
-	async $provideChatSummary(handle: number, context: IChatAgentHistoryEntryDto[], isContributedChatSession: boolean | undefined, token: CancellationToken): Promise<string | undefined> {
+	async $provideChatSummary(handle: number, context: { history: IChatAgentHistoryEntryDto[]; isContributedChatSession?: boolean }, token: CancellationToken): Promise<string | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
 		}
 
-		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context, isContributedChatSession });
+		const history = await this.prepareHistoryTurns(agent.extension, agent.id, context);
 		return await agent.provideSummary({ history }, token);
 	}
 }

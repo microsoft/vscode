@@ -1401,8 +1401,8 @@ export interface ExtHostChatAgentsShape2 {
 	$acceptFeedback(handle: number, result: IChatAgentResult, voteAction: IChatVoteAction): void;
 	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void;
 	$invokeCompletionProvider(handle: number, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
-	$provideChatTitle(handle: number, context: IChatAgentHistoryEntryDto[], isContributedChatSession: boolean | undefined, token: CancellationToken): Promise<string | undefined>;
-	$provideChatSummary(handle: number, context: IChatAgentHistoryEntryDto[], isContributedChatSession: boolean | undefined, token: CancellationToken): Promise<string | undefined>;
+	$provideChatTitle(handle: number, context: { history: IChatAgentHistoryEntryDto[]; isContributedChatSession?: boolean }, token: CancellationToken): Promise<string | undefined>;
+	$provideChatSummary(handle: number, context: { history: IChatAgentHistoryEntryDto[]; isContributedChatSession?: boolean }, token: CancellationToken): Promise<string | undefined>;
 	$releaseSession(sessionId: string): void;
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
 	$provideRelatedFiles(handle: number, request: Dto<IChatRequestDraft>, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined>;
