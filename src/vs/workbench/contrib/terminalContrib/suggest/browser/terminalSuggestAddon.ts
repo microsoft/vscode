@@ -1000,9 +1000,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			SuggestAddon.lastAcceptedCompletionTimestamp = 0;
 		}
 
-		// Add trailing space if enabled and not a folder
+		// Add trailing space if enabled and not a folder or symbolic link folder
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
-		if (config.insertTrailingSpace && completion.kind !== TerminalCompletionItemKind.Folder) {
+		if (config.insertTrailingSpace && completion.kind !== TerminalCompletionItemKind.Folder && completion.kind !== TerminalCompletionItemKind.SymbolicLinkFolder) {
 			resultSequence += ' ';
 		}
 
