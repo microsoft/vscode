@@ -191,7 +191,8 @@ export class IconLabel extends Disposable {
 		if (description || this.descriptionNode) {
 			const descriptionNode = this.getOrCreateDescriptionNode();
 			if (descriptionNode instanceof HighlightedLabel) {
-				descriptionNode.set(description || '', options ? options.descriptionMatches : undefined, undefined, options?.labelEscapeNewLines, options?.supportIcons);
+				const supportIcons = options?.supportIcons ?? this.creationOptions?.supportIcons;
+				descriptionNode.set(description || '', options ? options.descriptionMatches : undefined, undefined, options?.labelEscapeNewLines, supportIcons);
 				this.setupHover(descriptionNode.element, options?.descriptionTitle);
 			} else {
 				descriptionNode.textContent = description && options?.labelEscapeNewLines ? HighlightedLabel.escapeNewLines(description, []) : (description || '');

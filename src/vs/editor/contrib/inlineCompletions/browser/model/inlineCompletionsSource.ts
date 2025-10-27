@@ -419,7 +419,6 @@ export class InlineCompletionsSource extends Disposable {
 			timeUntilProviderResponse: undefined,
 			viewKind: undefined,
 			preceeded: undefined,
-			error: undefined,
 			superseded: undefined,
 			reason: undefined,
 			correlationId: undefined,

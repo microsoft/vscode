@@ -88,7 +88,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		const tool = languageModelToolsService.getTool(toolInvocation.toolId);
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<ConfirmationOutcome | (() => void)>,
-			this.context.container,
+			this.context,
 			{
 				title: this.getTitle(),
 				icon: tool?.icon && 'id' in tool.icon ? tool.icon : Codicon.tools,
