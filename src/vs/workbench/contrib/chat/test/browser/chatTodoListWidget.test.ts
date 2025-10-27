@@ -10,14 +10,13 @@ import { ChatTodoListWidget } from '../../browser/chatContentParts/chatTodoListW
 import { IChatTodo, IChatTodoListService } from '../../common/chatTodoListService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('ChatTodoListWidget Accessibility', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let widget: ChatTodoListWidget;
-	let mockTodoListService: IChatTodoListService;
-	let mockConfigurationService: IConfigurationService;
 
 	const sampleTodos: IChatTodo[] = [
 		{ id: 1, title: 'First task', status: 'not-started' },
@@ -27,7 +26,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 
 	setup(() => {
 		// Mock the todo list service
-		mockTodoListService = {
+		const mockTodoListService: IChatTodoListService = {
 			_serviceBrand: undefined,
 			onDidUpdateTodos: Event.None,
 			getTodos: (sessionId: string) => sampleTodos,
@@ -35,14 +34,12 @@ suite('ChatTodoListWidget Accessibility', () => {
 		};
 
 		// Mock the configuration service
-		// eslint-disable-next-line local/code-no-any-casts
-		mockConfigurationService = {
-			_serviceBrand: undefined,
-			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
-		} as any;
+		const mockConfigurationService = new TestConfigurationService({ 'chat.todoListTool.descriptionField': true });
 
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		widget = store.add(new ChatTodoListWidget(mockTodoListService, mockConfigurationService, instantiationService));
+		instantiationService.stub(IChatTodoListService, mockTodoListService);
+		instantiationService.stub(IConfigurationService, mockConfigurationService);
+		widget = store.add(instantiationService.createInstance(ChatTodoListWidget));
 		mainWindow.document.body.appendChild(widget.domNode);
 	});
 
@@ -106,16 +103,17 @@ suite('ChatTodoListWidget Accessibility', () => {
 	test('expand button has proper accessibility attributes', () => {
 		widget.render('test-session');
 
-		// The expandoElement has the accessibility attributes
-		const expandoElement = widget.domNode.querySelector('.todo-list-expand');
-		assert.ok(expandoElement, 'Should have expando element');
-		assert.strictEqual(expandoElement?.getAttribute('role'), 'button');
-		assert.strictEqual(expandoElement?.getAttribute('tabindex'), '0');
-		assert.strictEqual(expandoElement?.getAttribute('aria-expanded'), 'false'); // Should be collapsed due to in-progress task
-		assert.strictEqual(expandoElement?.getAttribute('aria-controls'), 'todo-list-container');
+		// The expandoButton is now a Monaco Button, so we need to check its element
+		const expandoContainer = widget.domNode.querySelector('.todo-list-expand');
+		assert.ok(expandoContainer, 'Should have expando container');
+
+		const expandoButton = expandoContainer?.querySelector('.monaco-button');
+		assert.ok(expandoButton, 'Should have Monaco button');
+		assert.strictEqual(expandoButton?.getAttribute('aria-expanded'), 'false'); // Should be collapsed due to in-progress task
+		assert.strictEqual(expandoButton?.getAttribute('aria-controls'), 'todo-list-container');
 
 		// The title element should have progress information
-		const titleElement = expandoElement?.querySelector('.todo-list-title');
+		const titleElement = expandoButton?.querySelector('.todo-list-title');
 		assert.ok(titleElement, 'Should have title element');
 		const titleText = titleElement?.textContent;
 		// When collapsed, title shows progress and current task: " (2/3) - Second task"
@@ -159,14 +157,12 @@ suite('ChatTodoListWidget Accessibility', () => {
 			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
 		};
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const emptyConfigurationService: IConfigurationService = {
-			_serviceBrand: undefined,
-			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
-		} as any;
+		const emptyConfigurationService = new TestConfigurationService({ 'chat.todoListTool.descriptionField': true });
 
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		const emptyWidget = store.add(new ChatTodoListWidget(emptyTodoListService, emptyConfigurationService, instantiationService));
+		instantiationService.stub(IChatTodoListService, emptyTodoListService);
+		instantiationService.stub(IConfigurationService, emptyConfigurationService);
+		const emptyWidget = store.add(instantiationService.createInstance(ChatTodoListWidget));
 		mainWindow.document.body.appendChild(emptyWidget.domNode);
 
 		emptyWidget.render('test-session');

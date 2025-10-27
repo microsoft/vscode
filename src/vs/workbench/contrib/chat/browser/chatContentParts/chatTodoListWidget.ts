@@ -12,9 +12,11 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IChatTodoListService, IChatTodo } from '../../common/chatTodoListService.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { TodoListToolDescriptionFieldSettingId } from '../../common/tools/manageTodoListTool.js';
 
 class TodoListDelegate implements IListVirtualDelegate<IChatTodo> {
@@ -125,7 +127,7 @@ export class ChatTodoListWidget extends Disposable {
 
 	private _isExpanded: boolean = false;
 	private _userManuallyExpanded: boolean = false;
-	private expandoElement!: HTMLElement;
+	private expandoButton!: Button;
 	private todoListContainer!: HTMLElement;
 	private clearButtonContainer!: HTMLElement;
 	private clearButton!: Button;
@@ -135,11 +137,19 @@ export class ChatTodoListWidget extends Disposable {
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
 		this.domNode = this.createChatTodoWidget();
+
+		// Listen to context key changes to update clear button state when request state changes
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([ChatContextKeys.requestInProgress.key]))) {
+				this.updateClearButtonState();
+			}
+		}));
 	}
 
 	public get height(): number {
@@ -150,11 +160,12 @@ export class ChatTodoListWidget extends Disposable {
 		const container = dom.$('.chat-todo-list-widget');
 		container.style.display = 'none';
 
-		this.expandoElement = dom.$('.todo-list-expand');
-		this.expandoElement.setAttribute('role', 'button');
-		this.expandoElement.setAttribute('aria-expanded', 'true');
-		this.expandoElement.setAttribute('tabindex', '0');
-		this.expandoElement.setAttribute('aria-controls', 'todo-list-container');
+		const expandoContainer = dom.$('.todo-list-expand');
+		this.expandoButton = this._register(new Button(expandoContainer, {
+			supportIcons: true
+		}));
+		this.expandoButton.element.setAttribute('aria-expanded', String(this._isExpanded));
+		this.expandoButton.element.setAttribute('aria-controls', 'todo-list-container');
 
 		// Create title section to group icon and title
 		const titleSection = dom.$('.todo-list-title-section');
@@ -174,8 +185,8 @@ export class ChatTodoListWidget extends Disposable {
 		titleSection.appendChild(expandIcon);
 		titleSection.appendChild(titleElement);
 
-		this.expandoElement.appendChild(titleSection);
-		this.expandoElement.appendChild(this.clearButtonContainer);
+		this.expandoButton.element.appendChild(titleSection);
+		this.expandoButton.element.appendChild(this.clearButtonContainer);
 
 		this.todoListContainer = dom.$('.todo-list-container');
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
@@ -183,18 +194,11 @@ export class ChatTodoListWidget extends Disposable {
 		this.todoListContainer.setAttribute('role', 'list');
 		this.todoListContainer.setAttribute('aria-labelledby', 'todo-list-title');
 
-		container.appendChild(this.expandoElement);
+		container.appendChild(expandoContainer);
 		container.appendChild(this.todoListContainer);
 
-		this._register(dom.addDisposableListener(this.expandoElement, 'click', () => {
+		this._register(this.expandoButton.onDidClick(() => {
 			this.toggleExpanded();
-		}));
-
-		this._register(dom.addDisposableListener(this.expandoElement, 'keydown', (e) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				this.toggleExpanded();
-			}
 		}));
 
 		return container;
@@ -203,8 +207,6 @@ export class ChatTodoListWidget extends Disposable {
 	private createClearButton(): void {
 		this.clearButton = new Button(this.clearButtonContainer, {
 			supportIcons: true,
-			title: localize('chat.todoList.clearButton', 'Clear all todos'),
-			ariaLabel: localize('chat.todoList.clearButton.ariaLabel', 'Clear all todos')
 		});
 		this.clearButton.element.tabIndex = 0;
 		this.clearButton.icon = Codicon.clearAll;
@@ -262,7 +264,7 @@ export class ChatTodoListWidget extends Disposable {
 	}
 
 	private renderTodoList(todoList: IChatTodo[]): void {
-		const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
+		const titleElement = this.expandoButton.element.querySelector('.todo-list-title') as HTMLElement;
 		if (titleElement) {
 			this.updateTitleElement(titleElement, todoList);
 		}
@@ -307,13 +309,16 @@ export class ChatTodoListWidget extends Disposable {
 		const hasInProgressTask = todoList.some(todo => todo.status === 'in-progress');
 		const hasCompletedTask = todoList.some(todo => todo.status === 'completed');
 
+		// Update clear button state based on request progress
+		this.updateClearButtonState();
+
 		// Only auto-collapse if there are in-progress or completed tasks AND user hasn't manually expanded
 		if ((hasInProgressTask || hasCompletedTask) && this._isExpanded && !this._userManuallyExpanded) {
 			this._isExpanded = false;
-			this.expandoElement.setAttribute('aria-expanded', 'false');
+			this.expandoButton.element.setAttribute('aria-expanded', 'false');
 			this.todoListContainer.style.display = 'none';
 
-			const expandIcon = this.expandoElement.querySelector('.expand-icon') as HTMLElement;
+			const expandIcon = this.expandoButton.element.querySelector('.expand-icon') as HTMLElement;
 			if (expandIcon) {
 				expandIcon.classList.remove('codicon-chevron-down');
 				expandIcon.classList.add('codicon-chevron-right');
@@ -328,7 +333,7 @@ export class ChatTodoListWidget extends Disposable {
 		this._isExpanded = !this._isExpanded;
 		this._userManuallyExpanded = true;
 
-		const expandIcon = this.expandoElement.querySelector('.expand-icon') as HTMLElement;
+		const expandIcon = this.expandoButton.element.querySelector('.expand-icon') as HTMLElement;
 		if (expandIcon) {
 			expandIcon.classList.toggle('codicon-chevron-down', this._isExpanded);
 			expandIcon.classList.toggle('codicon-chevron-right', !this._isExpanded);
@@ -338,7 +343,7 @@ export class ChatTodoListWidget extends Disposable {
 
 		if (this._currentSessionId) {
 			const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
-			const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
+			const titleElement = this.expandoButton.element.querySelector('.todo-list-title') as HTMLElement;
 			if (titleElement) {
 				this.updateTitleElement(titleElement, todoList);
 			}
@@ -357,6 +362,26 @@ export class ChatTodoListWidget extends Disposable {
 		this._onDidChangeHeight.fire();
 	}
 
+	private updateClearButtonState(): void {
+		if (!this._currentSessionId) {
+			return;
+		}
+
+		const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
+		const hasInProgressTask = todoList.some(todo => todo.status === 'in-progress');
+		const isRequestInProgress = ChatContextKeys.requestInProgress.getValue(this.contextKeyService) ?? false;
+		const shouldDisable = isRequestInProgress && hasInProgressTask;
+
+		this.clearButton.enabled = !shouldDisable;
+
+		// Update tooltip based on state
+		if (shouldDisable) {
+			this.clearButton.setTitle(localize('chat.todoList.clearButton.disabled', 'Cannot clear todos while a task is in progress'));
+		} else {
+			this.clearButton.setTitle(localize('chat.todoList.clearButton', 'Clear all todos'));
+		}
+	}
+
 	private updateTitleElement(titleElement: HTMLElement, todoList: IChatTodo[]): void {
 		titleElement.textContent = '';
 
@@ -371,8 +396,8 @@ export class ChatTodoListWidget extends Disposable {
 		const expandButtonLabel = this._isExpanded
 			? localize('chat.todoList.collapseButton', 'Collapse Todos')
 			: localize('chat.todoList.expandButton', 'Expand Todos');
-		this.expandoElement.setAttribute('aria-label', expandButtonLabel);
-		this.expandoElement.setAttribute('aria-expanded', this._isExpanded ? 'true' : 'false');
+		this.expandoButton.element.setAttribute('aria-label', expandButtonLabel);
+		this.expandoButton.element.setAttribute('aria-expanded', this._isExpanded ? 'true' : 'false');
 
 		if (this._isExpanded) {
 			const titleText = dom.$('span');
