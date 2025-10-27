@@ -137,6 +137,11 @@ export interface IWorkingSetEntry {
 	uri: URI;
 }
 
+interface ICustomMode {
+	mode: string;
+	argumentHint?: string;
+}
+
 const GlobalLastChatModeKey = 'chat.lastChatMode';
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
@@ -319,11 +324,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	readonly onDidChangeCurrentChatMode: Event<void> = this._onDidChangeCurrentChatMode.event;
 
 	private readonly _currentModeObservable: ISettableObservable<IChatMode>;
+	private readonly _currentModeLabelObservable: ISettableObservable<ICustomMode>;
 	public get currentModeKind(): ChatModeKind {
 		const mode = this._currentModeObservable.get();
 		return mode.kind === ChatModeKind.Agent && !this.agentService.hasToolsAgent ?
 			ChatModeKind.Edit :
 			mode.kind;
+	}
+
+	public get currentModeLabel(): IObservable<ICustomMode> {
+		return this._currentModeLabelObservable;
 	}
 
 	public get currentModeObs(): IObservable<IChatMode> {
@@ -425,6 +435,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		super();
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 		this._currentModeObservable = observableValue<IChatMode>('currentMode', this.options.defaultMode ?? ChatMode.Agent);
+		this._currentModeLabelObservable = observableValue<ICustomMode>('currentModeLabel', { mode: (this.options.defaultMode ?? ChatMode.Agent).label, argumentHint: (this.options.defaultMode ?? ChatMode.Agent).description.get() });
 
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this._indexOfLastOpenedContext = -1;
@@ -520,6 +531,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (this._currentLanguageModel?.metadata.name) {
 				this.accessibilityService.alert(this._currentLanguageModel.metadata.name);
 			}
+			this._inputEditor?.updateOptions({ ariaLabel: this._getAriaLabel() });
 		}));
 		this._register(this.chatModeService.onDidChangeChatModes(() => this.validateCurrentChatMode()));
 		this._register(autorun(r => {
@@ -662,7 +674,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (!ctx) {
 				continue;
 			}
-			if (!this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionResource, optionGroup.id)) {
+			if (!this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id)) {
 				// This session does not have a value to contribute for this option group
 				continue;
 			}
@@ -681,7 +693,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 					this.getOrCreateOptionEmitter(optionGroup.id).fire(option);
 					this.chatSessionsService.notifySessionOptionsChange(
-						ctx.chatSessionType,
 						ctx.chatSessionResource,
 						[{ optionId: optionGroup.id, value: option.id }]
 					).catch(err => this.logService.error(`Failed to notify extension of ${optionGroup.id} change:`, err));
@@ -745,6 +756,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		this._currentModeObservable.set(mode, undefined);
+		this._currentModeLabelObservable.set({ mode: mode.label, argumentHint: mode.argumentHint?.get() }, undefined);
 		this.chatModeKindKey.set(mode.kind);
 		this._onDidChangeCurrentChatMode.fire();
 
@@ -797,25 +809,36 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (verbose) {
 			kbLabel = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 		}
+		const mode = this._currentModeObservable.get();
+
+		// Include model information if available
+		const modelName = this._currentLanguageModel?.metadata.name;
+		const modelInfo = modelName ? localize('chatInput.model', ", {0}. ", modelName) : '';
+
 		let modeLabel = '';
-		switch (this.currentModeKind) {
-			case ChatModeKind.Agent:
-				modeLabel = localize('chatInput.mode.agent', "(Agent), edit files in your workspace.");
-				break;
-			case ChatModeKind.Edit:
-				modeLabel = localize('chatInput.mode.edit', "(Edit), edit files in your workspace.");
-				break;
-			case ChatModeKind.Ask:
-			default:
-				modeLabel = localize('chatInput.mode.ask', "(Ask), ask questions or type / for topics.");
-				break;
+		if (!mode.isBuiltin) {
+			const mode = this.currentModeLabel.get();
+			modeLabel = localize('chatInput.mode.custom', "({0}), {1}", mode.mode, mode.argumentHint);
+		} else {
+			switch (this.currentModeKind) {
+				case ChatModeKind.Agent:
+					modeLabel = localize('chatInput.mode.agent', "(Agent), edit files in your workspace.");
+					break;
+				case ChatModeKind.Edit:
+					modeLabel = localize('chatInput.mode.edit', "(Edit), edit files in your workspace.");
+					break;
+				case ChatModeKind.Ask:
+				default:
+					modeLabel = localize('chatInput.mode.ask', "(Ask), ask questions or type / for topics.");
+					break;
+			}
 		}
 		if (verbose) {
 			return kbLabel
-				? localize('actions.chat.accessibiltyHelp', "Chat Input {0} Press Enter to send out the request. Use {1} for Chat Accessibility Help.", modeLabel, kbLabel)
-				: localize('chatInput.accessibilityHelpNoKb', "Chat Input {0} Press Enter to send out the request. Use the Chat Accessibility Help command for more information.", modeLabel);
+				? localize('actions.chat.accessibiltyHelp', "Chat Input {0}{1} Press Enter to send out the request. Use {2} for Chat Accessibility Help.", modelInfo, modeLabel, kbLabel)
+				: localize('chatInput.accessibilityHelpNoKb', "Chat Input {0}{1} Press Enter to send out the request. Use the Chat Accessibility Help command for more information.", modelInfo, modeLabel);
 		} else {
-			return localize('chatInput.accessibilityHelp', "Chat Input {0}.", modeLabel);
+			return localize('chatInput.accessibilityHelp', "Chat Input {0}{1}.", modelInfo, modeLabel);
 		}
 	}
 
@@ -1167,7 +1190,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		for (const [optionGroupId] of this.chatSessionPickerWidgets.entries()) {
-			const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionResource, optionGroupId);
+			const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroupId);
 			if (currentOption) {
 				const optionGroup = optionGroups.find(g => g.id === optionGroupId);
 				if (optionGroup) {
@@ -1212,7 +1235,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		const currentOptionId = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionResource, optionGroupId);
+		const currentOptionId = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroupId);
 		return optionGroup.items.find(m => m.id === currentOptionId);
 	}
 

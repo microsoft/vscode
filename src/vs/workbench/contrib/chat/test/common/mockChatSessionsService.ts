@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditableData } from '../../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from '../../common/chatAgents.js';
-import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../../common/chatSessionsService.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
 	_serviceBrand: undefined;
@@ -165,16 +165,14 @@ export class MockChatSessionsService implements IChatSessionsService {
 		}
 	}
 
-	private optionsChangeCallback?: (chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>;
+	private optionsChangeCallback?: SessionOptionsChangedCallback;
 
-	setOptionsChangeCallback(callback: (chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>): void {
+	setOptionsChangeCallback(callback: SessionOptionsChangedCallback): void {
 		this.optionsChangeCallback = callback;
 	}
 
-	async notifySessionOptionsChange(chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void> {
-		if (this.optionsChangeCallback) {
-			await this.optionsChangeCallback(chatSessionType, sessionResource, updates);
-		}
+	async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void> {
+		await this.optionsChangeCallback?.(sessionResource, updates);
 	}
 
 	async setEditableSession(sessionResource: URI, data: IEditableData | null): Promise<void> {
@@ -197,11 +195,11 @@ export class MockChatSessionsService implements IChatSessionsService {
 		this._onDidChangeSessionItems.fire(chatSessionType);
 	}
 
-	getSessionOption(chatSessionType: string, sessionResource: URI, optionId: string): string | undefined {
+	getSessionOption(sessionResource: URI, optionId: string): string | undefined {
 		return this.sessionOptions.get(sessionResource)?.get(optionId);
 	}
 
-	setSessionOption(chatSessionType: string, sessionResource: URI, optionId: string, value: string): boolean {
+	setSessionOption(sessionResource: URI, optionId: string, value: string): boolean {
 		if (!this.sessionOptions.has(sessionResource)) {
 			this.sessionOptions.set(sessionResource, new Map());
 		}
