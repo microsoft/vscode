@@ -54,7 +54,13 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/i;
 			const WINPTY = /\\pipe\\winpty-control/i;
 			const CONPTY = /conhost\.exe.+--headless/i;
+			const INTELLIJ_EDITOR = /(idea(64)?\.exe|idea\.sh|java.*WorkerMain|java.*WebSocketProxyMain|java.*Launcher)/i;
 			const TYPE = /--type=([a-zA-Z-]+)/;
+
+			// find IntelliJ editor process
+			if (INTELLIJ_EDITOR.exec(cmd)) {
+				return 'IJ Editor';
+			}
 
 			// find windows crash reporter
 			if (WINDOWS_CRASH_REPORTER.exec(cmd)) {
