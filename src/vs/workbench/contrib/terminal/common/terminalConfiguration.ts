@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import type { IStringDictionary } from '../../../../base/common/collections.js';
-import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchemaSnippet, type TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -41,7 +41,7 @@ terminalDescription += terminalDescriptors;
 
 export const defaultTerminalFontSize = isMacintosh ? 12 : 14;
 
-const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
+const terminalConfigurationConst = {
 	[TerminalSettingId.SendKeybindingsToShell]: {
 		markdownDescription: localize('terminal.integrated.sendKeybindingsToShell', "Dispatches most keybindings to the terminal instead of the workbench, overriding {0}, which can be used alternatively for fine tuning.", '`#terminal.integrated.commandsToSkipShell#`'),
 		type: 'boolean',
@@ -660,7 +660,41 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		tags: ['advanced']
 	},
 	...terminalContribConfiguration,
+} as const satisfies IStringDictionary<IConfigurationPropertySchema>;
+
+const terminalConfiguration = terminalConfigurationConst as IStringDictionary<IConfigurationPropertySchema>;
+
+export type ITerminalConfiguration2 = {
+	// [K in keyof typeof terminalConfiguration]: TypeFromJsonSchema<typeof terminalConfiguration[K]>
+	[K in keyof typeof terminalConfigurationConst as K extends `terminal.integrated.${infer Rest}` ? Rest : K]: TypeFromJsonSchema<typeof terminalConfigurationConst[K]>
 };
+
+
+
+// const a: ITerminalConfiguration2;
+
+// const b = {
+// 	description: localize('terminal.integrated.developer.devMode', "Enable developer mode for the terminal. This shows additional debug information and visualizations for shell integration sequences."),
+// 	type: 'boolean',
+// 	default: false,
+// 	tags: ['advanced']
+// } as const satisfies IConfigurationPropertySchema;
+
+// const b = {
+// 	markdownDescription: localize('terminal.integrated.persistentSessionReviveProcess', "When the terminal process must be shut down (for example on window or application close), this determines when the previous terminal session contents/history should be restored and processes be recreated when the workspace is next opened.\n\nCaveats:\n\n- Restoring of the process current working directory depends on whether it is supported by the shell.\n- Time to persist the session during shutdown is limited, so it may be aborted when using high-latency remote connections."),
+// 	type: 'string',
+// 	enum: ['onExit', 'onExitAndWindowClose', 'never'],
+// 	markdownEnumDescriptions: [
+// 		localize('terminal.integrated.persistentSessionReviveProcess.onExit', "Revive the processes after the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu)."),
+// 		localize('terminal.integrated.persistentSessionReviveProcess.onExitAndWindowClose', "Revive the processes after the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu), or when the window is closed."),
+// 		localize('terminal.integrated.persistentSessionReviveProcess.never', "Never restore the terminal buffers or recreate the process.")
+// 	],
+// 	default: 'onExit'
+// } as const satisfies IConfigurationPropertySchema;,
+
+// type A = TypeFromJsonSchema<typeof b>;
+
+// const a: A;
 
 export async function registerTerminalConfiguration(getFontSnippets: () => Promise<IJSONSchemaSnippet[]>) {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
