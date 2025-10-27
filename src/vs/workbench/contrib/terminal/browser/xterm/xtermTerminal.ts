@@ -440,7 +440,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	resize(columns: number, rows: number): void {
-		this._logService.debug(`Resizing terminal to ${columns} cols, ${rows} rows`);
+		this._logService.debug('resizing', columns, rows);
 		this.raw.resize(columns, rows);
 	}
 
