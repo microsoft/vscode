@@ -191,13 +191,22 @@ export function getStatusBarCommandGenericName(command: Command): string | undef
 	// Get a generic name for the status bar action, derive this from the first
 	// command argument which is in the form of "<extension>.<command>/<number>"
 	if (typeof command.arguments?.[0] === 'string') {
-		genericName = command.arguments[0]
-			.substring(0, command.arguments[0].lastIndexOf('/'))
+		const lastIndex = command.arguments[0].lastIndexOf('/');
+
+		genericName = lastIndex !== -1
+			? command.arguments[0].substring(0, lastIndex)
+			: command.arguments[0];
+
+		genericName = genericName
 			.replace(/^(?:git\.|remoteHub\.)/, '')
 			.trim();
-		if (genericName.length > 1) {
-			genericName = genericName[0].toLocaleUpperCase() + genericName.slice(1);
+
+		if (genericName.length === 0) {
+			return undefined;
 		}
+
+		// Capitalize first letter
+		genericName = genericName[0].toLocaleUpperCase() + genericName.slice(1);
 	}
 
 	return genericName;
