@@ -4278,6 +4278,33 @@ export class CommandCenter {
 		await repository.cherryPick(historyItem.id);
 	}
 
+	@command('git.graph.revertCommit', { repository: true })
+	async revertCommit(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+		if (!historyItem) {
+			return;
+		}
+
+		await repository.revertCommit(historyItem.id, true);
+	}
+
+	@command('git.graph.resetCommit', { repository: true })
+	async resetCommit(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+		if (!historyItem) {
+			return;
+		}
+
+		const message = l10n.t('Are you sure you want to reset to \'{0}\'?\n\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.', historyItem.id.substring(0, 8));
+		const yes = l10n.t('Reset');
+
+		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+		if (pick !== yes) {
+			return;
+		}
+
+		await repository.reset(historyItem.id, true);
+	}
+
 	@command('git.cherryPickAbort', { repository: true })
 	async cherryPickAbort(repository: Repository): Promise<void> {
 		await repository.cherryPickAbort();

@@ -2141,6 +2141,14 @@ export class Repository {
 		}
 	}
 
+	async revertCommit(commitHash: string, noEdit: boolean = false): Promise<void> {
+		const args = ['revert', commitHash];
+		if (noEdit) {
+			args.push('--no-edit');
+		}
+		await this.exec(args);
+	}
+
 	async addRemote(name: string, url: string): Promise<void> {
 		const args = ['remote', 'add', name, url];
 		await this.exec(args);
