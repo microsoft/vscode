@@ -122,21 +122,18 @@ suite('ChatTodoListWidget Accessibility', () => {
 		// Progress is 2/3 because: 1 completed + 1 in-progress (current) = task 2 of 3
 		assert.ok(titleText?.includes('(2/3)'), `Title should show progress format, but got: "${titleText}"`);
 		assert.ok(titleText?.includes('Second task'), `Title should show current task when collapsed, but got: "${titleText}"`);
-	}); test('hidden status text elements exist for screen readers', () => {
+	});
+
+	test('todo items use aria-describedby for status information', () => {
 		widget.render('test-session');
 
-		const statusElements = widget.domNode.querySelectorAll('.todo-status-text');
-		assert.strictEqual(statusElements.length, 3, 'Should have 3 status text elements');
+		const todoItems = widget.domNode.querySelectorAll('.todo-item');
+		assert.strictEqual(todoItems.length, 3, 'Should have 3 todo items');
 
-		statusElements.forEach((element, index) => {
-			assert.strictEqual(element.id, `todo-status-${index}`, 'Should have proper ID');
-			// Check that it's visually hidden but accessible to screen readers
-			const style = (element as HTMLElement).style;
-			assert.strictEqual(style.position, 'absolute');
-			assert.strictEqual(style.left, '-10000px');
-			assert.strictEqual(style.width, '1px');
-			assert.strictEqual(style.height, '1px');
-			assert.strictEqual(style.overflow, 'hidden');
+		// Each item should have aria-describedby pointing to its status
+		todoItems.forEach((item, index) => {
+			const ariaDescribedBy = item.getAttribute('aria-describedby');
+			assert.strictEqual(ariaDescribedBy, `todo-status-${index}`, `Todo item ${index} should have aria-describedby pointing to todo-status-${index}`);
 		});
 	});
 
