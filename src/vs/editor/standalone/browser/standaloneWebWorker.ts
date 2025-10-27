@@ -42,7 +42,7 @@ export interface IInternalWebWorkerOptions {
 	/**
 	 * An object that can be used by the web worker to make calls back to the main thread.
 	 */
-	host?: any;
+	host?: Record<string, Function>;
 	/**
 	 * Keep idle models.
 	 * Defaults to false, which means that idle models will stop syncing after a while.
@@ -77,7 +77,7 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 	}
 
 	// foreign host request
-	public override fhr(method: string, args: unknown[]): Promise<any> {
+	public override fhr(method: string, args: unknown[]): Promise<unknown> {
 		if (!this._foreignModuleHost || typeof this._foreignModuleHost[method] !== 'function') {
 			return Promise.reject(new Error('Missing method ' + method + ' or missing main thread foreign host.'));
 		}

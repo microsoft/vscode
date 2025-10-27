@@ -593,6 +593,20 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		],
 		default: 'both'
 	},
+	[TerminalSettingId.ShellIntegrationTimeout]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. Set to {0} to wait the minimum time (500ms), the default value {1} means the wait time is variable based on whether shell integration injection is enabled and whether it's a remote window. Consider setting this to a small value if you intentionally disabled shell integration, or a large value if your shell starts very slowly.", '`0`', '`-1`'),
+		type: 'integer',
+		minimum: -1,
+		maximum: 60000,
+		default: -1
+	},
+	[TerminalSettingId.ShellIntegrationQuickFixEnabled]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.shellIntegration.quickFixEnabled', "When shell integration is enabled, enables quick fixes for terminal commands that appear as a lightbulb or sparkle icon to the left of the prompt."),
+		type: 'boolean',
+		default: true
+	},
 	[TerminalSettingId.ShellIntegrationEnvironmentReporting]: {
 		markdownDescription: localize('terminal.integrated.shellIntegration.environmentReporting', "Controls whether to report the shell environment, enabling its use in features such as {0}. This may cause a slowdown when printing your shell's prompt.", `\`#${TerminalContribSettingId.SuggestEnabled}#\``),
 		type: 'boolean',
@@ -624,6 +638,26 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.focusAfterRun.accessible-buffer', "Always focus the accessible buffer."),
 			localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 		]
+	},
+	[TerminalSettingId.DeveloperPtyHostLatency]: {
+		description: localize('terminal.integrated.developer.ptyHost.latency', "Simulated latency in milliseconds applied to all calls made to the pty host. This is useful for testing terminal behavior under high latency conditions."),
+		type: 'number',
+		minimum: 0,
+		default: 0,
+		tags: ['advanced']
+	},
+	[TerminalSettingId.DeveloperPtyHostStartupDelay]: {
+		description: localize('terminal.integrated.developer.ptyHost.startupDelay', "Simulated startup delay in milliseconds for the pty host process. This is useful for testing terminal initialization under slow startup conditions."),
+		type: 'number',
+		minimum: 0,
+		default: 0,
+		tags: ['advanced']
+	},
+	[TerminalSettingId.DevMode]: {
+		description: localize('terminal.integrated.developer.devMode', "Enable developer mode for the terminal. This shows additional debug information and visualizations for shell integration sequences."),
+		type: 'boolean',
+		default: false,
+		tags: ['advanced']
 	},
 	...terminalContribConfiguration,
 };

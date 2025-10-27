@@ -25,7 +25,7 @@ export const INSTRUCTIONS_LANGUAGE_ID = 'instructions';
 /**
  * Language ID for agent syntax.
  */
-export const AGENT_LANGUAGE_ID = 'agent';
+export const AGENT_LANGUAGE_ID = 'chatagent';
 
 /**
  * Prompt and instructions files language selector.

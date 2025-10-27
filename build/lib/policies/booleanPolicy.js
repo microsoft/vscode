@@ -29,6 +29,9 @@ class BooleanPolicy extends basePolicy_1.BasePolicy {
     renderADMLPresentationContents() {
         return `<checkBox refId="${this.name}">${this.name}</checkBox>`;
     }
+    renderJsonValue() {
+        return false;
+    }
     renderProfileValue() {
         return `<false/>`;
     }

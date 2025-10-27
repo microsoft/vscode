@@ -77,6 +77,12 @@ suite('ObjectPolicy', () => {
         const presentation = policy.renderADMLPresentation();
         assert_1.default.strictEqual(presentation, '<presentation id="TestObjectPolicy"><multiTextBox refId="TestObjectPolicy" /></presentation>');
     });
+    test('should render JSON value correctly', () => {
+        const policy = objectPolicy_js_1.ObjectPolicy.from(mockCategory, mockPolicy);
+        assert_1.default.ok(policy);
+        const jsonValue = policy.renderJsonValue();
+        assert_1.default.strictEqual(jsonValue, '');
+    });
     test('should render profile value correctly', () => {
         const policy = objectPolicy_js_1.ObjectPolicy.from(mockCategory, mockPolicy);
         assert_1.default.ok(policy);

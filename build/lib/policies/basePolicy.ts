@@ -57,6 +57,7 @@ ${this.renderProfileManifestValue(translations)}
 </dict>`;
 	}
 
+	abstract renderJsonValue(): string | number | boolean | object | null;
 	abstract renderProfileValue(): string;
 	abstract renderProfileManifestValue(translations?: LanguageTranslations): string;
 }

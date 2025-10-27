@@ -104,12 +104,6 @@ export class ComputeAutomaticInstructions {
 		this.sendTelemetry(telemetryEvent);
 	}
 
-	public async collectAgentInstructionsOnly(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
-		const telemetryEvent: InstructionsCollectionEvent = newInstructionsCollectionEvent();
-		await this._addAgentInstructions(variables, telemetryEvent, token);
-		this.sendTelemetry(telemetryEvent);
-	}
-
 	private sendTelemetry(telemetryEvent: InstructionsCollectionEvent): void {
 		// Emit telemetry
 		telemetryEvent.totalInstructionsCount = telemetryEvent.agentInstructionsCount + telemetryEvent.referencedInstructionsCount + telemetryEvent.applyingInstructionsCount + telemetryEvent.listedInstructionsCount;
