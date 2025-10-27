@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './hover.css';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { Event, Emitter } from '../../../../base/common/event.js';
-import * as dom from '../../../../base/browser/dom.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { Widget } from '../../../../base/browser/ui/widget.js';
-import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
-import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
-import { isMarkdownString } from '../../../../base/common/htmlContent.js';
-import { localize } from '../../../../nls.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { HoverStyle, type IHoverOptions, type IHoverTarget, type IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
-import { TimeoutTimer } from '../../../../base/common/async.js';
-import { isNumber } from '../../../../base/common/types.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Event, Emitter } from '../../../base/common/event.js';
+import * as dom from '../../../base/browser/dom.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from '../../../base/browser/ui/hover/hoverWidget.js';
+import { Widget } from '../../../base/browser/ui/widget.js';
+import { AnchorPosition } from '../../../base/browser/ui/contextview/contextview.js';
+import { IMarkdownRendererService } from '../../markdown/browser/markdownRenderer.js';
+import { isMarkdownString } from '../../../base/common/htmlContent.js';
+import { localize } from '../../../nls.js';
+import { isMacintosh } from '../../../base/common/platform.js';
+import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
+import { status } from '../../../base/browser/ui/aria/aria.js';
+import { HoverStyle, type IHoverOptions, type IHoverTarget, type IHoverWidget } from '../../../base/browser/ui/hover/hover.js';
+import { TimeoutTimer } from '../../../base/common/async.js';
+import { isNumber } from '../../../base/common/types.js';
 
 const $ = dom.$;
 type TargetRect = {

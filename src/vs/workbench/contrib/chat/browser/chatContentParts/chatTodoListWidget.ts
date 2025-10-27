@@ -67,7 +67,7 @@ class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
 		const { todoElement, statusIcon, iconLabel, statusElement } = templateData;
 
 		// Update status icon
-		statusIcon.className = 'todo-status-icon codicon ' + this.getStatusIconClass(todo.status);
+		statusIcon.className = `todo-status-icon codicon ${this.getStatusIconClass(todo.status)}`;
 		statusIcon.style.color = this.getStatusIconColor(todo.status);
 
 		// Update title with tooltip if description exists and description field is enabled
@@ -107,12 +107,12 @@ class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
 	private getStatusIconClass(status: string): string {
 		switch (status) {
 			case 'completed':
-				return 'codicon-check';
+				return 'codicon-pass';
 			case 'in-progress':
 				return 'codicon-record';
 			case 'not-started':
 			default:
-				return 'codicon-circle-large-outline';
+				return 'codicon-circle-outline';
 		}
 	}
 
@@ -135,16 +135,14 @@ export class ChatTodoListWidget extends Disposable {
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
-	private _isExpanded: boolean = true;
+	private _isExpanded: boolean = false;
 	private _userManuallyExpanded: boolean = false;
 	private expandoElement!: HTMLElement;
 	private todoListContainer!: HTMLElement;
 	private clearButtonContainer!: HTMLElement;
 	private clearButton!: Button;
 	private _currentSessionId: string | undefined;
-	private _userHasScrolledManually: boolean = false;
 	private _todoList: WorkbenchList<IChatTodo> | undefined;
-	private readonly _listDisposables = this._register(new DisposableStore());
 
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
@@ -211,11 +209,6 @@ export class ChatTodoListWidget extends Disposable {
 			}
 		}));
 
-		this._register(dom.addDisposableListener(this.todoListContainer, 'scroll', () => {
-			this.updateScrollShadow();
-			this._userHasScrolledManually = true;
-		}));
-
 		return container;
 	}
 
@@ -242,7 +235,6 @@ export class ChatTodoListWidget extends Disposable {
 		}
 
 		if (this._currentSessionId !== sessionId) {
-			this._userHasScrolledManually = false;
 			this._userManuallyExpanded = false;
 			this._currentSessionId = sessionId;
 		}
@@ -289,30 +281,12 @@ export class ChatTodoListWidget extends Disposable {
 
 		const allIncomplete = todoList.every(todo => todo.status === 'not-started');
 		if (allIncomplete) {
-			this._userHasScrolledManually = false;
 			this._userManuallyExpanded = false;
 		}
 
-		let lastActiveIndex = -1;
-		let firstCompletedIndex = -1;
-		let firstPendingAfterCompletedIndex = -1;
-
-		// Track indices for smart scrolling
-		todoList.forEach((todo, index) => {
-			if (todo.status === 'completed' && firstCompletedIndex === -1) {
-				firstCompletedIndex = index;
-			}
-			if (todo.status === 'in-progress' || todo.status === 'completed') {
-				lastActiveIndex = index;
-			}
-			if (firstCompletedIndex !== -1 && todo.status === 'not-started' && firstPendingAfterCompletedIndex === -1) {
-				firstPendingAfterCompletedIndex = index;
-			}
-		});
-
 		// Create or update the WorkbenchList
 		if (!this._todoList) {
-			this._todoList = this.instantiationService.createInstance(
+			this._todoList = this._register(this.instantiationService.createInstance(
 				WorkbenchList<IChatTodo>,
 				'ChatTodoListRenderer',
 				this.todoListContainer,
@@ -331,9 +305,7 @@ export class ChatTodoListWidget extends Disposable {
 						getWidgetAriaLabel: () => localize('chatTodoList', 'Chat Todo List')
 					}
 				}
-			);
-
-			this._listDisposables.add(this._todoList);
+			));
 		}
 
 		// Update list contents
@@ -362,9 +334,6 @@ export class ChatTodoListWidget extends Disposable {
 			this.updateTitleElement(titleElement, todoList);
 			this._onDidChangeHeight.fire();
 		}
-
-		// Auto-scroll to show the most relevant item
-		this.scrollToRelevantItem(lastActiveIndex, firstCompletedIndex, firstPendingAfterCompletedIndex, todoList.length);
 	}
 
 	private toggleExpanded(): void {
@@ -398,44 +367,6 @@ export class ChatTodoListWidget extends Disposable {
 		this.chatTodoListService.setTodos(this._currentSessionId, []);
 		this.domNode.style.display = 'none';
 		this._onDidChangeHeight.fire();
-	}
-
-	private scrollToRelevantItem(lastActiveIndex: number, firstCompletedIndex: number, firstPendingAfterCompletedIndex: number, totalItems: number): void {
-		if (totalItems <= 6 || this._userHasScrolledManually) {
-			return;
-		}
-
-		setTimeout(() => {
-			const items = this.todoListContainer.querySelectorAll('.todo-item');
-
-			if (lastActiveIndex === -1 && firstCompletedIndex === -1) {
-				this.todoListContainer.scrollTo({
-					top: 0,
-					behavior: 'instant'
-				});
-				return;
-			}
-
-			let targetIndex = lastActiveIndex;
-
-			// Only show next pending if no in-progress items exist
-			if (firstCompletedIndex !== -1 && firstPendingAfterCompletedIndex !== -1 && lastActiveIndex < firstCompletedIndex) {
-				targetIndex = firstPendingAfterCompletedIndex;
-			}
-
-			if (targetIndex >= 0 && targetIndex < items.length) {
-				const targetElement = items[targetIndex] as HTMLElement;
-				targetElement.scrollIntoView({
-					behavior: 'smooth',
-					block: 'center',
-					inline: 'nearest'
-				});
-			}
-		}, 50);
-	}
-
-	private updateScrollShadow(): void {
-		this.domNode.classList.toggle('scrolled', this.todoListContainer.scrollTop > 0);
 	}
 
 	private updateTitleElement(titleElement: HTMLElement, todoList: IChatTodo[]): void {
@@ -477,7 +408,7 @@ export class ChatTodoListWidget extends Disposable {
 					icon.classList.add('codicon-record');
 					icon.style.color = 'var(--vscode-charts-blue)';
 				} else {
-					icon.classList.add('codicon-circle-large-outline');
+					icon.classList.add('codicon-circle-outline');
 					icon.style.color = 'var(--vscode-foreground)';
 				}
 				icon.style.marginLeft = '4px';

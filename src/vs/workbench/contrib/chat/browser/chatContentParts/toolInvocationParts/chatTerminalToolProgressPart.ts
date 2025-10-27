@@ -323,6 +323,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		private readonly _instance: ITerminalInstance,
 		private readonly _command: ITerminalCommand | undefined,
 		isTerminalHidden: boolean,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalService private readonly terminalService: ITerminalService,
@@ -343,6 +344,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		} else {
 			await this._terminalGroupService.showPanel(true);
 		}
+		this._terminalService.setActiveInstance(this._instance);
 		await this._instance?.focusWhenReady(true);
 
 		// Reveal the command if available so the user immediately sees it.

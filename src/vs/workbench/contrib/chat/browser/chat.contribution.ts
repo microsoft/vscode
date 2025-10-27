@@ -480,7 +480,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['disabled', 'view', 'single-view'],
 			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
-			default: 'disabled',
+			default: 'view',
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -698,6 +698,12 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agent.thinkingMode.fixedScrollingTools', "Show thinking and certain tool calls in a fixed-height streaming panel that auto-scrolls; click header to expand to full height."),
 			],
 			description: nls.localize('chat.agent.thinkingStyle', "Controls how thinking is rendered."),
+			tags: ['experimental'],
+		},
+		'chat.agent.thinking.collapsedTools': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.agent.thinking.collapsedTools', "When enabled, tool calls will be added by default inside the thinking block."),
 			tags: ['experimental'],
 		},
 		'chat.disableAIFeatures': {
