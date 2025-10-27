@@ -635,9 +635,7 @@ export async function registerTerminalConfiguration(getFontSnippets: () => Promi
 		order: 100,
 		title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
 		type: 'object',
-		properties: {
-			...terminalConfiguration,
-		}
+		properties: terminalConfiguration,
 	});
 	terminalConfiguration[TerminalSettingId.FontFamily].defaultSnippets = await getFontSnippets();
 }
