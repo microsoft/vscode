@@ -103,9 +103,9 @@ export interface IJSONSchemaSnippet {
 /**
  * Converts a basic JSON schema to a TypeScript type.
  *
- * TODO: only supports basic schemas. Doesn't support all JSON schema features.
+ * Only supports basic schemas. Doesn't support all JSON schema features, such as `additionalProperties` or optional vs required properties.
  */
-export type SchemaToType<T> = T extends { type: 'string' }
+export type TypeForJsonSchema<T> = T extends { type: 'string' }
 	? string
 	: T extends { type: 'number' }
 	? number
@@ -115,10 +115,10 @@ export type SchemaToType<T> = T extends { type: 'string' }
 	? null
 	// Object
 	: T extends { type: 'object'; properties: infer P }
-	? { [K in keyof P]: SchemaToType<P[K]> }
+	? { [K in keyof P]: TypeForJsonSchema<P[K]> }
 	// Array
 	: T extends { type: 'array'; items: infer I }
-	? Array<SchemaToType<I>>
+	? Array<TypeForJsonSchema<I>>
 	// OneOf
 	: T extends { oneOf: infer I }
 	? MapSchemaToType<I>
@@ -126,8 +126,45 @@ export type SchemaToType<T> = T extends { type: 'string' }
 	: never;
 
 type MapSchemaToType<T> = T extends [infer First, ...infer Rest]
-	? SchemaToType<First> | MapSchemaToType<Rest>
+	? TypeForJsonSchema<First> | MapSchemaToType<Rest>
 	: never;
+
+/**
+ * Converts a type into a JSON schema shape with basic typing.
+ *
+ * This enforces that the schema has the expected properties and types.
+ *
+ * Doesn't support all JSON schema features. Notably, doesn't support converting unions or intersections to `oneOf` or `anyOf`.
+ */
+export type JsonSchemaForType<T> =
+	// String
+	T extends string
+	? IJSONSchema & { type: 'string' }
+
+	// Number
+	: T extends number
+	? IJSONSchema & { type: 'number' | 'integer' }
+
+	// Boolean
+	: T extends boolean
+	? IJSONSchema & { type: 'boolean' }
+
+	// Any
+	// https://stackoverflow.com/questions/61624719/how-to-conditionally-detect-the-any-type-in-typescript
+	: 0 extends (1 & T)
+	? IJSONSchema
+
+	// Array
+	: T extends ReadonlyArray<infer U>
+	? IJSONSchema & { items: JsonSchemaForType<U> }
+
+	// Record
+	: T extends Record<string, infer V>
+	? IJSONSchema & { additionalProperties: JsonSchemaForType<V> }
+
+	// Object
+	: IJSONSchema & { properties: { [K in keyof T]: JsonSchemaForType<T[K]> } };
+
 
 interface Equals { schemas: IJSONSchema[]; id?: string }
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { JsonSchemaForType } from '../../../../../base/common/jsonSchema.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -49,7 +50,7 @@ const chatViewsWelcomeExtensionPoint = extensionsRegistry.ExtensionsRegistry.reg
 			}
 		},
 		required: ['icon', 'title', 'contents', 'when'],
-	}
+	} satisfies JsonSchemaForType<IRawChatViewsWelcomeContribution[]>,
 });
 
 export class ChatViewsWelcomeHandler implements IWorkbenchContribution {
