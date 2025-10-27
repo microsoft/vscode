@@ -108,11 +108,6 @@
 	min-width: 0;
 }
 
-.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:nth-child(1) > .action-label > .codicon {
-	display: inline-block;
-	vertical-align: middle;
-}
-
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label,
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .monaco-dropdown > .dropdown-label > .action-label {
 	display: flex;
