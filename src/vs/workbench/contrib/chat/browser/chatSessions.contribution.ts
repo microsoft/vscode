@@ -15,13 +15,14 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { isDark } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditableData } from '../../../common/views.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
@@ -223,6 +224,7 @@ class ContributedChatSessionData implements IDisposable {
 	}
 }
 
+const tempContextKey = new RawContextKey<boolean>('codexSessionEnabled', false);
 
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
@@ -267,7 +269,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService
 	) {
 		super();
 		this._register(extensionPoint.setHandler(extensions => {
@@ -279,8 +282,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					continue;
 				}
 				for (const contribution of ext.value) {
-					if (contribution.type === 'openai-codex' && !this._configurationService.getValue<boolean>('chat.experimental.codex.enabled')) {
-						continue;
+					let whenClause = contribution.when;
+					if (contribution.type === 'openai-codex') {
+						if (whenClause) {
+							whenClause = `${whenClause} && ${tempContextKey.key}`;
+						} else {
+							whenClause = tempContextKey.key;
+						}
 					}
 
 					const c: IChatSessionsExtensionPoint = {
@@ -288,7 +296,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						name: contribution.name,
 						displayName: contribution.displayName,
 						description: contribution.description,
-						when: contribution.when,
+						when: whenClause,
 						icon: contribution.icon,
 						alternativeIds: contribution.alternativeIds,
 						welcomeTitle: contribution.welcomeTitle,
@@ -315,6 +323,22 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._logService.warn(`Failed to update progress status for '${chatSessionType}':`, error);
 			});
 		}));
+
+		this._updateCodexEnabledContextKey();
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('chat.experimental.codex.enabled')) {
+				this._updateCodexEnabledContextKey();
+			}
+		}));
+
+		this._register(this._assignmentService.onDidRefetchAssignments(() => this._updateCodexEnabledContextKey()));
+	}
+
+	private async _updateCodexEnabledContextKey(): Promise<void> {
+		const configEnabled = !!this._configurationService.getValue<boolean>('chat.experimental.codex.enabled');
+		const treatmentEnabled = !!(await this._assignmentService.getTreatment<boolean>('chat.codex.enabled'));
+		const enabled = configEnabled || treatmentEnabled;
+		tempContextKey.bindTo(this._contextKeyService).set(enabled);
 	}
 
 	public reportInProgress(chatSessionType: string, count: number): void {
