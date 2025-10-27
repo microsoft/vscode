@@ -21,14 +21,14 @@ export class PromptLinkProvider implements LinkProvider {
 	 * Provide list of links for the provided text model.
 	 */
 	public async provideLinks(model: ITextModel, token: CancellationToken): Promise<ILinksList | undefined> {
-		const parser = this.promptsService.getParsedPromptFile(model);
-		if (!parser.body) {
+		const promptAST = this.promptsService.getParsedPromptFile(model);
+		if (!promptAST.body) {
 			return;
 		}
 		const links: ILink[] = [];
-		for (const ref of parser.body.fileReferences) {
+		for (const ref of promptAST.body.fileReferences) {
 			if (!ref.isMarkdownLink) {
-				const url = parser.body.resolveFilePath(ref.content);
+				const url = promptAST.body.resolveFilePath(ref.content);
 				if (url) {
 					links.push({ range: ref.range, url });
 				}

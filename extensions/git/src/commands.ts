@@ -682,10 +682,11 @@ class CommandErrorOutputTextDocumentContentProvider implements TextDocumentConte
 	}
 }
 
-async function evaluateDiagnosticsCommitHook(repository: Repository, options: CommitOptions): Promise<boolean> {
+async function evaluateDiagnosticsCommitHook(repository: Repository, options: CommitOptions, logger: LogOutputChannel): Promise<boolean> {
 	const config = workspace.getConfiguration('git', Uri.file(repository.root));
 	const enabled = config.get<boolean>('diagnosticsCommitHook.enabled', false) === true;
 	const sourceSeverity = config.get<Record<string, DiagnosticSeverityConfig>>('diagnosticsCommitHook.sources', { '*': 'error' });
+	logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Diagnostics Commit Hook: enabled=${enabled}, sources=${JSON.stringify(sourceSeverity)}`);
 
 	if (!enabled) {
 		return true;
@@ -711,23 +712,27 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	for (const resource of resources) {
 		const unresolvedDiagnostics = languages.getDiagnostics(resource)
 			.filter(d => {
+				logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Evaluating diagnostic for ${resource.fsPath}: source='${d.source}', severity='${d.severity}'`);
+
 				// No source or ignored source
 				if (!d.source || (Object.keys(sourceSeverity).includes(d.source) && sourceSeverity[d.source] === 'none')) {
+					logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Ignoring diagnostic for ${resource.fsPath}: source='${d.source}', severity='${d.severity}'`);
 					return false;
 				}
 
 				// Source severity
-				if (Object.keys(sourceSeverity).includes(d.source) &&
-					d.severity <= toDiagnosticSeverity(sourceSeverity[d.source])) {
+				if (Object.keys(sourceSeverity).includes(d.source) && d.severity <= toDiagnosticSeverity(sourceSeverity[d.source])) {
+					logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Found unresolved diagnostic for ${resource.fsPath}: source='${d.source}', severity='${d.severity}'`);
 					return true;
 				}
 
 				// Wildcard severity
-				if (Object.keys(sourceSeverity).includes('*') &&
-					d.severity <= toDiagnosticSeverity(sourceSeverity['*'])) {
+				if (Object.keys(sourceSeverity).includes('*') && d.severity <= toDiagnosticSeverity(sourceSeverity['*'])) {
+					logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Found unresolved diagnostic for ${resource.fsPath}: source='${d.source}', severity='${d.severity}'`);
 					return true;
 				}
 
+				logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Ignoring diagnostic for ${resource.fsPath}: source='${d.source}', severity='${d.severity}'`);
 				return false;
 			});
 
@@ -2412,7 +2417,7 @@ export class CommandCenter {
 		}
 
 		// Diagnostics commit hook
-		const diagnosticsResult = await evaluateDiagnosticsCommitHook(repository, opts);
+		const diagnosticsResult = await evaluateDiagnosticsCommitHook(repository, opts, this.logger);
 		if (!diagnosticsResult) {
 			return;
 		}

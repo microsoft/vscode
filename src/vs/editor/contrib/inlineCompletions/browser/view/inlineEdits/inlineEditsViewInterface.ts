@@ -40,7 +40,6 @@ export interface IInlineEditModel {
 	handleInlineEditShown(viewKind: string, viewData?: InlineCompletionViewData): void;
 	accept(): void;
 	jump(): void;
-	abort(reason: string): void;
 }
 
 // TODO: Move this out of here as it is also includes ghosttext

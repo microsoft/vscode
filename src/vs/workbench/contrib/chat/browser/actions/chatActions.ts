@@ -638,7 +638,7 @@ export function registerChatActions() {
 			picker.show();
 		};
 
-		private showIntegratedPicker = async (
+		private async showIntegratedPicker(
 			chatService: IChatService,
 			quickInputService: IQuickInputService,
 			commandService: ICommandService,
@@ -650,7 +650,7 @@ export function registerChatActions() {
 			menuService: IMenuService,
 			showAllChats: boolean = false,
 			showAllAgents: boolean = false
-		) => {
+		) {
 			const clearChatHistoryButton: IQuickInputButton = {
 				iconClass: ThemeIcon.asClassName(Codicon.clearAll),
 				tooltip: localize('interactiveSession.history.clear', "Clear All Workspace Chats"),
@@ -835,7 +835,7 @@ export function registerChatActions() {
 				};
 			};
 
-			const store = new (DisposableStore as { new(): DisposableStore })();
+			const store = new DisposableStore();
 			const picker = store.add(quickInputService.createQuickPick<IChatPickerItem | ICodingAgentPickerItem>({ useSeparators: true }));
 			picker.title = (showAllChats || showAllAgents) ?
 				localize('interactiveSession.history.titleAll', "All Workspace Chat History") :
@@ -990,7 +990,7 @@ export function registerChatActions() {
 			store.add(picker.onDidHide(() => store.dispose()));
 
 			picker.show();
-		};
+		}
 
 		async run(accessor: ServicesAccessor) {
 			const chatService = accessor.get(IChatService);

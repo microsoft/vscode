@@ -5,7 +5,7 @@
 
 import { $ } from '../../../../../../base/browser/dom.js';
 import { equalsIfDefined, itemEquals } from '../../../../../../base/common/equals.js';
-import { BugIndicatingError } from '../../../../../../base/common/errors.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, autorunWithStore, derived, derivedOpts, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../../base/common/observable.js';
@@ -86,7 +86,7 @@ export class InlineEditsView extends Disposable {
 
 			let state = this.determineRenderState(model, reader, diff, new StringText(newText));
 			if (!state) {
-				model.abort(`unable to determine view: tried to render ${this._previousView?.view}`);
+				onUnexpectedError(new Error(`unable to determine view: tried to render ${this._previousView?.view}`));
 				return undefined;
 			}
 

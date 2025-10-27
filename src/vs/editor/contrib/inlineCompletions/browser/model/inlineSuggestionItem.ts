@@ -119,10 +119,6 @@ abstract class InlineSuggestionItemBase {
 		this._data.setEndOfLifeReason(reason);
 	}
 
-	public reportInlineEditError(reason: string): void {
-		this._data.reportInlineEditError(reason);
-	}
-
 	public setIsPreceeded(item: InlineSuggestionItem): void {
 		this._data.setIsPreceeded(item.partialAccepts);
 	}

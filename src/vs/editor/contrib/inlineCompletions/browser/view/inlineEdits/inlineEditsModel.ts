@@ -49,12 +49,6 @@ export class InlineEditModel implements IInlineEditModel {
 		this._model.jump();
 	}
 
-	abort(reason: string) {
-		console.error(reason);
-		this.inlineEdit.inlineCompletion.reportInlineEditError(reason);
-		this._model.stop();
-	}
-
 	handleInlineEditShown(viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {
 		this._model.handleInlineSuggestionShown(this.inlineEdit.inlineCompletion, viewKind, viewData);
 	}

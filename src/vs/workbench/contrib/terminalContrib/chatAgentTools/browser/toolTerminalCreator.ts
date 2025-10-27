@@ -76,7 +76,7 @@ export class ToolTerminalCreator {
 		const waitTime = getShellIntegrationTimeout(
 			this._configurationService,
 			siInjectionEnabled,
-			instance.isRemote,
+			instance.hasRemoteAuthority,
 			processReadyTimestamp
 		);
 

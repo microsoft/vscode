@@ -44,7 +44,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 				id: AGENT_SESSIONS_VIEWLET_ID,
 				title: nls.localize2('chat.agent.sessions', "Agent Sessions"),
 				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer),
-				hideIfEmpty: false,
+				hideIfEmpty: true,
 				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View'),
 				order: 6
 			}, ViewContainerLocation.Sidebar);

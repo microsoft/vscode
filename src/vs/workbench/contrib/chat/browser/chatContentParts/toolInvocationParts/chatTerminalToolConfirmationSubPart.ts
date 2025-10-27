@@ -190,7 +190,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		}));
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,
-			this.context.container,
+			this.context,
 			{
 				title,
 				icon: Codicon.terminal,
@@ -284,9 +284,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 							}
 						};
 						if (newRules.length === 1) {
-							terminalData.autoApproveInfo = new MarkdownString(`_${localize('newRule', 'Auto approve rule {0} added', formatRuleLinks(newRules))}_`, mdTrustSettings);
+							terminalData.autoApproveInfo = new MarkdownString(localize('newRule', 'Auto approve rule {0} added', formatRuleLinks(newRules)), mdTrustSettings);
 						} else if (newRules.length > 1) {
-							terminalData.autoApproveInfo = new MarkdownString(`_${localize('newRule.plural', 'Auto approve rules {0} added', formatRuleLinks(newRules))}_`, mdTrustSettings);
+							terminalData.autoApproveInfo = new MarkdownString(localize('newRule.plural', 'Auto approve rules {0} added', formatRuleLinks(newRules)), mdTrustSettings);
 						}
 						toolConfirmKind = ToolConfirmKind.UserAction;
 						break;

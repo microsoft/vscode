@@ -109,6 +109,8 @@ export class InlineCompletionsSource extends Disposable {
 				}
 			}));
 		}
+
+		this._state.recomputeInitiallyAndOnChange(this._store);
 	}
 
 	private _updateCompletionsEnablement(enalementSetting: string) {
@@ -419,7 +421,6 @@ export class InlineCompletionsSource extends Disposable {
 			timeUntilProviderResponse: undefined,
 			viewKind: undefined,
 			preceeded: undefined,
-			error: undefined,
 			superseded: undefined,
 			reason: undefined,
 			correlationId: undefined,

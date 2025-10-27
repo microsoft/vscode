@@ -140,15 +140,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			return false;
 		}
 
-		if (this.resource.scheme === Schemas.vscodeChatSession) {
-			return isEqual(this.resource, otherInput.resource);
-		}
-
 		if (this.resource.scheme === Schemas.vscodeChatEditor && otherInput.resource.scheme === Schemas.vscodeChatEditor) {
 			return this.sessionId === otherInput.sessionId;
 		}
 
-		return false;
+		return isEqual(this.resource, otherInput.resource);
 	}
 
 	override get typeId(): string {
@@ -209,17 +205,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return contribution?.displayName;
 	}
 
-	override getIcon(): ThemeIcon | undefined {
-		// Return cached icon if available
-		if (this.cachedIcon) {
-			return ThemeIcon.isThemeIcon(this.cachedIcon) ? this.cachedIcon : undefined;
-		}
-
-		// Try to resolve icon and cache it
+	override getIcon(): ThemeIcon | URI | undefined {
 		const resolvedIcon = this.resolveIcon();
 		if (resolvedIcon) {
 			this.cachedIcon = resolvedIcon;
-			return ThemeIcon.isThemeIcon(resolvedIcon) ? resolvedIcon : undefined;
+			return resolvedIcon;
 		}
 
 		// Fall back to default icon
@@ -289,8 +279,9 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const newIcon = this.resolveIcon();
 		if (newIcon && (!this.cachedIcon || !this.iconsEqual(this.cachedIcon, newIcon))) {
 			this.cachedIcon = newIcon;
-			this._onDidChangeLabel.fire();
 		}
+
+		this._onDidChangeLabel.fire();
 
 		return this._register(new ChatEditorModel(this.model));
 	}
