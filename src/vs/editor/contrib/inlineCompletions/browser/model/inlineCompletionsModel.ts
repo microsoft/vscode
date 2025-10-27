@@ -803,7 +803,7 @@ export class InlineCompletionsModel extends Disposable {
 			return true;
 		}
 
-		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader) && !s.inlineCompletion.displayLocation?.jumpToEdit) {
+		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader) && !s.inlineCompletion.hint?.jumpToEdit) {
 			return false;
 		}
 
