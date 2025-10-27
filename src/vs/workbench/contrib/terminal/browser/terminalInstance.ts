@@ -93,6 +93,7 @@ import type { IProgressState } from '@xterm/addon-progress';
 import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { PromptInputState } from '../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
+import { extractSCMHistoryItemDropData, SCMHistoryItemTransferData } from '../../scm/browser/scmHistoryChatContext.js';
 
 const enum Constants {
 	/**
@@ -1203,6 +1204,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		store.add(dndController.onDropFile(async path => {
 			this.focus();
 			await this.sendPath(path, false);
+		}));
+		store.add(dndController.onDropSCMHistoryItem(commitHash => {
+			this.focus();
+			this.sendText(commitHash.historyItem.id, false);
 		}));
 		store.add(new dom.DragAndDropObserver(container, dndController));
 		this._dndObserver.value = store;
@@ -2428,6 +2433,8 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 	get onDropFile(): Event<string | URI> { return this._onDropFile.event; }
 	private readonly _onDropTerminal = this._register(new Emitter<IRequestAddInstanceToGroupEvent>());
 	get onDropTerminal(): Event<IRequestAddInstanceToGroupEvent> { return this._onDropTerminal.event; }
+	private readonly _onDropSCMHistoryItem = this._register(new Emitter<SCMHistoryItemTransferData>());
+	get onDropSCMHistoryItem(): Event<SCMHistoryItemTransferData> { return this._onDropSCMHistoryItem.event; }
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -2444,7 +2451,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 	}
 
 	onDragEnter(e: DragEvent) {
-		if (!containsDragType(e, DataTransfers.FILES, DataTransfers.RESOURCES, TerminalDataTransfers.Terminals, CodeDataTransfers.FILES)) {
+		if (!containsDragType(e, DataTransfers.FILES, DataTransfers.RESOURCES, TerminalDataTransfers.Terminals, CodeDataTransfers.FILES, CodeDataTransfers.SCM_HISTORY_ITEM)) {
 			return;
 		}
 
@@ -2518,6 +2525,12 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 		if (!path && e.dataTransfer.files.length > 0 && getPathForFile(e.dataTransfer.files[0])) {
 			// Check if the file was dragged from the filesystem
 			path = URI.file(getPathForFile(e.dataTransfer.files[0])!);
+		}
+
+		const commitHashes = extractSCMHistoryItemDropData(e);
+		if (!path && commitHashes?.length) {
+			this._onDropSCMHistoryItem.fire(commitHashes[0]);
+			return;
 		}
 
 		if (!path) {
