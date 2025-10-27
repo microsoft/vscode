@@ -1279,10 +1279,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		try {
 
 			if (this.shouldShowThinkingPart()) {
+				const collapsedTools = this.configService.getValue<boolean>('chat.agent.thinking.collapsedTools');
 				// if we get an empty thinking part, mark thinking as finished
 				if (content.kind === 'thinking' && (Array.isArray(content.value) ? content.value.length === 0 : !content.value)) {
 					this._currentThinkingPart?.resetId();
-					this._streamingThinking = false;
+
+					// do not "finish thinking" unless we hit a text part specifically. tools are ignored.
+					if (collapsedTools && !context.element.isComplete) {
+						this._streamingThinking = content.metadata?.doneReason !== 'text';
+					} else {
+						this._streamingThinking = false;
+					}
 					return this.renderNoContent(other => content.kind === other.kind);
 				}
 
@@ -1290,7 +1297,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const previousContent = context.contentIndex > 0 ? context.content[context.contentIndex - 1] : undefined;
 
 				// Special handling for "create" tool invocations- do not end thinking if previous part is a create tool invocation and config is set.
-				const collapsedTools = this.configService.getValue<boolean>('chat.agent.thinking.collapsedTools');
 				const shouldKeepThinkingForCreateTool = collapsedTools && lastRenderedPart instanceof ChatToolInvocationPart && this.isCreateToolInvocationContent(previousContent);
 
 				if (!shouldKeepThinkingForCreateTool) {
