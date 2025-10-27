@@ -640,6 +640,26 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 		]
 	},
+	[TerminalSettingId.DeveloperPtyHostLatency]: {
+		description: localize('terminal.integrated.developer.ptyHost.latency', "Simulated latency in milliseconds applied to all calls made to the pty host. This is useful for testing terminal behavior under high latency conditions."),
+		type: 'number',
+		minimum: 0,
+		default: 0,
+		tags: ['advanced']
+	},
+	[TerminalSettingId.DeveloperPtyHostStartupDelay]: {
+		description: localize('terminal.integrated.developer.ptyHost.startupDelay', "Simulated startup delay in milliseconds for the pty host process. This is useful for testing terminal initialization under slow startup conditions."),
+		type: 'number',
+		minimum: 0,
+		default: 0,
+		tags: ['advanced']
+	},
+	[TerminalSettingId.DevMode]: {
+		description: localize('terminal.integrated.developer.devMode', "Enable developer mode for the terminal. This shows additional debug information and visualizations for shell integration sequences."),
+		type: 'boolean',
+		default: false,
+		tags: ['advanced']
+	},
 	...terminalContribConfiguration,
 };
 

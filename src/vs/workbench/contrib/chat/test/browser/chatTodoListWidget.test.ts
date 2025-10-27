@@ -62,7 +62,8 @@ suite('ChatTodoListWidget Accessibility', () => {
 
 		const titleElement = widget.domNode.querySelector('#todo-list-title');
 		assert.ok(titleElement, 'Should have title element with ID todo-list-title');
-		assert.ok(titleElement?.textContent?.includes('Todos'));
+		// When collapsed, title shows progress and current task without "Todos" prefix
+		assert.ok(titleElement?.textContent, 'Title should have content');
 
 		// The todo list container itself acts as the list (no nested ul element)
 		const todoItems = todoListContainer?.querySelectorAll('li.todo-item');
@@ -113,13 +114,13 @@ suite('ChatTodoListWidget Accessibility', () => {
 		assert.strictEqual(expandoElement?.getAttribute('aria-expanded'), 'false'); // Should be collapsed due to in-progress task
 		assert.strictEqual(expandoElement?.getAttribute('aria-controls'), 'todo-list-container');
 
-		// The title element should have aria-label with progress information
+		// The title element should have progress information
 		const titleElement = expandoElement?.querySelector('.todo-list-title');
 		assert.ok(titleElement, 'Should have title element');
 		const titleText = titleElement?.textContent;
-		// When collapsed, title shows progress and current task: "Todos (2/3) - Second task"
+		// When collapsed, title shows progress and current task: " (2/3) - Second task"
 		// Progress is 2/3 because: 1 completed + 1 in-progress (current) = task 2 of 3
-		assert.ok(titleText?.includes('Todos (2/3)'), `Title should show progress format, but got: "${titleText}"`);
+		assert.ok(titleText?.includes('(2/3)'), `Title should show progress format, but got: "${titleText}"`);
 		assert.ok(titleText?.includes('Second task'), `Title should show current task when collapsed, but got: "${titleText}"`);
 	}); test('hidden status text elements exist for screen readers', () => {
 		widget.render('test-session');
@@ -178,11 +179,11 @@ suite('ChatTodoListWidget Accessibility', () => {
 		const titleElement = widget.domNode.querySelector('#todo-list-title');
 		assert.ok(titleElement, 'Should have title element with ID');
 
-		// Title should show progress format: "Todos (2/3)" since one todo is completed and one is in-progress
-		// When collapsed, it also shows the current task: "Todos (2/3) - Second task"
+		// Title should show progress format: " (2/3)" since one todo is completed and one is in-progress
+		// When collapsed, it also shows the current task: " (2/3) - Second task"
 		// Progress is 2/3 because: 1 completed + 1 in-progress (current) = task 2 of 3
 		const titleText = titleElement?.textContent;
-		assert.ok(titleText?.includes('Todos (2/3)'), `Title should show progress format, but got: "${titleText}"`);
+		assert.ok(titleText?.includes('(2/3)'), `Title should show progress format, but got: "${titleText}"`);
 		assert.ok(titleText?.includes('Second task'), `Title should show current task when collapsed, but got: "${titleText}"`);
 
 		// Verify aria-labelledby connection works

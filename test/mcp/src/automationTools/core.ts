@@ -37,7 +37,6 @@ export function applyCoreTools(server: McpServer, appService: ApplicationService
 		'Stop the VS Code application',
 		async () => {
 			const app = await appService.getOrCreateApplication();
-			await app.stopTracing('mcp', true);
 			await app.stop();
 			return {
 				content: [{
