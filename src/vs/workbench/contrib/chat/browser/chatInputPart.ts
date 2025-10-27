@@ -1517,8 +1517,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const atTop = position.lineNumber === 1 && position.column - 1 <= (this._inputEditor._getViewModel()?.getLineLength(1) ?? 0);
 			this.chatCursorAtTop.set(atTop);
 
-			// Only enable history navigation when cursor is at the very first position (line 1, column 1)
-			// This matches SCM behavior and improves accessibility for screen readers
 			const atFirstPosition = position.lineNumber === 1 && position.column === 1;
 			this.historyNavigationBackwardsEnablement.set(atFirstPosition);
 			this.historyNavigationForewardsEnablement.set(position.equals(getLastPosition(model)));
