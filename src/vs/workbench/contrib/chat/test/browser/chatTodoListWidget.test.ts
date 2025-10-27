@@ -124,17 +124,30 @@ suite('ChatTodoListWidget Accessibility', () => {
 		assert.ok(titleText?.includes('Second task'), `Title should show current task when collapsed, but got: "${titleText}"`);
 	});
 
-	test('todo items use aria-describedby for status information', () => {
+	test('todo items have complete aria-label with status information', () => {
 		widget.render('test-session');
 
 		const todoItems = widget.domNode.querySelectorAll('.todo-item');
 		assert.strictEqual(todoItems.length, 3, 'Should have 3 todo items');
 
-		// Each item should have aria-describedby pointing to its status
-		todoItems.forEach((item, index) => {
-			const ariaDescribedBy = item.getAttribute('aria-describedby');
-			assert.strictEqual(ariaDescribedBy, `todo-status-${index}`, `Todo item ${index} should have aria-describedby pointing to todo-status-${index}`);
-		});
+		// Check first item (not-started) - aria-label should include title and status
+		const firstItem = todoItems[0] as HTMLElement;
+		const firstAriaLabel = firstItem.getAttribute('aria-label');
+		assert.ok(firstAriaLabel?.includes('First task'), 'First item aria-label should include title');
+		assert.ok(firstAriaLabel?.includes('not started'), 'First item aria-label should include status');
+
+		// Check second item (in-progress with description) - aria-label should include title, status, and description
+		const secondItem = todoItems[1] as HTMLElement;
+		const secondAriaLabel = secondItem.getAttribute('aria-label');
+		assert.ok(secondAriaLabel?.includes('Second task'), 'Second item aria-label should include title');
+		assert.ok(secondAriaLabel?.includes('in progress'), 'Second item aria-label should include status');
+		assert.ok(secondAriaLabel?.includes('This is a task description'), 'Second item aria-label should include description');
+
+		// Check third item (completed) - aria-label should include title and status
+		const thirdItem = todoItems[2] as HTMLElement;
+		const thirdAriaLabel = thirdItem.getAttribute('aria-label');
+		assert.ok(thirdAriaLabel?.includes('Third task'), 'Third item aria-label should include title');
+		assert.ok(thirdAriaLabel?.includes('completed'), 'Third item aria-label should include status');
 	});
 
 	test('widget displays properly when no todos exist', () => {
