@@ -573,10 +573,6 @@
 	color: inherit;
 }
 
-.monaco-hover.history-item-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span.codicon {
-	font-size: 16px;
-}
-
 /* Graph */
 
 .pane-header .scm-graph-view-badge-container {
