@@ -276,7 +276,6 @@ export type InlineSuggestViewData = {
 	editorType: InlineCompletionEditorType;
 	renderData?: InlineCompletionViewData;
 	viewKind?: InlineCompletionViewKind;
-	error?: string;
 };
 
 export class InlineSuggestData {
@@ -396,21 +395,12 @@ export class InlineSuggestData {
 				requestReason: this._requestInfo.reason,
 				viewKind: this._viewData.viewKind,
 				notShownReason: this._notShownReason,
-				error: this._viewData.error,
 				typingInterval: this._requestInfo.typingInterval,
 				typingIntervalCharacterCount: this._requestInfo.typingIntervalCharacterCount,
 				availableProviders: this._requestInfo.availableProviders.map(p => p.toString()).join(','),
 				...this._viewData.renderData,
 			};
 			this.source.provider.handleEndOfLifetime(this.source.inlineSuggestions, this.sourceInlineCompletion, reason, summary);
-		}
-	}
-
-	public reportInlineEditError(message: string): void {
-		if (this._viewData.error) {
-			this._viewData.error += `; ${message}`;
-		} else {
-			this._viewData.error = message;
 		}
 	}
 

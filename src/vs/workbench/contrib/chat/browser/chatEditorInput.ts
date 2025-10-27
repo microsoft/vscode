@@ -206,12 +206,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override getIcon(): ThemeIcon | URI | undefined {
-		// Return cached icon if available
-		if (this.cachedIcon) {
-			return this.cachedIcon;
-		}
-
-		// Try to resolve icon and cache it
 		const resolvedIcon = this.resolveIcon();
 		if (resolvedIcon) {
 			this.cachedIcon = resolvedIcon;

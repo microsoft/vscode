@@ -1214,7 +1214,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-item {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 6px;
 	scroll-snap-align: start;
 	min-height: 22px;
 	font-size: var(--vscode-chat-font-size-body-m);
@@ -2185,8 +2185,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
 		color: var(--vscode-icon-foreground) !important;
 
-		&.codicon-check {
-			color: var(--vscode-debugIcon-startForeground) !important;
+		&.codicon-error {
+			color: var(--vscode-editorError-foreground) !important;
 		}
 	}
 
