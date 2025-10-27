@@ -19,6 +19,8 @@ import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { BaseActionViewItem } from '../actionbar/actionViewItems.js';
 
+const ACTION_MIN_WIDTH = 24; /* 20px codicon + 4px left padding*/
+
 export interface IToolBarOptions {
 	orientation?: ActionsOrientation;
 	actionViewItemProvider?: IActionViewItemProvider;
@@ -265,7 +267,7 @@ export class ToolBar extends Disposable {
 			// need to return the minimum width (24px) for this action so that we allow it to shrink to
 			// the minimum width.
 			const width = index === this.originalPrimaryActions.length - this.hiddenActions.length - 1
-				? Math.min(24, this.actionBar.getWidth(index))
+				? Math.min(ACTION_MIN_WIDTH, this.actionBar.getWidth(index))
 				: this.actionBar.getWidth(index);
 
 			itemsWidth += width;
@@ -291,7 +293,7 @@ export class ToolBar extends Disposable {
 				}
 
 				// Store the action and its size
-				const size = Math.min(24, this.getItemWidth(index));
+				const size = Math.min(ACTION_MIN_WIDTH, this.getItemWidth(index));
 				const action = this.originalPrimaryActions[index];
 				this.hiddenActions.unshift({ action, size });
 
