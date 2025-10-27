@@ -10,7 +10,6 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditableData } from '../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './chatAgents.js';
@@ -47,7 +46,6 @@ export interface IChatSessionsExtensionPoint {
 	readonly name: string;
 	readonly displayName: string;
 	readonly description: string;
-	readonly extensionDescription: IRelaxedExtensionDescription;
 	readonly when?: string;
 	readonly icon?: string | { light: string; dark: string };
 	readonly order?: number;
