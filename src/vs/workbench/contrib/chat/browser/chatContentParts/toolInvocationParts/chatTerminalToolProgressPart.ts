@@ -199,8 +199,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 						this._outputBody.replaceChildren(this._outputContent);
 						if (!this._outputScrollbar) {
 							this._outputScrollbar = this._register(new DomScrollableElement(this._outputBody, {
-								vertical: ScrollbarVisibility.Visible,
-								horizontal: ScrollbarVisibility.Visible,
+								vertical: ScrollbarVisibility.Auto,
+								horizontal: ScrollbarVisibility.Auto,
 								handleMouseWheel: true
 							}));
 							const scrollableDomNode = this._outputScrollbar.getDomNode();
