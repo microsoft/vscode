@@ -359,6 +359,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		entry.disposeCts.cancel();
 		entry.sessionObj.sessionDisposables.dispose();
+		entry.sessionObj.session.close?.();
 		this._extHostChatSessions.delete(URI.revive(sessionResource));
 	}
 
