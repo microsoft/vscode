@@ -30,6 +30,8 @@ import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import * as dom from '../../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { localize } from '../../../../../../nls.js';
 import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -43,6 +45,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _actionBar = this._register(new MutableDisposable<ActionBar>());
 
 	private readonly _outputContainer: HTMLElement;
+	private readonly _outputBody: HTMLElement;
+	private _outputScrollbar: DomScrollableElement | undefined;
 	private _outputContent: HTMLElement | undefined;
 
 	private _showOutputAction: IAction | undefined;
@@ -124,6 +128,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		elements.message.append(this.markdownPart.domNode);
 		this._outputContainer = elements.output;
 		this._outputContainer.classList.add('collapsed');
+		this._outputBody = dom.$('.chat-terminal-output-body');
+
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
 		this.domNode = progressPart.domNode;
 	}
@@ -188,16 +194,29 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					if (!this._outputContent && this._terminalForOutput) {
 						const output = await this._collectOutput(this._terminalForOutput);
 						this._outputContent = this._renderOutput(output);
-						this._outputContainer.replaceChildren(this._outputContent);
+						this._outputBody.replaceChildren(this._outputContent);
+						if (!this._outputScrollbar) {
+							this._outputScrollbar = this._register(new DomScrollableElement(this._outputBody, {
+								vertical: ScrollbarVisibility.Visible,
+								horizontal: ScrollbarVisibility.Visible,
+								handleMouseWheel: true
+							}));
+							this._outputContainer.appendChild(this._outputScrollbar.getDomNode());
+							this._outputScrollbar.scanDomNode();
+							this._outputContent = undefined;
+						}
+						this._outputScrollbar.scanDomNode();
 						didCreate = true;
 					}
 					if (didCreate) {
 						dom.getActiveWindow().requestAnimationFrame(() => {
-							this._outputContainer.scrollTop = this._outputContainer.scrollHeight;
+							this._outputScrollbar?.scanDomNode();
+							this._outputScrollbar?.setScrollPosition({ scrollTop: this._outputScrollbar.getScrollDimensions().scrollHeight });
 						});
 					}
 					this._showOutputAction.label = localize('hideTerminalOutput', 'Hide Output');
 					this._showOutputAction.class = ThemeIcon.asClassName(Codicon.chevronDown);
+					this._outputScrollbar?.scanDomNode();
 				} else {
 					this._showOutputAction.label = localize('showTerminalOutput', 'Show Output');
 					this._showOutputAction.class = ThemeIcon.asClassName(Codicon.chevronRight);
