@@ -135,7 +135,7 @@ export class DuplicateSelectionAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void {
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -438,6 +438,10 @@ export class ReverseLinesAction extends EditorAction {
 	}
 }
 
+interface TrimTrailingWhitespaceArgs {
+	reason?: 'auto-save';
+}
+
 export class TrimTrailingWhitespaceAction extends EditorAction {
 
 	public static readonly ID = 'editor.action.trimTrailingWhitespace';
@@ -455,7 +459,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, args: TrimTrailingWhitespaceArgs): void {
 
 		let cursors: Position[] = [];
 		if (args.reason === 'auto-save') {

@@ -770,6 +770,18 @@ export class TerminalService extends Disposable implements ITerminalService {
 		return getInstanceFromResource(this.instances, resource);
 	}
 
+	openResource(resource: URI): void {
+		const instance = this.getInstanceFromResource(resource);
+		if (instance) {
+			this.revealTerminal(instance);
+			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+			const relevantCommand = commands?.find(c => c.id === resource.query.replace('command=', ''));
+			if (relevantCommand) {
+				instance.xterm?.markTracker.revealCommand(relevantCommand);
+			}
+		}
+	}
+
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean {
 		return this.instances.some(term => term.processId === remoteTerm.pid);
 	}
@@ -1058,7 +1070,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	async createDetachedTerminal(options: IDetachedXTermOptions): Promise<IDetachedTerminalInstance> {
 		const ctor = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
-		const xterm = this._instantiationService.createInstance(XtermTerminal, ctor, {
+		const xterm = this._instantiationService.createInstance(XtermTerminal, undefined, ctor, {
 			cols: options.cols,
 			rows: options.rows,
 			xtermColorProvider: options.colorProvider,

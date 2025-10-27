@@ -107,7 +107,11 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 
 	const context = await measureAndLog(
 		() => browser.newContext({
-			recordVideo: options.videosPath ? { dir: options.videosPath } : undefined
+			recordVideo: options.videosPath
+				? {
+					dir: options.videosPath,
+					size: { width: 1920, height: 1080 }
+				} : undefined,
 		}),
 		'browser.newContext',
 		logger
