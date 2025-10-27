@@ -137,11 +137,18 @@ export type TypeFromJsonSchema<T> =
 	? { [K in keyof P]: TypeFromJsonSchema<P[K]> | undefined } & AdditionalPropertiesType<T>
 
 	// Array
-	: T extends { type: 'array'; items: infer I }
-	? Array<TypeFromJsonSchema<I>>
+	: T extends { type: 'array'; items: infer Items }
+	? Items extends [...infer R]
+	// If items is an array, we treat it like a tuple
+	? { [K in keyof R]: TypeFromJsonSchema<Items[K]> }
+	: Array<TypeFromJsonSchema<Items>>
 
-	// OneOf
+	// oneOf / anyof
+	// These are handled the same way as they both represent a union type.
+	// However at the validation level, they have different semantics.
 	: T extends { oneOf: infer I }
+	? MapSchemaToType<I>
+	: T extends { anyOf: infer I }
 	? MapSchemaToType<I>
 
 	// Fallthrough
