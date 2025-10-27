@@ -1107,7 +1107,7 @@ registerEditorCommand(new FindCommand({
 	handler: x => x.replace(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_REPLACE_INPUT_FOCUSED),
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_REPLACE_INPUT_FOCUSED, ContextKeyExpr.not('isComposing')),
 		primary: KeyCode.Enter
 	}
 }));
