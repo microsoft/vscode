@@ -27,7 +27,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
-import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -38,6 +38,7 @@ import { ITerminalCommand, TerminalCapability } from '../../../../../../platform
 import { URI } from '../../../../../../base/common/uri.js';
 
 const MAX_TERMINAL_OUTPUT_PREVIEW_LENGTH = 20000;
+const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
 
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -48,6 +49,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _outputBody: HTMLElement;
 	private _outputScrollbar: DomScrollableElement | undefined;
 	private _outputContent: HTMLElement | undefined;
+	private _outputResizeObserver: ResizeObserver | undefined;
 
 	private _showOutputAction: IAction | undefined;
 
@@ -201,22 +203,28 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 								horizontal: ScrollbarVisibility.Visible,
 								handleMouseWheel: true
 							}));
-							this._outputContainer.appendChild(this._outputScrollbar.getDomNode());
-							this._outputScrollbar.scanDomNode();
+							const scrollableDomNode = this._outputScrollbar.getDomNode();
+							scrollableDomNode.tabIndex = 0;
+							scrollableDomNode.style.maxHeight = `${MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT}px`;
+							this._outputContainer.appendChild(scrollableDomNode);
+							this._ensureOutputResizeObserver();
 							this._outputContent = undefined;
+						} else {
+							this._ensureOutputResizeObserver();
 						}
-						this._outputScrollbar.scanDomNode();
+						this._layoutOutput();
+						this._outputScrollbar?.setScrollPosition({ scrollTop: this._outputScrollbar.getScrollDimensions().scrollHeight });
 						didCreate = true;
 					}
 					if (didCreate) {
 						dom.getActiveWindow().requestAnimationFrame(() => {
-							this._outputScrollbar?.scanDomNode();
+							this._layoutOutput();
 							this._outputScrollbar?.setScrollPosition({ scrollTop: this._outputScrollbar.getScrollDimensions().scrollHeight });
 						});
 					}
 					this._showOutputAction.label = localize('hideTerminalOutput', 'Hide Output');
 					this._showOutputAction.class = ThemeIcon.asClassName(Codicon.chevronDown);
-					this._outputScrollbar?.scanDomNode();
+					this._layoutOutput();
 				} else {
 					this._showOutputAction.label = localize('showTerminalOutput', 'Show Output');
 					this._showOutputAction.class = ThemeIcon.asClassName(Codicon.chevronRight);
@@ -234,6 +242,30 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 			this._actionBar.value?.clear();
 			instanceListener.dispose();
+		}));
+	}
+
+	private _layoutOutput(): void {
+		if (!this._outputScrollbar || !this._outputContainer.classList.contains('expanded')) {
+			return;
+		}
+		const scrollableDomNode = this._outputScrollbar.getDomNode();
+		scrollableDomNode.style.width = '100%';
+		const viewportHeight = Math.min(this._outputBody.scrollHeight, MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT);
+		scrollableDomNode.style.height = `${viewportHeight}px`;
+		this._outputScrollbar.scanDomNode();
+	}
+
+	private _ensureOutputResizeObserver(): void {
+		if (this._outputResizeObserver || !this._outputScrollbar) {
+			return;
+		}
+		const observer = new ResizeObserver(() => this._layoutOutput());
+		observer.observe(this._outputContainer);
+		this._outputResizeObserver = observer;
+		this._register(toDisposable(() => {
+			observer.disconnect();
+			this._outputResizeObserver = undefined;
 		}));
 	}
 

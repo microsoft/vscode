@@ -2305,6 +2305,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: auto;
 }
 
+.chat-terminal-output-container {
+	max-height: 100%;
+	max-width: 100%;
+	margin-right: 20px;
+}
+
+.chat-terminal-content-title {
+	margin-right: 20px;
+}
+
 .chat-attached-context-attachment .chat-attached-context-pill {
 	font-size: 12px;
 	display: inline-flex;
