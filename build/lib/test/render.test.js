@@ -109,7 +109,8 @@ suite('Render Functions', () => {
             renderADMLStrings: () => ['<string id="TestPolicy">Test Policy</string>'],
             renderADMLPresentation: () => '<presentation id="TestPolicy"/>',
             renderProfile: () => ['<key>TestPolicy</key>', '<true/>'],
-            renderProfileManifest: () => '<dict><key>pfm_name</key><string>TestPolicy</string></dict>'
+            renderProfileManifest: () => '<dict><key>pfm_name</key><string>TestPolicy</string></dict>',
+            renderJsonValue: () => null
         };
         test('should render ADMX with correct XML structure', () => {
             const result = (0, render_js_1.renderADMX)('VSCode', ['1.85'], [mockCategory], [mockPolicy]);
@@ -167,7 +168,8 @@ suite('Render Functions', () => {
                 renderADMLStrings: () => ['<string id="TestPolicy2">Test Policy 2</string>'],
                 renderADMLPresentation: () => '<presentation id="TestPolicy2"/>',
                 renderProfile: () => ['<key>TestPolicy2</key>', '<string/>'],
-                renderProfileManifest: () => '<dict><key>pfm_name</key><string>TestPolicy2</string></dict>'
+                renderProfileManifest: () => '<dict><key>pfm_name</key><string>TestPolicy2</string></dict>',
+                renderJsonValue: () => null
             };
             const result = (0, render_js_1.renderADMX)('VSCode', ['1.0'], [mockCategory], [mockPolicy, policy2]);
             assert_1.default.ok(result.includes('TestPolicy'));
@@ -190,7 +192,8 @@ suite('Render Functions', () => {
             ],
             renderADMLPresentation: () => '<presentation id="TestPolicy"><textBox refId="TestPolicy"/></presentation>',
             renderProfile: () => [],
-            renderProfileManifest: () => ''
+            renderProfileManifest: () => '',
+            renderJsonValue: () => null
         };
         test('should render ADML with correct XML structure', () => {
             const result = (0, render_js_1.renderADML)('VS Code', ['1.85'], [mockCategory], [mockPolicy]);
@@ -258,7 +261,8 @@ suite('Render Functions', () => {
 <string>TestPolicy</string>
 <key>pfm_description</key>
 <string>${translations?.['testModule']?.['test.desc'] || 'Default Desc'}</string>
-</dict>`
+</dict>`,
+            renderJsonValue: () => null
         };
         test('should render profile manifest with correct XML structure', () => {
             const result = (0, render_js_1.renderProfileManifest)('VS Code', 'com.microsoft.vscode', ['1.0'], [mockCategory], [mockPolicy]);
@@ -364,7 +368,8 @@ suite('Render Functions', () => {
 <string>TestPolicy</string>
 <key>pfm_description</key>
 <string>${translations?.['testModule']?.['test.desc'] || 'Default Desc'}</string>
-</dict>`
+</dict>`,
+            renderJsonValue: () => null
         };
         test('should render complete macOS policy profile', () => {
             const product = {
@@ -525,7 +530,8 @@ suite('Render Functions', () => {
             ],
             renderADMLPresentation: () => '<presentation id="TestPolicy"/>',
             renderProfile: () => [],
-            renderProfileManifest: () => ''
+            renderProfileManifest: () => '',
+            renderJsonValue: () => null
         };
         test('should render complete GP with ADMX and ADML', () => {
             const product = {
@@ -677,6 +683,172 @@ suite('Render Functions', () => {
             assert_1.default.ok('adml' in result);
             assert_1.default.strictEqual(typeof result.admx, 'string');
             assert_1.default.ok(Array.isArray(result.adml));
+        });
+    });
+    suite('renderJsonPolicies', () => {
+        const mockCategory = {
+            moduleName: 'testModule',
+            name: { value: 'Test Category', nlsKey: 'test.category' }
+        };
+        test('should render boolean policy JSON value', () => {
+            const booleanPolicy = {
+                name: 'BooleanPolicy',
+                type: types_js_1.PolicyType.Boolean,
+                category: mockCategory,
+                minimumVersion: '1.0',
+                renderADMX: () => [],
+                renderADMLStrings: () => [],
+                renderADMLPresentation: () => '',
+                renderProfile: () => [],
+                renderProfileManifest: () => '',
+                renderJsonValue: () => false
+            };
+            const result = (0, render_js_1.renderJsonPolicies)([booleanPolicy]);
+            assert_1.default.deepStrictEqual(result, { BooleanPolicy: false });
+        });
+        test('should render number policy JSON value', () => {
+            const numberPolicy = {
+                name: 'NumberPolicy',
+                type: types_js_1.PolicyType.Number,
+                category: mockCategory,
+                minimumVersion: '1.0',
+                renderADMX: () => [],
+                renderADMLStrings: () => [],
+                renderADMLPresentation: () => '',
+                renderProfile: () => [],
+                renderProfileManifest: () => '',
+                renderJsonValue: () => 42
+            };
+            const result = (0, render_js_1.renderJsonPolicies)([numberPolicy]);
+            assert_1.default.deepStrictEqual(result, { NumberPolicy: 42 });
+        });
+        test('should render string policy JSON value', () => {
+            const stringPolicy = {
+                name: 'StringPolicy',
+                type: types_js_1.PolicyType.String,
+                category: mockCategory,
+                minimumVersion: '1.0',
+                renderADMX: () => [],
+                renderADMLStrings: () => [],
+                renderADMLPresentation: () => '',
+                renderProfile: () => [],
+                renderProfileManifest: () => '',
+                renderJsonValue: () => ''
+            };
+            const result = (0, render_js_1.renderJsonPolicies)([stringPolicy]);
+            assert_1.default.deepStrictEqual(result, { StringPolicy: '' });
+        });
+        test('should render string enum policy JSON value', () => {
+            const stringEnumPolicy = {
+                name: 'StringEnumPolicy',
+                type: types_js_1.PolicyType.StringEnum,
+                category: mockCategory,
+                minimumVersion: '1.0',
+                renderADMX: () => [],
+                renderADMLStrings: () => [],
+                renderADMLPresentation: () => '',
+                renderProfile: () => [],
+                renderProfileManifest: () => '',
+                renderJsonValue: () => 'auto'
+            };
+            const result = (0, render_js_1.renderJsonPolicies)([stringEnumPolicy]);
+            assert_1.default.deepStrictEqual(result, { StringEnumPolicy: 'auto' });
+        });
+        test('should render object policy JSON value', () => {
+            const objectPolicy = {
+                name: 'ObjectPolicy',
+                type: types_js_1.PolicyType.Object,
+                category: mockCategory,
+                minimumVersion: '1.0',
+                renderADMX: () => [],
+                renderADMLStrings: () => [],
+                renderADMLPresentation: () => '',
+                renderProfile: () => [],
+                renderProfileManifest: () => '',
+                renderJsonValue: () => ''
+            };
+            const result = (0, render_js_1.renderJsonPolicies)([objectPolicy]);
+            assert_1.default.deepStrictEqual(result, { ObjectPolicy: '' });
+        });
+        test('should render multiple policies', () => {
+            const booleanPolicy = {
+                name: 'BooleanPolicy',
+                type: types_js_1.PolicyType.Boolean,
+                category: mockCategory,
+                minimumVersion: '1.0',
+                renderADMX: () => [],
+                renderADMLStrings: () => [],
+                renderADMLPresentation: () => '',
+                renderProfile: () => [],
+                renderProfileManifest: () => '',
+                renderJsonValue: () => true
+            };
+            const numberPolicy = {
+                name: 'NumberPolicy',
+                type: types_js_1.PolicyType.Number,
+                category: mockCategory,
+                minimumVersion: '1.0',
+                renderADMX: () => [],
+                renderADMLStrings: () => [],
+                renderADMLPresentation: () => '',
+                renderProfile: () => [],
+                renderProfileManifest: () => '',
+                renderJsonValue: () => 100
+            };
+            const stringPolicy = {
+                name: 'StringPolicy',
+                type: types_js_1.PolicyType.String,
+                category: mockCategory,
+                minimumVersion: '1.0',
+                renderADMX: () => [],
+                renderADMLStrings: () => [],
+                renderADMLPresentation: () => '',
+                renderProfile: () => [],
+                renderProfileManifest: () => '',
+                renderJsonValue: () => 'test-value'
+            };
+            const result = (0, render_js_1.renderJsonPolicies)([booleanPolicy, numberPolicy, stringPolicy]);
+            assert_1.default.deepStrictEqual(result, {
+                BooleanPolicy: true,
+                NumberPolicy: 100,
+                StringPolicy: 'test-value'
+            });
+        });
+        test('should handle empty policies array', () => {
+            const result = (0, render_js_1.renderJsonPolicies)([]);
+            assert_1.default.deepStrictEqual(result, {});
+        });
+        test('should handle null JSON value', () => {
+            const nullPolicy = {
+                name: 'NullPolicy',
+                type: types_js_1.PolicyType.String,
+                category: mockCategory,
+                minimumVersion: '1.0',
+                renderADMX: () => [],
+                renderADMLStrings: () => [],
+                renderADMLPresentation: () => '',
+                renderProfile: () => [],
+                renderProfileManifest: () => '',
+                renderJsonValue: () => null
+            };
+            const result = (0, render_js_1.renderJsonPolicies)([nullPolicy]);
+            assert_1.default.deepStrictEqual(result, { NullPolicy: null });
+        });
+        test('should handle object JSON value', () => {
+            const objectPolicy = {
+                name: 'ComplexObjectPolicy',
+                type: types_js_1.PolicyType.Object,
+                category: mockCategory,
+                minimumVersion: '1.0',
+                renderADMX: () => [],
+                renderADMLStrings: () => [],
+                renderADMLPresentation: () => '',
+                renderProfile: () => [],
+                renderProfileManifest: () => '',
+                renderJsonValue: () => ({ nested: { value: 123 } })
+            };
+            const result = (0, render_js_1.renderJsonPolicies)([objectPolicy]);
+            assert_1.default.deepStrictEqual(result, { ComplexObjectPolicy: { nested: { value: 123 } } });
         });
     });
 });

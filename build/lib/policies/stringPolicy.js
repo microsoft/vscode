@@ -22,6 +22,9 @@ class StringPolicy extends basePolicy_1.BasePolicy {
     renderADMXElements() {
         return [`<text id="${this.name}" valueName="${this.name}" required="true" />`];
     }
+    renderJsonValue() {
+        return '';
+    }
     renderADMLPresentationContents() {
         return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
     }

@@ -421,11 +421,13 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 			this.busyDelay.setIfNotSet(() => {
 				if (this.visible) {
 					this.ui.progressBar.infinite();
+					this.ui.progressBar.getContainer().removeAttribute('aria-hidden');
 				}
 			}, 800);
 		}
 		if (!this.busy && this.busyDelay) {
 			this.ui.progressBar.stop();
+			this.ui.progressBar.getContainer().setAttribute('aria-hidden', 'true');
 			this.busyDelay.cancel();
 			this.busyDelay = undefined;
 		}

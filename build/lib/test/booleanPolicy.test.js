@@ -79,6 +79,12 @@ suite('BooleanPolicy', () => {
         const presentation = policy.renderADMLPresentation();
         assert_1.default.strictEqual(presentation, '<presentation id="TestBooleanPolicy"><checkBox refId="TestBooleanPolicy">TestBooleanPolicy</checkBox></presentation>');
     });
+    test('should render JSON value correctly', () => {
+        const policy = booleanPolicy_js_1.BooleanPolicy.from(mockCategory, mockPolicy);
+        assert_1.default.ok(policy);
+        const jsonValue = policy.renderJsonValue();
+        assert_1.default.strictEqual(jsonValue, false);
+    });
     test('should render profile value correctly', () => {
         const policy = booleanPolicy_js_1.BooleanPolicy.from(mockCategory, mockPolicy);
         assert_1.default.ok(policy);

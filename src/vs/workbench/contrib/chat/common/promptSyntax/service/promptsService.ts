@@ -108,6 +108,16 @@ export interface ICustomAgent {
 	readonly model?: string;
 
 	/**
+	 * Argument hint metadata in the prompt header that describes what inputs the agent expects or supports.
+	 */
+	readonly argumentHint?: string;
+
+	/**
+	 * Target metadata in the prompt header.
+	 */
+	readonly target?: string;
+
+	/**
 	 * Contents of the custom agent file body and other agent instructions.
 	 */
 	readonly agentInstructions: IChatModeInstructions;
