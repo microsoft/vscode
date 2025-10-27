@@ -108,7 +108,7 @@ suite('SuggestController', function () {
 			}
 		}));
 
-		// without exclusion: typing '.' accepts the suggestion
+    // Part 1: without exclusion -> typing '.' should accept the suggestion
 		editor.setValue('x');
 		editor.setSelection(new Selection(1, 2, 1, 2));
 		const p1 = Event.toPromise(controller.model.onDidSuggest);
@@ -117,7 +117,7 @@ suite('SuggestController', function () {
 		editor.trigger('keyboard', 'type', { text: '.' });
 		assert.strictEqual(editor.getValue(), 'foo.');
 
-		// with exclusion: typing '.' does not accept the suggestion
+    // Part 2: with exclusion -> typing '.' should NOT accept; it should be inserted literally
 		editor.updateOptions({ suggest: { excludeCommitCharacters: ['.'] } });
 		editor.setValue('y');
 		editor.setSelection(new Selection(1, 2, 1, 2));

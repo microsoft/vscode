@@ -5300,6 +5300,9 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
                     default: true,
                     markdownDescription: nls.localize('editor.suggest.showIssues', "When enabled IntelliSense shows `issues`-suggestions.")
                 },
+                // Allow users to exclude specific commit characters from accepting suggestions.
+                // This is language-overridable, so users can configure e.g. C# to exclude '.'
+                // to avoid committing suggestions when typing new collection expressions "[..]".
                 'editor.suggest.excludeCommitCharacters': {
                     type: 'array',
                     default: defaults.excludeCommitCharacters,
