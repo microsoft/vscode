@@ -57,7 +57,7 @@ import { IHostService } from '../../host/browser/host.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IRemoteExplorerService } from '../../remote/common/remoteExplorerService.js';
-import { AsyncIterableEmitter, AsyncIterableObject } from '../../../../base/common/async.js';
+import { AsyncIterableEmitter, AsyncIterableProducer } from '../../../../base/common/async.js';
 
 export class NativeExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -318,7 +318,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 	}
 
 	protected _resolveExtensions(): AsyncIterable<ResolvedExtensions> {
-		return new AsyncIterableObject(emitter => this._doResolveExtensions(emitter));
+		return new AsyncIterableProducer(emitter => this._doResolveExtensions(emitter));
 	}
 
 	private async _doResolveExtensions(emitter: AsyncIterableEmitter<ResolvedExtensions>): Promise<void> {

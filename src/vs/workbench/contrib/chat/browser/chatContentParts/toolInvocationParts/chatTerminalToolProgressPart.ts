@@ -185,6 +185,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		isTerminalHidden: boolean,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 	) {
@@ -203,6 +204,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		} else {
 			this._terminalGroupService.showPanel(true);
 		}
+		this._terminalService.setActiveInstance(this._instance);
 		await this._instance?.focusWhenReady(true);
 	}
 }
