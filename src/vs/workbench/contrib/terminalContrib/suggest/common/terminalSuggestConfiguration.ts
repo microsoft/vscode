@@ -66,7 +66,10 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		restricted: true,
 		markdownDescription: localize('suggest.enabled', "Enables terminal intellisense suggestions (preview) for supported shells ({0}) when {1} is set to {2}.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`'),
 		type: 'boolean',
-		default: true,
+		default: product.quality !== 'stable',
+		experiment: {
+			mode: 'auto',
+		},
 	},
 	[TerminalSuggestSettingId.Providers]: {
 		restricted: true,
