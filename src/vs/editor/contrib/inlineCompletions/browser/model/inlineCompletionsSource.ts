@@ -109,6 +109,8 @@ export class InlineCompletionsSource extends Disposable {
 				}
 			}));
 		}
+
+		this._state.recomputeInitiallyAndOnChange(this._store);
 	}
 
 	private _updateCompletionsEnablement(enalementSetting: string) {
