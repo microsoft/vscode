@@ -152,6 +152,34 @@ interface IChatHistoryListItem {
 	readonly isActive: boolean;
 }
 
+type ChatHandoffClickEvent = {
+	fromAgent: string;
+	toAgent: string;
+	hasPrompt: boolean;
+	autoSend: boolean;
+};
+
+type ChatHandoffClickClassification = {
+	owner: 'digitarald';
+	comment: 'Event fired when a user clicks on a handoff prompt in the chat suggest-next widget';
+	fromAgent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent/mode the user was in before clicking the handoff' };
+	toAgent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent/mode specified in the handoff' };
+	hasPrompt: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the handoff includes a prompt' };
+	autoSend: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the handoff automatically submits the request' };
+};
+
+type ChatHandoffWidgetShownEvent = {
+	agent: string;
+	handoffCount: number;
+};
+
+type ChatHandoffWidgetShownClassification = {
+	owner: 'digitarald';
+	comment: 'Event fired when the suggest-next widget is shown with handoff prompts';
+	agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current agent/mode that has handoffs defined' };
+	handoffCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of handoff options shown to the user' };
+};
+
 class ChatHistoryListDelegate implements IListVirtualDelegate<IChatHistoryListItem> {
 	getHeight(element: IChatHistoryListItem): number {
 		return 22;
@@ -1645,7 +1673,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const shouldShow = currentMode && handoffs && handoffs.length > 0;
 
 		if (shouldShow) {
+			// Log telemetry only when widget transitions from hidden to visible
+			const wasHidden = this.chatSuggestNextWidget.domNode.style.display === 'none';
 			this.chatSuggestNextWidget.render(currentMode);
+
+			if (wasHidden) {
+				this.telemetryService.publicLog2<ChatHandoffWidgetShownEvent, ChatHandoffWidgetShownClassification>('chat.handoffWidgetShown', {
+					agent: currentMode.id,
+					handoffCount: handoffs.length
+				});
+			}
 		} else {
 			this.chatSuggestNextWidget.hide();
 		}
@@ -1660,6 +1697,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Hide the widget after selection
 		this.chatSuggestNextWidget.hide();
 		this._chatSuggestNextScheduler.cancel();
+
+		// Log telemetry
+		const currentMode = this.input.currentModeObs.get();
+		const fromAgent = currentMode?.id ?? '';
+		this.telemetryService.publicLog2<ChatHandoffClickEvent, ChatHandoffClickClassification>('chat.handoffClicked', {
+			fromAgent: fromAgent,
+			toAgent: handoff.agent || '',
+			hasPrompt: Boolean(handoff.prompt),
+			autoSend: Boolean(handoff.send)
+		});
 
 		// Switch to the specified agent/mode if provided
 		if (handoff.agent) {
