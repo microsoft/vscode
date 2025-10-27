@@ -56,9 +56,9 @@
 
 .chat-terminal-output-container.collapsed { display: none; }
 .chat-terminal-output-container {
-	margin-top: 6px;
+	margin-top: 0;
 	border: 1px solid var(--vscode-chat-requestBorder);
-	border-radius: 4px;
+	border-radius: 0;
 	padding: 4px 6px;
 	background: var(--vscode-panel-background);
 	max-height: 300px;
@@ -73,7 +73,8 @@
 }
 .chat-terminal-output {
 	margin: 0;
-	white-space: pre-wrap;
+	white-space: pre;
+	overflow-x: auto;
 	font-size: 12px;
 }
 .chat-terminal-output-info {
