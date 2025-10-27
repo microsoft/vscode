@@ -126,6 +126,11 @@ export interface IChatSessionContentProvider {
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
 }
 
+export type SessionOptionsChangedCallback = (sessionResource: URI, updates: ReadonlyArray<{
+	optionId: string;
+	value: string;
+}>) => Promise<void>;
+
 export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
 
@@ -165,10 +170,10 @@ export interface IChatSessionsService {
 	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
 
 	// Set callback for notifying extensions about option changes
-	setOptionsChangeCallback(callback: (chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>): void;
+	setOptionsChangeCallback(callback: SessionOptionsChangedCallback): void;
 
 	// Notify extension about option changes
-	notifySessionOptionsChange(chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void>;
+	notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void>;
 
 	// Editable session support
 	setEditableSession(sessionResource: URI, data: IEditableData | null): Promise<void>;
@@ -185,13 +190,13 @@ export interface IChatSessionsService {
 
 	getContentProviderSchemes(): string[];
 
-	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable;
-	canResolveChatSession(chatSessionResource: URI): Promise<boolean>;
+	registerChatSessionContentProvider(scheme: string, provider: IChatSessionContentProvider): IDisposable;
+	canResolveChatSession(sessionResource: URI): Promise<boolean>;
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
 
-	hasAnySessionOptions(resource: URI): boolean;
-	getSessionOption(chatSessionType: string, sessionResource: URI, optionId: string): string | undefined;
-	setSessionOption(chatSessionType: string, sessionResource: URI, optionId: string, value: string): boolean;
+	hasAnySessionOptions(sessionResource: URI): boolean;
+	getSessionOption(sessionResource: URI, optionId: string): string | undefined;
+	setSessionOption(sessionResource: URI, optionId: string, value: string): boolean;
 
 	/**
 	 * Get the capabilities for a specific session type
