@@ -323,7 +323,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
 		try {
-			const items = await this.provideChatSessionItems(chatSessionType, CancellationToken.None);
+			const items = await this.getChatSessionItems(chatSessionType, CancellationToken.None);
 			const inProgress = items.filter(item => item.status === ChatSessionStatus.InProgress);
 			this.reportInProgress(chatSessionType, inProgress.length);
 		} catch (error) {
@@ -640,7 +640,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		});
 	}
 
-	async canResolveItemProvider(chatViewType: string): Promise<boolean> {
+	async hasChatSessionItemProvider(chatViewType: string): Promise<boolean> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		const resolvedType = this._resolveToPrimaryType(chatViewType);
 		if (resolvedType) {
@@ -677,8 +677,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._contentProviders.has(chatSessionResource.scheme);
 	}
 
-	public async provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
-		if (!(await this.canResolveItemProvider(chatSessionType))) {
+	public async getChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
+		if (!(await this.hasChatSessionItemProvider(chatSessionType))) {
 			return [];
 		}
 
@@ -755,11 +755,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 * @param token A cancellation token
 	 * @returns A session ID for the newly created session
 	 */
-	public async provideNewChatSessionItem(chatSessionType: string, options: {
+	public async getNewChatSessionItem(chatSessionType: string, options: {
 		request: IChatAgentRequest;
 		metadata?: any;
 	}, token: CancellationToken): Promise<IChatSessionItem> {
-		if (!(await this.canResolveItemProvider(chatSessionType))) {
+		if (!(await this.hasChatSessionItemProvider(chatSessionType))) {
 			throw Error(`Cannot find provider for ${chatSessionType}`);
 		}
 

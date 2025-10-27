@@ -405,7 +405,7 @@ suite('MainThreadChatSessions', function () {
 		};
 
 		// Valid
-		const chatSessionItem = await chatSessionsService.provideNewChatSessionItem('test-type', {
+		const chatSessionItem = await chatSessionsService.getNewChatSessionItem('test-type', {
 			request: mockRequest,
 			metadata: {}
 		}, CancellationToken.None);
@@ -414,7 +414,7 @@ suite('MainThreadChatSessions', function () {
 
 		// Invalid session type should throw
 		await assert.rejects(
-			chatSessionsService.provideNewChatSessionItem('invalid-type', {
+			chatSessionsService.getNewChatSessionItem('invalid-type', {
 				request: mockRequest,
 				metadata: {}
 			}, CancellationToken.None)
