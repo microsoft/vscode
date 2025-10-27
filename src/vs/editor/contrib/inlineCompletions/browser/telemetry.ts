@@ -38,7 +38,6 @@ export type InlineCompletionEndOfLifeEvent = {
 	partiallyAcceptedCharactersSinceOriginal: number | undefined;
 	preceeded: boolean | undefined;
 	superseded: boolean | undefined;
-	error: string | undefined;
 	notShownReason: string | undefined;
 	// rendering
 	viewKind: string | undefined;
@@ -78,7 +77,6 @@ type InlineCompletionsEndOfLifeClassification = {
 	preceeded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was preceeded by another one' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language ID of the document where the inline completion was shown' };
 	requestReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion request' };
-	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error message if the inline completion failed' };
 	typingInterval: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The average typing interval of the user at the moment the inline completion was requested' };
 	typingIntervalCharacterCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The character count involved in the typing interval calculation' };
 	superseded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was superseded by another one' };

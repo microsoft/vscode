@@ -8,6 +8,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import * as resources from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -18,6 +19,8 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditableData } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
@@ -63,7 +66,22 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 				},
 				icon: {
 					description: localize('chatSessionsExtPoint.icon', 'Icon identifier (codicon ID) for the chat session editor tab. For example, "$(github)" or "$(cloud)".'),
-					type: 'string'
+					anyOf: [{
+						type: 'string'
+					},
+					{
+						type: 'object',
+						properties: {
+							light: {
+								description: localize('icon.light', 'Icon path when a light theme is used'),
+								type: 'string'
+							},
+							dark: {
+								description: localize('icon.dark', 'Icon path when a dark theme is used'),
+								type: 'string'
+							}
+						}
+					}]
 				},
 				order: {
 					description: localize('chatSessionsExtPoint.order', 'Order in which this item should be displayed.'),
@@ -233,7 +251,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeOptions: Map<string, IChatSessionProviderOptionGroup[]> = new Map();
-	private readonly _sessionTypeIcons: Map<string, ThemeIcon> = new Map();
+	private readonly _sessionTypeIcons: Map<string, ThemeIcon | { light: URI; dark: URI }> = new Map();
 	private readonly _sessionTypeWelcomeTitles: Map<string, string> = new Map();
 	private readonly _sessionTypeWelcomeMessages: Map<string, string> = new Map();
 	private readonly _sessionTypeWelcomeTips: Map<string, string> = new Map();
@@ -249,6 +267,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
 		this._register(extensionPoint.setHandler(extensions => {
@@ -356,13 +375,20 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		// Store icon mapping if provided
-		let icon: ThemeIcon | undefined;
+		let icon: ThemeIcon | { dark: URI; light: URI } | undefined;
 
 		if (contribution.icon) {
-			// Parse icon string - support both "$(iconId)" and "iconId" formats
-			icon = contribution.icon.startsWith('$(') && contribution.icon.endsWith(')')
-				? ThemeIcon.fromString(contribution.icon)
-				: ThemeIcon.fromId(contribution.icon);
+			// Parse icon string - support ThemeIcon format or file path from extension
+			if (typeof contribution.icon === 'string') {
+				icon = contribution.icon.startsWith('$(') && contribution.icon.endsWith(')')
+					? ThemeIcon.fromString(contribution.icon)
+					: ThemeIcon.fromId(contribution.icon);
+			} else {
+				icon = {
+					dark: resources.joinPath(contribution.extensionDescription.extensionLocation, contribution.icon.dark),
+					light: resources.joinPath(contribution.extensionDescription.extensionLocation, contribution.icon.light)
+				};
+			}
 		}
 
 		if (icon) {
@@ -879,8 +905,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	/**
 	 * Get the icon for a specific session type
 	 */
-	public getIconForSessionType(chatSessionType: string): ThemeIcon | undefined {
-		return this._sessionTypeIcons.get(chatSessionType);
+	public getIconForSessionType(chatSessionType: string): ThemeIcon | URI | undefined {
+		const sessionTypeIcon = this._sessionTypeIcons.get(chatSessionType);
+
+		if (ThemeIcon.isThemeIcon(sessionTypeIcon)) {
+			return sessionTypeIcon;
+		}
+
+		if (isDark(this._themeService.getColorTheme().type)) {
+			return sessionTypeIcon?.dark;
+		} else {
+			return sessionTypeIcon?.light;
+		}
 	}
 
 	/**

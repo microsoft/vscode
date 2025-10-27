@@ -854,6 +854,7 @@ export interface InlineCompletionDisplayLocation {
 	range: IRange;
 	kind: InlineCompletionDisplayLocationKind;
 	label: string;
+	jumpToEdit: boolean;
 }
 
 /**
@@ -1033,7 +1034,6 @@ export type LifetimeSummary = {
 	notShownReason: string | undefined;
 	editorType: string;
 	viewKind: string | undefined;
-	error: string | undefined;
 	preceeded: boolean;
 	languageId: string;
 	requestReason: string;
