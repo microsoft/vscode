@@ -102,8 +102,6 @@ export interface IJSONSchemaSnippet {
 
 /**
  * Converts a basic JSON schema to a TypeScript type.
- *
- * Doesn't support all JSON schema features, such as `additionalProperties`.
  */
 export type TypeFromJsonSchema<T> =
 	// enum
@@ -131,12 +129,12 @@ export type TypeFromJsonSchema<T> =
 	: T extends { type: 'object'; properties: infer P; required: infer RequiredList }
 	? {
 		[K in keyof P]: IsRequired<K, RequiredList> extends true ? TypeFromJsonSchema<P[K]> : TypeFromJsonSchema<P[K]> | undefined;
-	}
+	} & AdditionalPropertiesType<T>
 
 	// Object with no required properties.
 	// All values are optional
 	: T extends { type: 'object'; properties: infer P }
-	? { [K in keyof P]: TypeFromJsonSchema<P[K]> | undefined }
+	? { [K in keyof P]: TypeFromJsonSchema<P[K]> | undefined } & AdditionalPropertiesType<T>
 
 	// Array
 	: T extends { type: 'array'; items: infer I }
@@ -165,6 +163,11 @@ type IsRequired<K, RequiredList> =
 	? IsRequired<K, R>
 
 	: false;
+
+type AdditionalPropertiesType<Schema> =
+	Schema extends { additionalProperties: infer AP }
+	? AP extends false ? {} : { [key: string]: TypeFromJsonSchema<Schema['additionalProperties']> }
+	: {};
 
 type MapSchemaToType<T> = T extends [infer First, ...infer Rest]
 	? TypeFromJsonSchema<First> | MapSchemaToType<Rest>
