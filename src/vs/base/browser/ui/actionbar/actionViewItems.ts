@@ -14,7 +14,7 @@ import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { ISelectBoxOptions, ISelectBoxStyles, ISelectOptionItem, SelectBox } from '../selectBox/selectBox.js';
 import { IToggleStyles } from '../toggle/toggle.js';
 import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from '../../../common/actions.js';
-import { Disposable } from '../../../common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../common/lifecycle.js';
 import * as platform from '../../../common/platform.js';
 import * as types from '../../../common/types.js';
 import './actionbar.css';
@@ -44,6 +44,8 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	}
 
 	private _actionRunner: IActionRunner | undefined;
+
+	private readonly _renderDisposables = this._register(new DisposableStore());
 
 	constructor(
 		context: unknown,
@@ -111,9 +113,9 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		this._context = newContext;
 	}
 
-	render(container: HTMLElement): void {
+	render(container: HTMLElement, actionUpdated?: (rerender: boolean) => void): void {
 		const element = this.element = container;
-		this._register(Gesture.addTarget(container));
+		this._renderDisposables.add(Gesture.addTarget(container));
 
 		const enableDragging = this.options && this.options.draggable;
 		if (enableDragging) {
@@ -121,13 +123,13 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 			if (isFirefox) {
 				// Firefox: requires to set a text data transfer to get going
-				this._register(addDisposableListener(container, EventType.DRAG_START, e => e.dataTransfer?.setData(DataTransfers.TEXT, this._action.label)));
+				this._renderDisposables.add(addDisposableListener(container, EventType.DRAG_START, e => e.dataTransfer?.setData(DataTransfers.TEXT, this._action.label)));
 			}
 		}
 
-		this._register(addDisposableListener(element, TouchEventType.Tap, e => this.onClick(e, true))); // Preserve focus on tap #125470
+		this._renderDisposables.add(addDisposableListener(element, TouchEventType.Tap, e => this.onClick(e, true))); // Preserve focus on tap #125470
 
-		this._register(addDisposableListener(element, EventType.MOUSE_DOWN, e => {
+		this._renderDisposables.add(addDisposableListener(element, EventType.MOUSE_DOWN, e => {
 			if (!enableDragging) {
 				EventHelper.stop(e, true); // do not run when dragging is on because that would disable it
 			}
@@ -142,14 +144,14 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			// main mouse button. This is for scenarios where e.g. some interaction forces
 			// the Ctrl+key to be pressed and hold but the user still wants to interact
 			// with the actions (for example quick access in quick navigation mode).
-			this._register(addDisposableListener(element, EventType.CONTEXT_MENU, e => {
+			this._renderDisposables.add(addDisposableListener(element, EventType.CONTEXT_MENU, e => {
 				if (e.button === 0 && e.ctrlKey === true) {
 					this.onClick(e);
 				}
 			}));
 		}
 
-		this._register(addDisposableListener(element, EventType.CLICK, e => {
+		this._renderDisposables.add(addDisposableListener(element, EventType.CLICK, e => {
 			EventHelper.stop(e, true);
 
 			// menus do not use the click event
@@ -158,12 +160,12 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			}
 		}));
 
-		this._register(addDisposableListener(element, EventType.DBLCLICK, e => {
+		this._renderDisposables.add(addDisposableListener(element, EventType.DBLCLICK, e => {
 			EventHelper.stop(e, true);
 		}));
 
 		[EventType.MOUSE_UP, EventType.MOUSE_OUT].forEach(event => {
-			this._register(addDisposableListener(element, event, e => {
+			this._renderDisposables.add(addDisposableListener(element, event, e => {
 				EventHelper.stop(e);
 				element.classList.remove('active');
 			}));
@@ -296,8 +298,8 @@ export class ActionViewItem extends BaseActionViewItem {
 		this.cssClass = '';
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
+	override render(container: HTMLElement, actionUpdated?: (rerender: boolean) => void): void {
+		super.render(container, actionUpdated);
 		types.assertType(this.element);
 
 		const label = document.createElement('a');
