@@ -9,17 +9,16 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { PromptFilePickers } from './pickers/promptFilePickers.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../chatContextPickService.js';
 import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { IPromptFileVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
@@ -28,7 +27,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
@@ -78,7 +77,7 @@ class AttachInstructionsAction extends Action2 {
 			id: ATTACH_INSTRUCTIONS_ACTION_ID,
 			title: localize2('attach-instructions.capitalized.ellipses', "Attach Instructions..."),
 			f1: false,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Slash,
@@ -86,7 +85,7 @@ class AttachInstructionsAction extends Action2 {
 			},
 			menu: {
 				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
+				when: ChatContextKeys.enabled
 			}
 		});
 	}
@@ -97,6 +96,7 @@ class AttachInstructionsAction extends Action2 {
 	): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const instaService = accessor.get(IInstantiationService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 
 		if (!options) {
 			options = {
@@ -110,7 +110,7 @@ class AttachInstructionsAction extends Action2 {
 		const { skipSelectionDialog, resource } = options;
 
 
-		const widget = options.widget ?? (await showChatView(viewsService));
+		const widget = options.widget ?? (await showChatView(viewsService, layoutService));
 		if (!widget) {
 			return;
 		}
@@ -143,11 +143,11 @@ class ManageInstructionsFilesAction extends Action2 {
 			shortTitle: localize2('configure-instructions.short', "Chat Instructions"),
 			icon: Codicon.bookmark,
 			f1: true,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			menu: {
 				id: CHAT_CONFIG_MENU_ID,
-				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 				order: 10,
 				group: '1_level'
 			}
@@ -222,11 +222,10 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
-		return PromptsConfig.enabled(this.configurationService);
+		return !!widget.attachmentCapabilities.supportsInstructionAttachments;
 	}
 
 	asPicker(): IChatContextPicker {

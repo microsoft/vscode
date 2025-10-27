@@ -45,12 +45,23 @@
 	display: none;
 }
 
-.scm-view .scm-provider .monaco-icon-label-container {
-	display: flex;
+.scm-view .scm-provider > .codicon {
+	padding-right: 2px;
 }
 
 .scm-view .scm-provider > .monaco-icon-label {
-	flex: 1;
+	min-width: 0;
+	flex: 0 1 auto;
+}
+
+.scm-view .scm-provider > .monaco-icon-label.visible {
+	font-weight: bold;
+}
+
+.scm-view .scm-provider > .monaco-icon-label .monaco-icon-name-container {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .scm-view .scm-provider .monaco-highlighted-label {
@@ -60,8 +71,13 @@
 }
 
 .scm-view .scm-provider > .actions {
+	min-width: 24px;
+	flex: 1 10000 auto;
 	overflow: hidden;
-	justify-content: flex-end;
+}
+
+.scm-view .scm-provider > .actions .actions-container {
+	justify-content: end;
 }
 
 /**
@@ -75,7 +91,27 @@
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:nth-child(1) {
+	flex-shrink: 10000;
+}
+
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item.scm-status-bar-action {
 	min-width: 20px;
+
+	.action-label > span:not(.codicon) {
+		margin-left: 2px;
+	}
+}
+
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item.scm-status-bar-action > .action-label > .codicon {
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item.scm-status-bar-action > .action-label > span:not(.codicon) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label,
@@ -491,10 +527,6 @@
 
 .scm-view.scm-repositories-view .monaco-highlighted-label {
 	font-weight: normal;
-}
-
-.scm-view.scm-repositories-view .scm-provider .monaco-icon-label-container {
-	display: flex;
 }
 
 /* History item hover */

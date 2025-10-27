@@ -38,12 +38,13 @@
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "chatmode",
+        "id": "chatagent",
         "aliases": [
-          "Chat Mode",
-          "chat mode"
+          "Agent",
+          "chat agent"
         ],
         "extensions": [
+          ".agent.md",
           ".chatmode.md"
         ],
         "configuration": "./language-configuration.json"
@@ -69,7 +70,7 @@
         ]
       },
       {
-        "language": "chatmode",
+        "language": "chatagent",
         "path": "./syntaxes/prompt.tmLanguage.json",
         "scopeName": "text.html.markdown.prompt",
         "unbalancedBracketScopes": [
@@ -101,7 +102,7 @@
           "other": "off"
         }
       },
-      "[chatmode]": {
+      "[chatagent]": {
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false,

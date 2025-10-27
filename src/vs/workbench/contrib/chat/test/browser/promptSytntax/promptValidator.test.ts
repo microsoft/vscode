@@ -8,8 +8,8 @@ import assert from 'assert';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -22,11 +22,10 @@ import { IChatService } from '../../../common/chatService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/languageModelToolsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
-import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { getPromptFileExtension } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptValidator } from '../../../common/promptSyntax/languageProviders/promptValidator.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { NewPromptsParser } from '../../../common/promptSyntax/service/newPromptsParser.js';
+import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../common/mockChatModeService.js';
 import { MockChatService } from '../../common/mockChatService.js';
@@ -42,7 +41,6 @@ suite('PromptValidator', () => {
 	setup(async () => {
 
 		const testConfigService = new TestConfigurationService();
-		testConfigService.setUserConfiguration(PromptsConfig.KEY, true);
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
@@ -80,7 +78,7 @@ suite('PromptValidator', () => {
 		const customChatMode = new CustomChatMode({
 			uri: URI.parse('myFs://test/test/chatmode.md'),
 			name: 'BeastMode',
-			modeInstructions: { content: 'Beast mode instructions', toolReferences: [] },
+			agentInstructions: { content: 'Beast mode instructions', toolReferences: [] },
 			source: { storage: PromptsStorage.local }
 		});
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
@@ -96,29 +94,29 @@ suite('PromptValidator', () => {
 
 	async function validate(code: string, promptType: PromptsType): Promise<IMarkerData[]> {
 		const uri = URI.parse('myFs://test/testFile' + getPromptFileExtension(promptType));
-		const result = new NewPromptsParser().parse(uri, code);
+		const result = new PromptFileParser().parse(uri, code);
 		const validator = instaService.createInstance(PromptValidator);
 		const markers: IMarkerData[] = [];
 		await validator.validate(result, promptType, m => markers.push(m));
 		return markers;
 	}
-	suite('modes', () => {
+	suite('agents', () => {
 
-		test('correct mode', async () => {
+		test('correct agent', async () => {
 			const content = [
 			/* 01 */'---',
 			/* 02 */`description: "Agent mode test"`,
 			/* 03 */'model: MAE 4.1',
 			/* 04 */`tools: ['tool1', 'tool2']`,
 			/* 05 */'---',
-			/* 06 */'This is a chat mode test.',
+			/* 06 */'This is a chat agent test.',
 			/* 07 */'Here is a #tool1 variable and a #file:./reference1.md as well as a [reference](./reference2.md).',
 			].join('\n');
-			const markers = await validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(markers, []);
 		});
 
-		test('mode with errors (empty description, unknown tool & model)', async () => {
+		test('agent with errors (empty description, unknown tool & model)', async () => {
 			const content = [
 			/* 01 */'---',
 			/* 02 */`description: ""`, // empty description -> error
@@ -127,7 +125,7 @@ suite('PromptValidator', () => {
 			/* 05 */'---',
 			/* 06 */'Body',
 			].join('\n');
-			const markers = await validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
@@ -145,7 +143,7 @@ suite('PromptValidator', () => {
 				`tools: 'tool1'`,
 				'---',
 			].join('\n');
-			const markers = await validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
 			assert.deepStrictEqual(markers.map(m => m.message), [`The 'tools' attribute must be an array.`]);
 		});
@@ -157,7 +155,7 @@ suite('PromptValidator', () => {
 				`tools: ['tool1', 2]`,
 				'---',
 			].join('\n');
-			const markers = await validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
@@ -173,7 +171,7 @@ suite('PromptValidator', () => {
 				`tools: ['tool1', 'tool3']`,
 				'---',
 			].join('\n');
-			const markers = await validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
@@ -182,17 +180,20 @@ suite('PromptValidator', () => {
 			);
 		});
 
-		test('unknown attribute in mode file', async () => {
+		test('unknown attribute in agent file', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				`applyTo: '*.ts'`, // not allowed in mode file
+				`applyTo: '*.ts'`, // not allowed in agent file
 				'---',
 			].join('\n');
-			const markers = await validate(content, PromptsType.mode);
-			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.startsWith(`Attribute 'applyTo' is not supported in mode files.`));
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: argument-hint, description, handoffs, model, target, tools.` },
+				]
+			);
 		});
 
 		test('tools with invalid handoffs', async () => {
@@ -203,7 +204,7 @@ suite('PromptValidator', () => {
 					`handoffs: next`,
 					'---',
 				].join('\n');
-				const markers = await validate(content, PromptsType.mode);
+				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1);
 				assert.deepStrictEqual(markers.map(m => m.message), [`The 'handoffs' attribute must be an array.`]);
 			}
@@ -215,7 +216,7 @@ suite('PromptValidator', () => {
 					`  - label: '123'`,
 					'---',
 				].join('\n');
-				const markers = await validate(content, PromptsType.mode);
+				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1);
 				assert.deepStrictEqual(markers.map(m => m.message), [`Missing required properties 'agent', 'prompt' in handoff object.`]);
 			}
@@ -230,16 +231,16 @@ suite('PromptValidator', () => {
 					`    send: true`,
 					'---',
 				].join('\n');
-				const markers = await validate(content, PromptsType.mode);
+				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1);
 				assert.deepStrictEqual(markers.map(m => m.message), [`The 'agent' property in a handoff must be a non-empty string.`]);
 			}
 		});
 
-		test('mode with handoffs attribute', async () => {
+		test('agent with handoffs attribute', async () => {
 			const content = [
 				'---',
-				'description: \"Test mode with handoffs\"',
+				'description: \"Test agent with handoffs\"',
 				`handoffs:`,
 				'  - label: Test Prompt',
 				'    agent: Default',
@@ -250,8 +251,119 @@ suite('PromptValidator', () => {
 				'---',
 				'Body',
 			].join('\n');
-			const markers = await validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues for handoffs attribute');
+		});
+
+		test('github-copilot agent with supported attributes', async () => {
+			const content = [
+				'---',
+				'name: "GitHub Copilot Custom Agent"',
+				'description: "GitHub Copilot agent"',
+				'target: github-copilot',
+				`tools: ['shell', 'edit', 'search', 'custom-agent']`,
+				'mcp-servers: []',
+				'---',
+				'Body with #search and #edit references',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, [], 'Expected no validation issues for github-copilot target');
+		});
+
+		test('github-copilot agent warns about model and handoffs attributes', async () => {
+			const content = [
+				'---',
+				'description: "GitHub Copilot agent"',
+				'target: github-copilot',
+				'model: MAE 4.1',
+				`tools: ['shell', 'edit']`,
+				`handoffs:`,
+				'  - label: Test',
+				'    agent: Default',
+				'    prompt: Test',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			const messages = markers.map(m => m.message);
+			assert.deepStrictEqual(messages, [
+				'Attribute \'model\' is not supported in custom GitHub Copilot agent files. Supported: description, mcp-servers, name, target, tools.',
+				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, mcp-servers, name, target, tools.',
+			], 'Model and handoffs are not validated for github-copilot target');
+		});
+
+		test('github-copilot agent does not validate variable references', async () => {
+			const content = [
+				'---',
+				'description: "GitHub Copilot agent"',
+				'target: github-copilot',
+				`tools: ['shell', 'edit']`,
+				'---',
+				'Body with #unknownTool reference',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			// Variable references should not be validated for github-copilot target
+			assert.deepStrictEqual(markers, [], 'Variable references are not validated for github-copilot target');
+		});
+
+		test('github-copilot agent rejects unsupported attributes', async () => {
+			const content = [
+				'---',
+				'description: "GitHub Copilot agent"',
+				'target: github-copilot',
+				'argument-hint: "test hint"',
+				`tools: ['shell']`,
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.ok(markers[0].message.includes(`Attribute 'argument-hint' is not supported`), 'Expected warning about unsupported attribute');
+		});
+
+		test('vscode target agent validates normally', async () => {
+			const content = [
+				'---',
+				'description: "VS Code agent"',
+				'target: vscode',
+				'model: MAE 4.1',
+				`tools: ['tool1', 'tool2']`,
+				'---',
+				'Body with #tool1',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, [], 'VS Code target should validate normally');
+		});
+
+		test('vscode target agent warns about unknown tools', async () => {
+			const content = [
+				'---',
+				'description: "VS Code agent"',
+				'target: vscode',
+				`tools: ['tool1', 'unknownTool']`,
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, `Unknown tool 'unknownTool'.`);
+		});
+
+		test('default target (no target specified) validates as vscode', async () => {
+			const content = [
+				'---',
+				'description: "Agent without target"',
+				'model: MAE 4.1',
+				`tools: ['tool1']`,
+				'argument-hint: "test hint"',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			// Should validate normally as if target was vscode
+			assert.deepStrictEqual(markers, [], 'Agent without target should validate as vscode');
 		});
 	});
 
@@ -326,7 +438,7 @@ suite('PromptValidator', () => {
 		});
 
 		test('prompt model not suited for agent mode', async () => {
-			// MAE 3.5 Turbo lacks agentMode capability -> warning when used in agent (default) mode
+			// MAE 3.5 Turbo lacks agentMode capability -> warning when used in agent (default)
 			const content = [
 				'---',
 				'description: "Prompt with unsuitable model"',
@@ -340,6 +452,20 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `Model 'MAE 3.5 Turbo' is not suited for agent mode.`);
 		});
 
+		test('prompt with custom agent BeastMode and tools', async () => {
+			// Explicit custom agent should be recognized; BeastMode kind comes from setup; ensure tools accepted
+			const content = [
+				'---',
+				'description: "Prompt custom mode"',
+				'agent: BeastMode',
+				`tools: ['tool1']`,
+				'---',
+				'Body'
+			].join('\n');
+			const markers = await validate(content, PromptsType.prompt);
+			assert.deepStrictEqual(markers, []);
+		});
+
 		test('prompt with custom mode BeastMode and tools', async () => {
 			// Explicit custom mode should be recognized; BeastMode kind comes from setup; ensure tools accepted
 			const content = [
@@ -351,14 +477,32 @@ suite('PromptValidator', () => {
 				'Body'
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
-			assert.deepStrictEqual(markers, []);
+			assert.strictEqual(markers.length, 1);
+			assert.deepStrictEqual(markers.map(m => m.message), [`The 'mode' attribute has been deprecated. Please rename it to 'agent'.`]);
+
 		});
 
-		test('prompt with unknown mode Ask', async () => {
+		test('prompt with custom mode an agent', async () => {
+			// Explicit custom mode should be recognized; BeastMode kind comes from setup; ensure tools accepted
 			const content = [
 				'---',
-				'description: "Prompt unknown mode Ask"',
-				'mode: Ask',
+				'description: "Prompt custom mode"',
+				'mode: BeastMode',
+				`agent: agent`,
+				'---',
+				'Body'
+			].join('\n');
+			const markers = await validate(content, PromptsType.prompt);
+			assert.strictEqual(markers.length, 1);
+			assert.deepStrictEqual(markers.map(m => m.message), [`The 'mode' attribute has been deprecated. The 'agent' attribute is used instead.`]);
+
+		});
+
+		test('prompt with unknown agent Ask', async () => {
+			const content = [
+				'---',
+				'description: "Prompt unknown agent Ask"',
+				'agent: Ask',
 				`tools: ['tool1','tool2']`,
 				'---',
 				'Body'
@@ -366,14 +510,14 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1, 'Expected one warning about tools in non-agent mode');
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, `Unknown mode 'Ask'. Available modes: agent, ask, edit, BeastMode.`);
+			assert.strictEqual(markers[0].message, `Unknown agent 'Ask'. Available agents: agent, ask, edit, BeastMode.`);
 		});
 
-		test('prompt with mode edit', async () => {
+		test('prompt with agent edit', async () => {
 			const content = [
 				'---',
 				'description: "Prompt edit mode with tool"',
-				'mode: edit',
+				'agent: edit',
 				`tools: ['tool1']`,
 				'---',
 				'Body'
@@ -381,7 +525,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, `The 'tools' attribute is only supported in agent mode. Attribute will be ignored.`);
+			assert.strictEqual(markers[0].message, `The 'tools' attribute is only supported when using agents. Attribute will be ignored.`);
 		});
 	});
 
