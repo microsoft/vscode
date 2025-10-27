@@ -22,12 +22,15 @@ export function parseTerminalUri(resource: URI): ITerminalIdentifier {
 }
 
 export function getTerminalUri(workspaceId: string, instanceId: number, title?: string, commandId?: string): URI {
-
+	const params = new URLSearchParams();
+	if (commandId) {
+		params.set('command', commandId);
+	}
 	return URI.from({
 		scheme: Schemas.vscodeTerminal,
 		path: `/${workspaceId}/${instanceId}`,
 		fragment: title || undefined,
-		query: `command=${commandId}`
+		query: commandId ? params.toString() : undefined
 	});
 }
 

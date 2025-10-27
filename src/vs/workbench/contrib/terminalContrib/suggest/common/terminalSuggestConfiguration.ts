@@ -22,6 +22,7 @@ export const enum TerminalSuggestSettingId {
 	InlineSuggestion = 'terminal.integrated.suggest.inlineSuggestion',
 	UpArrowNavigatesHistory = 'terminal.integrated.suggest.upArrowNavigatesHistory',
 	SelectionMode = 'terminal.integrated.suggest.selectionMode',
+	InsertTrailingSpace = 'terminal.integrated.suggest.insertTrailingSpace',
 }
 
 export const windowsDefaultExecutableExtensions: string[] = [
@@ -59,6 +60,7 @@ export interface ITerminalSuggestConfiguration {
 	showStatusBar: boolean;
 	cdPath: 'off' | 'relative' | 'absolute';
 	inlineSuggestion: 'off' | 'alwaysOnTopExceptExactMatch' | 'alwaysOnTop';
+	insertTrailingSpace: boolean;
 }
 
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -66,7 +68,10 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		restricted: true,
 		markdownDescription: localize('suggest.enabled', "Enables terminal intellisense suggestions (preview) for supported shells ({0}) when {1} is set to {2}.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`'),
 		type: 'boolean',
-		default: true,
+		default: product.quality !== 'stable',
+		experiment: {
+			mode: 'auto',
+		},
 	},
 	[TerminalSuggestSettingId.Providers]: {
 		restricted: true,
@@ -173,6 +178,12 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('suggest.upArrowNavigatesHistory', "Determines whether the up arrow key navigates the command history when focus is on the first suggestion and navigation has not yet occurred. When set to false, the up arrow will move focus to the last suggestion instead."),
 		type: 'boolean',
 		default: true,
+	},
+	[TerminalSuggestSettingId.InsertTrailingSpace]: {
+		restricted: true,
+		markdownDescription: localize('suggest.insertTrailingSpace', "Controls whether a space is automatically inserted after accepting a suggestion and re-trigger suggestions. Folders and symbolic link folders will never have a trailing space added."),
+		type: 'boolean',
+		default: false,
 	},
 
 };

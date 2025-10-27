@@ -618,7 +618,14 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			return;
 		}
 		const lastPromptLine = prompt.substring(prompt.lastIndexOf('\n') + 1);
-		const promptTerminator = lastPromptLine.substring(lastPromptLine.lastIndexOf(' '));
+		const lastPromptLineTrimmed = lastPromptLine.trim();
+		const promptTerminator = (
+			lastPromptLineTrimmed.length === 1
+				// The prompt line contains a single character, treat the full line as the
+				// terminator for example "\u2b9e "
+				? lastPromptLine
+				: lastPromptLine.substring(lastPromptLine.lastIndexOf(' '))
+		);
 		if (promptTerminator) {
 			this._createOrGetCommandDetection(this._terminal).setPromptTerminator(promptTerminator, lastPromptLine);
 		}
