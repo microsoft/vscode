@@ -103,31 +103,100 @@ export interface IJSONSchemaSnippet {
 /**
  * Converts a basic JSON schema to a TypeScript type.
  *
- * TODO: only supports basic schemas. Doesn't support all JSON schema features.
+ * Doesn't support all JSON schema features, such as `additionalProperties`.
  */
-export type SchemaToType<T> = T extends { type: 'string' }
+export type TypeFromJsonSchema<T> =
+	// String
+	T extends { type: 'string' }
 	? string
-	: T extends { type: 'number' }
+
+	// Number
+	: T extends { type: 'number' | 'integer' }
 	? number
+
+	// Boolean
 	: T extends { type: 'boolean' }
 	? boolean
+
+	// Null
 	: T extends { type: 'null' }
 	? null
-	// Object
+
+	// Object with list of required properties.
+	// Values are required or optional based on `required` list.
+	: T extends { type: 'object'; properties: infer P; required: infer RequiredList }
+	? {
+		[K in keyof P]: IsRequired<K, RequiredList> extends true ? TypeFromJsonSchema<P[K]> : TypeFromJsonSchema<P[K]> | undefined;
+	}
+
+	// Object with no required properties.
+	// All values are optional
 	: T extends { type: 'object'; properties: infer P }
-	? { [K in keyof P]: SchemaToType<P[K]> }
+	? { [K in keyof P]: TypeFromJsonSchema<P[K]> | undefined }
+
 	// Array
 	: T extends { type: 'array'; items: infer I }
-	? Array<SchemaToType<I>>
+	? Array<TypeFromJsonSchema<I>>
+
 	// OneOf
 	: T extends { oneOf: infer I }
 	? MapSchemaToType<I>
+
 	// Fallthrough
 	: never;
 
+type IsRequired<K, RequiredList> =
+	RequiredList extends []
+	? false
+
+	: RequiredList extends [K, ...infer R]
+	? true
+
+	: RequiredList extends [infer _, ...infer R]
+	? IsRequired<K, R>
+
+	: false;
+
 type MapSchemaToType<T> = T extends [infer First, ...infer Rest]
-	? SchemaToType<First> | MapSchemaToType<Rest>
+	? TypeFromJsonSchema<First> | MapSchemaToType<Rest>
 	: never;
+
+/**
+ * Converts a type into a JSON schema shape with basic typing.
+ *
+ * This enforces that the schema has the expected properties and types.
+ *
+ * Doesn't support all JSON schema features. Notably, doesn't support converting unions or intersections to `oneOf` or `anyOf`.
+ */
+export type JsonSchemaFromType<T> =
+	// String
+	T extends string
+	? IJSONSchema & { type: 'string' }
+
+	// Number
+	: T extends number
+	? IJSONSchema & { type: 'number' | 'integer' }
+
+	// Boolean
+	: T extends boolean
+	? IJSONSchema & { type: 'boolean' }
+
+	// Any
+	// https://stackoverflow.com/questions/61624719/how-to-conditionally-detect-the-any-type-in-typescript
+	: 0 extends (1 & T)
+	? IJSONSchema
+
+	// Array
+	: T extends ReadonlyArray<infer U>
+	? IJSONSchema & { items: JsonSchemaFromType<U> }
+
+	// Record
+	: T extends Record<string, infer V>
+	? IJSONSchema & { additionalProperties: JsonSchemaFromType<V> }
+
+	// Object
+	: IJSONSchema & { properties: { [K in keyof T]: JsonSchemaFromType<T[K]> } };
+
 
 interface Equals { schemas: IJSONSchema[]; id?: string }
 
