@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, ITransaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
@@ -36,6 +37,7 @@ export interface IChatEditingCheckpointTimeline {
 	// State reconstruction
 	getContentURIAtStop(requestId: string, fileURI: URI, stopId: string | undefined): URI;
 	getContentAtStop(requestId: string, contentURI: URI, stopId: string | undefined): Promise<string | VSBuffer | undefined>;
+	onDidChangeContentsAtStop(requestId: string, contentURI: URI, stopId: string | undefined, callback: (data: string) => void): IDisposable;
 
 	// Persistence
 	getStateForPersistence(): IChatEditingTimelineState;

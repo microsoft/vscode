@@ -6,7 +6,9 @@
 import { equals as arraysEqual } from '../../../../../base/common/arrays.js';
 import { findLast, findLastIdx } from '../../../../../base/common/arraysFind.js';
 import { assertNever } from '../../../../../base/common/assert.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ThrottledDelayer } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { equals as objectsEqual } from '../../../../../base/common/objects.js';
 import { derived, derivedOpts, IObservable, IReader, ITransaction, ObservablePromise, observableSignalFromEvent, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
@@ -60,7 +62,7 @@ export interface IChatEditingTimelineFsDelegate {
  * - _currentEpoch being equal to the epoch of an operation means that
  *   operation is _not_ currently applied
  */
-export class ChatEditingCheckpointTimelineImpl extends Disposable implements IChatEditingCheckpointTimeline {
+export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpointTimeline {
 
 	private _epochCounter = 0;
 	private readonly _checkpoints = observableValue<readonly ICheckpoint[]>(this, []);
@@ -153,9 +155,6 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		super();
-
-		// Create initial checkpoint
 		this.createCheckpoint(undefined, undefined, 'Initial State', 'Starting point before any edits');
 	}
 
@@ -292,6 +291,42 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		const operations = this._getFileOperationsInRange(fileURI, baseline.epoch, toEpoch);
 		const replayed = await this._replayOperations(baseline, operations);
 		return replayed.exists ? replayed.content : undefined;
+	}
+
+	/**
+	 * Creates a callback that is invoked when data at the stop changes. This
+	 * will not fire initially and may be debounced internally.
+	 */
+	public onDidChangeContentsAtStop(requestId: string, contentURI: URI, stopId: string | undefined, callback: (data: string) => void): IDisposable {
+		// The only case where we have data that updates is if we have an epoch pointer that's
+		// after our know epochs (e.g. pointing to the end file state after all operations).
+		// If this isn't the case, abort.
+		if (!stopId || !stopId.startsWith(STOP_ID_EPOCH_PREFIX)) {
+			return Disposable.None;
+		}
+
+		const target = Number(stopId.slice(STOP_ID_EPOCH_PREFIX.length));
+		if (target <= this._epochCounter) {
+			return Disposable.None; // already finalized
+		}
+
+		const store = new DisposableStore();
+		const scheduler = store.add(new ThrottledDelayer(500));
+
+		store.add(Event.fromObservableLight(this._operations)(() => {
+			scheduler.trigger(async () => {
+				if (this._operations.get().at(-1)?.epoch! >= target) {
+					store.dispose();
+				}
+
+				const content = await this.getContentAtStop(requestId, contentURI, stopId);
+				if (content !== undefined) {
+					callback(content);
+				}
+			});
+		}));
+
+		return store;
 	}
 
 	private _getCheckpointBeforeEpoch(epoch: number, reader?: IReader) {
@@ -628,7 +663,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 	}
 
 	public getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> {
-		const epochs = derivedOpts<{ start: ICheckpoint | undefined; end: ICheckpoint | undefined }>({ equalsFn: (a, b) => a.start === b.start && a.end === b.end }, reader => {
+		const epochs = derivedOpts<{ start: ICheckpoint; end: ICheckpoint | undefined }>({ equalsFn: (a, b) => a.start === b.start && a.end === b.end }, reader => {
 			const checkpoints = this._checkpoints.read(reader);
 			const startIndex = checkpoints.findIndex(c => c.requestId === requestId && c.undoStopId === stopId);
 			return { start: checkpoints[startIndex], end: checkpoints[startIndex + 1] };
@@ -638,7 +673,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 	}
 
 	public getEntryDiffBetweenRequests(uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> {
-		const epochs = derivedOpts<{ start: ICheckpoint | undefined; end: ICheckpoint | undefined }>({ equalsFn: (a, b) => a.start === b.start && a.end === b.end }, reader => {
+		const epochs = derivedOpts<{ start: ICheckpoint; end: ICheckpoint | undefined }>({ equalsFn: (a, b) => a.start === b.start && a.end === b.end }, reader => {
 			const checkpoints = this._checkpoints.read(reader);
 			const startIndex = checkpoints.findIndex(c => c.requestId === startRequestId);
 			const start = startIndex === -1 ? checkpoints[0] : checkpoints[startIndex];
@@ -665,7 +700,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 					refs.forEach(r => store.add(r));
 				}
 
-				return refs;
+				return { refs, isFinal: !!end };
 			});
 
 			return new ObservablePromise(promise);
@@ -673,21 +708,26 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 
 		const resolvedModels = derived(reader => {
 			const refs2 = modelRefsPromise.read(reader)?.promiseResult.read(reader);
-			return refs2?.data?.map(r => ({
-				model: r.object.textEditorModel,
-				onChange: observableSignalFromEvent(this, r.object.textEditorModel.onDidChangeContent.bind(r.object.textEditorModel)),
-			}));
+			return refs2?.data && {
+				isFinal: refs2.data.isFinal,
+				refs: refs2.data.refs.map(r => ({
+					model: r.object.textEditorModel,
+					onChange: observableSignalFromEvent(this, r.object.textEditorModel.onDidChangeContent.bind(r.object.textEditorModel)),
+				})),
+			};
 		});
 
 		const diff = derived((reader): ObservablePromise<IEditSessionEntryDiff> | undefined => {
-			const models = resolvedModels.read(reader);
-			if (!models) {
+			const modelsData = resolvedModels.read(reader);
+			if (!modelsData) {
 				return;
 			}
 
-			models.forEach(m => m.onChange.read(reader)); // re-read when contents change
+			const { refs, isFinal } = modelsData;
 
-			const promise = this._computeDiff(models[0].model.uri, models[1].model.uri);
+			refs.forEach(m => m.onChange.read(reader)); // re-read when contents change
+
+			const promise = this._computeDiff(refs[0].model.uri, refs[1].model.uri, isFinal);
 			return new ObservablePromise(promise);
 		});
 
@@ -696,7 +736,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		});
 	}
 
-	private _computeDiff(originalUri: URI, modifiedUri: URI): Promise<IEditSessionEntryDiff> {
+	private _computeDiff(originalUri: URI, modifiedUri: URI, isFinal: boolean): Promise<IEditSessionEntryDiff> {
 		return this._editorWorkerService.computeDiff(
 			originalUri,
 			modifiedUri,
@@ -707,6 +747,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 				originalURI: originalUri,
 				modifiedURI: modifiedUri,
 				identical: !!diff?.identical,
+				isFinal,
 				quitEarly: !diff || diff.quitEarly,
 				added: 0,
 				removed: 0,

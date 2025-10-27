@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { autorun, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -266,7 +266,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 
 		const contentStr = typeof content === 'string' ? content : content.toString();
-		return this._modelService.createModel(contentStr, this._languageService.createByFilepathOrFirstLine(snapshotUri), snapshotUri, false);
+		const model = this._modelService.createModel(contentStr, this._languageService.createByFilepathOrFirstLine(snapshotUri), snapshotUri, false);
+
+		const store = new DisposableStore();
+		store.add(model.onWillDispose(() => store.dispose()));
+		store.add(this._timeline.onDidChangeContentsAtStop(requestId, snapshotUri, undoStop, c => model.setValue(c)));
+
+		return model;
 	}
 
 	public getSnapshotUri(requestId: string, uri: URI, stopId: string | undefined): URI | undefined {
@@ -506,7 +512,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		transaction((tx) => {
 			this._state.set(ChatEditingSessionState.StreamingEdits, tx);
-			entry.acceptStreamingEditsStart(responseModel, tx);
+			entry.acceptStreamingEditsStart(responseModel, undoStop, tx);
 			// Note: Individual edit operations will be recorded by the file entries
 		});
 	}

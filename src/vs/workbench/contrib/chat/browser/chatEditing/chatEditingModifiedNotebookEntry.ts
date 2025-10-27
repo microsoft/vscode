@@ -619,7 +619,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 		transaction((tx) => {
 			this._stateObs.set(ModifiedFileEntryState.Modified, tx);
-			this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 			if (!isLastEdits) {
 				const newRewriteRation = Math.max(this._rewriteRatioObs.get(), calculateNotebookRewriteRatio(this._cellsDiffInfo.get(), this.originalModel, this.modifiedModel));
 				this._rewriteRatioObs.set(Math.min(1, newRewriteRation), tx);

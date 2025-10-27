@@ -233,7 +233,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			this._stateObs.set(ModifiedFileEntryState.Modified, tx);
 
 			if (!isLastEdits) {
-				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 				this._rewriteRatioObs.set(result.rewriteRatio, tx);
 			} else {
 				this._resetEditsState(tx);
