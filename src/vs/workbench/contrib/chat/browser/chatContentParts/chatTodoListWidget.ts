@@ -32,7 +32,6 @@ interface ITodoListTemplate {
 	readonly todoElement: HTMLElement;
 	readonly statusIcon: HTMLElement;
 	readonly iconLabel: IconLabel;
-	readonly statusElement: HTMLElement;
 }
 
 class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
@@ -53,18 +52,12 @@ class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
 
 		const todoContent = dom.append(todoElement, dom.$('.todo-content'));
 		const iconLabel = templateDisposables.add(new IconLabel(todoContent, { supportIcons: false }));
-		const statusElement = dom.append(todoContent, dom.$('.todo-status-text'));
-		statusElement.style.position = 'absolute';
-		statusElement.style.left = '-10000px';
-		statusElement.style.width = '1px';
-		statusElement.style.height = '1px';
-		statusElement.style.overflow = 'hidden';
 
-		return { templateDisposables, todoElement, statusIcon, iconLabel, statusElement };
+		return { templateDisposables, todoElement, statusIcon, iconLabel };
 	}
 
 	renderElement(todo: IChatTodo, index: number, templateData: ITodoListTemplate): void {
-		const { todoElement, statusIcon, iconLabel, statusElement } = templateData;
+		const { todoElement, statusIcon, iconLabel } = templateData;
 
 		// Update status icon
 		statusIcon.className = `todo-status-icon codicon ${this.getStatusIconClass(todo.status)}`;
@@ -75,17 +68,12 @@ class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
 		const title = includeDescription && todo.description && todo.description.trim() ? todo.description : undefined;
 		iconLabel.setLabel(todo.title, undefined, { title });
 
-		// Update hidden status text for screen readers
-		const statusText = this.getStatusText(todo.status);
-		statusElement.id = `todo-status-${index}`;
-		statusElement.textContent = statusText;
-
 		// Update aria-label
+		const statusText = this.getStatusText(todo.status);
 		const ariaLabel = includeDescription && todo.description && todo.description.trim()
 			? localize('chat.todoList.itemWithDescription', '{0}, {1}, {2}', todo.title, statusText, todo.description)
 			: localize('chat.todoList.item', '{0}, {1}', todo.title, statusText);
 		todoElement.setAttribute('aria-label', ariaLabel);
-		todoElement.setAttribute('aria-describedby', `todo-status-${index}`);
 	}
 
 	disposeTemplate(templateData: ITodoListTemplate): void {
