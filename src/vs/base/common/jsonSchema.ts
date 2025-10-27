@@ -161,43 +161,6 @@ type MapSchemaToType<T> = T extends [infer First, ...infer Rest]
 	? TypeFromJsonSchema<First> | MapSchemaToType<Rest>
 	: never;
 
-/**
- * Converts a type into a JSON schema shape with basic typing.
- *
- * This enforces that the schema has the expected properties and types.
- *
- * Doesn't support all JSON schema features. Notably, doesn't support converting unions or intersections to `oneOf` or `anyOf`.
- */
-export type JsonSchemaFromType<T> =
-	// String
-	T extends string
-	? IJSONSchema & { type: 'string' }
-
-	// Number
-	: T extends number
-	? IJSONSchema & { type: 'number' | 'integer' }
-
-	// Boolean
-	: T extends boolean
-	? IJSONSchema & { type: 'boolean' }
-
-	// Any
-	// https://stackoverflow.com/questions/61624719/how-to-conditionally-detect-the-any-type-in-typescript
-	: 0 extends (1 & T)
-	? IJSONSchema
-
-	// Array
-	: T extends ReadonlyArray<infer U>
-	? IJSONSchema & { items: JsonSchemaFromType<U> }
-
-	// Record
-	: T extends Record<string, infer V>
-	? IJSONSchema & { additionalProperties: JsonSchemaFromType<V> }
-
-	// Object
-	: IJSONSchema & { properties: { [K in keyof T]: JsonSchemaFromType<T[K]> } };
-
-
 interface Equals { schemas: IJSONSchema[]; id?: string }
 
 export function getCompressedContent(schema: IJSONSchema): string {
