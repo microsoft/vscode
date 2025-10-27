@@ -225,13 +225,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		let truncated = false;
 		if (text.length > MAX_TERMINAL_OUTPUT_PREVIEW_LENGTH) {
-			const lines = text.split('\n');
-			const maxLines = Math.floor(MAX_TERMINAL_OUTPUT_PREVIEW_LENGTH / 80);
-			if (lines.length > maxLines) {
-				text = lines.slice(-maxLines).join('\n');
-			} else {
-				text = text.slice(-MAX_TERMINAL_OUTPUT_PREVIEW_LENGTH);
-			}
+			text = text.slice(-MAX_TERMINAL_OUTPUT_PREVIEW_LENGTH);
 			truncated = true;
 		}
 
