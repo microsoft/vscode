@@ -34,7 +34,7 @@ const TEXT_STATE_DESCRIPTION = {
 	[State.OnlyWithFlag]: vscode.l10n.t('Only auto attach when the `--inspect` flag is given')
 };
 
-const TEXT_TOGGLE_TITLE = vscode.l10n.t('Toogle Auto Attach');
+const TEXT_TOGGLE_TITLE = vscode.l10n.t('Toggle Auto Attach');
 const TEXT_TOGGLE_WORKSPACE = vscode.l10n.t('Toggle auto attach in this workspace');
 const TEXT_TOGGLE_GLOBAL = vscode.l10n.t('Toggle auto attach on this machine');
 const TEXT_TEMP_DISABLE = vscode.l10n.t('Temporarily disable auto attach in this session');
