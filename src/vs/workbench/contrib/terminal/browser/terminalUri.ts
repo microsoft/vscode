@@ -30,7 +30,7 @@ export function getTerminalUri(workspaceId: string, instanceId: number, title?: 
 		scheme: Schemas.vscodeTerminal,
 		path: `/${workspaceId}/${instanceId}`,
 		fragment: title || undefined,
-		query: params.toString()
+		query: commandId ? params.toString() : undefined
 	});
 }
 
