@@ -184,3 +184,21 @@ export function getSCMRepositoryIcon(
 
 	return repository.provider.iconPath;
 }
+
+export function getStatusBarCommandGenericName(command: Command): string | undefined {
+	let genericName: string | undefined = undefined;
+
+	// Get a generic name for the status bar action, derive this from the first
+	// command argument which is in the form of "<extension>.<command>/<number>"
+	if (typeof command.arguments?.[0] === 'string') {
+		genericName = command.arguments[0]
+			.substring(0, command.arguments[0].lastIndexOf('/'))
+			.replace(/^(?:git\.|remoteHub\.)/, '')
+			.trim();
+		if (genericName.length > 1) {
+			genericName = genericName[0].toLocaleUpperCase() + genericName.slice(1);
+		}
+	}
+
+	return genericName;
+}
