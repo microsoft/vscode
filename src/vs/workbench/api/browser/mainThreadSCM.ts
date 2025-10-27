@@ -116,7 +116,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 		private readonly _uriIdentService: IUriIdentityService
 	) { }
 
-	toJSON(): any {
+	toJSON() {
 		return {
 			$mid: MarshalledId.ScmResourceGroup,
 			sourceControlHandle: this.sourceControlHandle,
@@ -162,7 +162,7 @@ class MainThreadSCMResource implements ISCMResource {
 		return this.proxy.$executeResourceCommand(this.sourceControlHandle, this.groupHandle, this.handle, preserveFocus);
 	}
 
-	toJSON(): any {
+	toJSON() {
 		return {
 			$mid: MarshalledId.ScmResource,
 			sourceControlHandle: this.sourceControlHandle,
@@ -570,7 +570,15 @@ class MainThreadSCMProvider implements ISCMProvider {
 		this._artifactProvider.get()?.$onDidChangeArtifacts(group);
 	}
 
-	toJSON(): any {
+	$onDidChangeArtifacts(group: string): void {
+		if (!this.artifactProvider.get()) {
+			return;
+		}
+
+		this._artifactProvider.get()?.$onDidChangeArtifacts(group);
+	}
+
+	toJSON() {
 		return {
 			$mid: MarshalledId.ScmProvider,
 			handle: this.handle

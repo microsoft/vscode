@@ -67,7 +67,7 @@ class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
 		const { todoElement, statusIcon, iconLabel, statusElement } = templateData;
 
 		// Update status icon
-		statusIcon.className = 'todo-status-icon codicon ' + this.getStatusIconClass(todo.status);
+		statusIcon.className = `todo-status-icon codicon ${this.getStatusIconClass(todo.status)}`;
 		statusIcon.style.color = this.getStatusIconColor(todo.status);
 
 		// Update title with tooltip if description exists and description field is enabled
@@ -107,12 +107,12 @@ class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
 	private getStatusIconClass(status: string): string {
 		switch (status) {
 			case 'completed':
-				return 'codicon-check';
+				return 'codicon-pass';
 			case 'in-progress':
 				return 'codicon-record';
 			case 'not-started':
 			default:
-				return 'codicon-circle-large-outline';
+				return 'codicon-circle-outline';
 		}
 	}
 
@@ -135,16 +135,14 @@ export class ChatTodoListWidget extends Disposable {
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
-	private _isExpanded: boolean = true;
+	private _isExpanded: boolean = false;
 	private _userManuallyExpanded: boolean = false;
 	private expandoElement!: HTMLElement;
 	private todoListContainer!: HTMLElement;
 	private clearButtonContainer!: HTMLElement;
 	private clearButton!: Button;
 	private _currentSessionId: string | undefined;
-	private _userHasScrolledManually: boolean = false;
 	private _todoList: WorkbenchList<IChatTodo> | undefined;
-	private readonly _listDisposables = this._register(new DisposableStore());
 
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
@@ -211,11 +209,6 @@ export class ChatTodoListWidget extends Disposable {
 			}
 		}));
 
-		this._register(dom.addDisposableListener(this.todoListContainer, 'scroll', () => {
-			this.updateScrollShadow();
-			this._userHasScrolledManually = true;
-		}));
-
 		return container;
 	}
 
@@ -242,7 +235,6 @@ export class ChatTodoListWidget extends Disposable {
 		}
 
 		if (this._currentSessionId !== sessionId) {
-			this._userHasScrolledManually = false;
 			this._userManuallyExpanded = false;
 			this._currentSessionId = sessionId;
 		}
@@ -289,30 +281,12 @@ export class ChatTodoListWidget extends Disposable {
 
 		const allIncomplete = todoList.every(todo => todo.status === 'not-started');
 		if (allIncomplete) {
-			this._userHasScrolledManually = false;
 			this._userManuallyExpanded = false;
 		}
 
-		let lastActiveIndex = -1;
-		let firstCompletedIndex = -1;
-		let firstPendingAfterCompletedIndex = -1;
-
-		// Track indices for smart scrolling
-		todoList.forEach((todo, index) => {
-			if (todo.status === 'completed' && firstCompletedIndex === -1) {
-				firstCompletedIndex = index;
-			}
-			if (todo.status === 'in-progress' || todo.status === 'completed') {
-				lastActiveIndex = index;
-			}
-			if (firstCompletedIndex !== -1 && todo.status === 'not-started' && firstPendingAfterCompletedIndex === -1) {
-				firstPendingAfterCompletedIndex = index;
-			}
-		});
-
 		// Create or update the WorkbenchList
 		if (!this._todoList) {
-			this._todoList = this.instantiationService.createInstance(
+			this._todoList = this._register(this.instantiationService.createInstance(
 				WorkbenchList<IChatTodo>,
 				'ChatTodoListRenderer',
 				this.todoListContainer,
@@ -331,9 +305,7 @@ export class ChatTodoListWidget extends Disposable {
 						getWidgetAriaLabel: () => localize('chatTodoList', 'Chat Todo List')
 					}
 				}
-			);
-
-			this._listDisposables.add(this._todoList);
+			));
 		}
 
 		// Update list contents
@@ -362,9 +334,6 @@ export class ChatTodoListWidget extends Disposable {
 			this.updateTitleElement(titleElement, todoList);
 			this._onDidChangeHeight.fire();
 		}
-
-		// Auto-scroll to show the most relevant item
-		this.scrollToRelevantItem(lastActiveIndex, firstCompletedIndex, firstPendingAfterCompletedIndex, todoList.length);
 	}
 
 	private toggleExpanded(): void {
@@ -400,44 +369,6 @@ export class ChatTodoListWidget extends Disposable {
 		this._onDidChangeHeight.fire();
 	}
 
-	private scrollToRelevantItem(lastActiveIndex: number, firstCompletedIndex: number, firstPendingAfterCompletedIndex: number, totalItems: number): void {
-		if (totalItems <= 6 || this._userHasScrolledManually) {
-			return;
-		}
-
-		setTimeout(() => {
-			const items = this.todoListContainer.querySelectorAll('.todo-item');
-
-			if (lastActiveIndex === -1 && firstCompletedIndex === -1) {
-				this.todoListContainer.scrollTo({
-					top: 0,
-					behavior: 'instant'
-				});
-				return;
-			}
-
-			let targetIndex = lastActiveIndex;
-
-			// Only show next pending if no in-progress items exist
-			if (firstCompletedIndex !== -1 && firstPendingAfterCompletedIndex !== -1 && lastActiveIndex < firstCompletedIndex) {
-				targetIndex = firstPendingAfterCompletedIndex;
-			}
-
-			if (targetIndex >= 0 && targetIndex < items.length) {
-				const targetElement = items[targetIndex] as HTMLElement;
-				targetElement.scrollIntoView({
-					behavior: 'smooth',
-					block: 'center',
-					inline: 'nearest'
-				});
-			}
-		}, 50);
-	}
-
-	private updateScrollShadow(): void {
-		this.domNode.classList.toggle('scrolled', this.todoListContainer.scrollTop > 0);
-	}
-
 	private updateTitleElement(titleElement: HTMLElement, todoList: IChatTodo[]): void {
 		titleElement.textContent = '';
 
@@ -448,19 +379,19 @@ export class ChatTodoListWidget extends Disposable {
 		const notStartedTodos = todoList.filter(todo => todo.status === 'not-started');
 		const firstNotStartedTodo = notStartedTodos.length > 0 ? notStartedTodos[0] : undefined;
 
-		const progressText = dom.$('span');
-		if (totalCount === 0) {
-			progressText.textContent = localize('chat.todoList.title', 'Todos');
-		} else {
-			// Show the current task number (1-indexed): completed + in-progress, or just completed if none in-progress
-			// Ensure we show at least 1 when tasks exist
-			const currentTaskNumber = inProgressTodos.length > 0 ? completedCount + 1 : Math.max(1, completedCount);
-			progressText.textContent = localize('chat.todoList.titleWithProgressExpanded', 'Todos ({0}/{1})', currentTaskNumber, totalCount);
-		}
-		titleElement.appendChild(progressText);
+		// Calculate current task number (1-indexed)
+		const currentTaskNumber = inProgressTodos.length > 0 ? completedCount + 1 : Math.max(1, completedCount);
+		const progressCount = totalCount > 0 ? ` (${currentTaskNumber}/${totalCount})` : '';
+
+		const titleText = dom.$('span');
+		titleText.textContent = this._isExpanded
+			? localize('chat.todoList.title', 'Todos') + progressCount
+			: progressCount;
+		titleElement.appendChild(titleText);
+
 		const expandButtonLabel = this._isExpanded
-			? localize('chat.todoList.collapseButtonWithProgress', 'Collapse {0}', progressText.textContent)
-			: localize('chat.todoList.expandButtonWithProgress', 'Expand {0}', progressText.textContent);
+			? localize('chat.todoList.collapseButton', 'Collapse Todos {0}', progressCount)
+			: localize('chat.todoList.expandButton', 'Expand Todos {0}', progressCount);
 		this.expandoElement.setAttribute('aria-label', expandButtonLabel);
 		this.expandoElement.setAttribute('aria-expanded', this._isExpanded ? 'true' : 'false');
 		if (!this._isExpanded) {
@@ -477,7 +408,7 @@ export class ChatTodoListWidget extends Disposable {
 					icon.classList.add('codicon-record');
 					icon.style.color = 'var(--vscode-charts-blue)';
 				} else {
-					icon.classList.add('codicon-circle-large-outline');
+					icon.classList.add('codicon-circle-outline');
 					icon.style.color = 'var(--vscode-foreground)';
 				}
 				icon.style.marginLeft = '4px';
@@ -488,6 +419,10 @@ export class ChatTodoListWidget extends Disposable {
 				const todoText = dom.$('span');
 				todoText.textContent = todoToShow.title;
 				todoText.style.verticalAlign = 'middle';
+				todoText.style.overflow = 'hidden';
+				todoText.style.textOverflow = 'ellipsis';
+				todoText.style.whiteSpace = 'nowrap';
+				todoText.style.minWidth = '0';
 				titleElement.appendChild(todoText);
 			}
 			// Show "Done" when all tasks are completed

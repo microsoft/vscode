@@ -120,7 +120,7 @@ export const enum TerminalSettingId {
 	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
 	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
 
-	// Debug settings that are hidden from user
+	// Developer/debug settings
 
 	/** Simulated latency applied to all calls made to the pty host */
 	DeveloperPtyHostLatency = 'terminal.integrated.developer.ptyHost.latency',
