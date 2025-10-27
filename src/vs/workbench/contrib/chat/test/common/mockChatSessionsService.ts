@@ -31,7 +31,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 	private readonly _onDidChangeContentProviderSchemes = new Emitter<{ readonly added: string[]; readonly removed: string[] }>();
 	readonly onDidChangeContentProviderSchemes = this._onDidChangeContentProviderSchemes.event;
 
-	private providers = new Map<string, IChatSessionItemProvider>();
+	private sessionItemProviders = new Map<string, IChatSessionItemProvider>();
 	private contentProviders = new Map<string, IChatSessionContentProvider>();
 	private contributions: IChatSessionsExtensionPoint[] = [];
 	private optionGroups = new Map<string, IChatSessionProviderOptionGroup[]>();
@@ -57,10 +57,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 	}
 
 	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable {
-		this.providers.set(provider.chatSessionType, provider);
+		this.sessionItemProviders.set(provider.chatSessionType, provider);
 		return {
 			dispose: () => {
-				this.providers.delete(provider.chatSessionType);
+				this.sessionItemProviders.delete(provider.chatSessionType);
 			}
 		};
 	}
@@ -73,12 +73,12 @@ export class MockChatSessionsService implements IChatSessionsService {
 		this.contributions = contributions;
 	}
 
-	async canResolveItemProvider(chatSessionType: string): Promise<boolean> {
-		return this.providers.has(chatSessionType);
+	async hasChatSessionItemProvider(chatSessionType: string): Promise<boolean> {
+		return this.sessionItemProviders.has(chatSessionType);
 	}
 
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[] {
-		return Array.from(this.providers.values());
+		return Array.from(this.sessionItemProviders.values());
 	}
 
 	getIconForSessionType(chatSessionType: string): ThemeIcon | URI | undefined {
@@ -102,16 +102,16 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contributions.find(c => c.type === chatSessionType)?.welcomeTips;
 	}
 
-	async provideNewChatSessionItem(chatSessionType: string, options: { request: IChatAgentRequest; metadata?: unknown }, token: CancellationToken): Promise<IChatSessionItem> {
-		const provider = this.providers.get(chatSessionType);
+	async getNewChatSessionItem(chatSessionType: string, options: { request: IChatAgentRequest; metadata?: unknown }, token: CancellationToken): Promise<IChatSessionItem> {
+		const provider = this.sessionItemProviders.get(chatSessionType);
 		if (!provider?.provideNewChatSessionItem) {
 			throw new Error(`No provider for ${chatSessionType}`);
 		}
 		return provider.provideNewChatSessionItem(options, token);
 	}
 
-	async provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
-		const provider = this.providers.get(chatSessionType);
+	async getChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
+		const provider = this.sessionItemProviders.get(chatSessionType);
 		if (!provider) {
 			return [];
 		}
@@ -141,7 +141,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contentProviders.has(chatSessionType);
 	}
 
-	async provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
+	async getChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
 		const provider = this.contentProviders.get(sessionResource.scheme);
 		if (!provider) {
 			throw new Error(`No content provider for ${sessionResource.scheme}`);
