@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chat.css';
+import './media/chatAgentHover.css';
+import './media/chatViewWelcome.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -50,11 +53,10 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { EditorResourceAccessor } from '../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ViewContainerLocation } from '../../../common/views.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { checkModeOption } from '../common/chat.js';
@@ -90,10 +92,8 @@ import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './chatIn
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewPane } from './chatViewPane.js';
-import './media/chat.css';
-import './media/chatAgentHover.css';
-import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 
 const $ = dom.$;
 
@@ -379,7 +379,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _lockedToCodingAgentContextKey: IContextKey<boolean>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
 	private _attachmentCapabilities: IChatAgentAttachmentCapabilities = supportsAllAttachments;
-	private lastWelcomeViewChatMode: ChatModeKind | undefined;
 
 	// Cache for prompt file descriptions to avoid async calls during rendering
 	private readonly promptDescriptionsCache = new Map<string, string>();
@@ -455,12 +454,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	readonly viewContext: IChatWidgetViewContext;
 
-	private shouldShowChatSetup(): boolean {
-		// Check if chat is not installed OR user can sign up for free
-		// Equivalent to: ChatContextKeys.Setup.installed.negate() OR ChatContextKeys.Entitlement.canSignUp
-		return !this.chatEntitlementService.sentiment.installed || this.chatEntitlementService.entitlement === ChatEntitlement.Available;
-	}
-
 	get supportsChangingModes(): boolean {
 		return !!this.viewOptions.supportsChangingModes;
 	}
@@ -495,14 +488,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService
+		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -692,33 +685,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.onDidChangeParsedInput(() => this.updateChatInputContext()));
 
-		// Listen to entitlement and sentiment changes instead of context keys
-		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
-			if (!this.shouldShowChatSetup()) {
-				this.resetWelcomeViewInput();
-			}
-		}));
-		this._register(this.chatEntitlementService.onDidChangeSentiment(() => {
-			if (!this.shouldShowChatSetup()) {
-				this.resetWelcomeViewInput();
-			}
-		}));
 		this._register(this.chatTodoListService.onDidUpdateTodos((sessionId) => {
 			if (this.viewModel?.sessionId === sessionId) {
 				this.inputPart.renderChatTodoListWidget(sessionId);
 			}
 		}));
-	}
-
-	private resetWelcomeViewInput(): void {
-		// reset the input in welcome view if it was rendered in experimental mode
-		if (this.container.classList.contains('new-welcome-view')) {
-			this.container.classList.remove('new-welcome-view');
-			const renderFollowups = this.viewOptions.renderFollowups ?? false;
-			const renderStyle = this.viewOptions.renderStyle;
-			this.createInput(this.container, { renderFollowups, renderStyle });
-			this.input.setChatMode(this.lastWelcomeViewChatMode ?? ChatModeKind.Agent);
-		}
 	}
 
 	private _lastSelectedAgent: IChatAgentData | undefined;
@@ -1004,13 +975,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				});
 
 
-			// reset the input in welcome view if it was rendered in experimental mode
-			if (this.viewModel?.getItems().length) {
-				this.resetWelcomeViewInput();
-				// TODO@bhavyaus
-				// this.focusInput();
-			}
-
 			if (treeItems.length > 0) {
 				this.updateChatViewVisibility();
 			} else {
@@ -1089,14 +1053,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			let welcomeContent: IChatViewWelcomeContent;
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
-			let additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
+			let additionalMessage: string | IMarkdownString | undefined;
+			if (this.chatEntitlementService.anonymous && !this.chatEntitlementService.sentiment.installed) {
+				additionalMessage = new MarkdownString(localize({ key: 'settings', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3}).", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
+			} else {
+				additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
+			}
 			if (!additionalMessage && !this._lockedAgent) {
 				additionalMessage = this._getGenerateInstructionsMessage();
 			}
-			if (this.shouldShowChatSetup()) {
-				welcomeContent = this.getNewWelcomeViewContent();
-				this.container.classList.add('new-welcome-view');
-			} else if (expEmptyState) {
+			if (expEmptyState) {
 				welcomeContent = this.getWelcomeViewContent(additionalMessage, expEmptyState);
 			} else {
 				const defaultTips = this.input.currentModeKind === ChatModeKind.Ask
@@ -1440,71 +1406,40 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private getNewWelcomeViewContent(): IChatViewWelcomeContent {
-		let additionalMessage: string | IMarkdownString | undefined = undefined;
-		if (this.chatEntitlementService.anonymous) {
-			additionalMessage = new MarkdownString(localize({ key: 'settings', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "AI responses may be inaccurate.\nBy continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3}).", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
-		} else {
-			additionalMessage = localize('expChatAdditionalMessage', "AI responses may be inaccurate.");
-		}
-
-		// Check for provider-specific customizations
-		const providerIcon = this._lockedAgent?.id ? this.chatSessionsService.getIconForSessionType(this._lockedAgent.id) : undefined;
-		const providerTitle = this._lockedAgent ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgent.id) : undefined;
-		const providerMessage = this._lockedAgent ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgent.id) : undefined;
-		const providerTips = this._lockedAgent ? this.chatSessionsService.getWelcomeTipsForSessionType(this._lockedAgent.id) : undefined;
-		const suggestedPrompts = this._lockedAgent ? undefined : this.getNewSuggestedPrompts();
-		const welcomeContent: IChatViewWelcomeContent = {
-			title: providerTitle ?? localize('expChatTitle', 'Build with agents'),
-			message: providerMessage ? new MarkdownString(providerMessage) : new MarkdownString(localize('expchatMessage', "Let's get started")),
-			icon: providerIcon ?? Codicon.chatSparkle,
-			inputPart: this.inputPart.element,
-			additionalMessage,
-			isNew: true,
-			suggestedPrompts,
-			useLargeIcon: !!providerIcon,
-		};
-
-		// Add contributed tips if available
-		if (providerTips) {
-			welcomeContent.tips = new MarkdownString(providerTips, { supportThemeIcons: true });
-		}
-		return welcomeContent;
-	}
-
-	private getNewSuggestedPrompts(): IChatSuggestedPrompts[] {
-		// Check if the workbench is empty
-		const isEmpty = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
-		if (isEmpty) {
-			return [
-				{
-					icon: Codicon.vscode,
-					label: localize('chatWidget.suggestedPrompts.gettingStarted', "Ask @vscode"),
-					prompt: localize('chatWidget.suggestedPrompts.gettingStartedPrompt', "@vscode How do I change the theme to light mode?"),
-				},
-				{
-					icon: Codicon.newFolder,
-					label: localize('chatWidget.suggestedPrompts.newProject', "Create Project"),
-					prompt: localize('chatWidget.suggestedPrompts.newProjectPrompt', "Create a #new Hello World project in TypeScript"),
-				}
-			];
-		} else {
-			return [
-				{
-					icon: Codicon.debugAlt,
-					label: localize('chatWidget.suggestedPrompts.buildWorkspace', "Build Workspace"),
-					prompt: localize('chatWidget.suggestedPrompts.buildWorkspacePrompt', "How do I build this workspace?"),
-				},
-				{
-					icon: Codicon.gear,
-					label: localize('chatWidget.suggestedPrompts.findConfig', "Show Config"),
-					prompt: localize('chatWidget.suggestedPrompts.findConfigPrompt', "Where is the configuration for this project defined?"),
-				}
-			];
-		}
-	}
-
 	private getPromptFileSuggestions(): IChatSuggestedPrompts[] {
+
+		// Use predefined suggestions for new users
+		if (!this.chatEntitlementService.sentiment.installed) {
+			const isEmpty = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+			if (isEmpty) {
+				return [
+					{
+						icon: Codicon.vscode,
+						label: localize('chatWidget.suggestedPrompts.gettingStarted', "Ask @vscode"),
+						prompt: localize('chatWidget.suggestedPrompts.gettingStartedPrompt', "@vscode How do I change the theme to light mode?"),
+					},
+					{
+						icon: Codicon.newFolder,
+						label: localize('chatWidget.suggestedPrompts.newProject', "Create Project"),
+						prompt: localize('chatWidget.suggestedPrompts.newProjectPrompt', "Create a #new Hello World project in TypeScript"),
+					}
+				];
+			} else {
+				return [
+					{
+						icon: Codicon.debugAlt,
+						label: localize('chatWidget.suggestedPrompts.buildWorkspace', "Build Workspace"),
+						prompt: localize('chatWidget.suggestedPrompts.buildWorkspacePrompt', "How do I build this workspace?"),
+					},
+					{
+						icon: Codicon.gear,
+						label: localize('chatWidget.suggestedPrompts.findConfig', "Show Config"),
+						prompt: localize('chatWidget.suggestedPrompts.findConfigPrompt', "Where is the configuration for this project defined?"),
+					}
+				];
+			}
+		}
+
 		// Get the current workspace folder context if available
 		const activeEditor = this.editorService.activeEditor;
 		const resource = activeEditor ? EditorResourceAccessor.getOriginalUri(activeEditor) : undefined;
@@ -2268,7 +2203,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._welcomeRenderScheduler.schedule();
 		}));
 		this._register(this.input.onDidChangeCurrentChatMode(() => {
-			this.lastWelcomeViewChatMode = this.input.currentModeKind;
 			this._welcomeRenderScheduler.schedule();
 			this.refreshParsedInput();
 			this.renderFollowups();
@@ -2757,11 +2691,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.inlineInputPart?.layout(layoutHeight, width);
 		}
 
-		if (this.container.classList.contains('new-welcome-view')) {
-			this.inputPart.layout(layoutHeight, Math.min(width, 650));
-		} else {
-			this.inputPart.layout(layoutHeight, width);
-		}
+		this.inputPart.layout(layoutHeight, width);
 
 		const inputHeight = this.inputPart.inputPartHeight;
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
