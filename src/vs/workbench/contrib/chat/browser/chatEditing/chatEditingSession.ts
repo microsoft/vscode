@@ -94,6 +94,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	 */
 	private readonly _initialFileContents = new ResourceMap<string>();
 
+	private readonly _baselineCreationLocks = new SequencerByKey</* URI.path */ string>();
+	private readonly _streamingEditLocks = new SequencerByKey</* URI */ string>();
+
 	private readonly _entriesObs = observableValue<readonly AbstractChatEditingModifiedFileEntry[]>(this, []);
 	public get entries(): IObservable<readonly IModifiedFileEntry[]> {
 		return this._entriesObs;
@@ -260,6 +263,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	public async getSnapshotModel(requestId: string, undoStop: string | undefined, snapshotUri: URI): Promise<ITextModel | null> {
+		await this._baselineCreationLocks.peek(snapshotUri.path);
+
 		const content = await this._timeline.getContentAtStop(requestId, snapshotUri, undoStop);
 		if (!content) {
 			return null;
@@ -372,8 +377,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._onDidDispose.dispose();
 	}
 
-	private _streamingEditLocks = new SequencerByKey</* URI */ string>();
-
 	private get isDisposed() {
 		return this._state.get() === ChatEditingSessionState.Disposed;
 	}
@@ -387,6 +390,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		// that edits are made in parallel to the same resource,
 		const sequencer = new ThrottledSequencer(15, 1000);
 		sequencer.queue(() => startPromise.p);
+
+		// Lock around creating the baseline so we don't fail to resolve models
+		// in the edit pills if they render quickly
+		this._baselineCreationLocks.queue(resource.path, () => startPromise.p);
 
 		this._streamingEditLocks.queue(resource.toString(), async () => {
 			if (!this.isDisposed) {
