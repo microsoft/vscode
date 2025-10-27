@@ -164,7 +164,7 @@ export class ChatTodoListWidget extends Disposable {
 		this.expandoButton = this._register(new Button(expandoContainer, {
 			supportIcons: true
 		}));
-		this.expandoButton.element.setAttribute('aria-expanded', 'false');
+		this.expandoButton.element.setAttribute('aria-expanded', String(this._isExpanded));
 		this.expandoButton.element.setAttribute('aria-controls', 'todo-list-container');
 
 		// Create title section to group icon and title
