@@ -570,14 +570,6 @@ class MainThreadSCMProvider implements ISCMProvider {
 		this._artifactProvider.get()?.$onDidChangeArtifacts(group);
 	}
 
-	$onDidChangeArtifacts(group: string): void {
-		if (!this.artifactProvider.get()) {
-			return;
-		}
-
-		this._artifactProvider.get()?.$onDidChangeArtifacts(group);
-	}
-
 	toJSON() {
 		return {
 			$mid: MarshalledId.ScmProvider,

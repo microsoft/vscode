@@ -158,19 +158,6 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 
 		templateData.label.setLabel(repository.provider.name, description, { title });
 
-		const onDidChangeVisibleRepositoriesSignal = observableSignalFromEvent(this, this.scmViewService.onDidChangeVisibleRepositories);
-		templateData.elementDisposables.add(autorun(reader => {
-			onDidChangeVisibleRepositoriesSignal.read(reader);
-
-			const isVisible = this.scmViewService.isVisible(repository);
-			templateData.label.element.classList.toggle('visible', isVisible);
-
-			templateData.icon.className = isVisible
-				? ThemeIcon.asClassName(Codicon.repoClone)
-				: ThemeIcon.asClassName(Codicon.repo);
-			templateData.icon.style.paddingRight = '2px';
-		}));
-
 		let statusPrimaryActions: IAction[] = [];
 		let menuPrimaryActions: IAction[] = [];
 		let menuSecondaryActions: IAction[] = [];

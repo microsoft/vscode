@@ -27,7 +27,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent, observableSignalFromEvent, runOnChange } from '../../../../base/common/observable.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { SCMArtifactGroupTreeElement, SCMArtifactTreeElement } from '../common/artifact.js';
 import { FuzzyScore } from '../../../../base/common/fuzzyScorer.js';
@@ -313,6 +313,12 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					this.updateBodySize(this.tree.contentHeight, visibleCount);
 				}));
 
+				// scm.repositories.explorer setting
+				this.visibilityDisposables.add(runOnChange(this.scmViewService.explorerEnabledConfig, async () => {
+					await this.updateChildren();
+					this.updateBodySize(this.tree.contentHeight);
+				}));
+
 				// Update tree (add/remove repositories)
 				const addedRepositoryObs = observableFromEvent(
 					this, this.scmService.onDidAddRepository, e => e);
@@ -329,8 +335,12 @@ export class SCMRepositoriesViewPane extends ViewPane {
 						return;
 					}
 
-					if (addedRepository || removedRepository) {
-						await this.updateChildren();
+					if (addedRepository) {
+						await this.updateRepository(addedRepository);
+					}
+
+					if (removedRepository) {
+						await this.updateRepository(removedRepository);
 					}
 				}));
 
@@ -380,12 +390,17 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			{
 				identityProvider: this.treeIdentityProvider,
 				horizontalScrolling: false,
-				// collapseByDefault: (e: unknown) => {
-				// 	if (isSCMRepository(e) && e.provider.parentId === undefined) {
-				// 		return false;
-				// 	}
-				// 	return true;
-				// },
+				collapseByDefault: (e: unknown) => {
+					if (this.scmViewService.explorerEnabledConfig.get() === false) {
+						if (isSCMRepository(e) && e.provider.parentId === undefined) {
+							return false;
+						}
+						return true;
+					}
+
+					// Explorer mode
+					return true;
+				},
 				compressionEnabled: compressionEnabled.get(),
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				multipleSelectionSupport: this.scmViewService.selectionModeConfig.get() === 'multiple',
@@ -508,12 +523,17 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	private async updateRepository(repository: ISCMRepository): Promise<void> {
-		if (repository.provider.parentId === undefined) {
-			await this.updateChildren();
-			return;
+		if (this.scmViewService.explorerEnabledConfig.get() === false) {
+			if (repository.provider.parentId === undefined) {
+				await this.updateChildren();
+				return;
+			}
+
+			await this.updateParentRepository(repository);
 		}
 
-		await this.updateParentRepository(repository);
+		// Explorer mode
+		await this.updateChildren();
 	}
 
 	private async updateParentRepository(repository: ISCMRepository): Promise<void> {
@@ -532,16 +552,16 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			return;
 		}
 
-		if (this.scmViewService.explorerEnabledConfig.get() === true) {
-			return;
+		if (this.scmViewService.explorerEnabledConfig.get() === false) {
+			visibleCount = visibleCount ?? this.visibleCountObs.get();
+			const empty = this.scmViewService.repositories.length === 0;
+			const size = Math.min(contentHeight / 22, visibleCount) * 22;
+
+			this.minimumBodySize = visibleCount === 0 ? 22 : size;
+			this.maximumBodySize = visibleCount === 0 ? Number.POSITIVE_INFINITY : empty ? Number.POSITIVE_INFINITY : size;
+		} else {
+			this.maximumBodySize = Number.POSITIVE_INFINITY;
 		}
-
-		visibleCount = visibleCount ?? this.visibleCountObs.get();
-		const empty = this.scmViewService.repositories.length === 0;
-		const size = Math.min(contentHeight / 22, visibleCount) * 22;
-
-		this.minimumBodySize = visibleCount === 0 ? 22 : size;
-		this.maximumBodySize = visibleCount === 0 ? Number.POSITIVE_INFINITY : empty ? Number.POSITIVE_INFINITY : size;
 	}
 
 	private async updateTreeSelection(): Promise<void> {
