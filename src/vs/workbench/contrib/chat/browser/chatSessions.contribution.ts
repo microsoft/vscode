@@ -28,7 +28,7 @@ import { ExtensionsRegistry } from '../../../services/extensions/common/extensio
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
+import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
 import { AGENT_SESSIONS_VIEWLET_ID, ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
@@ -822,18 +822,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._sessions.delete(sessionResource);
 	}
 
-	public hasAnySessionOptions(resource: URI): boolean {
-		const session = this._sessions.get(resource);
+	public hasAnySessionOptions(sessionResource: URI): boolean {
+		const session = this._sessions.get(sessionResource);
 		return !!session && !!session.options && Object.keys(session.options).length > 0;
 	}
 
-	public getSessionOption(chatSessionType: string, resource: URI, optionId: string): string | undefined {
-		const session = this._sessions.get(resource);
+	public getSessionOption(sessionResource: URI, optionId: string): string | undefined {
+		const session = this._sessions.get(sessionResource);
 		return session?.getOption(optionId);
 	}
 
-	public setSessionOption(chatSessionType: string, resource: URI, optionId: string, value: string): boolean {
-		const session = this._sessions.get(resource);
+	public setSessionOption(sessionResource: URI, optionId: string, value: string): boolean {
+		const session = this._sessions.get(sessionResource);
 		return !!session?.setOption(optionId, value);
 	}
 
@@ -878,27 +878,27 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._sessionTypeOptions.get(chatSessionType);
 	}
 
-	private _optionsChangeCallback?: (chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>;
+	private _optionsChangeCallback?: SessionOptionsChangedCallback;
 
 	/**
 	 * Set the callback for notifying extensions about option changes
 	 */
-	public setOptionsChangeCallback(callback: (chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>): void {
+	public setOptionsChangeCallback(callback: SessionOptionsChangedCallback): void {
 		this._optionsChangeCallback = callback;
 	}
 
 	/**
 	 * Notify extension about option changes for a session
 	 */
-	public async notifySessionOptionsChange(chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void> {
+	public async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void> {
 		if (!updates.length) {
 			return;
 		}
 		if (this._optionsChangeCallback) {
-			await this._optionsChangeCallback(chatSessionType, sessionResource, updates);
+			await this._optionsChangeCallback(sessionResource, updates);
 		}
 		for (const u of updates) {
-			this.setSessionOption(chatSessionType, sessionResource, u.optionId, u.value);
+			this.setSessionOption(sessionResource, u.optionId, u.value);
 		}
 	}
 

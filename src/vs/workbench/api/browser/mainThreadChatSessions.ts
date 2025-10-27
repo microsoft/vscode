@@ -336,8 +336,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		this._proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
 
-		this._chatSessionsService.setOptionsChangeCallback(async (chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>) => {
-			const handle = this._getHandleForSessionType(chatSessionType);
+		this._chatSessionsService.setOptionsChangeCallback(async (sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>) => {
+			const handle = this._getHandleForSessionType(sessionResource.scheme);
 			if (handle !== undefined) {
 				await this.notifyOptionsChange(handle, sessionResource, updates);
 			}
@@ -484,10 +484,10 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		try {
 			await session.initialize(token);
 			if (session.options) {
-				for (const [chatSessionType, handle] of this._sessionTypeToHandle) {
+				for (const [_, handle] of this._sessionTypeToHandle) {
 					if (handle === providerHandle) {
 						for (const [optionId, value] of Object.entries(session.options)) {
-							this._chatSessionsService.setSessionOption(chatSessionType, sessionResource, optionId, value);
+							this._chatSessionsService.setSessionOption(sessionResource, optionId, value);
 						}
 						break;
 					}
