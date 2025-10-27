@@ -90,6 +90,7 @@ export interface CustomEditorDescriptor {
 	readonly providerDisplayName: string;
 	readonly priority: RegisteredEditorPriority;
 	readonly selector: readonly CustomEditorSelector[];
+	readonly whenClause?: string;
 }
 
 export class CustomEditorInfo implements CustomEditorDescriptor {
@@ -99,6 +100,7 @@ export class CustomEditorInfo implements CustomEditorDescriptor {
 	public readonly providerDisplayName: string;
 	public readonly priority: RegisteredEditorPriority;
 	public readonly selector: readonly CustomEditorSelector[];
+	public readonly whenClause?: string;
 
 	constructor(descriptor: CustomEditorDescriptor) {
 		this.id = descriptor.id;
@@ -106,6 +108,7 @@ export class CustomEditorInfo implements CustomEditorDescriptor {
 		this.providerDisplayName = descriptor.providerDisplayName;
 		this.priority = descriptor.priority;
 		this.selector = descriptor.selector;
+		this.whenClause = descriptor.whenClause;
 	}
 
 	matches(resource: URI): boolean {
