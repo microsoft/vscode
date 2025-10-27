@@ -941,11 +941,11 @@ function stoppedDescription(stoppedDetails: IRawStoppedDetails): string {
 }
 
 function isDebugModel(obj: unknown): obj is IDebugModel {
-	return typeof obj === 'object' && obj !== null && 'getSessions' in obj && typeof obj.getSessions === 'function';
+	return typeof obj && typeof (obj as IDebugModel).getSessions === 'function';
 }
 
 function isDebugSession(obj: unknown): obj is IDebugSession {
-	return typeof obj === 'object' && obj !== null && 'getAllThreads' in obj && typeof obj.getAllThreads === 'function';
+	return typeof obj && typeof (obj as IDebugSession).getAllThreads === 'function';
 }
 
 class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem> {
