@@ -106,8 +106,12 @@ export interface IJSONSchemaSnippet {
  * Doesn't support all JSON schema features, such as `additionalProperties`.
  */
 export type TypeFromJsonSchema<T> =
+	// enum
+	T extends { enum: infer EnumValues }
+	? UnionOf<EnumValues>
+
 	// String
-	T extends { type: 'string' }
+	: T extends { type: 'string' }
 	? string
 
 	// Number
@@ -145,11 +149,16 @@ export type TypeFromJsonSchema<T> =
 	// Fallthrough
 	: never;
 
+type UnionOf<T> =
+	T extends [infer First, ...infer Rest]
+	? First | UnionOf<Rest>
+	: never;
+
 type IsRequired<K, RequiredList> =
 	RequiredList extends []
 	? false
 
-	: RequiredList extends [K, ...infer R]
+	: RequiredList extends [K, ...infer _]
 	? true
 
 	: RequiredList extends [infer _, ...infer R]
