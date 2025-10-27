@@ -271,7 +271,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// TODO: Leverage Fig's tokens array here?
 		// The last word (or argument). When the cursor is following a space it will be the empty
 		// string
-		const lastWord = cursorPrefix.endsWith(' ') ? '' : cursorPrefix.split(/(?<!\\) /).at(-1) ?? '';
+		let lastWord = cursorPrefix.endsWith(' ') ? '' : cursorPrefix.split(/(?<!\\) /).at(-1) ?? '';
+
+		// Ignore prefixes in the word that look like setting an environment variable
+		const matchEnvVarPrefix = lastWord.match(/^[a-zA-Z_]+=(?<rhs>.+)$/);
+		if (matchEnvVarPrefix?.groups?.rhs) {
+			lastWord = matchEnvVarPrefix.groups.rhs;
+		}
 
 		// Get the nearest folder path from the prefix. This ignores everything after the `/` as
 		// they are what triggers changes in the directory.

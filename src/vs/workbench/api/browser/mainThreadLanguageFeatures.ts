@@ -731,7 +731,6 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					viewKind: lifetimeSummary.viewKind,
 					preceeded: lifetimeSummary.preceeded,
 					requestReason: lifetimeSummary.requestReason,
-					error: lifetimeSummary.error,
 					typingInterval: lifetimeSummary.typingInterval,
 					typingIntervalCharacterCount: lifetimeSummary.typingIntervalCharacterCount,
 					languageId: lifetimeSummary.languageId,
