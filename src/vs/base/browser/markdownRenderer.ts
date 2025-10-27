@@ -116,29 +116,55 @@ const defaultMarkedRenderers = Object.freeze({
 });
 
 /**
- * Process markdown alerts in rendered HTML
- * Transforms blockquotes with alert syntax like "[!NOTE]" into structured alert markup
+ * Blockquote renderer that processes GitHub-style alert syntax.
+ * Transforms blockquotes like "> [!NOTE]" into structured alert markup with icons.
+ *
+ * Based on GitHub's alert syntax: https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts
  */
-function processAlertsHtml(html: string): string {
-	// Map alert types to their codicons
-	const alertIcons: Record<string, string> = {
-		'NOTE': 'info',
-		'TIP': 'light-bulb',
-		'IMPORTANT': 'comment',
-		'WARNING': 'alert',
-		'CAUTION': 'stop'
+function createAlertBlockquoteRenderer(fallbackRenderer: (this: marked.Renderer, token: marked.Tokens.Blockquote) => string) {
+	return function (this: marked.Renderer, token: marked.Tokens.Blockquote): string {
+		const { tokens } = token;
+		// Check if this blockquote starts with alert syntax [!TYPE]
+		const firstToken = tokens[0];
+		if (firstToken?.type !== 'paragraph') {
+			return fallbackRenderer.call(this, token);
+		}
+
+		const paragraphTokens = firstToken.tokens;
+		if (!paragraphTokens || paragraphTokens.length === 0) {
+			return fallbackRenderer.call(this, token);
+		}
+
+		const firstTextToken = paragraphTokens[0];
+		if (firstTextToken?.type !== 'text') {
+			return fallbackRenderer.call(this, token);
+		}
+
+		const match = firstTextToken.raw.trim().match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]$/i);
+		if (!match) {
+			return fallbackRenderer.call(this, token);
+		}
+
+		const alertIcons: Record<string, string> = {
+			'note': 'info',
+			'tip': 'light-bulb',
+			'important': 'comment',
+			'warning': 'alert',
+			'caution': 'stop'
+		};
+
+		const type = match[1];
+		const typeCapitalized = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+		const severity = type.toLowerCase();
+		const iconHtml = renderIcon({ id: alertIcons[severity] }).outerHTML;
+
+		// Render the remaining content
+		paragraphTokens.shift(); // Remove the alert syntax token
+		const content = this.parser.parse(tokens);
+
+		// Return alert markup with icon and severity (skipping the first 3 characters: `<p>`)
+		return `<blockquote data-severity="${severity}"><p><span>${iconHtml}${typeCapitalized}</span>${content.substring(3)}</blockquote>\n`;
 	};
-
-	// Match blockquotes that start with [!TYPE]
-	const alertRegex = /<blockquote>\s*<p>\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](\s*(?:<br\/?>|[\r\n]))/gi;
-
-	return html.replace(alertRegex, (_, alertType: string, separator: string) => {
-		// Create the alert structure with a heading, keeping the rest of the content intact
-		const alertTypeCapitalized = alertType.charAt(0).toUpperCase() + alertType.slice(1).toLowerCase();
-		const iconHtml = renderIcon({ id: alertIcons[alertType.toUpperCase()] }).outerHTML;
-		const severity = alertType.toLowerCase();
-		return `<blockquote data-severity="${severity}"><p><span>${iconHtml}${alertTypeCapitalized}</span>${separator}`;
-	});
 }
 
 export interface IRenderedMarkdown extends IDisposable {
@@ -178,10 +204,6 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	if (markdown.supportThemeIcons) {
 		const elements = renderLabelWithIcons(renderedMarkdown);
 		renderedMarkdown = elements.map(e => typeof e === 'string' ? e : e.outerHTML).join('');
-	}
-
-	if (markdown.supportAlertSyntax) {
-		renderedMarkdown = processAlertsHtml(renderedMarkdown);
 	}
 
 	const renderedContent = document.createElement('div');
@@ -329,6 +351,10 @@ function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOp
 	renderer.image = defaultMarkedRenderers.image;
 	renderer.link = defaultMarkedRenderers.link;
 	renderer.paragraph = defaultMarkedRenderers.paragraph;
+
+	if (markdown.supportAlertSyntax) {
+		renderer.blockquote = createAlertBlockquoteRenderer(renderer.blockquote);
+	}
 
 	// Will collect [id, renderedElement] tuples
 	const codeBlocks: Promise<[string, HTMLElement]>[] = [];
