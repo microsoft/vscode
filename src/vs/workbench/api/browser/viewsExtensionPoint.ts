@@ -30,7 +30,7 @@ import { VIEWLET_ID as REMOTE } from '../../contrib/remote/browser/remoteExplore
 import { VIEWLET_ID as SCM } from '../../contrib/scm/common/scm.js';
 import { WebviewViewPane } from '../../contrib/webviewView/browser/webviewViewPane.js';
 import { Extensions as ExtensionFeaturesRegistryExtensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../services/extensionManagement/common/extensionFeatures.js';
-import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from '../../services/extensions/common/extensionsRegistry.js';
 
 export interface IUserFriendlyViewsContainerDescriptor {
@@ -329,7 +329,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						panelOrder = this.registerCustomViewContainers(value, description, panelOrder, existingViewContainers, ViewContainerLocation.Panel);
 						break;
 					case 'secondarySidebar':
-						checkProposedApiEnabled(description, 'contribSecondarySidebar');
 						auxiliaryBarOrder = this.registerCustomViewContainers(value, description, auxiliaryBarOrder, existingViewContainers, ViewContainerLocation.AuxiliaryBar);
 						break;
 				}
