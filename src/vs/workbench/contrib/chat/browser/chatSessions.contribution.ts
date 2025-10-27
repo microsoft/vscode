@@ -490,7 +490,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.${contribution.type}`)
 				),
 				submenu: MenuId.ChatSessionsCreateSubMenu,
-				isSplitButton: true
+				isSplitButton: menuActions.length > 1
 			});
 		} else {
 			// We control creation instead
