@@ -3537,18 +3537,18 @@ export namespace InlineCompletionEndOfLifeReason {
 	}
 }
 
-export namespace InlineCompletionDisplayLocationKind {
-	export function from(value: vscode.InlineCompletionDisplayLocationKind): types.InlineCompletionDisplayLocationKind {
+export namespace InlineCompletionHintStyle {
+	export function from(value: vscode.InlineCompletionDisplayLocationKind): languages.InlineCompletionHintStyle {
 		if (value === types.InlineCompletionDisplayLocationKind.Label) {
-			return types.InlineCompletionDisplayLocationKind.Label;
+			return languages.InlineCompletionHintStyle.Label;
 		} else {
-			return types.InlineCompletionDisplayLocationKind.Code;
+			return languages.InlineCompletionHintStyle.Code;
 		}
 	}
 
-	export function to(kind: languages.InlineCompletionDisplayLocationKind): types.InlineCompletionDisplayLocationKind {
+	export function to(kind: languages.InlineCompletionHintStyle): types.InlineCompletionDisplayLocationKind {
 		switch (kind) {
-			case languages.InlineCompletionDisplayLocationKind.Label:
+			case languages.InlineCompletionHintStyle.Label:
 				return types.InlineCompletionDisplayLocationKind.Label;
 			default:
 				return types.InlineCompletionDisplayLocationKind.Code;
