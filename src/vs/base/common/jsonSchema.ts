@@ -108,14 +108,6 @@ export type TypeFromJsonSchema<T> =
 	T extends { enum: infer EnumValues }
 	? UnionOf<EnumValues>
 
-	// Primitive types
-	: T extends { type: 'string' | 'number' | 'integer' | 'boolean' | 'null' }
-	? SchemaPrimitiveTypeNameToType<T>
-
-	// Union of primitive types
-	: T extends { type: [...infer R] }
-	? UnionOf<{ [K in keyof R]: SchemaPrimitiveTypeNameToType<R[K]> }>
-
 	// Object with list of required properties.
 	// Values are required or optional based on `required` list.
 	: T extends { type: 'object'; properties: infer P; required: infer RequiredList }
@@ -142,6 +134,16 @@ export type TypeFromJsonSchema<T> =
 	? MapSchemaToType<I>
 	: T extends { anyOf: infer I }
 	? MapSchemaToType<I>
+
+	// Primitive types
+	: T extends { type: infer Type }
+	// Basic type
+	? Type extends 'string' | 'number' | 'integer' | 'boolean' | 'null'
+	? SchemaPrimitiveTypeNameToType<Type>
+	// Union of primitive types
+	: Type extends [...infer R]
+	? UnionOf<{ [K in keyof R]: SchemaPrimitiveTypeNameToType<R[K]> }>
+	: never
 
 	// Fallthrough
 	: never;
