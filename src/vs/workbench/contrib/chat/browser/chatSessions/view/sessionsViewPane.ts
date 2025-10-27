@@ -468,7 +468,8 @@ export class SessionsViewPane extends ViewPane {
 				editorOptions: upcast<IEditorOptions, IChatEditorOptions>({
 					title: {
 						preferred: session.label
-					}
+					},
+					pinned: true
 				})
 			});
 			return;

@@ -764,7 +764,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	/**
 	 * Whether the terminal's pty is hosted on a remote.
 	 */
-	readonly isRemote: boolean;
+	readonly hasRemoteAuthority: boolean;
 
 	/**
 	 * The remote authority of the terminal's pty.
@@ -1038,6 +1038,12 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * @param originalPath The path to be escaped and formatted.
 	 */
 	preparePathForShell(originalPath: string): Promise<string>;
+
+	/**
+	 * Formats a file system URI for display in UI so that it appears in the terminal shell's format.
+	 * @param uri The URI to format.
+	 */
+	getUriLabelForShell(uri: URI): Promise<string>;
 
 	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;
