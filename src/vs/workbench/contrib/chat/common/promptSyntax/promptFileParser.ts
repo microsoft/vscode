@@ -313,7 +313,7 @@ export class PromptBody {
 				}
 				// Match #file:<filePath> and #tool:<toolName>
 				// Regarding the <toolName> pattern below, see also the variableReg regex in chatRequestParser.ts.
-				const reg = /#file:(?<filePath>[^\s#]+)|#tool:(?<toolName>[\w_\-]+)/gi;
+				const reg = /#file:(?<filePath>[^\s#]+)|#tool:(?<toolName>[\w_\-\.\/]+)/gi;
 				const matches = line.matchAll(reg);
 				for (const match of matches) {
 					const fullMatch = match[0];
