@@ -36,18 +36,18 @@ const ROOT_2 = fixPath(root2);
 class MockTerminalProfileResolverService extends TestTerminalProfileResolverService {
 	override async getDefaultProfile(): Promise<ITerminalProfile> {
 		return {
-			profileName: "my-sh",
-			path: "/usr/bin/zsh",
+			profileName: 'my-sh',
+			path: '/usr/bin/zsh',
 			env: {
-				TEST: "TEST",
+				TEST: 'TEST',
 			},
 			isDefault: true,
 			isUnsafePath: false,
 			isFromPath: true,
 			icon: {
-				id: "terminal-linux",
+				id: 'terminal-linux',
 			},
-			color: "terminal.ansiYellow",
+			color: 'terminal.ansiYellow',
 		};
 	}
 }
@@ -70,9 +70,9 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 		throw new Error('Method not implemented.');
 	}
 
-	onProcessOverrideDimensions?: Event<any> | undefined;
-	onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
-	onDidChangeHasChildProcesses?: Event<any> | undefined;
+	readonly onProcessOverrideDimensions?: Event<any> | undefined;
+	readonly onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
+	readonly onDidChangeHasChildProcesses?: Event<any> | undefined;
 
 	onDidChangeProperty = Event.None;
 	onProcessData = Event.None;

@@ -50,6 +50,7 @@ import { TokenArray } from '../tokens/lineTokens.js';
 import { SetWithKey } from '../../../base/common/collections.js';
 import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { TextEdit } from '../core/edits/textEdit.js';
+import { isDark } from '../../../platform/theme/common/theme.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -61,7 +62,7 @@ interface ITextStream {
 	on(event: 'data', callback: (data: string) => void): void;
 	on(event: 'error', callback: (err: Error) => void): void;
 	on(event: 'end', callback: () => void): void;
-	on(event: string, callback: any): void;
+	on(event: string, callback: (...args: unknown[]) => void): void;
 }
 
 export function createTextBufferFactoryFromStream(stream: ITextStream): Promise<model.ITextBufferFactory>;
@@ -1149,18 +1150,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._buffer.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
 	}
 
-	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): model.FindMatch[] {
+	public findMatches(searchString: string, rawSearchScope: boolean | IRange | IRange[] | null, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): model.FindMatch[] {
 		this._assertNotDisposed();
 
 		let searchRanges: Range[] | null = null;
 
-		if (rawSearchScope !== null) {
+		if (rawSearchScope !== null && typeof rawSearchScope !== 'boolean') {
 			if (!Array.isArray(rawSearchScope)) {
 				rawSearchScope = [rawSearchScope];
 			}
 
-			if (rawSearchScope.every((searchScope: Range) => Range.isIRange(searchScope))) {
-				searchRanges = rawSearchScope.map((searchScope: Range) => this.validateRange(searchScope));
+			if (rawSearchScope.every((searchScope: IRange) => Range.isIRange(searchScope))) {
+				searchRanges = rawSearchScope.map((searchScope: IRange) => this.validateRange(searchScope));
 			}
 		}
 
@@ -2286,7 +2287,7 @@ export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
 
 	public getColor(theme: IColorTheme): string {
 		if (!this._resolvedColor) {
-			if (theme.type !== 'light' && this.darkColor) {
+			if (isDark(theme.type) && this.darkColor) {
 				this._resolvedColor = this._resolveColor(this.darkColor, theme);
 			} else {
 				this._resolvedColor = this._resolveColor(this.color, theme);
@@ -2336,7 +2337,7 @@ export class ModelDecorationMinimapOptions extends DecorationOptions {
 
 	public getColor(theme: IColorTheme): Color | undefined {
 		if (!this._resolvedColor) {
-			if (theme.type !== 'light' && this.darkColor) {
+			if (isDark(theme.type) && this.darkColor) {
 				this._resolvedColor = this._resolveColor(this.darkColor, theme);
 			} else {
 				this._resolvedColor = this._resolveColor(this.color, theme);

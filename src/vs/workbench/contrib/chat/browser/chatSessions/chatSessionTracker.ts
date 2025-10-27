@@ -10,9 +10,8 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './common.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatService } from '../../common/chatService.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
 
@@ -22,7 +21,8 @@ export class ChatSessionTracker extends Disposable {
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IChatService private readonly chatService: IChatService
+		@IChatService private readonly chatService: IChatService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		this.setupEditorTracking();
@@ -42,7 +42,7 @@ export class ChatSessionTracker extends Disposable {
 
 	private registerGroupListeners(group: IEditorGroup): void {
 		this._register(group.onDidModelChange(e => {
-			if (!isChatSession(e.editor)) {
+			if (!isChatSession(this.chatSessionsService.getContentProviderSchemes(), e.editor)) {
 				return;
 			}
 
@@ -85,13 +85,14 @@ export class ChatSessionTracker extends Disposable {
 				return;
 			}
 
-			let status: ChatSessionStatus | undefined;
+			let status: ChatSessionStatus = ChatSessionStatus.Completed;
 			let timestamp: number | undefined;
 
 			if (editor.sessionId) {
 				const model = this.chatService.getSession(editor.sessionId);
-				if (model) {
-					status = this.modelToStatus(model);
+				const modelStatus = model ? this.modelToStatus(model) : undefined;
+				if (model && modelStatus) {
+					status = modelStatus;
 					const requests = model.getRequests();
 					if (requests.length > 0) {
 						timestamp = requests[requests.length - 1].timestamp;
@@ -102,9 +103,9 @@ export class ChatSessionTracker extends Disposable {
 			const parsed = ChatSessionUri.parse(editor.resource);
 			const hybridSession: ChatSessionItemWithProvider = {
 				id: parsed?.sessionId || editor.sessionId || `${provider.chatSessionType}-local-${index}`,
+				resource: editor.resource,
 				label: editor.getName(),
-				iconPath: Codicon.chatSparkle,
-				status,
+				status: status,
 				provider,
 				timing: {
 					startTime: timestamp ?? Date.now()

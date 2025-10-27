@@ -41,7 +41,7 @@ import { IViewsService } from '../../../../../services/views/common/viewsService
 import { IChatService } from '../../../common/chatService.js';
 import { IChatSessionItemProvider } from '../../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../../common/chatUri.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, ChatEditorTitleMaxLength } from '../../../common/constants.js';
 import { IChatWidgetService, ChatViewId } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatEditorInput } from '../../chatEditorInput.js';
@@ -51,6 +51,8 @@ import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
+import { upcast } from '../../../../../../base/common/types.js';
+import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 
 // Identity provider for session items
 class SessionsIdentityProvider {
@@ -81,6 +83,7 @@ export class SessionsViewPane extends ViewPane {
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
 		private readonly sessionTracker: ChatSessionTracker,
+		private readonly viewId: string,
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -102,6 +105,7 @@ export class SessionsViewPane extends ViewPane {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		this.minimumBodySize = 44;
 
 		// Listen for changes in the provider if it's a LocalChatSessionsProvider
 		if (provider instanceof LocalChatSessionsProvider) {
@@ -120,6 +124,10 @@ export class SessionsViewPane extends ViewPane {
 				}
 			}
 		}));
+
+		if (provider) { // TODO: Why can this be undefined?
+			this.scopedContextKeyService.createKey('chatSessionType', provider.chatSessionType);
+		}
 	}
 
 	override shouldShowWelcome(): boolean {
@@ -140,7 +148,7 @@ export class SessionsViewPane extends ViewPane {
 			icon: Codicon.plus,
 		}, undefined, undefined, undefined, undefined);
 
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService);
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.scopedContextKeyService);
 
 		const actions = menu.getActions({ shouldForwardArgs: true });
 		const primaryActions = getActionBarActions(
@@ -296,7 +304,7 @@ export class SessionsViewPane extends ViewPane {
 		const accessibilityProvider = new SessionsAccessibilityProvider();
 
 		// Use the existing ResourceLabels service for consistent styling
-		const renderer = this.instantiationService.createInstance(SessionsRenderer);
+		const renderer = this.instantiationService.createInstance(SessionsRenderer, this.viewDescriptorService.getViewLocationById(this.viewId));
 		this._register(renderer);
 
 		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {
@@ -304,7 +312,7 @@ export class SessionsViewPane extends ViewPane {
 				return null;
 			}
 
-			return ChatSessionUri.forSession(element.provider.chatSessionType, element.id);
+			return element.resource;
 		};
 
 		this.tree = this.instantiationService.createInstance(
@@ -335,7 +343,7 @@ export class SessionsViewPane extends ViewPane {
 						if (elements.length === 1) {
 							return elements[0].label;
 						}
-						return nls.localize('chatSessions.dragLabel', "{0} chat sessions", elements.length);
+						return nls.localize('chatSessions.dragLabel', "{0} agent sessions", elements.length);
 					},
 					drop: () => { },
 					onDragOver: () => false,
@@ -455,6 +463,18 @@ export class SessionsViewPane extends ViewPane {
 			return;
 		}
 
+		if (session.resource.scheme !== ChatSessionUri.scheme) {
+			await this.openerService.open(session.resource, {
+				editorOptions: upcast<IEditorOptions, IChatEditorOptions>({
+					title: {
+						preferred: session.label
+					},
+					pinned: true
+				})
+			});
+			return;
+		}
+
 		try {
 			// Check first if we already have an open editor for this session
 			const uri = ChatSessionUri.forSession(session.provider.chatSessionType, session.id);
@@ -493,7 +513,9 @@ export class SessionsViewPane extends ViewPane {
 			const options: IChatEditorOptions = {
 				pinned: true,
 				ignoreInView: true,
-				preferredTitle: truncate(session.label, 30),
+				title: {
+					preferred: truncate(session.label, ChatEditorTitleMaxLength),
+				},
 				preserveFocus: true,
 			};
 			await this.editorService.openEditor({

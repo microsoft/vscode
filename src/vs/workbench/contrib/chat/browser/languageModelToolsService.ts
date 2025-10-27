@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
-import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { encodeBase64 } from '../../../../base/common/buffer.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -34,12 +34,11 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { AccessibilityWorkbenchSettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
 import { IVariableReference } from '../common/chatModes.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
-import { ConfirmedReason, IChatService, ToolConfirmKind } from '../common/chatService.js';
+import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } from '../common/chatService.js';
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet } from '../common/languageModelToolsService.js';
@@ -91,9 +90,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private _callsByRequestId = new Map<string, ITrackedCall[]>();
 
-	private _workspaceToolConfirmStore: Lazy<ToolConfirmStore>;
-	private _profileToolConfirmStore: Lazy<ToolConfirmStore>;
-	private _memoryToolConfirmStore = new Set<string>();
+	private _preExecutionConfirmStore: GenericConfirmStore;
+	private _postExecutionConfirmStore: GenericConfirmStore;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -110,8 +108,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	) {
 		super();
 
-		this._workspaceToolConfirmStore = new Lazy(() => this._register(this._instantiationService.createInstance(ToolConfirmStore, StorageScope.WORKSPACE)));
-		this._profileToolConfirmStore = new Lazy(() => this._register(this._instantiationService.createInstance(ToolConfirmStore, StorageScope.PROFILE)));
+		this._preExecutionConfirmStore = this._register(new GenericConfirmStore('chat/autoconfirm', this._instantiationService));
+		this._postExecutionConfirmStore = this._register(new GenericConfirmStore('chat/autoconfirm-post', this._instantiationService));
 
 		this._register(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._toolContextKeys)) {
@@ -237,33 +235,20 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'session' | 'never'): void {
-		this._workspaceToolConfirmStore.value.setAutoConfirm(toolId, scope === 'workspace');
-		this._profileToolConfirmStore.value.setAutoConfirm(toolId, scope === 'profile');
-
-		if (scope === 'session') {
-			this._memoryToolConfirmStore.add(toolId);
-		} else {
-			this._memoryToolConfirmStore.delete(toolId);
-		}
+		this._preExecutionConfirmStore.setAutoConfirmation(toolId, scope);
 	}
 
 	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never' {
-		if (this._workspaceToolConfirmStore.value.getAutoConfirm(toolId)) {
-			return 'workspace';
-		}
-		if (this._profileToolConfirmStore.value.getAutoConfirm(toolId)) {
-			return 'profile';
-		}
-		if (this._memoryToolConfirmStore.has(toolId)) {
-			return 'session';
-		}
-		return 'never';
+		return this._preExecutionConfirmStore.getAutoConfirmation(toolId);
 	}
 
 	resetToolAutoConfirmation(): void {
-		this._workspaceToolConfirmStore.value.reset();
-		this._profileToolConfirmStore.value.reset();
-		this._memoryToolConfirmStore.clear();
+		this._preExecutionConfirmStore.reset();
+		this._postExecutionConfirmStore.reset();
+	}
+
+	getToolPostExecutionAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never' {
+		return this._postExecutionConfirmStore.getAutoConfirmation(toolId);
 	}
 
 	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
@@ -291,6 +276,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		let requestId: string | undefined;
 		let store: DisposableStore | undefined;
 		let toolResult: IToolResult | undefined;
+		let prepareTimeWatch: StopWatch | undefined;
+		let invocationTimeWatch: StopWatch | undefined;
+		let preparedInvocation: IPreparedToolInvocation | undefined;
 		try {
 			if (dto.context) {
 				store = new DisposableStore();
@@ -315,33 +303,33 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					source.dispose(true);
 				}));
 				store.add(token.onCancellationRequested(() => {
-					toolInvocation?.confirmed.complete({ type: ToolConfirmKind.Denied });
+					IChatToolInvocation.confirmWith(toolInvocation, { type: ToolConfirmKind.Denied });
 					source.cancel();
 				}));
 				store.add(source.token.onCancellationRequested(() => {
-					toolInvocation?.confirmed.complete({ type: ToolConfirmKind.Denied });
+					IChatToolInvocation.confirmWith(toolInvocation, { type: ToolConfirmKind.Denied });
 				}));
 				token = source.token;
 
-				const prepared = await this.prepareToolInvocation(tool, dto, token);
+				prepareTimeWatch = StopWatch.create(true);
+				preparedInvocation = await this.prepareToolInvocation(tool, dto, token);
+				prepareTimeWatch.stop();
 
-				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId, dto.fromSubAgent);
+				toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.callId, dto.fromSubAgent);
 				trackedCall.invocation = toolInvocation;
 				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace);
 				if (autoConfirmed) {
-					toolInvocation.confirmed.complete(autoConfirmed);
+					IChatToolInvocation.confirmWith(toolInvocation, autoConfirmed);
 				}
 
 				model.acceptResponseProgress(request, toolInvocation);
 
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;
-				this.informScreenReader(prepared?.invocationMessage ?? `${tool.data.displayName} started`);
-
-				if (prepared?.confirmationMessages) {
-					if (!toolInvocation.isConfirmed?.type && !autoConfirmed) {
+				if (preparedInvocation?.confirmationMessages?.title) {
+					if (!IChatToolInvocation.executionConfirmedOrDenied(toolInvocation) && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation]);
 					}
-					const userConfirmed = await toolInvocation.confirmed.p;
+					const userConfirmed = await IChatToolInvocation.awaitConfirmation(toolInvocation, token);
 					if (userConfirmed.type === ToolConfirmKind.Denied) {
 						throw new CancellationError();
 					}
@@ -354,6 +342,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 						};
 						return toolResult;
 					}
+					if (userConfirmed.type === ToolConfirmKind.LmServicePerTool) {
+						this._preExecutionConfirmStore.setAutoConfirmation(dto.toolId, userConfirmed.scope);
+					}
 
 					if (dto.toolSpecificData?.kind === 'input') {
 						dto.parameters = dto.toolSpecificData.rawInput;
@@ -361,27 +352,54 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					}
 				}
 			} else {
-				const prepared = await this.prepareToolInvocation(tool, dto, token);
-				if (prepared?.confirmationMessages && !(await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace))) {
-					const result = await this._dialogService.confirm({ message: renderAsPlaintext(prepared.confirmationMessages.title), detail: renderAsPlaintext(prepared.confirmationMessages.message) });
+				prepareTimeWatch = StopWatch.create(true);
+				preparedInvocation = await this.prepareToolInvocation(tool, dto, token);
+				prepareTimeWatch.stop();
+				if (preparedInvocation?.confirmationMessages?.title && !(await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace))) {
+					const result = await this._dialogService.confirm({ message: renderAsPlaintext(preparedInvocation.confirmationMessages.title), detail: renderAsPlaintext(preparedInvocation.confirmationMessages.message!) });
 					if (!result.confirmed) {
 						throw new CancellationError();
 					}
 				}
 
-				dto.toolSpecificData = prepared?.toolSpecificData;
+				dto.toolSpecificData = preparedInvocation?.toolSpecificData;
 			}
 
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
 
+			invocationTimeWatch = StopWatch.create(true);
 			toolResult = await tool.impl.invoke(dto, countTokens, {
 				report: step => {
 					toolInvocation?.acceptProgress(step);
 				}
 			}, token);
+			invocationTimeWatch.stop();
 			this.ensureToolDetails(dto, toolResult, tool.data);
+
+			if (toolInvocation?.didExecuteTool(toolResult).type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				const autoConfirmedPost = await this.shouldAutoConfirmPostExecution(tool.data.id, tool.data.runsInWorkspace);
+				if (autoConfirmedPost) {
+					IChatToolInvocation.confirmWith(toolInvocation, autoConfirmedPost);
+				}
+
+				const postConfirm = await IChatToolInvocation.awaitPostConfirmation(toolInvocation, token);
+				if (postConfirm.type === ToolConfirmKind.Denied) {
+					throw new CancellationError();
+				}
+				if (postConfirm.type === ToolConfirmKind.Skipped) {
+					toolResult = {
+						content: [{
+							kind: 'text',
+							value: 'The tool executed but the user chose not to share the results'
+						}]
+					};
+				}
+				if (postConfirm.type === ToolConfirmKind.LmServicePerTool) {
+					this._postExecutionConfirmStore.setAutoConfirmation(dto.toolId, postConfirm.scope);
+				}
+			}
 
 			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
 				'languageModelToolInvoked',
@@ -391,6 +409,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolId: tool.data.id,
 					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
 					toolSourceKind: tool.data.source.type,
+					prepareTimeMs: prepareTimeWatch?.elapsed(),
+					invocationTimeMs: invocationTimeWatch?.elapsed(),
 				});
 			return toolResult;
 		} catch (err) {
@@ -403,6 +423,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolId: tool.data.id,
 					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
 					toolSourceKind: tool.data.source.type,
+					prepareTimeMs: prepareTimeWatch?.elapsed(),
+					invocationTimeMs: invocationTimeWatch?.elapsed(),
 				});
 			this._logService.error(`[LanguageModelToolsService#invokeTool] Error from tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}:\n${toErrorMessage(err, true)}`);
 
@@ -414,10 +436,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 			throw err;
 		} finally {
-			toolInvocation?.complete(toolResult);
-			if (ChatContextKeys.requestInProgress.getValue(this._contextKeyService)) {
-				this.informScreenReader(toolInvocation?.pastTenseMessage ?? `${tool.data.displayName} finished`);
-			}
+			toolInvocation?.didExecuteTool(toolResult, true);
 			if (store) {
 				this.cleanupCallDisposables(requestId, store);
 			}
@@ -434,7 +453,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}, token)
 			: undefined;
 
-		if (prepared?.confirmationMessages) {
+		if (prepared?.confirmationMessages?.title) {
 			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
 				prepared.confirmationMessages.allowAutoConfirm = true;
 			}
@@ -448,12 +467,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		return prepared;
-	}
-
-	private informScreenReader(msg: string | IMarkdownString): void {
-		if (this._configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
-			alert(typeof msg === 'string' ? msg : msg.value);
-		}
 	}
 
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
@@ -500,14 +513,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined): Promise<ConfirmedReason | undefined> {
-		if (this._workspaceToolConfirmStore.value.getAutoConfirm(toolId)) {
-			return { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' };
-		}
-		if (this._profileToolConfirmStore.value.getAutoConfirm(toolId)) {
-			return { type: ToolConfirmKind.LmServicePerTool, scope: 'profile' };
-		}
-		if (this._memoryToolConfirmStore.has(toolId)) {
-			return { type: ToolConfirmKind.LmServicePerTool, scope: 'session' };
+		const reason = this._preExecutionConfirmStore.checkAutoConfirmation(toolId);
+		if (reason) {
+			return reason;
 		}
 
 		const config = this._configurationService.inspect<boolean | Record<string, boolean>>(ChatConfiguration.GlobalAutoApprove);
@@ -530,6 +538,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		return undefined;
+	}
+
+	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined): Promise<ConfirmedReason | undefined> {
+		return this._postExecutionConfirmStore.checkAutoConfirmation(toolId);
 	}
 
 	private async _checkGlobalAutoApprove(): Promise<boolean> {
@@ -801,6 +813,8 @@ type LanguageModelToolInvokedEvent = {
 	toolId: string;
 	toolExtensionId: string | undefined;
 	toolSourceKind: string;
+	prepareTimeMs?: number;
+	invocationTimeMs?: number;
 };
 
 type LanguageModelToolInvokedClassification = {
@@ -809,23 +823,82 @@ type LanguageModelToolInvokedClassification = {
 	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the tool used.' };
 	toolExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the tool.' };
 	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source (mcp/extension/internal) of the tool.' };
+	prepareTimeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time spent in prepareToolInvocation method in milliseconds.' };
+	invocationTimeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time spent in tool invoke method in milliseconds.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of language model tools.';
 };
 
-class ToolConfirmStore extends Disposable {
-	private static readonly STORED_KEY = 'chat/autoconfirm';
+class GenericConfirmStore extends Disposable {
+	private _workspaceStore: Lazy<ToolConfirmStore>;
+	private _profileStore: Lazy<ToolConfirmStore>;
+	private _memoryStore = new Set<string>();
 
+	constructor(
+		private readonly _storageKey: string,
+		private readonly _instantiationService: IInstantiationService,
+	) {
+		super();
+		this._workspaceStore = new Lazy(() => this._register(this._instantiationService.createInstance(ToolConfirmStore, StorageScope.WORKSPACE, this._storageKey)));
+		this._profileStore = new Lazy(() => this._register(this._instantiationService.createInstance(ToolConfirmStore, StorageScope.PROFILE, this._storageKey)));
+	}
+
+	public setAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'session' | 'never'): void {
+		this._workspaceStore.value.setAutoConfirm(toolId, scope === 'workspace');
+		this._profileStore.value.setAutoConfirm(toolId, scope === 'profile');
+
+		if (scope === 'session') {
+			this._memoryStore.add(toolId);
+		} else {
+			this._memoryStore.delete(toolId);
+		}
+	}
+
+	public getAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never' {
+		if (this._workspaceStore.value.getAutoConfirm(toolId)) {
+			return 'workspace';
+		}
+		if (this._profileStore.value.getAutoConfirm(toolId)) {
+			return 'profile';
+		}
+		if (this._memoryStore.has(toolId)) {
+			return 'session';
+		}
+		return 'never';
+	}
+
+	public reset(): void {
+		this._workspaceStore.value.reset();
+		this._profileStore.value.reset();
+		this._memoryStore.clear();
+	}
+
+	public checkAutoConfirmation(toolId: string): ConfirmedReason | undefined {
+		if (this._workspaceStore.value.getAutoConfirm(toolId)) {
+			return { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' };
+		}
+		if (this._profileStore.value.getAutoConfirm(toolId)) {
+			return { type: ToolConfirmKind.LmServicePerTool, scope: 'profile' };
+		}
+		if (this._memoryStore.has(toolId)) {
+			return { type: ToolConfirmKind.LmServicePerTool, scope: 'session' };
+		}
+		return undefined;
+	}
+}
+
+class ToolConfirmStore extends Disposable {
 	private _autoConfirmTools: LRUCache<string, boolean> = new LRUCache<string, boolean>(100);
 	private _didChange = false;
 
 	constructor(
 		private readonly _scope: StorageScope,
+		private readonly _storageKey: string,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
-		const stored = storageService.getObject<string[]>(ToolConfirmStore.STORED_KEY, this._scope);
+		const stored = storageService.getObject<string[]>(this._storageKey, this._scope);
 		if (stored) {
 			for (const key of stored) {
 				this._autoConfirmTools.set(key, true);
@@ -834,7 +907,7 @@ class ToolConfirmStore extends Disposable {
 
 		this._register(storageService.onWillSaveState(() => {
 			if (this._didChange) {
-				this.storageService.store(ToolConfirmStore.STORED_KEY, [...this._autoConfirmTools.keys()], this._scope, StorageTarget.MACHINE);
+				this.storageService.store(this._storageKey, [...this._autoConfirmTools.keys()], this._scope, StorageTarget.MACHINE);
 				this._didChange = false;
 			}
 		}));

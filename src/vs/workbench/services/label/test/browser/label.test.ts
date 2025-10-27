@@ -222,8 +222,7 @@ suite('URI Label', () => {
 		}
 		assert.deepStrictEqual(m, { formatters: expected });
 
-		// eslint-disable-next-line local/code-no-any-casts
-		delete (m as any).formatters;
+		delete (m as { formatters: unknown }).formatters;
 	});
 });
 

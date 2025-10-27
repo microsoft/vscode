@@ -13,7 +13,7 @@ import { constObservable, IObservable } from '../../../../../base/common/observa
 import { assertType } from '../../../../../base/common/types.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { IActiveCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -46,8 +46,8 @@ import { NullWorkbenchAssignmentService } from '../../../../services/assignment/
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { TestChatEntitlementService, TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
+import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestChatEntitlementService, TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
@@ -207,6 +207,9 @@ suite('InlineChatController', function () {
 			}],
 			[INotebookEditorService, new class extends mock<INotebookEditorService>() {
 				override listNotebookEditors() { return []; }
+				override getNotebookForPossibleCell(editor: ICodeEditor) {
+					return undefined;
+				}
 			}],
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[ILanguageModelsService, new SyncDescriptor(LanguageModelsService)],
@@ -221,6 +224,7 @@ suite('InlineChatController', function () {
 			[IChatModeService, new SyncDescriptor(MockChatModeService)],
 			[IChatLayoutService, new SyncDescriptor(ChatLayoutService)],
 			[IChatTodoListService, new class extends mock<IChatTodoListService>() {
+				override onDidUpdateTodos = Event.None;
 				override getTodos(sessionId: string): IChatTodo[] { return []; }
 				override setTodos(sessionId: string, todos: IChatTodo[]): void { }
 			}],
@@ -506,6 +510,43 @@ suite('InlineChatController', function () {
 		assert.ok(model.getValue().includes('GENERATED'));
 		assert.ok(model.getValue().includes('MANUAL'));
 
+	});
+
+	test('cancel while applying streamed edits should close the widget', async function () {
+
+		const workerService = instaService.get(IEditorWorkerService) as TestWorkerService;
+		const originalCompute = workerService.computeMoreMinimalEdits.bind(workerService);
+		const editsBarrier = new DeferredPromise<void>();
+		let computeInvoked = false;
+		workerService.computeMoreMinimalEdits = async (resource, edits, pretty) => {
+			computeInvoked = true;
+			await editsBarrier.p;
+			return originalCompute(resource, edits, pretty);
+		};
+		store.add({ dispose: () => { workerService.computeMoreMinimalEdits = originalCompute; } });
+
+		const progressBarrier = new DeferredPromise<void>();
+		store.add(chatAgentService.registerDynamicAgent({
+			id: 'pendingEditsAgent',
+			...agentData
+		}, {
+			async invoke(request, progress, history, token) {
+				progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: request.message }] }]);
+				await progressBarrier.p;
+				return {};
+			},
+		}));
+
+		ctrl = instaService.createInstance(TestController, editor);
+		const states = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST]);
+		const run = ctrl.run({ message: 'BLOCK', autoSend: true });
+		assert.strictEqual(await states, undefined);
+		assert.ok(computeInvoked);
+
+		ctrl.cancelSession();
+		assert.strictEqual(await states, undefined);
+
+		await run;
 	});
 
 	test('re-run should discard pending edits', async function () {

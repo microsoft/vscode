@@ -1440,6 +1440,7 @@ class InlineCompletionAdapter {
 						range: typeConvert.Range.from(item.displayLocation.range),
 						label: item.displayLocation.label,
 						kind: item.displayLocation.kind ? typeConvert.InlineCompletionDisplayLocationKind.from(item.displayLocation.kind) : InlineCompletionDisplayLocationKind.Code,
+						jumpToEdit: item.displayLocation.jumpToEdit ?? false,
 					} : undefined,
 					warning: (item.warning && this._isAdditionsProposedApiEnabled) ? {
 						message: typeConvert.MarkdownString.from(item.warning.message),
@@ -2546,8 +2547,16 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 
 	registerDocumentRangeSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
 		const handle = this._addNewAdapter(new DocumentRangeSemanticTokensAdapter(this._documents, provider), extension);
-		this._proxy.$registerDocumentRangeSemanticTokensProvider(handle, this._transformDocumentSelector(selector, extension), legend);
-		return this._createDisposable(handle);
+		const eventHandle = (typeof provider.onDidChangeSemanticTokens === 'function' ? this._nextHandle() : undefined);
+		this._proxy.$registerDocumentRangeSemanticTokensProvider(handle, this._transformDocumentSelector(selector, extension), legend, eventHandle);
+		let result = this._createDisposable(handle);
+
+		if (eventHandle) {
+			const subscription = provider.onDidChangeSemanticTokens!(_ => this._proxy.$emitDocumentRangeSemanticTokensEvent(eventHandle));
+			result = Disposable.from(result, subscription);
+		}
+
+		return result;
 	}
 
 	$provideDocumentRangeSemanticTokens(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<VSBuffer | null> {

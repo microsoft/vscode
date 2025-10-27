@@ -135,7 +135,7 @@ export class DuplicateSelectionAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void {
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -438,6 +438,10 @@ export class ReverseLinesAction extends EditorAction {
 	}
 }
 
+interface TrimTrailingWhitespaceArgs {
+	reason?: 'auto-save';
+}
+
 export class TrimTrailingWhitespaceAction extends EditorAction {
 
 	public static readonly ID = 'editor.action.trimTrailingWhitespace';
@@ -455,7 +459,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, args: TrimTrailingWhitespaceArgs): void {
 
 		let cursors: Position[] = [];
 		if (args.reason === 'auto-save') {
@@ -638,9 +642,10 @@ class OutdentLinesAction extends EditorAction {
 }
 
 export class InsertLineBeforeAction extends EditorAction {
+	public static readonly ID = 'editor.action.insertLineBefore';
 	constructor() {
 		super({
-			id: 'editor.action.insertLineBefore',
+			id: InsertLineBeforeAction.ID,
 			label: nls.localize2('lines.insertBefore', "Insert Line Above"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
@@ -662,9 +667,10 @@ export class InsertLineBeforeAction extends EditorAction {
 }
 
 export class InsertLineAfterAction extends EditorAction {
+	public static readonly ID = 'editor.action.insertLineAfter';
 	constructor() {
 		super({
-			id: 'editor.action.insertLineAfter',
+			id: InsertLineAfterAction.ID,
 			label: nls.localize2('lines.insertAfter', "Insert Line Below"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
@@ -1268,6 +1274,7 @@ export class CamelCaseAction extends AbstractCaseAction {
 export class PascalCaseAction extends AbstractCaseAction {
 	public static wordBoundary = new BackwardsCompatibleRegExp('[_ \\t-]', 'gm');
 	public static wordBoundaryToMaintain = new BackwardsCompatibleRegExp('(?<=\\.)', 'gm');
+	public static upperCaseWordMatcher = new BackwardsCompatibleRegExp('^\\p{Lu}+$', 'mu');
 
 	constructor() {
 		super({
@@ -1280,18 +1287,27 @@ export class PascalCaseAction extends AbstractCaseAction {
 	protected _modifyText(text: string, wordSeparators: string): string {
 		const wordBoundary = PascalCaseAction.wordBoundary.get();
 		const wordBoundaryToMaintain = PascalCaseAction.wordBoundaryToMaintain.get();
+		const upperCaseWordMatcher = PascalCaseAction.upperCaseWordMatcher.get();
 
-		if (!wordBoundary || !wordBoundaryToMaintain) {
+		if (!wordBoundary || !wordBoundaryToMaintain || !upperCaseWordMatcher) {
 			// cannot support this
 			return text;
 		}
 
 		const wordsWithMaintainBoundaries = text.split(wordBoundaryToMaintain);
-		const words = wordsWithMaintainBoundaries.map((word: string) => word.split(wordBoundary)).flat();
-		return words.map((word: string) => word.substring(0, 1).toLocaleUpperCase() + word.substring(1))
-			.join('');
+		const words = wordsWithMaintainBoundaries.map(word => word.split(wordBoundary)).flat();
+
+		return words.map(word => {
+			const normalizedWord = word.charAt(0).toLocaleUpperCase() + word.slice(1);
+			const isAllCaps = normalizedWord.length > 1 && upperCaseWordMatcher.test(normalizedWord);
+			if (isAllCaps) {
+				return normalizedWord.charAt(0) + normalizedWord.slice(1).toLocaleLowerCase();
+			}
+			return normalizedWord;
+		}).join('');
 	}
 }
+
 
 export class KebabCaseAction extends AbstractCaseAction {
 

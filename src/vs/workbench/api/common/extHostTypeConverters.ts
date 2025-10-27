@@ -66,6 +66,7 @@ import { CommandsConverter } from './extHostCommands.js';
 import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
 import { LanguageModelDataPart, LanguageModelPromptTsxPart, LanguageModelTextPart } from './extHostTypes.js';
+import { InputValidationType } from '../../contrib/scm/common/scm.js';
 
 export namespace Command {
 
@@ -2321,9 +2322,11 @@ export namespace LanguageModelChatMessage {
 			if (c.type === 'text') {
 				return new LanguageModelTextPart(c.value, c.audience);
 			} else if (c.type === 'tool_result') {
-				const content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[] = coalesce(c.value.map(part => {
+				const content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart)[] = coalesce(c.value.map(part => {
 					if (part.type === 'text') {
 						return new types.LanguageModelTextPart(part.value, part.audience);
+					} else if (part.type === 'data') {
+						return new types.LanguageModelDataPart(part.data.buffer, part.mimeType);
 					} else if (part.type === 'prompt_tsx') {
 						return new types.LanguageModelPromptTsxPart(part.value);
 					} else {
@@ -2332,8 +2335,9 @@ export namespace LanguageModelChatMessage {
 				}));
 				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
 			} else if (c.type === 'image_url') {
-				// Non-stable types
-				return undefined;
+				return new types.LanguageModelDataPart(c.value.data.buffer, c.value.mimeType);
+			} else if (c.type === 'data') {
+				return new types.LanguageModelDataPart(c.data.buffer, c.mimeType);
 			} else if (c.type === 'tool_use') {
 				return new types.LanguageModelToolCallPart(c.toolCallId, c.name, c.parameters);
 			}
@@ -2373,6 +2377,13 @@ export namespace LanguageModelChatMessage {
 								type: 'prompt_tsx',
 								value: part.value,
 							} satisfies IChatResponsePromptTsxPart;
+						} else if (part instanceof types.LanguageModelDataPart) {
+							return {
+								type: 'data',
+								mimeType: part.mimeType,
+								data: VSBuffer.wrap(part.data),
+								audience: part.audience
+							} satisfies IChatResponseDataPart;
 						} else {
 							// Strip unknown parts
 							return undefined;
@@ -2380,6 +2391,25 @@ export namespace LanguageModelChatMessage {
 					})),
 					isError: c.isError
 				};
+			} else if (c instanceof types.LanguageModelDataPart) {
+				if (isImageDataPart(c)) {
+					const value: chatProvider.IChatImageURLPart = {
+						mimeType: c.mimeType as chatProvider.ChatImageMimeType,
+						data: VSBuffer.wrap(c.data),
+					};
+
+					return {
+						type: 'image_url',
+						value: value
+					};
+				} else {
+					return {
+						type: 'data',
+						mimeType: c.mimeType,
+						data: VSBuffer.wrap(c.data),
+						audience: c.audience
+					} satisfies IChatMessageDataPart;
+				}
 			} else if (c instanceof types.LanguageModelToolCallPart) {
 				return {
 					type: 'tool_use',
@@ -2428,7 +2458,7 @@ export namespace LanguageModelChatMessage2 {
 						return new types.LanguageModelPromptTsxPart(part.value);
 					}
 				});
-				return new types.LanguageModelToolResultPart2(c.toolCallId, content, c.isError);
+				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
 			} else if (c.type === 'image_url') {
 				return new types.LanguageModelDataPart(c.value.data.buffer, c.value.mimeType);
 			} else if (c.type === 'data') {
@@ -2455,7 +2485,7 @@ export namespace LanguageModelChatMessage2 {
 		}
 
 		const content = messageContent.map((c): chatProvider.IChatMessagePart => {
-			if ((c instanceof types.LanguageModelToolResultPart2) || (c instanceof types.LanguageModelToolResultPart)) {
+			if (c instanceof types.LanguageModelToolResultPart) {
 				return {
 					type: 'tool_result',
 					toolCallId: c.callId,
@@ -2545,12 +2575,14 @@ export namespace LanguageModelChatMessage2 {
 }
 
 function isImageDataPart(part: types.LanguageModelDataPart): boolean {
-	switch (part.mimeType) {
-		case types.ChatImageMimeType.PNG:
-		case types.ChatImageMimeType.JPEG:
-		case types.ChatImageMimeType.GIF:
-		case types.ChatImageMimeType.WEBP:
-		case types.ChatImageMimeType.BMP:
+	const mime = typeof part.mimeType === 'string' ? part.mimeType.toLowerCase() : '';
+	switch (mime) {
+		case 'image/png':
+		case 'image/jpeg':
+		case 'image/jpg':
+		case 'image/gif':
+		case 'image/webp':
+		case 'image/bmp':
 			return true;
 		default:
 			return false;
@@ -2659,7 +2691,8 @@ export namespace ChatResponseMultiDiffPart {
 					added: entry.added,
 					removed: entry.removed,
 				}))
-			}
+			},
+			readOnly: part.readOnly
 		};
 	}
 	export function to(part: Dto<IChatMultiDiffData>): vscode.ChatResponseMultiDiffPart {
@@ -2670,7 +2703,7 @@ export namespace ChatResponseMultiDiffPart {
 			added: resource.added,
 			removed: resource.removed,
 		}));
-		return new types.ChatResponseMultiDiffPart(resources, part.multiDiffData.title);
+		return new types.ChatResponseMultiDiffPart(resources, part.multiDiffData.title, part.readOnly);
 	}
 }
 
@@ -3295,6 +3328,7 @@ export namespace ChatRequestModeInstructions {
 	export function to(mode: IChatRequestModeInstructions | undefined): vscode.ChatRequestModeInstructions | undefined {
 		if (mode) {
 			return {
+				name: mode.name,
 				content: mode.content,
 				toolReferences: ChatLanguageModelToolReferences.to(mode.toolReferences),
 				metadata: mode.metadata
@@ -3443,18 +3477,18 @@ export namespace TerminalCompletionList {
 		}
 		return {
 			items: completions.items.map(i => TerminalCompletionItemDto.from(i)),
-			resourceRequestConfig: completions.resourceRequestConfig ? TerminalResourceRequestConfig.from(completions.resourceRequestConfig, pathSeparator) : undefined,
+			resourceOptions: completions.resourceOptions ? TerminalCompletionResourceOptions.from(completions.resourceOptions, pathSeparator) : undefined,
 		};
 	}
 }
 
-export namespace TerminalResourceRequestConfig {
-	export function from(resourceRequestConfig: vscode.TerminalResourceRequestConfig, pathSeparator: string): extHostProtocol.TerminalResourceRequestConfigDto {
+export namespace TerminalCompletionResourceOptions {
+	export function from(resourceOptions: vscode.TerminalCompletionResourceOptions, pathSeparator: string): extHostProtocol.TerminalCompletionResourceOptionsDto {
 		return {
-			...resourceRequestConfig,
+			...resourceOptions,
 			pathSeparator,
-			cwd: resourceRequestConfig.cwd,
-			globPattern: GlobPattern.from(resourceRequestConfig.globPattern) ?? undefined
+			cwd: resourceOptions.cwd,
+			globPattern: GlobPattern.from(resourceOptions.globPattern) ?? undefined
 		};
 	}
 }
@@ -3552,24 +3586,27 @@ export namespace LanguageModelToolResult {
 		return new types.LanguageModelToolResult(result.content.map(item => {
 			if (item.kind === 'text') {
 				return new types.LanguageModelTextPart(item.value, item.audience);
+			} else if (item.kind === 'data') {
+				return new types.LanguageModelDataPart(item.value.data.buffer, item.value.mimeType, item.audience);
 			} else {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
 		}));
 	}
 
-	export function from(result: vscode.ExtendedLanguageModelToolResult, extension: IExtensionDescription): Dto<IToolResult> {
+	export function from(result: vscode.ExtendedLanguageModelToolResult, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
 		if (result.toolResultMessage) {
 			checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 		}
 
-		const checkAudienceApi = (item: LanguageModelTextPart) => {
+		const checkAudienceApi = (item: LanguageModelTextPart | LanguageModelDataPart) => {
 			if (item.audience) {
 				checkProposedApiEnabled(extension, 'languageModelToolResultAudience');
 			}
 		};
 
-		return {
+		let hasBuffers = false;
+		const dto: Dto<IToolResult> = {
 			content: result.content.map(item => {
 				if (item instanceof types.LanguageModelTextPart) {
 					checkAudienceApi(item);
@@ -3583,6 +3620,17 @@ export namespace LanguageModelToolResult {
 						kind: 'promptTsx',
 						value: item.value,
 					};
+				} else if (item instanceof types.LanguageModelDataPart) {
+					checkAudienceApi(item);
+					hasBuffers = true;
+					return {
+						kind: 'data',
+						value: {
+							mimeType: item.mimeType,
+							data: VSBuffer.wrap(item.data)
+						},
+						audience: item.audience
+					};
 				} else {
 					throw new Error('Unknown LanguageModelToolResult part type');
 				}
@@ -3590,6 +3638,8 @@ export namespace LanguageModelToolResult {
 			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
 			toolResultDetails: result.toolResultDetails?.map(detail => URI.isUri(detail) ? detail : Location.from(detail as vscode.Location)),
 		};
+
+		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;
 	}
 }
 
@@ -3684,6 +3734,56 @@ export namespace IconPath {
 	export function fromThemeIcon(iconPath: vscode.ThemeIcon): languages.IconPath {
 		return iconPath;
 	}
+
+	/**
+	 * Converts a {@link vscode.IconPath} to an {@link extHostProtocol.IconPathDto}.
+	 * @note This function will tolerate strings specified instead of URIs in IconPath for historical reasons.
+	 * Such strings are treated as file paths and converted using {@link URI.file} function, not {@link URI.from}.
+	 * See https://github.com/microsoft/vscode/issues/110432#issuecomment-726144556 for context.
+	 */
+	export function from(value: undefined): undefined;
+	export function from(value: vscode.IconPath): extHostProtocol.IconPathDto;
+	export function from(value: vscode.IconPath | undefined): extHostProtocol.IconPathDto | undefined;
+	export function from(value: vscode.IconPath | undefined): extHostProtocol.IconPathDto | undefined {
+		if (!value) {
+			return undefined;
+		} else if (ThemeIcon.isThemeIcon(value)) {
+			return value;
+		} else if (URI.isUri(value)) {
+			return value;
+		} else if (typeof value === 'string') {
+			return URI.file(value);
+		} else if (typeof value === 'object' && value !== null && 'dark' in value) {
+			const dark = typeof value.dark === 'string' ? URI.file(value.dark) : value.dark;
+			const light = typeof value.light === 'string' ? URI.file(value.light) : value.light;
+			return !dark ? undefined : { dark, light: light ?? dark };
+		} else {
+			return undefined;
+		}
+	}
+
+	/**
+	 * Converts a {@link extHostProtocol.IconPathDto} to a {@link vscode.IconPath}.
+	 * @note This is a strict conversion and we assume types are correct in this case.
+	 */
+	export function to(value: undefined): undefined;
+	export function to(value: extHostProtocol.IconPathDto): vscode.IconPath;
+	export function to(value: extHostProtocol.IconPathDto | undefined): vscode.IconPath | undefined;
+	export function to(value: extHostProtocol.IconPathDto | undefined): vscode.IconPath | undefined {
+		if (!value) {
+			return undefined;
+		} else if (ThemeIcon.isThemeIcon(value)) {
+			return value;
+		} else if (isUriComponents(value)) {
+			return URI.revive(value);
+		} else {
+			const icon = value as { light: UriComponents; dark: UriComponents };
+			return {
+				light: URI.revive(icon.light),
+				dark: URI.revive(icon.dark)
+			};
+		}
+	}
 }
 
 export namespace AiSettingsSearch {
@@ -3731,5 +3831,20 @@ export namespace McpServerDefinition {
 					envFile: undefined,
 				}
 		);
+	}
+}
+
+export namespace SourceControlInputBoxValidationType {
+	export function from(type: number): InputValidationType {
+		switch (type) {
+			case types.SourceControlInputBoxValidationType.Error:
+				return InputValidationType.Error;
+			case types.SourceControlInputBoxValidationType.Warning:
+				return InputValidationType.Warning;
+			case types.SourceControlInputBoxValidationType.Information:
+				return InputValidationType.Information;
+			default:
+				throw new Error('Unknown SourceControlInputBoxValidationType');
+		}
 	}
 }

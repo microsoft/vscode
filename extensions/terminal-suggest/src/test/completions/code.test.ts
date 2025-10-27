@@ -77,8 +77,7 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 
 	const typingTests: ITestSpec[] = [];
 	for (let i = 1; i < executable.length; i++) {
-		// eslint-disable-next-line local/code-no-any-casts
-		const expectedCompletions = [{ label: executable, description: executable === codeCompletionSpec.name ? (codeCompletionSpec as any).description : (codeInsidersCompletionSpec as any).description }];
+		const expectedCompletions = [{ label: executable, description: executable === codeCompletionSpec.name ? (codeCompletionSpec as Fig.Subcommand).description : (codeInsidersCompletionSpec as Fig.Subcommand).description }];
 		const input = `${executable.slice(0, i)}|`;
 		typingTests.push({ input, expectedCompletions, expectedResourceRequests: input.endsWith(' ') ? undefined : { type: 'both', cwd: testPaths.cwd } });
 	}
@@ -266,8 +265,7 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 
 	const typingTests: ITestSpec[] = [];
 	for (let i = 1; i < executable.length; i++) {
-		// eslint-disable-next-line local/code-no-any-casts
-		const expectedCompletions = [{ label: executable, description: executable === codeCompletionSpec.name || executable === codeTunnelCompletionSpec.name ? (codeCompletionSpec as any).description : (codeInsidersCompletionSpec as any).description }];
+		const expectedCompletions = [{ label: executable, description: executable === codeCompletionSpec.name || executable === codeTunnelCompletionSpec.name ? (codeCompletionSpec as Fig.Subcommand).description : (codeInsidersCompletionSpec as Fig.Subcommand).description }];
 		const input = `${executable.slice(0, i)}|`;
 		typingTests.push({ input, expectedCompletions, expectedResourceRequests: input.endsWith(' ') ? undefined : { type: 'both', cwd: testPaths.cwd } });
 	}

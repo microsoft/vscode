@@ -28,8 +28,8 @@ import { IMcpResourceScannerService, McpResourceTarget } from './mcpResourceScan
 export interface ILocalMcpServerInfo {
 	name: string;
 	version?: string;
-	id?: string;
 	displayName?: string;
+	galleryId?: string;
 	galleryUrl?: string;
 	description?: string;
 	repositoryUrl?: string;
@@ -427,6 +427,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 			publisher: mcpServerInfo.publisher,
 			publisherDisplayName: mcpServerInfo.publisherDisplayName,
 			galleryUrl: mcpServerInfo.galleryUrl,
+			galleryId: mcpServerInfo.galleryId,
 			repositoryUrl: mcpServerInfo.repositoryUrl,
 			readmeUrl: mcpServerInfo.readmeUrl,
 			icon: mcpServerInfo.icon,
@@ -510,12 +511,12 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 	}
 
 	protected async updateMetadataFromGallery(gallery: IGalleryMcpServer): Promise<IGalleryMcpServerConfiguration> {
-		const manifest = await this.mcpGalleryService.getMcpServerConfiguration(gallery, CancellationToken.None);
+		const manifest = gallery.configuration;
 		const location = this.getLocation(gallery.name, gallery.version);
 		const manifestPath = this.uriIdentityService.extUri.joinPath(location, 'manifest.json');
 		const local: ILocalMcpServerInfo = {
-			id: gallery.id,
-			galleryUrl: gallery.url,
+			galleryUrl: gallery.galleryUrl,
+			galleryId: gallery.id,
 			name: gallery.name,
 			displayName: gallery.displayName,
 			description: gallery.description,
@@ -548,6 +549,13 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 			try {
 				const content = await this.fileService.readFile(manifestLocation);
 				storedMcpServerInfo = JSON.parse(content.value.toString()) as ILocalMcpServerInfo;
+
+				// migrate
+				if (storedMcpServerInfo.galleryUrl?.includes('/v0/')) {
+					storedMcpServerInfo.galleryUrl = storedMcpServerInfo.galleryUrl.substring(0, storedMcpServerInfo.galleryUrl.indexOf('/v0/'));
+					await this.fileService.writeFile(manifestLocation, VSBuffer.fromString(JSON.stringify(storedMcpServerInfo)));
+				}
+
 				storedMcpServerInfo.location = location;
 				readmeUrl = this.uriIdentityService.extUri.joinPath(location, 'README.md');
 				if (!await this.fileService.exists(readmeUrl)) {

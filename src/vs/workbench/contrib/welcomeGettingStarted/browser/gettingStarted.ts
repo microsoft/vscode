@@ -28,7 +28,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import './media/gettingStarted.css';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -190,6 +190,7 @@ export class GettingStartedPage extends EditorPane {
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 
 		super(GettingStartedPage.ID, group, telemetryService, themeService, storageService);
@@ -1540,8 +1541,6 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private buildTelemetryFooter(parent: HTMLElement) {
-		const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
-
 		const privacyStatementCopy = localize('privacy statement', "privacy statement");
 		const privacyStatementButton = `[${privacyStatementCopy}](command:workbench.action.openPrivacyStatementUrl)`;
 
@@ -1551,7 +1550,7 @@ export class GettingStartedPage extends EditorPane {
 		const text = localize({ key: 'footer', comment: ['fist substitution is "vs code", second is "privacy statement", third is "opt out".'] },
 			"{0} collects usage data. Read our {1} and learn how to {2}.", this.productService.nameShort, privacyStatementButton, optOutButton);
 
-		const renderedContents = this.detailsPageDisposables.add(mdRenderer.render({ value: text, isTrusted: true }));
+		const renderedContents = this.detailsPageDisposables.add(this.markdownRendererService.render({ value: text, isTrusted: true }));
 		parent.append(renderedContents.element);
 	}
 

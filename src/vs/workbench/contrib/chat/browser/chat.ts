@@ -17,8 +17,9 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
 import { IChatResponseModel } from '../common/chatModel.js';
+import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService.js';
@@ -65,19 +66,14 @@ export async function showChatWidgetInViewOrEditor(accessor: ServicesAccessor, w
 	}
 }
 
-
-export async function showChatView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
-	return (await viewsService.openView<ChatViewPane>(ChatViewId))?.widget;
-}
-
-export function showCopilotView(viewsService: IViewsService, layoutService: IWorkbenchLayoutService): Promise<IChatWidget | undefined> {
+export async function showChatView(viewsService: IViewsService, layoutService: IWorkbenchLayoutService): Promise<IChatWidget | undefined> {
 
 	// Ensure main window is in front
 	if (layoutService.activeContainer !== layoutService.mainContainer) {
 		layoutService.mainContainer.focus();
 	}
 
-	return showChatView(viewsService);
+	return (await viewsService.openView<ChatViewPane>(ChatViewId))?.widget;
 }
 
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
@@ -179,6 +175,7 @@ export interface IChatWidgetViewOptions {
 	enableWorkingSet?: 'explicit' | 'implicit';
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
+	defaultMode?: IChatMode;
 }
 
 export interface IChatViewViewContext {
@@ -212,6 +209,7 @@ export interface IChatWidget {
 	readonly viewModel: IChatViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
 	readonly supportsFileReferences: boolean;
+	readonly attachmentCapabilities: IChatAgentAttachmentCapabilities;
 	readonly parsedInput: IParsedChatRequest;
 	readonly lockedAgentId: string | undefined;
 	lastSelectedAgent: IChatAgentData | undefined;

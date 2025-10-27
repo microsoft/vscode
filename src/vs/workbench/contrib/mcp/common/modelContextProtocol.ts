@@ -347,6 +347,15 @@ export namespace MCP {/* JSON-RPC types */
 		 * If not provided, the client should assume that the icon can be used at any size.
 		 */
 		sizes?: string;
+
+		/**
+		 * Optional specifier for the theme this icon is designed for. `light` indicates
+		 * the icon is designed to be used with a light background, and `dark` indicates
+		 * the icon is designed to be used with a dark background.
+		 *
+		 * If not provided, the client should assume the icon can be used with any theme.
+		 */
+		theme?: 'light' | 'dark';
 	}
 
 	/**

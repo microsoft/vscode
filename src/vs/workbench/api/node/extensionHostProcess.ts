@@ -120,7 +120,7 @@ function patchProcess(allowExit: boolean) {
 	process.on = <any>function (event: string, listener: (...args: any[]) => void) {
 		if (event === 'uncaughtException') {
 			const actualListener = listener;
-			listener = function (...args: any[]) {
+			listener = function (...args: unknown[]) {
 				try {
 					return actualListener.apply(undefined, args);
 				} catch {
@@ -169,7 +169,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 			const withPorts = (ports: MessagePortMain[]) => {
 				const port = ports[0];
 				const onMessage = new BufferedEmitter<VSBuffer>();
-				port.on('message', (e) => onMessage.fire(VSBuffer.wrap(e.data)));
+				port.on('message', (e) => onMessage.fire(VSBuffer.wrap(e.data as Uint8Array)));
 				port.on('close', () => {
 					onTerminate('renderer closed the MessagePort');
 				});

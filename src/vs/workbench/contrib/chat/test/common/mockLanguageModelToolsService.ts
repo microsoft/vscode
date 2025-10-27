@@ -17,16 +17,25 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	constructor() { }
 
-	cancelToolCallsForRequest(requestId: string): void {
-	}
-
-	onDidChangeTools: Event<void> = Event.None;
+	readonly onDidChangeTools: Event<void> = Event.None;
 
 	registerToolData(toolData: IToolData): IDisposable {
 		return Disposable.None;
 	}
 
 	resetToolAutoConfirmation(): void {
+
+	}
+
+	getToolPostExecutionAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never' {
+		return 'never';
+	}
+
+	resetToolPostExecutionAutoConfirmation(): void {
+
+	}
+
+	cancelToolCallsForRequest(requestId: string): void {
 
 	}
 
