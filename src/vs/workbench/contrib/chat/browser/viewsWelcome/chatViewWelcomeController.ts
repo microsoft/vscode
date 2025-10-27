@@ -4,15 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { asCSSUrl } from '../../../../../base/browser/cssValue.js';
-import { createCSSRule } from '../../../../../base/browser/domStylesheets.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
-import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -113,7 +110,7 @@ export class ChatViewWelcomeController extends Disposable {
 }
 
 export interface IChatViewWelcomeContent {
-	readonly icon?: ThemeIcon | URI;
+	readonly icon?: ThemeIcon;
 	readonly title: string;
 	readonly message: IMarkdownString;
 	readonly additionalMessage?: string | IMarkdownString;
@@ -121,7 +118,6 @@ export interface IChatViewWelcomeContent {
 	readonly inputPart?: HTMLElement;
 	readonly isNew?: boolean;
 	readonly suggestedPrompts?: readonly IChatSuggestedPrompts[];
-	readonly useLargeIcon?: boolean;
 }
 
 export interface IChatSuggestedPrompts {
@@ -160,28 +156,11 @@ export class ChatViewWelcomePart extends Disposable {
 
 			// Icon
 			const icon = dom.append(this.element, $('.chat-welcome-view-icon'));
-			if (content.useLargeIcon) {
-				icon.classList.add('large-icon');
-			}
 			if (content.icon) {
-				if (ThemeIcon.isThemeIcon(content.icon)) {
-					const iconElement = renderIcon(content.icon);
-					icon.appendChild(iconElement);
-				} else if (URI.isUri(content.icon)) {
-					const cssUrl = asCSSUrl(content.icon);
-					const hash = new StringSHA1();
-					hash.update(cssUrl);
-					const iconId = `chat-welcome-icon-${hash.digest()}`;
-					const iconClass = `.chat-welcome-view-icon.${iconId}`;
-
-					createCSSRule(iconClass, `
-					mask: ${cssUrl} no-repeat 50% 50%;
-					-webkit-mask: ${cssUrl} no-repeat 50% 50%;
-					background-color: var(--vscode-icon-foreground);
-				`);
-					icon.classList.add(iconId, 'custom-icon');
-				}
+				icon.appendChild(renderIcon(content.icon));
 			}
+
+			// Title
 			const title = dom.append(this.element, $('.chat-welcome-view-title'));
 			title.textContent = content.title;
 
@@ -189,7 +168,7 @@ export class ChatViewWelcomePart extends Disposable {
 			const expEmptyState = this.configurationService.getValue<boolean>('chat.emptyChatState.enabled');
 			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent && !expEmptyState) {
 				const container = dom.append(this.element, $('.chat-welcome-view-indicator-container'));
-				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Plan")));
+				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Agent")));
 			}
 
 			const message = dom.append(this.element, content.isNew ? $('.chat-welcome-new-view-message') : $('.chat-welcome-view-message'));

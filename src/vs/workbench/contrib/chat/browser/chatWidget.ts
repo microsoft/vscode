@@ -257,7 +257,6 @@ const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 	supportsSourceControlAttachments: true,
 	supportsProblemAttachments: true,
 	supportsSymbolAttachments: true,
-	supportsTerminalAttachments: true,
 };
 
 export class ChatWidget extends Disposable implements IChatWidget {
@@ -1401,7 +1400,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				message,
 				icon: providerIcon ?? Codicon.sendToRemoteAgent,
 				additionalMessage,
-				useLargeIcon: !!providerIcon,
 			};
 		}
 
@@ -1427,11 +1425,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				suggestedPrompts
 			};
 		} else {
-			const agentHelpMessage = localize('agentMessage', "Ask to edit your files using [Plan]({0}). Plan will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent');
+			const agentHelpMessage = localize('agentMessage', "Ask to edit your files using [Agent]({0}). Agent will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent');
 			const message = expEmptyState ? disclaimerMessage : `${agentHelpMessage}\n\n${disclaimerMessage}`;
 
 			return {
-				title: localize('agentTitle', "Build with Plan"),
+				title: localize('agentTitle', "Build with Agent"),
 				message: new MarkdownString(message),
 				icon,
 				additionalMessage,
@@ -1461,8 +1459,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			inputPart: this.inputPart.element,
 			additionalMessage,
 			isNew: true,
-			suggestedPrompts,
-			useLargeIcon: !!providerIcon,
+			suggestedPrompts
 		};
 
 		// Add contributed tips if available
