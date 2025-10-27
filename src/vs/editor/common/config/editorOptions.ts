@@ -5015,10 +5015,15 @@ export interface ISuggestOptions {
 	 * Show user-suggestions.
 	 */
 	showUsers?: boolean;
-	/**
-	 * Show snippet-suggestions.
-	 */
-	showSnippets?: boolean;
+    /**
+     * Show snippet-suggestions.
+     */
+    showSnippets?: boolean;
+    /**
+     * Characters in this list will not accept suggestions when typed as commit characters.
+     * Useful to exclude characters like '.' in certain languages (e.g. C# collection expressions).
+     */
+    excludeCommitCharacters?: string[];
 }
 
 /**
@@ -5029,7 +5034,7 @@ export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
 class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptions, InternalSuggestOptions> {
 
 	constructor() {
-		const defaults: InternalSuggestOptions = {
+        const defaults: InternalSuggestOptions = {
 			insertMode: 'insert',
 			filterGraceful: true,
 			snippetsPreventQuickSuggestions: false,
@@ -5068,9 +5073,10 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			showFolders: true,
 			showTypeParameters: true,
 			showSnippets: true,
-			showUsers: true,
-			showIssues: true,
-		};
+            showUsers: true,
+            showIssues: true,
+            excludeCommitCharacters: [] as string[],
+        };
 		super(
 			EditorOption.suggest, 'suggest', defaults,
 			{
@@ -5289,63 +5295,70 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showUsers', "When enabled IntelliSense shows `user`-suggestions.")
 				},
-				'editor.suggest.showIssues': {
-					type: 'boolean',
-					default: true,
-					markdownDescription: nls.localize('editor.suggest.showIssues', "When enabled IntelliSense shows `issues`-suggestions.")
-				}
-			}
-		);
-	}
+                'editor.suggest.showIssues': {
+                    type: 'boolean',
+                    default: true,
+                    markdownDescription: nls.localize('editor.suggest.showIssues', "When enabled IntelliSense shows `issues`-suggestions.")
+                },
+                'editor.suggest.excludeCommitCharacters': {
+                    type: 'array',
+                    default: defaults.excludeCommitCharacters,
+                    items: { type: 'string' },
+                    markdownDescription: nls.localize('editor.suggest.excludeCommitCharacters', "Characters in this list will not accept a suggestion when typed as commit characters. Can be configured per language, for example to exclude '.' in C# when typing collection expressions.")
+                }
+            }
+        );
+    }
 
 	public validate(_input: unknown): InternalSuggestOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as Unknown<ISuggestOptions>;
-		return {
-			insertMode: stringSet(input.insertMode, this.defaultValue.insertMode, ['insert', 'replace']),
-			filterGraceful: boolean(input.filterGraceful, this.defaultValue.filterGraceful),
-			snippetsPreventQuickSuggestions: boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
-			localityBonus: boolean(input.localityBonus, this.defaultValue.localityBonus),
-			shareSuggestSelections: boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
-			selectionMode: stringSet(input.selectionMode, this.defaultValue.selectionMode, ['always', 'never', 'whenQuickSuggestion', 'whenTriggerCharacter']),
-			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
-			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
-			preview: boolean(input.preview, this.defaultValue.preview),
-			previewMode: stringSet(input.previewMode, this.defaultValue.previewMode, ['prefix', 'subword', 'subwordSmart']),
-			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
-			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
-			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
-			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
-			showDeprecated: boolean(input.showDeprecated, this.defaultValue.showDeprecated),
-			matchOnWordStartOnly: boolean(input.matchOnWordStartOnly, this.defaultValue.matchOnWordStartOnly),
-			showFields: boolean(input.showFields, this.defaultValue.showFields),
-			showVariables: boolean(input.showVariables, this.defaultValue.showVariables),
-			showClasses: boolean(input.showClasses, this.defaultValue.showClasses),
-			showStructs: boolean(input.showStructs, this.defaultValue.showStructs),
-			showInterfaces: boolean(input.showInterfaces, this.defaultValue.showInterfaces),
-			showModules: boolean(input.showModules, this.defaultValue.showModules),
-			showProperties: boolean(input.showProperties, this.defaultValue.showProperties),
-			showEvents: boolean(input.showEvents, this.defaultValue.showEvents),
-			showOperators: boolean(input.showOperators, this.defaultValue.showOperators),
-			showUnits: boolean(input.showUnits, this.defaultValue.showUnits),
-			showValues: boolean(input.showValues, this.defaultValue.showValues),
-			showConstants: boolean(input.showConstants, this.defaultValue.showConstants),
-			showEnums: boolean(input.showEnums, this.defaultValue.showEnums),
-			showEnumMembers: boolean(input.showEnumMembers, this.defaultValue.showEnumMembers),
-			showKeywords: boolean(input.showKeywords, this.defaultValue.showKeywords),
-			showWords: boolean(input.showWords, this.defaultValue.showWords),
-			showColors: boolean(input.showColors, this.defaultValue.showColors),
-			showFiles: boolean(input.showFiles, this.defaultValue.showFiles),
-			showReferences: boolean(input.showReferences, this.defaultValue.showReferences),
-			showFolders: boolean(input.showFolders, this.defaultValue.showFolders),
-			showTypeParameters: boolean(input.showTypeParameters, this.defaultValue.showTypeParameters),
-			showSnippets: boolean(input.showSnippets, this.defaultValue.showSnippets),
-			showUsers: boolean(input.showUsers, this.defaultValue.showUsers),
-			showIssues: boolean(input.showIssues, this.defaultValue.showIssues),
-		};
-	}
+        return {
+            insertMode: stringSet(input.insertMode, this.defaultValue.insertMode, ['insert', 'replace']),
+            filterGraceful: boolean(input.filterGraceful, this.defaultValue.filterGraceful),
+            snippetsPreventQuickSuggestions: boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
+            localityBonus: boolean(input.localityBonus, this.defaultValue.localityBonus),
+            shareSuggestSelections: boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
+            selectionMode: stringSet(input.selectionMode, this.defaultValue.selectionMode, ['always', 'never', 'whenQuickSuggestion', 'whenTriggerCharacter']),
+            showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
+            showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
+            preview: boolean(input.preview, this.defaultValue.preview),
+            previewMode: stringSet(input.previewMode, this.defaultValue.previewMode, ['prefix', 'subword', 'subwordSmart']),
+            showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
+            showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
+            showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
+            showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
+            showDeprecated: boolean(input.showDeprecated, this.defaultValue.showDeprecated),
+            matchOnWordStartOnly: boolean(input.matchOnWordStartOnly, this.defaultValue.matchOnWordStartOnly),
+            showFields: boolean(input.showFields, this.defaultValue.showFields),
+            showVariables: boolean(input.showVariables, this.defaultValue.showVariables),
+            showClasses: boolean(input.showClasses, this.defaultValue.showClasses),
+            showStructs: boolean(input.showStructs, this.defaultValue.showStructs),
+            showInterfaces: boolean(input.showInterfaces, this.defaultValue.showInterfaces),
+            showModules: boolean(input.showModules, this.defaultValue.showModules),
+            showProperties: boolean(input.showProperties, this.defaultValue.showProperties),
+            showEvents: boolean(input.showEvents, this.defaultValue.showEvents),
+            showOperators: boolean(input.showOperators, this.defaultValue.showOperators),
+            showUnits: boolean(input.showUnits, this.defaultValue.showUnits),
+            showValues: boolean(input.showValues, this.defaultValue.showValues),
+            showConstants: boolean(input.showConstants, this.defaultValue.showConstants),
+            showEnums: boolean(input.showEnums, this.defaultValue.showEnums),
+            showEnumMembers: boolean(input.showEnumMembers, this.defaultValue.showEnumMembers),
+            showKeywords: boolean(input.showKeywords, this.defaultValue.showKeywords),
+            showWords: boolean(input.showWords, this.defaultValue.showWords),
+            showColors: boolean(input.showColors, this.defaultValue.showColors),
+            showFiles: boolean(input.showFiles, this.defaultValue.showFiles),
+            showReferences: boolean(input.showReferences, this.defaultValue.showReferences),
+            showFolders: boolean(input.showFolders, this.defaultValue.showFolders),
+            showTypeParameters: boolean(input.showTypeParameters, this.defaultValue.showTypeParameters),
+            showSnippets: boolean(input.showSnippets, this.defaultValue.showSnippets),
+            showUsers: boolean(input.showUsers, this.defaultValue.showUsers),
+            showIssues: boolean(input.showIssues, this.defaultValue.showIssues),
+            excludeCommitCharacters: Array.isArray(input.excludeCommitCharacters) ? input.excludeCommitCharacters.filter(e => typeof e === 'string') : this.defaultValue.excludeCommitCharacters,
+        };
+    }
 }
 
 //#endregion
