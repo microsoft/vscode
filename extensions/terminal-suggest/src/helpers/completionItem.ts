@@ -13,8 +13,7 @@ export function createCompletionItem(cursorPosition: number, currentCommandStrin
 		label: commandResource.label,
 		detail: detail ?? commandResource.detail ?? '',
 		documentation,
-		replacementIndex: cursorPosition - lastWord.length,
-		replacementLength: lastWord.length,
+		replacementRange: [cursorPosition - lastWord.length, cursorPosition],
 		kind: kind ?? commandResource.kind ?? vscode.TerminalCompletionItemKind.Method
 	};
 }

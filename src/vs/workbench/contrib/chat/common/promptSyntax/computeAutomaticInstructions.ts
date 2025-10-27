@@ -21,7 +21,7 @@ import { IToolData } from '../languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
-import { ParsedPromptFile } from './service/newPromptsParser.js';
+import { ParsedPromptFile } from './promptFileParser.js';
 import { IPromptPath, IPromptsService } from './service/promptsService.js';
 
 export type InstructionsCollectionEvent = {
@@ -101,12 +101,6 @@ export class ComputeAutomaticInstructions {
 			telemetryEvent.listedInstructionsCount++;
 		}
 
-		this.sendTelemetry(telemetryEvent);
-	}
-
-	public async collectAgentInstructionsOnly(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
-		const telemetryEvent: InstructionsCollectionEvent = newInstructionsCollectionEvent();
-		await this._addAgentInstructions(variables, telemetryEvent, token);
 		this.sendTelemetry(telemetryEvent);
 	}
 

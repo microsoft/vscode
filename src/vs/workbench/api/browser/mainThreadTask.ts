@@ -337,9 +337,9 @@ namespace TaskSourceDTO {
 }
 
 namespace TaskHandleDTO {
-	export function is(value: any): value is ITaskHandleDTO {
-		const candidate: ITaskHandleDTO = value;
-		return candidate && Types.isString(candidate.id) && !!candidate.workspaceFolder;
+	export function is(value: unknown): value is ITaskHandleDTO {
+		const candidate = value as ITaskHandleDTO | undefined;
+		return !!candidate && Types.isString(candidate.id) && !!candidate.workspaceFolder;
 	}
 }
 

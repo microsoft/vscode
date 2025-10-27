@@ -43,7 +43,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		if (elicitation.rejectButtonLabel && elicitation.reject) {
 			buttons.push({ label: elicitation.rejectButtonLabel, data: false, isSecondary: true });
 		}
-		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context.container, {
+		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context, {
 			title: elicitation.title,
 			subtitle: elicitation.subtitle,
 			buttons,

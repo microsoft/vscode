@@ -10,14 +10,12 @@ import { SnippetController2 } from '../../../../../editor/contrib/snippet/browse
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { getLanguageIdForPromptsType, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IUserDataSyncEnablementService, SyncResource } from '../../../../../platform/userDataSync/common/userDataSync.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -37,14 +35,14 @@ class AbstractNewPromptFileAction extends Action2 {
 			id,
 			title,
 			f1: false,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			menu: {
 				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
+				when: ChatContextKeys.enabled
 			}
 		});
 	}
@@ -112,7 +110,7 @@ class AbstractNewPromptFileAction extends Action2 {
 			Severity.Info,
 			localize(
 				'workbench.command.prompts.create.user.enable-sync-notification',
-				"Do you want to backup and sync your user prompt, instruction and agent files with Setting Sync?'",
+				"Do you want to backup and sync your user prompt, instruction and custom agent files with Setting Sync?'",
 			),
 			[
 				{
@@ -161,10 +159,10 @@ class AbstractNewPromptFileAction extends Action2 {
 			case PromptsType.agent:
 				return [
 					`---`,
-					`description: '\${1:Description of the agent.}'`,
+					`description: '\${1:Describe what this custom agent does and when to use it.}'`,
 					`tools: []`,
 					`---`,
-					`\${2:Define the purpose of this agent and how AI should behave: response style, available tools, focus areas, and any agent-specific instructions or constraints.}`,
+					`\${2:Define what this custom agent accomplishes for the user, when to use it, and the edges it won't cross. Specify its ideal inputs/outputs, the tools it may call, and how it reports progress or asks for help.}`,
 				].join('\n');
 			default:
 				throw new Error(`Unknown prompt type: ${promptType}`);
@@ -192,7 +190,7 @@ class NewInstructionsFileAction extends AbstractNewPromptFileAction {
 
 class NewAgentFileAction extends AbstractNewPromptFileAction {
 	constructor() {
-		super(NEW_AGENT_COMMAND_ID, localize('commands.new.agent.local.title', "New Agent File..."), PromptsType.agent);
+		super(NEW_AGENT_COMMAND_ID, localize('commands.new.agent.local.title', "New Custom Agent..."), PromptsType.agent);
 	}
 }
 
@@ -202,7 +200,7 @@ class NewUntitledPromptFileAction extends Action2 {
 			id: 'workbench.command.new.untitled.prompt',
 			title: localize2('commands.new.untitled.prompt.title', "New Untitled Prompt File"),
 			f1: true,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib

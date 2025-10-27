@@ -1566,6 +1566,10 @@ export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 
 	public readonly length: number;
 
+	get onDidIncrementLength(): Event<number> {
+		return Event.None;
+	}
+
 	constructor(
 		private readonly preferredExtensions: IExtension[],
 		private readonly pager: IPager<IExtension>,

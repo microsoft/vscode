@@ -16,7 +16,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 
 export class ChatPullRequestContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -42,8 +42,8 @@ export class ChatPullRequestContentPart extends Disposable implements IChatConte
 
 		const descriptionElement = dom.append(contentContainer, dom.$('.description'));
 		const descriptionWrapper = dom.append(descriptionElement, dom.$('.description-wrapper'));
-		const markdown = this._register(renderMarkdown({ value: this.pullRequestContent.description }));
-		dom.append(descriptionWrapper, markdown.element);
+		const plainText = renderAsPlaintext({ value: this.pullRequestContent.description });
+		descriptionWrapper.textContent = plainText;
 
 		const seeMoreContainer = dom.append(descriptionElement, dom.$('.see-more'));
 		const seeMore: HTMLAnchorElement = dom.append(seeMoreContainer, dom.$('a'));

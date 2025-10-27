@@ -228,12 +228,21 @@ export interface ISCMHistoryItemChangeRangeVariableEntry extends IBaseChatReques
 	};
 }
 
+export interface ITerminalVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'terminalCommand';
+	readonly value: string;
+	readonly resource: URI;
+	readonly command: string;
+	readonly output?: string;
+	readonly exitCode?: number;
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
-	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry;
+	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -252,6 +261,10 @@ export namespace IChatRequestVariableEntry {
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
+}
+
+export function isTerminalVariableEntry(obj: IChatRequestVariableEntry): obj is ITerminalVariableEntry {
+	return obj.kind === 'terminalCommand';
 }
 
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {

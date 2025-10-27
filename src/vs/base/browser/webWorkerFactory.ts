@@ -12,6 +12,7 @@ import { Disposable, toDisposable } from '../common/lifecycle.js';
 import { coalesce } from '../common/arrays.js';
 import { getNLSLanguage, getNLSMessages } from '../../nls.js';
 import { Emitter } from '../common/event.js';
+import { getMonacoEnvironment } from './browser.js';
 
 // Reuse the trusted types policy defined from worker bootstrap
 // when available.
@@ -36,12 +37,7 @@ function getWorker(descriptor: IWebWorkerDescriptor, id: number): Worker | Promi
 	const label = descriptor.label || 'anonymous' + id;
 
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
-	interface IMonacoEnvironment {
-		getWorker?(moduleId: string, label: string): Worker | Promise<Worker>;
-		getWorkerUrl?(moduleId: string, label: string): string;
-	}
-	// eslint-disable-next-line local/code-no-any-casts
-	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
+	const monacoEnvironment = getMonacoEnvironment();
 	if (monacoEnvironment) {
 		if (typeof monacoEnvironment.getWorker === 'function') {
 			return monacoEnvironment.getWorker('workerMain.js', label);

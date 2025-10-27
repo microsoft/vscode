@@ -12,6 +12,9 @@ export type ChatSessionIdentifier = {
 	readonly sessionId: string;
 };
 
+/**
+ * @deprecated
+ */
 export namespace ChatSessionUri {
 
 	export const scheme = Schemas.vscodeChatSession;

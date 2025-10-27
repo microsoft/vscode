@@ -89,7 +89,7 @@ export interface IModifiedEntryTelemetryInfo {
 	readonly modelId: string | undefined;
 	readonly modeId: 'ask' | 'edit' | 'agent' | 'custom' | 'applyCodeBlock' | undefined;
 	readonly applyCodeBlockSuggestionId: EditSuggestionId | undefined;
-	readonly feature: 'sideBarChat' | 'inlineChat' | string | undefined;
+	readonly feature: 'sideBarChat' | 'inlineChat' | undefined;
 }
 
 export interface ISnapshotEntry {

@@ -17,9 +17,6 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	constructor() { }
 
-	cancelToolCallsForRequest(requestId: string): void {
-	}
-
 	readonly onDidChangeTools: Event<void> = Event.None;
 
 	registerToolData(toolData: IToolData): IDisposable {
@@ -27,6 +24,18 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 	}
 
 	resetToolAutoConfirmation(): void {
+
+	}
+
+	getToolPostExecutionAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never' {
+		return 'never';
+	}
+
+	resetToolPostExecutionAutoConfirmation(): void {
+
+	}
+
+	cancelToolCallsForRequest(requestId: string): void {
 
 	}
 

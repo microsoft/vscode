@@ -57,7 +57,7 @@ export class EditorState {
 		}
 	}
 
-	private _equals(other: any): boolean {
+	private _equals(other: unknown): boolean {
 
 		if (!(other instanceof EditorState)) {
 			return false;

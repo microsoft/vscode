@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from '../../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { extname } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { IWebContentExtractorService, WebContentExtractResult } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { detectEncodingFromBuffer } from '../../../../services/textfile/common/encoding.js';
+import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
 import { ChatImageMimeType } from '../../common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
@@ -36,11 +38,14 @@ export const FetchWebPageToolData: IToolData = {
 	}
 };
 
+type ResultType = string | { type: 'tooldata'; value: IToolResultDataPart } | { type: 'extracted'; value: WebContentExtractResult } | undefined;
+
 export class FetchWebPageTool implements IToolImpl {
 
 	constructor(
 		@IWebContentExtractorService private readonly _readerModeService: IWebContentExtractorService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -58,7 +63,7 @@ export class FetchWebPageTool implements IToolImpl {
 		const webContents = webUris.size > 0 ? await this._readerModeService.extract([...webUris.values()]) : [];
 
 		// Get contents from file URIs
-		const fileContents: (string | IToolResultDataPart | undefined)[] = [];
+		const fileContents: (string | { type: 'tooldata'; value: IToolResultDataPart } | undefined)[] = [];
 		const successfulFileUris: URI[] = [];
 		for (const uri of fileUris.values()) {
 			try {
@@ -69,10 +74,13 @@ export class FetchWebPageTool implements IToolImpl {
 				if (imageMimeType) {
 					// For supported image files, return as IToolResultDataPart
 					fileContents.push({
-						kind: 'data',
+						type: 'tooldata',
 						value: {
-							mimeType: imageMimeType,
-							data: fileContent.value
+							kind: 'data',
+							value: {
+								mimeType: imageMimeType,
+								data: fileContent.value
+							}
 						}
 					});
 				} else {
@@ -97,14 +105,14 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 		// Build results array in original order
-		const results: (string | IToolResultDataPart | undefined)[] = [];
+		const results: ResultType[] = [];
 		let webIndex = 0;
 		let fileIndex = 0;
 		for (const url of urls) {
 			if (invalidUris.has(url)) {
 				results.push(undefined);
 			} else if (webUris.has(url)) {
-				results.push(webContents[webIndex]);
+				results.push({ type: 'extracted', value: webContents[webIndex] });
 				webIndex++;
 			} else if (fileUris.has(url)) {
 				results.push(fileContents[fileIndex]);
@@ -114,12 +122,20 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		}
 
+		// Skip confirming any results if every web content we got was an error or redirect
+		let confirmResults: undefined | boolean;
+		if (webContents.every(e => e.status === 'error' || e.status === 'redirect')) {
+			confirmResults = false;
+		}
+
+
 		// Only include URIs that actually had content successfully fetched
 		const actuallyValidUris = [...webUris.values(), ...successfulFileUris];
 
 		return {
 			content: this._getPromptPartsForResults(results),
-			toolResultDetails: actuallyValidUris
+			toolResultDetails: actuallyValidUris,
+			confirmResults,
 		};
 	}
 
@@ -188,9 +204,11 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 		const result: IPreparedToolInvocation = { invocationMessage, pastTenseMessage };
-		if (urlsNeedingConfirmation.length) {
-			let confirmationTitle: string;
-			let confirmationMessage: string | MarkdownString;
+		const allDomainsTrusted = urlsNeedingConfirmation.every(u => this._trustedDomainService.isValid(u));
+		let confirmationTitle: string | undefined;
+		let confirmationMessage: string | MarkdownString | undefined;
+
+		if (urlsNeedingConfirmation.length && !allDomainsTrusted) {
 			if (urlsNeedingConfirmation.length === 1) {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.singular', 'Fetch web page?');
 				confirmationMessage = new MarkdownString(
@@ -204,13 +222,14 @@ export class FetchWebPageTool implements IToolImpl {
 					{ supportThemeIcons: true }
 				);
 			}
-			result.confirmationMessages = {
-				title: confirmationTitle,
-				message: confirmationMessage,
-				allowAutoConfirm: true,
-				disclaimer: new MarkdownString('$(info) ' + localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true })
-			};
 		}
+		result.confirmationMessages = {
+			title: confirmationTitle,
+			message: confirmationMessage,
+			confirmResults: urlsNeedingConfirmation.length > 0,
+			allowAutoConfirm: true,
+			disclaimer: new MarkdownString('$(info) ' + localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true })
+		};
 		return result;
 	}
 
@@ -236,7 +255,7 @@ export class FetchWebPageTool implements IToolImpl {
 		return { webUris, fileUris, invalidUris };
 	}
 
-	private _getPromptPartsForResults(results: (string | IToolResultDataPart | undefined)[]): (IToolResultTextPart | IToolResultDataPart)[] {
+	private _getPromptPartsForResults(results: ResultType[]): (IToolResultTextPart | IToolResultDataPart)[] {
 		return results.map(value => {
 			if (!value) {
 				return {
@@ -248,9 +267,21 @@ export class FetchWebPageTool implements IToolImpl {
 					kind: 'text',
 					value: value
 				};
+			} else if (value.type === 'tooldata') {
+				return value.value;
+			} else if (value.type === 'extracted') {
+				switch (value.value.status) {
+					case 'ok':
+						return { kind: 'text', value: value.value.result };
+					case 'redirect':
+						return { kind: 'text', value: `The webpage has redirected to "${value.value.toURI.toString(true)}". Use the ${InternalFetchWebPageToolId} again to get its contents.` };
+					case 'error':
+						return { kind: 'text', value: `An error occurred retrieving the fetch result: ${value.value.error}` };
+					default:
+						assertNever(value.value);
+				}
 			} else {
-				// This is an IToolResultDataPart
-				return value;
+				throw new Error('unreachable');
 			}
 		});
 	}

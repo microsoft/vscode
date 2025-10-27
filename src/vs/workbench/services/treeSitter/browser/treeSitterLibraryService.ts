@@ -121,12 +121,16 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		return treeSitter.Parser;
 	}
 
-	getLanguage(languageId: string, reader: IReader | undefined): Language | undefined {
-		if (!this.supportsLanguage(languageId, reader)) {
+	getLanguage(languageId: string, ignoreSupportsCheck: boolean, reader: IReader | undefined): Language | undefined {
+		if (!ignoreSupportsCheck && !this.supportsLanguage(languageId, reader)) {
 			return undefined;
 		}
 		const lang = this._languagesCache.get(languageId).resolvedValue.read(reader);
 		return lang;
+	}
+
+	async getLanguagePromise(languageId: string): Promise<Language | undefined> {
+		return this._languagesCache.get(languageId).promise;
 	}
 
 	getInjectionQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
@@ -143,6 +147,11 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		}
 		const query = this._injectionQueries.get({ languageId, kind: 'highlights' }).read(reader);
 		return query;
+	}
+
+	async createQuery(language: Language, querySource: string): Promise<Query> {
+		const treeSitter = await this._treeSitterImport.value;
+		return new treeSitter.Query(language, querySource);
 	}
 }
 

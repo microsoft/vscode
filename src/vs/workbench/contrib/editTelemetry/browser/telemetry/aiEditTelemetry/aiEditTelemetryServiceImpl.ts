@@ -46,13 +46,13 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			applyCodeBlockSuggestionId: string | undefined;
 		}, {
 			owner: 'hediet';
-			comment: 'Reports when code from AI is suggested to the user.';
+			comment: 'Reports when code from AI is suggested to the user. @sentToGitHub';
 
 			eventId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for this event.' };
 			suggestionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for this suggestion. Not always set.' };
 
-			presentation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the code suggestion is presented to the user.' };
-			feature: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The feature the code suggestion came from.' };
+			presentation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the code suggestion is presented to the user. See #IEditTelemetryBaseData.presentation for possible values.' };
+			feature: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The feature the code suggestion came from. See #IEditTelemetryBaseData.feature for possible values.' };
 
 			sourceExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that provided the code suggestion, if any.' };
 			sourceExtensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension that provided the code suggestion, if any.' };
@@ -64,7 +64,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesInserted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of lines inserted in the edit.' };
 			editLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of lines deleted in the edit.' };
 
-			modeId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The mode (ask/edit/...).' };
+			modeId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The mode. See #IEditTelemetryBaseData.modeId for possible values.' };
 			modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The AI model used to generate the suggestion.' };
 			applyCodeBlockSuggestionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If this suggestion is for applying a suggested code block, this is the id of the suggested code block.' };
 		}>('editTelemetry.codeSuggested', {
@@ -125,13 +125,13 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			| 'accept';
 		}, {
 			owner: 'hediet';
-			comment: 'Reports when code from AI is accepted by the user.';
+			comment: 'Reports when code from AI is accepted by the user. @sentToGitHub';
 
 			eventId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for this event.' };
 			suggestionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for this suggestion. Not always set.' };
 
-			presentation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the code suggestion is presented to the user.' };
-			feature: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The feature the code suggestion came from.' };
+			presentation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the code suggestion is presented to the user. See #IEditTelemetryBaseData.presentation for possible values.' };
+			feature: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The feature the code suggestion came from. See #IEditTelemetryBaseData.feature for possible values.' };
 
 			sourceExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that provided the code suggestion, if any.' };
 			sourceExtensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension that provided the code suggestion, if any.' };
@@ -143,11 +143,11 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesInserted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of lines inserted in the edit.' };
 			editLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of lines deleted in the edit.' };
 
-			modeId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The mode (ask/edit/...).' };
+			modeId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The mode. See #IEditTelemetryBaseData.modeId for possible values.' };
 			modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The AI model used to generate the suggestion.' };
 
 			applyCodeBlockSuggestionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If this suggestion is for applying a suggested code block, this is the id of the suggested code block.' };
-			acceptanceMethod: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the user accepted the code suggestion.' };
+			acceptanceMethod: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the user accepted the code suggestion. See #IEditTelemetryCodeAcceptedData.acceptanceMethod for possible values.' };
 		}>('editTelemetry.codeAccepted', {
 			eventId: prefixedUuid('evt'),
 			suggestionId: data.suggestionId as unknown as string,

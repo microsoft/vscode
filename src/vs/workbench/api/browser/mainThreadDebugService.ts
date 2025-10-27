@@ -347,7 +347,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		session?.setName(name);
 	}
 
-	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Promise<any> {
+	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: unknown): Promise<unknown> {
 		const session = this.debugService.getModel().getSession(sessionId, true);
 		if (session) {
 			return session.customRequest(request, args).then(response => {

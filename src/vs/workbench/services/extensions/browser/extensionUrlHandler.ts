@@ -271,7 +271,8 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 					reason: `${localize('installDetail', "This extension wants to open a URI:")}\n${uri.toString()}`,
 					action: localize('openUri', "Open URI")
 				},
-				enable: true
+				enable: true,
+				installPreReleaseVersion: this.productService.quality !== 'stable'
 			});
 		} catch (error) {
 			if (!isCancellationError(error)) {

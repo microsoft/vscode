@@ -410,9 +410,9 @@ export class BaseIssueReporterService extends Disposable {
 			return ext.isTheme ? 'themes' : 'nonThemes';
 		});
 
-		const numberOfThemeExtesions = themes && themes.length;
+		const numberOfThemeExtesions = (themes && themes.length) ?? 0;
 		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes, allExtensions: installedExtensions });
-		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
+		this.updateExtensionTable(nonThemes ?? [], numberOfThemeExtesions);
 		if (this.disableExtensions || installedExtensions.length === 0) {
 			(<HTMLButtonElement>this.getElementById('disableExtensions')).disabled = true;
 		}

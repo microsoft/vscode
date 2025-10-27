@@ -11,8 +11,9 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
-import { mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpGalleryConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IRequestService } from '../../../../platform/request/common/request.js';
 
 export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestService implements IMcpGalleryManifestService {
 
@@ -29,11 +30,12 @@ export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestServic
 	constructor(
 		@IProductService productService: IProductService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IRequestService requestService: IRequestService,
+		@ILogService logService: ILogService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILogService private readonly logService: ILogService,
 	) {
-		super(productService);
+		super(productService, requestService, logService);
 
 		const channels = [sharedProcessService.getChannel('mcpGalleryManifest')];
 		const remoteConnection = remoteAgentService.getConnection();
@@ -58,23 +60,23 @@ export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestServic
 		await this.getAndUpdateMcpGalleryManifest();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(mcpGalleryServiceUrlConfig)) {
+			if (e.affectsConfiguration(mcpGalleryServiceUrlConfig) || e.affectsConfiguration('chat.mcp.gallery.version')) {
 				this.getAndUpdateMcpGalleryManifest();
 			}
 		}));
 	}
 
 	private async getAndUpdateMcpGalleryManifest(): Promise<void> {
-		const value = this.configurationService.getValue<string>(mcpGalleryServiceUrlConfig);
-		if (value) {
-			this.update(this.createMcpGalleryManifest(value));
+		const mcpGalleryConfig = this.configurationService.getValue<IMcpGalleryConfig | undefined>('chat.mcp.gallery');
+		if (mcpGalleryConfig?.serviceUrl) {
+			this.update(await this.createMcpGalleryManifest(mcpGalleryConfig.serviceUrl, mcpGalleryConfig.version));
 		} else {
 			this.update(await super.getMcpGalleryManifest());
 		}
 	}
 
 	private update(manifest: IMcpGalleryManifest | null): void {
-		if (this.mcpGalleryManifest?.url === manifest?.url) {
+		if (this.mcpGalleryManifest?.url === manifest?.url && this.mcpGalleryManifest?.version === manifest?.version) {
 			return;
 		}
 

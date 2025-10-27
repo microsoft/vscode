@@ -13,7 +13,6 @@ import { IMcpCollectionContribution } from '../../../../../platform/extensions/c
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
-import { ExtensionPointUserDelta, IExtensionPointUser } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { mcpActivationEvent, mcpContributionPoint } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { extensionPrefixedIdentifier, McpServerDefinition, McpServerTrust } from '../mcpTypes.js';
@@ -30,7 +29,6 @@ const _mcpExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensi
 const enum PersistWhen {
 	CollectionExists,
 	Always,
-	Delete
 }
 
 export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
@@ -40,7 +38,6 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 	private readonly _extensionCollectionIdsToPersist = new Map<string, PersistWhen>();
 	private readonly cachedServers: { [collcetionId: string]: IServerCacheEntry };
 	private readonly _conditionalCollections = this._register(new DisposableMap<string>());
-	private _extensionCollections?: DisposableMap<string>;
 
 	constructor(
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
@@ -54,12 +51,6 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 		this._register(storageService.onWillSaveState(() => {
 			let updated = false;
 			for (const [collectionId, behavior] of this._extensionCollectionIdsToPersist.entries()) {
-				if (behavior === PersistWhen.Delete) {
-					updated = true;
-					delete this.cachedServers[collectionId];
-					this._extensionCollectionIdsToPersist.delete(collectionId);
-					continue;
-				}
 				const collection = this._mcpRegistry.collections.get().find(c => c.id === collectionId);
 				let defs = collection?.serverDefinitions.get();
 				if (!collection || collection.lazy) {
@@ -75,50 +66,47 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 					this.cachedServers[collectionId] = { servers: defs.map(McpServerDefinition.toSerialized) };
 				}
 			}
+
 			if (updated) {
 				storageService.store(cacheKey, this.cachedServers, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 		}));
 	}
+
 	public start(): void {
-		this._extensionCollections = this._register(new DisposableMap<string>());
-		this._register(_mcpExtensionPoint.setHandler(this.handleExtensionChange.bind(this)));
-	}
+		const extensionCollections = this._register(new DisposableMap<string>());
+		this._register(_mcpExtensionPoint.setHandler((_extensions, delta) => {
+			const { added, removed } = delta;
 
-	protected handleExtensionChange(_extensions: readonly IExtensionPointUser<IMcpCollectionContribution[]>[], delta: ExtensionPointUserDelta<IMcpCollectionContribution[]>) {
-		const extensionCollections = this._extensionCollections!;
-		for (const collections of delta.removed) {
-			for (const coll of collections.value) {
-				const id = extensionPrefixedIdentifier(collections.description.identifier, coll.id);
-				this.deleteCollection(id);
-			}
-		}
-
-		for (const collections of delta.added) {
-			if (!ExtensionMcpDiscovery._validate(collections)) {
-				continue;
-			}
-			for (const coll of collections.value) {
-				const id = extensionPrefixedIdentifier(collections.description.identifier, coll.id);
-				this._extensionCollectionIdsToPersist.set(id, PersistWhen.CollectionExists);
-
-				// Handle conditional collections with 'when' clause
-				if (coll.when) {
-					this._registerConditionalCollection(id, coll, collections, extensionCollections);
-				} else {
-					// Register collection immediately if no 'when' clause
-					this._registerCollection(id, coll, collections, extensionCollections);
+			for (const collections of removed) {
+				for (const coll of collections.value) {
+					const id = extensionPrefixedIdentifier(collections.description.identifier, coll.id);
+					extensionCollections.deleteAndDispose(id);
+					this._conditionalCollections.deleteAndDispose(id);
 				}
 			}
-		}
-	}
 
-	protected deleteCollection(id: string) {
-		this._extensionCollections!.deleteAndDispose(id);
-		this._conditionalCollections.deleteAndDispose(id);
-		this._extensionCollectionIdsToPersist.set(id, PersistWhen.Delete);
-	}
+			for (const collections of added) {
 
+				if (!ExtensionMcpDiscovery._validate(collections)) {
+					continue;
+				}
+
+				for (const coll of collections.value) {
+					const id = extensionPrefixedIdentifier(collections.description.identifier, coll.id);
+					this._extensionCollectionIdsToPersist.set(id, PersistWhen.CollectionExists);
+
+					// Handle conditional collections with 'when' clause
+					if (coll.when) {
+						this._registerConditionalCollection(id, coll, collections, extensionCollections);
+					} else {
+						// Register collection immediately if no 'when' clause
+						this._registerCollection(id, coll, collections, extensionCollections);
+					}
+				}
+			}
+		}));
+	}
 
 	private _registerCollection(
 		id: string,

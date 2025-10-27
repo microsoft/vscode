@@ -206,7 +206,9 @@ export class DisposableTracker implements IDisposableTracker {
 				const continuations = groupBy([...prevStarts].map(d => getStackTracePath(d)[i]), v => v);
 				delete continuations[stackTracePath[i]];
 				for (const [cont, set] of Object.entries(continuations)) {
-					stackTraceFormattedLines.unshift(`    - stacktraces of ${set.length} other leaks continue with ${cont}`);
+					if (set) {
+						stackTraceFormattedLines.unshift(`    - stacktraces of ${set.length} other leaks continue with ${cont}`);
+					}
 				}
 
 				stackTraceFormattedLines.unshift(line);

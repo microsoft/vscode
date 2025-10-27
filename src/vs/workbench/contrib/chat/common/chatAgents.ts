@@ -48,6 +48,7 @@ export interface IChatAgentAttachmentCapabilities {
 	supportsSourceControlAttachments?: boolean;
 	supportsProblemAttachments?: boolean;
 	supportsSymbolAttachments?: boolean;
+	supportsTerminalAttachments?: boolean;
 }
 
 export interface IChatAgentData {

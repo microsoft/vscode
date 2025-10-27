@@ -74,11 +74,13 @@ suite('RepositoryCache', () => {
 
 	test('set & get basic', () => {
 		const memento = new InMemoryMemento();
-		const cache = new TestRepositoryCache(memento, new MockLogOutputChannel(), undefined, [{ uri: Uri.file('/workspace/repo'), name: 'workspace', index: 0 }]);
-		cache.set('https://example.com/repo.git', '/workspace/repo');
-		const folders = cache.get('https://example.com/repo.git')!.map(folder => folder.replace(/\\/g, '/'));
+		const folder = Uri.file('/workspace/repo');
+		const cache = new TestRepositoryCache(memento, new MockLogOutputChannel(), undefined, [{ uri: folder, name: 'workspace', index: 0 }]);
+
+		cache.set('https://example.com/repo.git', folder.fsPath);
+		const folders = cache.get('https://example.com/repo.git')!.map(folder => folder.workspacePath);
 		assert.ok(folders, 'folders should be defined');
-		assert.deepStrictEqual(folders, ['/workspace/repo']);
+		assert.deepStrictEqual(folders, [folder.fsPath]);
 	});
 
 	test('inner LRU capped at 10 entries', () => {
@@ -90,13 +92,13 @@ suite('RepositoryCache', () => {
 		const cache = new TestRepositoryCache(memento, new MockLogOutputChannel(), undefined, workspaceFolders);
 		const repo = 'https://example.com/repo.git';
 		for (let i = 1; i <= 12; i++) {
-			cache.set(repo, `/ws/folder-${i.toString().padStart(2, '0')}`);
+			cache.set(repo, Uri.file(`/ws/folder-${i.toString().padStart(2, '0')}`).fsPath);
 		}
-		const folders = cache.get(repo)!.map(folder => folder.replace(/\\/g, '/'));
+		const folders = cache.get(repo)!.map(folder => folder.workspacePath);
 		assert.strictEqual(folders.length, 10, 'should only retain 10 most recent folders');
-		assert.ok(!folders.includes('/ws/folder-01'), 'oldest folder-01 should be evicted');
-		assert.ok(!folders.includes('/ws/folder-02'), 'second oldest folder-02 should be evicted');
-		assert.ok(folders.includes('/ws/folder-12'), 'latest folder should be present');
+		assert.ok(!folders.includes(Uri.file('/ws/folder-01').fsPath), 'oldest folder-01 should be evicted');
+		assert.ok(!folders.includes(Uri.file('/ws/folder-02').fsPath), 'second oldest folder-02 should be evicted');
+		assert.ok(folders.includes(Uri.file('/ws/folder-12').fsPath), 'latest folder should be present');
 	});
 
 	test('outer LRU capped at 30 repos', () => {
@@ -108,7 +110,7 @@ suite('RepositoryCache', () => {
 		const cache = new TestRepositoryCache(memento, new MockLogOutputChannel(), undefined, workspaceFolders);
 		for (let i = 1; i <= 35; i++) {
 			const repo = `https://example.com/r${i}.git`;
-			cache.set(repo, `/ws/r${i}`);
+			cache.set(repo, Uri.file(`/ws/r${i}`).fsPath);
 		}
 		assert.strictEqual(cache.get('https://example.com/r1.git'), undefined, 'oldest repo should be trimmed');
 		assert.ok(cache.get('https://example.com/r35.git'), 'newest repo should remain');
@@ -126,9 +128,9 @@ suite('RepositoryCache', () => {
 		const b = Uri.file('/ws/b').fsPath;
 		cache.set(repo, a);
 		cache.set(repo, b);
-		assert.deepStrictEqual(new Set(cache.get(repo)!), new Set([a, b]));
+		assert.deepStrictEqual(new Set(cache.get(repo)?.map(folder => folder.workspacePath)), new Set([a, b]));
 		cache.delete(repo, a);
-		assert.deepStrictEqual(cache.get(repo)!, [b]);
+		assert.deepStrictEqual(cache.get(repo)!.map(folder => folder.workspacePath), [b]);
 		cache.delete(repo, b);
 		assert.strictEqual(cache.get(repo), undefined, 'repo should be pruned when last folder removed');
 	});

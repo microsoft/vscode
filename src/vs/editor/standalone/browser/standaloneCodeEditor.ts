@@ -87,7 +87,7 @@ export interface IActionDescriptor {
 	 * Method that will be executed when the action is triggered.
 	 * @param editor The editor instance is passed in as a convenience
 	 */
-	run(editor: ICodeEditor, ...args: any[]): void | Promise<void>;
+	run(editor: ICodeEditor, ...args: unknown[]): void | Promise<void>;
 }
 
 /**
@@ -394,7 +394,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		return toDispose;
 	}
 
-	protected override _triggerCommand(handlerId: string, payload: any): void {
+	protected override _triggerCommand(handlerId: string, payload: unknown): void {
 		if (this._codeEditorService instanceof StandaloneCodeEditorService) {
 			// Help commands find this editor as the active editor
 			try {

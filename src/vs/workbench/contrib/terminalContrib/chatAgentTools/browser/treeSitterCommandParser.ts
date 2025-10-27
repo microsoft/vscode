@@ -1,0 +1,69 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import type { Parser, Query, QueryCapture, Tree } from '@vscode/tree-sitter-wasm';
+import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
+import { arch } from '../../../../../base/common/process.js';
+import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+
+export const enum TreeSitterCommandParserLanguage {
+	Bash = 'bash',
+	PowerShell = 'powershell',
+}
+
+export class TreeSitterCommandParser {
+	private readonly _parser: Promise<Parser>;
+
+	constructor(
+		@ITreeSitterLibraryService private readonly _treeSitterLibraryService: ITreeSitterLibraryService,
+	) {
+		this._parser = this._treeSitterLibraryService.getParserClass().then(ParserCtor => new ParserCtor());
+	}
+
+	async extractSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
+		const { tree, query } = await this._doQuery(languageId, commandLine, '(command) @command');
+		const captures = query.captures(tree.rootNode);
+		return captures.map(e => e.node.text);
+	}
+
+	async queryTree(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<QueryCapture[]> {
+		const { tree, query } = await this._doQuery(languageId, commandLine, querySource);
+		return query.captures(tree.rootNode);
+	}
+
+	private async _doQuery(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<{ tree: Tree; query: Query }> {
+		this._throwIfCanCrash(languageId);
+
+		const parser = await this._parser;
+		const language = await this._treeSitterLibraryService.getLanguagePromise(languageId);
+		if (!language) {
+			throw new BugIndicatingError('Failed to fetch language grammar');
+		}
+
+		parser.setLanguage(language);
+
+		const tree = parser.parse(commandLine);
+		if (!tree) {
+			throw new ErrorNoTelemetry('Failed to parse tree');
+		}
+
+		const query = await this._treeSitterLibraryService.createQuery(language, querySource);
+		if (!query) {
+			throw new BugIndicatingError('Failed to create tree sitter query');
+		}
+
+		return { tree, query };
+	}
+
+	private _throwIfCanCrash(languageId: TreeSitterCommandParserLanguage) {
+		// TODO: The powershell grammar can cause an OOM crash on arm https://github.com/microsoft/vscode/issues/273177
+		if (
+			(arch === 'arm' || arch === 'arm64') &&
+			languageId === TreeSitterCommandParserLanguage.PowerShell
+		) {
+			throw new ErrorNoTelemetry('powershell grammar is not supported on arm or arm64');
+		}
+	}
+}

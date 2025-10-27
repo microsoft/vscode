@@ -5,8 +5,13 @@
 
 import ts from 'typescript';
 import fs from 'node:fs';
+import { normalize } from 'node:path';
 
 export type IFileMap = Map</*fileName*/ string, string>;
+
+function normalizePath(filePath: string): string {
+	return normalize(filePath);
+}
 
 /**
  * A TypeScript language service host
@@ -36,6 +41,8 @@ export class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 		return '1';
 	}
 	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
+		fileName = normalizePath(fileName);
+
 		if (this.topLevelFiles.has(fileName)) {
 			return this.ts.ScriptSnapshot.fromString(this.topLevelFiles.get(fileName)!);
 		} else {
@@ -52,12 +59,16 @@ export class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 		return this.ts.getDefaultLibFilePath(options);
 	}
 	readFile(path: string, encoding?: string): string | undefined {
+		path = normalizePath(path);
+
 		if (this.topLevelFiles.get(path)) {
 			return this.topLevelFiles.get(path);
 		}
 		return ts.sys.readFile(path, encoding);
 	}
 	fileExists(path: string): boolean {
+		path = normalizePath(path);
+
 		if (this.topLevelFiles.has(path)) {
 			return true;
 		}

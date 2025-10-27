@@ -262,6 +262,12 @@ export interface IConfigurationDefaults {
 }
 
 export type IRegisteredConfigurationPropertySchema = IConfigurationPropertySchema & {
+	section?: {
+		id?: string;
+		title?: string;
+		order?: number;
+		extensionInfo?: IExtensionInfo;
+	};
 	defaultDefaultValue?: any;
 	source?: IExtensionInfo; // Source of the Property
 	defaultValueSource?: ConfigurationDefaultValueSource; // Source of the Default Value
@@ -487,6 +493,12 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 
 	private updateDefaultOverrideProperty(key: string, newDefaultOverride: IConfigurationDefaultOverrideValue, source: IExtensionInfo | undefined): void {
 		const property: IRegisteredConfigurationPropertySchema = {
+			section: {
+				id: this.defaultLanguageConfigurationOverridesNode.id,
+				title: this.defaultLanguageConfigurationOverridesNode.title,
+				order: this.defaultLanguageConfigurationOverridesNode.order,
+				extensionInfo: this.defaultLanguageConfigurationOverridesNode.extensionInfo
+			},
 			type: 'object',
 			default: newDefaultOverride.value,
 			description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for {0}.", getLanguageTagSettingPlainKey(key)),
@@ -655,6 +667,12 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		if (properties) {
 			for (const key in properties) {
 				const property: IRegisteredConfigurationPropertySchema = properties[key];
+				property.section = {
+					id: configuration.id,
+					title: configuration.title,
+					order: configuration.order,
+					extensionInfo: configuration.extensionInfo
+				};
 				if (validate && validateProperty(key, property)) {
 					delete properties[key];
 					continue;
@@ -717,7 +735,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		}
 	}
 
-	// TODO: @sandy081 - Remove this method and include required info in getConfigurationProperties
+	// Only for tests
 	getConfigurations(): IConfigurationNode[] {
 		return this.configurationContributors;
 	}

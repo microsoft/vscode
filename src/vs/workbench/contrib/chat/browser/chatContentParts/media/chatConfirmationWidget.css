@@ -246,6 +246,10 @@
 	border-bottom: 1px solid var(--vscode-chat-requestBorder);
 	padding: 6px 9px 0 9px;
 
+	.tool-postconfirm-display {
+		padding-bottom: 6px;
+	}
+
 	p {
 		margin-top: 0;
 		margin-bottom: 9px;

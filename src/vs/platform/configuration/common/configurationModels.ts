@@ -790,6 +790,7 @@ export class Configuration {
 
 	keys(workspace: Workspace | undefined): {
 		default: string[];
+		policy: string[];
 		user: string[];
 		workspace: string[];
 		workspaceFolder: string[];
@@ -797,6 +798,7 @@ export class Configuration {
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(undefined, workspace);
 		return {
 			default: this._defaultConfiguration.keys.slice(0),
+			policy: this._policyConfiguration.keys.slice(0),
 			user: this.userConfiguration.keys.slice(0),
 			workspace: this._workspaceConfiguration.keys.slice(0),
 			workspaceFolder: folderConfigurationModel ? folderConfigurationModel.keys.slice(0) : []

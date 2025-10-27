@@ -27,7 +27,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalQuickFixInternalOptions, ITerminalQuickFixResolvedExtensionOptions, ITerminalQuickFix, ITerminalQuickFixTerminalCommandAction, ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, ITerminalQuickFixProviderSelector, ITerminalQuickFixService, ITerminalQuickFixUnresolvedExtensionOptions, TerminalQuickFixType, ITerminalQuickFixCommandAction } from './quickFix.js';
-import { ITerminalCommandSelector } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalCommandSelector, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { CodeActionKind } from '../../../../../editor/contrib/codeAction/common/types.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -111,6 +111,13 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		});
 		this._register(this._quickFixService.onDidRegisterCommandSelector(selector => this.registerCommandSelector(selector)));
 		this._register(this._quickFixService.onDidUnregisterProvider(id => this._commandListeners.delete(id)));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationQuickFixEnabled)) {
+				// Clear existing decorations when setting changes
+				this._decoration.clear();
+				this._decorationDisposables.clear();
+			}
+		}));
 	}
 
 	activate(terminal: Terminal): void {
@@ -250,6 +257,12 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	 */
 	private _registerQuickFixDecoration(): void {
 		if (!this._terminal) {
+			return;
+		}
+
+		// Check if quick fix decorations are enabled
+		const quickFixEnabled = this._configurationService.getValue<boolean>(TerminalSettingId.ShellIntegrationQuickFixEnabled);
+		if (!quickFixEnabled) {
 			return;
 		}
 

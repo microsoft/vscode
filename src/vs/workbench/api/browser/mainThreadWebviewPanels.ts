@@ -13,8 +13,7 @@ import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { DiffEditorInput } from '../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../common/editor/editorInput.js';
 import { ExtensionKeyedWebviewOriginStore, WebviewOptions } from '../../contrib/webview/browser/webview.js';
-import { WebviewInput } from '../../contrib/webviewPanel/browser/webviewEditorInput.js';
-import { WebviewIcons } from '../../contrib/webviewPanel/browser/webviewIconManager.js';
+import { WebviewIcons, WebviewInput } from '../../contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IWebViewShowOptions, IWebviewWorkbenchService } from '../../contrib/webviewPanel/browser/webviewWorkbenchService.js';
 import { editorGroupToColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../services/editor/common/editorGroupsService.js';
@@ -171,7 +170,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			options: reviveWebviewOptions(initData.panelOptions),
 			contentOptions: reviveWebviewContentOptions(initData.webviewOptions),
 			extension
-		}, this.webviewPanelViewType.fromExternal(viewType), initData.title, mainThreadShowOptions);
+		}, this.webviewPanelViewType.fromExternal(viewType), initData.title, undefined, mainThreadShowOptions);
 
 		this.addWebviewInput(handle, webview, { serializeBuffersForPostMessage: initData.serializeBuffersForPostMessage });
 	}
@@ -185,7 +184,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	}
 
 	public $setTitle(handle: extHostProtocol.WebviewHandle, value: string): void {
-		this.tryGetWebviewInput(handle)?.setName(value);
+		this.tryGetWebviewInput(handle)?.setWebviewTitle(value);
 	}
 
 	public $setIconPath(handle: extHostProtocol.WebviewHandle, value: extHostProtocol.IWebviewIconPath | undefined): void {

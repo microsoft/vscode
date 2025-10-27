@@ -183,7 +183,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * Returns the icon which represents this editor input.
 	 * If undefined, the default icon will be used.
 	 */
-	getIcon(): ThemeIcon | undefined {
+	getIcon(): ThemeIcon | URI | undefined {
 		return undefined;
 	}
 

@@ -622,6 +622,7 @@
 		"--vscode-scmGraph-historyItemHoverLabelForeground",
 		"--vscode-scmGraph-historyItemRefColor",
 		"--vscode-scmGraph-historyItemRemoteRefColor",
+		"--vscode-scrollbar-background",
 		"--vscode-scrollbar-shadow",
 		"--vscode-scrollbarSlider-activeBackground",
 		"--vscode-scrollbarSlider-background",

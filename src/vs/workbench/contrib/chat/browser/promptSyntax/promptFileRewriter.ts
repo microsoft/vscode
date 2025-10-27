@@ -10,6 +10,7 @@ import { EditOperation } from '../../../../../editor/common/core/editOperation.j
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageModelToolsService, IToolAndToolSetEnablementMap } from '../../common/languageModelToolsService.js';
+import { PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 
 export class PromptFileRewriter {
@@ -27,12 +28,12 @@ export class PromptFileRewriter {
 		}
 		const model = editor.getModel();
 
-		const parser = this._promptsService.getParsedPromptFile(model);
-		if (!parser.header) {
+		const promptAST = this._promptsService.getParsedPromptFile(model);
+		if (!promptAST.header) {
 			return undefined;
 		}
 
-		const toolsAttr = parser.header.getAttribute('tools');
+		const toolsAttr = promptAST.header.getAttribute(PromptHeaderAttributes.tools);
 		if (!toolsAttr) {
 			return undefined;
 		}

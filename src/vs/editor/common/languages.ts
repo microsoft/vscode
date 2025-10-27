@@ -854,6 +854,7 @@ export interface InlineCompletionDisplayLocation {
 	range: IRange;
 	kind: InlineCompletionDisplayLocationKind;
 	label: string;
+	jumpToEdit: boolean;
 }
 
 /**
@@ -967,6 +968,17 @@ export class ProviderId {
 		}
 		return result;
 	}
+
+	toStringWithoutVersion(): string {
+		let result = '';
+		if (this.extensionId) {
+			result += this.extensionId;
+		}
+		if (this.providerId) {
+			result += `:${this.providerId}`;
+		}
+		return result;
+	}
 }
 
 /** @internal */
@@ -1022,7 +1034,6 @@ export type LifetimeSummary = {
 	notShownReason: string | undefined;
 	editorType: string;
 	viewKind: string | undefined;
-	error: string | undefined;
 	preceeded: boolean;
 	languageId: string;
 	requestReason: string;

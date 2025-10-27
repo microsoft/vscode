@@ -521,7 +521,7 @@ export class MainThreadCommentController extends Disposable implements ICommentC
 		await this._proxy.$updateCommentThreadTemplate(this.handle, threadHandle, range);
 	}
 
-	toJSON(): any {
+	toJSON() {
 		return {
 			$mid: MarshalledId.CommentController,
 			handle: this.handle

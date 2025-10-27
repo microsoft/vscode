@@ -28,6 +28,7 @@ import { getTextResponseFromStream } from './utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
+import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -87,6 +88,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
 
@@ -526,7 +528,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			'',
 			localize('poll.terminal.enterInput', 'Focus terminal'),
 			undefined,
-			async () => { execution.instance.focus(true); return true; },
+			async () => {
+				this._showInstance(execution.instance.instanceId);
+				return true;
+			}
 		);
 
 		const inputPromise = new Promise<boolean>(resolve => {
@@ -567,6 +572,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				return option;
 			},
 			async () => {
+				this._showInstance(execution.instance.instanceId);
 				this._state = OutputMonitorState.Cancelled;
 				this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
 				inputDataDisposable.dispose();
@@ -590,6 +596,17 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return optionToRun;
 	}
 
+	private _showInstance(instanceId?: number): void {
+		if (!instanceId) {
+			return;
+		}
+		const instance = this._terminalService.getInstanceFromId(instanceId);
+		if (!instance) {
+			return;
+		}
+		this._terminalService.setActiveInstance(instance);
+		this._terminalService.revealActiveTerminal(true);
+	}
 	// Helper to create, register, and wire a ChatElicitationRequestPart. Returns the promise that
 	// resolves when the part is accepted/rejected and the registered part itself so callers can
 	// attach additional listeners (e.g., onDidRequestHide) or compose with other promises.

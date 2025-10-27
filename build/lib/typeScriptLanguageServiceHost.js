@@ -10,6 +10,10 @@ exports.TypeScriptLanguageServiceHost = void 0;
  *--------------------------------------------------------------------------------------------*/
 const typescript_1 = __importDefault(require("typescript"));
 const node_fs_1 = __importDefault(require("node:fs"));
+const node_path_1 = require("node:path");
+function normalizePath(filePath) {
+    return (0, node_path_1.normalize)(filePath);
+}
 /**
  * A TypeScript language service host
  */
@@ -39,6 +43,7 @@ class TypeScriptLanguageServiceHost {
         return '1';
     }
     getScriptSnapshot(fileName) {
+        fileName = normalizePath(fileName);
         if (this.topLevelFiles.has(fileName)) {
             return this.ts.ScriptSnapshot.fromString(this.topLevelFiles.get(fileName));
         }
@@ -56,12 +61,14 @@ class TypeScriptLanguageServiceHost {
         return this.ts.getDefaultLibFilePath(options);
     }
     readFile(path, encoding) {
+        path = normalizePath(path);
         if (this.topLevelFiles.get(path)) {
             return this.topLevelFiles.get(path);
         }
         return typescript_1.default.sys.readFile(path, encoding);
     }
     fileExists(path) {
+        path = normalizePath(path);
         if (this.topLevelFiles.has(path)) {
             return true;
         }

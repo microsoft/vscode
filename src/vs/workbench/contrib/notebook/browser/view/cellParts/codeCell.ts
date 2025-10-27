@@ -291,7 +291,7 @@ export class CodeCell extends Disposable {
 		if (this._useNewApproachForEditorLayout) {
 			return;
 		}
-		const extraOffset = - 6 /** distance to the top of the cell editor, which is 6px under the focus indicator */ - 1 /** border */;
+		const extraOffset = -6 /** distance to the top of the cell editor, which is 6px under the focus indicator */ - 1 /** border */;
 		const min = 0;
 
 		const scrollTop = this.notebookEditor.scrollTop;

@@ -31,7 +31,7 @@ class ExtHostNotebookDocumentSaveParticipant implements IStoredFileWorkingCopySa
 
 		let _warningTimeout: Timeout;
 
-		const p = new Promise<any>((resolve, reject) => {
+		const p = new Promise<void>((resolve, reject) => {
 
 			_warningTimeout = setTimeout(
 				() => reject(new Error(localize('timeout.onWillSave', "Aborted onWillSaveNotebookDocument-event after 1750ms"))),

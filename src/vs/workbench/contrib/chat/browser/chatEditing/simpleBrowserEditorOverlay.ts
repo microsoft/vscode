@@ -37,6 +37,7 @@ import { IBrowserElementsService } from '../../../../services/browserElements/br
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { BrowserType } from '../../../../../platform/browserElements/common/browserElements.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 class SimpleBrowserOverlayWidget {
 
@@ -63,6 +64,7 @@ class SimpleBrowserOverlayWidget {
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@IBrowserElementsService private readonly _browserElementsService: IBrowserElementsService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		this._showStore.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('chat.sendElementsToChat.enabled')) {
@@ -253,7 +255,7 @@ class SimpleBrowserOverlayWidget {
 		const bounds = elementData.bounds;
 		const toAttach: IChatRequestVariableEntry[] = [];
 
-		const widget = await showChatView(this._viewService) ?? this._chatWidgetService.lastFocusedWidget;
+		const widget = await showChatView(this._viewService, this._layoutService) ?? this._chatWidgetService.lastFocusedWidget;
 		let value = 'Attached HTML and CSS Context\n\n' + elementData.outerHTML;
 		if (this.configurationService.getValue('chat.sendElementsToChat.attachCSS')) {
 			value += '\n\n' + elementData.computedStyle;

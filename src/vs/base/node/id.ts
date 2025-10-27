@@ -78,7 +78,7 @@ export const virtualMachineHint: { value(): number } = new class {
 };
 
 let machineId: Promise<string>;
-export async function getMachineId(errorLogger: (error: any) => void): Promise<string> {
+export async function getMachineId(errorLogger: (error: Error) => void): Promise<string> {
 	if (!machineId) {
 		machineId = (async () => {
 			const id = await getMacMachineId(errorLogger);
@@ -90,7 +90,7 @@ export async function getMachineId(errorLogger: (error: any) => void): Promise<s
 	return machineId;
 }
 
-async function getMacMachineId(errorLogger: (error: any) => void): Promise<string | undefined> {
+async function getMacMachineId(errorLogger: (error: Error) => void): Promise<string | undefined> {
 	try {
 		const crypto = await import('crypto');
 		const macAddress = getMac();
@@ -102,7 +102,7 @@ async function getMacMachineId(errorLogger: (error: any) => void): Promise<strin
 }
 
 const SQM_KEY: string = 'Software\\Microsoft\\SQMClient';
-export async function getSqmMachineId(errorLogger: (error: any) => void): Promise<string> {
+export async function getSqmMachineId(errorLogger: (error: Error) => void): Promise<string> {
 	if (isWindows) {
 		const Registry = await import('@vscode/windows-registry');
 		try {
@@ -115,7 +115,7 @@ export async function getSqmMachineId(errorLogger: (error: any) => void): Promis
 	return '';
 }
 
-export async function getDevDeviceId(errorLogger: (error: any) => void): Promise<string> {
+export async function getDevDeviceId(errorLogger: (error: Error) => void): Promise<string> {
 	try {
 		const deviceIdPackage = await import('@vscode/deviceid');
 		const id = await deviceIdPackage.getDeviceId();

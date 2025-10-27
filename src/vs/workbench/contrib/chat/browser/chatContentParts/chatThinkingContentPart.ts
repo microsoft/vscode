@@ -7,7 +7,8 @@ import { $, clearNode } from '../../../../../base/browser/dom.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { IChatThinkingPart } from '../../common/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
-import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
+import { ThinkingDisplayMode } from '../../common/constants.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -32,6 +33,24 @@ function extractTextFromPart(content: IChatThinkingPart): string {
 function extractTitleFromThinkingContent(content: string): string | undefined {
 	const headerMatch = content.match(/^\*\*([^*]+)\*\*\s*/);
 	return headerMatch ? headerMatch[1].trim() : undefined;
+}
+
+/**
+ * everything     => fixedScrolling
+ * gpt-5-codex    => collapsed with special grouping
+ */
+function resolvePerModelDefaultThinkingStyle(modelId: string | undefined): ThinkingDisplayMode {
+	if (!modelId) {
+		return ThinkingDisplayMode.FixedScrolling;
+	}
+	const id = modelId.toLowerCase();
+
+	// TODO @justschen: could have additional styles specific to gemini/codex besides collapased.
+	if (id.includes('gpt-5-codex')) {
+		return ThinkingDisplayMode.FixedScrollingTools;
+	}
+
+	return ThinkingDisplayMode.FixedScrolling;
 }
 
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
@@ -70,19 +89,29 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		this.id = content.id;
 
-		const mode = this.configurationService.getValue<string>('chat.agent.thinkingStyle') ?? 'none';
-		this.perItemCollapsedMode = mode === 'collapsedPerItem';
-		this.fixedScrollingMode = mode === 'fixedScrolling';
+		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.None;
+		let effectiveMode = configuredMode;
+		if (configuredMode === ThinkingDisplayMode.Default) {
+			let modelId: string | undefined;
+			if (isResponseVM(context.element)) {
+				modelId = context.element.model.request?.modelId;
+			}
+			effectiveMode = resolvePerModelDefaultThinkingStyle(modelId);
+		}
+
+		this.perItemCollapsedMode = effectiveMode === ThinkingDisplayMode.CollapsedPerItem;
+		this.fixedScrollingMode = effectiveMode === ThinkingDisplayMode.FixedScrolling || effectiveMode === ThinkingDisplayMode.FixedScrollingTools;
 
 		this.currentTitle = extractedTitle;
 		if (extractedTitle !== this.defaultTitle) {
 			this.lastExtractedTitle = extractedTitle;
 		}
 		this.currentThinkingValue = this.parseContent(initialText);
-		if (mode === 'expanded' || mode === 'collapsedPreview' || mode === 'fixedScrolling') {
-			this.setExpanded(true);
-		} else if (mode === 'collapsed') {
+
+		if (effectiveMode === ThinkingDisplayMode.Collapsed) {
 			this.setExpanded(false);
+		} else {
+			this.setExpanded(true);
 		}
 
 		if (this.perItemCollapsedMode) {
@@ -309,6 +338,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	public appendItem(content: HTMLElement): void {
 		this.wrapper.appendChild(content);
+		if (this.fixedScrollingMode) {
+			const container = this.fixedScrollViewport ?? this.textContainer;
+			if (container) {
+				container.scrollTop = container.scrollHeight;
+			}
+		}
 	}
 
 	// makes a new text container. when we update, we now update this container.
@@ -344,12 +379,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return false;
 		}
 
-		const otherId = other?.id;
-		const thisId = this.id;
-
-		const otherValueRaw = Array.isArray(other.value) ? other.value.join('') : (other.value ?? '');
-		const isEqual = this.parseContent(otherValueRaw.trim()) === this.currentThinkingValue;
-		return isEqual || otherId !== thisId;
+		return other?.id !== this.id;
 	}
 
 	override dispose(): void {

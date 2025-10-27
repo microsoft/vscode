@@ -504,11 +504,15 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 					continue;
 				}
 
+				if (!historyItemRefs) {
+					continue;
+				}
+
 				// Group history item references by icon
 				const historyItemRefByIconId = groupBy2(historyItemRefs, ref => ThemeIcon.isThemeIcon(ref.icon) ? ref.icon.id : '');
 				for (const [key, historyItemRefs] of Object.entries(historyItemRefByIconId)) {
 					// Skip badges without an icon
-					if (key === '') {
+					if (key === '' || !historyItemRefs) {
 						continue;
 					}
 

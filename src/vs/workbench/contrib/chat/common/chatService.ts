@@ -11,7 +11,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, IObservable, IReader } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ISelection } from '../../../../editor/common/core/selection.js';
 import { Command, Location, TextEdit } from '../../../../editor/common/languages.js';
@@ -167,6 +167,7 @@ export interface IChatMultiDiffData {
 		}>;
 	};
 	kind: 'multiDiffData';
+	readOnly?: boolean;
 }
 
 export interface IChatProgressMessage {
@@ -388,12 +389,14 @@ export namespace IChatToolInvocation {
 
 	interface IChatToolWaitingForPostApprovalState extends IChatToolInvocationStateBase, IChatToolInvocationPostExecuteState {
 		type: StateKind.WaitingForPostApproval;
-		postConfirm(reason: ConfirmedReason): void;
+		confirm(reason: ConfirmedReason): void;
+		contentForModel: IToolResult['content'];
 	}
 
 	interface IChatToolInvocationCompleteState extends IChatToolInvocationStateBase, IChatToolInvocationPostExecuteState {
 		type: StateKind.Completed;
 		postConfirmed: ConfirmedReason | undefined;
+		contentForModel: IToolResult['content'];
 	}
 
 	interface IChatToolInvocationCancelledState extends IChatToolInvocationStateBase {
@@ -408,7 +411,7 @@ export namespace IChatToolInvocation {
 		| IChatToolInvocationCompleteState
 		| IChatToolInvocationCancelledState;
 
-	export function isConfirmed(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): ConfirmedReason | undefined {
+	export function executionConfirmedOrDenied(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): ConfirmedReason | undefined {
 		if (invocation.kind === 'toolInvocationSerialized') {
 			if (invocation.isConfirmed === undefined || typeof invocation.isConfirmed === 'boolean') {
 				return { type: invocation.isConfirmed ? ToolConfirmKind.UserAction : ToolConfirmKind.Denied };
@@ -428,7 +431,7 @@ export namespace IChatToolInvocation {
 	}
 
 	export function awaitConfirmation(invocation: IChatToolInvocation, token?: CancellationToken): Promise<ConfirmedReason> {
-		const reason = isConfirmed(invocation);
+		const reason = executionConfirmedOrDenied(invocation);
 		if (reason) {
 			return Promise.resolve(reason);
 		}
@@ -442,7 +445,7 @@ export namespace IChatToolInvocation {
 			}
 
 			store.add(autorun(reader => {
-				const reason = isConfirmed(invocation, reader);
+				const reason = executionConfirmedOrDenied(invocation, reader);
 				if (reason) {
 					store.dispose();
 					resolve(reason);
@@ -453,13 +456,51 @@ export namespace IChatToolInvocation {
 		});
 	}
 
+	function postApprovalConfirmedOrDenied(invocation: IChatToolInvocation, reader?: IReader): ConfirmedReason | undefined {
+		const state = invocation.state.read(reader);
+		if (state.type === StateKind.Completed) {
+			return state.postConfirmed || { type: ToolConfirmKind.ConfirmationNotNeeded };
+		}
+		if (state.type === StateKind.Cancelled) {
+			return { type: state.reason };
+		}
+
+		return undefined;
+	}
+
 	export function confirmWith(invocation: IChatToolInvocation | undefined, reason: ConfirmedReason) {
 		const state = invocation?.state.get();
-		if (state?.type === StateKind.WaitingForConfirmation) {
+		if (state?.type === StateKind.WaitingForConfirmation || state?.type === StateKind.WaitingForPostApproval) {
 			state.confirm(reason);
 			return true;
 		}
 		return false;
+	}
+
+	export function awaitPostConfirmation(invocation: IChatToolInvocation, token?: CancellationToken): Promise<ConfirmedReason> {
+		const reason = postApprovalConfirmedOrDenied(invocation);
+		if (reason) {
+			return Promise.resolve(reason);
+		}
+
+		const store = new DisposableStore();
+		return new Promise<ConfirmedReason>(resolve => {
+			if (token) {
+				store.add(token.onCancellationRequested(() => {
+					resolve({ type: ToolConfirmKind.Denied });
+				}));
+			}
+
+			store.add(autorun(reader => {
+				const reason = postApprovalConfirmedOrDenied(invocation, reader);
+				if (reason) {
+					store.dispose();
+					resolve(reason);
+				}
+			}));
+		}).finally(() => {
+			store.dispose();
+		});
 	}
 
 	export function resultDetails(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader) {
@@ -897,7 +938,7 @@ export interface IChatService {
 export interface IChatSessionContext {
 	chatSessionType: string;
 	chatSessionId: string;
-	chatSessionResource: UriComponents;
+	chatSessionResource: URI;
 	isUntitled: boolean;
 }
 

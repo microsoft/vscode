@@ -71,7 +71,10 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			picker.items = [{
 				lineNumber: position.lineNumber,
 				column: position.column,
-				label
+				label,
+				detail: inputText.length ?
+					undefined : // Don't show hint once the user has started typing.
+					localize('gotoLineQuickAccessDescription', "Use :line[:column] or ::offset to go to a position. Negative values are counted from the end.")
 			}];
 
 			// ARIA Label
@@ -94,7 +97,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		// Add a toggle to switch between 1- and 0-based offsets.
 		const toggle = new Toggle({
 			title: localize('gotoLineToggle', "Use zero-based offset"),
-			icon: Codicon.symbolArray,
+			icon: Codicon.indexZero,
 			isChecked: this.useZeroBasedOffset.value,
 			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
 			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
@@ -136,36 +139,42 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		};
 	}
 
-	private parsePosition(editor: IEditor, value: string): IPosition {
+	protected parsePosition(editor: IEditor, value: string): IPosition {
+		const model = this.getModel(editor);
 
 		// Support ::<offset> notation to navigate to a specific offset in the model.
 		if (value.startsWith(':')) {
 			let offset = parseInt(value.substring(1), 10);
-			if (!isNaN(offset)) {
-				const model = this.getModel(editor);
-				if (model) {
-					const reverse = offset < 0;
-					if (!this.useZeroBasedOffset.value) {
-						// Convert 1-based offset to model's 0-based.
-						offset -= Math.sign(offset);
-					}
-					if (reverse) {
-						// Offset from the end of the buffer
-						offset += model.getValueLength();
-					}
-					return model.getPositionAt(offset);
+			if (!isNaN(offset) && model) {
+				const reverse = offset < 0;
+				if (!this.useZeroBasedOffset.value) {
+					// Convert 1-based offset to model's 0-based.
+					offset -= Math.sign(offset);
 				}
+				if (reverse) {
+					// Offset from the end of the buffer
+					offset += model.getValueLength();
+				}
+				return model.getPositionAt(offset);
 			}
 		}
 
 		// Support line-col formats of `line,col`, `line:col`, `line#col`
-		const numbers = value.split(/,|:|#/).map(part => parseInt(part, 10)).filter(part => !isNaN(part));
-		const endLine = this.lineCount(editor) + 1;
+		let [lineNumber, column] = value.split(/,|:|#/).map(part => parseInt(part, 10)).filter(part => !isNaN(part));
 
-		return {
-			lineNumber: numbers[0] > 0 ? numbers[0] : endLine + numbers[0],
-			column: numbers[1]
-		};
+		// Handle negative line numbers and clip to valid range.
+		const maxLine = (model?.getLineCount() ?? 0) + 1;
+		lineNumber = lineNumber >= 0 ? lineNumber : maxLine + lineNumber;
+		lineNumber = Math.min(Math.max(1, lineNumber), maxLine);
+
+		// Handle negative column numbers and clip to valid range.
+		if (column !== undefined && model) {
+			const maxColumn = model.getLineMaxColumn(lineNumber);
+			column = column >= 0 ? column : maxColumn + column;
+			column = Math.min(Math.max(1, column), maxColumn);
+		}
+
+		return { lineNumber, column };
 	}
 
 	private getPickLabel(editor: IEditor, lineNumber: number, column: number | undefined, inOffsetMode: boolean): string {

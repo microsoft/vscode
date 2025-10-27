@@ -30,6 +30,7 @@ import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/ter
 import './media/terminalChatWidget.css';
 import { MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
 import { ChatMode } from '../../../chat/common/chatModes.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -103,6 +104,7 @@ export class TerminalChatWidget extends Disposable {
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -430,7 +432,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	async viewInChat(): Promise<void> {
-		const widget = await showChatView(this._viewsService);
+		const widget = await showChatView(this._viewsService, this._layoutService);
 		const currentRequest = this._inlineChatWidget.chatWidget.viewModel?.model.getRequests().find(r => r.id === this._currentRequestId);
 		if (!widget || !currentRequest?.response) {
 			return;

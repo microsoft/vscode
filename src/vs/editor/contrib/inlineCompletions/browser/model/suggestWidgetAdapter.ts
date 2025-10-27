@@ -84,7 +84,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 						candidates,
 						compareBy(s => s!.prefixLength, numberComparator)
 					);
-					return result ? result.index : - 1;
+					return result ? result.index : -1;
 				}
 			}));
 
