@@ -20,7 +20,7 @@ import { ModelService } from '../../../editor/common/services/modelService.js';
 
 import { FileService } from '../../../platform/files/common/fileService.js';
 import { Schemas } from '../../../base/common/network.js';
-import { DiskFileSystemProvider } from '../../../platform/files/node/diskFileSystemProvider.js';
+import { TestIPCFileSystemProvider } from './workbenchTestServices.js';
 import { ILanguageService } from '../../../editor/common/languages/language.js';
 import { LanguageService } from '../../../editor/common/services/languageService.js';
 import { TestColorTheme, TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
@@ -40,7 +40,6 @@ import { Color } from '../../../base/common/color.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { TokenUpdate } from '../../../editor/common/model/tokens/treeSitter/tokenStore.js';
 import { ITreeSitterLibraryService } from '../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-// eslint-disable-next-line local/code-layering, local/code-import-patterns
 import { TreeSitterLibraryService } from '../../services/treeSitter/browser/treeSitterLibraryService.js';
 import { TokenizationTextModelPart } from '../../../editor/common/model/tokens/tokenizationTextModelPart.js';
 import { TreeSitterSyntaxTokenBackend } from '../../../editor/common/model/tokens/treeSitter/treeSitterSyntaxTokenBackend.js';
@@ -49,7 +48,6 @@ import { ITextModel } from '../../../editor/common/model.js';
 import { TreeSitterTokenizationImpl } from '../../../editor/common/model/tokens/treeSitter/treeSitterTokenizationImpl.js';
 import { autorunHandleChanges, recordChanges, waitForState } from '../../../base/common/observable.js';
 import { ITreeSitterThemeService } from '../../../editor/common/services/treeSitter/treeSitterThemeService.js';
-// eslint-disable-next-line local/code-layering, local/code-import-patterns
 import { TreeSitterThemeService } from '../../services/treeSitter/browser/treeSitterThemeService.js';
 
 class MockTelemetryService implements ITelemetryService {
@@ -122,8 +120,8 @@ suite('Tree Sitter TokenizationFeature', function () {
 		instantiationService.set(ILanguageConfigurationService, languageConfigurationService);
 
 		fileService = disposables.add(instantiationService.createInstance(FileService));
-		const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(logService));
-		disposables.add(fileService.registerProvider(Schemas.file, diskFileSystemProvider));
+		const fileSystemProvider = new TestIPCFileSystemProvider();
+		disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 		instantiationService.set(IFileService, fileService);
 
 		const libraryService = disposables.add(instantiationService.createInstance(TreeSitterLibraryService));

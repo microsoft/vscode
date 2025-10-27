@@ -13,7 +13,7 @@ export interface IHistory<T> {
 	add(t: T): this;
 	has(t: T): boolean;
 	clear(): void;
-	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void;
+	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: unknown): void;
 	replace?(t: T[]): void;
 	readonly onDidChange?: Event<string[]>;
 }

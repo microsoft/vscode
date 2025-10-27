@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { renderADMLString, renderProfileString, renderADMX, renderADML, renderProfileManifest, renderMacOSPolicy, renderGP } from '../policies/render.js';
+import { renderADMLString, renderProfileString, renderADMX, renderADML, renderProfileManifest, renderMacOSPolicy, renderGP, renderJsonPolicies } from '../policies/render.js';
 import { NlsString, LanguageTranslations, Category, Policy, PolicyType } from '../policies/types.js';
 
 suite('Render Functions', () => {
@@ -136,7 +136,8 @@ suite('Render Functions', () => {
 			renderADMLStrings: () => ['<string id="TestPolicy">Test Policy</string>'],
 			renderADMLPresentation: () => '<presentation id="TestPolicy"/>',
 			renderProfile: () => ['<key>TestPolicy</key>', '<true/>'],
-			renderProfileManifest: () => '<dict><key>pfm_name</key><string>TestPolicy</string></dict>'
+			renderProfileManifest: () => '<dict><key>pfm_name</key><string>TestPolicy</string></dict>',
+			renderJsonValue: () => null
 		};
 
 		test('should render ADMX with correct XML structure', () => {
@@ -210,7 +211,8 @@ suite('Render Functions', () => {
 				renderADMLStrings: () => ['<string id="TestPolicy2">Test Policy 2</string>'],
 				renderADMLPresentation: () => '<presentation id="TestPolicy2"/>',
 				renderProfile: () => ['<key>TestPolicy2</key>', '<string/>'],
-				renderProfileManifest: () => '<dict><key>pfm_name</key><string>TestPolicy2</string></dict>'
+				renderProfileManifest: () => '<dict><key>pfm_name</key><string>TestPolicy2</string></dict>',
+				renderJsonValue: () => null
 			};
 			const result = renderADMX('VSCode', ['1.0'], [mockCategory], [mockPolicy, policy2]);
 
@@ -237,7 +239,8 @@ suite('Render Functions', () => {
 			],
 			renderADMLPresentation: () => '<presentation id="TestPolicy"><textBox refId="TestPolicy"/></presentation>',
 			renderProfile: () => [],
-			renderProfileManifest: () => ''
+			renderProfileManifest: () => '',
+			renderJsonValue: () => null
 		};
 
 		test('should render ADML with correct XML structure', () => {
@@ -326,7 +329,8 @@ suite('Render Functions', () => {
 <string>TestPolicy</string>
 <key>pfm_description</key>
 <string>${translations?.['testModule']?.['test.desc'] || 'Default Desc'}</string>
-</dict>`
+</dict>`,
+			renderJsonValue: () => null
 		};
 
 		test('should render profile manifest with correct XML structure', () => {
@@ -463,7 +467,8 @@ suite('Render Functions', () => {
 <string>TestPolicy</string>
 <key>pfm_description</key>
 <string>${translations?.['testModule']?.['test.desc'] || 'Default Desc'}</string>
-</dict>`
+</dict>`,
+			renderJsonValue: () => null
 		};
 
 		test('should render complete macOS policy profile', () => {
@@ -645,7 +650,8 @@ suite('Render Functions', () => {
 			],
 			renderADMLPresentation: () => '<presentation id="TestPolicy"/>',
 			renderProfile: () => [],
-			renderProfileManifest: () => ''
+			renderProfileManifest: () => '',
+			renderJsonValue: () => null
 		};
 
 		test('should render complete GP with ADMX and ADML', () => {
@@ -822,6 +828,202 @@ suite('Render Functions', () => {
 			assert.ok('adml' in result);
 			assert.strictEqual(typeof result.admx, 'string');
 			assert.ok(Array.isArray(result.adml));
+		});
+	});
+
+	suite('renderJsonPolicies', () => {
+
+		const mockCategory: Category = {
+			moduleName: 'testModule',
+			name: { value: 'Test Category', nlsKey: 'test.category' }
+		};
+
+		test('should render boolean policy JSON value', () => {
+			const booleanPolicy: Policy = {
+				name: 'BooleanPolicy',
+				type: PolicyType.Boolean,
+				category: mockCategory,
+				minimumVersion: '1.0',
+				renderADMX: () => [],
+				renderADMLStrings: () => [],
+				renderADMLPresentation: () => '',
+				renderProfile: () => [],
+				renderProfileManifest: () => '',
+				renderJsonValue: () => false
+			};
+
+			const result = renderJsonPolicies([booleanPolicy]);
+
+			assert.deepStrictEqual(result, { BooleanPolicy: false });
+		});
+
+		test('should render number policy JSON value', () => {
+			const numberPolicy: Policy = {
+				name: 'NumberPolicy',
+				type: PolicyType.Number,
+				category: mockCategory,
+				minimumVersion: '1.0',
+				renderADMX: () => [],
+				renderADMLStrings: () => [],
+				renderADMLPresentation: () => '',
+				renderProfile: () => [],
+				renderProfileManifest: () => '',
+				renderJsonValue: () => 42
+			};
+
+			const result = renderJsonPolicies([numberPolicy]);
+
+			assert.deepStrictEqual(result, { NumberPolicy: 42 });
+		});
+
+		test('should render string policy JSON value', () => {
+			const stringPolicy: Policy = {
+				name: 'StringPolicy',
+				type: PolicyType.String,
+				category: mockCategory,
+				minimumVersion: '1.0',
+				renderADMX: () => [],
+				renderADMLStrings: () => [],
+				renderADMLPresentation: () => '',
+				renderProfile: () => [],
+				renderProfileManifest: () => '',
+				renderJsonValue: () => ''
+			};
+
+			const result = renderJsonPolicies([stringPolicy]);
+
+			assert.deepStrictEqual(result, { StringPolicy: '' });
+		});
+
+		test('should render string enum policy JSON value', () => {
+			const stringEnumPolicy: Policy = {
+				name: 'StringEnumPolicy',
+				type: PolicyType.StringEnum,
+				category: mockCategory,
+				minimumVersion: '1.0',
+				renderADMX: () => [],
+				renderADMLStrings: () => [],
+				renderADMLPresentation: () => '',
+				renderProfile: () => [],
+				renderProfileManifest: () => '',
+				renderJsonValue: () => 'auto'
+			};
+
+			const result = renderJsonPolicies([stringEnumPolicy]);
+
+			assert.deepStrictEqual(result, { StringEnumPolicy: 'auto' });
+		});
+
+		test('should render object policy JSON value', () => {
+			const objectPolicy: Policy = {
+				name: 'ObjectPolicy',
+				type: PolicyType.Object,
+				category: mockCategory,
+				minimumVersion: '1.0',
+				renderADMX: () => [],
+				renderADMLStrings: () => [],
+				renderADMLPresentation: () => '',
+				renderProfile: () => [],
+				renderProfileManifest: () => '',
+				renderJsonValue: () => ''
+			};
+
+			const result = renderJsonPolicies([objectPolicy]);
+
+			assert.deepStrictEqual(result, { ObjectPolicy: '' });
+		});
+
+		test('should render multiple policies', () => {
+			const booleanPolicy: Policy = {
+				name: 'BooleanPolicy',
+				type: PolicyType.Boolean,
+				category: mockCategory,
+				minimumVersion: '1.0',
+				renderADMX: () => [],
+				renderADMLStrings: () => [],
+				renderADMLPresentation: () => '',
+				renderProfile: () => [],
+				renderProfileManifest: () => '',
+				renderJsonValue: () => true
+			};
+
+			const numberPolicy: Policy = {
+				name: 'NumberPolicy',
+				type: PolicyType.Number,
+				category: mockCategory,
+				minimumVersion: '1.0',
+				renderADMX: () => [],
+				renderADMLStrings: () => [],
+				renderADMLPresentation: () => '',
+				renderProfile: () => [],
+				renderProfileManifest: () => '',
+				renderJsonValue: () => 100
+			};
+
+			const stringPolicy: Policy = {
+				name: 'StringPolicy',
+				type: PolicyType.String,
+				category: mockCategory,
+				minimumVersion: '1.0',
+				renderADMX: () => [],
+				renderADMLStrings: () => [],
+				renderADMLPresentation: () => '',
+				renderProfile: () => [],
+				renderProfileManifest: () => '',
+				renderJsonValue: () => 'test-value'
+			};
+
+			const result = renderJsonPolicies([booleanPolicy, numberPolicy, stringPolicy]);
+
+			assert.deepStrictEqual(result, {
+				BooleanPolicy: true,
+				NumberPolicy: 100,
+				StringPolicy: 'test-value'
+			});
+		});
+
+		test('should handle empty policies array', () => {
+			const result = renderJsonPolicies([]);
+
+			assert.deepStrictEqual(result, {});
+		});
+
+		test('should handle null JSON value', () => {
+			const nullPolicy: Policy = {
+				name: 'NullPolicy',
+				type: PolicyType.String,
+				category: mockCategory,
+				minimumVersion: '1.0',
+				renderADMX: () => [],
+				renderADMLStrings: () => [],
+				renderADMLPresentation: () => '',
+				renderProfile: () => [],
+				renderProfileManifest: () => '',
+				renderJsonValue: () => null
+			};
+
+			const result = renderJsonPolicies([nullPolicy]);
+
+			assert.deepStrictEqual(result, { NullPolicy: null });
+		});
+
+		test('should handle object JSON value', () => {
+			const objectPolicy: Policy = {
+				name: 'ComplexObjectPolicy',
+				type: PolicyType.Object,
+				category: mockCategory,
+				minimumVersion: '1.0',
+				renderADMX: () => [],
+				renderADMLStrings: () => [],
+				renderADMLPresentation: () => '',
+				renderProfile: () => [],
+				renderProfileManifest: () => '',
+				renderJsonValue: () => ({ nested: { value: 123 } })
+			};
+
+			const result = renderJsonPolicies([objectPolicy]);
+
+			assert.deepStrictEqual(result, { ComplexObjectPolicy: { nested: { value: 123 } } });
 		});
 	});
 });

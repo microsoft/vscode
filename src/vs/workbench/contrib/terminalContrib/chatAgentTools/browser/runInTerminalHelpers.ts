@@ -69,7 +69,10 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 
 	// We shouldn't offer configuring rules for commands that are explicitly denied since it
 	// wouldn't get auto approved with a new rule
-	const canCreateAutoApproval = autoApproveResult.subCommandResults.some(e => e.result !== 'denied') || autoApproveResult.commandLineResult.result === 'denied';
+	const canCreateAutoApproval = (
+		autoApproveResult.subCommandResults.every(e => e.result !== 'denied') &&
+		autoApproveResult.commandLineResult.result !== 'denied'
+	);
 	if (canCreateAutoApproval) {
 		const unapprovedSubCommands = subCommands.filter((_, index) => {
 			return autoApproveResult.subCommandResults[index].result !== 'approved';
@@ -152,9 +155,7 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		if (
 			firstSubcommandFirstWord !== commandLine &&
 			!commandsWithSubcommands.has(commandLine) &&
-			!commandsWithSubSubCommands.has(commandLine) &&
-			autoApproveResult.commandLineResult.result !== 'denied' &&
-			autoApproveResult.subCommandResults.every(e => e.result !== 'denied')
+			!commandsWithSubSubCommands.has(commandLine)
 		) {
 			actions.push({
 				label: localize('autoApprove.exactCommand', 'Always Allow Exact Command Line'),

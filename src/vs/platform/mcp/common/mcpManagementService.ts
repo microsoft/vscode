@@ -29,6 +29,7 @@ export interface ILocalMcpServerInfo {
 	name: string;
 	version?: string;
 	displayName?: string;
+	galleryId?: string;
 	galleryUrl?: string;
 	description?: string;
 	repositoryUrl?: string;
@@ -426,6 +427,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 			publisher: mcpServerInfo.publisher,
 			publisherDisplayName: mcpServerInfo.publisherDisplayName,
 			galleryUrl: mcpServerInfo.galleryUrl,
+			galleryId: mcpServerInfo.galleryId,
 			repositoryUrl: mcpServerInfo.repositoryUrl,
 			readmeUrl: mcpServerInfo.readmeUrl,
 			icon: mcpServerInfo.icon,
@@ -514,6 +516,7 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		const manifestPath = this.uriIdentityService.extUri.joinPath(location, 'manifest.json');
 		const local: ILocalMcpServerInfo = {
 			galleryUrl: gallery.galleryUrl,
+			galleryId: gallery.id,
 			name: gallery.name,
 			displayName: gallery.displayName,
 			description: gallery.description,

@@ -120,9 +120,26 @@ class StatusBarActionViewItem extends ActionViewItem {
 		super(null, action, { ...options, icon: false, label: true });
 	}
 
+	override render(container: HTMLElement): void {
+		container.classList.add('scm-status-bar-action');
+		super.render(container);
+	}
+
 	protected override updateLabel(): void {
 		if (this.options.label && this.label) {
-			reset(this.label, ...renderLabelWithIcons(this.action.label));
+			// Convert text nodes to span elements to enable
+			// text overflow on the left hand side of the label
+			const elements = renderLabelWithIcons(this.action.label)
+				.map(element => {
+					if (typeof element === 'string') {
+						const span = document.createElement('span');
+						span.textContent = element;
+						return span;
+					}
+					return element;
+				});
+
+			reset(this.label, ...elements);
 		}
 	}
 }

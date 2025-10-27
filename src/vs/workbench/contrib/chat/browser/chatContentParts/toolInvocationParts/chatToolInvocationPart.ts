@@ -5,10 +5,8 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { markdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
 import { IChatRendererContent } from '../../../common/chatViewModel.js';
@@ -26,7 +24,11 @@ import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js'
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
+import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
+import { autorun } from '../../../../../../base/common/observable.js';
+import { localize } from '../../../../../../nls.js';
+import { markdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -66,6 +68,15 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			return;
 		}
 
+		if (toolInvocation.kind === 'toolInvocation') {
+			const initialState = toolInvocation.state.get().type;
+			this._register(autorun(reader => {
+				if (toolInvocation.state.read(reader).type !== initialState) {
+					render();
+				}
+			}));
+		}
+
 		// This part is a bit different, since IChatToolInvocation is not an immutable model object. So this part is able to rerender itself.
 		// If this turns out to be a typical pattern, we could come up with a more reusable pattern, like telling the list to rerender an element
 		// when the model changes, or trying to make the model immutable and swap out one content part for a new one based on user actions in the view.
@@ -81,24 +92,24 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			this.subPart = partStore.add(this.createToolInvocationSubPart());
 			this.domNode.appendChild(this.subPart.domNode);
 			partStore.add(this.subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-			partStore.add(this.subPart.onNeedsRerender(() => {
-				render();
-				this._onDidChangeHeight.fire();
-			}));
+			partStore.add(this.subPart.onNeedsRerender(render));
 
-			// todo@connor4312/tyriar: standardize how these are displayed
-			if (!(this.subPart instanceof ChatTerminalToolProgressPart)) {
+			// todo@connor4312: Move MCP spinner to left to get consistent auto approval presentation
+			if (this.subPart instanceof ChatInputOutputMarkdownProgressPart) {
 				const approval = this.createApprovalMessage();
 				if (approval) {
 					this.domNode.appendChild(approval);
 				}
 			}
+
+			this._onDidChangeHeight.fire();
 		};
 		render();
 	}
 
+	/** @deprecated Approval should be centrally managed by passing tool invocation ChatProgressContentPart */
 	private get autoApproveMessageContent() {
-		const reason = IChatToolInvocation.isConfirmed(this.toolInvocation);
+		const reason = IChatToolInvocation.executionConfirmedOrDenied(this.toolInvocation);
 		if (!reason || typeof reason === 'boolean') {
 			return;
 		}
@@ -127,6 +138,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		return md;
 	}
 
+	/** @deprecated Approval should be centrally managed by passing tool invocation ChatProgressContentPart */
 	private createApprovalMessage(): HTMLElement | undefined {
 		const md = this.autoApproveMessageContent;
 		if (!md) {
@@ -146,12 +158,16 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			if (this.toolInvocation.toolSpecificData?.kind === 'extensions') {
 				return this.instantiationService.createInstance(ExtensionsInstallConfirmationWidgetSubPart, this.toolInvocation, this.context);
 			}
-			if (this.toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			const state = this.toolInvocation.state.get();
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 				if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
 					return this.instantiationService.createInstance(ChatTerminalToolConfirmationSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
 				} else {
 					return this.instantiationService.createInstance(ToolConfirmationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
 				}
+			}
+			if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				return this.instantiationService.createInstance(ChatToolPostExecuteConfirmationPart, this.toolInvocation, this.context, this.editorPool, this.currentWidthDelegate);
 			}
 		}
 
