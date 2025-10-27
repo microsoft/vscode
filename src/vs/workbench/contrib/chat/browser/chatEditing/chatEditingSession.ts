@@ -703,6 +703,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				requestId: telemetryInfo.requestId,
 				epoch: this._timeline.incrementEpoch(),
 				initialContent: initialContent || '',
+				telemetryInfo,
 			});
 
 			if (this._notebookService.hasSupportedNotebooks(notebookUri)) {

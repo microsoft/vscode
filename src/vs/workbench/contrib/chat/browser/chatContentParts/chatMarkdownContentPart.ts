@@ -546,7 +546,7 @@ export class CollapsedCodeBlock extends Disposable {
 			if (isStreaming.read(r)) {
 				const entry = editSessionEntry.read(r);
 				const rwRatio = Math.floor((entry?.rewriteRatio.read(r) || 0) * 100);
-				labelDetail.textContent = rwRatio === 0 || !rwRatio ? localize('chat.codeblock.generating', "Generating edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...");
+				labelDetail.textContent = rwRatio === 0 || !rwRatio ? localize('chat.codeblock.generating', "Generating edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...", rwRatio);
 			} else {
 				labelDetail.textContent = '';
 			}

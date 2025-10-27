@@ -29,7 +29,7 @@ import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { IEditSessionEntryDiff, IModifiedEntryTelemetryInfo } from '../../common/chatEditingService.js';
 import { IChatRequestDisablement } from '../../common/chatModel.js';
 import { IChatEditingCheckpointTimeline } from './chatEditingCheckpointTimeline.js';
-import { FileOperation, FileOperationType, IChatEditingTimelineState, ICheckpoint, IFileBaseline, IFileCreateOperation, IReconstructedFileExistsState, IReconstructedFileNotExistsState, IReconstructedFileState } from './chatEditingOperations.js';
+import { FileOperation, FileOperationType, IChatEditingTimelineState, ICheckpoint, IFileBaseline, IReconstructedFileExistsState, IReconstructedFileNotExistsState, IReconstructedFileState } from './chatEditingOperations.js';
 import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 import { createSnapshot as createNotebookSnapshot, restoreSnapshot as restoreNotebookSnapshot } from './notebook/chatEditingModifiedNotebookSnapshot.js';
 
@@ -76,7 +76,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		const operations = this._operations.read(reader);
 		const checkpoints = this._checkpoints.read(reader);
 
-		const previousOperationEpoch = operations.findLast(op => op.epoch < currentEpoch)?.epoch || 0;
+		const previousOperationEpoch = findLast(operations, op => op.epoch < currentEpoch)?.epoch || 0;
 		const previousCheckpointIdx = findLastIdx(checkpoints, cp => cp.epoch < previousOperationEpoch);
 		if (previousCheckpointIdx === -1) {
 			return undefined;
@@ -238,7 +238,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		const currentCheckpoints = this._checkpoints.get();
 
 		const operations = this._operations.get();
-		const insertAt = operations.findLastIndex(op => op.epoch < currentEpoch);
+		const insertAt = findLastIdx(operations, op => op.epoch < currentEpoch);
 		operations[insertAt + 1] = operation;
 		operations.length = insertAt + 2; // Truncate any operations beyond this point
 
@@ -413,13 +413,12 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 
 			// If the file was just created, use that as its updated baseline
 			if (operation.type === FileOperationType.Create && isEqual(operation.uri, uri)) {
-				const createOp = operation as IFileCreateOperation;
 				return {
 					uri: operation.uri,
 					requestId: operation.requestId,
-					content: createOp.initialContent,
+					content: operation.initialContent,
 					epoch: operation.epoch,
-					telemetryInfo: this._getFileBaseline(uri, currentRequestId)?.telemetryInfo!,
+					telemetryInfo: operation.telemetryInfo,
 				};
 			}
 
@@ -598,7 +597,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		switch (operation.type) {
 			case FileOperationType.Create:
 				if (isMovingForward) {
-					await this._delegate.createFile(operation.uri, (operation as IFileCreateOperation).initialContent);
+					await this._delegate.createFile(operation.uri, operation.initialContent);
 					urisToRestore.add(operation.uri);
 				} else {
 					await this._delegate.deleteFile(operation.uri);

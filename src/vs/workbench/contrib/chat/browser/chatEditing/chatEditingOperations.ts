@@ -33,6 +33,7 @@ export interface IFileCreateOperation extends IFileOperation {
 	readonly type: FileOperationType.Create;
 	readonly initialContent: string;
 	readonly notebookViewType?: string;
+	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
 }
 
 /**
