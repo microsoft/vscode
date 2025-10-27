@@ -310,7 +310,6 @@ export interface ITerminalCommand extends IBaseTerminalCommand {
 	readonly executedMarker?: IMarker;
 	readonly aliases?: string[][];
 	readonly wasReplayed?: boolean;
-	readonly chatSessionId?: string;
 
 	extractCommandLine(): string;
 	getOutput(): string | undefined;

@@ -22,7 +22,6 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { PartialTerminalCommand } from '../../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
@@ -579,8 +578,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				);
 				if (pollingResult && pollingResult.modelOutputEvalResponse) {
 					resultText += `\n\ The command became idle with output:\n${pollingResult.modelOutputEvalResponse}`;
+					toolSpecificData.capturedOutput = pollingResult.modelOutputEvalResponse;
 				} else if (pollingResult) {
 					resultText += `\n\ The command is still running, with output:\n${pollingResult.output}`;
+					toolSpecificData.capturedOutput = pollingResult.output;
 				}
 
 				return {
@@ -638,7 +639,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				let strategy: ITerminalExecuteStrategy;
 				const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
 				if (commandDetection?.currentCommand) {
-					(commandDetection.currentCommand as PartialTerminalCommand).chatSessionId = toolSpecificData.terminalToolSessionId;
+					const params = new URLSearchParams(toolTerminal.instance.resource.query);
+					params.set('command', commandDetection.currentCommand.id);
+					const commandUri = toolTerminal.instance.resource.with({ query: params.toString() || undefined });
+					toolSpecificData.terminalCommandUri = commandUri.toJSON();
 				}
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
@@ -666,6 +670,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
+				}
+				if (executeResult.output !== undefined) {
+					toolSpecificData.capturedOutput = executeResult.output;
 				}
 
 				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);

@@ -33,6 +33,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { localize } from '../../../../../../nls.js';
 import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 const MAX_TERMINAL_OUTPUT_PREVIEW_LENGTH = 20000;
 
@@ -218,21 +219,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private async _collectOutput(terminalInstance: ITerminalInstance): Promise<{ text: string; truncated: boolean }> {
+		await terminalInstance.xtermReadyPromise;
 		this._attachedCommand ??= this._resolveCommand(terminalInstance);
-		let text = this._attachedCommand?.getOutput() ?? '';
-
-		if (!text && terminalInstance.xterm) {
-			text = await terminalInstance.xterm.getContentsAsText();
-		}
-
-		if (!text) {
-			return { text: '', truncated: false };
-		}
+		let text = this._attachedCommand?.getOutput() ?? this._terminalData.capturedOutput ?? '';
 
 		let truncated = false;
 		if (text.length > MAX_TERMINAL_OUTPUT_PREVIEW_LENGTH) {
 			const lines = text.split('\n');
-			const maxLines = Math.floor(MAX_TERMINAL_OUTPUT_PREVIEW_LENGTH / 80); // Estimate ~80 chars per line
+			const maxLines = Math.floor(MAX_TERMINAL_OUTPUT_PREVIEW_LENGTH / 80);
 			if (lines.length > maxLines) {
 				text = lines.slice(-maxLines).join('\n');
 			} else {
@@ -270,13 +264,20 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return undefined;
 		}
 
-		const sessionId = this._terminalData.terminalToolSessionId;
-		if (sessionId) {
-			const bySession = commands.find(cmd => cmd.chatSessionId === sessionId);
-			if (bySession) {
-				return bySession;
+		const commandUriComponents = this._terminalData.terminalCommandUri;
+		if (commandUriComponents) {
+			const commandUri = URI.revive(commandUriComponents);
+			if (!commandUri.path || commandUri.path === instance.resource.path) {
+				const commandId = new URLSearchParams(commandUri.query).get('command');
+				if (commandId) {
+					const byId = commands.find(cmd => cmd.id === commandId);
+					if (byId) {
+						return byId;
+					}
+				}
 			}
 		}
+
 		return;
 	}
 }

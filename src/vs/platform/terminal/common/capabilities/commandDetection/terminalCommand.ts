@@ -28,7 +28,6 @@ export interface ITerminalCommandProperties {
 	executedMarker?: IMarker | undefined;
 	aliases?: string[][] | undefined;
 	wasReplayed?: boolean | undefined;
-	chatSessionId?: string | undefined;
 }
 
 export class TerminalCommand implements ITerminalCommand {
@@ -45,7 +44,6 @@ export class TerminalCommand implements ITerminalCommand {
 	get executedMarker() { return this._properties.executedMarker; }
 	get aliases() { return this._properties.aliases; }
 	get wasReplayed() { return this._properties.wasReplayed; }
-	get chatSessionId() { return this._properties.chatSessionId; }
 	get cwd() { return this._properties.cwd; }
 	get exitCode() { return this._properties.exitCode; }
 	get commandStartLineContent() { return this._properties.commandStartLineContent; }
@@ -91,8 +89,7 @@ export class TerminalCommand implements ITerminalCommand {
 			exitCode: serialized.exitCode,
 			markProperties: serialized.markProperties,
 			aliases: undefined,
-			wasReplayed: true,
-			chatSessionId: undefined
+			wasReplayed: true
 		});
 		return newCommand;
 	}
@@ -249,6 +246,8 @@ export interface ICurrentPartialCommand {
 	 */
 	isInvalid?: boolean;
 
+	id: string;
+
 	getPromptRowCount(): number;
 	getCommandRowCount(): number;
 }
@@ -280,7 +279,6 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 	command?: string;
 	commandLineConfidence?: 'low' | 'medium' | 'high';
 	id: string;
-	chatSessionId?: string | undefined;
 
 	isTrusted?: boolean;
 	isInvalid?: boolean;
@@ -339,8 +337,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 				cwd,
 				exitCode,
 				commandStartLineContent: this.commandStartLineContent,
-				markProperties,
-				chatSessionId: this.chatSessionId
+				markProperties
 			});
 		}
 
