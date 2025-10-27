@@ -174,7 +174,7 @@ export interface IChatSessionsService {
 
 	registerChatSessionContentProvider(scheme: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveChatSession(sessionResource: URI): Promise<boolean>;
-	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
+	getChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
 
 	hasAnySessionOptions(sessionResource: URI): boolean;
 	getSessionOption(sessionResource: URI, optionId: string): string | undefined;

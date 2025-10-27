@@ -141,7 +141,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contentProviders.has(chatSessionType);
 	}
 
-	async provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
+	async getChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
 		const provider = this.contentProviders.get(sessionResource.scheme);
 		if (!provider) {
 			throw new Error(`No content provider for ${sessionResource.scheme}`);

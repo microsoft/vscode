@@ -778,7 +778,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return chatSessionItem;
 	}
 
-	public async provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
+	public async getChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
 		if (!(await this.canResolveChatSession(sessionResource))) {
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}

@@ -437,11 +437,11 @@ suite('MainThreadChatSessions', function () {
 		const resource = URI.parse(`${sessionScheme}:/test-session`);
 
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
-		const session1 = await chatSessionsService.provideChatSessionContent(resource, CancellationToken.None);
+		const session1 = await chatSessionsService.getChatSessionContent(resource, CancellationToken.None);
 
 		assert.ok(session1);
 
-		const session2 = await chatSessionsService.provideChatSessionContent(resource, CancellationToken.None);
+		const session2 = await chatSessionsService.getChatSessionContent(resource, CancellationToken.None);
 		assert.strictEqual(session1, session2);
 
 		assert.ok((proxy.$provideChatSessionContent as sinon.SinonStub).calledOnce);
@@ -463,7 +463,7 @@ suite('MainThreadChatSessions', function () {
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 
 		const resource = URI.parse(`${sessionScheme}:/test-session`);
-		const session = await chatSessionsService.provideChatSessionContent(resource, CancellationToken.None) as ObservableChatSession;
+		const session = await chatSessionsService.getChatSessionContent(resource, CancellationToken.None) as ObservableChatSession;
 
 		const progressDto: IChatProgressDto = { kind: 'progressMessage', content: { value: 'Test', isTrusted: false } };
 		await mainThread.$handleProgressChunk(1, resource, 'req1', [progressDto]);
@@ -488,7 +488,7 @@ suite('MainThreadChatSessions', function () {
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 
 		const resource = URI.parse(`${sessionScheme}:/test-session`);
-		const session = await chatSessionsService.provideChatSessionContent(resource, CancellationToken.None) as ObservableChatSession;
+		const session = await chatSessionsService.getChatSessionContent(resource, CancellationToken.None) as ObservableChatSession;
 
 		const progressDto: IChatProgressDto = { kind: 'progressMessage', content: { value: 'Test', isTrusted: false } };
 		await mainThread.$handleProgressChunk(1, resource, 'req1', [progressDto]);
@@ -518,7 +518,7 @@ suite('MainThreadChatSessions', function () {
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 
 		const resource = URI.parse(`${sessionScheme}:/multi-turn-session`);
-		const session = await chatSessionsService.provideChatSessionContent(resource, CancellationToken.None) as ObservableChatSession;
+		const session = await chatSessionsService.getChatSessionContent(resource, CancellationToken.None) as ObservableChatSession;
 
 		// Verify the session loaded correctly
 		assert.ok(session);

@@ -407,7 +407,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		if (originalEditor) {
 			// Prefetch the chat session content to make the subsequent editor swap quick
-			this._chatSessionsService.provideChatSessionContent(
+			this._chatSessionsService.getChatSessionContent(
 				URI.revive(modifiedResource),
 				CancellationToken.None,
 			).then(() => {
