@@ -54,16 +54,21 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 			type: 'pickerPick',
 			label: localize('mcp.addContext', "MCP Resources..."),
 			icon: Codicon.mcp,
-			asPicker: () => ({
-				placeholder: localize('mcp.addContext.placeholder', "Select MCP Resource..."),
-				picks: (_query, token) => this._getResourcePicks(token),
-			}),
+			asPicker: () => {
+				const helper = this._instantiationService.createInstance(McpResourcePickHelper);
+				return {
+					placeholder: localize('mcp.addContext.placeholder', "Select MCP Resource..."),
+					picks: (_query, token) => this._getResourcePicks(token, helper),
+					goBack: () => {
+						return helper.navigateBack();
+					}
+				};
+			},
 		});
 	}
 
-	private _getResourcePicks(token: CancellationToken) {
+	private _getResourcePicks(token: CancellationToken, helper: McpResourcePickHelper) {
 		const observable = observableValue<{ busy: boolean; picks: ChatContextPick[] }>(this, { busy: true, picks: [] });
-		const helper = this._instantiationService.createInstance(McpResourcePickHelper);
 		// TODO: still need to dispose helper
 		const picksObservable = helper.getPicks(token);
 		this._register(autorun(reader => {
@@ -78,12 +83,16 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 				for (const resource of resources) {
 					picks.push({
 						...McpResourcePickHelper.item(resource),
-						validateForAttachment: (): Promise<boolean> => {
+						validateForAttachment: async (): Promise<boolean> => {
 							if (helper.validateForAttachment) {
-								return helper.validateForAttachment(resource, server);
-							} else {
-								return Promise.resolve(true);
+								const val = await helper.validateForAttachment(resource, server);
+								if (val === true) {
+									helper.AddCurrentMCPQuickPickItemLevel(server, resources);
+								} else {
+									return false;
+								}
 							}
+							return Promise.resolve(true);
 						},
 						asAttachment: () => helper.toAttachment(resource, server).then(r => {
 							if (!r) {
