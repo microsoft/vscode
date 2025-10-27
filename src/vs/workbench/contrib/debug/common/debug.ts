@@ -8,7 +8,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Color } from '../../../../base/common/color.js';
 import { Event } from '../../../../base/common/event.js';
-import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchema, IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import severity from '../../../../base/common/severity.js';
 import { URI, UriComponents, URI as uri } from '../../../../base/common/uri.js';
@@ -952,7 +952,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	languages?: string[];
 
 	// debug configuration support
-	configurationAttributes?: unknown;
+	configurationAttributes?: Record<string, IJSONSchema>;
 	initialConfigurations?: unknown[];
 	configurationSnippets?: IJSONSchemaSnippet[];
 	variables?: { [key: string]: string };
