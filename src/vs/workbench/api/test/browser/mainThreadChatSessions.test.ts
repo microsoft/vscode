@@ -30,6 +30,8 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { mock, TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
 import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { NullWorkbenchAssignmentService } from '../../../services/assignment/test/common/nullAssignmentService.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -369,6 +371,7 @@ suite('MainThreadChatSessions', function () {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() { });
 		instantiationService.stub(IExtensionService, new TestExtensionService());
+		instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
 			override async openView() { return null; }
 		});
