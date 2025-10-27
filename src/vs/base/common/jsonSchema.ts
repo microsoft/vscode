@@ -105,7 +105,7 @@ export interface IJSONSchemaSnippet {
  *
  * Doesn't support all JSON schema features, such as `additionalProperties`.
  */
-export type TypeForJsonSchema<T> =
+export type TypeFromJsonSchema<T> =
 	// String
 	T extends { type: 'string' }
 	? string
@@ -126,17 +126,17 @@ export type TypeForJsonSchema<T> =
 	// Values are required or optional based on `required` list.
 	: T extends { type: 'object'; properties: infer P; required: infer RequiredList }
 	? {
-		[K in keyof P]: IsRequired<K, RequiredList> extends true ? TypeForJsonSchema<P[K]> : TypeForJsonSchema<P[K]> | undefined;
+		[K in keyof P]: IsRequired<K, RequiredList> extends true ? TypeFromJsonSchema<P[K]> : TypeFromJsonSchema<P[K]> | undefined;
 	}
 
 	// Object with no required properties.
 	// All values are optional
 	: T extends { type: 'object'; properties: infer P }
-	? { [K in keyof P]: TypeForJsonSchema<P[K]> | undefined }
+	? { [K in keyof P]: TypeFromJsonSchema<P[K]> | undefined }
 
 	// Array
 	: T extends { type: 'array'; items: infer I }
-	? Array<TypeForJsonSchema<I>>
+	? Array<TypeFromJsonSchema<I>>
 
 	// OneOf
 	: T extends { oneOf: infer I }
@@ -158,7 +158,7 @@ type IsRequired<K, RequiredList> =
 	: false;
 
 type MapSchemaToType<T> = T extends [infer First, ...infer Rest]
-	? TypeForJsonSchema<First> | MapSchemaToType<Rest>
+	? TypeFromJsonSchema<First> | MapSchemaToType<Rest>
 	: never;
 
 /**
@@ -168,7 +168,7 @@ type MapSchemaToType<T> = T extends [infer First, ...infer Rest]
  *
  * Doesn't support all JSON schema features. Notably, doesn't support converting unions or intersections to `oneOf` or `anyOf`.
  */
-export type JsonSchemaForType<T> =
+export type JsonSchemaFromType<T> =
 	// String
 	T extends string
 	? IJSONSchema & { type: 'string' }
@@ -188,14 +188,14 @@ export type JsonSchemaForType<T> =
 
 	// Array
 	: T extends ReadonlyArray<infer U>
-	? IJSONSchema & { items: JsonSchemaForType<U> }
+	? IJSONSchema & { items: JsonSchemaFromType<U> }
 
 	// Record
 	: T extends Record<string, infer V>
-	? IJSONSchema & { additionalProperties: JsonSchemaForType<V> }
+	? IJSONSchema & { additionalProperties: JsonSchemaFromType<V> }
 
 	// Object
-	: IJSONSchema & { properties: { [K in keyof T]: JsonSchemaForType<T[K]> } };
+	: IJSONSchema & { properties: { [K in keyof T]: JsonSchemaFromType<T[K]> } };
 
 
 interface Equals { schemas: IJSONSchema[]; id?: string }

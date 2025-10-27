@@ -8,7 +8,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { JsonSchemaForType } from '../../../../base/common/jsonSchema.js';
+import { JsonSchemaFromType } from '../../../../base/common/jsonSchema.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -265,7 +265,7 @@ export interface ILanguageModelsService {
 	computeTokenLength(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
-const languageModelChatProviderType: JsonSchemaForType<IUserFriendlyLanguageModel> = {
+const languageModelChatProviderType: JsonSchemaFromType<IUserFriendlyLanguageModel> = {
 	type: 'object',
 	properties: {
 		vendor: {

@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { matchesMimeType } from '../../../../base/common/dataTransfer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IJSONSchema, TypeForJsonSchema } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchema, TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -191,7 +191,7 @@ const chatOutputRendererContributionSchema = {
 	}
 } as const satisfies IJSONSchema;
 
-type IChatOutputRendererContribution = TypeForJsonSchema<typeof chatOutputRendererContributionSchema>;
+type IChatOutputRendererContribution = TypeFromJsonSchema<typeof chatOutputRendererContributionSchema>;
 
 const chatOutputRenderContributionPoint = ExtensionsRegistry.registerExtensionPoint<IChatOutputRendererContribution[]>({
 	extensionPoint: 'chatOutputRenderers',

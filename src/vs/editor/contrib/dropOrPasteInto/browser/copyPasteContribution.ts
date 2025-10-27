@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
-import { IJSONSchema, TypeForJsonSchema } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchema, TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as nls from '../../../../nls.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -96,7 +96,7 @@ registerEditorAction(class PasteAsAction extends EditorAction {
 		});
 	}
 
-	public override run(_accessor: ServicesAccessor, editor: ICodeEditor, args?: TypeForJsonSchema<typeof PasteAsAction.argsSchema>) {
+	public override run(_accessor: ServicesAccessor, editor: ICodeEditor, args?: TypeFromJsonSchema<typeof PasteAsAction.argsSchema>) {
 		let preference: PastePreference | undefined;
 		if (args) {
 			if ('kind' in args) {
