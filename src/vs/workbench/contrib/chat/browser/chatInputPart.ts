@@ -800,11 +800,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (verbose) {
 			kbLabel = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 		}
-		
+
 		// Include model information if available
 		const modelName = this._currentLanguageModel?.metadata.name;
-		const modelInfo = modelName ? localize('chatInput.model', "Using {0}. ", modelName) : '';
-		
+		const modelInfo = modelName ? localize('chatInput.model', ", {0}. ", modelName) : '';
+
 		let modeLabel = '';
 		switch (this.currentModeKind) {
 			case ChatModeKind.Agent:
