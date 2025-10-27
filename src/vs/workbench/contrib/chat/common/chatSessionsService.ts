@@ -151,9 +151,9 @@ export interface IChatSessionsService {
 	getWelcomeTipsForSessionType(chatSessionType: string): string | undefined;
 
 	/**
-	 * Get the list of chat session items for a specific session type.
+	 * Get the list of chat session items grouped by session type.
 	 */
-	getChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;
+	getAllChatSessionItems(token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>>;
 
 	getNewChatSessionItem(chatSessionType: string, options: {
 		request: IChatAgentRequest;

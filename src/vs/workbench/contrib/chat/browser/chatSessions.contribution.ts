@@ -677,7 +677,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._contentProviders.has(chatSessionResource.scheme);
 	}
 
-	public async getChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
+	async getAllChatSessionItems(token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>> {
+		return Promise.all(Array.from(this.getAllChatSessionContributions(), async contrib => {
+			return {
+				chatSessionType: contrib.type,
+				items: await this.getChatSessionItems(contrib.type, token)
+			};
+		}));
+	}
+
+	private async getChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
 		if (!(await this.hasChatSessionItemProvider(chatSessionType))) {
 			return [];
 		}
