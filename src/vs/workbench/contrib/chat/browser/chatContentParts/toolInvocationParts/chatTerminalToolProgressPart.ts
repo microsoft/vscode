@@ -26,7 +26,6 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
-import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import * as dom from '../../../../../../base/browser/dom.js';
@@ -66,6 +65,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private _outputResizeObserver: ResizeObserver | undefined;
 
 	private _showOutputAction: IAction | undefined;
+	private _showOutputActionAdded = false;
 
 	private readonly _terminalData: IChatTerminalToolInvocationData;
 	private _attachedCommand: ITerminalCommand | undefined;
@@ -164,7 +164,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				return;
 			}
 			this._terminalForOutput = instance;
-			this._attachedCommand = this._resolveCommand(instance);
+			this._attachedCommand = this._resolveCommand(instance, { allowFallback: false });
 			this._registerInstanceListener(instance);
 			await this._addFocusAction(instance, terminalToolSessionId);
 		};
@@ -189,100 +189,117 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const isTerminalHidden = this._terminalChatService.isBackgroundTerminal(terminalToolSessionId);
 		const focusAction = this._register(this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, this._attachedCommand, isTerminalHidden));
 		this._actionBar.value?.push(focusAction, { icon: true, label: false });
-		await this._addShowOutputAction();
+		this._ensureShowOutputAction();
 	}
 
-	private async _addShowOutputAction() {
-		this._showOutputAction = this._register(new Action(
-			'chat.showTerminalOutput',
-			localize('showTerminalOutput', 'Show Output'),
-			ThemeIcon.asClassName(Codicon.chevronRight),
-			true,
-			async () => {
-				if (!this._showOutputAction) {
-					return;
-				}
-				const expanded = !this._outputContainer.classList.contains('expanded');
-				this._outputContainer.classList.toggle('expanded', expanded);
-				this._outputContainer.classList.toggle('collapsed', !expanded);
-
-				if (expanded) {
-					this._titlePart.classList.add('expanded');
-					let didCreate = false;
-					if (!this._outputContent && this._terminalForOutput) {
-						const output = await this._collectOutput(this._terminalForOutput);
-						this._outputContent = this._renderOutput(output);
-						const theme = this._terminalForOutput.xterm?.getXtermTheme();
-						if (theme) {
-							const inlineTerminal = this._outputContent.querySelector('div');
-							if (!inlineTerminal) {
-								return;
-							}
-							inlineTerminal.style.setProperty('background-color', theme.background || 'transparent');
-							inlineTerminal.style.setProperty('color', theme.foreground || 'inherit');
-						}
-						this._outputBody.replaceChildren(this._outputContent);
-						if (!this._outputScrollbar) {
-							this._outputScrollbar = this._register(new DomScrollableElement(this._outputBody, {
-								vertical: ScrollbarVisibility.Auto,
-								horizontal: ScrollbarVisibility.Auto,
-								handleMouseWheel: true
-							}));
-							const scrollableDomNode = this._outputScrollbar.getDomNode();
-							scrollableDomNode.tabIndex = 0;
-							scrollableDomNode.style.maxHeight = `${MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT}px`;
-							this._outputContainer.appendChild(scrollableDomNode);
-							this._ensureOutputResizeObserver();
-							this._outputContent = undefined;
-						} else {
-							this._ensureOutputResizeObserver();
-						}
-						this._layoutOutput();
-						this._outputScrollbar?.setScrollPosition({ scrollTop: this._outputScrollbar.getScrollDimensions().scrollHeight });
-						didCreate = true;
+	private _ensureShowOutputAction(): void {
+		if (this._showOutputActionAdded || !this._attachedCommand?.endMarker) {
+			return;
+		}
+		if (!this._showOutputAction) {
+			this._showOutputAction = this._register(new Action(
+				'chat.showTerminalOutput',
+				localize('showTerminalOutput', 'Show Output'),
+				ThemeIcon.asClassName(Codicon.chevronRight),
+				true,
+				async () => {
+					if (!this._showOutputAction) {
+						return;
 					}
-					if (didCreate) {
-						dom.getActiveWindow().requestAnimationFrame(() => {
+					const expanded = !this._outputContainer.classList.contains('expanded');
+					this._outputContainer.classList.toggle('expanded', expanded);
+					this._outputContainer.classList.toggle('collapsed', !expanded);
+
+					if (expanded) {
+						this._titlePart.classList.add('expanded');
+						let didCreate = false;
+						if (!this._outputContent && this._terminalForOutput) {
+							const output = await this._collectOutput(this._terminalForOutput);
+							this._outputContent = this._renderOutput(output);
+							const theme = this._terminalForOutput.xterm?.getXtermTheme();
+							if (theme) {
+								const inlineTerminal = this._outputContent.querySelector('div');
+								if (!inlineTerminal) {
+									return;
+								}
+								inlineTerminal.style.setProperty('background-color', theme.background || 'transparent');
+								inlineTerminal.style.setProperty('color', theme.foreground || 'inherit');
+							}
+							this._outputBody.replaceChildren(this._outputContent);
+							if (!this._outputScrollbar) {
+								this._outputScrollbar = this._register(new DomScrollableElement(this._outputBody, {
+									vertical: ScrollbarVisibility.Auto,
+									horizontal: ScrollbarVisibility.Auto,
+									handleMouseWheel: true
+								}));
+								const scrollableDomNode = this._outputScrollbar.getDomNode();
+								scrollableDomNode.tabIndex = 0;
+								scrollableDomNode.style.maxHeight = `${MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT}px`;
+								this._outputContainer.appendChild(scrollableDomNode);
+								this._ensureOutputResizeObserver();
+								this._outputContent = undefined;
+							} else {
+								this._ensureOutputResizeObserver();
+							}
 							this._layoutOutput();
 							this._outputScrollbar?.setScrollPosition({ scrollTop: this._outputScrollbar.getScrollDimensions().scrollHeight });
-						});
+							didCreate = true;
+						}
+						if (didCreate) {
+							dom.getActiveWindow().requestAnimationFrame(() => {
+								this._layoutOutput();
+								this._outputScrollbar?.setScrollPosition({ scrollTop: this._outputScrollbar.getScrollDimensions().scrollHeight });
+							});
+						}
+						this._showOutputAction.label = localize('hideTerminalOutput', 'Hide Output');
+						this._showOutputAction.class = ThemeIcon.asClassName(Codicon.chevronDown);
+						this._layoutOutput();
+					} else {
+						this._titlePart.classList.remove('expanded');
+						this._showOutputAction.label = localize('showTerminalOutput', 'Show Output');
+						this._showOutputAction.class = ThemeIcon.asClassName(Codicon.chevronRight);
 					}
-					this._showOutputAction.label = localize('hideTerminalOutput', 'Hide Output');
-					this._showOutputAction.class = ThemeIcon.asClassName(Codicon.chevronDown);
-					this._layoutOutput();
-				} else {
-					this._titlePart.classList.remove('expanded');
-					this._showOutputAction.label = localize('showTerminalOutput', 'Show Output');
-					this._showOutputAction.class = ThemeIcon.asClassName(Codicon.chevronRight);
 				}
-			}
-		));
+			));
+		}
 		this._actionBar.value?.push([this._showOutputAction], { icon: true, label: false });
+		this._showOutputActionAdded = true;
 	}
 
 	private _registerInstanceListener(terminalInstance: ITerminalInstance) {
 		const commandDetectionListener = this._register(new MutableDisposable<IDisposable>());
-		const tryResolveCommand = () => {
-			if (this._attachedCommand) {
-				return true;
+		const tryResolveCommand = (allowFallback: boolean): boolean => {
+			const resolvedCommand = this._resolveCommand(terminalInstance, { allowFallback });
+			if (!resolvedCommand) {
+				return false;
 			}
-			const resolvedCommand = this._resolveCommand(terminalInstance);
-			if (resolvedCommand) {
-				this._attachedCommand = resolvedCommand;
-				return true;
+			this._attachedCommand = resolvedCommand;
+			if (resolvedCommand.endMarker) {
+				this._ensureShowOutputAction();
 			}
-			return false;
+			return true;
 		};
 
 		const attachCommandDetection = (commandDetection: ICommandDetectionCapability | undefined) => {
 			commandDetectionListener.clear();
-			if (!commandDetection || tryResolveCommand()) {
+			if (!commandDetection) {
 				return;
 			}
-			commandDetectionListener.value = Event.runAndSubscribe(commandDetection.onCommandFinished, () => {
-				if (tryResolveCommand()) {
-					commandDetectionListener.clear();
+
+			const resolvedImmediately = tryResolveCommand(false);
+			if (resolvedImmediately && this._attachedCommand?.endMarker) {
+				return;
+			}
+
+			commandDetectionListener.value = commandDetection.onCommandFinished(command => {
+				if (!this._matchesInvocationCommand(command, terminalInstance)) {
+					if (this._terminalData.terminalCommandUri || this._terminalData.terminalCommandIndex !== undefined) {
+						return;
+					}
 				}
+				this._attachedCommand = command;
+				this._ensureShowOutputAction();
+				commandDetectionListener.clear();
 			});
 		};
 
@@ -296,6 +313,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 			commandDetectionListener.clear();
 			this._actionBar.value?.clear();
+			this._showOutputActionAdded = false;
 			instanceListener.dispose();
 		}));
 	}
@@ -354,7 +372,35 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		return container;
 	}
 
-	private _resolveCommand(instance: ITerminalInstance): ITerminalCommand | undefined {
+	private _matchesInvocationCommand(command: ITerminalCommand, instance: ITerminalInstance): boolean {
+		const commandUriComponents = this._terminalData.terminalCommandUri;
+		if (commandUriComponents) {
+			const commandUri = URI.revive(commandUriComponents);
+			const commandId = new URLSearchParams(commandUri.query).get('command');
+			if (commandId && command.id === commandId) {
+				return true;
+			}
+		}
+
+		const commandIndex = this._terminalData.terminalCommandIndex;
+		if (commandIndex !== undefined) {
+			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+			if (commands && commands[commandIndex] === command) {
+				return true;
+			}
+		}
+
+		if (!commandUriComponents && commandIndex === undefined) {
+			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+			if (commands && commands.at(-1) === command) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private _resolveCommand(instance: ITerminalInstance, options?: { allowFallback?: boolean }): ITerminalCommand | undefined {
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 		const commands = commandDetection?.commands;
 		if (!commands || commands.length === 0) {
@@ -378,7 +424,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return commands[commandIndex];
 		}
 
-		return commands.at(-1);
+		if ((options?.allowFallback ?? true) && commands.length > 0) {
+			return commands.at(-1);
+		}
+
+		return undefined;
 	}
 }
 
