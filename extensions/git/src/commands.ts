@@ -116,7 +116,7 @@ class RefItem implements QuickPickItem {
 			case RefType.Head:
 				return `refs/heads/${this.ref.name}`;
 			case RefType.RemoteHead:
-				return `refs/remotes/${this.ref.remote}/${this.ref.name}`;
+				return `refs/remotes/${this.ref.name}`;
 			case RefType.Tag:
 				return `refs/tags/${this.ref.name}`;
 		}
@@ -5130,7 +5130,7 @@ export class CommandCenter {
 		}
 
 		try {
-			const changes = await repository.diffTrees(historyItemRef.id, sourceRef.refId);
+			const changes = await repository.diffTrees(sourceRef.refId, historyItemRef.id);
 
 			if (changes.length === 0) {
 				window.showInformationMessage(l10n.t('The selected references have no differences.'));
