@@ -56,32 +56,26 @@ const $ = dom.$;
 
 type CallStackItem = IStackFrame | IThread | IDebugSession | string | ThreadAndSessionIds | IStackFrame[];
 
-interface ISessionContext {
+interface ICallStackItemContext {
 	sessionId: string;
+	threadId?: number;
+	frameId?: number;
+	frameName?: string;
+	frameLocation?: { range: IRange; source: DebugProtocol.Source };
 }
 
-interface IThreadContext extends ISessionContext {
-	threadId: number;
-}
-
-interface IStackFrameContext extends IThreadContext {
-	frameId: number;
-	frameName: string;
-	frameLocation: { range: IRange; source: DebugProtocol.Source };
-}
-
-function getSessionContext(element: IDebugSession): ISessionContext {
+function getSessionContext(element: IDebugSession): ICallStackItemContext {
 	return { sessionId: element.getId() };
 }
 
-function getThreadContext(element: IThread): IThreadContext {
+function getThreadContext(element: IThread): ICallStackItemContext {
 	return {
 		...getSessionContext(element.session),
 		threadId: element.threadId
 	};
 }
 
-function getStackFrameContext(element: StackFrame): IStackFrameContext {
+function getStackFrameContext(element: StackFrame): ICallStackItemContext {
 	return {
 		...getThreadContext(element.thread),
 		frameId: element.frameId,
@@ -90,7 +84,7 @@ function getStackFrameContext(element: StackFrame): IStackFrameContext {
 	};
 }
 
-export function getContext(element: CallStackItem | null): IStackFrameContext | IThreadContext | ISessionContext | undefined {
+export function getContext(element: CallStackItem | null): ICallStackItemContext | undefined {
 	if (element instanceof StackFrame) {
 		return getStackFrameContext(element);
 	} else if (element instanceof Thread) {

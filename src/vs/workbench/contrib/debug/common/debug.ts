@@ -1308,12 +1308,12 @@ export interface IDebugService {
 	/**
 	 * Restarts a session or creates a new one if there is no active session.
 	 */
-	restartSession(session: IDebugSession, restartData?: unknown): Promise<unknown>;
+	restartSession(session: IDebugSession, restartData?: unknown): Promise<void>;
 
 	/**
 	 * Stops the session. If no session is specified then all sessions are stopped.
 	 */
-	stopSession(session: IDebugSession | undefined, disconnect?: boolean, suspend?: boolean): Promise<unknown>;
+	stopSession(session: IDebugSession | undefined, disconnect?: boolean, suspend?: boolean): Promise<void>;
 
 	/**
 	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
