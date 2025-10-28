@@ -190,7 +190,7 @@ const terminalConfigurationConst = {
 	[TerminalSettingId.FontLigaturesFallbackLigatures]: {
 		markdownDescription: localize('terminal.integrated.fontLigatures.fallbackLigatures', "When {0} is enabled and the particular {1} cannot be parsed, this is the set of character sequences that will always be drawn together. This allows the use of a fixed set of ligatures even when the font isn't supported.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.FontFamily}#\``),
 		type: 'array',
-		items: [{ type: 'string' }],
+		items: { type: 'string' },
 		default: [
 			'<--', '<---', '<<-', '<-', '->', '->>', '-->', '--->',
 			'<==', '<===', '<<=', '<=', '=>', '=>>', '==>', '===>', '>=', '>>=',
@@ -416,9 +416,7 @@ const terminalConfigurationConst = {
 
 		),
 		type: 'array',
-		items: {
-			type: 'string'
-		},
+		items: { type: 'string' },
 		default: []
 	},
 	[TerminalSettingId.AllowChords]: {
@@ -510,9 +508,7 @@ const terminalConfigurationConst = {
 	[TerminalSettingId.AllowedLinkSchemes]: {
 		description: localize('terminal.integrated.allowedLinkSchemes', "An array of strings containing the URI schemes that the terminal is allowed to open links for. By default, only a small subset of possible schemes are allowed for security reasons."),
 		type: 'array',
-		items: {
-			type: 'string'
-		},
+		items: { type: 'string' },
 		default: [
 			'file',
 			'http',
@@ -664,37 +660,45 @@ const terminalConfigurationConst = {
 
 const terminalConfiguration = terminalConfigurationConst as IStringDictionary<IConfigurationPropertySchema>;
 
-export type ITerminalConfiguration2 = {
-	// [K in keyof typeof terminalConfiguration]: TypeFromJsonSchema<typeof terminalConfiguration[K]>
-	[K in keyof typeof terminalConfigurationConst as K extends `terminal.integrated.${infer Rest}` ? Rest : K]: TypeFromJsonSchema<typeof terminalConfigurationConst[K]>
-};
+// Helper type to make string arrays readonly
+type MakeArraysReadonly<T> = T extends string[] ? readonly string[] : T;
 
+// Helpers to convert dot notation keys to nested objects
+type SplitKey<K extends string> = K extends `${infer First}.${infer Rest}` ? [First, Rest] : [K, never];
+type NestedObject<T> = {
+	// Make nested objects readonly
+	readonly [K in keyof T as SplitKey<K & string>[0]]: SplitKey<K & string>[1] extends never
+	// Make nested string[] readonly
+	? MakeArraysReadonly<T[K]>
+	: NestedObject<{ [P in SplitKey<K & string>[1]]: T[K] }>
+} extends infer U ? { readonly [K in keyof U]: U[K] } : never;
 
+// Assemble config interface with flat keys, excluding terminal.integrated.
+type FlatTerminalConfig = (
+	Omit<{
+		[K in keyof typeof terminalConfigurationConst as K extends `terminal.integrated.${infer Rest}` ? Rest : K]: TypeFromJsonSchema<typeof terminalConfigurationConst[K]>
+	}, (
+			// Omit keys that resolve to never
+			'env.linux' |
+			'env.osx' |
+			'env.windows' |
+			'tabs.defaultColor' |
+			'tabs.defaultIcon'
+		)
+	>
+	&
+	{
+		// Manually set keys that resolved to never
+		readonly 'env.linux': { [key: string]: string | null };
+		readonly 'env.osx': { [key: string]: string | null };
+		readonly 'env.windows': { [key: string]: string | null };
+		readonly 'tabs.defaultColor': null | 'terminal.ansiBlack' | 'terminal.ansiRed' | 'terminal.ansiGreen' | 'terminal.ansiYellow' | 'terminal.ansiBlue' | 'terminal.ansiMagenta' | 'terminal.ansiCyan' | 'terminal.ansiWhite';
+		readonly 'tabs.defaultIcon': string;
+	}
+);
 
-// const a: ITerminalConfiguration2;
-
-// const b = {
-// 	description: localize('terminal.integrated.developer.devMode', "Enable developer mode for the terminal. This shows additional debug information and visualizations for shell integration sequences."),
-// 	type: 'boolean',
-// 	default: false,
-// 	tags: ['advanced']
-// } as const satisfies IConfigurationPropertySchema;
-
-// const b = {
-// 	markdownDescription: localize('terminal.integrated.persistentSessionReviveProcess', "When the terminal process must be shut down (for example on window or application close), this determines when the previous terminal session contents/history should be restored and processes be recreated when the workspace is next opened.\n\nCaveats:\n\n- Restoring of the process current working directory depends on whether it is supported by the shell.\n- Time to persist the session during shutdown is limited, so it may be aborted when using high-latency remote connections."),
-// 	type: 'string',
-// 	enum: ['onExit', 'onExitAndWindowClose', 'never'],
-// 	markdownEnumDescriptions: [
-// 		localize('terminal.integrated.persistentSessionReviveProcess.onExit', "Revive the processes after the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu)."),
-// 		localize('terminal.integrated.persistentSessionReviveProcess.onExitAndWindowClose', "Revive the processes after the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu), or when the window is closed."),
-// 		localize('terminal.integrated.persistentSessionReviveProcess.never', "Never restore the terminal buffers or recreate the process.")
-// 	],
-// 	default: 'onExit'
-// } as const satisfies IConfigurationPropertySchema;,
-
-// type A = TypeFromJsonSchema<typeof b>;
-
-// const a: A;
+// Map flat keys to nested object
+export type ITerminalConfiguration2 = NestedObject<FlatTerminalConfig>;
 
 export async function registerTerminalConfiguration(getFontSnippets: () => Promise<IJSONSchemaSnippet[]>) {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
