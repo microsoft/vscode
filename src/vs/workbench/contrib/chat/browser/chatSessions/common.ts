@@ -28,7 +28,7 @@ export type ChatSessionItemWithProvider = IChatSessionItem & {
 	};
 };
 
-export function isChatSession(schemes: string[], editor?: EditorInput): boolean {
+export function isChatSession(schemes: readonly string[], editor?: EditorInput): boolean {
 	if (!(editor instanceof ChatEditorInput)) {
 		return false;
 	}
@@ -48,11 +48,7 @@ export function isChatSession(schemes: string[], editor?: EditorInput): boolean 
  * Returns chat session type from a URI, or 'local' if not specified or cannot be determined.
  */
 export function getChatSessionType(editor: ChatEditorInput): string {
-	if (editor.resource.scheme === Schemas.vscodeChatEditor || editor.resource.scheme === Schemas.vscodeChatSession) {
-		return 'local';
-	}
-
-	return editor.resource.scheme;
+	return editor.getSessionType();
 }
 
 /**
