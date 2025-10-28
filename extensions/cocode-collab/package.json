@@ -1,0 +1,86 @@
+{
+  "name": "cocode-collab",
+  "displayName": "cocode Collaboration",
+  "description": "Real-time collaborative editing with color-coded cursors.",
+  "publisher": "cocode",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCommand:cocode.collab.start",
+    "onCommand:cocode.collab.join",
+    "onCommand:cocode.collab.leave",
+    "onCommand:cocode.collab.status",
+    "onCommand:cocode.scaffold.tasks",
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "cocode.collab.start",
+        "title": "cocode: Start Collaboration Session"
+      },
+      {
+        "command": "cocode.collab.join",
+        "title": "cocode: Join Collaboration Session"
+      },
+      {
+        "command": "cocode.collab.leave",
+        "title": "cocode: Leave Collaboration Session"
+      },
+      {
+        "command": "cocode.collab.status",
+        "title": "cocode: Collab Status"
+      },
+      {
+        "command": "cocode.scaffold.tasks",
+        "title": "cocode: Scaffold C/C++/Python Tasks"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "cocode Collaboration",
+      "properties": {
+        "cocode.collab.serverUrl": {
+          "type": "string",
+          "default": "ws://localhost:3001",
+          "description": "WebSocket server endpoint for collaboration."
+        },
+        "cocode.collab.username": {
+          "type": "string",
+          "default": "",
+          "description": "Display name for your presence (optional)."
+        },
+        "cocode.collab.room": {
+          "type": "string",
+          "default": "",
+          "description": "Optional fixed room identifier. Leave blank to generate."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node ./scripts/build.mjs",
+    "watch": "node ./scripts/build.mjs --watch",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.2",
+    "@types/vscode": "^1.90.0",
+    "esbuild": "^0.21.0",
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "nanoid": "^5.0.7",
+    "yjs": "^13.6.0"
+  }
+}
