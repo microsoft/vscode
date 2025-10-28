@@ -734,55 +734,46 @@ export function registerChatActions() {
 						// Use the new Promise-based API to get chat sessions
 						const cancellationToken = new CancellationTokenSource();
 						try {
-							const providers = chatSessionsService.getAllChatSessionContributions();
-							const providerNSessions: { providerType: string; session: IChatSessionItem }[] = [];
+							const providerNSessions = await chatSessionsService.getAllChatSessionItems(cancellationToken.token);
+							for (const { chatSessionType, items } of providerNSessions) {
+								for (const session of items) {
 
-							for (const provider of providers) {
-								const sessions = await chatSessionsService.getChatSessionItems(provider.type, cancellationToken.token);
-								if (!sessions?.length) {
-									continue;
-								}
-								providerNSessions.push(...sessions.map(session => ({ providerType: provider.type, session })));
-							}
+									const ckey = contextKeyService.createKey('chatSessionType', chatSessionType);
+									const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
+									const { primary } = getContextMenuActions(actions, 'inline');
+									ckey.reset();
 
-							for (const session of providerNSessions) {
-								const sessionContent = session.session;
+									// Use primary actions if available, otherwise fall back to secondary actions
+									const buttons = primary.map(action => ({
+										id: action.id,
+										tooltip: action.tooltip,
+										iconClass: action.class || ThemeIcon.asClassName(Codicon.symbolClass),
+									}));
+									// Create agent pick from the session content
+									const agentPick: ICodingAgentPickerItem = {
+										label: session.label,
+										description: '',
+										session: { providerType: chatSessionType, session: session },
+										chat: {
+											sessionId: session.id,
+											title: session.label,
+											isActive: false,
+											lastMessageDate: 0,
+										},
+										buttons,
+										id: session.id
+									};
 
-								const ckey = contextKeyService.createKey('chatSessionType', session.providerType);
-								const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
-								const { primary } = getContextMenuActions(actions, 'inline');
-								ckey.reset();
-
-								// Use primary actions if available, otherwise fall back to secondary actions
-								const buttons = primary.map(action => ({
-									id: action.id,
-									tooltip: action.tooltip,
-									iconClass: action.class || ThemeIcon.asClassName(Codicon.symbolClass),
-								}));
-								// Create agent pick from the session content
-								const agentPick: ICodingAgentPickerItem = {
-									label: sessionContent.label,
-									description: '',
-									session: { providerType: session.providerType, session: sessionContent },
-									chat: {
-										sessionId: sessionContent.id,
-										title: sessionContent.label,
-										isActive: false,
-										lastMessageDate: 0,
-									},
-									buttons,
-									id: sessionContent.id
-								};
-
-								// Check if this agent already exists (update existing or add new)
-								const existingIndex = agentPicks.findIndex(pick => pick.chat.sessionId === sessionContent.id);
-								if (existingIndex >= 0) {
-									agentPicks[existingIndex] = agentPick;
-								} else {
-									// Respect show limits
-									const maxToShow = showAllAgents ? Number.MAX_SAFE_INTEGER : 5;
-									if (agentPicks.length < maxToShow) {
-										agentPicks.push(agentPick);
+									// Check if this agent already exists (update existing or add new)
+									const existingIndex = agentPicks.findIndex(pick => pick.chat.sessionId === session.id);
+									if (existingIndex >= 0) {
+										agentPicks[existingIndex] = agentPick;
+									} else {
+										// Respect show limits
+										const maxToShow = showAllAgents ? Number.MAX_SAFE_INTEGER : 5;
+										if (agentPicks.length < maxToShow) {
+											agentPicks.push(agentPick);
+										}
 									}
 								}
 							}
