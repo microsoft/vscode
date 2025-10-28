@@ -253,7 +253,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				}
 			}
 		));
-		this._actionBar.value?.push(this._showOutputAction, { icon: true, label: false });
+		this._actionBar.value?.push([this._showOutputAction], { icon: true, label: false });
 	}
 
 	private _registerInstanceListener(terminalInstance: ITerminalInstance) {
