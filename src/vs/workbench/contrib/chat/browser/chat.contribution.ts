@@ -734,6 +734,15 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		'copilot.extensionUnification.enabled': {
+			type: 'boolean',
+			description: nls.localize('copilot.extensionUnification.enabled', "Enables unification of GitHub Copilot extensions. When enabled, only the GitHub Copilot Chat extension will be active and all functionality will be served by it. When disabled, GitHub Copilot Chat and GitHub Copilot extensions will operate independently."),
+			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		}
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
