@@ -78,9 +78,9 @@ export const globalAutoApproveDescription = localize2(
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
 
-	private _onDidChangeTools = new Emitter<void>();
+	private _onDidChangeTools = this._register(new Emitter<void>());
 	readonly onDidChangeTools = this._onDidChangeTools.event;
-	private _onDidPrepareToolCallBecomeUnresponsive = new Emitter<{ sessionId: string; toolData: IToolData }>();
+	private _onDidPrepareToolCallBecomeUnresponsive = this._register(new Emitter<{ sessionId: string; toolData: IToolData }>());
 	readonly onDidPrepareToolCallBecomeUnresponsive = this._onDidPrepareToolCallBecomeUnresponsive.event;
 
 	/** Throttle tools updates because it sends all tools and runs on context key updates */
@@ -456,7 +456,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}, token);
 
 			const raceResult = await Promise.race([
-				timeout(3000).then(() => 'timeout'),
+				timeout(3000, token).then(() => 'timeout'),
 				preparePromise
 			]);
 			if (raceResult === 'timeout') {
