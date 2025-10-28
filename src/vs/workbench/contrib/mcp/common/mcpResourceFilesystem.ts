@@ -17,12 +17,10 @@ import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createFileSystemProviderError, FileChangeType, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileService, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileWriteOptions, IStat, IWatchOptions } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { NativeWebContentExtractorService } from '../../../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { McpServer } from './mcpServer.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { IMcpService, McpCapability, McpResourceURI, McpServerLaunch } from './mcpTypes.js';
-import { downloadResourceContentForWebHostedResources } from './mcpTypesUtils.js';
+import { IMcpService, McpCapability, McpResourceURI } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 const MOMENTARY_CACHE_DURATION = 3000;
@@ -284,57 +282,13 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 
 	private async _readURIInner(uri: URI, token?: CancellationToken): Promise<IReadData> {
 		const { resourceURI, server } = this._decodeURI(uri);
-
-		const webContent = await downloadResourceContentForWebHostedResources(resourceURI.toString(), server.connection.get()?.launchDefinition);
-
-
-		//check if the uri is valid
-
 		const res = await McpServer.callOn(server, r => r.readResource({ uri: resourceURI.toString() }, token), token);
-
-
-
-		if (res && res.contents?.length > 0) {
-			res = res.contents.map(content => {
-				if (content.mimeType === 'text/html') {
-					//extract the text part only.
-
-				}
-				return content;
-			})
-		}
-
 		return {
 			contents: res.contents,
 			resourceURI,
 			forSameURI: res.contents.filter(c => equalsUrlPath(c.uri, resourceURI))
 		};
 	}
-
-	private async downloadResourceContentForWebHostedResources(uriString: string, launch?: McpServerLaunch): Promise<string> {
-
-		const uri = URI.parse(uriString);
-
-		const extractHelper = this._instantiationService.createInstance(NativeWebContentExtractorService);
-
-		if (uri.scheme === 'http' || (uri.scheme === 'https')) {
-
-			// if (!!launch) {
-			// 	if (launch?.type !== McpServerTransportType.HTTP) {
-			// 		return false;
-			// 	}
-			// 	const expectedAuthority = launch.uri.authority.toLowerCase();
-			// 	if (uri.authority.toLowerCase() !== expectedAuthority) {
-			// 		return false;
-			// 	}
-			// }
-
-			const content = await extractHelper.extract([uri]);
-			return content ? content[0] : '';
-		}
-		return '';
-	}
-
 }
 
 function equalsUrlPath(a: string, b: URL): boolean {
