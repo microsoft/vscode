@@ -12,20 +12,20 @@ import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IEditorGroupsService, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { IChatSessionItemProvider, IChatSessionsService, ChatSessionStatus, IChatSessionItem } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { IChatWidgetService, IChatWidget } from '../chat.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { isChatSession, getChatSessionType, ChatSessionItemWithProvider } from './common.js';
+import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './common.js';
 
 export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.localChatSessionsProvider';
 	static readonly CHAT_WIDGET_VIEW_ID = 'workbench.panel.chat.view.copilot';
 	static readonly HISTORY_NODE_ID = 'show-history';
-	readonly chatSessionType = 'local';
+	readonly chatSessionType = localChatSessionType;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -159,7 +159,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		}
 
 		const sessionType = getChatSessionType(editor);
-		return sessionType === 'local';
+		return sessionType === localChatSessionType;
 	}
 
 	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import * as nls from '../../../../nls.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import * as nls from '../../../../nls.js';
 import { IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -26,7 +26,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatModel, IExportableChatData, ISerializableChatData } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
-import { IChatSessionsService } from '../common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { clearChatEditor } from './actions/chatClear.js';
 import { ChatEditorInput } from './chatEditorInput.js';
@@ -183,7 +183,7 @@ export class ChatEditor extends EditorPane {
 		// Show loading indicator early for non-local sessions to prevent layout shifts
 		let isContributedChatSession = false;
 		const chatSessionType = getChatSessionType(input);
-		if (chatSessionType !== 'local') {
+		if (chatSessionType !== localChatSessionType) {
 			const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading...");
 			this.showLoadingInChatWidget(loadingMessage);
 		}
@@ -198,7 +198,7 @@ export class ChatEditor extends EditorPane {
 			throw new Error('ChatEditor lifecycle issue: no editor widget');
 		}
 
-		if (chatSessionType !== 'local') {
+		if (chatSessionType !== localChatSessionType) {
 			try {
 				await raceCancellationError(this.chatSessionsService.canResolveChatSession(input.resource), token);
 				const contributions = this.chatSessionsService.getAllChatSessionContributions();
@@ -225,7 +225,7 @@ export class ChatEditor extends EditorPane {
 			}
 
 			// Hide loading state before updating model
-			if (chatSessionType !== 'local') {
+			if (chatSessionType !== localChatSessionType) {
 				this.hideLoadingInChatWidget();
 			}
 

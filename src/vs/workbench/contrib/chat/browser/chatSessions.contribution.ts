@@ -29,7 +29,7 @@ import { ExtensionsRegistry } from '../../../services/extensions/common/extensio
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
 import { AGENT_SESSIONS_VIEWLET_ID, ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
@@ -307,7 +307,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public reportInProgress(chatSessionType: string, count: number): void {
 		let displayName: string | undefined;
 
-		if (chatSessionType === 'local') {
+		if (chatSessionType === localChatSessionType) {
 			displayName = 'Local Chat Agent';
 		} else {
 			displayName = this._contributions.get(chatSessionType)?.contribution.displayName;
@@ -832,7 +832,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			this._editableSessions.set(sessionResource, data);
 		}
 		// Trigger refresh of the session views that might need to update their rendering
-		this._onDidChangeSessionItems.fire('local');
+		this._onDidChangeSessionItems.fire(localChatSessionType);
 	}
 
 	public getEditableData(sessionResource: URI): IEditableData | undefined {
