@@ -22,15 +22,14 @@ export class TreeSitterCommandParser {
 		this._parser = this._treeSitterLibraryService.getParserClass().then(ParserCtor => new ParserCtor());
 	}
 
-	async extractSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
-		const { tree, query } = await this._doQuery(languageId, commandLine, '(command) @command');
-		const captures = query.captures(tree.rootNode);
-		return captures.map(e => e.node.text);
-	}
-
 	async queryTree(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<QueryCapture[]> {
 		const { tree, query } = await this._doQuery(languageId, commandLine, querySource);
 		return query.captures(tree.rootNode);
+	}
+
+	async extractSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
+		const captures = await this.queryTree(languageId, commandLine, '(command) @command');
+		return captures.map(e => e.node.text);
 	}
 
 	private async _doQuery(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<{ tree: Tree; query: Query }> {
