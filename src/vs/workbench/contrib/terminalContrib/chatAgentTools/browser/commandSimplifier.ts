@@ -9,7 +9,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import type { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import type { IRunInTerminalInputParams } from './tools/runInTerminalTool.js';
-import { TreeSitterCommandParserLanguage, type TreeSitterCommandParser } from './treeSitterCommandParser.js';
+import { type TreeSitterCommandParser } from './treeSitterCommandParser.js';
 
 export class CommandSimplifier {
 	constructor(
