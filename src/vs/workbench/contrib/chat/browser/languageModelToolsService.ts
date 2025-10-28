@@ -557,6 +557,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined): Promise<ConfirmedReason | undefined> {
+		if (this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove) && await this._checkGlobalAutoApprove()) {
+			return { type: ToolConfirmKind.Setting, id: ChatConfiguration.GlobalAutoApprove };
+		}
+
 		return this._postExecutionConfirmStore.checkAutoConfirmation(toolId);
 	}
 
