@@ -39,7 +39,6 @@ export class ExtHostChatContext implements ExtHostChatContextShape {
 				this._items.set(handle, new Map());
 			}
 			this._items.get(handle)!.set(itemHandle, item);
-			(item as IChatContextItem).handle = itemHandle;
 			items.push({
 				handle: itemHandle,
 				icon: item.icon,
@@ -93,7 +92,7 @@ export class ExtHostChatContext implements ExtHostChatContextShape {
 	registerChatContextProvider(selector: vscode.DocumentSelector, id: string, provider: vscode.ChatContextProvider): vscode.Disposable {
 		const handle = this._handlePool++;
 		this._providers.set(handle, provider);
-		this._proxy.$registerChatContextProvider(handle, `${id}`, DocumentSelector.from(selector), {}, { supportsResource: !!provider.provideChatContextForResource, supportsResolve: !!provider.resolveChatContext }); // TODO options
+		this._proxy.$registerChatContextProvider(handle, `${id}`, DocumentSelector.from(selector), {}, { supportsResource: !!provider.provideChatContextForResource, supportsResolve: !!provider.resolveChatContext });
 
 		return {
 			dispose: () => {

@@ -170,7 +170,6 @@ export class IconLabel extends Disposable {
 				const iconClass = ThemeIcon.asClassName(options.iconPath);
 				iconNode.className = `monaco-icon-label-iconpath ${iconClass}`;
 				iconNode.style.backgroundImage = '';
-				iconNode.style.paddingTop = '2px';
 			} else {
 				iconNode.style.backgroundImage = css.asCSSUrl(options?.iconPath);
 			}

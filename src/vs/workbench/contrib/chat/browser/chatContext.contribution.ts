@@ -60,12 +60,12 @@ export class ChatContextContribution extends Disposable implements IWorkbenchCon
 					continue;
 				}
 				for (const contribution of ext.value) {
-					const icon = contribution.icon;
+					const icon = contribution.icon ? ThemeIcon.fromString(contribution.icon) : undefined;
 					if (!icon) {
 						continue;
 					}
 
-					this._chatContextService.setChatContextProvider(`${ext.description.id}-${contribution.id}`, { title: contribution.displayName, icon: ThemeIcon.fromString(contribution.icon)! });
+					this._chatContextService.setChatContextProvider(`${ext.description.id}-${contribution.id}`, { title: contribution.displayName, icon });
 				}
 			}
 		});

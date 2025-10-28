@@ -284,8 +284,15 @@ export interface StringImplicitContextValue {
 }
 
 export function isStringImplicitContextValue(value: unknown): value is StringImplicitContextValue {
-	const asStringImplicitContextValue = value as StringImplicitContextValue;
-	return asStringImplicitContextValue !== undefined && typeof asStringImplicitContextValue.value === 'string';
+	const asStringImplicitContextValue = value as Partial<StringImplicitContextValue>;
+	return (
+		typeof asStringImplicitContextValue === 'object' &&
+		asStringImplicitContextValue !== null &&
+		typeof asStringImplicitContextValue.value === 'string' &&
+		typeof asStringImplicitContextValue.name === 'string' &&
+		ThemeIcon.isThemeIcon(asStringImplicitContextValue.icon) &&
+		URI.isUri(asStringImplicitContextValue.uri)
+	);
 }
 
 export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {

@@ -19,10 +19,18 @@ export const IChatContextService = createDecorator<IChatContextService>('chatCon
 
 export interface IChatContextService extends ChatContextService { }
 
+interface IChatContextProviderEntry {
+	picker?: { title: string; icon: ThemeIcon };
+	chatContextProvider?: {
+		selector: LanguageSelector;
+		provider: IChatContextProvider;
+	};
+}
+
 export class ChatContextService extends Disposable {
 	_serviceBrand: undefined;
 
-	private readonly _providers = new Map<string, { picker?: { title: string; icon: ThemeIcon }; chatContextProvider?: { picker?: { title: string; icon: ThemeIcon }; selector: LanguageSelector; provider: IChatContextProvider } }>();
+	private readonly _providers = new Map<string, IChatContextProviderEntry>();
 	private readonly _registeredPickers = this._register(new DisposableMap<string, IDisposable>());
 
 	constructor(
