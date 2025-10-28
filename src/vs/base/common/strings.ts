@@ -439,7 +439,7 @@ export function equalsIgnoreCase(a: string, b: string): boolean {
 }
 
 export function equals(a: string | undefined, b: string | undefined, ignoreCase?: boolean): boolean {
-	return a === b || !!ignoreCase && a !== undefined && b !== undefined && equalsIgnoreCase(a, b);
+	return a === b || (!!ignoreCase && a !== undefined && b !== undefined && equalsIgnoreCase(a, b));
 }
 
 export function startsWithIgnoreCase(str: string, candidate: string): boolean {
