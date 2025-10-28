@@ -8,6 +8,21 @@
 				"start-stdio"
 			],
 			"cwd": "${workspaceFolder}/test/mcp"
+		},
+		"everything-server": {
+			"type": "stdio",
+			"command": "node",
+			"args": [
+				"C:\\Users\\dileepy\\servers\\src\\everything\\dist\\index.js"
+			],
+			"env": {}
+		},
+		"my-mcp-server-612a332c": {
+			"type": "stdio",
+			"command": "node",
+			"args": [
+				"C:\\\\Users\\\\dileepy\\\\servers\\\\src\\\\everything\\\\dist\\\\index.js"
+			]
 		}
 	},
 	"inputs": []

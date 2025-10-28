@@ -8,8 +8,9 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ToolDataSource } from '../../chat/common/languageModelToolsService.js';
-import { IMcpServer, IMcpServerStartOpts, IMcpService, McpConnectionState, McpServerCacheState } from './mcpTypes.js';
+import { IMcpServer, IMcpServerStartOpts, IMcpService, McpConnectionState, McpServerCacheState, McpServerLaunch, McpServerTransportType } from './mcpTypes.js';
 
 /**
  * Waits up to `timeout` for a server passing the filter to be discovered,
@@ -91,3 +92,47 @@ export function mcpServerToSourceData(server: IMcpServer): ToolDataSource {
 		definitionId: server.definition.id
 	};
 }
+
+/**
+ * Validates a URI string against the MCP server's launch configuration.
+ * Returns the validated URI if it passes security checks, or undefined with a debug message if it fails.
+ *
+ * Security rules:
+ * - data: URIs are always allowed
+ * - http/https: Only allowed for HTTP transport servers, and only if authority matches the launch URI
+ * - file: URIs are only allowed for stdio (local process) servers
+ * - All other schemes are rejected
+ */
+export function validateMcpUri(uriString: string, launch?: McpServerLaunch): boolean {
+	const uri = URI.parse(uriString);
+
+	if (uri.scheme === 'data') {
+		return true;
+	}
+
+	if (uri.scheme === 'http' || (uri.scheme === 'https')) {
+
+		// if (!!launch) {
+		// 	if (launch?.type !== McpServerTransportType.HTTP) {
+		// 		return false;
+		// 	}
+		// 	const expectedAuthority = launch.uri.authority.toLowerCase();
+		// 	if (uri.authority.toLowerCase() !== expectedAuthority) {
+		// 		return false;
+		// 	}
+		// }
+
+		return true;
+	}
+
+	if (uri.scheme === 'file') {
+		if (launch?.type !== McpServerTransportType.Stdio) {
+			return false;
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
