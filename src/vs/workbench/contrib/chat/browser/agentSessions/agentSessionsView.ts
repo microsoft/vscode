@@ -24,7 +24,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { $, append } from '../../../../../base/browser/dom.js';
-import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel, LOCAL_AGENT_SESSION_TYPE, isLocalAgentSessionItem } from './agentSessionViewModel.js';
+import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel, isLocalAgentSessionItem } from './agentSessionViewModel.js';
 import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionsSorter } from './agentSessionsViewer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
@@ -257,28 +257,7 @@ export class AgentSessionsView extends ViewPane {
 			contextMenuProvider: this.contextMenuService,
 			actions: {
 				getActions: () => {
-					const actions: IAction[] = [];
-					for (const provider of this.chatSessionsService.getAllChatSessionContributions()) {
-						if (provider.type === LOCAL_AGENT_SESSION_TYPE) {
-							continue; // local is the primary action
-						}
-
-						actions.push(toAction({
-							id: `newChatSessionFromProvider.${provider.type}`,
-							label: localize('newChatSessionFromProvider', "New Session ({0})", provider.displayName),
-							run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${provider.type}`)
-						}));
-					}
-
-					actions.push(new Separator());
-
-					actions.push(toAction({
-						id: 'install-extensions',
-						label: localize('chatSessions.installExtensions', "Install Chat Extensions..."),
-						run: () => this.commandService.executeCommand('chat.sessions.gettingStarted')
-					}));
-
-					return actions;
+					return this.getNewSessionActions();
 				}
 			},
 			addPrimaryActionToDropdown: false,
@@ -288,6 +267,41 @@ export class AgentSessionsView extends ViewPane {
 		newSessionButton.label = localize('agentSessions.newSession', "New Session");
 
 		this._register(newSessionButton.onDidClick(() => primaryAction.run()));
+	}
+
+	private getNewSessionActions(): IAction[] {
+		const actions: IAction[] = [];
+		for (const provider of this.chatSessionsService.getAllChatSessionContributions()) {
+
+			// Generic action to create new provider specific session
+			actions.push(toAction({
+				id: `newChatSessionFromProvider.${provider.type}`,
+				label: localize('newChatSessionFromProvider', "New {0}", provider.displayName),
+				run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${provider.type}`)
+			}));
+
+			// Collect provider specific additional actions
+			const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.scopedContextKeyService.createOverlay([[ChatContextKeys.sessionType.key, provider.type]]));
+			const primaryActions = getActionBarActions(
+				menu.getActions({ shouldForwardArgs: true }),
+				'submenu',
+			).primary;
+			if (primaryActions.length > 0) {
+				actions.push(...primaryActions);
+				actions.push(new Separator());
+			}
+			menu.dispose();
+		}
+
+		// Install more
+		actions.push(new Separator());
+		actions.push(toAction({
+			id: 'install-extensions',
+			label: localize('chatSessions.installExtensions', "Install Chat Extensions..."),
+			run: () => this.commandService.executeCommand('chat.sessions.gettingStarted')
+		}));
+
+		return actions;
 	}
 
 	//#endregion
