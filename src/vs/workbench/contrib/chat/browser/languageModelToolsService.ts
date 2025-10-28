@@ -5,7 +5,7 @@
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { assertNever } from '../../../../base/common/assert.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64 } from '../../../../base/common/buffer.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -78,8 +78,10 @@ export const globalAutoApproveDescription = localize2(
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
 
-	private _onDidChangeTools = new Emitter<void>();
+	private _onDidChangeTools = this._register(new Emitter<void>());
 	readonly onDidChangeTools = this._onDidChangeTools.event;
+	private _onDidPrepareToolCallBecomeUnresponsive = this._register(new Emitter<{ sessionId: string; toolData: IToolData }>());
+	readonly onDidPrepareToolCallBecomeUnresponsive = this._onDidPrepareToolCallBecomeUnresponsive.event;
 
 	/** Throttle tools updates because it sends all tools and runs on context key updates */
 	private _onDidChangeToolsScheduler = new RunOnceScheduler(() => this._onDidChangeTools.fire(), 750);
@@ -444,14 +446,28 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private async prepareToolInvocation(tool: IToolEntry, dto: IToolInvocation, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		const prepared = tool.impl!.prepareToolInvocation ?
-			await tool.impl!.prepareToolInvocation({
+		let prepared: IPreparedToolInvocation | undefined;
+		if (tool.impl!.prepareToolInvocation) {
+			const preparePromise = tool.impl!.prepareToolInvocation({
 				parameters: dto.parameters,
 				chatRequestId: dto.chatRequestId,
 				chatSessionId: dto.context?.sessionId,
 				chatInteractionId: dto.chatInteractionId
-			}, token)
-			: undefined;
+			}, token);
+
+			const raceResult = await Promise.race([
+				timeout(3000, token).then(() => 'timeout'),
+				preparePromise
+			]);
+			if (raceResult === 'timeout') {
+				this._onDidPrepareToolCallBecomeUnresponsive.fire({
+					sessionId: dto.context?.sessionId ?? '',
+					toolData: tool.data
+				});
+			}
+
+			prepared = await preparePromise;
+		}
 
 		if (prepared?.confirmationMessages?.title) {
 			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {

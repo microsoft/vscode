@@ -764,7 +764,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	/**
 	 * Whether the terminal's pty is hosted on a remote.
 	 */
-	readonly isRemote: boolean;
+	readonly hasRemoteAuthority: boolean;
 
 	/**
 	 * The remote authority of the terminal's pty.

@@ -753,7 +753,7 @@ export class InlineCompletionsModel extends Disposable {
 			return false;
 		}
 
-		if (state.inlineCompletion.displayLocation) {
+		if (state.inlineCompletion.hint) {
 			return false;
 		}
 
@@ -803,7 +803,7 @@ export class InlineCompletionsModel extends Disposable {
 			return true;
 		}
 
-		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader) && !s.inlineCompletion.displayLocation?.jumpToEdit) {
+		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader) && !s.inlineCompletion.hint?.jumpToEdit) {
 			return false;
 		}
 
@@ -821,7 +821,7 @@ export class InlineCompletionsModel extends Disposable {
 		if (this._tabShouldIndent.read(reader)) {
 			return false;
 		}
-		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader) && !s.inlineCompletion.displayLocation?.jumpToEdit) {
+		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader) && !s.inlineCompletion.hint?.jumpToEdit) {
 			return true;
 		}
 		if (s.inlineCompletion.targetRange.startLineNumber === this._editorObs.cursorLineNumber.read(reader)) {
@@ -925,7 +925,7 @@ export class InlineCompletionsModel extends Disposable {
 
 				editor.edit(edit, this._getMetadata(completion, this.textModel.getLanguageId()));
 
-				if (completion.displayLocation === undefined) {
+				if (completion.hint === undefined) {
 					// do not move the cursor when the completion is displayed in a different location
 					editor.setSelections(state.kind === 'inlineEdit' ? selections.slice(-1) : selections, 'inlineCompletionAccept');
 				}
@@ -1105,7 +1105,7 @@ export class InlineCompletionsModel extends Disposable {
 			this._editor.setPosition(targetPosition, 'inlineCompletions.jump');
 
 			// TODO: consider using view information to reveal it
-			const isSingleLineChange = targetRange.isSingleLine() && (s.inlineCompletion.displayLocation || !s.inlineCompletion.insertText.includes('\n'));
+			const isSingleLineChange = targetRange.isSingleLine() && (s.inlineCompletion.hint || !s.inlineCompletion.insertText.includes('\n'));
 			if (isSingleLineChange) {
 				this._editor.revealPosition(targetPosition);
 			} else {

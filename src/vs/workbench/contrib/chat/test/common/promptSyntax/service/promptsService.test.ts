@@ -134,8 +134,8 @@ suite('PromptsService', () => {
 								'\t- this file #file:folder1/file3.prompt.md ',
 								'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
 								'## Vars',
-								'\t- #my-tool',
-								'\t- #my-other-tool',
+								'\t- #tool:my-tool',
+								'\t- #tool:my-other-tool',
 								' ',
 							],
 						},
@@ -232,8 +232,8 @@ suite('PromptsService', () => {
 			assert.deepEqual(
 				result1.body.variableReferences,
 				[
-					{ name: 'my-tool', range: new Range(10, 5, 10, 12), offset: 240 },
-					{ name: 'my-other-tool', range: new Range(11, 5, 11, 18), offset: 252 },
+					{ name: 'my-tool', range: new Range(10, 10, 10, 17), offset: 240 },
+					{ name: 'my-other-tool', range: new Range(11, 10, 11, 23), offset: 257 },
 				]
 			);
 
@@ -822,13 +822,13 @@ suite('PromptsService', () => {
 										'description: \'Agent file 1.\'',
 										'tools: [ tool1, tool2 ]',
 										'---',
-										'Do it with #tool1',
+										'Do it with #tool:tool1',
 									],
 								},
 								{
 									name: 'agent2.agent.md',
 									contents: [
-										'First use #tool2\nThen use #tool1',
+										'First use #tool:tool2\nThen use #tool:tool1',
 									],
 								}
 							],
@@ -844,7 +844,7 @@ suite('PromptsService', () => {
 					description: 'Agent file 1.',
 					tools: ['tool1', 'tool2'],
 					agentInstructions: {
-						content: 'Do it with #tool1',
+						content: 'Do it with #tool:tool1',
 						toolReferences: [{ name: 'tool1', range: { start: 11, endExclusive: 17 } }],
 						metadata: undefined
 					},
@@ -858,9 +858,9 @@ suite('PromptsService', () => {
 				{
 					name: 'agent2',
 					agentInstructions: {
-						content: 'First use #tool2\nThen use #tool1',
+						content: 'First use #tool:tool2\nThen use #tool:tool1',
 						toolReferences: [
-							{ name: 'tool1', range: { start: 26, endExclusive: 32 } },
+							{ name: 'tool1', range: { start: 31, endExclusive: 37 } },
 							{ name: 'tool2', range: { start: 10, endExclusive: 16 } }
 						],
 						metadata: undefined
