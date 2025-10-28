@@ -593,6 +593,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.graph.compareTag",
+        "title": "%command.graphCompareTag%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.deleteRemoteTag",
         "title": "%command.deleteRemoteTag%",
         "category": "Git",
@@ -1609,6 +1615,10 @@
           "when": "false"
         },
         {
+          "command": "git.graph.compareTag",
+          "when": "false"
+        },
+        {
           "command": "git.graph.cherryPick",
           "when": "false"
         },
@@ -2284,6 +2294,11 @@
           "command": "git.graph.deleteTag",
           "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/tags\\//",
           "group": "3_tag@2"
+        },
+        {
+          "command": "git.graph.compareTag",
+          "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/tags\\//",
+          "group": "3_tag@3"
         }
       ],
       "editor/title": [
