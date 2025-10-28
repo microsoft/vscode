@@ -1732,6 +1732,8 @@ export class Repository {
 			args.push(treeish2);
 		}
 
+		args.push('--');
+
 		const gitResult = await this.exec(args);
 		if (gitResult.exitCode) {
 			return [];

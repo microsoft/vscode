@@ -96,7 +96,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			if (!range) { return undefined; }
 			return {
 				range,
-				lineOffsetRange: this._editorObs.observeLineOffsetRange(range, this._store),
+				lineOffsetRange: this._editorObs.observeLineOffsetRange(range, reader.store),
 			};
 		});
 		this._stickyScrollController = StickyScrollController.get(this._editorObs.editor);

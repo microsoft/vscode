@@ -209,7 +209,6 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 					codemapperUri: undefined,
 					elementId: this.context.element.id,
 					focus: () => editor.object.focus(),
-					isStreaming: false,
 					ownerMarkdownPartId: this.codeblocksPartId,
 					uri: model.uri,
 					uriPromise: Promise.resolve(model.uri),
