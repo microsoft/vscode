@@ -31,7 +31,7 @@ const _sticky = false
 	;
 
 interface IHoverSettings {
-	readonly enabled: boolean;
+	readonly enabled: boolean | 'onKeyboardModifier';
 	readonly sticky: boolean;
 	readonly hidingDelay: number;
 }
@@ -98,7 +98,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			sticky: hoverOpts.sticky,
 			hidingDelay: hoverOpts.hidingDelay
 		};
-		if (!hoverOpts.enabled) {
+		if (hoverOpts.enabled === false) {
 			this._cancelSchedulerAndHide();
 		}
 		this._listenersStore.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
@@ -249,7 +249,8 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		if (this._hoverSettings.enabled || mouseEvent.event.ctrlKey) {
+		const shouldShowHover = this._shouldShowHover(mouseEvent);
+		if (shouldShowHover) {
 			const contentWidget: ContentHoverWidgetWrapper = this._getOrCreateContentWidget();
 			if (contentWidget.showsOrWillShow(mouseEvent)) {
 				return;
@@ -259,6 +260,24 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			return;
 		}
 		this.hideContentHover();
+	}
+
+	private _shouldShowHover(mouseEvent: IEditorMouseEvent): boolean {
+		if (this._hoverSettings.enabled === true) {
+			return true;
+		}
+		if (this._hoverSettings.enabled === false) {
+			return false;
+		}
+		// enabled === 'onKeyboardModifier'
+		const multiCursorModifier = this._editor.getOption(EditorOption.multiCursorModifier);
+		// If multiCursorModifier is 'ctrlKey' or 'metaKey', check for altKey
+		// If multiCursorModifier is 'altKey', check for ctrlKey
+		if (multiCursorModifier === 'altKey') {
+			return mouseEvent.event.ctrlKey;
+		} else {
+			return mouseEvent.event.altKey;
+		}
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {

@@ -2294,9 +2294,12 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGo
 export interface IEditorHoverOptions {
 	/**
 	 * Enable the hover.
+	 * - true: Always enabled
+	 * - false: Always disabled
+	 * - 'onKeyboardModifier': Enabled when the opposite modifier key of multiCursorModifier is pressed
 	 * Defaults to true.
 	 */
-	enabled?: boolean;
+	enabled?: boolean | 'onKeyboardModifier';
 	/**
 	 * Delay for showing the hover.
 	 * Defaults to 300.
@@ -2338,8 +2341,14 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			EditorOption.hover, 'hover', defaults,
 			{
 				'editor.hover.enabled': {
-					type: 'boolean',
+					type: ['boolean', 'string'],
+					enum: [true, false, 'onKeyboardModifier'],
 					default: defaults.enabled,
+					markdownEnumDescriptions: [
+						nls.localize('hover.enabled.true', "Always show the hover."),
+						nls.localize('hover.enabled.false', "Never show the hover."),
+						nls.localize('hover.enabled.onKeyboardModifier', "Show the hover when the opposite modifier key of the multi-cursor modifier is pressed.")
+					],
 					description: nls.localize('hover.enabled', "Controls whether the hover is shown.")
 				},
 				'editor.hover.delay': {
@@ -2374,8 +2383,16 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			return this.defaultValue;
 		}
 		const input = _input as Unknown<IEditorHoverOptions>;
+		let enabled: boolean | 'onKeyboardModifier';
+		if (input.enabled === 'onKeyboardModifier') {
+			enabled = 'onKeyboardModifier';
+		} else if (typeof input.enabled === 'boolean') {
+			enabled = input.enabled;
+		} else {
+			enabled = this.defaultValue.enabled;
+		}
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			enabled,
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
 			hidingDelay: EditorIntOption.clampedInt(input.hidingDelay, this.defaultValue.hidingDelay, 0, 600000),

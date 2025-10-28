@@ -22,7 +22,7 @@ const _sticky = false
 	;
 
 interface IHoverSettings {
-	readonly enabled: boolean;
+	readonly enabled: boolean | 'onKeyboardModifier';
 	readonly sticky: boolean;
 	readonly hidingDelay: number;
 }
@@ -80,7 +80,7 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 			hidingDelay: hoverOpts.hidingDelay
 		};
 
-		if (hoverOpts.enabled) {
+		if (hoverOpts.enabled !== false) {
 			this._listenersStore.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
 			this._listenersStore.add(this._editor.onMouseUp(() => this._onEditorMouseUp()));
 			this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
@@ -176,6 +176,13 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 		if (!mouseEvent) {
 			return;
 		}
+		if (!this._shouldShowHover(mouseEvent)) {
+			if (_sticky) {
+				return;
+			}
+			this.hideGlyphHover();
+			return;
+		}
 		const glyphWidgetShowsOrWillShow = this._tryShowHoverWidget(mouseEvent);
 		if (glyphWidgetShowsOrWillShow) {
 			return;
@@ -184,6 +191,24 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 			return;
 		}
 		this.hideGlyphHover();
+	}
+
+	private _shouldShowHover(mouseEvent: IEditorMouseEvent): boolean {
+		if (this._hoverSettings.enabled === true) {
+			return true;
+		}
+		if (this._hoverSettings.enabled === false) {
+			return false;
+		}
+		// enabled === 'onKeyboardModifier'
+		const multiCursorModifier = this._editor.getOption(EditorOption.multiCursorModifier);
+		// If multiCursorModifier is 'ctrlKey' or 'metaKey', check for altKey
+		// If multiCursorModifier is 'altKey', check for ctrlKey
+		if (multiCursorModifier === 'altKey') {
+			return mouseEvent.event.ctrlKey;
+		} else {
+			return mouseEvent.event.altKey;
+		}
 	}
 
 	private _tryShowHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
