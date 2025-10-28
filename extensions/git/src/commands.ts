@@ -3109,9 +3109,63 @@ export class CommandCenter {
 		await this._deleteBranch(repository, remoteName, refName, { remote: true });
 	}
 
-	@command('git.graph.compareBranch', { repository: true })
-	async compareBranch(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
-		await this._compareRef(repository, historyItem, historyItemRefId);
+	@command('git.graph.compareRef', { repository: true })
+	async compareBranch(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+		if (!repository || !historyItem) {
+			return;
+		}
+
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
+		const getRefPicks = async () => {
+			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
+			const processors = [
+				new RefProcessor(RefType.Head, BranchItem),
+				new RefProcessor(RefType.RemoteHead, BranchItem),
+				new RefProcessor(RefType.Tag, BranchItem)
+			];
+
+			const itemsProcessor = new RefItemsProcessor(repository, processors);
+			return itemsProcessor.processRefs(refs);
+		};
+
+		const placeHolder = l10n.t('Select a reference to compare with');
+		const sourceRef = await this.pickRef(getRefPicks(), placeHolder);
+
+		if (!(sourceRef instanceof BranchItem) || !sourceRef.ref.commit) {
+			return;
+		}
+
+		if (historyItem.id === sourceRef.ref.commit) {
+			window.showInformationMessage(l10n.t('The selected references are the same.'));
+			return;
+		}
+
+		try {
+			const sourceCommit = sourceRef.ref.commit;
+			const changes = await repository.diffTrees(sourceCommit, historyItem.id);
+
+			if (changes.length === 0) {
+				window.showInformationMessage(l10n.t('The selected references have no differences.'));
+				return;
+			}
+
+			const resources = changes.map(change => toMultiFileDiffEditorUris(change, sourceCommit, historyItem.id));
+			const title = `${sourceRef.ref.name ?? sourceCommit} ↔ ${historyItem.references?.[0].name ?? historyItem.id}`;
+			const multiDiffSourceUri = Uri.from({
+				scheme: 'git-ref-compare',
+				path: `${repository.root}/${sourceCommit}..${historyItem.id}`
+			});
+
+			await commands.executeCommand('_workbench.openMultiDiffEditor', {
+				multiDiffSourceUri,
+				title,
+				resources
+			});
+		} catch (err) {
+			throw new Error(l10n.t('Failed to compare references: {0}', err.message ?? err));
+		}
 	}
 
 	@command('git.deleteRemoteBranch', { repository: true })
@@ -3750,11 +3804,6 @@ export class CommandCenter {
 		}
 
 		await repository.deleteTag(historyItemRef.name);
-	}
-
-	@command('git.graph.compareTag', { repository: true })
-	async compareTags(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
-		await this._compareRef(repository, historyItem, historyItemRefId);
 	}
 
 	@command('git.deleteRemoteTag', { repository: true })
@@ -5094,65 +5143,6 @@ export class CommandCenter {
 		const enabled = config.get<boolean>(setting) === true;
 
 		config.update(setting, !enabled, true);
-	}
-
-	async _compareRef(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
-		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
-		if (!historyItemRefId || !historyItemRef) {
-			return;
-		}
-
-		const config = workspace.getConfiguration('git');
-		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
-
-		const getRefPicks = async () => {
-			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
-			const processors = [
-				new RefProcessor(RefType.Head, BranchItem),
-				new RefProcessor(RefType.RemoteHead, BranchItem),
-				new RefProcessor(RefType.Tag, BranchItem)
-			];
-
-			const itemsProcessor = new RefItemsProcessor(repository, processors);
-			return itemsProcessor.processRefs(refs);
-		};
-
-		const placeHolder = l10n.t('Select a source reference to compare with');
-		const sourceRef = await this.pickRef(getRefPicks(), placeHolder);
-
-		if (!(sourceRef instanceof BranchItem)) {
-			return;
-		}
-
-		if (historyItemRef.id === sourceRef.refId) {
-			window.showInformationMessage(l10n.t('The selected references are the same.'));
-			return;
-		}
-
-		try {
-			const changes = await repository.diffTrees(sourceRef.refId, historyItemRef.id);
-
-			if (changes.length === 0) {
-				window.showInformationMessage(l10n.t('The selected references have no differences.'));
-				return;
-			}
-
-			const resources = changes.map(change => toMultiFileDiffEditorUris(change, sourceRef.refId, historyItemRef.id));
-
-			const title = `${sourceRef.ref.name} ↔ ${historyItemRef.name}`;
-			const multiDiffSourceUri = Uri.from({
-				scheme: 'git-ref-compare',
-				path: `${repository.root}/${sourceRef.refId}..${historyItemRef.id}`
-			});
-
-			await commands.executeCommand('_workbench.openMultiDiffEditor', {
-				multiDiffSourceUri,
-				title,
-				resources
-			});
-		} catch (err) {
-			throw new Error(l10n.t('Failed to compare references: {0}', err.message ?? err));
-		}
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
