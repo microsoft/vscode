@@ -25,7 +25,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { $, append } from '../../../../../base/browser/dom.js';
 import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel, LOCAL_AGENT_SESSION_TYPE, isLocalAgentSessionItem } from './agentSessionViewModel.js';
-import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionsSorter } from './agentSessionsViewer.js';
+import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionsSorter } from './agentSessionsViewer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
@@ -40,12 +40,13 @@ import { ChatSessionUri } from '../../common/chatUri.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { assertReturnsDefined } from '../../../../../base/common/types.js';
+import { assertReturnsDefined, upcast } from '../../../../../base/common/types.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 
 export class AgentSessionsView extends ViewPane {
 
@@ -121,7 +122,12 @@ export class AgentSessionsView extends ViewPane {
 		}
 
 		if (session.resource.scheme !== ChatSessionUri.scheme) {
-			await this.openerService.open(session.resource);
+			await this.openerService.open(session.resource, {
+				editorOptions: upcast<IEditorOptions, IChatEditorOptions>({
+					...e.editorOptions,
+					title: { preferred: session.label }
+				})
+			});
 			return;
 		}
 
@@ -144,7 +150,14 @@ export class AgentSessionsView extends ViewPane {
 
 		sessionOptions.ignoreInView = true;
 
-		await this.editorService.openEditor({ resource: sessionResource, options: sessionOptions });
+		await this.editorService.openEditor({
+			resource: sessionResource,
+			options: upcast<IEditorOptions, IChatEditorOptions>({
+				...sessionOptions,
+				title: { preferred: session.label },
+				...e.editorOptions
+			})
+		});
 	}
 
 	private registerActions(): void {
@@ -254,6 +267,7 @@ export class AgentSessionsView extends ViewPane {
 			new AgentSessionsDataSource(),
 			{
 				accessibilityProvider: new AgentSessionsAccessibilityProvider(),
+				dnd: this.instantiationService.createInstance(AgentSessionsDragAndDrop),
 				identityProvider: new AgentSessionsIdentityProvider(),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
