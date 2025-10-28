@@ -210,34 +210,51 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	}
 
 	async accept(): Promise<void> {
+		const callback = await this.acceptDeferred();
+		if (callback) {
+			transaction(callback);
+		}
+	}
+
+	/** Accepts and returns a function used to transition the state. This MUST be called by the consumer. */
+	async acceptDeferred(): Promise<((tx: ITransaction) => void) | undefined> {
 		if (this._stateObs.get() !== ModifiedFileEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}
 
 		await this._doAccept();
-		transaction(tx => {
+
+		return (tx: ITransaction) => {
 			this._stateObs.set(ModifiedFileEntryState.Accepted, tx);
 			this._autoAcceptCtrl.set(undefined, tx);
-		});
-
-		this._notifySessionAction('accepted');
+			this._notifySessionAction('accepted');
+		};
 	}
 
 	protected abstract _doAccept(): Promise<void>;
 
 	async reject(): Promise<void> {
+		const callback = await this.rejectDeferred();
+		if (callback) {
+			transaction(callback);
+		}
+	}
+
+	/** Rejects and returns a function used to transition the state. This MUST be called by the consumer. */
+	async rejectDeferred(): Promise<((tx: ITransaction) => void) | undefined> {
 		if (this._stateObs.get() !== ModifiedFileEntryState.Modified) {
 			// already accepted or rejected
-			return;
+			return undefined;
 		}
 
 		this._notifySessionAction('rejected');
 		await this._doReject();
-		transaction(tx => {
+
+		return (tx: ITransaction) => {
 			this._stateObs.set(ModifiedFileEntryState.Rejected, tx);
 			this._autoAcceptCtrl.set(undefined, tx);
-		});
+		};
 	}
 
 	protected abstract _doReject(): Promise<void>;
