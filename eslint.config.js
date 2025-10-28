@@ -216,7 +216,6 @@ export default tseslint.config(
 			'src/vs/base/common/objects.ts',
 			'src/vs/base/common/observableInternal/logging/consoleObservableLogger.ts',
 			'src/vs/base/common/observableInternal/logging/debugger/devToolsLogger.ts',
-			'src/vs/base/common/strings.ts',
 			'src/vs/base/test/common/snapshot.ts',
 			'src/vs/base/test/common/timeTravelScheduler.ts',
 			'src/vs/editor/browser/controller/editContext/native/debugEditContext.ts',
