@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import * as resources from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -228,11 +228,13 @@ class ContributedChatSessionData implements IDisposable {
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
 
-	private readonly _itemsProviders: Map<string, IChatSessionItemProvider> = new Map();
+	private readonly _itemsProviders: Map</* type */ string, IChatSessionItemProvider> = new Map();
+
 	private readonly _contributions: Map</* type */ string, { readonly contribution: IChatSessionsExtensionPoint; readonly extension: IRelaxedExtensionDescription }> = new Map();
+	private readonly _contributionDisposables = this._register(new DisposableMap</* type */ string>());
+
 	private readonly _contentProviders: Map</* scheme */ string, IChatSessionContentProvider> = new Map();
 	private readonly _alternativeIdMap: Map</* alternativeId */ string, /* primaryType */ string> = new Map();
-	private readonly _disposableStores: Map<string, DisposableStore> = new Map();
 	private readonly _contextKeys = new Set<string>();
 
 	private readonly _onDidChangeItemsProviders = this._register(new Emitter<IChatSessionItemProvider>());
@@ -412,11 +414,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._sessionTypeWelcomeMessages.delete(contribution.type);
 				this._sessionTypeWelcomeTips.delete(contribution.type);
 				this._sessionTypeInputPlaceholders.delete(contribution.type);
-				const store = this._disposableStores.get(contribution.type);
-				if (store) {
-					store.dispose();
-					this._disposableStores.delete(contribution.type);
-				}
+				this._contributionDisposables.deleteAndDispose(contribution.type);
 			}
 		};
 	}
@@ -540,15 +538,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private _evaluateAvailability(): void {
 		let hasChanges = false;
 		for (const { contribution, extension } of this._contributions.values()) {
-			const isCurrentlyRegistered = this._disposableStores.has(contribution.type);
+			const isCurrentlyRegistered = this._contributionDisposables.has(contribution.type);
 			const shouldBeRegistered = this._isContributionAvailable(contribution);
 			if (isCurrentlyRegistered && !shouldBeRegistered) {
 				// Disable the contribution by disposing its disposable store
-				const store = this._disposableStores.get(contribution.type);
-				if (store) {
-					store.dispose();
-					this._disposableStores.delete(contribution.type);
-				}
+				this._contributionDisposables.deleteAndDispose(contribution.type);
+
 				// Also dispose any cached sessions for this contribution
 				this._disposeSessionsForContribution(contribution.type);
 				hasChanges = true;
@@ -571,7 +566,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
 		const disposableStore = new DisposableStore();
-		this._disposableStores.set(contribution.type, disposableStore);
+		this._contributionDisposables.set(contribution.type, disposableStore);
 
 		disposableStore.add(this._registerAgent(contribution, ext));
 		disposableStore.add(this._registerCommands(contribution));
