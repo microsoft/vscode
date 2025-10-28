@@ -112,18 +112,18 @@ function createTypeScriptLanguageService(ts: typeof import('typescript'), option
 	// Add entrypoints
 	options.entryPoints.forEach(entryPoint => {
 		const filePath = path.join(options.sourcesRoot, entryPoint);
-		FILES.set(filePath, fs.readFileSync(filePath).toString());
+		FILES.set(path.normalize(filePath), fs.readFileSync(filePath).toString());
 	});
 
 	// Add fake usage files
 	options.inlineEntryPoints.forEach((inlineEntryPoint, index) => {
-		FILES.set(path.join(options.sourcesRoot, `inlineEntryPoint.${index}.ts`), inlineEntryPoint);
+		FILES.set(path.normalize(path.join(options.sourcesRoot, `inlineEntryPoint.${index}.ts`)), inlineEntryPoint);
 	});
 
 	// Add additional typings
 	options.typings.forEach((typing) => {
 		const filePath = path.join(options.sourcesRoot, typing);
-		FILES.set(filePath, fs.readFileSync(filePath).toString());
+		FILES.set(path.normalize(filePath), fs.readFileSync(filePath).toString());
 	});
 
 	const basePath = path.join(options.sourcesRoot, '..');

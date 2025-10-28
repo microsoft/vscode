@@ -10,6 +10,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroupsService, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatModel } from '../../common/chatModel.js';
@@ -20,7 +21,8 @@ import { IChatWidgetService, IChatWidget } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { isChatSession, getChatSessionType, ChatSessionItemWithProvider } from './common.js';
 
-export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider {
+export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.localChatSessionsProvider';
 	static readonly CHAT_WIDGET_VIEW_ID = 'workbench.panel.chat.view.copilot';
 	static readonly HISTORY_NODE_ID = 'show-history';
 	readonly chatSessionType = 'local';
@@ -44,6 +46,8 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
+
+		this._register(this.chatSessionsService.registerChatSessionItemProvider(this));
 
 		this.initializeCurrentEditorSet();
 		this.registerWidgetListeners();
@@ -146,7 +150,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 
 	private isLocalChatSession(editor?: EditorInput): boolean {
 		// For the LocalChatSessionsProvider, we only want to track sessions that are actually 'local' type
-		if (!isChatSession(editor)) {
+		if (!isChatSession(this.chatSessionsService.getContentProviderSchemes(), editor)) {
 			return false;
 		}
 
@@ -205,6 +209,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			description: nls.localize('chat.sessions.chatView.description', "Chat View"),
 			iconPath: Codicon.chatSparkle,
 			status,
+			timing: { startTime: chatWidget?.viewModel?.model.getRequests().at(0)?.timestamp || 0 },
 			provider: this
 		};
 		sessions.push(widgetSession);
@@ -251,6 +256,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			id: LocalChatSessionsProvider.HISTORY_NODE_ID,
 			resource: URI.parse(`${Schemas.vscodeChatSession}://history`),
 			label: nls.localize('chat.sessions.showHistory', "History"),
+			timing: { startTime: 0 }
 		};
 
 		// Add "Show history..." node at the end

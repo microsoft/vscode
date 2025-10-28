@@ -129,7 +129,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		disposables.add(Event.once(notification.onClick)(async () => {
 			await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
 			await this._instantiationService.invokeFunction(showChatWidgetInViewOrEditor, widget);
-			widget.input.focus();
+			widget.focusInput();
 			disposables.dispose();
 			this.notifications.delete(disposables);
 		}));

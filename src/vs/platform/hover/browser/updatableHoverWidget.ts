@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isHTMLElement } from '../../../../base/browser/dom.js';
-import { isManagedHoverTooltipMarkdownString, type IHoverWidget, type IManagedHoverContent, type IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
-import type { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from '../../../../base/browser/ui/hover/hoverDelegate.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { isMarkdownString, type IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { isFunction, isString } from '../../../../base/common/types.js';
-import { localize } from '../../../../nls.js';
+import { isHTMLElement } from '../../../base/browser/dom.js';
+import { isManagedHoverTooltipMarkdownString, type IHoverWidget, type IManagedHoverContent, type IManagedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
+import type { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from '../../../base/browser/ui/hover/hoverDelegate.js';
+import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { isMarkdownString, type IMarkdownString } from '../../../base/common/htmlContent.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { isFunction, isString } from '../../../base/common/types.js';
+import { localize } from '../../../nls.js';
 
 type IManagedHoverResolvedContent = IMarkdownString | string | HTMLElement | undefined;
 

@@ -11,9 +11,9 @@ import { observableCodeEditor } from '../../../../../browser/observableCodeEdito
 import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { TextEdit } from '../../../../../common/core/edits/textEdit.js';
 import { StringText } from '../../../../../common/core/text/abstractText.js';
-import { Command, InlineCompletionCommand, InlineCompletionDisplayLocation } from '../../../../../common/languages.js';
+import { Command, InlineCompletionCommand } from '../../../../../common/languages.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
-import { InlineCompletionItem } from '../../model/inlineSuggestionItem.js';
+import { InlineCompletionItem, InlineSuggestHint } from '../../model/inlineSuggestionItem.js';
 import { IInlineEditHost, IInlineEditModel, InlineCompletionViewData, InlineCompletionViewKind, InlineEditTabAction } from './inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 
@@ -24,7 +24,7 @@ export class InlineEditModel implements IInlineEditModel {
 	readonly extensionCommands: InlineCompletionCommand[];
 	readonly isInDiffEditor: boolean;
 
-	readonly displayLocation: InlineCompletionDisplayLocation | undefined;
+	readonly displayLocation: InlineSuggestHint | undefined;
 	readonly showCollapsed: IObservable<boolean>;
 
 	constructor(
@@ -37,7 +37,7 @@ export class InlineEditModel implements IInlineEditModel {
 		this.extensionCommands = this.inlineEdit.inlineCompletion.source.inlineSuggestions.commands ?? [];
 		this.isInDiffEditor = this._model.isInDiffEditor;
 
-		this.displayLocation = this.inlineEdit.inlineCompletion.displayLocation;
+		this.displayLocation = this.inlineEdit.inlineCompletion.hint;
 		this.showCollapsed = this._model.showCollapsed;
 	}
 
@@ -47,12 +47,6 @@ export class InlineEditModel implements IInlineEditModel {
 
 	jump() {
 		this._model.jump();
-	}
-
-	abort(reason: string) {
-		console.error(reason);
-		this.inlineEdit.inlineCompletion.reportInlineEditError(reason);
-		this._model.stop();
 	}
 
 	handleInlineEditShown(viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {

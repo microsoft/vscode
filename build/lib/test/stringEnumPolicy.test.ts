@@ -114,6 +114,16 @@ suite('StringEnumPolicy', () => {
 		assert.strictEqual(presentation, '<presentation id="TestStringEnumPolicy"><dropdownList refId="TestStringEnumPolicy" /></presentation>');
 	});
 
+	test('should render JSON value correctly', () => {
+		const policy = StringEnumPolicy.from(mockCategory, mockPolicy);
+
+		assert.ok(policy);
+
+		const jsonValue = policy.renderJsonValue();
+
+		assert.strictEqual(jsonValue, 'auto');
+	});
+
 	test('should render profile value correctly', () => {
 		const policy = StringEnumPolicy.from(mockCategory, mockPolicy);
 

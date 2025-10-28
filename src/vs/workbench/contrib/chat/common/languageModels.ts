@@ -8,14 +8,14 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchema, TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -265,8 +265,9 @@ export interface ILanguageModelsService {
 	computeTokenLength(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
-const languageModelChatProviderType: IJSONSchema = {
+const languageModelChatProviderType = {
 	type: 'object',
+	required: ['vendor', 'displayName'],
 	properties: {
 		vendor: {
 			type: 'string',
@@ -279,15 +280,15 @@ const languageModelChatProviderType: IJSONSchema = {
 		managementCommand: {
 			type: 'string',
 			description: localize('vscode.extension.contributes.languageModels.managementCommand', "A command to manage the language model chat provider, e.g. 'Manage Copilot models'. This is used in the chat model picker. If not provided, a gear icon is not rendered during vendor selection.")
+		},
+		when: {
+			type: 'string',
+			description: localize('vscode.extension.contributes.languageModels.when', "Condition which must be true to show this language model chat provider in the Manage Models list.")
 		}
 	}
-};
+} as const satisfies IJSONSchema;
 
-export interface IUserFriendlyLanguageModel {
-	vendor: string;
-	displayName: string;
-	managementCommand?: string;
-}
+export type IUserFriendlyLanguageModel = TypeFromJsonSchema<typeof languageModelChatProviderType>;
 
 export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IUserFriendlyLanguageModel | IUserFriendlyLanguageModel[]>({
 	extensionPoint: 'languageModelChatProviders',
@@ -320,6 +321,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _resolveLMSequencer = new SequencerByKey<string>();
 	private _modelPickerUserPreferences: Record<string, boolean> = {};
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
+	private readonly _contextKeyService: IContextKeyService;
 	private readonly _onLanguageModelChange = this._store.add(new Emitter<void>());
 	readonly onDidChangeLanguageModels: Event<void> = this._onLanguageModelChange.event;
 
@@ -332,6 +334,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
+		this._contextKeyService = _contextKeyService;
 		this._modelPickerUserPreferences = this._storageService.getObject<Record<string, boolean>>('chatModelPickerPreferences', StorageScope.PROFILE, this._modelPickerUserPreferences);
 		// TODO @lramos15 - Remove after a few releases, as this is just cleaning a bad storage state
 		const entitlementChangeHandler = () => {
@@ -411,7 +414,13 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	getVendors(): IUserFriendlyLanguageModel[] {
-		return Array.from(this._vendors.values());
+		return Array.from(this._vendors.values()).filter(vendor => {
+			if (!vendor.when) {
+				return true; // No when clause means always visible
+			}
+			const whenClause = ContextKeyExpr.deserialize(vendor.when);
+			return whenClause ? this._contextKeyService.contextMatchesRules(whenClause) : false;
+		});
 	}
 
 	getLanguageModelIds(): string[] {

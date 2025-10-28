@@ -184,7 +184,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	}
 
 	public $setTitle(handle: extHostProtocol.WebviewHandle, value: string): void {
-		this.tryGetWebviewInput(handle)?.setName(value);
+		this.tryGetWebviewInput(handle)?.setWebviewTitle(value);
 	}
 
 	public $setIconPath(handle: extHostProtocol.WebviewHandle, value: extHostProtocol.IWebviewIconPath | undefined): void {
