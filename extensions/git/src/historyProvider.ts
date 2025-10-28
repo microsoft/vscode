@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent, MarkdownString, Command } from 'vscode';
+import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent, MarkdownString, Command, commands } from 'vscode';
 import { Repository, Resource } from './repository';
 import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, fromNow, getCommitShortHash, subject, truncate } from './util';
 import { toMultiFileDiffEditorUris } from './uri';
@@ -184,6 +184,15 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				break;
 			}
 		}
+
+		// Update context keys for HEAD
+		if (this._HEAD?.ahead !== this.repository.HEAD?.ahead) {
+			commands.executeCommand('setContext', 'git.currentHistoryItemIsAhead', (this.repository.HEAD?.ahead ?? 0) > 0);
+		}
+		if (this._HEAD?.behind !== this.repository.HEAD?.behind) {
+			commands.executeCommand('setContext', 'git.currentHistoryItemIsBehind', (this.repository.HEAD?.behind ?? 0) > 0);
+		}
+		commands.executeCommand('setContext', 'git.currentHistoryItemHasMergeBase', this._currentHistoryItemBaseRef !== undefined);
 
 		this._HEAD = this.repository.HEAD;
 
