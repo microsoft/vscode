@@ -53,12 +53,17 @@ suite('PromptValidator', () => {
 		const toolService = disposables.add(instaService.createInstance(LanguageModelToolsService));
 
 		const testTool1 = { id: 'testTool1', displayName: 'tool1', canBeReferencedInPrompt: true, modelDescription: 'Test Tool 1', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
-		const testTool2 = { id: 'testTool2', displayName: 'tool2', canBeReferencedInPrompt: true, toolReferenceName: 'tool2', modelDescription: 'Test Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
-		const testTool3 = { id: 'testTool3', displayName: 'tool3', canBeReferencedInPrompt: true, toolReferenceName: 'tool3', modelDescription: 'Test Tool 3', source: { type: 'extension', label: 'My Extension', extensionId: new ExtensionIdentifier('My.extension') }, inputSchema: {} } satisfies IToolData;
-
 		disposables.add(toolService.registerToolData(testTool1));
+		const testTool2 = { id: 'testTool2', displayName: 'tool2', canBeReferencedInPrompt: true, toolReferenceName: 'tool2', modelDescription: 'Test Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(testTool2));
+
+		const myExtSource = { type: 'extension', label: 'My Extension', extensionId: new ExtensionIdentifier('My.extension') } satisfies ToolDataSource;
+		const testTool3 = { id: 'testTool3', displayName: 'tool3', canBeReferencedInPrompt: true, toolReferenceName: 'tool3', modelDescription: 'Test Tool 3', source: myExtSource, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(testTool3));
+
+		const prExtSource = { type: 'extension', label: 'GitHub Pull Request Extension', extensionId: new ExtensionIdentifier('github.vscode-pull-request-github') } satisfies ToolDataSource;
+		const prExtTool1 = { id: 'suggestFix', canBeReferencedInPrompt: true, toolReferenceName: 'suggest-fix', modelDescription: 'tool4', displayName: 'Test Tool 4', source: prExtSource, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(prExtTool1));
 
 		instaService.set(ILanguageModelToolsService, toolService);
 
@@ -588,12 +593,31 @@ suite('PromptValidator', () => {
 				'---',
 				'description: "Unknown tool var"',
 				'---',
-				'This line references known #tool1 and unknown #toolX'
+				'This line references known #tool:tool1 and unknown #tool:toolX'
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1, 'Expected one warning for unknown tool variable');
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.strictEqual(markers[0].message, `Unknown tool or toolset 'toolX'.`);
+		});
+
+		test('body with tool not present in tools list', async () => {
+			const content = [
+				'---',
+				'tools: []',
+				'---',
+				'I need',
+				'#tool:ms-azuretools.vscode-azure-github-copilot/azure_recommend_custom_modes',
+				'#tool:github.vscode-pull-request-github/suggest-fix',
+				'#tool:openSimpleBrowser',
+			].join('\n');
+			const markers = await validate(content, PromptsType.prompt);
+			const actual = markers.sort((a, b) => a.startLineNumber - b.startLineNumber).map(m => ({ message: m.message, startColumn: m.startColumn, endColumn: m.endColumn }));
+			assert.deepEqual(actual, [
+				{ message: `Unknown tool or toolset 'ms-azuretools.vscode-azure-github-copilot/azure_recommend_custom_modes'.`, startColumn: 7, endColumn: 77 },
+				{ message: `Tool or toolset 'github.vscode-pull-request-github/suggest-fix' also needs to be enabled in the header.`, startColumn: 7, endColumn: 52 },
+				{ message: `Unknown tool or toolset 'openSimpleBrowser'.`, startColumn: 7, endColumn: 24 },
+			]);
 		});
 
 	});

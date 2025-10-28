@@ -1213,8 +1213,18 @@ abstract class RepositorySelectionModeAction extends ViewAction<SCMViewPane> {
 			f1: false,
 			toggled: RepositoryContextKeys.RepositorySelectionMode.isEqualTo(selectionMode),
 			menu: [
-				{ id: Menus.Repositories, order, group: '2_selectionMode' },
-				{ id: MenuId.SCMSourceControlTitle, order, group: '2_selectionMode' },
+				{
+					id: Menus.Repositories,
+					when: ContextKeyExpr.greater(ContextKeys.RepositoryCount.key, 1),
+					group: '2_selectionMode',
+					order
+				},
+				{
+					id: MenuId.SCMSourceControlTitle,
+					when: ContextKeyExpr.greater(ContextKeys.RepositoryCount.key, 1),
+					group: '2_selectionMode',
+					order
+				},
 			]
 		});
 	}

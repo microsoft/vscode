@@ -998,6 +998,12 @@
         "command": "git.blame.toggleStatusBarItem",
         "title": "%command.blameToggleStatusBarItem%",
         "category": "Git"
+      },
+      {
+        "command": "git.graph.compareRef",
+        "title": "%command.graphCompareRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
       }
     ],
     "continueEditSession": [
@@ -1592,6 +1598,10 @@
         },
         {
           "command": "git.graph.deleteBranch",
+          "when": "false"
+        },
+        {
+          "command": "git.graph.compareRef",
           "when": "false"
         },
         {
@@ -2242,6 +2252,11 @@
           "command": "git.graph.cherryPick",
           "when": "scmProvider == git",
           "group": "4_modify@1"
+        },
+        {
+          "command": "git.graph.compareRef",
+          "when": "scmProvider == git",
+          "group": "5_compare@1"
         },
         {
           "command": "git.copyCommitId",

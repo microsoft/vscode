@@ -21,6 +21,7 @@ import { AbstractText, StringText } from '../../../../../common/core/text/abstra
 import { TextLength } from '../../../../../common/core/text/textLength.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
+import { InlineEditItem } from '../../model/inlineSuggestionItem.js';
 import { InlineEditsGutterIndicator } from './components/gutterIndicatorView.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 import { GhostTextIndicator, InlineEditHost, InlineEditModel } from './inlineEditsModel.js';
@@ -393,6 +394,10 @@ export class InlineEditsView extends Disposable {
 
 		if (canUseCache && !reconsiderViewEditorWidthChange) {
 			return this._previousView!.view;
+		}
+
+		if (model.inlineEdit.inlineCompletion instanceof InlineEditItem && model.inlineEdit.inlineCompletion.uri) {
+			return InlineCompletionViewKind.Custom;
 		}
 
 		if (model.displayLocation && !model.inlineEdit.inlineCompletion.identity.jumpedTo.read(reader)) {

@@ -10,6 +10,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroupsService, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatModel } from '../../common/chatModel.js';
@@ -20,7 +21,8 @@ import { IChatWidgetService, IChatWidget } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { isChatSession, getChatSessionType, ChatSessionItemWithProvider } from './common.js';
 
-export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider {
+export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.localChatSessionsProvider';
 	static readonly CHAT_WIDGET_VIEW_ID = 'workbench.panel.chat.view.copilot';
 	static readonly HISTORY_NODE_ID = 'show-history';
 	readonly chatSessionType = 'local';
@@ -44,6 +46,8 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
+
+		this._register(this.chatSessionsService.registerChatSessionItemProvider(this));
 
 		this.initializeCurrentEditorSet();
 		this.registerWidgetListeners();

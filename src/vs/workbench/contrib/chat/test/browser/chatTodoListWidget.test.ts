@@ -10,14 +10,13 @@ import { ChatTodoListWidget } from '../../browser/chatContentParts/chatTodoListW
 import { IChatTodo, IChatTodoListService } from '../../common/chatTodoListService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('ChatTodoListWidget Accessibility', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let widget: ChatTodoListWidget;
-	let mockTodoListService: IChatTodoListService;
-	let mockConfigurationService: IConfigurationService;
 
 	const sampleTodos: IChatTodo[] = [
 		{ id: 1, title: 'First task', status: 'not-started' },
@@ -27,7 +26,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 
 	setup(() => {
 		// Mock the todo list service
-		mockTodoListService = {
+		const mockTodoListService: IChatTodoListService = {
 			_serviceBrand: undefined,
 			onDidUpdateTodos: Event.None,
 			getTodos: (sessionId: string) => sampleTodos,
@@ -35,14 +34,12 @@ suite('ChatTodoListWidget Accessibility', () => {
 		};
 
 		// Mock the configuration service
-		// eslint-disable-next-line local/code-no-any-casts
-		mockConfigurationService = {
-			_serviceBrand: undefined,
-			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
-		} as any;
+		const mockConfigurationService = new TestConfigurationService({ 'chat.todoListTool.descriptionField': true });
 
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		widget = store.add(new ChatTodoListWidget(mockTodoListService, mockConfigurationService, instantiationService));
+		instantiationService.stub(IChatTodoListService, mockTodoListService);
+		instantiationService.stub(IConfigurationService, mockConfigurationService);
+		widget = store.add(instantiationService.createInstance(ChatTodoListWidget));
 		mainWindow.document.body.appendChild(widget.domNode);
 	});
 
@@ -106,38 +103,49 @@ suite('ChatTodoListWidget Accessibility', () => {
 	test('expand button has proper accessibility attributes', () => {
 		widget.render('test-session');
 
-		// The expandoElement has the accessibility attributes
-		const expandoElement = widget.domNode.querySelector('.todo-list-expand');
-		assert.ok(expandoElement, 'Should have expando element');
-		assert.strictEqual(expandoElement?.getAttribute('role'), 'button');
-		assert.strictEqual(expandoElement?.getAttribute('tabindex'), '0');
-		assert.strictEqual(expandoElement?.getAttribute('aria-expanded'), 'false'); // Should be collapsed due to in-progress task
-		assert.strictEqual(expandoElement?.getAttribute('aria-controls'), 'todo-list-container');
+		// The expandoButton is now a Monaco Button, so we need to check its element
+		const expandoContainer = widget.domNode.querySelector('.todo-list-expand');
+		assert.ok(expandoContainer, 'Should have expando container');
+
+		const expandoButton = expandoContainer?.querySelector('.monaco-button');
+		assert.ok(expandoButton, 'Should have Monaco button');
+		assert.strictEqual(expandoButton?.getAttribute('aria-expanded'), 'false'); // Should be collapsed due to in-progress task
+		assert.strictEqual(expandoButton?.getAttribute('aria-controls'), 'todo-list-container');
 
 		// The title element should have progress information
-		const titleElement = expandoElement?.querySelector('.todo-list-title');
+		const titleElement = expandoButton?.querySelector('.todo-list-title');
 		assert.ok(titleElement, 'Should have title element');
 		const titleText = titleElement?.textContent;
 		// When collapsed, title shows progress and current task: " (2/3) - Second task"
 		// Progress is 2/3 because: 1 completed + 1 in-progress (current) = task 2 of 3
 		assert.ok(titleText?.includes('(2/3)'), `Title should show progress format, but got: "${titleText}"`);
 		assert.ok(titleText?.includes('Second task'), `Title should show current task when collapsed, but got: "${titleText}"`);
-	}); test('hidden status text elements exist for screen readers', () => {
+	});
+
+	test('todo items have complete aria-label with status information', () => {
 		widget.render('test-session');
 
-		const statusElements = widget.domNode.querySelectorAll('.todo-status-text');
-		assert.strictEqual(statusElements.length, 3, 'Should have 3 status text elements');
+		const todoItems = widget.domNode.querySelectorAll('.todo-item');
+		assert.strictEqual(todoItems.length, 3, 'Should have 3 todo items');
 
-		statusElements.forEach((element, index) => {
-			assert.strictEqual(element.id, `todo-status-${index}`, 'Should have proper ID');
-			// Check that it's visually hidden but accessible to screen readers
-			const style = (element as HTMLElement).style;
-			assert.strictEqual(style.position, 'absolute');
-			assert.strictEqual(style.left, '-10000px');
-			assert.strictEqual(style.width, '1px');
-			assert.strictEqual(style.height, '1px');
-			assert.strictEqual(style.overflow, 'hidden');
-		});
+		// Check first item (not-started) - aria-label should include title and status
+		const firstItem = todoItems[0] as HTMLElement;
+		const firstAriaLabel = firstItem.getAttribute('aria-label');
+		assert.ok(firstAriaLabel?.includes('First task'), 'First item aria-label should include title');
+		assert.ok(firstAriaLabel?.includes('not started'), 'First item aria-label should include status');
+
+		// Check second item (in-progress with description) - aria-label should include title, status, and description
+		const secondItem = todoItems[1] as HTMLElement;
+		const secondAriaLabel = secondItem.getAttribute('aria-label');
+		assert.ok(secondAriaLabel?.includes('Second task'), 'Second item aria-label should include title');
+		assert.ok(secondAriaLabel?.includes('in progress'), 'Second item aria-label should include status');
+		assert.ok(secondAriaLabel?.includes('This is a task description'), 'Second item aria-label should include description');
+
+		// Check third item (completed) - aria-label should include title and status
+		const thirdItem = todoItems[2] as HTMLElement;
+		const thirdAriaLabel = thirdItem.getAttribute('aria-label');
+		assert.ok(thirdAriaLabel?.includes('Third task'), 'Third item aria-label should include title');
+		assert.ok(thirdAriaLabel?.includes('completed'), 'Third item aria-label should include status');
 	});
 
 	test('widget displays properly when no todos exist', () => {
@@ -149,14 +157,12 @@ suite('ChatTodoListWidget Accessibility', () => {
 			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
 		};
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const emptyConfigurationService: IConfigurationService = {
-			_serviceBrand: undefined,
-			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
-		} as any;
+		const emptyConfigurationService = new TestConfigurationService({ 'chat.todoListTool.descriptionField': true });
 
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		const emptyWidget = store.add(new ChatTodoListWidget(emptyTodoListService, emptyConfigurationService, instantiationService));
+		instantiationService.stub(IChatTodoListService, emptyTodoListService);
+		instantiationService.stub(IConfigurationService, emptyConfigurationService);
+		const emptyWidget = store.add(instantiationService.createInstance(ChatTodoListWidget));
 		mainWindow.document.body.appendChild(emptyWidget.domNode);
 
 		emptyWidget.render('test-session');

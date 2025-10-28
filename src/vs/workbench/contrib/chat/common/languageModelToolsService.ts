@@ -323,6 +323,7 @@ export type CountTokensCallback = (input: string, token: CancellationToken) => P
 export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	readonly onDidChangeTools: Event<void>;
+	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ sessionId: string; toolData: IToolData }>;
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
