@@ -45,6 +45,7 @@ suite('ChatShareUrlHandler', () => {
 		assert.strictEqual(uri.scheme, 'vscode');
 		assert.strictEqual(uri.authority, 'github.copilot-chat');
 		
+		// Match the handler's decoding logic
 		const query = decodeURIComponent(uri.query);
 		assert.ok(query.startsWith('open-chat='));
 		const chatUrl = query.substring('open-chat='.length);
