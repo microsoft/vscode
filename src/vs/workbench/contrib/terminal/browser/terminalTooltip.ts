@@ -109,7 +109,7 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 	}
 	const combinedString = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString();
 	if (combinedString !== undefined) {
-		detailedAdditions.push(`Prompt input: <code>${combinedString.replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</code>`);
+		detailedAdditions.push(`Prompt input: <code>${combinedString.replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('`', '\\`')}</code>`);
 	}
 	const detailedAdditionsString = detailedAdditions.length > 0
 		? '\n\n' + detailedAdditions.map(e => `- ${e}`).join('\n')
