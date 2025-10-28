@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize2 } from '../../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2 } from '../../../../../platform/actions/common/actions.js';
 
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -43,7 +43,7 @@ interface ISaveToPromptActionOptions {
 /**
  * Class that defines the `Save Prompt` action.
  */
-class SaveToPromptAction extends Action2 {
+export class SaveToPromptAction extends Action2 {
 	constructor() {
 		super({
 			id: SAVE_TO_PROMPT_ACTION_ID,
@@ -145,11 +145,4 @@ function isSaveToPromptSlashCommand(message: IParsedChatRequest): boolean {
 	}
 
 	return true;
-}
-
-/**
- * Helper to register all the `Save Prompt` actions.
- */
-export function registerSaveToPromptActions(): void {
-	registerAction2(SaveToPromptAction);
 }
