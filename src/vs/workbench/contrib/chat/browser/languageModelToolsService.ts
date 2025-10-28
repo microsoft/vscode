@@ -80,7 +80,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private _onDidChangeTools = new Emitter<void>();
 	readonly onDidChangeTools = this._onDidChangeTools.event;
-	private _onDidPrepareToolCallBecomeUnresponsive = new Emitter<IToolData>();
+	private _onDidPrepareToolCallBecomeUnresponsive = new Emitter<{ sessionId: string; toolData: IToolData }>();
 	readonly onDidPrepareToolCallBecomeUnresponsive = this._onDidPrepareToolCallBecomeUnresponsive.event;
 
 	/** Throttle tools updates because it sends all tools and runs on context key updates */
@@ -456,11 +456,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}, token);
 
 			const raceResult = await Promise.race([
-				timeout(3000),
+				timeout(3000).then(() => 'timeout'),
 				preparePromise
 			]);
-			if (raceResult === void 0) {
-				this._onDidPrepareToolCallBecomeUnresponsive.fire(tool.data);
+			if (raceResult === 'timeout') {
+				this._onDidPrepareToolCallBecomeUnresponsive.fire({
+					sessionId: dto.context?.sessionId ?? '',
+					toolData: tool.data
+				});
 			}
 
 			prepared = await preparePromise;
