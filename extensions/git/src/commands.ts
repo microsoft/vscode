@@ -3130,7 +3130,7 @@ export class CommandCenter {
 			return itemsProcessor.processRefs(refs);
 		};
 
-		const placeHolder = l10n.t('Select a source reference to compare with');
+		const placeHolder = l10n.t('Select a reference to compare with');
 		const sourceRef = await this.pickRef(getRefPicks(), placeHolder);
 
 		if (!(sourceRef instanceof BranchItem) || !sourceRef.ref.commit) {
@@ -3166,7 +3166,6 @@ export class CommandCenter {
 		} catch (err) {
 			throw new Error(l10n.t('Failed to compare references: {0}', err.message ?? err));
 		}
-
 	}
 
 	@command('git.deleteRemoteBranch', { repository: true })
