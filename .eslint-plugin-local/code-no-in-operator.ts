@@ -19,7 +19,7 @@ export = new class NoInOperator implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
-			noInOperator: 'The "in" operator should not be used. Use type discriminator properties and classes instead.',
+			noInOperator: 'The "in" operator should not be used. Use type discriminator properties and classes instead or the `hasKey`-utility.',
 		},
 		schema: false,
 	};
