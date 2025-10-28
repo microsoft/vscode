@@ -375,12 +375,31 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			this.raw.loadAddon(this._serializeAddon);
 		}
 		if (explicitRange && command) {
-			let startLine = command.marker?.line ? command.marker.line + 1 : 1;
-			const endLine = command.endMarker?.line ? command.endMarker.line - 1 : this.raw.buffer.active.length - 1;
+			let startLine: number;
+			let startCol: number;
+			if (command.executedMarker && command.executedMarker.line >= 0) {
+				startLine = command.executedMarker.line;
+				startCol = Math.max(command.executedX ?? 0, 0);
+			} else {
+				startLine = command.marker?.line !== undefined ? command.marker.line + 1 : 1;
+				startCol = Math.max(command.startX ?? 0, 0);
+			}
+
+			const endLine = command.endMarker?.line !== undefined ? command.endMarker.line - 1 : this.raw.buffer.active.length - 1;
+			if (endLine < startLine) {
+				return '';
+			}
 			if (maxLines && endLine - startLine > maxLines) {
 				startLine = endLine - maxLines;
+				startCol = 0;
 			}
-			const range = { startLine, endLine: endLine, startCol: command.startX ?? 0 };
+
+			const bufferLine = this.raw.buffer.active.getLine(startLine);
+			if (bufferLine) {
+				startCol = Math.min(startCol, bufferLine.length);
+			}
+
+			const range = { startLine, endLine, startCol };
 			const result = this._serializeAddon.serializeAsHTML({ range });
 			return result;
 		} else if (command) {
