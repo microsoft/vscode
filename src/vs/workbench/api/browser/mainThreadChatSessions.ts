@@ -19,7 +19,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/chatEditor.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
 import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/common/chatService.js';
-import { ChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
@@ -27,7 +27,7 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
 
-export class ObservableChatSession extends Disposable implements ChatSession {
+export class ObservableChatSession extends Disposable implements IChatSession {
 
 	readonly sessionResource: URI;
 	readonly providerHandle: number;
@@ -401,7 +401,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		if (originalEditor) {
 			// Prefetch the chat session content to make the subsequent editor swap quick
-			this._chatSessionsService.getChatSessionContent(
+			this._chatSessionsService.getOrCreateChatSession(
 				URI.revive(modifiedResource),
 				CancellationToken.None,
 			).then(() => {
@@ -455,7 +455,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		}
 	}
 
-	private async _provideChatSessionContent(providerHandle: number, sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
+	private async _provideChatSessionContent(providerHandle: number, sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		let session = this._activeSessions.get(sessionResource);
 
 		if (!session) {
