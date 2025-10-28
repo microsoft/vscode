@@ -435,7 +435,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 
 	public override async run() {
 		this.label = localize('focusTerminal', 'Focus Terminal');
-		this.terminalService.setActiveInstance(this._instance);
+		this._terminalService.setActiveInstance(this._instance);
 		if (this._instance.target === TerminalLocation.Editor) {
 			this._terminalEditorService.openEditor(this._instance);
 		} else {
