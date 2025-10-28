@@ -458,7 +458,7 @@ export class ChatService extends Disposable implements IChatService {
 			return existing.model;
 		}
 
-		const content = await this.chatSessionService.getChatSessionContent(chatSessionResource, CancellationToken.None);
+		const content = await this.chatSessionService.getOrCreateChatSession(chatSessionResource, CancellationToken.None);
 		const chatSessionType = chatSessionResource.scheme;
 
 		// Contributed sessions do not use UI tools

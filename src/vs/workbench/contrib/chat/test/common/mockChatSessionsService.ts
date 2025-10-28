@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditableData } from '../../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from '../../common/chatAgents.js';
-import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../../common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../../common/chatSessionsService.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
 	_serviceBrand: undefined;
@@ -142,7 +142,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contentProviders.has(chatSessionType);
 	}
 
-	async getChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
+	async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		const provider = this.contentProviders.get(sessionResource.scheme);
 		if (!provider) {
 			throw new Error(`No content provider for ${sessionResource.scheme}`);

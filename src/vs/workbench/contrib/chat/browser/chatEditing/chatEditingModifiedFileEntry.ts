@@ -57,8 +57,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	protected readonly _waitsForLastEdits = observableValue<boolean>(this, false);
 	readonly waitsForLastEdits: IObservable<boolean> = this._waitsForLastEdits;
 
-	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<IChatResponseModel | undefined>(this, undefined);
-	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined> = this._isCurrentlyBeingModifiedByObs;
+	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined>(this, undefined);
+	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined> = this._isCurrentlyBeingModifiedByObs;
 
 	protected readonly _lastModifyingResponseObs = observableValueOpts<IChatResponseModel | undefined>({ equalsFn: (a, b) => a?.requestId === b?.requestId }, undefined);
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined> = this._lastModifyingResponseObs;
@@ -300,9 +300,9 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	abstract readonly changesCount: IObservable<number>;
 
-	acceptStreamingEditsStart(responseModel: IChatResponseModel, tx: ITransaction) {
+	acceptStreamingEditsStart(responseModel: IChatResponseModel, undoStopId: string | undefined, tx: ITransaction) {
 		this._resetEditsState(tx);
-		this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
+		this._isCurrentlyBeingModifiedByObs.set({ responseModel, undoStopId }, tx);
 		this._lastModifyingResponseObs.set(responseModel, tx);
 		this._autoAcceptCtrl.get()?.cancel();
 
@@ -314,7 +314,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	protected abstract _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement | undefined;
 
-	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void>;
+	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<void>;
 
 	async acceptStreamingEditsEnd() {
 		this._resetEditsState(undefined);

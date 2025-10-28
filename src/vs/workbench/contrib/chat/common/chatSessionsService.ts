@@ -88,15 +88,18 @@ export type IChatSessionHistoryItem = {
 	participant: string;
 };
 
-export interface ChatSession extends IDisposable {
-	readonly sessionResource: URI;
+export interface IChatSession extends IDisposable {
 	readonly onWillDispose: Event<void>;
-	history: Array<IChatSessionHistoryItem>;
+
+	readonly sessionResource: URI;
+
+	readonly history: readonly IChatSessionHistoryItem[];
+
 	/**
 	 * Session options as key-value pairs. Keys correspond to option group IDs (e.g., 'models', 'subagents')
 	 * and values are the selected option item IDs.
 	 */
-	options?: Record<string, string>;
+	readonly options?: Record<string, string>;
 
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
@@ -121,7 +124,7 @@ export interface IChatSessionItemProvider {
 }
 
 export interface IChatSessionContentProvider {
-	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
+	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 }
 
 export type SessionOptionsChangedCallback = (sessionResource: URI, updates: ReadonlyArray<{
@@ -174,7 +177,7 @@ export interface IChatSessionsService {
 
 	registerChatSessionContentProvider(scheme: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveChatSession(sessionResource: URI): Promise<boolean>;
-	getChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
+	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
 	hasAnySessionOptions(sessionResource: URI): boolean;
 	getSessionOption(sessionResource: URI, optionId: string): string | undefined;

@@ -35,6 +35,10 @@ import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileE
 import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
+interface IMultiDiffEntryDelegate {
+	collapse: (transaction: ITransaction | undefined) => void;
+}
+
 
 export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifiedFileEntry implements IModifiedFileEntry {
 
@@ -73,7 +77,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
-		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
+		private readonly _multiDiffEntryDelegate: IMultiDiffEntryDelegate,
 		telemetryInfo: IModifiedEntryTelemetryInfo,
 		kind: ChatEditKind,
 		initialContent: string | undefined,
@@ -188,6 +192,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		};
 	}
 
+	public getCurrentContents() {
+		return this.modifiedModel.getValue();
+	}
+
 	public override hasModificationAt(location: Location): boolean {
 		return location.uri.toString() === this.modifiedModel.uri.toString() && this._textModelChangeService.hasHunkAt(location.range);
 	}
@@ -216,7 +224,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return new SingleModelEditStackElement(label, 'chat.edit', this.modifiedModel, null);
 	}
 
-	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<void> {
 
 		const result = await this._textModelChangeService.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
 
@@ -225,7 +233,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			this._stateObs.set(ModifiedFileEntryState.Modified, tx);
 
 			if (!isLastEdits) {
-				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 				this._rewriteRatioObs.set(result.rewriteRatio, tx);
 			} else {
 				this._resetEditsState(tx);
@@ -265,7 +272,9 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		if (this.createdInRequestId === this._telemetryInfo.requestId) {
 			if (isTextFileEditorModel(this._docFileEditorModel)) {
 				await this._docFileEditorModel.revert({ soft: true });
-				await this._fileService.del(this.modifiedURI);
+				await this._fileService.del(this.modifiedURI).catch(err => {
+					// don't block if file is already deleted
+				});
 			}
 			this._onDidDelete.fire();
 		} else {

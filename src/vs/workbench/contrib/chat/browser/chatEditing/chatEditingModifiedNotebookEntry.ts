@@ -90,6 +90,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		return this._cellsDiffInfo;
 	}
 
+	get viewType() {
+		return this.modifiedModel.viewType;
+	}
+
 	/**
 	 * List of Cell URIs that are edited,
 	 * Will be cleared once all edits have been accepted.
@@ -218,6 +222,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this._changesCount.set(countChanges(diffs), undefined);
 	}
 
+	getIndexOfCellHandle(handle: number) {
+		return this.modifiedModel.cells.findIndex(c => c.handle === handle);
+	}
+
 	private computeRequestId: number = 0;
 	async initializeModelsFromDiff() {
 		const id = ++this.computeRequestId;
@@ -249,7 +257,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	updateCellDiffInfo(cellsDiffInfo: ICellDiffInfo[], transcation: ITransaction | undefined) {
 		this._cellsDiffInfo.set(sortCellChanges(cellsDiffInfo), transcation);
 		this._changesCount.set(countChanges(cellsDiffInfo), transcation);
-
 	}
 
 	mirrorNotebookEdits(e: NotebookTextModelChangedEvent) {
@@ -542,7 +549,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	private newNotebookEditGenerator?: ChatEditingNewNotebookContentEdits;
-	override async acceptAgentEdits(resource: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+	override async acceptAgentEdits(resource: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<void> {
 		const isCellUri = resource.scheme === Schemas.vscodeNotebookCell;
 		const cell = isCellUri && this.modifiedModel.cells.find(cell => isEqual(cell.uri, resource));
 		let cellEntry: ChatEditingNotebookCellEntry | undefined;
@@ -612,7 +619,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 		transaction((tx) => {
 			this._stateObs.set(ModifiedFileEntryState.Modified, tx);
-			this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 			if (!isLastEdits) {
 				const newRewriteRation = Math.max(this._rewriteRatioObs.get(), calculateNotebookRewriteRatio(this._cellsDiffInfo.get(), this.originalModel, this.modifiedModel));
 				this._rewriteRatioObs.set(Math.min(1, newRewriteRation), tx);
@@ -918,6 +924,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 	}
 
+	public getCurrentSnapshot() {
+		return createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
+	}
+
 	override createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
 		return {
 			resource: this.modifiedURI,
@@ -953,6 +963,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.updateCellDiffInfo([], undefined);
 		this.restoreSnapshotInModifiedModel(this.initialContent);
 		this.initializeModelsFromDiff();
+	}
+
+	public restoreModifiedModelFromSnapshot(snapshot: string) {
+		this.restoreSnapshotInModifiedModel(snapshot);
+		return this.initializeModelsFromDiff();
 	}
 
 	private restoreSnapshotInModifiedModel(snapshot: string) {
