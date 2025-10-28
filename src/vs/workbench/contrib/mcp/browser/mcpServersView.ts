@@ -10,7 +10,7 @@ import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js'
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
-import { DelayedPagedModel, IPagedModel, PagedModel } from '../../../../base/common/paging.js';
+import { DelayedPagedModel, IPagedModel, PagedModel, IterativePagedModel } from '../../../../base/common/paging.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyDefinedExpr, ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -26,7 +26,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
-import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, McpServerEnablementState, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
 import { DropDownAction, getContextMenuActions, InstallAction, InstallingLabelAction, ManageMcpServerAction, McpServerStatusAction } from './mcpServerActions.js';
 import { PublisherWidget, StarredWidget, McpServerIconWidget, McpServerHoverWidget, McpServerScopeBadgeWidget } from './mcpServerWidgets.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
@@ -323,7 +323,8 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		const disposables = new DisposableStore();
 		if (query) {
 			const servers = await this.mcpWorkbenchService.queryGallery({ text: query.replace('@mcp', '') });
-			return { model: new PagedModel(servers), disposables };
+			const model = disposables.add(new IterativePagedModel(servers));
+			return { model, disposables };
 		}
 
 		const onDidChangeModel = disposables.add(new Emitter<IPagedModel<IWorkbenchMcpServer>>());
@@ -484,7 +485,7 @@ class McpServerRenderer implements IPagedRenderer<IWorkbenchMcpServer, IMcpServe
 		data.starred.style.display = '';
 		data.mcpServer = mcpServer;
 
-		const updateEnablement = () => data.root.classList.toggle('disabled', !!mcpServer.runtimeState?.disabled);
+		const updateEnablement = () => data.root.classList.toggle('disabled', !!mcpServer.runtimeStatus?.state && mcpServer.runtimeStatus.state !== McpServerEnablementState.Enabled);
 		updateEnablement();
 		data.mcpServerDisposables.push(this.mcpWorkbenchService.onChange(e => {
 			if (!e || e.id === mcpServer.id) {

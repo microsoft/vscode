@@ -33,7 +33,7 @@ class SuggestInlineCompletion implements InlineCompletion {
 		readonly filterText: string,
 		readonly additionalTextEdits: ISingleEditOperation[] | undefined,
 		readonly command: Command | undefined,
-		readonly action: Command | undefined,
+		readonly gutterMenuLinkAction: Command | undefined,
 		readonly completion: CompletionItem,
 	) { }
 }

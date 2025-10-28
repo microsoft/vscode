@@ -29,7 +29,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgent, IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys, ChatContextKeyExprs } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatModel, IChatRequestModel, toChatHistoryContent } from '../../common/chatModel.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
@@ -171,7 +171,7 @@ export class ChatSubmitAction extends SubmitAction {
 
 		super({
 			id: ChatSubmitAction.ID,
-			title: localize2('interactive.submit.label', "Send and Dispatch"),
+			title: localize2('interactive.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
@@ -179,7 +179,7 @@ export class ChatSubmitAction extends SubmitAction {
 			toggled: {
 				condition: ChatContextKeys.lockedToCodingAgent,
 				icon: Codicon.send,
-				tooltip: localize('sendToRemoteAgent', "Send to coding agent"),
+				tooltip: localize('sendToAgent', "Send to Agent"),
 			},
 			keybinding: {
 				when: ContextKeyExpr.and(
@@ -191,15 +191,6 @@ export class ChatSubmitAction extends SubmitAction {
 			},
 			menu: [
 				{
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_1',
-					order: 1,
-					when: ContextKeyExpr.or(
-						ChatContextKeys.withinEditSessionDiff,
-						ContextKeyExpr.and(menuCondition, ChatContextKeys.lockedToCodingAgent.negate())
-					),
-				},
-				{
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
@@ -208,6 +199,11 @@ export class ChatSubmitAction extends SubmitAction {
 						ChatContextKeys.withinEditSessionDiff.negate(),
 					),
 					group: 'navigation',
+					alt: {
+						id: 'workbench.action.chat.sendToNewChat',
+						title: localize2('chat.newChat.label', "Send to New Chat"),
+						icon: Codicon.plus
+					}
 				}]
 		});
 	}
@@ -240,15 +236,6 @@ export class ChatDelegateToEditSessionAction extends Action2 {
 						ChatContextKeys.withinEditSessionDiff,
 					),
 					group: 'navigation',
-				},
-				{
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_1',
-					order: 1,
-					when: ContextKeyExpr.and(
-						whenNotInProgress,
-						ChatContextKeys.filePartOfEditSession,
-					),
 				}
 			]
 		});
@@ -293,9 +280,9 @@ export interface IToggleChatModeArgs {
 
 type ChatModeChangeClassification = {
 	owner: 'digitarald';
-	comment: 'Reporting when Chat mode is switched between different modes';
-	fromMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous chat mode' };
-	toMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new chat mode' };
+	comment: 'Reporting when agent is switched between different modes';
+	fromMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous agent' };
+	toMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new agent' };
 	requestCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of requests in the current chat session'; 'isMeasurement': true };
 };
 
@@ -312,7 +299,7 @@ class ToggleChatModeAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleChatModeAction.ID,
-			title: localize2('interactive.toggleAgent.label', "Switch to Next Chat Mode"),
+			title: localize2('interactive.toggleAgent.label', "Switch to Next Agent"),
 			f1: true,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
@@ -444,8 +431,8 @@ export class OpenModePickerAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenModePickerAction.ID,
-			title: localize2('interactive.openModePicker.label', "Open Mode Picker"),
-			tooltip: localize('setChatMode', "Set Mode"),
+			title: localize2('interactive.openModePicker.label', "Open Agent Picker"),
+			tooltip: localize('setChatMode', "Set Agent"),
 			category: CHAT_CATEGORY,
 			f1: false,
 			precondition: ChatContextKeys.enabled,
@@ -464,8 +451,7 @@ export class OpenModePickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.lockedToCodingAgent.negate(),
-						ChatContextKeyExprs.chatSetupTriggerContext?.negate()),
+						ChatContextKeys.lockedToCodingAgent.negate()),
 					group: 'navigation',
 				},
 			]
@@ -481,12 +467,12 @@ export class OpenModePickerAction extends Action2 {
 	}
 }
 
-export class ChatSessionOpenModelPickerAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.chatSessionOpenModelPicker';
+export class ChatSessionPrimaryPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.chatSessionPrimaryPicker';
 	constructor() {
 		super({
-			id: ChatSessionOpenModelPickerAction.ID,
-			title: localize2('interactive.openModelPicker.label', "Open Model Picker"),
+			id: ChatSessionPrimaryPickerAction.ID,
+			title: localize2('interactive.openChatSessionPrimaryPicker.label', "Open Picker"),
 			category: CHAT_CATEGORY,
 			f1: false,
 			precondition: ChatContextKeys.enabled,
@@ -507,7 +493,7 @@ export class ChatSessionOpenModelPickerAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
 		if (widget) {
-			widget.input.openChatSessionModelPicker();
+			widget.input.openChatSessionPicker();
 		}
 	}
 }
@@ -557,18 +543,17 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			precondition,
 			menu: [
 				{
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_1',
-					when: ContextKeyExpr.and(whenNotInProgress, menuCondition),
-					order: 1
-				},
-				{
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.requestInProgress.negate(),
 						menuCondition),
 					group: 'navigation',
+					alt: {
+						id: 'workbench.action.chat.sendToNewChat',
+						title: localize2('chat.newChat.label', "Send to New Chat"),
+						icon: Codicon.plus
+					}
 				}]
 		});
 	}
@@ -596,15 +581,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
-			},
-			menu: [
-				{
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_1',
-					order: 2,
-					when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
-				}
-			]
+			}
 		});
 	}
 
@@ -635,14 +612,13 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		super({
 			id: CreateRemoteAgentJobAction.ID,
 			// TODO(joshspicer): Generalize title/tooltip - pull from contribution
-			title: localize2('actions.chat.createRemoteJob', "Delegate to Coding Agent"),
+			title: localize2('actions.chat.createRemoteJob', "Delegate to Agent"),
 			icon: Codicon.sendToRemoteAgent,
-			tooltip: localize('delegateToCodingAgentToolTip', "Delegate this task to the GitHub Copilot coding agent. The agent will continue work asynchronously and create a pull request with the proposed changes. Iterate further via chat or from the associated pull request."),
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.remoteJobCreating,
 				icon: Codicon.sync,
-				tooltip: localize('remoteJobCreating', "Delegating to Coding Agent"),
+				tooltip: localize('remoteJobCreating', "Delegating to Agent"),
 			},
 			menu: [
 				{
@@ -655,20 +631,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 							ChatContextKeys.hasCloudButtonV2
 						),
 						ChatContextKeys.lockedToCodingAgent.negate(),
-						ContextKeyExpr.equals(`config.${ChatConfiguration.DelegateToCodingAgentInSecondaryMenu}`, false)
-					),
-				},
-				{
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_3',
-					order: 1,
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.or(
-							ChatContextKeys.hasRemoteCodingAgent,
-							ChatContextKeys.hasCloudButtonV2
-						),
-						ChatContextKeys.lockedToCodingAgent.negate(),
-						ContextKeyExpr.equals(`config.${ChatConfiguration.DelegateToCodingAgentInSecondaryMenu}`, true)
 					),
 				}
 			]
@@ -692,7 +654,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				agent: a,
 			})),
 			{
-				title: localize('selectCodingAgent', "Select Coding Agent"),
+				placeHolder: localize('selectBackgroundAgent', "Select Agent to delegate the task to"),
 			}
 		);
 		if (!pick) {
@@ -702,6 +664,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 	}
 
 	private async createWithChatSessions(
+		targetAgentId: string,
 		chatSessionsService: IChatSessionsService,
 		chatService: IChatService,
 		quickPickService: IQuickInputService,
@@ -713,16 +676,8 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			history?: string;
 		}
 	) {
-		const contributions = chatSessionsService.getAllChatSessionContributions();
-		const agent = await this.pickCodingAgent(quickPickService, contributions);
-		if (!agent) {
-			throw new Error('No coding agent selected');
-		}
-		// TODO(jospicer): The previous chat history doesn't get sent to chat participants!
-		const { type } = agent;
-
 		await chatService.sendRequest(sessionId, userPrompt, {
-			agentIdSilent: type,
+			agentIdSilent: targetAgentId,
 			attachedContext: attachedContext.asArray(),
 			chatSummary,
 		});
@@ -877,6 +832,42 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
 
+			const contributions = chatSessionsService.getAllChatSessionContributions();
+
+			// Sort contributions by order, then alphabetically by display name
+			const sortedContributions = [...contributions].sort((a, b) => {
+				// Both have no order - sort by display name
+				if (a.order === undefined && b.order === undefined) {
+					return a.displayName.localeCompare(b.displayName);
+				}
+
+				// Only a has no order - push it to the end
+				if (a.order === undefined) {
+					return 1;
+				}
+
+				// Only b has no order - push it to the end
+				if (b.order === undefined) {
+					return -1;
+				}
+
+				// Both have orders - compare numerically
+				const orderCompare = a.order - b.order;
+				if (orderCompare !== 0) {
+					return orderCompare;
+				}
+
+				// Same order - sort by display name
+				return a.displayName.localeCompare(b.displayName);
+			});
+
+			const agent = await this.pickCodingAgent(quickPickService, sortedContributions);
+			if (!agent) {
+				widget.setInput(userPrompt); // Restore prompt
+				throw new Error('No coding agent selected');
+			}
+			const { type } = agent;
+
 			// Add the request to the model first
 			const parsedRequest = requestParser.parseChatRequest(sessionId, userPrompt, ChatAgentLocation.Chat);
 			const addedRequest = chatModel.addRequest(
@@ -955,6 +946,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			if (isChatSessionsExperimentEnabled) {
 				await chatService.removeRequest(sessionId, addedRequest.id);
 				return await this.createWithChatSessions(
+					type,
 					chatSessionsService,
 					chatService,
 					quickPickService,
@@ -967,6 +959,8 @@ export class CreateRemoteAgentJobAction extends Action2 {
 					},
 				);
 			}
+
+			// -- Below is the legacy implementation
 
 			chatModel.acceptResponseProgress(addedRequest, {
 				kind: 'progressMessage',
@@ -1049,15 +1043,6 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 			id: ChatSubmitWithCodebaseAction.ID,
 			title: localize2('actions.chat.submitWithCodebase', "Send with {0}", `${chatVariableLeader}codebase`),
 			precondition,
-			menu: {
-				id: MenuId.ChatExecuteSecondary,
-				group: 'group_1',
-				order: 3,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
-					ChatContextKeys.lockedToCodingAgent.negate()
-				),
-			},
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
@@ -1108,14 +1093,6 @@ class SendToNewChatAction extends Action2 {
 			precondition,
 			category: CHAT_CATEGORY,
 			f1: false,
-			menu: {
-				id: MenuId.ChatExecuteSecondary,
-				group: 'group_2',
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
-					ChatContextKeys.lockedToCodingAgent.negate()
-				)
-			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
@@ -1246,7 +1223,7 @@ export function registerChatExecuteActions() {
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);
-	registerAction2(ChatSessionOpenModelPickerAction);
+	registerAction2(ChatSessionPrimaryPickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
 }

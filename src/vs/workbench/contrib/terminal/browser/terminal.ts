@@ -30,7 +30,6 @@ import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from '../..
 import type { ICurrentPartialCommand } from '../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import type { IXtermCore } from './xterm-private.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
-import type { Barrier } from '../../../../base/common/async.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import type { TerminalEditorInput } from './terminalEditorInput.js';
@@ -201,7 +200,7 @@ export interface IMarkTracker {
 	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void;
 
 	scrollToLine(line: number, position: ScrollPosition): void;
-	revealCommand(command: ITerminalCommand | ICurrentPartialCommand, position?: ScrollPosition): void;
+	revealCommand(command: ITerminalCommand | ICurrentPartialCommand | URI, position?: ScrollPosition): void;
 	revealRange(range: IBufferRange): void;
 	registerTemporaryDecoration(marker: IMarker, endMarker: IMarker | undefined, showOutline: boolean): void;
 	showCommandGuide(command: ITerminalCommand | undefined): void;
@@ -446,6 +445,12 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * @param getEvent Maps the capability to the event.
 	 */
 	createOnInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }>;
+
+	/**
+	 * Reveals the terminal and, if provided, scrolls to the command mark.
+	 * @param resource the terminal resource
+	 */
+	openResource(resource: URI): void;
 }
 
 /**
@@ -759,7 +764,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	/**
 	 * Whether the terminal's pty is hosted on a remote.
 	 */
-	readonly isRemote: boolean;
+	readonly hasRemoteAuthority: boolean;
 
 	/**
 	 * The remote authority of the terminal's pty.
@@ -1034,6 +1039,12 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 */
 	preparePathForShell(originalPath: string): Promise<string>;
 
+	/**
+	 * Formats a file system URI for display in UI so that it appears in the terminal shell's format.
+	 * @param uri The URI to format.
+	 */
+	getUriLabelForShell(uri: URI): Promise<string>;
+
 	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;
 	/** Scroll the terminal buffer to the bottom. */ scrollToBottom(): void;
@@ -1156,12 +1167,6 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * @returns Whether the context menu should be suppressed.
 	 */
 	handleMouseEvent(event: MouseEvent, contextMenu: IMenu): Promise<{ cancelContextMenu: boolean } | void>;
-
-	/**
-	 * Pause input events until the provided barrier is resolved.
-	 * @param barrier The barrier to wait for until input events can continue.
-	 */
-	pauseInputEvents(barrier: Barrier): void;
 }
 
 export const enum XtermTerminalConstants {

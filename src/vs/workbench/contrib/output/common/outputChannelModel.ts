@@ -683,7 +683,7 @@ export class FileOutputChannelModel extends AbstractFileOutputChannelModel imple
 	}
 
 	override update(mode: OutputChannelUpdateMode, till: number | undefined, immediate: boolean): void {
-		const loadModelPromise: Promise<any> = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
+		const loadModelPromise = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
 		loadModelPromise.then(() => {
 			if (mode === OutputChannelUpdateMode.Clear || mode === OutputChannelUpdateMode.Replace) {
 				if (isNumber(till)) {
@@ -729,7 +729,7 @@ export class MultiFileOutputChannelModel extends AbstractFileOutputChannelModel 
 	}
 
 	override clear(): void {
-		const loadModelPromise: Promise<any> = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
+		const loadModelPromise = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
 		loadModelPromise.then(() => {
 			this.multifileOutput.resetToEnd();
 			this.doUpdate(OutputChannelUpdateMode.Clear, true);

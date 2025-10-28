@@ -224,6 +224,7 @@ suite('InlineChatController', function () {
 			[IChatModeService, new SyncDescriptor(MockChatModeService)],
 			[IChatLayoutService, new SyncDescriptor(ChatLayoutService)],
 			[IChatTodoListService, new class extends mock<IChatTodoListService>() {
+				override onDidUpdateTodos = Event.None;
 				override getTodos(sessionId: string): IChatTodo[] { return []; }
 				override setTodos(sessionId: string, todos: IChatTodo[]): void { }
 			}],

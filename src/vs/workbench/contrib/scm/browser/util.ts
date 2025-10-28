@@ -21,47 +21,47 @@ import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTre
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 
-export function isSCMViewService(element: any): element is ISCMViewService {
+export function isSCMViewService(element: unknown): element is ISCMViewService {
 	return Array.isArray((element as ISCMViewService).repositories) && Array.isArray((element as ISCMViewService).visibleRepositories);
 }
 
-export function isSCMRepository(element: any): element is ISCMRepository {
+export function isSCMRepository(element: unknown): element is ISCMRepository {
 	return !!(element as ISCMRepository).provider && !!(element as ISCMRepository).input;
 }
 
-export function isSCMInput(element: any): element is ISCMInput {
+export function isSCMInput(element: unknown): element is ISCMInput {
 	return !!(element as ISCMInput).validateInput && typeof (element as ISCMInput).value === 'string';
 }
 
-export function isSCMActionButton(element: any): element is ISCMActionButton {
+export function isSCMActionButton(element: unknown): element is ISCMActionButton {
 	return (element as ISCMActionButton).type === 'actionButton';
 }
 
-export function isSCMResourceGroup(element: any): element is ISCMResourceGroup {
+export function isSCMResourceGroup(element: unknown): element is ISCMResourceGroup {
 	return !!(element as ISCMResourceGroup).provider && !!(element as ISCMResourceGroup).resources;
 }
 
-export function isSCMResource(element: any): element is ISCMResource {
+export function isSCMResource(element: unknown): element is ISCMResource {
 	return !!(element as ISCMResource).sourceUri && isSCMResourceGroup((element as ISCMResource).resourceGroup);
 }
 
-export function isSCMResourceNode(element: any): element is IResourceNode<ISCMResource, ISCMResourceGroup> {
+export function isSCMResourceNode(element: unknown): element is IResourceNode<ISCMResource, ISCMResourceGroup> {
 	return ResourceTree.isResourceNode(element) && isSCMResourceGroup(element.context);
 }
 
-export function isSCMHistoryItemViewModelTreeElement(element: any): element is SCMHistoryItemViewModelTreeElement {
+export function isSCMHistoryItemViewModelTreeElement(element: unknown): element is SCMHistoryItemViewModelTreeElement {
 	return (element as SCMHistoryItemViewModelTreeElement).type === 'historyItemViewModel';
 }
 
-export function isSCMHistoryItemLoadMoreTreeElement(element: any): element is SCMHistoryItemLoadMoreTreeElement {
+export function isSCMHistoryItemLoadMoreTreeElement(element: unknown): element is SCMHistoryItemLoadMoreTreeElement {
 	return (element as SCMHistoryItemLoadMoreTreeElement).type === 'historyItemLoadMore';
 }
 
-export function isSCMHistoryItemChangeViewModelTreeElement(element: any): element is SCMHistoryItemChangeViewModelTreeElement {
+export function isSCMHistoryItemChangeViewModelTreeElement(element: unknown): element is SCMHistoryItemChangeViewModelTreeElement {
 	return (element as SCMHistoryItemChangeViewModelTreeElement).type === 'historyItemChangeViewModel';
 }
 
-export function isSCMHistoryItemChangeNode(element: any): element is IResourceNode<ISCMHistoryItem, SCMHistoryItemChangeViewModelTreeElement> {
+export function isSCMHistoryItemChangeNode(element: unknown): element is IResourceNode<ISCMHistoryItem, SCMHistoryItemChangeViewModelTreeElement> {
 	return ResourceTree.isResourceNode(element) && isSCMHistoryItemViewModelTreeElement(element.context);
 }
 
@@ -120,9 +120,26 @@ class StatusBarActionViewItem extends ActionViewItem {
 		super(null, action, { ...options, icon: false, label: true });
 	}
 
+	override render(container: HTMLElement): void {
+		container.classList.add('scm-status-bar-action');
+		super.render(container);
+	}
+
 	protected override updateLabel(): void {
 		if (this.options.label && this.label) {
-			reset(this.label, ...renderLabelWithIcons(this.action.label));
+			// Convert text nodes to span elements to enable
+			// text overflow on the left hand side of the label
+			const elements = renderLabelWithIcons(this.action.label)
+				.map(element => {
+					if (typeof element === 'string') {
+						const span = document.createElement('span');
+						span.textContent = element;
+						return span;
+					}
+					return element;
+				});
+
+			reset(this.label, ...elements);
 		}
 	}
 }
@@ -166,4 +183,31 @@ export function getSCMRepositoryIcon(
 	}
 
 	return repository.provider.iconPath;
+}
+
+export function getStatusBarCommandGenericName(command: Command): string | undefined {
+	let genericName: string | undefined = undefined;
+
+	// Get a generic name for the status bar action, derive this from the first
+	// command argument which is in the form of "<extension>.<command>/<number>"
+	if (typeof command.arguments?.[0] === 'string') {
+		const lastIndex = command.arguments[0].lastIndexOf('/');
+
+		genericName = lastIndex !== -1
+			? command.arguments[0].substring(0, lastIndex)
+			: command.arguments[0];
+
+		genericName = genericName
+			.replace(/^(?:git\.|remoteHub\.)/, '')
+			.trim();
+
+		if (genericName.length === 0) {
+			return undefined;
+		}
+
+		// Capitalize first letter
+		genericName = genericName[0].toLocaleUpperCase() + genericName.slice(1);
+	}
+
+	return genericName;
 }

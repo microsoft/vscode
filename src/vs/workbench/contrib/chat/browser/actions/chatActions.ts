@@ -63,14 +63,13 @@ import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../common/chatSessionsService.js';
-import { ChatSessionUri } from '../../common/chatUri.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, VIEWLET_ID } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, AGENT_SESSIONS_VIEWLET_ID } from '../../common/constants.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -193,6 +192,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		const viewsService = accessor.get(IViewsService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const hostService = accessor.get(IHostService);
 		const chatAgentService = accessor.get(IChatAgentService);
 		const instaService = accessor.get(IInstantiationService);
@@ -206,7 +206,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
 		// Otherwise, open the view.
 		if (!this.mode || !chatWidget || !isAncestorOfActiveElement(chatWidget.domNode)) {
-			chatWidget = await showChatView(viewsService);
+			chatWidget = await showChatView(viewsService, layoutService);
 		}
 
 		if (!chatWidget) {
@@ -480,7 +480,7 @@ export function registerChatActions() {
 				this.updatePartVisibility(layoutService, chatLocation, false);
 			} else {
 				this.updatePartVisibility(layoutService, chatLocation, true);
-				(await showCopilotView(viewsService, layoutService))?.focusInput();
+				(await showChatView(viewsService, layoutService))?.focusInput();
 			}
 		}
 
@@ -638,7 +638,7 @@ export function registerChatActions() {
 			picker.show();
 		};
 
-		private showIntegratedPicker = async (
+		private async showIntegratedPicker(
 			chatService: IChatService,
 			quickInputService: IQuickInputService,
 			commandService: ICommandService,
@@ -650,7 +650,7 @@ export function registerChatActions() {
 			menuService: IMenuService,
 			showAllChats: boolean = false,
 			showAllAgents: boolean = false
-		) => {
+		) {
 			const clearChatHistoryButton: IQuickInputButton = {
 				iconClass: ThemeIcon.asClassName(Codicon.clearAll),
 				tooltip: localize('interactiveSession.history.clear', "Clear All Workspace Chats"),
@@ -738,7 +738,7 @@ export function registerChatActions() {
 							const providerNSessions: { providerType: string; session: IChatSessionItem }[] = [];
 
 							for (const provider of providers) {
-								const sessions = await chatSessionsService.provideChatSessionItems(provider.type, cancellationToken.token);
+								const sessions = await chatSessionsService.getChatSessionItems(provider.type, cancellationToken.token);
 								if (!sessions?.length) {
 									continue;
 								}
@@ -835,7 +835,7 @@ export function registerChatActions() {
 				};
 			};
 
-			const store = new (DisposableStore as { new(): DisposableStore })();
+			const store = new DisposableStore();
 			const picker = store.add(quickInputService.createQuickPick<IChatPickerItem | ICodingAgentPickerItem>({ useSeparators: true }));
 			picker.title = (showAllChats || showAllAgents) ?
 				localize('interactiveSession.history.titleAll', "All Workspace Chat History") :
@@ -990,7 +990,7 @@ export function registerChatActions() {
 			store.add(picker.onDidHide(() => store.dispose()));
 
 			picker.show();
-		};
+		}
 
 		async run(accessor: ServicesAccessor) {
 			const chatService = accessor.get(IChatService);
@@ -1046,7 +1046,7 @@ export function registerChatActions() {
 		private async showChatSessionInEditor(providerType: string, session: IChatSessionItem, editorService: IEditorService) {
 			// Open the chat editor
 			await editorService.openEditor({
-				resource: ChatSessionUri.forSession(providerType, session.id),
+				resource: session.resource,
 				options: {} satisfies IChatEditorOptions
 			});
 		}
@@ -1122,7 +1122,7 @@ export function registerChatActions() {
 					id: MenuId.ViewTitle,
 					group: 'submenu',
 					order: 1,
-					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+					when: ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.local`),
 				}
 			});
 		}
@@ -1151,16 +1151,17 @@ export function registerChatActions() {
 					id: MenuId.ViewTitle,
 					group: 'submenu',
 					order: 1,
-					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+					when: ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.local`),
 				}
 			});
 		}
 
 		async run(accessor: ServicesAccessor) {
 			const viewsService = accessor.get(IViewsService);
+			const layoutService = accessor.get(IWorkbenchLayoutService);
 
 			// Open the chat view in the sidebar and get the widget
-			const chatWidget = await showChatView(viewsService);
+			const chatWidget = await showChatView(viewsService, layoutService);
 
 			if (chatWidget) {
 				// Clear the current chat to start a new one
@@ -1187,7 +1188,7 @@ export function registerChatActions() {
 					id: MenuId.ViewTitle,
 					group: 'submenu',
 					order: 1,
-					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+					when: ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.local`),
 				}
 			});
 		}
@@ -1462,7 +1463,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.configureCodeCompletions',
-				title: localize2('configureCompletions', "Configure Code Completions..."),
+				title: localize2('configureCompletions', "Configure Inline Suggestions..."),
 				precondition: ContextKeyExpr.and(
 					ChatContextKeys.Setup.installed,
 					ChatContextKeys.Setup.disabled.negate(),
@@ -1501,11 +1502,11 @@ export function registerChatActions() {
 			const chatQuotaExceeded = chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const completionsQuotaExceeded = chatEntitlementService.quotas.completions?.percentRemaining === 0;
 			if (chatQuotaExceeded && !completionsQuotaExceeded) {
-				message = localize('chatQuotaExceeded', "You've reached your monthly chat messages quota. You still have free code completions available.");
+				message = localize('chatQuotaExceeded', "You've reached your monthly chat messages quota. You still have free inline suggestions available.");
 			} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-				message = localize('completionsQuotaExceeded', "You've reached your monthly code completions quota. You still have free chat messages available.");
+				message = localize('completionsQuotaExceeded', "You've reached your monthly inline suggestions quota. You still have free chat messages available.");
 			} else {
-				message = localize('chatAndCompletionsQuotaExceeded', "You've reached your monthly chat messages and code completions quota.");
+				message = localize('chatAndCompletionsQuotaExceeded', "You've reached your monthly chat messages and inline suggestions quota.");
 			}
 
 			if (chatEntitlementService.quotas.resetDate) {
@@ -1515,7 +1516,7 @@ export function registerChatActions() {
 			}
 
 			const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
-			const upgradeToPro = free ? localize('upgradeToPro', "Upgrade to GitHub Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited chat messages\n- Access to premium models") : undefined;
+			const upgradeToPro = free ? localize('upgradeToPro', "Upgrade to GitHub Copilot Pro (your first 30 days are free) for:\n- Unlimited inline suggestions\n- Unlimited chat messages\n- Access to premium models") : undefined;
 
 			await dialogService.prompt({
 				type: 'none',
@@ -1788,7 +1789,7 @@ export async function handleCurrentEditingSession(currentEditingSession: IChatEd
 }
 
 /**
- * Returns whether we can switch the chat mode, based on whether the user had to agree to clear the session, false to cancel.
+ * Returns whether we can switch the agent, based on whether the user had to agree to clear the session, false to cancel.
  */
 export async function handleModeSwitch(
 	accessor: ServicesAccessor,
@@ -1806,7 +1807,7 @@ export async function handleModeSwitch(
 	const needToClearEdits = (!configurationService.getValue(ChatConfiguration.Edits2Enabled) && (fromMode === ChatModeKind.Edit || toMode === ChatModeKind.Edit)) && requestCount > 0;
 	if (needToClearEdits) {
 		// If not using edits2 and switching into or out of edit mode, ask to discard the session
-		const phrase = localize('switchMode.confirmPhrase', "Switching chat modes will end your current edit session.");
+		const phrase = localize('switchMode.confirmPhrase', "Switching agents will end your current edit session.");
 
 		const currentEdits = editingSession.entries.get();
 		const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
@@ -1819,7 +1820,7 @@ export async function handleModeSwitch(
 		} else {
 			const confirmation = await dialogService.confirm({
 				title: localize('agent.newSession', "Start new session?"),
-				message: localize('agent.newSessionMessage', "Changing the chat mode will end your current edit session. Would you like to change the chat mode?"),
+				message: localize('agent.newSessionMessage', "Changing the agent will end your current edit session. Would you like to change the agent?"),
 				primaryButton: localize('agent.newSession.confirm', "Yes"),
 				type: 'info'
 			});
