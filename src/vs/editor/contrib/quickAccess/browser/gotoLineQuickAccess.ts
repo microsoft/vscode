@@ -197,7 +197,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			}
 
 			// Handle negative line numbers and clip to valid range.
-			lineNumber = lineNumber >= 0 ? lineNumber : maxLine + lineNumber;
+			lineNumber = lineNumber >= 0 ? lineNumber : (maxLine + 1) + lineNumber;
 			lineNumber = Math.min(Math.max(1, lineNumber), maxLine);
 
 			const maxColumn = model.getLineMaxColumn(lineNumber);
