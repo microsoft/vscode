@@ -28,7 +28,7 @@ import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel
 import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionsSorter } from './agentSessionsViewer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
-import { IAction, toAction } from '../../../../../base/common/actions.js';
+import { IAction, Separator, toAction } from '../../../../../base/common/actions.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -269,6 +269,15 @@ export class AgentSessionsView extends ViewPane {
 							run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${provider.type}`)
 						}));
 					}
+
+					actions.push(new Separator());
+
+					actions.push(toAction({
+						id: 'install-extensions',
+						label: localize('chatSessions.installExtensions', "Install Chat Extensions..."),
+						run: () => this.commandService.executeCommand('chat.sessions.gettingStarted')
+					}));
+
 					return actions;
 				}
 			},
