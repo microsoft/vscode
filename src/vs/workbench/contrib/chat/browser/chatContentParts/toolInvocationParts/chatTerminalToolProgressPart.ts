@@ -66,6 +66,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private _showOutputAction: IAction | undefined;
 	private _showOutputActionAdded = false;
+	private _focusAction: FocusChatInstanceAction | undefined;
 
 	private readonly _terminalData: IChatTerminalToolInvocationData;
 	private _attachedCommand: ITerminalCommand | undefined;
@@ -188,12 +189,16 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private async _addFocusAction(terminalInstance: ITerminalInstance, terminalToolSessionId: string) {
 		const isTerminalHidden = this._terminalChatService.isBackgroundTerminal(terminalToolSessionId);
 		const focusAction = this._register(this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, this._attachedCommand, isTerminalHidden));
+		this._focusAction = focusAction;
 		this._actionBar.value?.push(focusAction, { icon: true, label: false });
 		this._ensureShowOutputAction();
 	}
 
 	private _ensureShowOutputAction(): void {
 		if (this._showOutputActionAdded || !this._attachedCommand?.endMarker) {
+			return;
+		}
+		if (!this._focusAction) {
 			return;
 		}
 		if (!this._showOutputAction) {
@@ -314,6 +319,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			commandDetectionListener.clear();
 			this._actionBar.value?.clear();
 			this._showOutputActionAdded = false;
+			this._focusAction = undefined;
 			instanceListener.dispose();
 		}));
 	}
