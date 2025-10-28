@@ -429,18 +429,18 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private preventDefaultEditorHover() {
-		if (this.defaultHoverLockout.value || this.editorHoverOptions?.enabled === false) {
+		if (this.defaultHoverLockout.value || this.editorHoverOptions?.enabled === 'off') {
 			return;
 		}
 
 		const hoverController = this.editor.getContribution<ContentHoverController>(ContentHoverController.ID);
 		hoverController?.hideContentHover();
 
-		this.editor.updateOptions({ hover: { enabled: false } });
+		this.editor.updateOptions({ hover: { enabled: 'off' } });
 		this.defaultHoverLockout.value = {
 			dispose: () => {
 				this.editor.updateOptions({
-					hover: { enabled: this.editorHoverOptions?.enabled ?? true }
+					hover: { enabled: this.editorHoverOptions?.enabled ?? 'on' }
 				});
 			}
 		};
