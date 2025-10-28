@@ -369,7 +369,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 		}
 
-		return;
+		const commandIndex = this._terminalData.terminalCommandIndex;
+		if (commandIndex !== undefined && commandIndex >= 0 && commandIndex < commands.length) {
+			return commands[commandIndex];
+		}
+
+		return commands.at(-1);
 	}
 }
 

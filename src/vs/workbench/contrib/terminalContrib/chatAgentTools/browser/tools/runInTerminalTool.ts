@@ -566,7 +566,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
 				await Event.toPromise(outputMonitor.onDidFinishCommand);
 				const pollingResult = outputMonitor.pollingResult;
-				this._setTerminalCommandUri(toolSpecificData, toolTerminal.instance, commandDetection);
+				this._setTerminalCommandIdentity(toolSpecificData, toolTerminal.instance, commandDetection);
 
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
@@ -602,7 +602,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
-				this._setTerminalCommandUri(toolSpecificData, toolTerminal.instance, commandDetection);
+				this._setTerminalCommandIdentity(toolSpecificData, toolTerminal.instance, commandDetection);
 				store.dispose();
 				this._logService.debug(`RunInTerminalTool: Finished polling \`${pollingResult?.output.length}\` lines of output in \`${pollingResult?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
@@ -639,7 +639,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let exitCode: number | undefined;
 			try {
 				let strategy: ITerminalExecuteStrategy;
-				this._setTerminalCommandUri(toolSpecificData, toolTerminal.instance, commandDetection, commandDetection?.currentCommand?.id);
+				this._setTerminalCommandIdentity(toolSpecificData, toolTerminal.instance, commandDetection, commandDetection?.currentCommand?.id);
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
 						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false);
@@ -662,7 +662,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}
 				}));
 				const executeResult = await strategy.execute(command, token);
-				this._setTerminalCommandUri(toolSpecificData, toolTerminal.instance, commandDetection);
+				this._setTerminalCommandIdentity(toolSpecificData, toolTerminal.instance, commandDetection);
 				// Reset user input state after command execution completes
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
@@ -689,7 +689,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
-				this._setTerminalCommandUri(toolSpecificData, toolTerminal.instance, commandDetection);
+				this._setTerminalCommandIdentity(toolSpecificData, toolTerminal.instance, commandDetection);
 				store.dispose();
 				const timingExecuteMs = Date.now() - timingStart;
 				this._telemetry.logInvoke(toolTerminal.instance, {
@@ -740,20 +740,46 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private _setTerminalCommandUri(toolSpecificData: IChatTerminalToolInvocationData, instance: ITerminalInstance, commandDetection: ICommandDetectionCapability | undefined, explicitCommandId?: string | undefined): void {
-		if (toolSpecificData.terminalCommandUri) {
+	/**
+	 * Enables persistence of terminal command across sessions.
+	 *
+	 * - `terminalCommandUri` stores the command id. When command detection replays with the same id we can look it up directly.
+	 * - `terminalCommandIndex` captures the position within the command history. On reload, the command ID is regenerated, but the
+	 *   command reappears at the same index, so this acts as a fallback identifier.
+	 */
+	private _setTerminalCommandIdentity(toolSpecificData: IChatTerminalToolInvocationData, instance: ITerminalInstance, commandDetection: ICommandDetectionCapability | undefined, explicitCommandId?: string | undefined): void {
+		if (!commandDetection) {
 			return;
 		}
 
-		const commandId = explicitCommandId ?? commandDetection?.commands.at(-1)?.id;
-		if (!commandId) {
+		const commands = commandDetection.commands;
+		if (!commands || commands.length === 0) {
 			return;
 		}
 
-		const params = new URLSearchParams(instance.resource.query);
-		params.set('command', commandId);
-		const commandUri = instance.resource.with({ query: params.toString() || undefined });
-		toolSpecificData.terminalCommandUri = commandUri.toJSON();
+		let resolvedCommand = explicitCommandId ? commands.find(c => c.id === explicitCommandId) : undefined;
+		let resolvedIndex: number | undefined;
+		if (resolvedCommand) {
+			resolvedIndex = commands.indexOf(resolvedCommand);
+		}
+		if (!resolvedCommand) {
+			resolvedCommand = commands.at(-1);
+			resolvedIndex = commands.length - 1;
+		}
+		if (!resolvedCommand || resolvedIndex === undefined || resolvedIndex < 0) {
+			return;
+		}
+
+		if (!toolSpecificData.terminalCommandUri && resolvedCommand.id) {
+			const params = new URLSearchParams(instance.resource.query);
+			params.set('command', resolvedCommand.id);
+			const commandUri = instance.resource.with({ query: params.toString() || undefined });
+			toolSpecificData.terminalCommandUri = commandUri.toJSON();
+		}
+
+		if (toolSpecificData.terminalCommandIndex === undefined) {
+			toolSpecificData.terminalCommandIndex = resolvedIndex;
+		}
 	}
 
 	private _handleTerminalVisibility(toolTerminal: IToolTerminal) {
