@@ -568,6 +568,7 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 				Schemas.vscodeRemoteResource,
 			]
 		},
+		allowRelativeMediaPaths: !!mdStrConfig.baseUri,
 		replaceWithPlaintext: options.replaceWithPlaintext,
 	};
 }
