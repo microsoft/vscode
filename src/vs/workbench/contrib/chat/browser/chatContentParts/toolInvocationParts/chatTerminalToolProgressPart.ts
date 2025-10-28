@@ -60,6 +60,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private readonly _outputContainer: HTMLElement;
 	private readonly _outputBody: HTMLElement;
+	private readonly _titlePart: HTMLElement;
 	private _outputScrollbar: DomScrollableElement | undefined;
 	private _outputContent: HTMLElement | undefined;
 	private _outputResizeObserver: ResizeObserver | undefined;
@@ -101,6 +102,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 
+		this._titlePart = elements.title;
 		const titlePart = this._register(_instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
@@ -205,6 +207,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				this._outputContainer.classList.toggle('collapsed', !expanded);
 
 				if (expanded) {
+					this._titlePart.classList.add('expanded');
 					let didCreate = false;
 					if (!this._outputContent && this._terminalForOutput) {
 						const output = await this._collectOutput(this._terminalForOutput);
@@ -248,6 +251,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					this._showOutputAction.class = ThemeIcon.asClassName(Codicon.chevronDown);
 					this._layoutOutput();
 				} else {
+					this._titlePart.classList.remove('expanded');
 					this._showOutputAction.label = localize('showTerminalOutput', 'Show Output');
 					this._showOutputAction.class = ThemeIcon.asClassName(Codicon.chevronRight);
 				}

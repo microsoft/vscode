@@ -2311,7 +2311,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-right: 20px;
 }
 
-.chat-terminal-content-title {
+.chat-terminal-content-title.expanded {
 	margin-right: 20px;
 }
 
