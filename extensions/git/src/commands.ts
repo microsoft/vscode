@@ -3152,10 +3152,10 @@ export class CommandCenter {
 			}
 
 			const resources = changes.map(change => toMultiFileDiffEditorUris(change, sourceCommit, historyItem.id));
-			const title = `${sourceRef.ref.name} ↔ ${historyItem.references?.[0].name ?? historyItem.id}`;
+			const title = `${sourceRef.ref.name ?? sourceCommit} ↔ ${historyItem.references?.[0].name ?? historyItem.id}`;
 			const multiDiffSourceUri = Uri.from({
 				scheme: 'git-ref-compare',
-				path: `${repository.root}/${sourceRef.ref.commit}..${historyItem.id}`
+				path: `${repository.root}/${sourceCommit}..${historyItem.id}`
 			});
 
 			await commands.executeCommand('_workbench.openMultiDiffEditor', {
