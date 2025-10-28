@@ -1875,7 +1875,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm!.raw.options.screenReaderMode = this._accessibilityService.isScreenReaderOptimized();
 	}
 
-	private _setCommandsToSkipShell(commands: string[]): void {
+	private _setCommandsToSkipShell(commands: readonly string[]): void {
 		const excludeCommands = commands.filter(command => command[0] === '-').map(command => command.slice(1));
 		this._skipTerminalCommands = DEFAULT_COMMANDS_TO_SKIP_SHELL.filter(defaultCommand => {
 			return !excludeCommands.includes(defaultCommand);

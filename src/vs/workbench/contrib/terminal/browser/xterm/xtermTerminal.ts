@@ -772,7 +772,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				}
 				this._ligaturesAddon.value = this._instantiationService.createInstance(LigaturesAddon, {
 					fontFeatureSettings: ligaturesConfig.featureSettings,
-					fallbackLigatures: ligaturesConfig.fallbackLigatures,
+					fallbackLigatures: Array.from(ligaturesConfig.fallbackLigatures),
 				});
 				this.raw.loadAddon(this._ligaturesAddon.value);
 				shouldRecreateWebglRenderer = true;

@@ -21,7 +21,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditableData } from '../../../common/views.js';
 import { ITerminalStatusList } from './terminalStatusList.js';
 import { XtermTerminal } from './xterm/xtermTerminal.js';
-import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfiguration, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from '../common/terminal.js';
+import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from '../common/terminal.js';
 import type { IMarker, ITheme, Terminal as RawXtermTerminal, IBufferRange, IMarker as IXtermMarker } from '@xterm/xterm';
 import { ScrollPosition } from './xterm/markNavigationAddon.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -33,6 +33,7 @@ import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import type { TerminalEditorInput } from './terminalEditorInput.js';
+import type { ITerminalConfiguration2 } from '../common/terminalConfiguration.js';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -462,7 +463,7 @@ export interface ITerminalConfigurationService {
 	/**
 	 * A typed and partially validated representation of the terminal configuration.
 	 */
-	readonly config: Readonly<ITerminalConfiguration>;
+	readonly config: ITerminalConfiguration2;
 
 	/**
 	 * The default location for terminals.

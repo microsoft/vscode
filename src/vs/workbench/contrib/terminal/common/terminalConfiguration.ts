@@ -15,7 +15,7 @@ import { TerminalLocationConfigValue, TerminalSettingId } from '../../../../plat
 import { terminalColorSchema, terminalIconSchema } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchExtensions } from '../../../common/configuration.js';
 import { terminalContribConfiguration, TerminalContribSettingId } from '../terminalContribExports.js';
-import { DEFAULT_COMMANDS_TO_SKIP_SHELL, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, SUGGESTIONS_FONT_WEIGHT } from './terminal.js';
+import { DEFAULT_COMMANDS_TO_SKIP_SHELL, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, SUGGESTIONS_FONT_WEIGHT, type FontWeight } from './terminal.js';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory."),
@@ -254,11 +254,9 @@ const terminalConfigurationConst = {
 			},
 			{
 				type: 'string',
-				pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$'
-			},
-			{
+				pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$',
 				enum: SUGGESTIONS_FONT_WEIGHT,
-			}
+			},
 		],
 		description: localize('terminal.integrated.fontWeight', "The font weight to use within the terminal for non-bold text. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000."),
 		default: 'normal'
@@ -273,11 +271,9 @@ const terminalConfigurationConst = {
 			},
 			{
 				type: 'string',
-				pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$'
-			},
-			{
+				pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$',
 				enum: SUGGESTIONS_FONT_WEIGHT,
-			}
+			},
 		],
 		description: localize('terminal.integrated.fontWeightBold', "The font weight to use within the terminal for bold text. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000."),
 		default: 'bold'
@@ -665,13 +661,32 @@ type MakeArraysReadonly<T> = T extends string[] ? readonly string[] : T;
 
 // Helpers to convert dot notation keys to nested objects
 type SplitKey<K extends string> = K extends `${infer First}.${infer Rest}` ? [First, Rest] : [K, never];
+
+// Get all first parts of dot notation keys
+type FirstParts<T> = {
+	[K in keyof T]: SplitKey<K & string>[0]
+}[keyof T];
+
+// Get all keys that start with a specific prefix
+type KeysStartingWith<T, Prefix extends string> = {
+	[K in keyof T]: K extends `${Prefix}.${string}` ? K : never
+}[keyof T];
+
+// Get all keys that exactly match (no dots)
+type ExactKeys<T> = {
+	[K in keyof T]: K extends `${string}.${string}` ? never : K
+}[keyof T];
+
+// Build nested object by grouping keys
 type NestedObject<T> = {
-	// Make nested objects readonly
-	readonly [K in keyof T as SplitKey<K & string>[0]]: SplitKey<K & string>[1] extends never
-	// Make nested string[] readonly
-	? MakeArraysReadonly<T[K]>
-	: NestedObject<{ [P in SplitKey<K & string>[1]]: T[K] }>
-} extends infer U ? { readonly [K in keyof U]: U[K] } : never;
+	// Exact matches (no dots)
+	readonly [K in ExactKeys<T>]: MakeArraysReadonly<T[K]>
+} & {
+	// Nested objects
+	readonly [P in FirstParts<T> as P extends ExactKeys<T> ? never : P]: NestedObject<{
+		[K in KeysStartingWith<T, P> as K extends `${P}.${infer Rest}` ? Rest : never]: T[K]
+	}>
+};
 
 // Assemble config interface with flat keys, excluding terminal.integrated.
 type FlatTerminalConfig = (
@@ -683,17 +698,22 @@ type FlatTerminalConfig = (
 			'env.osx' |
 			'env.windows' |
 			'tabs.defaultColor' |
-			'tabs.defaultIcon'
+			'tabs.defaultIcon' |
+			// Omit keys that don't pull correct type
+			'fontWeight' |
+			'fontWeightBold'
 		)
 	>
 	&
 	{
-		// Manually set keys that resolved to never
+		// Manually set keys that don't resolve correctly
 		readonly 'env.linux': { [key: string]: string | null };
 		readonly 'env.osx': { [key: string]: string | null };
 		readonly 'env.windows': { [key: string]: string | null };
 		readonly 'tabs.defaultColor': null | 'terminal.ansiBlack' | 'terminal.ansiRed' | 'terminal.ansiGreen' | 'terminal.ansiYellow' | 'terminal.ansiBlue' | 'terminal.ansiMagenta' | 'terminal.ansiCyan' | 'terminal.ansiWhite';
 		readonly 'tabs.defaultIcon': string;
+		readonly 'fontWeight': FontWeight | number;
+		readonly 'fontWeightBold': FontWeight | number;
 	}
 );
 
