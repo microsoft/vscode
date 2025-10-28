@@ -30,10 +30,10 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
-import { MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { findExistingChatEditorByUri, NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
+import { findExistingChatEditorByUri, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
 import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
@@ -47,6 +47,11 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IChatService } from '../../common/chatService.js';
+import { IChatWidgetService } from '../chat.js';
 
 export class AgentSessionsView extends ViewPane {
 
@@ -68,6 +73,9 @@ export class AgentSessionsView extends ViewPane {
 		@IProgressService private readonly progressService: IProgressService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IChatService private readonly chatService: IChatService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -112,6 +120,10 @@ export class AgentSessionsView extends ViewPane {
 			if (element === null) {
 				this.commandService.executeCommand(ACTION_ID_OPEN_CHAT);
 			}
+		}));
+
+		this._register(list.onContextMenu((e) => {
+			this.showContextMenu(e);
 		}));
 	}
 
@@ -158,6 +170,29 @@ export class AgentSessionsView extends ViewPane {
 				...e.editorOptions
 			})
 		});
+	}
+
+	private showContextMenu({ element: session, anchor }: ITreeContextMenuEvent<IAgentSessionViewModel>): void {
+		if (!session) {
+			return;
+		}
+
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService.createOverlay(getSessionItemContextOverlay(
+			session,
+			session.provider,
+			this.chatWidgetService,
+			this.chatService,
+			this.editorGroupsService
+		)));
+
+		const marshalledSession = { session, $mid: MarshalledId.ChatSessionContext };
+		const { secondary } = getActionBarActions(menu.getActions({ arg: marshalledSession, shouldForwardArgs: true }), 'inline'); this.contextMenuService.showContextMenu({
+			getActions: () => secondary,
+			getAnchor: () => anchor,
+			getActionsContext: () => marshalledSession,
+		});
+
+		menu.dispose();
 	}
 
 	private registerActions(): void {
