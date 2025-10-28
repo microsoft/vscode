@@ -50,7 +50,8 @@ export class WebviewInput extends EditorInput {
 	get resource() {
 		return URI.from({
 			scheme: Schemas.webviewPanel,
-			path: `webview-panel/webview-${this._resourceId}`
+			path: `webview-panel/webview-${this.providedId}`,
+			query: JSON.stringify({ id: this._resourceId })
 		});
 	}
 

@@ -68,7 +68,8 @@ export type ChatRequestToolReferenceEntry = IChatRequestToolEntry | IChatRequest
 export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'implicit';
 	readonly isFile: true;
-	readonly value: URI | Location | undefined;
+	readonly value: URI | Location | string | undefined;
+	readonly uri: URI | undefined;
 	readonly isSelection: boolean;
 	enabled: boolean;
 }

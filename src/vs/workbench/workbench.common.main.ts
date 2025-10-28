@@ -379,6 +379,9 @@ import './contrib/remoteCodingAgents/browser/remoteCodingAgents.contribution.js'
 // Chat Sessions
 import './contrib/chat/browser/chatSessions.contribution.js';
 
+// Chat Context
+import './contrib/chat/browser/chatContext.contribution.js';
+
 // Code Actions
 import './contrib/codeActions/browser/codeActions.contribution.js';
 

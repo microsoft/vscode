@@ -29,10 +29,20 @@ export interface IChatRequestProblemsVariable {
 	filter: IDiagnosticVariableEntryFilterData;
 }
 
+export interface IChatRequestStringVariable {
+	value: string;
+	uri: URI;
+}
+
 export const isIChatRequestProblemsVariable = (obj: unknown): obj is IChatRequestProblemsVariable =>
 	typeof obj === 'object' && obj !== null && 'id' in obj && (obj as IChatRequestProblemsVariable).id === 'vscode.problems';
 
-export type IChatRequestVariableValue = string | URI | Location | Uint8Array | IChatRequestProblemsVariable | unknown;
+export const isIChatRequestStringVariable = (obj: unknown): obj is IChatRequestStringVariable => {
+	const asStringVar = obj as Partial<IChatRequestStringVariable>;
+	return typeof asStringVar?.value === 'string' && URI.isUri(asStringVar?.uri);
+};
+
+export type IChatRequestVariableValue = string | URI | Location | Uint8Array | IChatRequestProblemsVariable | IChatRequestStringVariable | unknown;
 
 export type IChatVariableResolverProgress =
 	| IChatContentReference

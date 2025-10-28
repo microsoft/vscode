@@ -16,6 +16,7 @@ import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import type { IManagedHoverTooltipMarkdownString } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { URI } from '../../../common/uri.js';
+import { ThemeIcon } from '../../../common/themables.js';
 
 export interface IIconLabelCreationOptions {
 	readonly supportHighlights?: boolean;
@@ -39,7 +40,7 @@ export interface IIconLabelValueOptions {
 	disabledCommand?: boolean;
 	readonly separator?: string;
 	readonly domId?: string;
-	iconPath?: URI;
+	iconPath?: URI | ThemeIcon;
 }
 
 class FastLabelNode {
@@ -165,7 +166,14 @@ export class IconLabel extends Disposable {
 			} else {
 				iconNode = existingIconNode;
 			}
-			iconNode.style.backgroundImage = css.asCSSUrl(options?.iconPath);
+			if (ThemeIcon.isThemeIcon(options.iconPath)) {
+				const iconClass = ThemeIcon.asClassName(options.iconPath);
+				iconNode.className = `monaco-icon-label-iconpath ${iconClass}`;
+				iconNode.style.backgroundImage = '';
+				iconNode.style.paddingTop = '2px';
+			} else {
+				iconNode.style.backgroundImage = css.asCSSUrl(options?.iconPath);
+			}
 			iconNode.style.backgroundRepeat = 'no-repeat';
 			iconNode.style.backgroundPosition = 'center';
 			iconNode.style.backgroundSize = 'contain';
