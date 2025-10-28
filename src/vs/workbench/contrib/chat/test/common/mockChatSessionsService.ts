@@ -110,12 +110,13 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return provider.provideNewChatSessionItem(options, token);
 	}
 
-	async getChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
-		const provider = this.sessionItemProviders.get(chatSessionType);
-		if (!provider) {
-			return [];
-		}
-		return provider.provideChatSessionItems(token);
+	getAllChatSessionItems(token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>> {
+		return Promise.all(Array.from(this.sessionItemProviders.values(), async provider => {
+			return {
+				chatSessionType: provider.chatSessionType,
+				items: await provider.provideChatSessionItems(token),
+			};
+		}));
 	}
 
 	reportInProgress(chatSessionType: string, count: number): void {
