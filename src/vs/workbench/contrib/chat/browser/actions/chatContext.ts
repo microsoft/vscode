@@ -278,8 +278,8 @@ export class TerminalContext implements IChatContextValueItem {
 		if (!terminal) {
 			return;
 		}
-
-		const command = terminal.capabilities.get(TerminalCapability.CommandDetection)?.commands.find(cmd => cmd.id === this._resource.query.replace('command=', ''));
+		const params = new URLSearchParams(this._resource.query);
+		const command = terminal.capabilities.get(TerminalCapability.CommandDetection)?.commands.find(cmd => cmd.id === params.get('command'));
 		if (!command) {
 			return;
 		}

@@ -120,6 +120,11 @@ class StatusBarActionViewItem extends ActionViewItem {
 		super(null, action, { ...options, icon: false, label: true });
 	}
 
+	override render(container: HTMLElement): void {
+		container.classList.add('scm-status-bar-action');
+		super.render(container);
+	}
+
 	protected override updateLabel(): void {
 		if (this.options.label && this.label) {
 			// Convert text nodes to span elements to enable
@@ -178,4 +183,31 @@ export function getSCMRepositoryIcon(
 	}
 
 	return repository.provider.iconPath;
+}
+
+export function getStatusBarCommandGenericName(command: Command): string | undefined {
+	let genericName: string | undefined = undefined;
+
+	// Get a generic name for the status bar action, derive this from the first
+	// command argument which is in the form of "<extension>.<command>/<number>"
+	if (typeof command.arguments?.[0] === 'string') {
+		const lastIndex = command.arguments[0].lastIndexOf('/');
+
+		genericName = lastIndex !== -1
+			? command.arguments[0].substring(0, lastIndex)
+			: command.arguments[0];
+
+		genericName = genericName
+			.replace(/^(?:git\.|remoteHub\.)/, '')
+			.trim();
+
+		if (genericName.length === 0) {
+			return undefined;
+		}
+
+		// Capitalize first letter
+		genericName = genericName[0].toLocaleUpperCase() + genericName.slice(1);
+	}
+
+	return genericName;
 }

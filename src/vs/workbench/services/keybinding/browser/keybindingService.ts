@@ -14,7 +14,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { parse } from '../../../../base/common/json.js';
-import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchema, JsonSchemaFromType } from '../../../../base/common/jsonSchema.js';
 import { UserSettingsLabelProvider } from '../../../../base/common/keybindingLabels.js';
 import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
 import { Keybinding, KeyCodeChord, ResolvedKeybinding, ScanCodeChord } from '../../../../base/common/keybindings.js';
@@ -99,7 +99,7 @@ function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects
 	return true;
 }
 
-const keybindingType: IJSONSchema = {
+const keybindingType: JsonSchemaFromType<ContributedKeyBinding> = {
 	type: 'object',
 	default: { command: '', key: '' },
 	properties: {
