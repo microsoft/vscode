@@ -3114,6 +3114,65 @@ export class CommandCenter {
 		await this._deleteBranch(repository, undefined, undefined, { remote: true });
 	}
 
+	@command('git.graph.compareBranches', { repository: true })
+	async compareBranches(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
+		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
+		if (!historyItemRefId || !historyItemRef) {
+			return;
+		}
+
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
+		const getBranchPicks = async () => {
+			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
+			const processors = [
+				new RefProcessor(RefType.Head, BranchItem),
+				new RefProcessor(RefType.Tag, BranchItem)
+			];
+
+			const itemsProcessor = new RefItemsProcessor(repository, processors);
+			return itemsProcessor.processRefs(refs);
+		};
+
+		const placeHolder = l10n.t('Select a source reference to compare to');
+		const sourceRef = await this.pickRef(getBranchPicks(), placeHolder);
+
+		if (!(sourceRef instanceof BranchItem)) {
+			return;
+		}
+
+		if (historyItemRefId === sourceRef.refId) {
+			window.showInformationMessage(l10n.t('The selected references are the same.'));
+			return;
+		}
+
+		try {
+			const changes = await repository.diffTrees(historyItemRefId, sourceRef.refId);
+
+			if (changes.length === 0) {
+				window.showInformationMessage(l10n.t('The selected references have no differences.'));
+				return;
+			}
+
+			const resources = changes.map(change => toMultiFileDiffEditorUris(change, sourceRef.refId, historyItemRefId));
+
+			const title = `${sourceRef.ref.name} ↔ ${historyItemRef.name}`;
+			const multiDiffSourceUri = Uri.from({
+				scheme: 'git-branch-compare',
+				path: `${repository.root}/${sourceRef.refId}..${historyItemRefId}`
+			});
+
+			await commands.executeCommand('_workbench.openMultiDiffEditor', {
+				multiDiffSourceUri,
+				title,
+				resources
+			});
+		} catch (err) {
+			throw new Error(l10n.t('Failed to compare references: {0}', err.message ?? err));
+		}
+	}
+
 	private async _deleteBranch(repository: Repository, remote: string | undefined, name: string | undefined, options: { remote: boolean; force?: boolean }): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;
 

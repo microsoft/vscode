@@ -16,9 +16,10 @@ import { LineSource, renderLines, RenderOptions } from '../../../../../../browse
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
-import { InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind } from '../../../../../../common/languages.js';
+import { InlineCompletionHintStyle } from '../../../../../../common/languages.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
+import { InlineSuggestHint } from '../../../model/inlineSuggestionItem.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorsuccessfulBackground } from '../theme.js';
 import { getContentRenderWidth, maxContentWidthInRange, rectToProps } from '../utils/utils.js';
@@ -45,7 +46,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		displayLocation: IObservable<InlineCompletionDisplayLocation | undefined>,
+		displayLocation: IObservable<InlineSuggestHint | undefined>,
 		tabAction: IObservable<InlineEditTabAction>,
 		@IThemeService themeService: IThemeService,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -127,7 +128,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 		return maxOriginalContent + maxModifiedContent + padding < editorWidth - editorContentLeft - editorVerticalScrollbar - minimapWidth;
 	}
 
-	private getState(displayLocation: InlineCompletionDisplayLocation): { rect: IObservable<Rect>; label: string; kind: InlineCompletionDisplayLocationKind } {
+	private getState(displayLocation: InlineSuggestHint): { rect: IObservable<Rect>; label: string; kind: InlineCompletionHintStyle } {
 
 		const contentState = derived(this, (reader) => {
 			const startLineNumber = displayLocation.range.startLineNumber;
@@ -154,7 +155,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 		const startLineNumber = displayLocation.range.startLineNumber;
 		const endLineNumber = displayLocation.range.endLineNumber;
 		// only check viewport once in the beginning when rendering the view
-		const fitsInsideViewport = this.fitsInsideViewport(new LineRange(startLineNumber, endLineNumber + 1), displayLocation.label, undefined);
+		const fitsInsideViewport = this.fitsInsideViewport(new LineRange(startLineNumber, endLineNumber + 1), displayLocation.content, undefined);
 
 		const rect = derived(this, reader => {
 			const w = this._editorObs.getOption(EditorOption.fontInfo).read(reader).typicalHalfwidthCharacterWidth;
@@ -208,7 +209,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 			const textRect = Rect.fromLeftTopWidthHeight(
 				contentLeft + contentStartOffset - scrollLeft,
 				topOfLine - scrollTop,
-				w * displayLocation.label.length,
+				w * displayLocation.content.length,
 				lineHeight
 			);
 
@@ -217,17 +218,17 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 
 		return {
 			rect,
-			label: displayLocation.label,
-			kind: displayLocation.kind
+			label: displayLocation.content,
+			kind: displayLocation.style
 		};
 	}
 
-	private getRendering(state: { rect: IObservable<Rect>; label: string; kind: InlineCompletionDisplayLocationKind }, styles: IObservable<{ background: string; border: string }>) {
+	private getRendering(state: { rect: IObservable<Rect>; label: string; kind: InlineCompletionHintStyle }, styles: IObservable<{ background: string; border: string }>) {
 
 		const line = document.createElement('div');
 		const t = this._editor.getModel()!.tokenization.tokenizeLinesAt(1, [state.label])?.[0];
 		let tokens: LineTokens;
-		if (t && state.kind === InlineCompletionDisplayLocationKind.Code) {
+		if (t && state.kind === InlineCompletionHintStyle.Code) {
 			tokens = TokenArray.fromLineTokens(t).toLineTokens(state.label, this._languageService.languageIdCodec);
 		} else {
 			tokens = LineTokens.createEmpty(state.label, this._languageService.languageIdCodec);

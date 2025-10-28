@@ -738,7 +738,7 @@ export function registerChatActions() {
 							const providerNSessions: { providerType: string; session: IChatSessionItem }[] = [];
 
 							for (const provider of providers) {
-								const sessions = await chatSessionsService.provideChatSessionItems(provider.type, cancellationToken.token);
+								const sessions = await chatSessionsService.getChatSessionItems(provider.type, cancellationToken.token);
 								if (!sessions?.length) {
 									continue;
 								}

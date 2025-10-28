@@ -6,7 +6,8 @@
 import { IMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
-import { Command, InlineCompletionCommand, InlineCompletionDisplayLocation } from '../../../../../common/languages.js';
+import { Command, InlineCompletionCommand } from '../../../../../common/languages.js';
+import { InlineSuggestHint } from '../../model/inlineSuggestionItem.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 
 export enum InlineEditTabAction {
@@ -34,7 +35,7 @@ export interface IInlineEditModel {
 	inlineEdit: InlineEditWithChanges;
 	tabAction: IObservable<InlineEditTabAction>;
 	showCollapsed: IObservable<boolean>;
-	displayLocation: InlineCompletionDisplayLocation | undefined;
+	displayLocation: InlineSuggestHint | undefined;
 
 	handleInlineEditShown(viewKind: string, viewData?: InlineCompletionViewData): void;
 	accept(): void;

@@ -21,26 +21,6 @@
 	flex-direction: column;
 	height: 100%;
 
-	&.new-welcome-view {
-		.interactive-input-part {
-			.dropdown-action-container {
-				display: none;
-			}
-
-			.chat-attachments-container {
-				display: none;
-			}
-		}
-
-		.chat-input-toolbars > .chat-input-toolbar > div {
-			display: none;
-		}
-
-		.chat-input-toolbars .action-item:not(:has(.monaco-dropdown-with-primary)) {
-			display: none;
-		}
-	}
-
 	/* chat welcome container */
 	.chat-welcome-view-container {
 		display: flex;
@@ -64,12 +44,6 @@
 				margin-bottom: auto;
 			}
 		}
-	}
-
-	.new-welcome-view & > .chat-welcome-view-input-part {
-		max-width: 650px;
-		margin-bottom: 8px;
-		/* Reduced margin to make room for prompts below */
 	}
 }
 
@@ -290,24 +264,6 @@ div.chat-welcome-view {
 		background-color: var(--vscode-list-hoverBackground);
 	}
 }
-
-/* Fresh login view - move prompts below input box instead of at bottom */
-.new-welcome-view .chat-welcome-view-suggested-prompts {
-	position: relative;
-	bottom: auto;
-	left: auto;
-	right: auto;
-	margin-top: 8px;
-	margin-bottom: 48px;
-	justify-content: center;
-	padding: 0 12px;
-}
-
-/* Hide the title for fresh login view */
-.new-welcome-view .chat-welcome-view-suggested-prompts .chat-welcome-view-suggested-prompts-title {
-	display: none;
-}
-
 
 .chat-welcome-history-root {
 	width: 100%;

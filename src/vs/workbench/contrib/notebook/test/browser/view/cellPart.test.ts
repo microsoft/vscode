@@ -186,7 +186,7 @@ suite('CellPart', () => {
 				{ width: 600, height: s.editorHeight }
 			);
 
-			layout.layoutEditor(s.name);
+			layout.layoutEditor('init');
 			assert.strictEqual(
 				layout.editorVisibility,
 				s.expected,
@@ -380,7 +380,7 @@ suite('CellPart', () => {
 				{ debug: () => { } },
 				{ width: 600, height: EDITOR_HEIGHT }
 			);
-			layout.layoutEditor('scroll');
+			layout.layoutEditor('nbDidScroll');
 			const actualTop = parseInt(
 				(editorPart.style.top || '0').replace(/px$/, '')
 			);

@@ -1106,15 +1106,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand {
+	width: 100%;
+}
+
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand .monaco-button {
 	display: flex;
 	align-items: center;
 	gap: 4px;
 	cursor: pointer;
 	justify-content: space-between;
 	width: 100%;
+	background-color: transparent;
+	border-color: transparent;
+	color: var(--vscode-foreground);
+	padding: 0;
+	min-width: unset;
 }
 
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand:focus:not(:focus-visible) {
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand .monaco-button:focus:not(:focus-visible) {
 	outline: none;
 }
 
@@ -1122,7 +1131,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-left: 3px;
 	display: flex;
 	align-items: center;
-	gap: 4px;
 	flex: 1;
 	font-size: 11px;
 	white-space: nowrap;
@@ -1177,6 +1185,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .expand-icon {
 	flex-shrink: 0;
+	margin-right: 3px;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-title {

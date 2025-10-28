@@ -7,7 +7,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import type { IStringDictionary } from '../../../../base/common/collections.js';
 import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
-import { PolicyCategory } from '../../../../base/common/policy.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
@@ -670,27 +669,7 @@ export async function registerTerminalConfiguration(getFontSnippets: () => Promi
 		order: 100,
 		title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
 		type: 'object',
-		properties: {
-			...terminalConfiguration,
-			// HACK: This is included here in order instead of in the contrib to support policy
-			// extraction as it doesn't compute runtime values.
-			[TerminalContribSettingId.EnableAutoApprove]: {
-				description: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
-				type: 'boolean',
-				default: true,
-				policy: {
-					name: 'ChatToolsTerminalEnableAutoApprove',
-					category: PolicyCategory.IntegratedTerminal,
-					minimumVersion: '1.104',
-					localization: {
-						description: {
-							key: 'autoApproveMode.description',
-							value: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
-						}
-					}
-				}
-			}
-		}
+		properties: terminalConfiguration,
 	});
 	terminalConfiguration[TerminalSettingId.FontFamily].defaultSnippets = await getFontSnippets();
 }
