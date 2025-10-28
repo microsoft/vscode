@@ -40,7 +40,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 	private readonly _gutterIndicatorStyles;
 	private readonly _isHoveredOverInlineEditDebounced: IObservable<boolean>;
-	private _stateDisposables?: DisposableStore;
 
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
@@ -93,14 +92,11 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 		this._originalRangeObs = mapOutFalsy(this._originalRange);
 		this._state = derived(this, reader => {
-			this._stateDisposables?.dispose();
-			this._stateDisposables = this._register(new DisposableStore());
-
 			const range = this._originalRangeObs.read(reader);
 			if (!range) { return undefined; }
 			return {
 				range,
-				lineOffsetRange: this._editorObs.observeLineOffsetRange(range, this._stateDisposables),
+				lineOffsetRange: this._editorObs.observeLineOffsetRange(range, reader.store),
 			};
 		});
 		this._stickyScrollController = StickyScrollController.get(this._editorObs.editor);
