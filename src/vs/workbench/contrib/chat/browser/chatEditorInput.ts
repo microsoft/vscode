@@ -229,16 +229,12 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return undefined;
 	}
 
-	private getSessionType(): string {
-		if (!this.resource) {
+	public getSessionType(): string {
+		if (this.resource.scheme === Schemas.vscodeChatEditor || this.resource.scheme === Schemas.vscodeChatSession) {
 			return 'local';
 		}
 
-		const { scheme } = this.resource;
-		if (scheme === Schemas.vscodeChatEditor || scheme === Schemas.vscodeChatSession) {
-			return 'local';
-		}
-		return scheme;
+		return this.resource.scheme;
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {

@@ -542,7 +542,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						extensionId: extension.description.identifier,
 						originalContainerId: key,
 						group: item.group,
-						// eslint-disable-next-line local/code-no-any-casts
+						// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority, // TODO@roblou - delete after remote extensions are updated
 						virtualWorkspace: item.virtualWorkspace,
 						hideByDefault: initialVisibility === InitialVisibility.Hidden,
@@ -594,9 +594,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		}
 	}
 
-	private convertInitialVisibility(value: any): InitialVisibility | undefined {
-		if (Object.values(InitialVisibility).includes(value)) {
-			return value;
+	private convertInitialVisibility(value: string | undefined): InitialVisibility | undefined {
+		if (Object.values(InitialVisibility).includes(value as InitialVisibility)) {
+			return value as InitialVisibility;
 		}
 		return undefined;
 	}

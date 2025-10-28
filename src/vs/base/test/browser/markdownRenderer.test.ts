@@ -267,14 +267,14 @@ suite('MarkdownRenderer', () => {
 	});
 
 	test('Should support relative links if baseurl is set', () => {
-		const md = new MarkdownString(`[text](./foo) <a href="./bar">bar</a>`, {
+		const md = new MarkdownString(`[text](./foo) <a href="./bar">bar</a> <img src="cat.gif">`, {
 			isTrusted: true,
 			supportHtml: true,
 		});
 		md.baseUri = URI.parse('https://example.com/path/');
 
 		const result = store.add(renderMarkdown(md)).element;
-		assert.strictEqual(result.innerHTML, `<p><a href="" title="./foo" draggable="false" data-href="https://example.com/path/foo">text</a> <a href="" data-href="https://example.com/path/bar">bar</a></p>`);
+		assert.strictEqual(result.innerHTML, `<p><a href="" title="./foo" draggable="false" data-href="https://example.com/path/foo">text</a> <a href="" data-href="https://example.com/path/bar">bar</a> <img src="https://example.com/path/cat.gif"></p>`);
 	});
 
 	suite('PlaintextMarkdownRender', () => {

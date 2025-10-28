@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../base/common/network.js';
+import { IChatSessionsService } from './chatSessionsService.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
 export enum ChatConfiguration {
 	AgentEnabled = 'chat.agent.enabled',
@@ -87,7 +89,34 @@ export namespace ChatAgentLocation {
 	}
 }
 
-export const ChatUnsupportedFileSchemes = new Set([Schemas.vscodeChatEditor, Schemas.walkThrough, Schemas.vscodeChatSession, 'ccreq']);
+/**
+ * List of file schemes that are always unsupported for use in chat
+ */
+const chatAlwaysUnsupportedFileSchemes = new Set([
+	Schemas.vscodeChatEditor,
+	Schemas.walkThrough,
+	Schemas.vscodeChatSession,
+	Schemas.vscodeSettings,
+	Schemas.webviewPanel,
+	'ccreq',
+]);
+
+export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: string): boolean {
+	const chatService = accessor.get(IChatSessionsService);
+
+	// Exclude schemes we always know are bad
+	if (chatAlwaysUnsupportedFileSchemes.has(scheme)) {
+		return false;
+	}
+
+	// Plus any schemes used by content providers
+	if (chatService.getContentProviderSchemes().includes(scheme)) {
+		return false;
+	}
+
+	// Everything else is supported
+	return true;
+}
 
 export const AGENT_SESSIONS_VIEWLET_ID = 'workbench.view.chat.sessions'; // TODO@bpasero clear once settled
 
