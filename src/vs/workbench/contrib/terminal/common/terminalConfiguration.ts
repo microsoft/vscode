@@ -11,11 +11,11 @@ import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { TerminalLocationConfigValue, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalLocationConfigValue, TerminalSettingId, type ITerminalProfileObject } from '../../../../platform/terminal/common/terminal.js';
 import { terminalColorSchema, terminalIconSchema } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchExtensions } from '../../../common/configuration.js';
 import { terminalContribConfiguration, TerminalContribSettingId } from '../terminalContribExports.js';
-import { DEFAULT_COMMANDS_TO_SKIP_SHELL, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, SUGGESTIONS_FONT_WEIGHT, type FontWeight } from './terminal.js';
+import { DEFAULT_COMMANDS_TO_SKIP_SHELL, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, SUGGESTIONS_FONT_WEIGHT, type FontWeight, type ITerminalProfiles } from './terminal.js';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory."),
@@ -707,13 +707,32 @@ type FlatTerminalConfig = (
 	&
 	{
 		// Manually set keys that don't resolve correctly
-		readonly 'env.linux': { [key: string]: string | null };
-		readonly 'env.osx': { [key: string]: string | null };
-		readonly 'env.windows': { [key: string]: string | null };
-		readonly 'tabs.defaultColor': null | 'terminal.ansiBlack' | 'terminal.ansiRed' | 'terminal.ansiGreen' | 'terminal.ansiYellow' | 'terminal.ansiBlue' | 'terminal.ansiMagenta' | 'terminal.ansiCyan' | 'terminal.ansiWhite';
-		readonly 'tabs.defaultIcon': string;
-		readonly 'fontWeight': FontWeight | number;
-		readonly 'fontWeightBold': FontWeight | number;
+		'env.linux': { [key: string]: string | null };
+		'env.osx': { [key: string]: string | null };
+		'env.windows': { [key: string]: string | null };
+		'tabs.defaultColor': null | 'terminal.ansiBlack' | 'terminal.ansiRed' | 'terminal.ansiGreen' | 'terminal.ansiYellow' | 'terminal.ansiBlue' | 'terminal.ansiMagenta' | 'terminal.ansiCyan' | 'terminal.ansiWhite';
+		'tabs.defaultIcon': string;
+		'fontWeight': FontWeight | number;
+		'fontWeightBold': FontWeight | number;
+		// Manually set keys that come from platform configuration
+		// TODO: Derive these from JSON
+		// TODO: Not all platform configs are included here
+		automationShell: {
+			linux: string | null;
+			osx: string | null;
+			windows: string | null;
+		};
+		profiles: {
+			linux: { [key: string]: ITerminalProfileObject };
+			osx: { [key: string]: ITerminalProfileObject };
+			windows: { [key: string]: ITerminalProfileObject };
+		};
+		defaultProfile: {
+			linux: string | null;
+			osx: string | null;
+			windows: string | null;
+		};
+		useWslProfiles: boolean;
 	}
 );
 
