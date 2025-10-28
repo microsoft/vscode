@@ -227,7 +227,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			const startedTodo = startedTodos[0]; // Should only be one in-progress at a time
 			const totalTodos = newTodos.length;
 			const currentPosition = newTodos.findIndex(todo => todo.id === startedTodo.id) + 1;
-			return localize('todo.starting', "Starting ({0}/{1}) *{2}*", currentPosition, totalTodos, startedTodo.title);
+			return localize('todo.starting', "Starting: *{0}* ({1}/{2})", startedTodo.title, currentPosition, totalTodos);
 		}
 
 		// Check for newly completed todos
@@ -240,7 +240,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			const completedTodo = completedTodos[0]; // Get the first completed todo for the message
 			const totalTodos = newTodos.length;
 			const currentPosition = newTodos.findIndex(todo => todo.id === completedTodo.id) + 1;
-			return localize('todo.completed', "Completed ({0}/{1}) *{2}*", currentPosition, totalTodos, completedTodo.title);
+			return localize('todo.completed', "Completed: *{0}* ({1}/{2})", completedTodo.title, currentPosition, totalTodos);
 		}
 
 		// Check for new todos added
