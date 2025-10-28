@@ -756,12 +756,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	max-width: 100%;
 }
 
-/* When suggest-next widget is present above input, remove top border-radius for connected appearance */
-.interactive-session .chat-suggest-next-widget ~ .interactive-input-part .chat-input-container {
-	border-top-left-radius: 0;
-	border-top-right-radius: 0;
-}
-
 .interactive-session .chat-editing-session {
 	margin-bottom: -4px; /* Counter the flex gap */
 	/* reset the 4px gap of the container for editing sessions */

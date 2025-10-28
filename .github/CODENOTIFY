@@ -103,6 +103,7 @@ src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
 src/vs/workbench/contrib/chat/browser/chatSetup.ts @bpasero
 src/vs/workbench/contrib/chat/browser/chatStatus.ts @bpasero
 src/vs/workbench/contrib/chat/browser/agentSessions/** @bpasero
+src/vs/workbench/contrib/chat/browser/chatSessions/** @bpasero
 src/vs/workbench/contrib/localization/** @TylerLeonhardt
 src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts @TylerLeonhardt
 src/vs/workbench/contrib/update/browser/releaseNotesEditor.ts @alexr00 @joaomoreno

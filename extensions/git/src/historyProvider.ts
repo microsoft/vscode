@@ -124,7 +124,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 								id: `refs/heads/${this.repository.HEAD.upstream.name}`,
 								name: this.repository.HEAD.upstream.name,
 								revision: this.repository.HEAD.upstream.commit,
-								icon: new ThemeIcon('gi-branch')
+								icon: new ThemeIcon('git-branch')
 							};
 						} else {
 							// Remote branch

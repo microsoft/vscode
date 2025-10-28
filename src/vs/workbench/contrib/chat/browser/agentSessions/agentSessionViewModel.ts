@@ -12,7 +12,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IChatService } from '../../common/chatService.js';
-import { IChatSessionItemProvider, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
 
 //#region Interfaces, Types
@@ -29,12 +29,6 @@ export interface IAgentSessionsViewModel {
 	resolve(provider: string | string[] | undefined): Promise<void>;
 }
 
-export const enum AgentSessionStatus {
-	Failed = 0,
-	Completed = 1,
-	InProgress = 2
-}
-
 export interface IAgentSessionViewModel {
 
 	readonly provider: IChatSessionItemProvider;
@@ -42,7 +36,7 @@ export interface IAgentSessionViewModel {
 	readonly id: string;
 	readonly resource: URI;
 
-	readonly status?: AgentSessionStatus;
+	readonly status?: ChatSessionStatus;
 
 	readonly label: string;
 	readonly description: string | IMarkdownString;
@@ -164,7 +158,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 					label: session.label,
 					description: session.description || new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`),
 					icon: session.iconPath,
-					status: session.status as unknown as AgentSessionStatus,
+					status: session.status,
 					timing: {
 						startTime: session.timing.startTime,
 						endTime: session.timing.endTime

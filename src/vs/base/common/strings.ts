@@ -1232,7 +1232,7 @@ export class AmbiguousCharacters {
 		const data = this.ambiguousCharacterData.value;
 
 		let filteredLocales = locales.filter(
-			(l) => !l.startsWith('_') && l in data
+			(l) => !l.startsWith('_') && Object.hasOwn(data, l)
 		);
 		if (filteredLocales.length === 0) {
 			filteredLocales = ['_default'];

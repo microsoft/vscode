@@ -802,15 +802,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			() => this._isVisible,
 			() => xterm,
 			async (cols, rows) => {
-				xterm.raw.resize(cols, rows);
+				xterm.resize(cols, rows);
 				await this._updatePtyDimensions(xterm.raw);
 			},
 			async (cols) => {
-				xterm.raw.resize(cols, xterm.raw.rows);
+				xterm.resize(cols, xterm.raw.rows);
 				await this._updatePtyDimensions(xterm.raw);
 			},
 			async (rows) => {
-				xterm.raw.resize(xterm.raw.cols, rows);
+				xterm.resize(xterm.raw.cols, rows);
 				await this._updatePtyDimensions(xterm.raw);
 			}
 		));
@@ -1531,7 +1531,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Re-evaluate dimensions if the container has been set since the xterm instance was created
 		if (this._container && this._cols === 0 && this._rows === 0) {
 			this._initDimensions();
-			this.xterm?.raw.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
+			this.xterm?.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
 		}
 		const originalIcon = this.shellLaunchConfig.icon;
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows).then(result => {

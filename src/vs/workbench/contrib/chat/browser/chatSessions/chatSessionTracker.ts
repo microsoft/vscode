@@ -49,6 +49,8 @@ export class ChatSessionTracker extends Disposable {
 			const editor = e.editor as ChatEditorInput;
 			const sessionType = getChatSessionType(editor);
 
+			this.chatSessionsService.notifySessionItemsChanged(sessionType);
+
 			// Emit targeted event for this session type
 			this._onDidChangeEditors.fire({ sessionType, kind: e.kind });
 		}));

@@ -2137,6 +2137,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 		this._inlineCompletionsUnificationState = {
 			codeUnification: false,
 			modelUnification: false,
+			extensionUnification: false,
 			expAssignments: []
 		};
 	}

@@ -29,7 +29,6 @@ import { IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsSer
 import { AGENT_SESSIONS_VIEWLET_ID } from '../../../common/constants.js';
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { SessionsViewPane } from './sessionsViewPane.js';
 
 export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
@@ -55,7 +54,6 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 export class ChatSessionsViewContrib extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatSessions';
 
-	private localProvider: LocalChatSessionsProvider | undefined;
 	private readonly sessionTracker: ChatSessionTracker;
 	private readonly registeredViewDescriptors: Map<string, IViewDescriptor> = new Map();
 
@@ -68,12 +66,6 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 		super();
 
 		this.sessionTracker = this._register(this.instantiationService.createInstance(ChatSessionTracker));
-		this.setupEditorTracking();
-
-		// Create and register the local chat sessions provider immediately
-		// This ensures it's available even when the view container is not initialized
-		this.localProvider = this._register(this.instantiationService.createInstance(LocalChatSessionsProvider));
-		this._register(this.chatSessionsService.registerChatSessionItemProvider(this.localProvider));
 
 		// Initial check
 		void this.updateViewRegistration();
@@ -84,12 +76,6 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
 			void this.updateViewRegistration();
-		}));
-	}
-
-	private setupEditorTracking(): void {
-		this._register(this.sessionTracker.onDidChangeEditors(e => {
-			this.chatSessionsService.notifySessionItemsChanged(e.sessionType);
 		}));
 	}
 

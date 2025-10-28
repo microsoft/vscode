@@ -92,7 +92,8 @@ registerEditorAction(class PasteAsAction extends EditorAction {
 					name: 'args',
 					schema: PasteAsAction.argsSchema
 				}]
-			}
+			},
+			canTriggerInlineEdits: true,
 		});
 	}
 
@@ -115,6 +116,7 @@ registerEditorAction(class extends EditorAction {
 			id: 'editor.action.pasteAsText',
 			label: nls.localize2('pasteAsText', "Paste as Text"),
 			precondition: EditorContextKeys.writable,
+			canTriggerInlineEdits: true,
 		});
 	}
 

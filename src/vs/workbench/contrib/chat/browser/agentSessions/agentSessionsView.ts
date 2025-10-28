@@ -24,28 +24,34 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { $, append } from '../../../../../base/browser/dom.js';
-import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel, LOCAL_AGENT_SESSION_TYPE, isLocalAgentSessionItem } from './agentSessionViewModel.js';
-import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionsSorter } from './agentSessionsViewer.js';
+import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel, isLocalAgentSessionItem } from './agentSessionViewModel.js';
+import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionsSorter } from './agentSessionsViewer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
-import { IAction, toAction } from '../../../../../base/common/actions.js';
+import { IAction, Separator, toAction } from '../../../../../base/common/actions.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
-import { MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { findExistingChatEditorByUri, NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
+import { findExistingChatEditorByUri, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
 import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { assertReturnsDefined } from '../../../../../base/common/types.js';
+import { assertReturnsDefined, upcast } from '../../../../../base/common/types.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IChatService } from '../../common/chatService.js';
+import { IChatWidgetService } from '../chat.js';
 
 export class AgentSessionsView extends ViewPane {
 
@@ -67,6 +73,9 @@ export class AgentSessionsView extends ViewPane {
 		@IProgressService private readonly progressService: IProgressService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IChatService private readonly chatService: IChatService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -112,6 +121,10 @@ export class AgentSessionsView extends ViewPane {
 				this.commandService.executeCommand(ACTION_ID_OPEN_CHAT);
 			}
 		}));
+
+		this._register(list.onContextMenu((e) => {
+			this.showContextMenu(e);
+		}));
 	}
 
 	private async openAgentSession(e: IOpenEvent<IAgentSessionViewModel | undefined>) {
@@ -121,7 +134,12 @@ export class AgentSessionsView extends ViewPane {
 		}
 
 		if (session.resource.scheme !== ChatSessionUri.scheme) {
-			await this.openerService.open(session.resource);
+			await this.openerService.open(session.resource, {
+				editorOptions: upcast<IEditorOptions, IChatEditorOptions>({
+					...e.editorOptions,
+					title: { preferred: session.label }
+				})
+			});
 			return;
 		}
 
@@ -144,7 +162,37 @@ export class AgentSessionsView extends ViewPane {
 
 		sessionOptions.ignoreInView = true;
 
-		await this.editorService.openEditor({ resource: sessionResource, options: sessionOptions });
+		await this.editorService.openEditor({
+			resource: sessionResource,
+			options: upcast<IEditorOptions, IChatEditorOptions>({
+				...sessionOptions,
+				title: { preferred: session.label },
+				...e.editorOptions
+			})
+		});
+	}
+
+	private showContextMenu({ element: session, anchor }: ITreeContextMenuEvent<IAgentSessionViewModel>): void {
+		if (!session) {
+			return;
+		}
+
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService.createOverlay(getSessionItemContextOverlay(
+			session,
+			session.provider,
+			this.chatWidgetService,
+			this.chatService,
+			this.editorGroupsService
+		)));
+
+		const marshalledSession = { session, $mid: MarshalledId.ChatSessionContext };
+		const { secondary } = getActionBarActions(menu.getActions({ arg: marshalledSession, shouldForwardArgs: true }), 'inline'); this.contextMenuService.showContextMenu({
+			getActions: () => secondary,
+			getAnchor: () => anchor,
+			getActionsContext: () => marshalledSession,
+		});
+
+		menu.dispose();
 	}
 
 	private registerActions(): void {
@@ -209,19 +257,7 @@ export class AgentSessionsView extends ViewPane {
 			contextMenuProvider: this.contextMenuService,
 			actions: {
 				getActions: () => {
-					const actions: IAction[] = [];
-					for (const provider of this.chatSessionsService.getAllChatSessionContributions()) {
-						if (provider.type === LOCAL_AGENT_SESSION_TYPE) {
-							continue; // local is the primary action
-						}
-
-						actions.push(toAction({
-							id: `newChatSessionFromProvider.${provider.type}`,
-							label: localize('newChatSessionFromProvider', "New Session ({0})", provider.displayName),
-							run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${provider.type}`)
-						}));
-					}
-					return actions;
+					return this.getNewSessionActions();
 				}
 			},
 			addPrimaryActionToDropdown: false,
@@ -231,6 +267,41 @@ export class AgentSessionsView extends ViewPane {
 		newSessionButton.label = localize('agentSessions.newSession', "New Session");
 
 		this._register(newSessionButton.onDidClick(() => primaryAction.run()));
+	}
+
+	private getNewSessionActions(): IAction[] {
+		const actions: IAction[] = [];
+		for (const provider of this.chatSessionsService.getAllChatSessionContributions()) {
+
+			// Generic action to create new provider specific session
+			actions.push(toAction({
+				id: `newChatSessionFromProvider.${provider.type}`,
+				label: localize('newChatSessionFromProvider', "New {0}", provider.displayName),
+				run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${provider.type}`)
+			}));
+
+			// Collect provider specific additional actions
+			const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.scopedContextKeyService.createOverlay([[ChatContextKeys.sessionType.key, provider.type]]));
+			const primaryActions = getActionBarActions(
+				menu.getActions({ shouldForwardArgs: true }),
+				'submenu',
+			).primary;
+			if (primaryActions.length > 0) {
+				actions.push(...primaryActions);
+				actions.push(new Separator());
+			}
+			menu.dispose();
+		}
+
+		// Install more
+		actions.push(new Separator());
+		actions.push(toAction({
+			id: 'install-extensions',
+			label: localize('chatSessions.installExtensions', "Install Chat Extensions..."),
+			run: () => this.commandService.executeCommand('chat.sessions.gettingStarted')
+		}));
+
+		return actions;
 	}
 
 	//#endregion
@@ -254,6 +325,7 @@ export class AgentSessionsView extends ViewPane {
 			new AgentSessionsDataSource(),
 			{
 				accessibilityProvider: new AgentSessionsAccessibilityProvider(),
+				dnd: this.instantiationService.createInstance(AgentSessionsDragAndDrop),
 				identityProvider: new AgentSessionsIdentityProvider(),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,

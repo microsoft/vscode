@@ -9,7 +9,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import type { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import type { IRunInTerminalInputParams } from './tools/runInTerminalTool.js';
-import { TreeSitterCommandParserLanguage, type TreeSitterCommandParser } from './treeSitterCommandParser.js';
+import { type TreeSitterCommandParser } from './treeSitterCommandParser.js';
 
 export class CommandSimplifier {
 	constructor(
@@ -86,14 +86,7 @@ export class CommandSimplifier {
 		// supports chain operators https://github.com/airbus-cert/tree-sitter-powershell/issues/27
 		if (isPowerShell(shell, os)) {
 			try {
-				const doubleAmpersandCaptures = await this._treeSitterCommandParser.queryTree(TreeSitterCommandParserLanguage.PowerShell, commandLine, [
-					'(',
-					'  (command',
-					'    (command_elements',
-					'      (generic_token) @double.ampersand',
-					'        (#eq? @double.ampersand "&&")))',
-					')',
-				].join('\n'));
+				const doubleAmpersandCaptures = await this._treeSitterCommandParser.extractPwshDoubleAmpersandChainOperators(commandLine);
 				for (const capture of doubleAmpersandCaptures.reverse()) {
 					commandLine = `${commandLine.substring(0, capture.node.startIndex)};${commandLine.substring(capture.node.endIndex)}`;
 				}
