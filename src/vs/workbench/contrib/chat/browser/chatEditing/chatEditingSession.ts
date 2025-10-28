@@ -13,7 +13,7 @@ import { Disposable, DisposableStore, dispose } from '../../../../../base/common
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { autorun, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { Mutable } from '../../../../../base/common/types.js';
+import { hasKey, Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -456,7 +456,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	private async _recordEditOperations(entry: AbstractChatEditingModifiedFileEntry, resource: URI, edits: (TextEdit | ICellEditOperation)[], responseModel: IChatResponseModel): Promise<void> {
 		// Determine if these are text edits or notebook edits
-		const isNotebookEdits = edits.length > 0 && 'cells' in edits[0];
+		const isNotebookEdits = edits.length > 0 && hasKey(edits[0], { cells: true });
 
 		if (isNotebookEdits) {
 			// Record notebook edit operation
