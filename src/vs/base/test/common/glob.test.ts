@@ -64,14 +64,14 @@ suite('Glob', () => {
 	// 	console.profileEnd();
 	// });
 
-	function assertGlobMatch(pattern: string | glob.IRelativePattern, input: string) {
-		assert(glob.match(pattern, input), `${JSON.stringify(pattern)} should match ${input}`);
-		assert(glob.match(pattern, nativeSep(input)), `${pattern} should match ${nativeSep(input)}`);
+	function assertGlobMatch(pattern: string | glob.IRelativePattern, input: string, ignoreCase?: boolean) {
+		assert(glob.match(pattern, input, { ignoreCase }), `${JSON.stringify(pattern)} should match ${input}`);
+		assert(glob.match(pattern, nativeSep(input), { ignoreCase }), `${pattern} should match ${nativeSep(input)}`);
 	}
 
-	function assertNoGlobMatch(pattern: string | glob.IRelativePattern, input: string) {
-		assert(!glob.match(pattern, input), `${pattern} should not match ${input}`);
-		assert(!glob.match(pattern, nativeSep(input)), `${pattern} should not match ${nativeSep(input)}`);
+	function assertNoGlobMatch(pattern: string | glob.IRelativePattern, input: string, ignoreCase?: boolean) {
+		assert(!glob.match(pattern, input, { ignoreCase }), `${pattern} should not match ${input}`);
+		assert(!glob.match(pattern, nativeSep(input), { ignoreCase }), `${pattern} should not match ${nativeSep(input)}`);
 	}
 
 	test('simple', () => {
@@ -1169,6 +1169,31 @@ suite('Glob', () => {
 		assert.ok(glob.isEmptyPattern(glob.parse({})));
 		assert.ok(glob.isEmptyPattern(glob.parse({ '': true })));
 		assert.ok(glob.isEmptyPattern(glob.parse({ '**/*.js': false })));
+	});
+
+	test('caseInsensitiveMatch', () => {
+		assertNoGlobMatch('PATH/FOO.js', 'path/foo.js');
+		assertGlobMatch('PATH/FOO.js', 'path/foo.js', true);
+		// T1
+		assertNoGlobMatch('**/*.JS', 'bar/foo.js');
+		assertGlobMatch('**/*.JS', 'bar/foo.js', true);
+		// T2
+		assertNoGlobMatch('**/package', 'bar/Package');
+		assertGlobMatch('**/package', 'bar/Package', true);
+		// T3
+		assertNoGlobMatch('{**/*.JS,**/*.TS}', 'bar/foo.ts');
+		assertNoGlobMatch('{**/*.JS,**/*.TS}', 'bar/foo.js');
+		assertGlobMatch('{**/*.JS,**/*.TS}', 'bar/foo.ts', true);
+		assertGlobMatch('{**/*.JS,**/*.TS}', 'bar/foo.js', true);
+		// T4
+		assertNoGlobMatch('**/FOO/Bar', 'bar/foo/bar');
+		assertGlobMatch('**/FOO/Bar', 'bar/foo/bar', true);
+		// T5
+		assertNoGlobMatch('FOO/Bar', 'foo/bar');
+		assertGlobMatch('FOO/Bar', 'foo/bar', true);
+		// Other
+		assertNoGlobMatch('some/*/Random/*/Path.FILE', 'some/very/random/unusual/path.file');
+		assertGlobMatch('some/*/Random/*/Path.FILE', 'some/very/random/unusual/path.file', true);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
