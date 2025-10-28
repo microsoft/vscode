@@ -172,7 +172,7 @@ registerSingleton(IExtensionStatusBarItemService, ExtensionStatusBarItemService,
 
 type IUserFriendlyStatusItemEntry = TypeFromJsonSchema<typeof statusBarItemSchema>;
 
-function isUserFriendlyStatusItemEntry(candidate: any): candidate is IUserFriendlyStatusItemEntry {
+function isUserFriendlyStatusItemEntry(candidate: unknown): candidate is IUserFriendlyStatusItemEntry {
 	const obj = candidate as IUserFriendlyStatusItemEntry;
 	return (typeof obj.id === 'string' && obj.id.length > 0)
 		&& typeof obj.name === 'string'

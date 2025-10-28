@@ -1,5 +1,5 @@
 ---
-mode: Plan
+agent: Plan
 tools: ['runCommands', 'runTasks', 'runNotebooks', 'search', 'new', 'usages', 'vscodeAPI', 'problems', 'testFailure', 'openSimpleBrowser', 'fetch', 'githubRepo', 'todos', 'runTests', 'get_issue', 'get_issue_comments', 'get_me', 'get_pull_request', 'get_pull_request_diff', 'get_pull_request_files']
 ---
 

@@ -190,7 +190,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 			throw new Error(`Terminal not found: ${selector}`);
 		}
 
-		// eslint-disable-next-line local/code-no-any-casts
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		const xterm = (element as any).xterm;
 
 		if (!xterm) {
@@ -212,7 +212,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 			throw new Error(`Element not found: ${selector}`);
 		}
 
-		// eslint-disable-next-line local/code-no-any-casts
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		const xterm = (element as any).xterm as (XtermTerminal | undefined);
 
 		if (!xterm) {
