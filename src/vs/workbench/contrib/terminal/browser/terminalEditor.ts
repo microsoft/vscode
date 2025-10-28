@@ -152,6 +152,7 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
+		this._disposableStore.clear();
 		const actions = getTerminalActionBarArgs(TerminalLocation.Editor, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
 		this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 	}

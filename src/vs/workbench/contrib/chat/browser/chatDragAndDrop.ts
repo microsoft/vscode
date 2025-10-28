@@ -10,7 +10,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { UriList } from '../../../../base/common/dataTransfer.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -62,6 +62,18 @@ export class ChatDragAndDrop extends Themable {
 		super(themeService);
 
 		this.updateStyles();
+
+		this._register(toDisposable(() => {
+			this.overlays.forEach(({ overlay, disposable }) => {
+				disposable.dispose();
+				overlay.remove();
+			});
+
+			this.overlays.clear();
+			this.currentActiveTarget = undefined;
+			this.overlayText?.remove();
+			this.overlayText = undefined;
+		}));
 	}
 
 	addOverlay(target: HTMLElement, overlayContainer: HTMLElement): void {

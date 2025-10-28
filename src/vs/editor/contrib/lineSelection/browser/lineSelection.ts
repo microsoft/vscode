@@ -12,6 +12,10 @@ import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import * as nls from '../../../../nls.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 
+interface ExpandLinesSelectionArgs {
+	source?: string;
+}
+
 export class ExpandLineSelectionAction extends EditorAction {
 	constructor() {
 		super({
@@ -26,7 +30,7 @@ export class ExpandLineSelectionAction extends EditorAction {
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, args: ExpandLinesSelectionArgs): void {
 		args = args || {};
 		if (!editor.hasModel()) {
 			return;

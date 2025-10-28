@@ -48,6 +48,7 @@ class TestWebglAddon implements WebglAddon {
 class TestXtermAddonImporter extends XtermAddonImporter {
 	override async importAddon<T extends keyof IXtermAddonNameToCtor>(name: T): Promise<IXtermAddonNameToCtor[T]> {
 		if (name === 'webgl') {
+			// eslint-disable-next-line local/code-no-any-casts
 			return Promise.resolve(TestWebglAddon) as any;
 		}
 		return super.importAddon(name);
@@ -66,6 +67,7 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 		this._location = to;
 		this._onDidChangeLocation.fire({
 			views: [
+				// eslint-disable-next-line local/code-no-any-casts
 				{ id: TERMINAL_VIEW_ID } as any
 			],
 			from: oldLocation,
@@ -120,7 +122,7 @@ suite('XtermTerminal', () => {
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
 		const capabilityStore = store.add(new TerminalCapabilityStore());
-		xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, {
+		xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
 			cols: 80,
 			rows: 30,
 			xtermColorProvider: { getBackgroundColor: () => undefined },
@@ -278,7 +280,7 @@ suite('XtermTerminal', () => {
 				[PANEL_BACKGROUND]: '#ff0000',
 				[SIDE_BAR_BACKGROUND]: '#00ff00'
 			}));
-			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, {
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
 				cols: 80,
 				rows: 30,
 				xtermAddonImporter: new TestXtermAddonImporter(),
@@ -314,7 +316,7 @@ suite('XtermTerminal', () => {
 				'terminal.ansiBrightCyan': '#150000',
 				'terminal.ansiBrightWhite': '#160000',
 			}));
-			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, {
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
 				cols: 80,
 				rows: 30,
 				xtermAddonImporter: new TestXtermAddonImporter(),

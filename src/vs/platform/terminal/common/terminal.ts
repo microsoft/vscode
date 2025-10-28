@@ -11,15 +11,12 @@ import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITer
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from './terminalProcess.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { ISerializableEnvironmentVariableCollections } from './environmentVariable.js';
-import { RawContextKey } from '../../contextkey/common/contextkey.js';
 import { IWorkspaceFolder } from '../../workspace/common/workspace.js';
 import { Registry } from '../../registry/common/platform.js';
 import type * as performance from '../../../base/common/performance.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IAction } from '../../../base/common/actions.js';
 import type { IDisposable } from '../../../base/common/lifecycle.js';
-
-export const terminalTabFocusModeContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
 export const enum TerminalSettingPrefix {
 	AutomationProfile = 'terminal.integrated.automationProfile.',
@@ -90,7 +87,6 @@ export const enum TerminalSettingId {
 	EnvMacOs = 'terminal.integrated.env.osx',
 	EnvLinux = 'terminal.integrated.env.linux',
 	EnvWindows = 'terminal.integrated.env.windows',
-	EnvironmentChangesIndicator = 'terminal.integrated.environmentChangesIndicator',
 	EnvironmentChangesRelaunch = 'terminal.integrated.environmentChangesRelaunch',
 	ShowExitAlert = 'terminal.integrated.showExitAlert',
 	SplitCwd = 'terminal.integrated.splitCwd',
@@ -113,6 +109,8 @@ export const enum TerminalSettingId {
 	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
+	ShellIntegrationTimeout = 'terminal.integrated.shellIntegration.timeout',
+	ShellIntegrationQuickFixEnabled = 'terminal.integrated.shellIntegration.quickFixEnabled',
 	ShellIntegrationEnvironmentReporting = 'terminal.integrated.shellIntegration.environmentReporting',
 	EnableImages = 'terminal.integrated.enableImages',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
@@ -122,7 +120,7 @@ export const enum TerminalSettingId {
 	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
 	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
 
-	// Debug settings that are hidden from user
+	// Developer/debug settings
 
 	/** Simulated latency applied to all calls made to the pty host */
 	DeveloperPtyHostLatency = 'terminal.integrated.developer.ptyHost.latency',
@@ -173,6 +171,7 @@ export type ITerminalTabLayoutInfoById = IRawTerminalTabLayoutInfo<number>;
 
 export interface IRawTerminalsLayoutInfo<T> {
 	tabs: IRawTerminalTabLayoutInfo<T>[];
+	background: T[] | null;
 }
 
 export interface IPtyHostAttachTarget {
@@ -597,6 +596,12 @@ export interface IShellLaunchConfig {
 	hideFromUser?: boolean;
 
 	/**
+	 * Whether to force the terminal to persist across sessions regardless of the other
+	 * launch config, like `hideFromUser`.
+	 */
+	forcePersist?: boolean;
+
+	/**
 	 * Whether this terminal is not a terminal that the user directly created and uses, but rather
 	 * a terminal used to drive some VS Code feature.
 	 */
@@ -682,7 +687,7 @@ export enum TerminalLocation {
 	Editor = 2
 }
 
-export const enum TerminalLocationString {
+export const enum TerminalLocationConfigValue {
 	TerminalView = 'view',
 	Editor = 'editor'
 }
@@ -718,6 +723,7 @@ export interface ITerminalProcessOptions {
 	windowsUseConptyDll: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	workspaceFolder: IWorkspaceFolder | undefined;
+	isScreenReaderOptimized: boolean;
 }
 
 export interface ITerminalEnvironment {
@@ -763,12 +769,12 @@ export interface ITerminalChildProcess {
 	 */
 	shouldPersist: boolean;
 
-	onProcessData: Event<IProcessDataEvent | string>;
-	onProcessReady: Event<IProcessReadyEvent>;
-	onProcessReplayComplete?: Event<void>;
-	onDidChangeProperty: Event<IProcessProperty<any>>;
-	onProcessExit: Event<number | undefined>;
-	onRestoreCommands?: Event<ISerializedCommandDetectionCapability>;
+	readonly onProcessData: Event<IProcessDataEvent | string>;
+	readonly onProcessReady: Event<IProcessReadyEvent>;
+	readonly onProcessReplayComplete?: Event<void>;
+	readonly onDidChangeProperty: Event<IProcessProperty<any>>;
+	readonly onProcessExit: Event<number | undefined>;
+	readonly onRestoreCommands?: Event<ISerializedCommandDetectionCapability>;
 
 	/**
 	 * Starts the process.
@@ -976,8 +982,14 @@ export interface IDecorationAddon {
 	registerMenuItems(command: ITerminalCommand, items: IAction[]): IDisposable;
 }
 
+export interface ITerminalCompletionProviderContribution {
+	id: string;
+	description?: string;
+}
+
 export interface ITerminalContributions {
 	profiles?: ITerminalProfileContribution[];
+	completionProviders?: ITerminalCompletionProviderContribution[];
 }
 
 export const enum ShellIntegrationStatus {
@@ -1106,19 +1118,19 @@ export interface ITerminalBackend extends ITerminalBackendPtyServiceContribution
 	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
 	 * terminals using this pty host connection and mark them as disconnected.
 	 */
-	onPtyHostUnresponsive: Event<void>;
+	readonly onPtyHostUnresponsive: Event<void>;
 	/**
 	 * Fired when the ptyHost process becomes responsive after being non-responsive. Allowing
 	 * previously disconnected terminals to reconnect.
 	 */
-	onPtyHostResponsive: Event<void>;
+	readonly onPtyHostResponsive: Event<void>;
 	/**
 	 * Fired when the ptyHost has been restarted, this is used as a signal for listening terminals
 	 * that its pty has been lost and will remain disconnected.
 	 */
-	onPtyHostRestart: Event<void>;
+	readonly onPtyHostRestart: Event<void>;
 
-	onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
+	readonly onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined>;

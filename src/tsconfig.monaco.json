@@ -7,9 +7,8 @@
 			"trusted-types",
 			"wicg-file-system-access"
 		],
-		"paths": {},
-		"module": "amd",
-		"moduleResolution": "node",
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"target": "ES2022",

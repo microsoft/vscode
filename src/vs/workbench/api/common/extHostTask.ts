@@ -36,12 +36,12 @@ export interface IExtHostTask extends ExtHostTaskShape {
 	readonly _serviceBrand: undefined;
 
 	taskExecutions: vscode.TaskExecution[];
-	onDidStartTask: Event<vscode.TaskStartEvent>;
-	onDidEndTask: Event<vscode.TaskEndEvent>;
-	onDidStartTaskProcess: Event<vscode.TaskProcessStartEvent>;
-	onDidEndTaskProcess: Event<vscode.TaskProcessEndEvent>;
-	onDidStartTaskProblemMatchers: Event<vscode.TaskProblemMatcherStartedEvent>;
-	onDidEndTaskProblemMatchers: Event<vscode.TaskProblemMatcherEndedEvent>;
+	readonly onDidStartTask: Event<vscode.TaskStartEvent>;
+	readonly onDidEndTask: Event<vscode.TaskEndEvent>;
+	readonly onDidStartTaskProcess: Event<vscode.TaskProcessStartEvent>;
+	readonly onDidEndTaskProcess: Event<vscode.TaskProcessEndEvent>;
+	readonly onDidStartTaskProblemMatchers: Event<vscode.TaskProblemMatcherStartedEvent>;
+	readonly onDidEndTaskProblemMatchers: Event<vscode.TaskProblemMatcherEndedEvent>;
 
 	registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable;
 	registerTaskSystem(scheme: string, info: tasks.ITaskSystemInfoDTO): void;

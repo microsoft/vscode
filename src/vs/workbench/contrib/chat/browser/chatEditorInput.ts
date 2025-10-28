@@ -8,32 +8,39 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { truncate } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
-import { ChatAgentLocation } from '../common/constants.js';
+import { IChatSessionsService } from '../common/chatSessionsService.js';
+import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.chatSparkle, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 
 export class ChatEditorInput extends EditorInput implements IEditorCloseHandler {
-	static readonly countsInUse = new Set<number>();
+	/** Maps input name strings to sets of active editor counts */
+	static readonly countsInUseMap = new Map<string, Set<number>>();
 
 	static readonly TypeID: string = 'workbench.input.chatSession';
 	static readonly EditorID: string = 'workbench.editor.chatSession';
 
 	private readonly inputCount: number;
+	private readonly inputName: string;
+
 	public sessionId: string | undefined;
 	private hasCustomTitle: boolean = false;
+	private cachedIcon: ThemeIcon | URI | undefined;
 
 	private model: IChatModel | undefined;
 
@@ -42,9 +49,9 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return ChatEditorUri.generate(handle);
 	}
 
-	static getNextCount(): number {
+	static getNextCount(inputName: string): number {
 		let count = 0;
-		while (ChatEditorInput.countsInUse.has(count)) {
+		while (ChatEditorInput.countsInUseMap.get(inputName)?.has(count)) {
 			count++;
 		}
 
@@ -56,6 +63,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		readonly options: IChatEditorOptions,
 		@IChatService private readonly chatService: IChatService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -64,8 +72,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			if (!parsed || typeof parsed !== 'number') {
 				throw new Error('Invalid chat URI');
 			}
-		} else if (resource.scheme !== Schemas.vscodeChatSession) {
-			throw new Error('Invalid chat URI');
 		}
 
 		this.sessionId = (options.target && 'sessionId' in options.target) ?
@@ -80,14 +86,23 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 		this.hasCustomTitle = Boolean(hasExistingCustomTitle);
 
+		// Input counts are unique to the displayed fallback title
+		this.inputName = options.title?.fallback ?? '';
+		if (!ChatEditorInput.countsInUseMap.has(this.inputName)) {
+			ChatEditorInput.countsInUseMap.set(this.inputName, new Set());
+		}
+
 		// Only allocate a count if we don't already have a custom title
 		if (!this.hasCustomTitle) {
-			this.inputCount = ChatEditorInput.getNextCount();
-			ChatEditorInput.countsInUse.add(this.inputCount);
+			this.inputCount = ChatEditorInput.getNextCount(this.inputName);
+			ChatEditorInput.countsInUseMap.get(this.inputName)?.add(this.inputCount);
 			this._register(toDisposable(() => {
 				// Only remove if we haven't already removed it due to custom title
 				if (!this.hasCustomTitle) {
-					ChatEditorInput.countsInUse.delete(this.inputCount);
+					ChatEditorInput.countsInUseMap.get(this.inputName)?.delete(this.inputCount);
+					if (ChatEditorInput.countsInUseMap.get(this.inputName)?.size === 0) {
+						ChatEditorInput.countsInUseMap.delete(this.inputName);
+					}
 				}
 			}));
 		} else {
@@ -121,7 +136,15 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		return otherInput instanceof ChatEditorInput && otherInput.resource.toString() === this.resource.toString();
+		if (!(otherInput instanceof ChatEditorInput)) {
+			return false;
+		}
+
+		if (this.resource.scheme === Schemas.vscodeChatEditor && otherInput.resource.scheme === Schemas.vscodeChatEditor) {
+			return this.sessionId === otherInput.sessionId;
+		}
+
+		return isEqual(this.resource, otherInput.resource);
 	}
 
 	override get typeId(): string {
@@ -131,7 +154,8 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	override getName(): string {
 		// If we have a resolved model, use its title
 		if (this.model?.title) {
-			return this.model.title;
+			// Only truncate if the default title is being used (don't truncate custom titles)
+			return this.model.hasCustomTitle ? this.model.title : truncate(this.model.title, ChatEditorTitleMaxLength);
 		}
 
 		// If we have a sessionId but no resolved model, try to get the title from persisted sessions
@@ -149,28 +173,90 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			}
 		}
 
+		// If a preferred title was provided in options, use it
+		if (this.options.title?.preferred) {
+			return this.options.title.preferred;
+		}
+
 		// Fall back to default naming pattern
-		const defaultName = nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
-		return defaultName;
+		const inputCountSuffix = (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
+		const defaultName = this.options.title?.fallback ?? nls.localize('chatEditorName', "Chat");
+		return defaultName + inputCountSuffix;
 	}
 
-	override getIcon(): ThemeIcon {
+	override getTitle(verbosity?: Verbosity): string {
+		const name = this.getName();
+		if (verbosity === Verbosity.LONG) { // Verbosity LONG is used for tooltips
+			const sessionType = this.getSessionType();
+			const sessionTypeDisplayName = this.getSessionTypeDisplayName(sessionType);
+			if (sessionTypeDisplayName) {
+				return `${name} | ${sessionTypeDisplayName}`;
+			}
+		}
+		return name;
+	}
+
+	private getSessionTypeDisplayName(sessionType: string): string | undefined {
+		if (sessionType === 'local') {
+			return;
+		}
+		const contributions = this.chatSessionsService.getAllChatSessionContributions();
+		const contribution = contributions.find(c => c.type === sessionType);
+		return contribution?.displayName;
+	}
+
+	override getIcon(): ThemeIcon | URI | undefined {
+		const resolvedIcon = this.resolveIcon();
+		if (resolvedIcon) {
+			this.cachedIcon = resolvedIcon;
+			return resolvedIcon;
+		}
+
+		// Fall back to default icon
 		return ChatEditorIcon;
 	}
 
+	private resolveIcon(): ThemeIcon | URI | undefined {
+		// TODO@osortega,@rebornix double check: Chat Session Item icon is reserved for chat session list and deprecated for chat session status. thus here we use session type icon. We may want to show status for the Editor Title.
+		const sessionType = this.getSessionType();
+		if (sessionType !== 'local') {
+			const typeIcon = this.chatSessionsService.getIconForSessionType(sessionType);
+			if (typeIcon) {
+				return typeIcon;
+			}
+		}
+
+		return undefined;
+	}
+
+	private getSessionType(): string {
+		if (!this.resource) {
+			return 'local';
+		}
+
+		const { scheme } = this.resource;
+		if (scheme === Schemas.vscodeChatEditor || scheme === Schemas.vscodeChatSession) {
+			return 'local';
+		}
+		return scheme;
+	}
+
 	override async resolve(): Promise<ChatEditorModel | null> {
-		if (this.resource.scheme === Schemas.vscodeChatSession) {
-			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Editor, CancellationToken.None);
+		const searchParams = new URLSearchParams(this.resource.query);
+		const chatSessionType = searchParams.get('chatSessionType');
+		const inputType = chatSessionType ?? this.resource.authority;
+		if (this.resource.scheme !== Schemas.vscodeChatEditor) {
+			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Chat, CancellationToken.None);
 		} else if (typeof this.sessionId === 'string') {
 			this.model = await this.chatService.getOrRestoreSession(this.sessionId)
-				?? this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
+				?? this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: false, inputType: inputType });
 		} else if (!this.options.target) {
-			this.model = this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
+			this.model = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: !inputType, inputType: inputType });
 		} else if ('data' in this.options.target) {
 			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
 
-		if (!this.model) {
+		if (!this.model || this.isDisposed()) {
 			return null;
 		}
 
@@ -179,12 +265,35 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			// When a custom title is set, we no longer need the numeric count
 			if (e && e.kind === 'setCustomTitle' && !this.hasCustomTitle) {
 				this.hasCustomTitle = true;
-				ChatEditorInput.countsInUse.delete(this.inputCount);
+				ChatEditorInput.countsInUseMap.get(this.inputName)?.delete(this.inputCount);
+				if (ChatEditorInput.countsInUseMap.get(this.inputName)?.size === 0) {
+					ChatEditorInput.countsInUseMap.delete(this.inputName);
+				}
 			}
+			// Invalidate icon cache when label changes
+			this.cachedIcon = undefined;
 			this._onDidChangeLabel.fire();
 		}));
 
+		// Check if icon has changed after model resolution
+		const newIcon = this.resolveIcon();
+		if (newIcon && (!this.cachedIcon || !this.iconsEqual(this.cachedIcon, newIcon))) {
+			this.cachedIcon = newIcon;
+		}
+
+		this._onDidChangeLabel.fire();
+
 		return this._register(new ChatEditorModel(this.model));
+	}
+
+	private iconsEqual(a: ThemeIcon | URI, b: ThemeIcon | URI): boolean {
+		if (ThemeIcon.isThemeIcon(a) && ThemeIcon.isThemeIcon(b)) {
+			return a.id === b.id;
+		}
+		if (a instanceof URI && b instanceof URI) {
+			return a.toString() === b.toString();
+		}
+		return false;
 	}
 
 	override dispose(): void {
@@ -199,7 +308,6 @@ export class ChatEditorModel extends Disposable {
 	private _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
-	private _isDisposed = false;
 	private _isResolved = false;
 
 	constructor(
@@ -215,12 +323,7 @@ export class ChatEditorModel extends Disposable {
 	}
 
 	isDisposed(): boolean {
-		return this._isDisposed;
-	}
-
-	override dispose(): void {
-		super.dispose();
-		this._isDisposed = true;
+		return this._store.isDisposed;
 	}
 }
 

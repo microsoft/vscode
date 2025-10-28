@@ -35,6 +35,10 @@
 		border-bottom: 1px solid var(--vscode-chat-requestBorder);
 	}
 
+	p {
+		margin: 0px;
+	}
+
 	.description .see-more {
 		display: none;
 		position: absolute;

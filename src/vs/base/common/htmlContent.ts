@@ -199,12 +199,15 @@ export function parseHrefAndDimensions(href: string): { href: string; dimensions
 	return { href, dimensions };
 }
 
-export function markdownCommandLink(command: { title: string; id: string; arguments?: unknown[] }, escapeTokens = true): string {
-	const uri = URI.from({
-		scheme: Schemas.command,
-		path: command.id,
-		query: command.arguments?.length ? encodeURIComponent(JSON.stringify(command.arguments)) : undefined,
-	}).toString();
+export function markdownCommandLink(command: { title: string; id: string; arguments?: unknown[]; tooltip?: string }, escapeTokens = true): string {
+	const uri = createCommandUri(command.id, ...(command.arguments || [])).toString();
+	return `[${escapeTokens ? escapeMarkdownSyntaxTokens(command.title) : command.title}](${uri}${command.tooltip ? ` "${escapeMarkdownSyntaxTokens(command.tooltip)}"` : ''})`;
+}
 
-	return `[${escapeTokens ? escapeMarkdownSyntaxTokens(command.title) : command.title}](${uri})`;
+export function createCommandUri(commandId: string, ...commandArgs: unknown[]): URI {
+	return URI.from({
+		scheme: Schemas.command,
+		path: commandId,
+		query: commandArgs.length ? encodeURIComponent(JSON.stringify(commandArgs)) : undefined,
+	});
 }
