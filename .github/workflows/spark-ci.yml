@@ -1,0 +1,33 @@
+name: spark-ci
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'docs/**'
+      - '.github/workflows/spark-ci.yml'
+
+jobs:
+  landing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with: 
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'apps/www/package-lock.json'
+      
+      - name: Install dependencies
+        working-directory: apps/www
+        run: npm ci || npm install
+      
+      - name: Type check
+        working-directory: apps/www
+        run: npx tsc --noEmit
+      
+      - name: Build
+        working-directory: apps/www
+        run: npm run build

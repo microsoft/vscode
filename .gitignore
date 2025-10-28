@@ -23,3 +23,12 @@ product.overrides.json
 *.tsbuildinfo
 .vscode-test
 vscode-telemetry-docs/
+
+# Spark-specific
+.env
+.env.*
+!.env.example
+apps/www/.next
+apps/www/out
+apps/www/.data
+*.log
