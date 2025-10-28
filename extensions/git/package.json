@@ -515,6 +515,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.graph.compareBranches",
+        "title": "%command.graphCompareBranches%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.deleteRemoteBranch",
         "title": "%command.deleteRemoteBranch%",
         "category": "Git",
@@ -1595,6 +1601,10 @@
           "when": "false"
         },
         {
+          "command": "git.graph.compareBranches",
+          "when": "false"
+        },
+        {
           "command": "git.graph.deleteTag",
           "when": "false"
         },
@@ -2264,6 +2274,11 @@
           "command": "git.graph.deleteBranch",
           "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/heads\\/|^refs\\/remotes\\//",
           "group": "2_branch@2"
+        },
+        {
+          "command": "git.graph.compareBranches",
+          "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/heads\\//",
+          "group": "2_branch@3"
         },
         {
           "command": "git.graph.deleteTag",
