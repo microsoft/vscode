@@ -21,7 +21,7 @@ import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalCapability, type ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
@@ -544,6 +544,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			throw new Error('Instance was disposed before xterm.js was ready');
 		}
 
+		const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
+
 		let inputUserChars = 0;
 		let inputUserSigint = false;
 		store.add(xterm.raw.onData(data => {
@@ -564,6 +566,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
 				await Event.toPromise(outputMonitor.onDidFinishCommand);
 				const pollingResult = outputMonitor.pollingResult;
+				this._setTerminalCommandUri(toolSpecificData, toolTerminal.instance, commandDetection);
 
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
@@ -599,6 +602,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
+				this._setTerminalCommandUri(toolSpecificData, toolTerminal.instance, commandDetection);
 				store.dispose();
 				this._logService.debug(`RunInTerminalTool: Finished polling \`${pollingResult?.output.length}\` lines of output in \`${pollingResult?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
@@ -635,13 +639,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let exitCode: number | undefined;
 			try {
 				let strategy: ITerminalExecuteStrategy;
-				const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
-				if (commandDetection?.currentCommand) {
-					const params = new URLSearchParams(toolTerminal.instance.resource.query);
-					params.set('command', commandDetection.currentCommand.id);
-					const commandUri = toolTerminal.instance.resource.with({ query: params.toString() || undefined });
-					toolSpecificData.terminalCommandUri = commandUri.toJSON();
-				}
+				this._setTerminalCommandUri(toolSpecificData, toolTerminal.instance, commandDetection, commandDetection?.currentCommand?.id);
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
 						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false);
@@ -664,6 +662,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}
 				}));
 				const executeResult = await strategy.execute(command, token);
+				this._setTerminalCommandUri(toolSpecificData, toolTerminal.instance, commandDetection);
 				// Reset user input state after command execution completes
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
@@ -690,6 +689,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
+				this._setTerminalCommandUri(toolSpecificData, toolTerminal.instance, commandDetection);
 				store.dispose();
 				const timingExecuteMs = Date.now() - timingStart;
 				this._telemetry.logInvoke(toolTerminal.instance, {
@@ -738,6 +738,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}]
 			};
 		}
+	}
+
+	private _setTerminalCommandUri(toolSpecificData: IChatTerminalToolInvocationData, instance: ITerminalInstance, commandDetection: ICommandDetectionCapability | undefined, explicitCommandId?: string | undefined): void {
+		if (toolSpecificData.terminalCommandUri) {
+			return;
+		}
+
+		const commandId = explicitCommandId ?? commandDetection?.commands.at(-1)?.id;
+		if (!commandId) {
+			return;
+		}
+
+		const params = new URLSearchParams(instance.resource.query);
+		params.set('command', commandId);
+		const commandUri = instance.resource.with({ query: params.toString() || undefined });
+		toolSpecificData.terminalCommandUri = commandUri.toJSON();
 	}
 
 	private _handleTerminalVisibility(toolTerminal: IToolTerminal) {

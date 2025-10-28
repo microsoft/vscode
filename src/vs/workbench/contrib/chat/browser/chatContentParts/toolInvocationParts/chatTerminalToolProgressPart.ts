@@ -26,14 +26,15 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
-import { MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { localize } from '../../../../../../nls.js';
 import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
-import { ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalCommand, TerminalCapability, type ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import * as domSanitize from '../../../../../../base/browser/domSanitize.js';
@@ -256,11 +257,40 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private _registerInstanceListener(terminalInstance: ITerminalInstance) {
+		const commandDetectionListener = this._register(new MutableDisposable<IDisposable>());
+		const tryResolveCommand = () => {
+			if (this._attachedCommand) {
+				return true;
+			}
+			const resolvedCommand = this._resolveCommand(terminalInstance);
+			if (resolvedCommand) {
+				this._attachedCommand = resolvedCommand;
+				return true;
+			}
+			return false;
+		};
+
+		const attachCommandDetection = (commandDetection: ICommandDetectionCapability | undefined) => {
+			commandDetectionListener.clear();
+			if (!commandDetection || tryResolveCommand()) {
+				return;
+			}
+			commandDetectionListener.value = Event.runAndSubscribe(commandDetection.onCommandFinished, () => {
+				if (tryResolveCommand()) {
+					commandDetectionListener.clear();
+				}
+			});
+		};
+
+		attachCommandDetection(terminalInstance.capabilities.get(TerminalCapability.CommandDetection));
+		this._register(terminalInstance.capabilities.onDidAddCommandDetectionCapability(cd => attachCommandDetection(cd)));
+
 		const instanceListener = this._register(terminalInstance.onDisposed(() => {
 			if (this._terminalForOutput === terminalInstance) {
 				this._terminalForOutput = undefined;
 				this._attachedCommand = undefined;
 			}
+			commandDetectionListener.clear();
 			this._actionBar.value?.clear();
 			instanceListener.dispose();
 		}));
@@ -330,13 +360,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const commandUriComponents = this._terminalData.terminalCommandUri;
 		if (commandUriComponents) {
 			const commandUri = URI.revive(commandUriComponents);
-			if (!commandUri.path || commandUri.path === instance.resource.path) {
-				const commandId = new URLSearchParams(commandUri.query).get('command');
-				if (commandId) {
-					const byId = commands.find(cmd => cmd.id === commandId);
-					if (byId) {
-						return byId;
-					}
+			const commandId = new URLSearchParams(commandUri.query).get('command');
+			if (commandId) {
+				const byId = commands.find(cmd => cmd.id === commandId);
+				if (byId) {
+					return byId;
 				}
 			}
 		}
