@@ -249,7 +249,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		if (this._hoverSettings.enabled) {
+		if (this._hoverSettings.enabled || mouseEvent.event.ctrlKey) {
 			const contentWidget: ContentHoverWidgetWrapper = this._getOrCreateContentWidget();
 			if (contentWidget.showsOrWillShow(mouseEvent)) {
 				return;
