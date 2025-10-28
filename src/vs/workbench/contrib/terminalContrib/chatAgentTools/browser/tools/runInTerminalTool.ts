@@ -578,10 +578,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				);
 				if (pollingResult && pollingResult.modelOutputEvalResponse) {
 					resultText += `\n\ The command became idle with output:\n${pollingResult.modelOutputEvalResponse}`;
-					toolSpecificData.capturedOutput = pollingResult.modelOutputEvalResponse;
 				} else if (pollingResult) {
 					resultText += `\n\ The command is still running, with output:\n${pollingResult.output}`;
-					toolSpecificData.capturedOutput = pollingResult.output;
 				}
 
 				return {
@@ -670,9 +668,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
-				}
-				if (executeResult.output !== undefined) {
-					toolSpecificData.capturedOutput = executeResult.output;
 				}
 
 				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);

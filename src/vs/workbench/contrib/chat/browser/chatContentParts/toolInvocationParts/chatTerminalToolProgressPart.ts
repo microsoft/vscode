@@ -7,7 +7,6 @@ import { h } from '../../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
@@ -36,9 +35,22 @@ import { localize } from '../../../../../../nls.js';
 import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import * as domSanitize from '../../../../../../base/browser/domSanitize.js';
+import { DomSanitizerConfig } from '../../../../../../base/browser/domSanitize.js';
+import { allowedMarkdownHtmlAttributes } from '../../../../../../base/browser/markdownRenderer.js';
 
-const MAX_TERMINAL_OUTPUT_PREVIEW_LENGTH = 20000;
+const MAX_TERMINAL_OUTPUT_PREVIEW_LINES = 1000;
 const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
+
+const sanitizerConfig = Object.freeze<DomSanitizerConfig>({
+	allowedTags: {
+		augment: ['b', 'i', 'u', 'code', 'span', 'div', 'body', 'pre'],
+	},
+	allowedAttributes: {
+		augment: [...allowedMarkdownHtmlAttributes, 'style']
+	}
+});
 
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -178,7 +190,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private async _addShowOutputAction() {
-		this._showOutputAction = new Action(
+		this._showOutputAction = this._register(new Action(
 			'chat.showTerminalOutput',
 			localize('showTerminalOutput', 'Show Output'),
 			ThemeIcon.asClassName(Codicon.chevronRight),
@@ -196,6 +208,15 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					if (!this._outputContent && this._terminalForOutput) {
 						const output = await this._collectOutput(this._terminalForOutput);
 						this._outputContent = this._renderOutput(output);
+						const theme = this._terminalForOutput.xterm?.getXtermTheme();
+						if (theme) {
+							const inlineTerminal = this._outputContent.querySelector('div');
+							if (!inlineTerminal) {
+								return;
+							}
+							inlineTerminal.style.setProperty('background-color', theme.background || 'transparent');
+							inlineTerminal.style.setProperty('color', theme.foreground || 'inherit');
+						}
 						this._outputBody.replaceChildren(this._outputContent);
 						if (!this._outputScrollbar) {
 							this._outputScrollbar = this._register(new DomScrollableElement(this._outputBody, {
@@ -230,7 +251,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					this._showOutputAction.class = ThemeIcon.asClassName(Codicon.chevronRight);
 				}
 			}
-		);
+		));
 		this._actionBar.value?.push(this._showOutputAction, { icon: true, label: false });
 	}
 
@@ -272,15 +293,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private async _collectOutput(terminalInstance: ITerminalInstance): Promise<{ text: string; truncated: boolean }> {
 		await terminalInstance.xtermReadyPromise;
 		this._attachedCommand ??= this._resolveCommand(terminalInstance);
-		let text = this._attachedCommand?.getOutput() ?? this._terminalData.capturedOutput ?? '';
-
-		let truncated = false;
-		if (text.length > MAX_TERMINAL_OUTPUT_PREVIEW_LENGTH) {
-			text = text.slice(-MAX_TERMINAL_OUTPUT_PREVIEW_LENGTH);
-			truncated = true;
+		const text = await terminalInstance.xterm?.getSelectionAsHtml(this._attachedCommand, MAX_TERMINAL_OUTPUT_PREVIEW_LINES, true);
+		if (!text) {
+			return { text: '', truncated: false };
 		}
 
-		return { text, truncated };
+		return { text, truncated: false };
 	}
 
 	private _renderOutput(result: { text: string; truncated: boolean }): HTMLElement {
@@ -289,13 +307,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const pre = document.createElement('pre');
 		pre.classList.add('chat-terminal-output');
-		pre.textContent = result.text || localize('chat.terminalNoOutput', 'No output captured for this command.');
+		domSanitize.safeSetInnerHtml(pre, result.text, sanitizerConfig);
 		container.appendChild(pre);
 
 		if (result.truncated) {
 			const note = document.createElement('div');
 			note.classList.add('chat-terminal-output-info');
-			note.textContent = localize('chat.terminalOutputTruncated', 'Output truncated to first {0} characters.', MAX_TERMINAL_OUTPUT_PREVIEW_LENGTH);
+			note.textContent = localize('chat.terminalOutputTruncated', 'Output truncated to first {0} characters.', MAX_TERMINAL_OUTPUT_PREVIEW_LINES);
 			container.appendChild(note);
 		}
 

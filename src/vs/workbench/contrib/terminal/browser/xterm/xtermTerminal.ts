@@ -368,20 +368,30 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		return this._serializeAddon.serializeAsHTML();
 	}
 
-	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
+	async getSelectionAsHtml(command?: ITerminalCommand, maxLines?: number, explicitRange?: boolean): Promise<string> {
 		if (!this._serializeAddon) {
 			const Addon = await this._xtermAddonLoader.importAddon('serialize');
 			this._serializeAddon = new Addon();
 			this.raw.loadAddon(this._serializeAddon);
 		}
-		if (command) {
+		if (explicitRange && command) {
+			let startLine = command.marker?.line ? command.marker.line + 1 : 1;
+			const endLine = command.endMarker?.line ? command.endMarker.line - 1 : this.raw.buffer.active.length - 1;
+			if (maxLines && endLine - startLine > maxLines) {
+				startLine = endLine - maxLines;
+			}
+			const range = { startLine, endLine: endLine, startCol: command.startX ?? 0 };
+			const result = this._serializeAddon.serializeAsHTML({ range });
+			return result;
+		} else if (command) {
 			const length = command.getOutput()?.length;
 			const row = command.marker?.line;
 			if (!length || !row) {
 				throw new Error(`No row ${row} or output length ${length} for command ${command}`);
 			}
-			this.raw.select(0, row + 1, length - Math.floor(length / this.raw.cols));
+			this.raw.select(command.startX ?? 0, row + 1, length - Math.floor(length / this.raw.cols));
 		}
+
 		const result = this._serializeAddon.serializeAsHTML({ onlySelection: true });
 		if (command) {
 			this.raw.clearSelection();
