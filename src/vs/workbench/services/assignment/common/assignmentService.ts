@@ -94,12 +94,12 @@ class WorkbenchAssignmentServiceTelemetry extends Disposable implements IExperim
 	}
 
 	private _setAssignmentContext(value: string): void {
-		value = this._filterAssignmentContext(value);
-		this._lastAssignmentContext = value;
+		const filteredValue = this._filterAssignmentContext(value);
+		this._lastAssignmentContext = filteredValue;
 		this._onDidUpdateAssignmentContext.fire();
 
 		if (this.productService.tasConfig?.assignmentContextTelemetryPropertyName) {
-			this.telemetryService.setExperimentProperty(this.productService.tasConfig.assignmentContextTelemetryPropertyName, value);
+			this.telemetryService.setExperimentProperty(this.productService.tasConfig.assignmentContextTelemetryPropertyName, filteredValue);
 		}
 	}
 
