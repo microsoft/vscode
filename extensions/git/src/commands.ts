@@ -3114,7 +3114,7 @@ export class CommandCenter {
 		await this._deleteBranch(repository, undefined, undefined, { remote: true });
 	}
 
-	@command('git.graph.compareBranches', { repository: true })
+	@command('git.graph.compareBranch', { repository: true })
 	async compareBranches(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
 		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
 		if (!historyItemRefId || !historyItemRef) {
@@ -3128,6 +3128,7 @@ export class CommandCenter {
 			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
 			const processors = [
 				new RefProcessor(RefType.Head, BranchItem),
+				new RefProcessor(RefType.RemoteHead, BranchItem),
 				new RefProcessor(RefType.Tag, BranchItem)
 			];
 

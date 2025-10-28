@@ -515,8 +515,8 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.graph.compareBranches",
-        "title": "%command.graphCompareBranches%",
+        "command": "git.graph.compareBranch",
+        "title": "%command.graphCompareBranch%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1601,7 +1601,7 @@
           "when": "false"
         },
         {
-          "command": "git.graph.compareBranches",
+          "command": "git.graph.compareBranch",
           "when": "false"
         },
         {
@@ -2276,7 +2276,7 @@
           "group": "2_branch@2"
         },
         {
-          "command": "git.graph.compareBranches",
+          "command": "git.graph.compareBranch",
           "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/heads\\//",
           "group": "2_branch@3"
         },

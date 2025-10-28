@@ -135,7 +135,7 @@
 	"command.graphCheckout": "Checkout",
 	"command.graphCheckoutDetached": "Checkout (Detached)",
 	"command.graphCherryPick": "Cherry Pick",
-	"command.graphCompareBranches": "Compare Branches...",
+	"command.graphCompareBranch": "Compare Branch...",
 	"command.graphDeleteBranch": "Delete Branch",
 	"command.graphDeleteTag": "Delete Tag",
 	"command.blameToggleEditorDecoration": "Toggle Git Blame Editor Decoration",
