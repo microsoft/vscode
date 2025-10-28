@@ -201,6 +201,13 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(r.getStateById(tests.root.id)?.ownComputedState, TestResultState.Unset);
 			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString())?.ownComputedState, TestResultState.Passed);
 		});
+
+		test('enqueued but never completed tests should show as skipped (#272888)', () => {
+			r.setAllToStatePublic(TestResultState.Queued, 't', () => true);
+			r.updateState(new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), 't', TestResultState.Passed);
+			r.markComplete();
+			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString())?.ownComputedState, TestResultState.Skipped);
+		});
 	});
 
 	suite('service', () => {
