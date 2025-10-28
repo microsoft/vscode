@@ -515,8 +515,8 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.graph.compareBranches",
-        "title": "%command.graphCompareBranches%",
+        "command": "git.graph.compareBranch",
+        "title": "%command.graphCompareBranch%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -589,6 +589,12 @@
       {
         "command": "git.graph.deleteTag",
         "title": "%command.graphDeleteTag%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.graph.compareTag",
+        "title": "%command.graphCompareTag%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1601,11 +1607,15 @@
           "when": "false"
         },
         {
-          "command": "git.graph.compareBranches",
+          "command": "git.graph.compareBranch",
           "when": "false"
         },
         {
           "command": "git.graph.deleteTag",
+          "when": "false"
+        },
+        {
+          "command": "git.graph.compareTag",
           "when": "false"
         },
         {
@@ -2276,7 +2286,7 @@
           "group": "2_branch@2"
         },
         {
-          "command": "git.graph.compareBranches",
+          "command": "git.graph.compareBranch",
           "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/heads\\//",
           "group": "2_branch@3"
         },
@@ -2284,6 +2294,11 @@
           "command": "git.graph.deleteTag",
           "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/tags\\//",
           "group": "3_tag@2"
+        },
+        {
+          "command": "git.graph.compareTag",
+          "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/tags\\//",
+          "group": "3_tag@3"
         }
       ],
       "editor/title": [
