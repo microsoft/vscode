@@ -423,7 +423,6 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ITerminalService private readonly terminalService: ITerminalService,
 	) {
 		super(
 			'chat.focusTerminalInstance',
