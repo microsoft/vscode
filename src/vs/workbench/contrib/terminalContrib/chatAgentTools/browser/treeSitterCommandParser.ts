@@ -22,14 +22,26 @@ export class TreeSitterCommandParser {
 		this._parser = this._treeSitterLibraryService.getParserClass().then(ParserCtor => new ParserCtor());
 	}
 
-	async queryTree(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<QueryCapture[]> {
-		const { tree, query } = await this._doQuery(languageId, commandLine, querySource);
-		return query.captures(tree.rootNode);
+	async extractSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
+		const captures = await this._queryTree(languageId, commandLine, '(command) @command');
+		return captures.map(e => e.node.text);
 	}
 
-	async extractSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
-		const captures = await this.queryTree(languageId, commandLine, '(command) @command');
-		return captures.map(e => e.node.text);
+	async extractPwshDoubleAmpersandChainOperators(commandLine: string): Promise<QueryCapture[]> {
+		const captures = await this._queryTree(TreeSitterCommandParserLanguage.PowerShell, commandLine, [
+			'(',
+			'  (command',
+			'    (command_elements',
+			'      (generic_token) @double.ampersand',
+			'        (#eq? @double.ampersand "&&")))',
+			')',
+		].join('\n'));
+		return captures;
+	}
+
+	private async _queryTree(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<QueryCapture[]> {
+		const { tree, query } = await this._doQuery(languageId, commandLine, querySource);
+		return query.captures(tree.rootNode);
 	}
 
 	private async _doQuery(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<{ tree: Tree; query: Query }> {
