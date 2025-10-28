@@ -22,7 +22,7 @@ import { isExportableSessionData } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 
 const defaultFileName = 'chat.json';
 const filters = [{ name: localize('chat.file.label', "Chat Session"), extensions: ['json'] }];
@@ -129,7 +129,7 @@ export function registerChatExportActions() {
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const clipboardService = accessor.get(IClipboardService);
 			const notificationService = accessor.get(INotificationService);
-			const extensionService = accessor.get(IExtensionService);
+			const commandService = accessor.get(ICommandService);
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget || !widget.viewModel) {
@@ -152,13 +152,6 @@ export function registerChatExportActions() {
 
 			const workspaceFolder = workspace.folders[0];
 
-			// Get Git extension API to retrieve repository information
-			const gitExtension = extensionService.extensions.find(ext => ext.identifier.value === 'vscode.git');
-			if (!gitExtension) {
-				notificationService.error(localize('chat.share.noGit', "Git extension not found"));
-				return;
-			}
-
 			// Create .github/chats directory
 			const githubChatsDir = joinPath(workspaceFolder.uri, '.github', 'chats');
 			try {
@@ -176,20 +169,23 @@ export function registerChatExportActions() {
 			const content = VSBuffer.fromString(JSON.stringify(model.toExport(), undefined, 2));
 			await fileService.writeFile(chatFilePath, content);
 
-			// Generate GitHub URL
-			// For now, generate a relative path URL that can be used
+			// Generate the relative path for the share URL
 			const relativePath = `.github/chats/${fileName}`;
 			
 			// Create the share URL using the vscode:// protocol
-			// Format: vscode://github.copilot-chat?open-chat=<URL-to-chat-file>
-			// We'll need to get the actual GitHub repo URL dynamically
-			// For now, we'll create a placeholder that shows the path
+			// Format: vscode://github.copilot-chat?open-chat=<path-or-URL>
+			// For now, we use a relative path. In a future enhancement, this could be
+			// a full GitHub blob URL after the file is committed and pushed.
 			const shareUrl = `vscode://github.copilot-chat?open-chat=${encodeURIComponent(relativePath)}`;
 
 			// Copy to clipboard
 			await clipboardService.writeText(shareUrl);
 
-			notificationService.info(localize('chat.share.success', "Chat saved to {0} and share URL copied to clipboard", chatFilePath.fsPath));
+			// Show success message with instructions
+			const message = localize('chat.share.success', 
+				"Chat saved to {0}.\n\nShare URL copied to clipboard. To share this chat:\n1. Commit and push the file to GitHub\n2. Share the URL with others who have the same repository", 
+				relativePath);
+			notificationService.info(message);
 		}
 	});
 }

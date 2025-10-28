@@ -19,11 +19,68 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { isExportableSessionData } from '../common/chatModel.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IRequestService } from '../../../../platform/request/common/request.js';
 import { streamToBuffer } from '../../../../base/common/buffer.js';
 import { joinPath } from '../../../../base/common/resources.js';
-import { Schemas } from '../../../../base/common/network.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+
+// Parse GitHub URL to extract repository information
+// Expected format: https://github.com/{owner}/{repo}/blob/{branch}/{path}
+// Or: https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}
+interface IGitHubInfo {
+	owner: string;
+	repo: string;
+	branch: string;
+	path: string;
+	rawUrl: string;
+}
+
+function parseGitHubUrl(url: string): IGitHubInfo | null {
+	try {
+		const uri = URI.parse(url);
+		
+		// Handle raw.githubusercontent.com URLs
+		if (uri.authority === 'raw.githubusercontent.com') {
+			const parts = uri.path.split('/').filter(p => p);
+			if (parts.length >= 3) {
+				const owner = parts[0];
+				const repo = parts[1];
+				const branch = parts[2];
+				const path = parts.slice(3).join('/');
+				return {
+					owner,
+					repo,
+					branch,
+					path,
+					rawUrl: url
+				};
+			}
+		}
+		
+		// Handle github.com/blob URLs
+		if (uri.authority === 'github.com') {
+			const parts = uri.path.split('/').filter(p => p);
+			if (parts.length >= 4 && parts[2] === 'blob') {
+				const owner = parts[0];
+				const repo = parts[1];
+				const branch = parts[3];
+				const path = parts.slice(4).join('/');
+				const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
+				return {
+					owner,
+					repo,
+					branch,
+					path,
+					rawUrl
+				};
+			}
+		}
+		
+		return null;
+	} catch {
+		return null;
+	}
+}
 
 export class ChatShareUrlHandler extends Disposable implements IWorkbenchContribution, IURLHandler {
 
@@ -38,8 +95,8 @@ export class ChatShareUrlHandler extends Disposable implements IWorkbenchContrib
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IExtensionService private readonly extensionService: IExtensionService,
 		@IRequestService private readonly requestService: IRequestService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this._register(urlService.registerHandler(this));
@@ -70,9 +127,26 @@ export class ChatShareUrlHandler extends Disposable implements IWorkbenchContrib
 
 			// Parse the chat URL - it could be a relative path or a full GitHub URL
 			let chatContent: string;
+			let requiresBranchSwitch: string | null = null;
 
-			if (chatUrl.startsWith('http://') || chatUrl.startsWith('https://')) {
-				// It's a full URL - fetch the content
+			// Try to parse as GitHub URL
+			const githubInfo = parseGitHubUrl(chatUrl);
+			
+			if (githubInfo) {
+				// It's a GitHub URL - fetch the content from the raw URL
+				const result = await this.requestService.request({ type: 'GET', url: githubInfo.rawUrl }, CancellationToken.None);
+				if (result.res.statusCode !== 200) {
+					this.notificationService.error(localize('chat.share.open.fetchFailed', "Failed to fetch chat from URL: {0}", chatUrl));
+					return true;
+				}
+				const responseData = await streamToBuffer(result.stream);
+				chatContent = responseData.toString();
+				
+				// Check if we need to switch branches
+				// For now, we'll just note the required branch
+				requiresBranchSwitch = githubInfo.branch;
+			} else if (chatUrl.startsWith('http://') || chatUrl.startsWith('https://')) {
+				// It's a full URL but not a GitHub URL - just fetch it
 				const result = await this.requestService.request({ type: 'GET', url: chatUrl }, CancellationToken.None);
 				if (result.res.statusCode !== 200) {
 					this.notificationService.error(localize('chat.share.open.fetchFailed', "Failed to fetch chat from URL: {0}", chatUrl));
@@ -98,6 +172,26 @@ export class ChatShareUrlHandler extends Disposable implements IWorkbenchContrib
 
 				const content = await this.fileService.readFile(chatFilePath);
 				chatContent = content.value.toString();
+			}
+
+			// If branch switching is required, ask the user
+			if (requiresBranchSwitch) {
+				const switchBranch = localize('chat.share.switchBranch', "Switch Branch");
+				const continueAnyway = localize('chat.share.continueAnyway', "Continue Anyway");
+				const selection = await this.dialogService.show(
+					2, // Info
+					localize('chat.share.branchMismatch', "This chat was shared from branch '{0}'. Would you like to switch to that branch?", requiresBranchSwitch),
+					[switchBranch, continueAnyway]
+				);
+				
+				if (selection.choice === 0) {
+					// User wants to switch branches
+					try {
+						await this.commandService.executeCommand('git.checkout', requiresBranchSwitch);
+					} catch (err) {
+						this.notificationService.warn(localize('chat.share.branchSwitchFailed', "Failed to switch to branch '{0}': {1}", requiresBranchSwitch, String(err)));
+					}
+				}
 			}
 
 			// Parse and validate the chat data
