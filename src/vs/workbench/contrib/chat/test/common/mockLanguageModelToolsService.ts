@@ -18,6 +18,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 	constructor() { }
 
 	readonly onDidChangeTools: Event<void> = Event.None;
+	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ sessionId: string; toolData: IToolData }> = Event.None;
 
 	registerToolData(toolData: IToolData): IDisposable {
 		return Disposable.None;
