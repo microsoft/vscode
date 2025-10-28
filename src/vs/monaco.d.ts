@@ -4270,12 +4270,9 @@ declare namespace monaco.editor {
 	export interface IEditorHoverOptions {
 		/**
 		 * Enable the hover.
-		 * - true: Always enabled
-		 * - false: Always disabled
-		 * - 'onKeyboardModifier': Enabled when the opposite modifier key of multiCursorModifier is pressed
-		 * Defaults to true.
+		 * Defaults to 'on'.
 		 */
-		enabled?: boolean | 'onKeyboardModifier';
+		enabled?: 'on' | 'off' | 'onKeyboardModifier';
 		/**
 		 * Delay for showing the hover.
 		 * Defaults to 300.

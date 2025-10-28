@@ -22,7 +22,7 @@ const _sticky = false
 	;
 
 interface IHoverSettings {
-	readonly enabled: boolean | 'onKeyboardModifier';
+	readonly enabled: 'on' | 'off' | 'onKeyboardModifier';
 	readonly sticky: boolean;
 	readonly hidingDelay: number;
 }
@@ -80,7 +80,7 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 			hidingDelay: hoverOpts.hidingDelay
 		};
 
-		if (hoverOpts.enabled !== false) {
+		if (hoverOpts.enabled !== 'off') {
 			this._listenersStore.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
 			this._listenersStore.add(this._editor.onMouseUp(() => this._onEditorMouseUp()));
 			this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
@@ -194,10 +194,10 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 	}
 
 	private _shouldShowHover(mouseEvent: IEditorMouseEvent): boolean {
-		if (this._hoverSettings.enabled === true) {
+		if (this._hoverSettings.enabled === 'on') {
 			return true;
 		}
-		if (this._hoverSettings.enabled === false) {
+		if (this._hoverSettings.enabled === 'off') {
 			return false;
 		}
 		// enabled === 'onKeyboardModifier'

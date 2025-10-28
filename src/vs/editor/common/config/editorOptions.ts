@@ -2294,12 +2294,9 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGo
 export interface IEditorHoverOptions {
 	/**
 	 * Enable the hover.
-	 * - true: Always enabled
-	 * - false: Always disabled
-	 * - 'onKeyboardModifier': Enabled when the opposite modifier key of multiCursorModifier is pressed
-	 * Defaults to true.
+	 * Defaults to 'on'.
 	 */
-	enabled?: boolean | 'onKeyboardModifier';
+	enabled?: 'on' | 'off' | 'onKeyboardModifier';
 	/**
 	 * Delay for showing the hover.
 	 * Defaults to 300.
@@ -2331,7 +2328,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 
 	constructor() {
 		const defaults: EditorHoverOptions = {
-			enabled: true,
+			enabled: 'on',
 			delay: 300,
 			hidingDelay: 300,
 			sticky: true,
@@ -2341,13 +2338,13 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			EditorOption.hover, 'hover', defaults,
 			{
 				'editor.hover.enabled': {
-					type: ['boolean', 'string'],
-					enum: [true, false, 'onKeyboardModifier'],
+					type: 'string',
+					enum: ['on', 'off', 'onKeyboardModifier'],
 					default: defaults.enabled,
 					markdownEnumDescriptions: [
-						nls.localize('hover.enabled.true', "Always show the hover."),
-						nls.localize('hover.enabled.false', "Never show the hover."),
-						nls.localize('hover.enabled.onKeyboardModifier', "Show the hover when the opposite modifier key of the multi-cursor modifier is pressed.")
+						nls.localize('hover.enabled.on', "Hover is enabled."),
+						nls.localize('hover.enabled.off', "Hover is disabled."),
+						nls.localize('hover.enabled.onKeyboardModifier', "Hover is shown when the opposite modifier key of the multi-cursor modifier is pressed.")
 					],
 					description: nls.localize('hover.enabled', "Controls whether the hover is shown.")
 				},
@@ -2383,16 +2380,12 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			return this.defaultValue;
 		}
 		const input = _input as Unknown<IEditorHoverOptions>;
-		let enabled: boolean | 'onKeyboardModifier';
-		if (input.enabled === 'onKeyboardModifier') {
-			enabled = 'onKeyboardModifier';
-		} else if (typeof input.enabled === 'boolean') {
-			enabled = input.enabled;
-		} else {
-			enabled = this.defaultValue.enabled;
+		// Handle backward compatibility with boolean values
+		if (typeof input.enabled === 'boolean') {
+			input.enabled = input.enabled ? 'on' : 'off';
 		}
 		return {
-			enabled,
+			enabled: stringSet<'on' | 'off' | 'onKeyboardModifier'>(input.enabled, this.defaultValue.enabled, ['on', 'off', 'onKeyboardModifier']),
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
 			hidingDelay: EditorIntOption.clampedInt(input.hidingDelay, this.defaultValue.hidingDelay, 0, 600000),

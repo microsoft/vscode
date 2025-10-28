@@ -31,7 +31,7 @@ const _sticky = false
 	;
 
 interface IHoverSettings {
-	readonly enabled: boolean | 'onKeyboardModifier';
+	readonly enabled: 'on' | 'off' | 'onKeyboardModifier';
 	readonly sticky: boolean;
 	readonly hidingDelay: number;
 }
@@ -98,7 +98,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			sticky: hoverOpts.sticky,
 			hidingDelay: hoverOpts.hidingDelay
 		};
-		if (hoverOpts.enabled === false) {
+		if (hoverOpts.enabled === 'off') {
 			this._cancelSchedulerAndHide();
 		}
 		this._listenersStore.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
@@ -263,10 +263,10 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _shouldShowHover(mouseEvent: IEditorMouseEvent): boolean {
-		if (this._hoverSettings.enabled === true) {
+		if (this._hoverSettings.enabled === 'on') {
 			return true;
 		}
-		if (this._hoverSettings.enabled === false) {
+		if (this._hoverSettings.enabled === 'off') {
 			return false;
 		}
 		// enabled === 'onKeyboardModifier'
