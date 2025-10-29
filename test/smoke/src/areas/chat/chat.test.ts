@@ -1,0 +1,44 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Application, Logger } from '../../../../automation';
+import { installAllHandlers } from '../../utils';
+
+export function setup(logger: Logger) {
+	describe('Chat', () => {
+
+		// Shared before/after handling
+		installAllHandlers(logger);
+
+		it('can disable AI features', async function () {
+			const app = this.app as Application;
+
+			await app.workbench.settingsEditor.addUserSetting('chat.disableAIFeatures', 'true');
+			await app.workbench.quickaccess.getCommandNames('agent', 0);
+
+			const commands = await app.workbench.quickaccess.getCommandNames('chat', undefined);
+			let expectedFound = false;
+			const unexpectedFound: string[] = [];
+			for (const command of commands) {
+				if (command === 'Chat: Use AI Features with Copilot for free...') {
+					expectedFound = true;
+					continue;
+				}
+
+				if (command.indexOf('Chat') >= 0 || command.indexOf('Agent') >= 0 || command.indexOf('Copilot') >= 0) {
+					unexpectedFound.push(command);
+				}
+			}
+
+			if (!expectedFound) {
+				throw new Error(`Expected AI related command not found`);
+			}
+
+			if (unexpectedFound.length > 0) {
+				throw new Error(`Unexpected AI related commands found after having disabled AI features: ${JSON.stringify(unexpectedFound, undefined, 0)}`);
+			}
+		});
+	});
+}
