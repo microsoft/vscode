@@ -34,7 +34,6 @@ import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js
 import { localize } from '../../../../../../nls.js';
 import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { ITerminalCommand, TerminalCapability, type ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { URI } from '../../../../../../base/common/uri.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import * as domSanitize from '../../../../../../base/browser/domSanitize.js';
 import { DomSanitizerConfig } from '../../../../../../base/browser/domSanitize.js';
@@ -170,14 +169,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			await this._addFocusAction(instance, terminalToolSessionId);
 		};
 
-		await attachInstance(this._terminalChatService.getTerminalInstanceByToolSessionId(terminalToolSessionId));
+		await attachInstance(await this._terminalChatService.getTerminalInstanceByToolSessionId(terminalToolSessionId));
 
 		if (this._terminalForOutput) {
 			return;
 		}
 
-		const listener = this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(instance => {
-			if (instance !== this._terminalChatService.getTerminalInstanceByToolSessionId(terminalToolSessionId)) {
+		const listener = this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(async instance => {
+			if (instance !== await this._terminalChatService.getTerminalInstanceByToolSessionId(terminalToolSessionId)) {
 				return;
 			}
 			attachInstance(instance);
@@ -413,18 +412,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return undefined;
 		}
 
-		const commandUriComponents = this._terminalData.terminalCommandUri;
-		if (commandUriComponents) {
-			const commandUri = URI.revive(commandUriComponents);
-			const commandId = new URLSearchParams(commandUri.query).get('command');
-			if (commandId) {
-				const byId = commands.find(cmd => cmd.id === commandId);
-				if (byId) {
-					return byId;
-				}
-			}
+		const commandId = this._terminalChatService.getTerminalCommandIdByToolSessionId(this._terminalData.terminalToolSessionId);
+		if (commandId) {
+			return commands.find(c => c.id === commandId);
 		}
-
 		return;
 	}
 }

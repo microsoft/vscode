@@ -91,7 +91,7 @@ export class TerminalCommand implements ITerminalCommand {
 			aliases: undefined,
 			wasReplayed: true
 		});
-		console.log('deserialized command', newCommand.command, newCommand.id);
+		console.log('deserialized command', newCommand.id);
 		return newCommand;
 	}
 
@@ -286,8 +286,10 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 
 	constructor(
 		private readonly _xterm: Terminal,
+		id?: string
 	) {
-		this.id = generateUuid();
+		this.id = id ?? generateUuid();
+		console.log('terminal partial command id ', this.id);
 	}
 
 	serialize(cwd: string | undefined): ISerializedTerminalCommand | undefined {

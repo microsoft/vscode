@@ -124,7 +124,12 @@ export interface ITerminalChatService {
 	 * @param terminalToolSessionId The tool session id provided in toolSpecificData.
 	 * If no tool session ID is provided, we do nothing.
 	 */
-	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): ITerminalInstance | undefined;
+	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): Promise<ITerminalInstance | undefined>;
+
+	/**
+	 * Get the terminal command ID associated with a tool session ID, if any.
+	 */
+	getTerminalCommandIdByToolSessionId(terminalToolSessionId: string | undefined): string | undefined;
 
 	/**
 	 * Returns the list of terminal instances that have been registered with a tool session id.
