@@ -328,7 +328,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 			}
 
 			// Number
-			else if (type === 'number') {
+			if (type === 'number') {
 				const total = badges.reduce((r, b) => r + (b instanceof NumberBadge ? b.number : 0), 0);
 				if (total > 0) {
 					let badgeNumber = total.toString();
