@@ -474,7 +474,6 @@ export class UpdateTracker extends Disposable {
 		super();
 		this.onDidPromptModelChange = this._register(new Emitter<IUpdateEvent>());
 		const delayer = this._register(new Delayer<void>(UpdateTracker.PROMPT_UPDATE_DELAY_MS));
-		// TODO: investigate if there's a bug here where only the last event is fired after the debounce delay, possibly losing events in between when more than one file is changed within the debouce period.
 		const trigger = (event: IUpdateEvent) => delayer.trigger(() => this.onDidPromptModelChange.fire(event));
 
 		const filesUpdatedEventRegistration = this._register(fileLocator.createFilesUpdatedEvent(promptType));
