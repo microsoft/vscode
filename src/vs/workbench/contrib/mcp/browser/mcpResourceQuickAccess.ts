@@ -37,8 +37,7 @@ export class McpResourcePickHelper {
 	}
 
 	public static item(resource: IMcpResource | IMcpResourceTemplate): IQuickPickItem {
-		const icon = resource.icons.getUrl(22);
-		const iconPath = icon ? { dark: icon, light: icon } : undefined;
+		const iconPath = resource.icons.getUrl(22);
 		if (isMcpResourceTemplate(resource)) {
 			return {
 				id: resource.template.template,

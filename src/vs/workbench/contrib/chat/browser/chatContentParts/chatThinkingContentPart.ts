@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, clearNode } from '../../../../../base/browser/dom.js';
+import * as dom from '../../../../../base/browser/dom.js';
 import { IChatThinkingPart } from '../../common/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
-import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
+import { ThinkingDisplayMode } from '../../common/constants.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { MarkdownRenderer, IMarkdownRenderResult } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { localize } from '../../../../../nls.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
@@ -32,6 +35,24 @@ function extractTitleFromThinkingContent(content: string): string | undefined {
 	return headerMatch ? headerMatch[1].trim() : undefined;
 }
 
+/**
+ * everything     => fixedScrolling
+ * gpt-5-codex    => collapsed with special grouping
+ */
+function resolvePerModelDefaultThinkingStyle(modelId: string | undefined): ThinkingDisplayMode {
+	if (!modelId) {
+		return ThinkingDisplayMode.FixedScrolling;
+	}
+	const id = modelId.toLowerCase();
+
+	// TODO @justschen: could have additional styles specific to gemini/codex besides collapased.
+	if (id.includes('gpt-5-codex')) {
+		return ThinkingDisplayMode.FixedScrollingTools;
+	}
+
+	return ThinkingDisplayMode.FixedScrolling;
+}
+
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
 	public readonly codeblocks: undefined;
 	public readonly codeblocksPartId: undefined;
@@ -40,9 +61,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private currentThinkingValue: string;
 	private currentTitle: string;
 	private defaultTitle = localize('chat.thinking.header', 'Thinking...');
-	private readonly renderer: MarkdownRenderer;
 	private textContainer!: HTMLElement;
-	private markdownResult: IMarkdownRenderResult | undefined;
+	private markdownResult: IRenderedMarkdown | undefined;
 	private wrapper!: HTMLElement;
 	private perItemCollapsedMode: boolean = false;
 	private fixedScrollingMode: boolean = false;
@@ -50,7 +70,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private fixedScrollViewport: HTMLElement | undefined;
 	private fixedContainer: HTMLElement | undefined;
 	private headerButton: ButtonWithIcon | undefined;
-	private caret: HTMLElement | undefined;
+	private statusIcon: HTMLElement | undefined;
 	private lastExtractedTitle: string | undefined;
 	private hasMultipleItems: boolean = false;
 
@@ -59,6 +79,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		const initialText = extractTextFromPart(content);
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
@@ -66,22 +87,31 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		super(extractedTitle, context);
 
-		this.renderer = instantiationService.createInstance(MarkdownRenderer, {});
 		this.id = content.id;
 
-		const mode = this.configurationService.getValue<string>('chat.agent.thinkingStyle') ?? 'none';
-		this.perItemCollapsedMode = mode === 'collapsedPerItem';
-		this.fixedScrollingMode = mode === 'fixedScrolling';
+		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.None;
+		let effectiveMode = configuredMode;
+		if (configuredMode === ThinkingDisplayMode.Default) {
+			let modelId: string | undefined;
+			if (isResponseVM(context.element)) {
+				modelId = context.element.model.request?.modelId;
+			}
+			effectiveMode = resolvePerModelDefaultThinkingStyle(modelId);
+		}
+
+		this.perItemCollapsedMode = effectiveMode === ThinkingDisplayMode.CollapsedPerItem;
+		this.fixedScrollingMode = effectiveMode === ThinkingDisplayMode.FixedScrolling || effectiveMode === ThinkingDisplayMode.FixedScrollingTools;
 
 		this.currentTitle = extractedTitle;
 		if (extractedTitle !== this.defaultTitle) {
 			this.lastExtractedTitle = extractedTitle;
 		}
 		this.currentThinkingValue = this.parseContent(initialText);
-		if (mode === 'expanded' || mode === 'collapsedPreview' || mode === 'fixedScrolling') {
-			this.setExpanded(true);
-		} else if (mode === 'collapsed') {
+
+		if (effectiveMode === ThinkingDisplayMode.Collapsed) {
 			this.setExpanded(false);
+		} else {
+			this.setExpanded(true);
 		}
 
 		if (this.perItemCollapsedMode) {
@@ -90,14 +120,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			if (header) {
 				header.remove();
 				this.domNode.classList.add('chat-thinking-no-outer-header');
-				this._onDidChangeHeight.fire();
 			}
 		} else if (this.fixedScrollingMode) {
 			const header = this.domNode.querySelector('.chat-used-context-label');
 			if (header) {
 				header.remove();
 				this.domNode.classList.add('chat-thinking-no-outer-header', 'chat-thinking-fixed-mode');
-				this._onDidChangeHeight.fire();
 			}
 			this.currentTitle = this.defaultTitle;
 		}
@@ -131,9 +159,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 			const button = this.headerButton = this._register(new ButtonWithIcon(header, {}));
 			button.label = this.defaultTitle;
-			button.icon = ThemeIcon.modify(Codicon.loading, 'spin');
-			this.caret = $('.codicon.codicon-chevron-right.chat-thinking-fixed-caret');
-			button.element.appendChild(this.caret);
+			button.icon = Codicon.chevronRight;
+			this.statusIcon = $('.chat-thinking-fixed-title-icon');
+			const spinnerEl = dom.h(ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin')));
+			this.statusIcon.appendChild(spinnerEl.root);
+			button.element.appendChild(this.statusIcon);
 
 			this.fixedScrollViewport = this.wrapper;
 			this.textContainer = $('.chat-thinking-item.markdown-content');
@@ -142,7 +172,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.fixedContainer.appendChild(header);
 			this.fixedContainer.appendChild(this.wrapper);
 
-			this._register(button.onDidClick(() => this.setFixedCollapsedState(!this.fixedCollapsed, true)));
+			this._register(button.onDidClick(() => {
+				this.setFixedCollapsedState(!this.fixedCollapsed, true);
+				this._onDidChangeHeight.fire();
+			}));
 
 			if (this.currentThinkingValue) {
 				this.renderMarkdown(this.currentThinkingValue);
@@ -166,9 +199,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.fixedCollapsed = collapsed;
 		this.fixedContainer.classList.toggle('collapsed', collapsed);
-		if (this.caret) {
-			this.caret.classList.toggle('codicon-chevron-right', collapsed);
-			this.caret.classList.toggle('codicon-chevron-down', !collapsed);
+		if (this.headerButton) {
+			this.headerButton.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 		}
 		if (this.fixedCollapsed && userInitiated) {
 			const fixedScrollViewport = this.fixedScrollViewport ?? this.wrapper;
@@ -176,7 +208,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				fixedScrollViewport.scrollTop = fixedScrollViewport.scrollHeight;
 			}
 		}
-		this._onDidChangeHeight.fire();
 	}
 
 	private createThinkingItemContainer(): void {
@@ -194,12 +225,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			if (this.headerButton) {
 				this.headerButton.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			}
-			this._onDidChangeHeight.fire();
 		};
 
-		const toggle = () => setPerItemCollapsedState(!body.classList.contains('hidden'));
-
-		this._register(button.onDidClick(() => toggle()));
+		this._register(button.onDidClick(() => {
+			setPerItemCollapsedState(!body.classList.contains('hidden'));
+			this._onDidChangeHeight.fire();
+		}));
 
 		itemWrapper.appendChild(header);
 		itemWrapper.appendChild(body);
@@ -221,7 +252,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		clearNode(this.textContainer);
-		this.markdownResult = this._register(this.renderer.render(new MarkdownString(cleanedContent)));
+		this.markdownResult = this._register(this.markdownRendererService.render(new MarkdownString(cleanedContent)));
 		this.textContainer.appendChild(this.markdownResult.element);
 	}
 
@@ -278,7 +309,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 			if (this.headerButton) {
 				this.headerButton.label = finalLabel;
-				this.headerButton.icon = Codicon.passFilled;
+			}
+			if (this.statusIcon && this.fixedContainer) {
+				this.fixedContainer.classList.add('finished');
+				this.setFixedCollapsedState(true);
+				this.statusIcon.replaceChildren(dom.h(ThemeIcon.asCSSSelector(Codicon.check)).root);
 			}
 
 			this.currentTitle = finalLabel;
@@ -296,19 +331,19 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.currentTitle = suffix;
 		}
 
-		if (this.fixedScrollingMode) {
-			if (this.fixedContainer) {
-				this.fixedContainer.classList.add('finished');
-				this.setFixedCollapsedState(true);
-				if (this.headerButton) {
-					this.headerButton.icon = Codicon.passFilled;
-				}
-			}
+		if (!this.fixedScrollingMode && this.statusIcon) {
+			this.statusIcon.replaceChildren(dom.h(ThemeIcon.asCSSSelector(Codicon.check)).root);
 		}
 	}
 
 	public appendItem(content: HTMLElement): void {
 		this.wrapper.appendChild(content);
+		if (this.fixedScrollingMode) {
+			const container = this.fixedScrollViewport ?? this.textContainer;
+			if (container) {
+				container.scrollTop = container.scrollHeight;
+			}
+		}
 	}
 
 	// makes a new text container. when we update, we now update this container.
@@ -344,18 +379,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return false;
 		}
 
-		const otherId = other?.id;
-		const thisId = this.id;
-
-		// one off case where we have no ids, we compare text instead.
-		if (otherId === undefined && thisId === undefined) {
-			const rawValue = other.value;
-			const otherValueStr = typeof rawValue === 'string' ? rawValue : Array.isArray(rawValue) ? rawValue.join('') : '';
-			const otherValueNormalized = otherValueStr.trim();
-			return this.parseContent(otherValueNormalized) === this.currentThinkingValue;
-		}
-
-		return otherId !== thisId;
+		return other?.id !== this.id;
 	}
 
 	override dispose(): void {

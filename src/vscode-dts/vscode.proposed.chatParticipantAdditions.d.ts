@@ -6,7 +6,7 @@
 declare module 'vscode' {
 
 	export interface ChatParticipant {
-		onDidPerformAction: Event<ChatUserActionEvent>;
+		readonly onDidPerformAction: Event<ChatUserActionEvent>;
 	}
 
 	/**
@@ -153,11 +153,18 @@ declare module 'vscode' {
 		title: string;
 
 		/**
+		 * Whether the multi diff editor should be read-only.
+		 * When true, users cannot open individual files or interact with file navigation.
+		 */
+		readOnly?: boolean;
+
+		/**
 		 * Create a new ChatResponseMultiDiffPart.
 		 * @param value Array of file diff entries.
 		 * @param title The title for the multi diff editor.
+		 * @param readOnly Optional flag to make the multi diff editor read-only.
 		 */
-		constructor(value: ChatResponseDiffEntry[], title: string);
+		constructor(value: ChatResponseDiffEntry[], title: string, readOnly?: boolean);
 	}
 
 	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart;
@@ -442,7 +449,7 @@ declare module 'vscode' {
 		 * Event that fires when a request is paused or unpaused.
 		 * Chat requests are initially unpaused in the {@link requestHandler}.
 		 */
-		onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
+		readonly onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
 	}
 
 	export interface ChatParticipantPauseStateEvent {
@@ -652,6 +659,7 @@ declare module 'vscode' {
 	}
 
 	export interface ChatRequestModeInstructions {
+		readonly name: string;
 		readonly content: string;
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 		readonly metadata?: Record<string, boolean | string | number>;

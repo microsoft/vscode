@@ -57,8 +57,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	protected readonly _waitsForLastEdits = observableValue<boolean>(this, false);
 	readonly waitsForLastEdits: IObservable<boolean> = this._waitsForLastEdits;
 
-	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<IChatResponseModel | undefined>(this, undefined);
-	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined> = this._isCurrentlyBeingModifiedByObs;
+	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined>(this, undefined);
+	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined> = this._isCurrentlyBeingModifiedByObs;
 
 	protected readonly _lastModifyingResponseObs = observableValueOpts<IChatResponseModel | undefined>({ equalsFn: (a, b) => a?.requestId === b?.requestId }, undefined);
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined> = this._lastModifyingResponseObs;
@@ -210,34 +210,51 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	}
 
 	async accept(): Promise<void> {
+		const callback = await this.acceptDeferred();
+		if (callback) {
+			transaction(callback);
+		}
+	}
+
+	/** Accepts and returns a function used to transition the state. This MUST be called by the consumer. */
+	async acceptDeferred(): Promise<((tx: ITransaction) => void) | undefined> {
 		if (this._stateObs.get() !== ModifiedFileEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}
 
 		await this._doAccept();
-		transaction(tx => {
+
+		return (tx: ITransaction) => {
 			this._stateObs.set(ModifiedFileEntryState.Accepted, tx);
 			this._autoAcceptCtrl.set(undefined, tx);
-		});
-
-		this._notifySessionAction('accepted');
+			this._notifySessionAction('accepted');
+		};
 	}
 
 	protected abstract _doAccept(): Promise<void>;
 
 	async reject(): Promise<void> {
+		const callback = await this.rejectDeferred();
+		if (callback) {
+			transaction(callback);
+		}
+	}
+
+	/** Rejects and returns a function used to transition the state. This MUST be called by the consumer. */
+	async rejectDeferred(): Promise<((tx: ITransaction) => void) | undefined> {
 		if (this._stateObs.get() !== ModifiedFileEntryState.Modified) {
 			// already accepted or rejected
-			return;
+			return undefined;
 		}
 
 		this._notifySessionAction('rejected');
 		await this._doReject();
-		transaction(tx => {
+
+		return (tx: ITransaction) => {
 			this._stateObs.set(ModifiedFileEntryState.Rejected, tx);
 			this._autoAcceptCtrl.set(undefined, tx);
-		});
+		};
 	}
 
 	protected abstract _doReject(): Promise<void>;
@@ -300,9 +317,9 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	abstract readonly changesCount: IObservable<number>;
 
-	acceptStreamingEditsStart(responseModel: IChatResponseModel, tx: ITransaction) {
+	acceptStreamingEditsStart(responseModel: IChatResponseModel, undoStopId: string | undefined, tx: ITransaction) {
 		this._resetEditsState(tx);
-		this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
+		this._isCurrentlyBeingModifiedByObs.set({ responseModel, undoStopId }, tx);
 		this._lastModifyingResponseObs.set(responseModel, tx);
 		this._autoAcceptCtrl.get()?.cancel();
 
@@ -314,7 +331,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	protected abstract _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement | undefined;
 
-	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void>;
+	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<void>;
 
 	async acceptStreamingEditsEnd() {
 		this._resetEditsState(undefined);

@@ -37,6 +37,7 @@ suite('OutputMonitor', () => {
 				onDidInputData: dataEmitter.event,
 				onData: dataEmitter.event,
 				focus: () => { },
+				// eslint-disable-next-line local/code-no-any-casts
 				registerMarker: () => ({ id: 1 } as any)
 			},
 			sessionId: '1'
@@ -52,6 +53,7 @@ suite('OutputMonitor', () => {
 		instantiationService.stub(
 			IChatService,
 			{
+				// eslint-disable-next-line local/code-no-any-casts
 				getSession: () => ({
 					sessionId: '1',
 					onDidDispose: { event: () => { }, dispose: () => { } },

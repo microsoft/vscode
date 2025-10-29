@@ -222,7 +222,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.codeLensProvider.register(selector, provider));
 	}
 
-	$emitCodeLensEvent(eventHandle: number, event?: any): void {
+	$emitCodeLensEvent(eventHandle: number, event?: unknown): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
 			obj.fire(event);
@@ -314,7 +314,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.inlineValuesProvider.register(selector, provider));
 	}
 
-	$emitInlineValuesEvent(eventHandle: number, event?: any): void {
+	$emitInlineValuesEvent(eventHandle: number, event?: unknown): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
 			obj.fire(event);
@@ -549,8 +549,21 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		}
 	}
 
-	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend): void {
-		this._registrations.set(handle, this._languageFeaturesService.documentRangeSemanticTokensProvider.register(selector, new MainThreadDocumentRangeSemanticTokensProvider(this._proxy, handle, legend)));
+	$emitDocumentRangeSemanticTokensEvent(eventHandle: number): void {
+		const obj = this._registrations.get(eventHandle);
+		if (obj instanceof Emitter) {
+			obj.fire(undefined);
+		}
+	}
+
+	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend, eventHandle: number | undefined): void {
+		let event: Event<void> | undefined = undefined;
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._registrations.set(eventHandle, emitter);
+			event = emitter.event;
+		}
+		this._registrations.set(handle, this._languageFeaturesService.documentRangeSemanticTokensProvider.register(selector, new MainThreadDocumentRangeSemanticTokensProvider(this._proxy, handle, legend, event)));
 	}
 
 	// --- suggest
@@ -706,7 +719,6 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 
 				const endOfLifeSummary: InlineCompletionEndOfLifeEvent = {
-					id: lifetimeSummary.requestUuid,
 					opportunityId: lifetimeSummary.requestUuid,
 					correlationId: lifetimeSummary.correlationId,
 					shown: lifetimeSummary.shown,
@@ -719,7 +731,6 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					viewKind: lifetimeSummary.viewKind,
 					preceeded: lifetimeSummary.preceeded,
 					requestReason: lifetimeSummary.requestReason,
-					error: lifetimeSummary.error,
 					typingInterval: lifetimeSummary.typingInterval,
 					typingIntervalCharacterCount: lifetimeSummary.typingIntervalCharacterCount,
 					languageId: lifetimeSummary.languageId,
@@ -952,7 +963,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.foldingRangeProvider.register(selector, provider));
 	}
 
-	$emitFoldingRangeEvent(eventHandle: number, event?: any): void {
+	$emitFoldingRangeEvent(eventHandle: number, event?: unknown): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
 			obj.fire(event);
@@ -997,6 +1008,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				outgoing.forEach(value => {
 					value.to = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.to);
 				});
+				// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 				return <any>outgoing;
 			},
 			provideIncomingCalls: async (item, token) => {
@@ -1007,6 +1019,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				incoming.forEach(value => {
 					value.from = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.from);
 				});
+				// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 				return <any>incoming;
 			}
 		}));
@@ -1347,6 +1360,7 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		private readonly _handle: number,
 		private readonly _legend: languages.SemanticTokensLegend,
+		public readonly onDidChange: Event<void> | undefined,
 	) {
 	}
 

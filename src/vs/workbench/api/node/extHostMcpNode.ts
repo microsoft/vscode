@@ -54,6 +54,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 	private async startNodeMpc(id: number, launch: McpServerTransportStdio, defaultCwd?: URI): Promise<void> {
 		const onError = (err: Error | string) => this._proxy.$onDidChangeState(id, {
 			state: McpConnectionState.Kind.Error,
+			// eslint-disable-next-line local/code-no-any-casts
 			code: err.hasOwnProperty('code') ? String((err as any).code) : undefined,
 			message: typeof err === 'string' ? err : err.message,
 		});
@@ -163,6 +164,8 @@ class McpHTTPHandleNode extends McpHTTPHandle {
 				authority: 'localhost', // HTTP always wants a host (not that we're using it), but if we're using a socket or pipe then localhost is sorta right anyway
 				path: uri.fragment,
 			}).toString(true);
+		} else {
+			return super._fetchInternal(url, init);
 		}
 
 		const undiciResponse = await fetch(httpUrl, undiciInit);

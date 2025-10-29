@@ -35,6 +35,7 @@ import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, isEditorCommandsContext, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
@@ -43,7 +44,7 @@ import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../searc
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { isSupportedChatFileScheme, ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
 import { isQuickChat } from '../chatWidget.js';
@@ -63,17 +64,18 @@ export function registerChatContextActions() {
 async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | undefined> {
 	const viewsService = accessor.get(IViewsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
+	const layoutService = accessor.get(IWorkbenchLayoutService);
 
 	const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
 	if (!lastFocusedWidget || lastFocusedWidget.location === ChatAgentLocation.Chat) {
-		return showChatView(viewsService); // only show chat view if we either have no chat view or its located in view container
+		return showChatView(viewsService, layoutService); // only show chat view if we either have no chat view or its located in view container
 	}
 	return lastFocusedWidget;
 }
 
 abstract class AttachResourceAction extends Action2 {
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const instaService = accessor.get(IInstantiationService);
 		const widget = await instaService.invokeFunction(withChatView);
 		if (!widget) {
@@ -82,9 +84,9 @@ abstract class AttachResourceAction extends Action2 {
 		return instaService.invokeFunction(this.runWithWidget.bind(this), widget, ...args);
 	}
 
-	abstract runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: any[]): Promise<void>;
+	abstract runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: unknown[]): Promise<void>;
 
-	protected _getResources(accessor: ServicesAccessor, ...args: any[]): URI[] {
+	protected _getResources(accessor: ServicesAccessor, ...args: unknown[]): URI[] {
 		const editorService = accessor.get(IEditorService);
 
 		const contexts = isEditorCommandsContext(args[1]) ? this._getEditorResources(accessor, args) : Array.isArray(args[1]) ? args[1] : [args[0]];
@@ -109,7 +111,7 @@ abstract class AttachResourceAction extends Action2 {
 		return files;
 	}
 
-	private _getEditorResources(accessor: ServicesAccessor, ...args: any[]): URI[] {
+	private _getEditorResources(accessor: ServicesAccessor, ...args: unknown[]): URI[] {
 		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
 
 		return resolvedContext.groupedEditors
@@ -175,7 +177,7 @@ class AttachFileToChatAction extends AttachResourceAction {
 		});
 	}
 
-	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: any[]): Promise<void> {
+	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: unknown[]): Promise<void> {
 		const files = this._getResources(accessor, ...args);
 		if (!files.length) {
 			return;
@@ -215,7 +217,7 @@ class AttachFolderToChatAction extends AttachResourceAction {
 		});
 	}
 
-	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: any[]): Promise<void> {
+	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: unknown[]): Promise<void> {
 		const folders = this._getResources(accessor, ...args);
 		if (!folders.length) {
 			return;
@@ -405,7 +407,10 @@ export class AttachContextAction extends Action2 {
 			menu: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					ChatContextKeys.lockedToCodingAgent.negate()
+					ContextKeyExpr.or(
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeys.agentSupportsAttachments
+					)
 				),
 				id: MenuId.ChatInputAttachmentToolbar,
 				group: 'navigation',
@@ -414,7 +419,7 @@ export class AttachContextAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 
 		const instantiationService = accessor.get(IInstantiationService);
 		const widgetService = accessor.get(IChatWidgetService);
@@ -422,7 +427,7 @@ export class AttachContextAction extends Action2 {
 		const keybindingService = accessor.get(IKeybindingService);
 		const contextPickService = accessor.get(IChatContextPickService);
 
-		const context: { widget?: IChatWidget; placeholder?: string } | undefined = args[0];
+		const context = args[0] as { widget?: IChatWidget; placeholder?: string } | undefined;
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -455,6 +460,12 @@ export class AttachContextAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
+			filter: (pick) => {
+				if (isIQuickPickItemWithResource(pick) && pick.resource) {
+					return instantiationService.invokeFunction(accessor => isSupportedChatFileScheme(accessor, pick.resource!.scheme));
+				}
+				return true;
+			},
 			additionPicks,
 			handleAccept: async (item: IQuickPickServicePickItem | IContextPickItemItem, isBackgroundAccept: boolean) => {
 

@@ -10,7 +10,7 @@ import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js'
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
-import { DelayedPagedModel, IPagedModel, PagedModel } from '../../../../base/common/paging.js';
+import { DelayedPagedModel, IPagedModel, PagedModel, IterativePagedModel } from '../../../../base/common/paging.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyDefinedExpr, ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -26,13 +26,12 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
-import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, McpServerEnablementState, McpServerInstallState, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
-import { DropDownAction, InstallAction, InstallingLabelAction, ManageMcpServerAction, McpServerStatusAction } from './mcpServerActions.js';
+import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, McpServerEnablementState, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
+import { DropDownAction, getContextMenuActions, InstallAction, InstallingLabelAction, ManageMcpServerAction, McpServerStatusAction } from './mcpServerActions.js';
 import { PublisherWidget, StarredWidget, McpServerIconWidget, McpServerHoverWidget, McpServerScopeBadgeWidget } from './mcpServerWidgets.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAllowedMcpServersService, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
-import { URI } from '../../../../base/common/uri.js';
+import { mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -40,7 +39,6 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { DefaultViewsContext, SearchMcpServersContext } from '../../extensions/common/extensions.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
-import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -53,6 +51,7 @@ import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { ProductQualityContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 export interface McpServerListViewOptions {
 	showWelcome?: boolean;
@@ -62,7 +61,7 @@ interface IQueryResult {
 	model: IPagedModel<IWorkbenchMcpServer>;
 	disposables: DisposableStore;
 	showWelcomeContent?: boolean;
-	onDidChangeModel?: Event<IPagedModel<IWorkbenchMcpServer>>;
+	readonly onDidChangeModel?: Event<IPagedModel<IWorkbenchMcpServer>>;
 }
 
 type Message = {
@@ -100,6 +99,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IMcpGalleryManifestService protected readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IMarkdownRendererService protected readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
@@ -173,14 +173,9 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 	private async onContextMenu(e: IListContextMenuEvent<IWorkbenchMcpServer>): Promise<void> {
 		if (e.element) {
 			const disposables = new DisposableStore();
-			const manageExtensionAction = disposables.add(this.instantiationService.createInstance(ManageMcpServerAction, false));
-			const extension = e.element ? this.mcpWorkbenchService.local.find(local => local.id === e.element!.id) || e.element
+			const mcpServer = e.element ? this.mcpWorkbenchService.local.find(local => local.id === e.element!.id) || e.element
 				: e.element;
-			manageExtensionAction.mcpServer = extension;
-			let groups: IAction[][] = [];
-			if (manageExtensionAction.enabled) {
-				groups = await manageExtensionAction.getActionGroups();
-			}
+			const groups: IAction[][] = getContextMenuActions(mcpServer, false, this.instantiationService);
 			const actions: IAction[] = [];
 			for (const menuActions of groups) {
 				for (const menuAction of menuActions) {
@@ -263,17 +258,14 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 
 		const settingsCommandLink = markdownCommandLink({ id: 'workbench.action.openSettings', arguments: [`@id:${mcpGalleryServiceEnablementConfig}`], title: mcpGalleryServiceEnablementConfig, tooltip: localize('mcp.welcome.settings.tooltip', "Open Settings") }).toString();
 		const description = dom.append(welcomeContent, dom.$('.mcp-welcome-description'));
-		const markdownResult = this._register(renderMarkdown(new MarkdownString(
-			localize('mcp.welcome.descriptionWithLink', "Browse and install [Model Context Protocol (MCP) servers](https://code.visualstudio.com/docs/copilot/customization/mcp-servers) directly from VS Code to extend agent mode with extra tools for connecting to databases, invoking APIs and performing specialized tasks."),
-			true,
-		)
-			.appendMarkdown('\n\n')
-			.appendMarkdown(localize('mcp.gallery.enableDialog.setting', "This feature is currently in preview. You can disable it anytime using the setting {0}.", settingsCommandLink)),
-			{
-				actionHandler: (content: string) => {
-					this.openerService.open(URI.parse(content), { allowCommands: ['workbench.action.openSettings'] });
-				}
-			}));
+		const markdownResult = this._register(this.markdownRendererService.render(
+			new MarkdownString(
+				localize('mcp.welcome.descriptionWithLink', "Browse and install [Model Context Protocol (MCP) servers](https://code.visualstudio.com/docs/copilot/customization/mcp-servers) directly from VS Code to extend agent mode with extra tools for connecting to databases, invoking APIs and performing specialized tasks."),
+				{ isTrusted: { enabledCommands: ['workbench.action.openSettings'] } },
+			)
+				.appendMarkdown('\n\n')
+				.appendMarkdown(localize('mcp.gallery.enableDialog.setting', "This feature is currently in preview. You can disable it anytime using the setting {0}.", settingsCommandLink)),
+		));
 		description.appendChild(markdownResult.element);
 
 		const buttonContainer = dom.append(welcomeContent, dom.$('.mcp-welcome-button-container'));
@@ -331,13 +323,14 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		const disposables = new DisposableStore();
 		if (query) {
 			const servers = await this.mcpWorkbenchService.queryGallery({ text: query.replace('@mcp', '') });
-			return { model: new PagedModel(servers), disposables };
+			const model = disposables.add(new IterativePagedModel(servers));
+			return { model, disposables };
 		}
 
 		const onDidChangeModel = disposables.add(new Emitter<IPagedModel<IWorkbenchMcpServer>>());
 		let servers = await this.mcpWorkbenchService.queryLocal();
-		disposables.add(Event.debounce(Event.filter(this.mcpWorkbenchService.onChange, e => e?.installState === McpServerInstallState.Installed), () => undefined)(() => {
-			const mergedMcpServers = this.mergeAddedMcpServers(servers, [...this.mcpWorkbenchService.local]);
+		disposables.add(Event.debounce(this.mcpWorkbenchService.onChange, () => undefined)(() => {
+			const mergedMcpServers = this.mergeChangedMcpServers(servers, [...this.mcpWorkbenchService.local]);
 			if (mergedMcpServers) {
 				servers = mergedMcpServers;
 				onDidChangeModel.fire(new PagedModel(servers));
@@ -347,7 +340,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		return { model: new PagedModel(servers), onDidChangeModel: onDidChangeModel.event, disposables };
 	}
 
-	private mergeAddedMcpServers(mcpServers: IWorkbenchMcpServer[], newMcpServers: IWorkbenchMcpServer[]): IWorkbenchMcpServer[] | undefined {
+	private mergeChangedMcpServers(mcpServers: IWorkbenchMcpServer[], newMcpServers: IWorkbenchMcpServer[]): IWorkbenchMcpServer[] | undefined {
 		const oldMcpServers = [...mcpServers];
 		const findPreviousMcpServerIndex = (from: number): number => {
 			let index = -1;
@@ -363,16 +356,35 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 
 		let hasChanged: boolean = false;
 		for (let index = 0; index < newMcpServers.length; index++) {
-			const mcpServer = newMcpServers[index];
-			if (mcpServers.every(r => r.id !== mcpServer.id)) {
+			const newMcpServer = newMcpServers[index];
+			if (mcpServers.every(r => r.id !== newMcpServer.id)) {
 				hasChanged = true;
-				mcpServers.splice(findPreviousMcpServerIndex(index - 1) + 1, 0, mcpServer);
+				mcpServers.splice(findPreviousMcpServerIndex(index - 1) + 1, 0, newMcpServer);
+			}
+		}
+
+		for (let index = mcpServers.length - 1; index >= 0; index--) {
+			const oldMcpServer = mcpServers[index];
+			if (newMcpServers.every(r => r.id !== oldMcpServer.id) && newMcpServers.some(r => r.name === oldMcpServer.name)) {
+				hasChanged = true;
+				mcpServers.splice(index, 1);
+			}
+		}
+
+		if (!hasChanged) {
+			if (mcpServers.length === newMcpServers.length) {
+				for (let index = 0; index < newMcpServers.length; index++) {
+					if (mcpServers[index]?.id !== newMcpServers[index]?.id) {
+						hasChanged = true;
+						mcpServers = newMcpServers;
+						break;
+					}
+				}
 			}
 		}
 
 		return hasChanged ? mcpServers : undefined;
 	}
-
 }
 
 interface IMcpServerTemplateData {
@@ -394,8 +406,8 @@ class McpServerRenderer implements IPagedRenderer<IWorkbenchMcpServer, IMcpServe
 
 	constructor(
 		private readonly options: ExtensionListRendererOptions,
-		@IAllowedMcpServersService private readonly allowedMcpServersService: IAllowedMcpServersService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) { }
 
@@ -426,7 +438,7 @@ class McpServerRenderer implements IPagedRenderer<IWorkbenchMcpServer, IMcpServe
 		const mcpServerStatusAction = this.instantiationService.createInstance(McpServerStatusAction);
 
 		const actions = [
-			this.instantiationService.createInstance(InstallAction, false),
+			this.instantiationService.createInstance(InstallAction, true),
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(ManageMcpServerAction, false),
 			mcpServerStatusAction
@@ -473,15 +485,13 @@ class McpServerRenderer implements IPagedRenderer<IWorkbenchMcpServer, IMcpServe
 		data.starred.style.display = '';
 		data.mcpServer = mcpServer;
 
-		const updateEnablement = () => {
-			const disabled = !!mcpServer.local &&
-				(mcpServer.installState === McpServerInstallState.Installed
-					? mcpServer.enablementState === McpServerEnablementState.DisabledByAccess
-					: mcpServer.installState === McpServerInstallState.Uninstalled);
-			data.root.classList.toggle('disabled', disabled);
-		};
+		const updateEnablement = () => data.root.classList.toggle('disabled', !!mcpServer.runtimeStatus?.state && mcpServer.runtimeStatus.state !== McpServerEnablementState.Enabled);
 		updateEnablement();
-		this.allowedMcpServersService.onDidChangeAllowedMcpServers(() => updateEnablement(), this, data.mcpServerDisposables);
+		data.mcpServerDisposables.push(this.mcpWorkbenchService.onChange(e => {
+			if (!e || e.id === mcpServer.id) {
+				updateEnablement();
+			}
+		}));
 	}
 
 	disposeElement(mcpServer: IWorkbenchMcpServer, index: number, data: IMcpServerTemplateData): void {
@@ -546,7 +556,7 @@ export class McpServersViewsContribution extends Disposable implements IWorkbenc
 				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledMcpServersContext.toNegated(), ChatContextKeys.Setup.hidden.negate(), McpServersGalleryStatusContext.isEqualTo(McpGalleryManifestStatus.Available), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`).negate(), ProductQualityContext.isEqualTo('stable'), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceEnablementConfig}`).negate()),
 				weight: 40,
 				order: 4,
-				canToggleVisibility: false
+				canToggleVisibility: true
 			},
 			{
 				id: 'workbench.views.mcp.welcomeView',

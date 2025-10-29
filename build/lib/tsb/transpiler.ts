@@ -200,7 +200,7 @@ export class TscTranspiler implements ITranspiler {
 
 	private _workerPool: TranspileWorker[] = [];
 	private _queue: Vinyl[] = [];
-	private _allJobs: Promise<any>[] = [];
+	private _allJobs: Promise<unknown>[] = [];
 
 	constructor(
 		logFn: (topic: string, message: string) => void,

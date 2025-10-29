@@ -109,6 +109,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		}
 	}
 
+	private _didUserEditModelFired = false;
 	private readonly _didUserEditModel = this._register(new Emitter<void>());
 	public readonly onDidUserEditModel = this._didUserEditModel.event;
 
@@ -161,7 +162,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return diff ? diff.identical : false;
 	}
 
-	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<{ rewriteRatio: number; maxLineNumber: number }> {
+	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<{ rewriteRatio: number; maxLineNumber: number }> {
 
 		assertType(textEdits.every(TextEdit.isTextEdit), 'INVALID args, can only handle text edits');
 		assert(isEqual(resource, this.modifiedModel.uri), ' INVALID args, can only edit THIS document');
@@ -170,21 +171,26 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		let maxLineNumber = 0;
 		let rewriteRatio = 0;
 
-		const sessionId = responseModel.session.sessionId;
-		const request = responseModel.session.getRequests().at(-1);
-		const languageId = this.modifiedModel.getLanguageId();
-		const agent = responseModel.agent;
-		const extensionId = VersionedExtensionId.tryCreate(agent?.extensionId.value, agent?.extensionVersion);
+		let source: TextModelEditSource;
+		if (responseModel) {
+			const sessionId = responseModel.session.sessionId;
+			const request = responseModel.session.getRequests().at(-1);
+			const languageId = this.modifiedModel.getLanguageId();
+			const agent = responseModel.agent;
+			const extensionId = VersionedExtensionId.tryCreate(agent?.extensionId.value, agent?.extensionVersion);
 
-		const source = EditSources.chatApplyEdits({
-			modelId: request?.modelId,
-			requestId: request?.id,
-			sessionId: sessionId,
-			languageId,
-			mode: request?.modeInfo?.modeId,
-			extensionId,
-			codeBlockSuggestionId: request?.modeInfo?.applyCodeBlockSuggestionId,
-		});
+			source = EditSources.chatApplyEdits({
+				modelId: request?.modelId,
+				requestId: request?.id,
+				sessionId: sessionId,
+				languageId,
+				mode: request?.modeInfo?.modeId,
+				extensionId,
+				codeBlockSuggestionId: request?.modeInfo?.applyCodeBlockSuggestionId,
+			});
+		} else {
+			source = EditSources.unknown({ name: 'editSessionUndoRedo' });
+		}
 
 		if (isAtomicEdits) {
 			// EDIT and DONE
@@ -280,8 +286,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	public keep() {
 		this.notifyHunkAction('accepted', { linesAdded: this.linesAdded, linesRemoved: this.linesRemoved, lineCount: this.lineChangeCount, hasRemainingEdits: false });
 		this.originalModel.setValue(this.modifiedModel.createSnapshot());
-		this._diffInfo.set(nullDocumentDiff, undefined);
-		this._originalToModifiedEdit = StringEdit.empty;
+		this._reset();
 	}
 
 	/**
@@ -292,8 +297,13 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		this.modifiedModel.pushStackElement();
 		this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), this.originalModel.getValue()))], EditSources.chatUndoEdits());
 		this.modifiedModel.pushStackElement();
+		this._reset();
+	}
+
+	private _reset() {
 		this._originalToModifiedEdit = StringEdit.empty;
 		this._diffInfo.set(nullDocumentDiff, undefined);
+		this._didUserEditModelFired = false;
 	}
 
 	public async resetDocumentValues(newOriginal: string | ITextSnapshot | undefined, newModified: string | undefined): Promise<void> {
@@ -354,7 +364,10 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 			this._allEditsAreFromUs = false;
 			this._updateDiffInfoSeq();
-			this._didUserEditModel.fire();
+			if (!this._didUserEditModelFired) {
+				this._didUserEditModelFired = true;
+				this._didUserEditModel.fire();
+			}
 		}
 	}
 

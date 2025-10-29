@@ -121,9 +121,9 @@ export interface QuickInputUI {
 	progressBar: ProgressBar;
 	list: QuickInputList;
 	tree: QuickInputTreeController;
-	onDidAccept: Event<void>;
-	onDidCustom: Event<void>;
-	onDidTriggerButton: Event<IQuickInputButton>;
+	readonly onDidAccept: Event<void>;
+	readonly onDidCustom: Event<void>;
+	readonly onDidTriggerButton: Event<IQuickInputButton>;
 	ignoreFocusOut: boolean;
 	keyMods: Writeable<IKeyMods>;
 	show(controller: QuickInput): void;
@@ -170,7 +170,7 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	private buttonsUpdated = false;
 	private _toggles: IQuickInputToggle[] = [];
 	private togglesUpdated = false;
-	protected noValidationMessage = QuickInput.noPromptMessage;
+	protected noValidationMessage: string | undefined = QuickInput.noPromptMessage;
 	private _validationMessage: string | undefined;
 	private _lastValidationMessage: string | undefined;
 	private _severity: Severity = Severity.Ignore;
@@ -421,11 +421,13 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 			this.busyDelay.setIfNotSet(() => {
 				if (this.visible) {
 					this.ui.progressBar.infinite();
+					this.ui.progressBar.getContainer().removeAttribute('aria-hidden');
 				}
 			}, 800);
 		}
 		if (!this.busy && this.busyDelay) {
 			this.ui.progressBar.stop();
+			this.ui.progressBar.getContainer().setAttribute('aria-hidden', 'true');
 			this.busyDelay.cancel();
 			this.busyDelay = undefined;
 		}
@@ -472,12 +474,14 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 		if (this._lastValidationMessage !== validationMessage) {
 			this._lastValidationMessage = validationMessage;
 			dom.reset(this.ui.message);
-			renderQuickInputDescription(validationMessage, this.ui.message, {
-				callback: (content) => {
-					this.ui.linkOpenerDelegate(content);
-				},
-				disposables: this.visibleDisposables,
-			});
+			if (validationMessage) {
+				renderQuickInputDescription(validationMessage, this.ui.message, {
+					callback: (content) => {
+						this.ui.linkOpenerDelegate(content);
+					},
+					disposables: this.visibleDisposables,
+				});
+			}
 		}
 		if (this._lastSeverity !== this.severity) {
 			this._lastSeverity = this.severity;
@@ -585,6 +589,11 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	readonly type = QuickInputType.QuickPick;
 
+	constructor(ui: QuickInputUI) {
+		super(ui);
+		this.noValidationMessage = undefined;
+	}
+
 	get quickNavigate() {
 		return this._quickNavigate;
 	}
@@ -635,6 +644,15 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	set placeholder(placeholder: string | undefined) {
 		this._placeholder = placeholder;
+		this.update();
+	}
+
+	get prompt() {
+		return this.noValidationMessage;
+	}
+
+	set prompt(prompt: string | undefined) {
+		this.noValidationMessage = prompt;
 		this.update();
 	}
 
@@ -1037,7 +1055,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 			count: this.canSelectMany && !this._hideCountBadge,
 			ok: this.ok === 'default' ? this.canSelectMany : this.ok,
 			list: true,
-			message: !!this.validationMessage,
+			message: !!this.validationMessage || !!this.prompt,
 			customButton: this.customButton
 		};
 		this.ui.setVisibilities(visibilities);

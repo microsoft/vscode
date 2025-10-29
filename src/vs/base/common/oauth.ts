@@ -257,6 +257,115 @@ export interface IAuthorizationServerMetadata {
 	 * OPTIONAL. JSON array containing a list of PKCE code challenge methods supported.
 	 */
 	code_challenge_methods_supported?: string[];
+
+	/**
+	 * OPTIONAL. Boolean flag indicating whether the authorization server supports the
+	 * client_id_metadata document.
+	 * ref https://datatracker.ietf.org/doc/html/draft-parecki-oauth-client-id-metadata-document-03
+	 */
+	client_id_metadata_document_supported?: boolean;
+}
+
+/**
+ * Request for the dynamic client registration endpoint.
+ * @see https://datatracker.ietf.org/doc/html/rfc7591#section-2
+ */
+export interface IAuthorizationDynamicClientRegistrationRequest {
+	/**
+	 * OPTIONAL. Array of redirection URI strings for use in redirect-based flows
+	 * such as the authorization code and implicit flows.
+	 */
+	redirect_uris?: string[];
+
+	/**
+	 * OPTIONAL. String indicator of the requested authentication method for the token endpoint.
+	 * Values: "none", "client_secret_post", "client_secret_basic".
+	 * Default is "client_secret_basic".
+	 */
+	token_endpoint_auth_method?: string;
+
+	/**
+	 * OPTIONAL. Array of OAuth 2.0 grant type strings that the client can use at the token endpoint.
+	 * Default is ["authorization_code"].
+	 */
+	grant_types?: string[];
+
+	/**
+	 * OPTIONAL. Array of the OAuth 2.0 response type strings that the client can use at the authorization endpoint.
+	 * Default is ["code"].
+	 */
+	response_types?: string[];
+
+	/**
+	 * OPTIONAL. Human-readable string name of the client to be presented to the end-user during authorization.
+	 */
+	client_name?: string;
+
+	/**
+	 * OPTIONAL. URL string of a web page providing information about the client.
+	 */
+	client_uri?: string;
+
+	/**
+	 * OPTIONAL. URL string that references a logo for the client.
+	 */
+	logo_uri?: string;
+
+	/**
+	 * OPTIONAL. String containing a space-separated list of scope values that the client can use when requesting access tokens.
+	 */
+	scope?: string;
+
+	/**
+	 * OPTIONAL. Array of strings representing ways to contact people responsible for this client, typically email addresses.
+	 */
+	contacts?: string[];
+
+	/**
+	 * OPTIONAL. URL string that points to a human-readable terms of service document for the client.
+	 */
+	tos_uri?: string;
+
+	/**
+	 * OPTIONAL. URL string that points to a human-readable privacy policy document.
+	 */
+	policy_uri?: string;
+
+	/**
+	 * OPTIONAL. URL string referencing the client's JSON Web Key (JWK) Set document.
+	 */
+	jwks_uri?: string;
+
+	/**
+	 * OPTIONAL. Client's JSON Web Key Set document value.
+	 */
+	jwks?: object;
+
+	/**
+	 * OPTIONAL. A unique identifier string assigned by the client developer or software publisher.
+	 */
+	software_id?: string;
+
+	/**
+	 * OPTIONAL. A version identifier string for the client software.
+	 */
+	software_version?: string;
+
+	/**
+	 * OPTIONAL. A software statement containing client metadata values about the client software as claims.
+	 */
+	software_statement?: string;
+
+	/**
+	 * OPTIONAL. Application type. Usually "native" for OAuth clients.
+	 * https://openid.net/specs/openid-connect-registration-1_0.html
+	 */
+	application_type?: 'native' | 'web' | string;
+
+	/**
+	 * OPTIONAL. Additional metadata fields as defined by extensions.
+	 */
+	[key: string]: unknown;
 }
 
 /**
@@ -749,33 +858,35 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 	if (!serverMetadata.registration_endpoint) {
 		throw new Error('Server does not support dynamic registration');
 	}
+
+	const requestBody: IAuthorizationDynamicClientRegistrationRequest = {
+		client_name: clientName,
+		client_uri: 'https://code.visualstudio.com',
+		grant_types: serverMetadata.grant_types_supported
+			? serverMetadata.grant_types_supported.filter(gt => grantTypesSupported.includes(gt))
+			: grantTypesSupported,
+		response_types: ['code'],
+		redirect_uris: [
+			'https://insiders.vscode.dev/redirect',
+			'https://vscode.dev/redirect',
+			'http://127.0.0.1/',
+			// Added these for any server that might do
+			// only exact match on the redirect URI even
+			// though the spec says it should not care
+			// about the port.
+			`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
+		],
+		scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
+		token_endpoint_auth_method: 'none',
+		application_type: 'native'
+	};
+
 	const response = await fetch(serverMetadata.registration_endpoint, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json'
 		},
-		body: JSON.stringify({
-			client_name: clientName,
-			client_uri: 'https://code.visualstudio.com',
-			grant_types: serverMetadata.grant_types_supported
-				? serverMetadata.grant_types_supported.filter(gt => grantTypesSupported.includes(gt))
-				: grantTypesSupported,
-			response_types: ['code'],
-			redirect_uris: [
-				'https://insiders.vscode.dev/redirect',
-				'https://vscode.dev/redirect',
-				'http://127.0.0.1/',
-				// Added these for any server that might do
-				// only exact match on the redirect URI even
-				// though the spec says it should not care
-				// about the port.
-				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
-			],
-			scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
-			token_endpoint_auth_method: 'none',
-			// https://openid.net/specs/openid-connect-registration-1_0.html
-			application_type: 'native'
-		})
+		body: JSON.stringify(requestBody)
 	});
 
 	if (!response.ok) {
@@ -936,17 +1047,25 @@ export function getClaimsFromJWT(token: string): IAuthorizationJWTClaims {
  * Checks if two scope lists are equivalent, regardless of order.
  * This is useful for comparing OAuth scopes where the order should not matter.
  *
- * @param scopes1 First list of scopes to compare
- * @param scopes2 Second list of scopes to compare
+ * @param scopes1 First list of scopes to compare (can be undefined)
+ * @param scopes2 Second list of scopes to compare (can be undefined)
  * @returns true if the scope lists contain the same scopes (order-independent), false otherwise
  *
  * @example
  * ```typescript
  * scopesMatch(['read', 'write'], ['write', 'read']) // Returns: true
  * scopesMatch(['read'], ['write']) // Returns: false
+ * scopesMatch(undefined, undefined) // Returns: true
+ * scopesMatch(['read'], undefined) // Returns: false
  * ```
  */
-export function scopesMatch(scopes1: readonly string[], scopes2: readonly string[]): boolean {
+export function scopesMatch(scopes1: readonly string[] | undefined, scopes2: readonly string[] | undefined): boolean {
+	if (scopes1 === scopes2) {
+		return true;
+	}
+	if (!scopes1 || !scopes2) {
+		return false;
+	}
 	if (scopes1.length !== scopes2.length) {
 		return false;
 	}
@@ -1073,4 +1192,118 @@ export async function fetchResourceMetadata(
 	} else {
 		throw new AggregateError(errors, 'Failed to fetch resource metadata from all attempted URLs');
 	}
+}
+
+export interface IFetchAuthorizationServerMetadataOptions {
+	/**
+	 * Headers to include in the requests
+	 */
+	additionalHeaders?: Record<string, string>;
+	/**
+	 * Optional custom fetch implementation (defaults to global fetch)
+	 */
+	fetch?: IFetcher;
+}
+
+/** Helper to try parsing the response as authorization server metadata */
+async function tryParseAuthServerMetadata(response: CommonResponse): Promise<IAuthorizationServerMetadata | undefined> {
+	if (response.status !== 200) {
+		return undefined;
+	}
+	try {
+		const body = await response.json();
+		if (isAuthorizationServerMetadata(body)) {
+			return body;
+		}
+	} catch {
+		// Failed to parse as JSON or not valid metadata
+	}
+	return undefined;
+}
+
+/** Helper to get error text from response */
+async function getErrText(res: CommonResponse): Promise<string> {
+	try {
+		return await res.text();
+	} catch {
+		return res.statusText;
+	}
+}
+
+/**
+ * Fetches and validates OAuth 2.0 authorization server metadata from the given authorization server URL.
+ *
+ * This function tries multiple discovery endpoints in the following order:
+ * 1. OAuth 2.0 Authorization Server Metadata with path insertion (RFC 8414)
+ * 2. OpenID Connect Discovery with path insertion
+ * 3. OpenID Connect Discovery with path addition
+ *
+ * Path insertion: For issuer URLs with path components (e.g., https://example.com/tenant),
+ * the well-known path is inserted after the origin and before the path:
+ * https://example.com/.well-known/oauth-authorization-server/tenant
+ *
+ * Path addition: The well-known path is simply appended to the existing path:
+ * https://example.com/tenant/.well-known/openid-configuration
+ *
+ * @param authorizationServer The authorization server URL (issuer identifier)
+ * @param options Configuration options for the fetch operation
+ * @returns Promise that resolves to the validated authorization server metadata
+ * @throws Error if all discovery attempts fail or the response is invalid
+ *
+ * @see https://datatracker.ietf.org/doc/html/rfc8414#section-3
+ */
+export async function fetchAuthorizationServerMetadata(
+	authorizationServer: string,
+	options: IFetchAuthorizationServerMetadataOptions = {}
+): Promise<IAuthorizationServerMetadata> {
+	const {
+		additionalHeaders = {},
+		fetch: fetchImpl = fetch
+	} = options;
+
+	const authorizationServerUrl = new URL(authorizationServer);
+	const extraPath = authorizationServerUrl.pathname === '/' ? '' : authorizationServerUrl.pathname;
+
+	const doFetch = async (url: string): Promise<{ metadata: IAuthorizationServerMetadata | undefined; rawResponse: CommonResponse }> => {
+		const rawResponse = await fetchImpl(url, {
+			method: 'GET',
+			headers: {
+				...additionalHeaders,
+				'Accept': 'application/json'
+			}
+		});
+		const metadata = await tryParseAuthServerMetadata(rawResponse);
+		return { metadata, rawResponse };
+	};
+
+	// For the oauth server metadata discovery path, we _INSERT_
+	// the well known path after the origin and before the path.
+	// https://datatracker.ietf.org/doc/html/rfc8414#section-3
+	const pathToFetch = new URL(AUTH_SERVER_METADATA_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
+	let result = await doFetch(pathToFetch);
+	if (result.metadata) {
+		return result.metadata;
+	}
+
+	// Try fetching the OpenID Connect Discovery with path insertion.
+	// For issuer URLs with path components, this inserts the well-known path
+	// after the origin and before the path.
+	const openidPathInsertionUrl = new URL(OPENID_CONNECT_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
+	result = await doFetch(openidPathInsertionUrl);
+	if (result.metadata) {
+		return result.metadata;
+	}
+
+	// Try fetching the other discovery URL. For the openid metadata discovery
+	// path, we _ADD_ the well known path after the existing path.
+	// https://datatracker.ietf.org/doc/html/rfc8414#section-3
+	const openidPathAdditionUrl = authorizationServer.endsWith('/')
+		? authorizationServer + OPENID_CONNECT_DISCOVERY_PATH.substring(1) // Remove leading slash if authServer ends with slash
+		: authorizationServer + OPENID_CONNECT_DISCOVERY_PATH;
+	result = await doFetch(openidPathAdditionUrl);
+	if (result.metadata) {
+		return result.metadata;
+	}
+
+	throw new Error(`Failed to fetch authorization server metadata: ${result.rawResponse.status} ${await getErrText(result.rawResponse)}`);
 }

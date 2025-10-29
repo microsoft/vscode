@@ -16,7 +16,7 @@ import { TerminalCapability } from '../../../../../platform/terminal/common/capa
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { ITerminalLogService, ITerminalProfile, TerminalSettingId, type IShellLaunchConfig } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
+import { getShellIntegrationTimeout } from '../../../terminal/common/terminalEnvironment.js';
 
 const enum ShellLaunchType {
 	Unknown = 0,
@@ -56,10 +56,11 @@ export class ToolTerminalCreator {
 			instance,
 			shellIntegrationQuality: ShellIntegrationQuality.None,
 		};
+		let processReadyTimestamp = 0;
 
 		// Ensure the shell process launches successfully
 		const initResult = await Promise.any([
-			instance.processReady,
+			instance.processReady.then(() => processReadyTimestamp = Date.now()),
 			Event.toPromise(instance.onExit),
 		]);
 		if (!isNumber(initResult) && isObject(initResult) && 'message' in initResult) {
@@ -69,17 +70,15 @@ export class ToolTerminalCreator {
 		// Wait for shell integration when the fallback case has not been hit or when shell
 		// integration injection is enabled. Note that it's possible for the fallback case to happen
 		// and then for SI to activate again later in the session.
-		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
+		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
 
 		// Get the configurable timeout to wait for shell integration
-		const configuredTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.ShellIntegrationTimeout) as number | undefined;
-		let waitTime: number;
-		if (configuredTimeout === undefined || typeof configuredTimeout !== 'number' || configuredTimeout < 0) {
-			waitTime = siInjectionEnabled ? 5000 : (instance.isRemote ? 3000 : 2000);
-		} else {
-			// There's an absolute minimum is 500ms
-			waitTime = Math.max(configuredTimeout, 500);
-		}
+		const waitTime = getShellIntegrationTimeout(
+			this._configurationService,
+			siInjectionEnabled,
+			instance.hasRemoteAuthority,
+			processReadyTimestamp
+		);
 
 		if (
 			ToolTerminalCreator._lastSuccessfulShell !== ShellLaunchType.Fallback ||
@@ -140,6 +139,7 @@ export class ToolTerminalCreator {
 		const config: IShellLaunchConfig = {
 			icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
 			hideFromUser: true,
+			forcePersist: true,
 			env: {
 				// Avoid making `git diff` interactive when called from copilot
 				GIT_PAGER: 'cat',
@@ -202,17 +202,15 @@ export class ToolTerminalCreator {
 					result.complete(ShellIntegrationQuality.Basic);
 				}, 200));
 			} else {
-				store.add(instance.capabilities.onDidAddCapabilityType(e => {
-					if (e === TerminalCapability.CommandDetection) {
-						siNoneTimer.clear();
-						// When command detection lights up, allow up to 200ms for the rich command
-						// detection sequence to come in before declaring it as basic shell
-						// integration.
-						store.add(disposableTimeout(() => {
-							this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Timed out 200ms, using basic SI (via listener)`);
-							result.complete(ShellIntegrationQuality.Basic);
-						}, 200));
-					}
+				store.add(instance.capabilities.onDidAddCommandDetectionCapability(e => {
+					siNoneTimer.clear();
+					// When command detection lights up, allow up to 200ms for the rich command
+					// detection sequence to come in before declaring it as basic shell
+					// integration.
+					store.add(disposableTimeout(() => {
+						this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Timed out 200ms, using basic SI (via listener)`);
+						result.complete(ShellIntegrationQuality.Basic);
+					}, 200));
 				}));
 			}
 		}

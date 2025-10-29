@@ -13,6 +13,7 @@ suite('ManageTodoListTool Description Field Setting', () => {
 
 	function getSchemaProperties(toolData: IToolData): { properties: any; required: string[] } {
 		assert.ok(toolData.inputSchema);
+		// eslint-disable-next-line local/code-no-any-casts
 		const schema = toolData.inputSchema as any;
 		const properties = schema?.properties?.todoList?.items?.properties;
 		const required = schema?.properties?.todoList?.items?.required;

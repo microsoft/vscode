@@ -136,7 +136,7 @@ export interface ITaskSystemInfoResolver {
 }
 
 export interface ITaskSystem {
-	onDidStateChange: Event<ITaskEvent>;
+	readonly onDidStateChange: Event<ITaskEvent>;
 	reconnect(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
 	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
 	rerun(): ITaskExecuteResult | undefined;
