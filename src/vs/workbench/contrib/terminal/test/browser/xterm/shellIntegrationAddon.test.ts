@@ -306,7 +306,7 @@ suite('ShellIntegrationAddon', () => {
 		const cases: TestCase[] = [
 			['empty', '', ''],
 			['basic', 'value', 'value'],
-			['space', 'some thing', 'some thing'],
+			['space', 'some thing', `some${Backslash}x20thing`],
 			['backslash', Backslash, `${Backslash}${Backslash}`],
 			['non-initial backslash', `foo${Backslash}`, `foo${Backslash}${Backslash}`],
 			['two backslashes', `${Backslash}${Backslash}`, `${Backslash}${Backslash}${Backslash}${Backslash}`],
