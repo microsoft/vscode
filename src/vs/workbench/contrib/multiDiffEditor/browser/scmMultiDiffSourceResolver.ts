@@ -97,15 +97,35 @@ export class ScmHistoryItemResolver implements IMultiDiffSourceResolver {
 	static readonly scheme = 'scm-history-item';
 
 	public static getMultiDiffSourceUri(provider: ISCMProvider, historyItem: ISCMHistoryItem): URI {
+		const historyProvider = provider.historyProvider.get();
+		let historyItemId: string, historyItemParentId: string | undefined;
+
+		if (
+			historyItem.id === 'incoming-changes' ||
+			historyItem.id === 'outgoing-changes'
+		) {
+			// Incoming/Outgoing changes node
+			const historyItemRef = historyProvider?.historyItemRef.get()!;
+			const historyItemRemoteRef = historyProvider?.historyItemRemoteRef.get()!;
+
+			historyItemId = historyItem.id === 'incoming-changes'
+				? historyItemRemoteRef.id
+				: historyItemRef.id;
+			historyItemParentId = historyItem.id === 'incoming-changes'
+				? historyItemRef.id
+				: historyItemRemoteRef.id;
+		} else {
+			historyItemId = historyItem.id;
+			historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+		}
+
 		return URI.from({
 			scheme: ScmHistoryItemResolver.scheme,
 			path: provider.rootUri?.fsPath,
 			query: JSON.stringify({
 				repositoryId: provider.id,
-				historyItemId: historyItem.id,
-				historyItemParentId: historyItem.parentIds.length > 0
-					? historyItem.parentIds[0]
-					: undefined,
+				historyItemId,
+				historyItemParentId,
 				historyItemDisplayId: historyItem.displayId
 			} satisfies ScmHistoryItemUriFields)
 		}, true);

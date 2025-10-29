@@ -889,34 +889,36 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 			}
 		} else if (isSCMHistoryItemViewModelTreeElement(inputOrElement)) {
 			// History item changes
-			const repository = inputOrElement.repository;
-			const historyItem = inputOrElement.historyItemViewModel.historyItem;
-			const historyItemRef = repository.provider.historyProvider.get()?.historyItemRef.get();
-			const historyItemRemoteRef = repository.provider.historyProvider.get()?.historyItemRemoteRef.get();
+			const historyProvider = inputOrElement.repository.provider.historyProvider.get();
+			const historyItemViewModel = inputOrElement.historyItemViewModel;
+			const historyItem = historyItemViewModel.historyItem;
 
 			let historyItemId: string, historyItemParentId: string | undefined;
-			if (inputOrElement.historyItemViewModel.kind === 'incoming-changes') {
-				// Incoming changes
+
+			if (
+				historyItemViewModel.kind === 'incoming-changes' ||
+				historyItemViewModel.kind === 'outgoing-changes'
+			) {
+				// Incoming/Outgoing changes node
+				const historyItemRef = historyProvider?.historyItemRef.get();
+				const historyItemRemoteRef = historyProvider?.historyItemRemoteRef.get();
+
 				if (!historyItemRef || !historyItemRemoteRef) {
 					return [];
 				}
 
-				historyItemId = historyItemRemoteRef.id;
-				historyItemParentId = historyItemRef.id;
-			} else if (inputOrElement.historyItemViewModel.kind === 'outgoing-changes') {
-				// Outgoing changes
-				if (!historyItemRef || !historyItemRemoteRef) {
-					return [];
-				}
-
-				historyItemId = historyItemRef.id;
-				historyItemParentId = historyItemRemoteRef.id;
+				historyItemId = historyItemViewModel.kind === 'incoming-changes'
+					? historyItemRemoteRef.id
+					: historyItemRef.id;
+				historyItemParentId = historyItemViewModel.kind === 'incoming-changes'
+					? historyItemRef.id
+					: historyItemRemoteRef.id;
 			} else {
+				// Regular node
 				historyItemId = historyItem.id;
 				historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
 			}
 
-			const historyProvider = inputOrElement.repository.provider.historyProvider.get();
 			const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItemId, historyItemParentId) ?? [];
 
 			if (this.viewMode() === ViewMode.List) {
@@ -1189,14 +1191,13 @@ class SCMHistoryViewModel extends Disposable {
 			return [];
 		}
 
-		const historyItemRef = historyProvider.historyItemRef.get();
-		const historyItemRemoteRef = historyProvider.historyItemRemoteRef.get();
-		const historyItemBaseRef = historyProvider.historyItemBaseRef.get();
-
 		let state = this._repositoryState.get(repository);
 
 		if (!state || state.loadMore !== false) {
 			const historyItems = state?.viewModels
+				.filter(vm =>
+					vm.historyItemViewModel.kind !== 'incoming-changes' &&
+					vm.historyItemViewModel.kind !== 'outgoing-changes')
 				.map(vm => vm.historyItemViewModel.historyItem) ?? [];
 
 			const historyItemRefs = state?.historyItemsFilter ??
@@ -1212,48 +1213,24 @@ class SCMHistoryViewModel extends Disposable {
 				}) ?? []));
 			} while (typeof state?.loadMore === 'string' && !historyItems.find(item => item.id === state?.loadMore));
 
+			// Temporary solution
+			const mergeBase = await historyProvider.resolveHistoryItemRefsCommonAncestor([
+				historyProvider.historyItemRef.get()!.name,
+				historyProvider.historyItemRemoteRef.get()!.name,
+			]);
+
+			console.log('Merge base:', mergeBase);
+
 			// Create the color map
 			const colorMap = this._getGraphColorMap(historyItemRefs);
 
-			// Inject incoming changes node
-			const currentHistoryItemRemoteRefIndex = historyItems.findIndex(h => h.id === historyItemRemoteRef?.revision);
-			if (currentHistoryItemRemoteRefIndex !== -1) {
-				if (historyItemRemoteRef && historyItemRef?.revision !== historyItemRemoteRef.revision) {
-					historyItems.splice(currentHistoryItemRemoteRefIndex + 1, 0, {
-						id: 'incoming-changes',
-						parentIds: historyItems[currentHistoryItemRemoteRefIndex].parentIds.slice(0),
-						subject: localize('incomingChanges', "Incoming Changes"),
-						message: localize('incomingChanges', "Incoming Changes"),
-					} satisfies ISCMHistoryItem);
-
-					historyItems[currentHistoryItemRemoteRefIndex] = {
-						...historyItems[currentHistoryItemRemoteRefIndex],
-						parentIds: ['incoming-changes']
-					} satisfies ISCMHistoryItem;
-				}
-			}
-
-			// Inject outgoing changes node
-			const currentHistoryItemRefIndex = historyItems.findIndex(h => h.id === historyItemRef?.revision);
-			if (currentHistoryItemRefIndex !== -1) {
-				if (
-					(historyItemRemoteRef && historyItemRef?.revision !== historyItemRemoteRef.revision) ||
-					(historyItemBaseRef && historyItemRef?.revision !== historyItemBaseRef.revision)
-				) {
-					historyItems.splice(currentHistoryItemRefIndex, 0, {
-						id: 'outgoing-changes',
-						parentIds: [historyItems[currentHistoryItemRefIndex].id],
-						subject: localize('outgoingChanges', "Outgoing Changes"),
-						message: localize('outgoingChanges', "Outgoing Changes"),
-						references: [{
-							id: 'refs/heads/outgoing-changes',
-							name: localize('outgoingChangesRef', "Outgoing Changes"),
-						} satisfies ISCMHistoryItemRef],
-					} satisfies ISCMHistoryItem);
-				}
-			}
-
-			const viewModels = toISCMHistoryItemViewModelArray(historyItems, colorMap, historyProvider.historyItemRef.get())
+			const viewModels = toISCMHistoryItemViewModelArray(
+				historyItems,
+				colorMap,
+				historyProvider.historyItemRef.get(),
+				historyProvider.historyItemRemoteRef.get(),
+				historyProvider.historyItemBaseRef.get(),
+				mergeBase)
 				.map(historyItemViewModel => ({
 					repository,
 					historyItemViewModel,
