@@ -182,10 +182,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.onDidChangeCustomAgentsEmitter.event;
 	}
 
-	public get onDidChangeParsedPromptFilesCache(): Event<void> {
-		return this.onDidChangeParsedPromptFilesCacheEmitter.event;
-	}
-
 	public get onDidChangeParsedPromptFilesCacheBySlashCommand(): Event<void> {
 		return this.onDidChangeParsedPromptFilesCacheEmitter.event;
 	}
@@ -360,7 +356,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return value;
 	}
 
-	public listParsedPromptsCached(type: PromptsType, uri: URI): ParsedPromptFile | undefined {
+	public listParsedPromptFilesCached(type: PromptsType, uri: URI): ParsedPromptFile | undefined {
 		const cache = this.promptFileByTypeCache[type].get(uri);
 		const value = cache?.value;
 		if (value === undefined) {

@@ -39,8 +39,7 @@ export class MockPromptsService implements IPromptsService {
 	asPromptSlashCommand(_command: string): any { return undefined; }
 	resolvePromptSlashCommand(_data: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	resolvePromptSlashCommandFromCache(command: string): ParsedPromptFile | undefined { throw new Error('Not implemented'); }
-	listParsedPromptsCached(_type: PromptsType, _uri: URI): ParsedPromptFile | undefined { throw new Error('Not implemented'); }
-	get onDidChangeParsedPromptFilesCache(): Event<void> { throw new Error('Not implemented'); }
+	listParsedPromptFilesCached(_type: PromptsType, _uri: URI): ParsedPromptFile | undefined { throw new Error('Not implemented'); }
 	get onDidChangeParsedPromptFilesCacheBySlashCommand(): Event<void> { throw new Error('Not implemented'); }
 	onDidChangeParsedPromptFilesCacheByType(_type: PromptsType): Event<void> { throw new Error('Not implemented'); }
 	findPromptSlashCommands(): Promise<any[]> { throw new Error('Not implemented'); }
