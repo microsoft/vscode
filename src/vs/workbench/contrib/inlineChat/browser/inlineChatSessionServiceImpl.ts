@@ -503,23 +503,26 @@ export class InlineChatEscapeToolContribution extends Disposable {
 		@IDialogService dialogService: IDialogService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IChatService chatService: IChatService,
+		@ILogService logService: ILogService,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
 
 		super();
 
 		this._store.add(lmTools.registerTool(InlineChatEscapeToolContribution._data, {
-			invoke: async (invocation, tokenCountFn, progress, token) => {
+			invoke: async (invocation, _tokenCountFn, _progress, _token) => {
 
 				const sessionId = invocation.context?.sessionId;
 
 				if (!sessionId) {
+					logService.warn('InlineChatEscapeToolContribution: no sessionId in tool invocation context');
 					return { content: [{ kind: 'text', value: 'Cancel' }] };
 				}
 
 				const session = inlineChatSessionService.getSession2(sessionId);
 
 				if (!session) {
+					logService.warn(`InlineChatEscapeToolContribution: no session found for id ${sessionId}`);
 					return { content: [{ kind: 'text', value: 'Cancel' }] };
 				}
 
@@ -536,10 +539,12 @@ export class InlineChatEscapeToolContribution extends Disposable {
 				const editor = codeEditorService.getFocusedCodeEditor();
 
 				if (!result.confirmed || !editor) {
+					logService.trace('InlineChatEscapeToolContribution: moving session to panel chat');
 					await instaService.invokeFunction(moveToPanelChat, session.chatModel, true);
 					session.dispose();
 
 				} else {
+					logService.trace('InlineChatEscapeToolContribution: rephrase prompt');
 					chatService.removeRequest(session.chatModel.sessionId, session.chatModel.getRequests().at(-1)!.id);
 				}
 
