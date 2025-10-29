@@ -14,7 +14,7 @@ import { splitLines } from '../../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { MenuEntryActionViewItem } from '../../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
-import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { observableCodeEditor, ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../../common/core/2d/point.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
@@ -70,7 +70,7 @@ export function getOffsetForPos(editor: ObservableCodeEditor, pos: Position, rea
 	return lineContentWidth;
 }
 
-export function getPrefixTrim(diffRanges: Range[], originalLinesRange: LineRange, modifiedLines: string[], editor: ICodeEditor): { prefixTrim: number; prefixLeftOffset: number } {
+export function getPrefixTrim(diffRanges: Range[], originalLinesRange: LineRange, modifiedLines: string[], editor: ICodeEditor, reader: IReader | undefined = undefined): { prefixTrim: number; prefixLeftOffset: number } {
 	const textModel = editor.getModel();
 	if (!textModel) {
 		return { prefixTrim: 0, prefixLeftOffset: 0 };
@@ -85,6 +85,8 @@ export function getPrefixTrim(diffRanges: Range[], originalLinesRange: LineRange
 	const startLineIndent = textModel.getLineIndentColumn(originalLinesRange.startLineNumber);
 	if (startLineIndent >= prefixTrim + 1) {
 		// We can use the editor to get the offset
+		// TODO go through other usages of getOffsetForColumn and come up with a robust reactive solution to read it
+		observableCodeEditor(editor).scrollTop.read(reader); // getOffsetForColumn requires the line number to be visible. This might change on scroll top.
 		prefixLeftOffset = editor.getOffsetForColumn(originalLinesRange.startLineNumber, prefixTrim + 1);
 	} else if (modifiedLines.length > 0) {
 		// Content is not in the editor, we can use the content width to calculate the offset
