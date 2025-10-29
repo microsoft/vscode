@@ -4,7 +4,8 @@
       value: "text before ",
       isTrusted: false,
       supportThemeIcons: false,
-      supportHtml: false
+      supportHtml: false,
+      supportAlertSyntax: false
     },
     kind: "markdownContent"
   },
@@ -17,7 +18,8 @@
       value: " text after",
       isTrusted: false,
       supportThemeIcons: false,
-      supportHtml: false
+      supportHtml: false,
+      supportAlertSyntax: false
     },
     kind: "markdownContent"
   }
