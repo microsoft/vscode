@@ -169,7 +169,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 				// TODO@bpasero this needs to come from the local provider:
 				// - do we want to show history or not and how
 				// - can we support all properties including `startTime` properly
-				for (const history of await this.chatService.getHistory()) {
+				for (const history of await this.chatService.getLocalSessionHistory()) {
 					newSessions.push({
 						id: history.sessionId,
 						resource: ChatSessionUri.forSession(localChatSessionType, history.sessionId),

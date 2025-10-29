@@ -1021,16 +1021,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		if (previous) {
-			const endOfFirstViewLine = this._inputEditor._getViewModel()?.getLineLength(1) ?? 1;
-			const endOfFirstModelLine = model.getLineLength(1);
-			if (endOfFirstViewLine === endOfFirstModelLine) {
-				// Not wrapped - set cursor to the end of the first line
-				this._inputEditor.setPosition({ lineNumber: 1, column: endOfFirstViewLine + 1 });
-			} else {
-				// Wrapped - set cursor one char short of the end of the first view line.
-				// If it's after the next character, the cursor shows on the second line.
-				this._inputEditor.setPosition({ lineNumber: 1, column: endOfFirstViewLine });
-			}
+			// When navigating to previous history, always position cursor at the start (line 1, column 1)
+			// This ensures that pressing up again will continue to navigate history
+			this._inputEditor.setPosition({ lineNumber: 1, column: 1 });
 		} else {
 			this._inputEditor.setPosition(getLastPosition(model));
 		}
@@ -1537,7 +1530,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return;
 			}
 
-			const atTop = position.lineNumber === 1 && position.column - 1 <= (this._inputEditor._getViewModel()?.getLineLength(1) ?? 0);
+			const atTop = position.lineNumber === 1 && position.column === 1;
 			this.chatCursorAtTop.set(atTop);
 
 			this.historyNavigationBackwardsEnablement.set(atTop);

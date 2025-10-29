@@ -80,7 +80,7 @@ export class MockChatService implements IChatService {
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void {
 		throw new Error('Method not implemented.');
 	}
-	async getHistory(): Promise<IChatDetail[]> {
+	async getLocalSessionHistory(): Promise<IChatDetail[]> {
 		throw new Error('Method not implemented.');
 	}
 	async clearAllHistoryEntries() {
