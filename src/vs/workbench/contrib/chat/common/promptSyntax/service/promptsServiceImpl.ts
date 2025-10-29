@@ -28,7 +28,7 @@ import { IUserDataProfileService } from '../../../../../services/userDataProfile
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
 import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
-import { getPromptsTypeForLanguageId, AGENT_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType, getLanguageIdForPromptsType } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, PROMPT_LANGUAGE_ID, PromptsType, getLanguageIdForPromptsType } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, PromptsStorage } from './promptsService.js';
@@ -49,7 +49,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	private cachedCustomAgents: Promise<readonly ICustomAgent[]> | undefined;
 
-
+	/**
+	 * Cache for parsed prompt files keyed by URI.
+	 * The number in the returned tuple is textModel.getVersionId(), which is an internal VS Code counter that increments every time the text model's content changes.
+	 */
 	private parsedPromptFileCache = new ResourceMap<[number, ParsedPromptFile]>();
 
 	/**
@@ -90,13 +93,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		this.fileLocator = this._register(this.instantiationService.createInstance(PromptFilesLocator));
 
-		const promptUpdateTracker = this._register(new PromptUpdateTracker(this.fileLocator, this.modelService));
-		this._register(promptUpdateTracker.onDiDPromptChange((event) => {
+		const promptUpdateTracker = this._register(new UpdateTracker(this.fileLocator, PromptsType.prompt, this.modelService));
+		this._register(promptUpdateTracker.onDidPromptChange((event) => {
 			if (event.kind === 'fileSystem') {
 				this.promptFileByCommandCache.clear();
 			}
 			else {
-				// Clear cache for prompt files that match the changed URI\
+				// Clear cache for prompt files that match the changed URI
 				const pendingDeletes: string[] = [];
 				for (const [key, value] of this.promptFileByCommandCache) {
 					if (isEqual(value.value?.uri, event.uri)) {
@@ -124,7 +127,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (!this.onDidChangeCustomAgentsEmitter) {
 			const emitter = this.onDidChangeCustomAgentsEmitter = this._register(new Emitter<void>());
 			const updateTracker = this._register(new UpdateTracker(this.fileLocator, PromptsType.agent, this.modelService));
-			this._register(updateTracker.onDidChangeContent(() => {
+			this._register(updateTracker.onDidPromptChange((event) => {
 				this.cachedCustomAgents = undefined; // reset cached custom agents
 				emitter.fire();
 			}));
@@ -445,15 +448,22 @@ function getCommandNameFromURI(uri: URI): string {
 	return basename(uri.fsPath, PROMPT_FILE_EXTENSION);
 }
 
+export type UpdateKind = 'fileSystem' | 'textModel';
+
+export interface IUpdateEvent {
+	kind: UpdateKind;
+	uri?: URI;
+}
+
 export class UpdateTracker extends Disposable {
 
-	private static readonly CHAT_AGENT_UPDATE_DELAY_MS = 200;
+	private static readonly PROMPT_UPDATE_DELAY_MS = 200;
 
 	private readonly listeners = new ResourceMap<IDisposable>();
-	private readonly onDidChangeContentEmitter: Emitter<void>;
+	private readonly onDidPromptModelChange: Emitter<IUpdateEvent>;
 
-	public get onDidChangeContent(): Event<void> {
-		return this.onDidChangeContentEmitter.event;
+	public get onDidPromptChange(): Event<IUpdateEvent> {
+		return this.onDidPromptModelChange.event;
 	}
 
 	constructor(
@@ -462,77 +472,20 @@ export class UpdateTracker extends Disposable {
 		@IModelService modelService: IModelService,
 	) {
 		super();
-		this.onDidChangeContentEmitter = this._register(new Emitter<void>());
-		const delayer = this._register(new Delayer<void>(UpdateTracker.CHAT_AGENT_UPDATE_DELAY_MS));
-		const trigger = () => delayer.trigger(() => this.onDidChangeContentEmitter.fire());
+		this.onDidPromptModelChange = this._register(new Emitter<IUpdateEvent>());
+		const delayer = this._register(new Delayer<void>(UpdateTracker.PROMPT_UPDATE_DELAY_MS));
+		const trigger = (event: IUpdateEvent) => delayer.trigger(() => this.onDidPromptModelChange.fire(event));
 
 		const filesUpdatedEventRegistration = this._register(fileLocator.createFilesUpdatedEvent(promptType));
-		this._register(filesUpdatedEventRegistration.event(() => trigger()));
-
-		const onAdd = (model: ITextModel) => {
-			if (model.getLanguageId() === getLanguageIdForPromptsType(promptType)) {
-				this.listeners.set(model.uri, model.onDidChangeContent(() => trigger()));
-			}
-		};
-		const onRemove = (languageId: string, uri: URI) => {
-			if (languageId === AGENT_LANGUAGE_ID) {
-				this.listeners.get(uri)?.dispose();
-				this.listeners.delete(uri);
-				trigger();
-			}
-		};
-		this._register(modelService.onModelAdded(model => onAdd(model)));
-		this._register(modelService.onModelLanguageChanged(e => {
-			onRemove(e.oldLanguageId, e.model.uri);
-			onAdd(e.model);
-		}));
-		this._register(modelService.onModelRemoved(model => onRemove(model.getLanguageId(), model.uri)));
-	}
-
-	public override dispose(): void {
-		super.dispose();
-		this.listeners.forEach(listener => listener.dispose());
-		this.listeners.clear();
-	}
-}
-
-export type PromptUpdateKind = 'fileSystem' | 'textModel';
-
-export interface IPromptUpdateEvent {
-	kind: PromptUpdateKind;
-	uri?: URI;
-}
-
-export class PromptUpdateTracker extends Disposable {
-
-	private static readonly PROMPT_UPDATE_DELAY_MS = 200;
-
-	private readonly listeners = new ResourceMap<IDisposable>();
-	private readonly onDidPromptModelChange: Emitter<IPromptUpdateEvent>;
-
-	public get onDiDPromptChange(): Event<IPromptUpdateEvent> {
-		return this.onDidPromptModelChange.event;
-	}
-
-	constructor(
-		fileLocator: PromptFilesLocator,
-		@IModelService modelService: IModelService,
-	) {
-		super();
-		this.onDidPromptModelChange = this._register(new Emitter<IPromptUpdateEvent>());
-		const delayer = this._register(new Delayer<void>(PromptUpdateTracker.PROMPT_UPDATE_DELAY_MS));
-		const trigger = (event: IPromptUpdateEvent) => delayer.trigger(() => this.onDidPromptModelChange.fire(event));
-
-		const filesUpdatedEventRegistration = this._register(fileLocator.createFilesUpdatedEvent(PromptsType.prompt));
 		this._register(filesUpdatedEventRegistration.event(() => trigger({ kind: 'fileSystem' })));
 
 		const onAdd = (model: ITextModel) => {
-			if (model.getLanguageId() === PROMPT_LANGUAGE_ID) {
+			if (model.getLanguageId() === getLanguageIdForPromptsType(promptType)) {
 				this.listeners.set(model.uri, model.onDidChangeContent(() => trigger({ kind: 'textModel', uri: model.uri })));
 			}
 		};
 		const onRemove = (languageId: string, uri: URI) => {
-			if (languageId === PROMPT_LANGUAGE_ID) {
+			if (languageId === getLanguageIdForPromptsType(promptType)) {
 				this.listeners.get(uri)?.dispose();
 				this.listeners.delete(uri);
 				trigger({ kind: 'textModel', uri });
