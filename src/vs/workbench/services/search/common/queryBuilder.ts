@@ -93,6 +93,7 @@ interface ICommonQueryBuilderOptions<U extends UriComponents = URI> {
 	ignoreSymlinks?: boolean;
 	onlyOpenEditors?: boolean;
 	onlyFileScheme?: boolean;
+	ignoreGlobPatternCase?: boolean;
 }
 
 export interface IFileQueryBuilderOptions<U extends UriComponents = URI> extends ICommonQueryBuilderOptions<U> {
@@ -156,7 +157,6 @@ export class QueryBuilder {
 			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE || false,
 			surroundingContext: options.surroundingContext,
 			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles,
-
 		};
 	}
 
@@ -266,12 +266,12 @@ export class QueryBuilder {
 			folderQueries,
 			usingSearchPaths: !!(includeSearchPathsInfo.searchPaths && includeSearchPathsInfo.searchPaths.length),
 			extraFileResources: options.extraFileResources,
-
 			excludePattern: excludeSearchPathsInfo.pattern,
 			includePattern: includeSearchPathsInfo.pattern,
 			onlyOpenEditors: options.onlyOpenEditors,
 			maxResults: options.maxResults,
-			onlyFileScheme: options.onlyFileScheme
+			onlyFileScheme: options.onlyFileScheme,
+			ignoreGlobPatternCase: options.ignoreGlobPatternCase
 		};
 
 		if (options.onlyOpenEditors) {
@@ -617,6 +617,7 @@ export class QueryBuilder {
 			disregardGlobalIgnoreFiles: typeof options.disregardGlobalIgnoreFiles === 'boolean' ? options.disregardGlobalIgnoreFiles : !folderConfig.search.useGlobalIgnoreFiles,
 			disregardParentIgnoreFiles: typeof options.disregardParentIgnoreFiles === 'boolean' ? options.disregardParentIgnoreFiles : !folderConfig.search.useParentIgnoreFiles,
 			ignoreSymlinks: typeof options.ignoreSymlinks === 'boolean' ? options.ignoreSymlinks : !folderConfig.search.followSymlinks,
+			ignoreGlobPatternCase: options.ignoreGlobPatternCase // TODO: folderConfig.search.ignoreGlobPatternCase?
 		};
 	}
 }

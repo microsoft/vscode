@@ -36,7 +36,8 @@ export class RipgrepTextSearchEngine {
 				maxResults: options.maxResults,
 				previewOptions: options.previewOptions,
 				maxFileSize: options.maxFileSize,
-				surroundingContext: options.surroundingContext
+				surroundingContext: options.surroundingContext,
+				ignoreGlobPatternCase: options.ignoreGlobPatternCase
 			};
 			return this.provideTextSearchResultsWithRgOptions(query, extendedOptions, progress, token);
 		})).then((e => {
@@ -407,6 +408,11 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number; last
 export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOptions): string[] {
 	const args = ['--hidden', '--no-require-git'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
+
+	if (query.ignoreGlobPatternCase || options.ignoreGlobPatternCase || options.folderOptions.ignoreGlobPatternCase) {
+		args.push('--glob-case-insensitive');
+		args.push('--ignore-file-case-insensitive');
+	}
 
 	const { doubleStarIncludes, otherIncludes } = groupBy(
 		options.folderOptions.includes,

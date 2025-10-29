@@ -62,9 +62,10 @@ export class FileWalker {
 	private walkedPaths: { [path: string]: boolean };
 
 	constructor(config: IFileQuery) {
+		const globOptions = { ignoreCase: !!config.ignoreGlobPatternCase };
 		this.config = config;
 		this.filePattern = config.filePattern || '';
-		this.includePattern = config.includePattern && glob.parse(config.includePattern);
+		this.includePattern = config.includePattern && glob.parse(config.includePattern, globOptions);
 		this.maxResults = config.maxResults || null;
 		this.exists = !!config.exists;
 		this.walkedPaths = Object.create(null);
@@ -78,7 +79,7 @@ export class FileWalker {
 			this.normalizedFilePatternLowercase = config.shouldGlobMatchFilePattern ? null : prepareQuery(this.filePattern).normalizedLowercase;
 		}
 
-		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
+		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern, globOptions);
 		this.folderExcludePatterns = new Map<string, AbsoluteAndRelativeParsedExpression>();
 
 		config.folderQueries.forEach(folderQuery => {
@@ -92,6 +93,8 @@ export class FileWalker {
 				Object.assign(folderExcludeExpression, this.config.excludePattern || {});
 			}
 
+			const ignoreCase = globOptions.ignoreCase || !!folderQuery.ignoreGlobPatternCase;
+
 			// Add excludes for other root folders
 			const fqPath = folderQuery.folder.fsPath;
 			config.folderQueries
@@ -99,12 +102,12 @@ export class FileWalker {
 				.filter(rootFolder => rootFolder !== fqPath)
 				.forEach(otherRootFolder => {
 					// Exclude nested root folders
-					if (isEqualOrParent(otherRootFolder, fqPath)) {
+					if (isEqualOrParent(otherRootFolder, fqPath, ignoreCase)) {
 						folderExcludeExpression[path.relative(fqPath, otherRootFolder)] = true;
 					}
 				});
 
-			this.folderExcludePatterns.set(fqPath, new AbsoluteAndRelativeParsedExpression(folderExcludeExpression, fqPath));
+			this.folderExcludePatterns.set(fqPath, new AbsoluteAndRelativeParsedExpression(folderExcludeExpression, fqPath, ignoreCase));
 		});
 	}
 
@@ -425,6 +428,7 @@ export class FileWalker {
 		const self = this;
 		const excludePattern = this.folderExcludePatterns.get(rootFolder)!;
 		const filePattern = this.filePattern;
+		const ignoreCase = this.config.ignoreGlobPatternCase;
 		function matchDirectory(entries: IDirectoryEntry[]) {
 			self.directoriesWalked++;
 			const hasSibling = hasSiblingFn(() => entries.map(entry => entry.basename));
@@ -436,7 +440,7 @@ export class FileWalker {
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what they
 				// are searching for and we want to include the result in that case anyway
-				if (excludePattern.test(relativePath, basename, filePattern !== basename ? hasSibling : undefined)) {
+				if (excludePattern.test(relativePath, basename, !strings.equals(filePattern, basename, ignoreCase) ? hasSibling : undefined)) {
 					continue;
 				}
 
@@ -445,7 +449,7 @@ export class FileWalker {
 					matchDirectory(sub);
 				} else {
 					self.filesWalked++;
-					if (relativePath === filePattern) {
+					if (strings.equals(relativePath, filePattern, ignoreCase)) {
 						continue; // ignore file if its path matches with the file pattern because that is already matched above
 					}
 
@@ -472,6 +476,7 @@ export class FileWalker {
 
 	private doWalk(folderQuery: IFolderQuery, relativeParentPath: string, files: string[], onResult: (result: IRawFileMatch) => void, done: (error?: Error) => void): void {
 		const rootFolder = folderQuery.folder;
+		const ignoreCase = this.config.ignoreGlobPatternCase || folderQuery.ignoreGlobPatternCase;
 
 		// Execute tasks on each file in parallel to optimize throughput
 		const hasSibling = hasSiblingFn(() => files);
@@ -487,7 +492,7 @@ export class FileWalker {
 			// to ignore filtering by siblings because the user seems to know what they
 			// are searching for and we want to include the result in that case anyway
 			const currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(path.sep) : file;
-			if (this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.test(currentRelativePath, file, this.config.filePattern !== file ? hasSibling : undefined)) {
+			if (this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.test(currentRelativePath, file, !strings.equals(this.config.filePattern, file, ignoreCase) ? hasSibling : undefined)) {
 				return clb(null);
 			}
 
@@ -539,7 +544,7 @@ export class FileWalker {
 					// File: Check for match on file pattern and include pattern
 					else {
 						this.filesWalked++;
-						if (currentRelativePath === this.filePattern) {
+						if (strings.equals(currentRelativePath, this.filePattern, ignoreCase)) {
 							return clb(null, undefined); // ignore file if its path matches with the file pattern because checkFilePatternRelativeMatch() takes care of those
 						}
 
@@ -670,7 +675,7 @@ class AbsoluteAndRelativeParsedExpression {
 	private absoluteParsedExpr: glob.ParsedExpression | undefined;
 	private relativeParsedExpr: glob.ParsedExpression | undefined;
 
-	constructor(public expression: glob.IExpression, private root: string) {
+	constructor(public expression: glob.IExpression, private root: string, private ignoreCase: boolean) {
 		this.init(expression);
 	}
 
@@ -692,8 +697,13 @@ class AbsoluteAndRelativeParsedExpression {
 				}
 			});
 
-		this.absoluteParsedExpr = absoluteGlobExpr && glob.parse(absoluteGlobExpr, { trimForExclusions: true });
-		this.relativeParsedExpr = relativeGlobExpr && glob.parse(relativeGlobExpr, { trimForExclusions: true });
+		const options: glob.IGlobOptions = {
+			trimForExclusions: true,
+			ignoreCase: this.ignoreCase
+		};
+
+		this.absoluteParsedExpr = absoluteGlobExpr && glob.parse(absoluteGlobExpr, options);
+		this.relativeParsedExpr = relativeGlobExpr && glob.parse(relativeGlobExpr, options);
 	}
 
 	test(_path: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): string | Promise<string | null> | undefined | null {

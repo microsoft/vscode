@@ -116,7 +116,7 @@ export class TextSearchManager {
 				1;
 		}
 		else {
-			// #104400 context lines shoudn't count towards result count
+			// #104400 context lines shouldn't count towards result count
 			return 0;
 		}
 	}
@@ -177,6 +177,7 @@ export class TextSearchManager {
 			maxResults: this.query.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS,
 			previewOptions: this.query.previewOptions ?? DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS,
 			surroundingContext: this.query.surroundingContext ?? 0,
+			ignoreGlobPatternCase: this.query.ignoreGlobPatternCase
 		};
 		if ('usePCRE2' in this.query) {
 			(<IExtendedExtensionSearchOptions>searchOptions).usePCRE2 = this.query.usePCRE2;
@@ -222,6 +223,7 @@ export class TextSearchManager {
 			},
 			followSymlinks: !fq.ignoreSymlinks,
 			encoding: (fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding)) ?? '',
+			ignoreGlobPatternCase: fq.ignoreGlobPatternCase
 		};
 		return options;
 	}

@@ -30,7 +30,8 @@ export class RipgrepSearchProvider implements TextSearchProvider2 {
 				maxResults: options.maxResults,
 				previewOptions: options.previewOptions,
 				maxFileSize: options.maxFileSize,
-				surroundingContext: options.surroundingContext
+				surroundingContext: options.surroundingContext,
+				ignoreGlobPatternCase: query.ignoreGlobPatternCase || options.ignoreGlobPatternCase || folderOption.ignoreGlobPatternCase
 			};
 			if (folderOption.folder.scheme === Schemas.vscodeUserData) {
 				// Ripgrep search engine can only provide file-scheme results, but we want to use it to search some schemes that are backed by the filesystem, but with some other provider as the frontend,

@@ -174,8 +174,11 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 	}
 
 	private async walkFolderQuery(handle: IWorkerFileSystemDirectoryHandle, queryProps: ICommonQueryProps<URI>, folderQuery: IFolderQuery<URI>, extUri: ExtUri, onFile: (file: FileNode) => any, token: CancellationToken): Promise<void> {
-
-		const folderExcludes = folderQuery.excludePattern?.map(excludePattern => glob.parse(excludePattern.pattern ?? {}, { trimForExclusions: true }) as glob.ParsedExpression);
+		const globOptions = {
+			trimForExclusions: true,
+			ignoreCase: queryProps.ignoreGlobPatternCase || folderQuery.ignoreGlobPatternCase
+		};
+		const folderExcludes = folderQuery.excludePattern?.map(excludePattern => glob.parse(excludePattern.pattern ?? {}, globOptions) as glob.ParsedExpression);
 
 		const evalFolderExcludes = (path: string, basename: string, hasSibling: (query: string) => boolean) => {
 			return folderExcludes?.some(folderExclude => {
@@ -231,7 +234,7 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 					if (!file) { return; }
 
 					const ignoreContents = new TextDecoder('utf8').decode(new Uint8Array(await (await file.getFile()).arrayBuffer()));
-					ignoreFile = new IgnoreFile(ignoreContents, prior, ignoreFile);
+					ignoreFile = new IgnoreFile(ignoreContents, prior, ignoreFile, globOptions.ignoreCase);
 				}));
 			}
 
@@ -240,11 +243,11 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 				const dirs: Promise<DirNode>[] = [];
 
 				const entries: [string, IWorkerFileSystemHandle][] = [];
-				const sibilings = new Set<string>();
+				const siblings = new Set<string>();
 
 				for await (const entry of directory.entries()) {
 					entries.push(entry);
-					sibilings.add(entry[0]);
+					siblings.add(entry[0]);
 				}
 
 				for (const [basename, handle] of entries) {
@@ -258,7 +261,7 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 						continue;
 					}
 
-					const hasSibling = (query: string) => sibilings.has(query);
+					const hasSibling = (query: string) => siblings.has(query);
 
 					if (isFileSystemDirectoryHandle(handle) && !isFolderExcluded(path, basename, hasSibling)) {
 						dirs.push(processDirectory(handle, path + '/', ignoreFile));
@@ -324,21 +327,21 @@ function reviveQueryProps(queryProps: ICommonQueryProps<UriComponents>): ICommon
 	};
 }
 
-
 function pathExcludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: string): boolean {
-	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
+	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath, { ignoreCase: queryProps.ignoreGlobPatternCase })) {
 		return true;
 	}
 	return false;
 }
 
 function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, path: string, extUri: ExtUri): boolean {
-	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, path)) {
+	const globOptions = { ignoreCase: queryProps.ignoreGlobPatternCase };
+	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, path, globOptions)) {
 		return false;
 	}
 
 	if (queryProps.includePattern || queryProps.usingSearchPaths) {
-		if (queryProps.includePattern && glob.match(queryProps.includePattern, path)) {
+		if (queryProps.includePattern && glob.match(queryProps.includePattern, path, globOptions)) {
 			return true;
 		}
 
@@ -348,9 +351,9 @@ function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, path: string, e
 			return !!queryProps.folderQueries && queryProps.folderQueries.some(fq => {
 				const searchPath = fq.folder;
 				const uri = URI.file(path);
-				if (extUri.isEqualOrParent(uri, searchPath)) {
+				if (extUri.isEqualOrParent(uri, searchPath, globOptions.ignoreCase)) {
 					const relPath = paths.relative(searchPath.path, uri.path);
-					return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
+					return !fq.includePattern || !!glob.match(fq.includePattern, relPath, globOptions);
 				} else {
 					return false;
 				}

@@ -7,6 +7,7 @@ import * as path from '../../../../base/common/path.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import * as glob from '../../../../base/common/glob.js';
+import * as strings from '../../../../base/common/strings.js';
 import * as resources from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -55,13 +56,13 @@ class FileSearchEngine {
 	private globalExcludePattern?: glob.ParsedExpression;
 
 	constructor(private config: IFileQuery, private provider: FileSearchProvider2, private sessionLifecycle?: SessionLifecycle) {
+		const globOptions = { ignoreCase: config.ignoreGlobPatternCase };
 		this.filePattern = config.filePattern;
-		this.includePattern = config.includePattern && glob.parse(config.includePattern);
+		this.includePattern = config.includePattern && glob.parse(config.includePattern, globOptions);
 		this.maxResults = config.maxResults || undefined;
 		this.exists = config.exists;
 		this.activeCancellationTokens = new Set<CancellationTokenSource>();
-
-		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
+		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern, globOptions);
 	}
 
 	cancel(): void {
@@ -210,6 +211,7 @@ class FileSearchEngine {
 				global: !fq.disregardGlobalIgnoreFiles
 			},
 			followSymlinks: !fq.ignoreSymlinks,
+			ignoreGlobPatternCase: fq.ignoreGlobPatternCase
 		};
 	}
 
@@ -224,7 +226,7 @@ class FileSearchEngine {
 
 	private addDirectoryEntries({ pathToEntries }: IDirectoryTree, base: URI, relativeFile: string, onResult: (result: IInternalFileMatch) => void) {
 		// Support relative paths to files from a root resource (ignores excludes)
-		if (relativeFile === this.filePattern) {
+		if (this.filePattern !== undefined && strings.equals(relativeFile, this.filePattern, this.config.ignoreGlobPatternCase)) {
 			const basename = path.basename(this.filePattern);
 			this.matchFile(onResult, { base: base, relativePath: this.filePattern, basename });
 		}
@@ -250,6 +252,7 @@ class FileSearchEngine {
 	private matchDirectoryTree({ rootEntries, pathToEntries }: IDirectoryTree, queryTester: QueryGlobTester, onResult: (result: IInternalFileMatch) => void) {
 		const self = this;
 		const filePattern = this.filePattern;
+		const ignoreCase = this.config.ignoreGlobPatternCase;
 		function matchDirectory(entries: IDirectoryEntry[]) {
 			const hasSibling = hasSiblingFn(() => entries.map(entry => entry.basename));
 			for (let i = 0, n = entries.length; i < n; i++) {
@@ -260,7 +263,7 @@ class FileSearchEngine {
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what they
 				// are searching for and we want to include the result in that case anyway
-				if (queryTester.matchesExcludesSync(relativePath, basename, filePattern !== basename ? hasSibling : undefined)) {
+				if (queryTester.matchesExcludesSync(relativePath, basename, !strings.equals(filePattern, basename, ignoreCase) ? hasSibling : undefined)) {
 					continue;
 				}
 
@@ -268,7 +271,7 @@ class FileSearchEngine {
 				if (sub) {
 					matchDirectory(sub);
 				} else {
-					if (relativePath === filePattern) {
+					if (strings.equals(relativePath, filePattern, ignoreCase)) {
 						continue; // ignore file if its path matches with the file pattern because that is already matched above
 					}
 
