@@ -215,8 +215,9 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 			case QueryType.File:
 				return this._proxy.$provideFileSearchResults(this._handle, session, query, token);
 			case QueryType.Folder:
-				// For now, folder search can use the same provider as file search
-				// Extensions can differentiate based on query type if needed
+				// Folder search queries are routed to file search providers.
+				// The $provideFileSearchResults method accepts IRawQuery which includes IRawFolderQuery.
+				// Extensions can check query.type to differentiate folder from file queries.
 				return this._proxy.$provideFileSearchResults(this._handle, session, query, token);
 			case QueryType.Text:
 				return this._proxy.$provideTextSearchResults(this._handle, session, query, token);
