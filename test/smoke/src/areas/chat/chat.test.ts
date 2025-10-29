@@ -21,17 +21,19 @@ export function setup(logger: Logger) {
 			await app.code.waitForElements('.noauxiliarybar', true, elements => elements.length === 1);
 
 			// assert that AI related commands are not present
-			const commands = await app.workbench.quickaccess.getVisibleCommandNames('chat');
 			let expectedFound = false;
 			const unexpectedFound: string[] = [];
-			for (const command of commands) {
-				if (command === 'Chat: Use AI Features with Copilot for free...') {
-					expectedFound = true;
-					continue;
-				}
+			for (const term of ['chat', 'agent', 'copilot']) {
+				const commands = await app.workbench.quickaccess.getVisibleCommandNames(term);
+				for (const command of commands) {
+					if (command === 'Chat: Use AI Features with Copilot for free...') {
+						expectedFound = true;
+						continue;
+					}
 
-				if (command.includes('Chat') || command.includes('Agent') || command.includes('Copilot')) {
-					unexpectedFound.push(command);
+					if (command.includes('Chat') || command.includes('Agent') || command.includes('Copilot')) {
+						unexpectedFound.push(command);
+					}
 				}
 			}
 
