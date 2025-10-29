@@ -566,7 +566,7 @@ export function registerChatActions() {
 			}
 
 			const getPicks = async () => {
-				const items = await chatService.getHistory();
+				const items = await chatService.getLocalSessionHistory();
 				items.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
 
 				let lastDate: string | undefined = undefined;
@@ -681,7 +681,7 @@ export function registerChatActions() {
 
 			const getPicks = async (showAllChats: boolean = false, showAllAgents: boolean = false) => {
 				// Fast picks: Get cached/immediate items first
-				const cachedItems = await chatService.getHistory();
+				const cachedItems = await chatService.getLocalSessionHistory();
 				cachedItems.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
 
 				const allFastPickItems: IChatPickerItem[] = cachedItems.map((i) => {
