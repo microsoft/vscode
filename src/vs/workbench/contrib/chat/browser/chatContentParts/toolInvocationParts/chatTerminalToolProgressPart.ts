@@ -329,7 +329,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return;
 		}
 		const scrollableDomNode = this._outputScrollbar.getDomNode();
-		scrollableDomNode.style.width = '100%';
 		const viewportHeight = Math.min(this._outputBody.scrollHeight, MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT);
 		scrollableDomNode.style.height = `${viewportHeight}px`;
 		this._outputScrollbar.scanDomNode();
