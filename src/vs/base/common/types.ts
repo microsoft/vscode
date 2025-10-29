@@ -327,6 +327,13 @@ export type Mutable<T> = {
 };
 
 /**
+ * A type that adds readonly to all properties of T, recursively.
+ */
+export type DeepImmutable<T> = {
+	readonly [P in keyof T]: T[P] extends object ? DeepImmutable<T[P]> : T[P];
+};
+
+/**
  * A single object or an array of the objects.
  */
 export type SingleOrMany<T> = T | T[];
