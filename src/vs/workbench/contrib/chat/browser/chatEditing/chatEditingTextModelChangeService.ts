@@ -31,6 +31,7 @@ import { editorSelectionBackground } from '../../../../../platform/theme/common/
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
 
@@ -171,21 +172,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		let maxLineNumber = 0;
 		let rewriteRatio = 0;
 
-		const sessionId = responseModel.session.sessionId;
-		const request = responseModel.session.getRequests().at(-1);
-		const languageId = this.modifiedModel.getLanguageId();
-		const agent = responseModel.agent;
-		const extensionId = VersionedExtensionId.tryCreate(agent?.extensionId.value, agent?.extensionVersion);
-
-		const source = EditSources.chatApplyEdits({
-			modelId: request?.modelId,
-			requestId: request?.id,
-			sessionId: sessionId,
-			languageId,
-			mode: request?.modeInfo?.modeId,
-			extensionId,
-			codeBlockSuggestionId: request?.modeInfo?.applyCodeBlockSuggestionId,
-		});
+		const source = this._createEditSource(responseModel);
 
 		if (isAtomicEdits) {
 			// EDIT and DONE
@@ -256,6 +243,35 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		}
 
 		return { rewriteRatio, maxLineNumber };
+	}
+
+	private _createEditSource(responseModel: IChatResponseModel) {
+		const sessionId = responseModel.session.sessionId;
+		const request = responseModel.session.getRequests().at(-1);
+		const languageId = this.modifiedModel.getLanguageId();
+		const agent = responseModel.agent;
+		const extensionId = VersionedExtensionId.tryCreate(agent?.extensionId.value, agent?.extensionVersion);
+
+		if (responseModel.request?.locationData?.type === ChatAgentLocation.EditorInline) {
+
+			return EditSources.inlineChatApplyEdit({
+				modelId: request?.modelId,
+				requestId: request?.id,
+				sessionId,
+				languageId,
+				extensionId,
+			});
+		}
+
+		return EditSources.chatApplyEdits({
+			modelId: request?.modelId,
+			requestId: request?.id,
+			sessionId,
+			languageId,
+			mode: request?.modeInfo?.modeId,
+			extensionId,
+			codeBlockSuggestionId: request?.modeInfo?.applyCodeBlockSuggestionId,
+		});
 	}
 
 	private _applyEdits(edits: ISingleEditOperation[], source: TextModelEditSource) {
