@@ -1413,7 +1413,6 @@ export class InlineChatController2 implements IEditorContribution {
 				}
 				this._zone.value.reveal(this._zone.value.position!);
 				this._zone.value.widget.focus();
-				// this._zone.value.widget.updateToolbar(true);
 				const entry = session.editingSession.getEntry(session.uri);
 
 				entry?.autoAcceptController.read(undefined)?.cancel();
