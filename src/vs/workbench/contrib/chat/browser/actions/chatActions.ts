@@ -66,6 +66,7 @@ import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
@@ -608,8 +609,10 @@ export function registerChatActions() {
 			}));
 			store.add(picker.onDidTriggerItemButton(async context => {
 				if (context.button === openInEditorButton) {
-					const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
-					editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, ACTIVE_GROUP);
+					editorService.openEditor({
+						resource: LocalChatSessionUri.forSession(context.item.chat.sessionId),
+						options: { pinned: true }
+					}, ACTIVE_GROUP);
 					picker.hide();
 				} else if (context.button === deleteButton) {
 					chatService.removeHistoryEntry(context.item.chat.sessionId);
@@ -864,8 +867,11 @@ export function registerChatActions() {
 			}));
 			store.add(picker.onDidTriggerItemButton(async context => {
 				if (context.button === openInEditorButton) {
-					const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
-					editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, ACTIVE_GROUP);
+					const options: IChatEditorOptions = { pinned: true };
+					editorService.openEditor({
+						resource: LocalChatSessionUri.forSession(context.item.chat.sessionId),
+						options,
+					}, ACTIVE_GROUP);
 					picker.hide();
 				} else if (context.button === deleteButton) {
 					chatService.removeHistoryEntry(context.item.chat.sessionId);

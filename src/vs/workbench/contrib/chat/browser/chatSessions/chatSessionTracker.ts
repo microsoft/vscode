@@ -11,7 +11,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { ChatSessionUri } from '../../common/chatUri.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './common.js';
 
@@ -102,7 +102,7 @@ export class ChatSessionTracker extends Disposable {
 				}
 			}
 
-			const parsed = ChatSessionUri.parse(editor.resource);
+			const parsed = LocalChatSessionUri.parse(editor.resource);
 			const hybridSession: ChatSessionItemWithProvider = {
 				id: parsed?.sessionId || editor.sessionId || `${provider.chatSessionType}-local-${index}`,
 				resource: editor.resource,

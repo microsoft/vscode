@@ -34,7 +34,7 @@ export function isChatSession(schemes: readonly string[], editor?: EditorInput):
 		return false;
 	}
 
-	if (!schemes.includes(editor.resource?.scheme) && editor.resource?.scheme !== Schemas.vscodeChatSession && editor.resource?.scheme !== Schemas.vscodeChatEditor) {
+	if (!schemes.includes(editor.resource?.scheme) && editor.resource?.scheme !== Schemas.vscodeLocalChatSession && editor.resource?.scheme !== Schemas.vscodeChatEditor) {
 		return false;
 	}
 
