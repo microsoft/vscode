@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/progressService.css';
 import { localize } from '../../../../nls.js';
 import { IDisposable, dispose, DisposableStore, Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions, IProgressDialogOptions } from '../../../../platform/progress/common/progress.js';

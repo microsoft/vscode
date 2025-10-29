@@ -327,12 +327,6 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 				classes.push('compact');
 			}
 
-			// Progress
-			if (type === 'progress') {
-				show(this.badge);
-				classes.push('progress-badge');
-			}
-
 			// Number
 			else if (type === 'number') {
 				const total = badges.reduce((r, b) => r + (b instanceof NumberBadge ? b.number : 0), 0);
@@ -351,12 +345,17 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 				}
 			}
 
-			// Icon
-			else if (type === 'icon') {
+			// Icon / Progress
+			else if (type === 'icon' || type === 'progress') {
 				classes.push('icon-badge');
-				const badgeContentClassess = ['icon-overlay', ...ThemeIcon.asClassNameArray((badges[0] as IconBadge).icon)];
-				this.badgeContent.classList.add(...badgeContentClassess);
-				this.badgeDisposable.value.add(toDisposable(() => this.badgeContent?.classList.remove(...badgeContentClassess)));
+				const badgeContentClasses: string[] = ['icon-overlay'];
+				if (type === 'icon') {
+					badgeContentClasses.push(...ThemeIcon.asClassNameArray((badges[0] as IconBadge).icon));
+				} else if (type === 'progress') {
+					badgeContentClasses.push(...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin')));
+				}
+				this.badgeContent.classList.add(...badgeContentClasses);
+				this.badgeDisposable.value.add(toDisposable(() => this.badgeContent?.classList.remove(...badgeContentClasses)));
 				show(this.badge);
 			}
 
