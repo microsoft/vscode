@@ -77,7 +77,7 @@ export class SearchService implements IRawSearchService {
 	folderSearch(config: IRawFolderQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		let promise: CancelablePromise<ISerializedSearchSuccess>;
 
-		const query = reviveQuery(config) as IFolderQuery2;
+		const query = reviveQuery(config as any) as unknown as IFolderQuery2;
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 			onDidAddFirstListener: () => {
 				promise = createCancelablePromise(async token => {
@@ -171,11 +171,10 @@ export class SearchService implements IRawSearchService {
 			...config,
 			type: 1, // QueryType.File
 			filePattern: config.folderPattern ? `**/${config.folderPattern}/**` : undefined,
-			folderPattern: undefined
-		} as any;
+		};
 
 		const folderSet = new Set<string>();
-		const folderMatches: IRawFileMatch[] = [];
+		const folderMatches: ISerializedFileMatch[] = [];
 		
 		const fileProgressCallback: IProgressCallback = (progress: ISerializedSearchProgressItem) => {
 			if (Array.isArray(progress)) {
@@ -192,7 +191,7 @@ export class SearchService implements IRawSearchService {
 							// Check if folder name matches the pattern
 							if (!config.folderPattern || folderName.toLowerCase().includes(config.folderPattern.toLowerCase())) {
 								folderSet.add(folderPath);
-								folderMatches.push({ relativePath: folderPath, base: undefined });
+								folderMatches.push({ path: folderPath });
 							}
 						}
 					}
