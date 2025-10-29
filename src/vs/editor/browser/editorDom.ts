@@ -294,7 +294,8 @@ export class DynamicCssRules {
 		this._garbageCollectionScheduler.dispose();
 	}
 
-	public createClassNameRef(options: CssProperties): ClassNameReference {
+	public createClassNameRef(options: CssProperties): ClassNameReference { // contribution that is in the browser, that adds css rules to stylesheet
+		// code editor service
 		const rule = this.getOrCreateRule(options);
 		rule.increaseRefCount();
 

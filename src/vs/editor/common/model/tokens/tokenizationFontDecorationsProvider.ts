@@ -4,14 +4,123 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
 import { IDecorationOptions, IDecorationRenderOptions } from '../../editorCommon.js';
-import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from '../../model.js';
+import { IModelDecoration, IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from '../../model.js';
 import { TokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { Range } from '../../core/range.js';
 import { Position } from '../../core/position.js';
-import { hash } from '../../../../base/common/hash.js';
+import { DecorationProvider } from '../decorationProvider.js';
+import { TextModel } from '../textModel.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IFontOption } from '../../languages.js';
 
+export class TokenizationFontDecorationProvider extends Disposable implements DecorationProvider {
+
+	private readonly onDidChangeEmitter = new Emitter<void>();
+	public readonly onDidChange = this.onDidChangeEmitter.event;
+
+	private readonly specialFontInfo = new Map<number, IFontOption[]>();
+
+	constructor(
+		private readonly textModel: TextModel,
+		private readonly tokenizationTextModelPart: TokenizationTextModelPart
+	) {
+		super();
+		this.tokenizationTextModelPart.onDidChangeFontInfo(fontChanges => {
+			for (const fontChange of fontChanges) {
+				this.specialFontInfo.set(fontChange.lineNumber, fontChange.options);
+			}
+		});
+	}
+
+	//#endregion
+
+	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
+		if (ownerId === undefined) {
+			return [];
+		}
+		// What is the best structure to access the decorations in a given range?
+		/**
+
+		 */
+		const decorations: IModelDecoration[] = [];
+		for (let i = range.startLineNumber; i < range.endLineNumber; i++) {
+			if (this.specialFontInfo.has(i)) {
+				const fontOptions = this.specialFontInfo.get(i)!;
+				for (const fontOption of fontOptions) {
+					decorations.push({
+						id: `font-decoration-${i}-${fontOption.startIndex}-${fontOption.length}`,
+						options: {
+							description: 'FontOptionDecoration',
+							inlineClassName: '',
+						},
+						ownerId: 0,
+						range: new Range(i, fontOption.startIndex + 1, i, fontOption.startIndex + 1 + fontOption.length)
+					});
+				}
+			}
+		}
+		return decorations;
+	}
+
+	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
+		if (ownerId === undefined) {
+			return [];
+		}
+		if (!this.colorizationOptions.enabled) {
+			return [];
+		}
+		return this.getDecorationsInRange(
+			new Range(1, 1, this.textModel.getLineCount(), 1),
+			ownerId,
+			filterOutValidation
+		);
+	}
+}
+
+class ColorProvider {
+	public readonly unexpectedClosingBracketClassName = 'unexpected-closing-bracket';
+
+	getInlineClassName(bracket: BracketInfo, independentColorPoolPerBracketType: boolean): string {
+		if (bracket.isInvalid) {
+			return this.unexpectedClosingBracketClassName;
+		}
+		return this.getInlineClassNameOfLevel(independentColorPoolPerBracketType ? bracket.nestingLevelOfEqualBracketType : bracket.nestingLevel);
+	}
+
+	getInlineClassNameOfLevel(level: number): string {
+		// To support a dynamic amount of colors up to 6 colors,
+		// we use a number that is a lcm of all numbers from 1 to 6.
+		return `bracket-highlighting-${level % 30}`;
+	}
+}
+
+registerThemingParticipant((theme, collector) => {
+	const colors = [
+		editorBracketHighlightingForeground1,
+		editorBracketHighlightingForeground2,
+		editorBracketHighlightingForeground3,
+		editorBracketHighlightingForeground4,
+		editorBracketHighlightingForeground5,
+		editorBracketHighlightingForeground6
+	];
+	const colorProvider = new ColorProvider();
+
+	// The colors are added into the collector
+	collector.addRule(`.monaco-editor .${colorProvider.unexpectedClosingBracketClassName} { color: ${theme.getColor(editorBracketHighlightingUnexpectedBracketForeground)}; }`);
+
+	const colorValues = colors
+		.map(c => theme.getColor(c))
+		.filter((c): c is Color => !!c)
+		.filter(c => !c.isTransparent());
+
+	for (let level = 0; level < 30; level++) {
+		const color = colorValues[level % colorValues.length];
+		collector.addRule(`.monaco-editor .${colorProvider.getInlineClassNameOfLevel(level)} { color: ${color}; }`);
+	}
+});
+
+/*
 export class TokenizationFontDecorations extends Disposable {
 
 	private static readonly TOKENIZATION_FONT_DECORATIONS_DESCRIPTION = 'Text-mate based font decorations';
@@ -104,6 +213,22 @@ export class TokenizationFontDecorations extends Disposable {
 			if (!this._codeEditorService.hasDecorationType(decorationType)) {
 				this._codeEditorService.registerDecorationType(TokenizationFontDecorations.TOKENIZATION_FONT_DECORATIONS_DESCRIPTION, decorationType, renderOptions);
 			}
+			// const style = document.createElement('style');
+			// style.type = 'text/css';
+			// style.media = 'screen';
+			// mainWindow.document.head.appendChild(style);
+
+			// const providerArgs: ProviderArguments = {
+			// 	styleSheet: styleSheet,
+			// 	key: key,
+			// 	parentTypeKey: parentTypeKey,
+			// 	options: options || Object.create(null)
+			// };
+			// if (!parentTypeKey) {
+			// 	provider = new DecorationTypeOptionsProvider(description, key, this._themeService, styleSheet, providerArgs);
+			// } else {
+			// 	provider = new DecorationSubTypeOptionsProvider(this._themeService, styleSheet, providerArgs);
+			// }
 			newModelDecorations.push({ range: decorationOption.range, options: this._codeEditorService.resolveDecorationOptions(decorationType, false) });
 		}
 		return newModelDecorations;
@@ -127,3 +252,4 @@ export class TokenizationFontDecorations extends Disposable {
 		}
 	}
 }
+*/

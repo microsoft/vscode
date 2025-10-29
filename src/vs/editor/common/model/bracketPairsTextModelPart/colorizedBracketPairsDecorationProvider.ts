@@ -42,6 +42,7 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 
 	//#endregion
 
+	// We fetch the decorations in a specific range
 	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
 		if (onlyMinimapDecorations) {
 			// Bracket pair colorization decorations are not rendered in the minimap
@@ -54,6 +55,8 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 			return [];
 		}
 
+		// ---
+		// constructing the fake decoration
 		const result = this.textModel.bracketPairs.getBracketsInRange(range, true).map<IModelDecoration>(bracket => ({
 			id: `bracket${bracket.range.toString()}-${bracket.nestingLevel}`,
 			options: {
@@ -113,6 +116,7 @@ registerThemingParticipant((theme, collector) => {
 	];
 	const colorProvider = new ColorProvider();
 
+	// The colors are added into the collector 
 	collector.addRule(`.monaco-editor .${colorProvider.unexpectedClosingBracketClassName} { color: ${theme.getColor(editorBracketHighlightingUnexpectedBracketForeground)}; }`);
 
 	const colorValues = colors

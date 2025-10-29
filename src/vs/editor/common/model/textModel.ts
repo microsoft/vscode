@@ -50,7 +50,7 @@ import { TokenArray } from '../tokens/lineTokens.js';
 import { SetWithKey } from '../../../base/common/collections.js';
 import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { TextEdit } from '../core/edits/textEdit.js';
-import { TokenizationFontDecorations } from './tokens/tokenizationFontDecorations.js';
+import { TokenizationFontDecorations } from './tokens/tokenizationFontDecorationsProvider.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -358,6 +358,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		this._bracketPairs = this._register(new BracketPairsTextModelPart(this, this._languageConfigurationService));
 		this._guidesTextModelPart = this._register(new GuidesTextModelPart(this, this._languageConfigurationService));
+		// Creating a new colorized bracket pair decoration provider which is fake
 		this._decorationProvider = this._register(new ColorizedBracketPairsDecorationProvider(this));
 		this._tokenizationTextModelPart = this.instantiationService.createInstance(TokenizationTextModelPart,
 			this,
@@ -1775,6 +1776,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const range = new Range(startLineNumber, 1, endLineNumber, endColumn);
 
 		const decorations = this._getDecorationsInRange(range, ownerId, filterOutValidation, filterFontDecorations, onlyMarginDecorations);
+		// After we fetch the decorations, we add the ones from the bracket decoration provider
 		pushMany(decorations, this._decorationProvider.getDecorationsInRange(range, ownerId, filterOutValidation));
 		return decorations;
 	}
@@ -1783,6 +1785,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const validatedRange = this.validateRange(range);
 
 		const decorations = this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation, filterFontDecorations, onlyMarginDecorations);
+		// After we fetch the decorations, we add the ones from the bracket decoration provider
 		pushMany(decorations, this._decorationProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation, onlyMinimapDecorations));
 		return decorations;
 	}
@@ -1814,6 +1817,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false, filterFontDecorations: boolean = false): model.IModelDecoration[] {
+		// getting all the decorations from the tree and concatenating with those from the bracket pairs
 		let result = this._decorationsTree.getAll(this, ownerId, filterOutValidation, filterFontDecorations, false, false);
 		result = result.concat(this._decorationProvider.getAllDecorations(ownerId, filterOutValidation));
 		return result;
