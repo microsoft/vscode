@@ -64,7 +64,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private _outputContent: HTMLElement | undefined;
 	private _outputResizeObserver: ResizeObserver | undefined;
 
-	private _showOutputAction: IAction | undefined;
+	private _showOutputAction: ToggleChatTerminalOutputAction | undefined;
 	private _showOutputActionAdded = false;
 	private _focusAction: FocusChatInstanceAction | undefined;
 
@@ -202,70 +202,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return;
 		}
 		if (!this._showOutputAction) {
-			this._showOutputAction = this._register(new Action(
-				'chat.showTerminalOutput',
-				localize('showTerminalOutput', 'Show Output'),
-				ThemeIcon.asClassName(Codicon.chevronRight),
-				true,
-				async () => {
-					if (!this._showOutputAction) {
-						return;
-					}
-					const expanded = !this._outputContainer.classList.contains('expanded');
-					this._outputContainer.classList.toggle('expanded', expanded);
-					this._outputContainer.classList.toggle('collapsed', !expanded);
-
-					if (expanded) {
-						this._titlePart.classList.add('expanded');
-						let didCreate = false;
-						if (!this._outputContent && this._terminalForOutput) {
-							const output = await this._collectOutput(this._terminalForOutput);
-							this._outputContent = this._renderOutput(output);
-							const theme = this._terminalForOutput.xterm?.getXtermTheme();
-							if (theme) {
-								const inlineTerminal = this._outputContent.querySelector('div');
-								if (!inlineTerminal) {
-									return;
-								}
-								inlineTerminal.style.setProperty('background-color', theme.background || 'transparent');
-								inlineTerminal.style.setProperty('color', theme.foreground || 'inherit');
-							}
-							this._outputBody.replaceChildren(this._outputContent);
-							if (!this._outputScrollbar) {
-								this._outputScrollbar = this._register(new DomScrollableElement(this._outputBody, {
-									vertical: ScrollbarVisibility.Auto,
-									horizontal: ScrollbarVisibility.Auto,
-									handleMouseWheel: true
-								}));
-								const scrollableDomNode = this._outputScrollbar.getDomNode();
-								scrollableDomNode.tabIndex = 0;
-								scrollableDomNode.style.maxHeight = `${MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT}px`;
-								this._outputContainer.appendChild(scrollableDomNode);
-								this._ensureOutputResizeObserver();
-								this._outputContent = undefined;
-							} else {
-								this._ensureOutputResizeObserver();
-							}
-							this._layoutOutput();
-							this._outputScrollbar?.setScrollPosition({ scrollTop: this._outputScrollbar.getScrollDimensions().scrollHeight });
-							didCreate = true;
-						}
-						if (didCreate) {
-							dom.getActiveWindow().requestAnimationFrame(() => {
-								this._layoutOutput();
-								this._outputScrollbar?.setScrollPosition({ scrollTop: this._outputScrollbar.getScrollDimensions().scrollHeight });
-							});
-						}
-						this._showOutputAction.label = localize('hideTerminalOutput', 'Hide Output');
-						this._showOutputAction.class = ThemeIcon.asClassName(Codicon.chevronDown);
-						this._layoutOutput();
-					} else {
-						this._titlePart.classList.remove('expanded');
-						this._showOutputAction.label = localize('showTerminalOutput', 'Show Output');
-						this._showOutputAction.class = ThemeIcon.asClassName(Codicon.chevronRight);
-					}
-				}
-			));
+			this._showOutputAction = this._register(new ToggleChatTerminalOutputAction(expanded => this._toggleOutput(expanded)));
+			this._showOutputAction.syncPresentation(this._outputContainer.classList.contains('expanded'));
 		}
 		this._actionBar.value?.push([this._showOutputAction], { icon: true, label: false });
 		this._showOutputActionAdded = true;
@@ -324,11 +262,96 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}));
 	}
 
+	private async _toggleOutput(expanded: boolean): Promise<boolean> {
+		const currentlyExpanded = this._outputContainer.classList.contains('expanded');
+		if (expanded === currentlyExpanded) {
+			this._showOutputAction?.syncPresentation(currentlyExpanded);
+			return false;
+		}
+
+		this._setOutputExpanded(expanded);
+
+		if (!expanded) {
+			this._layoutOutput();
+			this._showOutputAction?.syncPresentation(false);
+			return true;
+		}
+
+		const didCreate = await this._renderOutputIfNeeded();
+		this._layoutOutput();
+		this._scrollOutputToBottom();
+		if (didCreate) {
+			this._scheduleOutputRelayout();
+		}
+		this._showOutputAction?.syncPresentation(expanded);
+		return true;
+	}
+
+	private _setOutputExpanded(expanded: boolean): void {
+		this._outputContainer.classList.toggle('expanded', expanded);
+		this._outputContainer.classList.toggle('collapsed', !expanded);
+		this._titlePart.classList.toggle('expanded', expanded);
+	}
+
+	private async _renderOutputIfNeeded(): Promise<boolean> {
+		if (this._outputContent || !this._terminalForOutput) {
+			this._ensureOutputResizeObserver();
+			return false;
+		}
+
+		const output = await this._collectOutput(this._terminalForOutput);
+		const content = this._renderOutput(output);
+		const theme = this._terminalForOutput.xterm?.getXtermTheme();
+		if (theme) {
+			const inlineTerminal = content.querySelector('div');
+			if (inlineTerminal) {
+				inlineTerminal.style.setProperty('background-color', theme.background || 'transparent');
+				inlineTerminal.style.setProperty('color', theme.foreground || 'inherit');
+			}
+		}
+
+		this._outputBody.replaceChildren(content);
+		this._outputContent = content;
+		if (!this._outputScrollbar) {
+			this._outputScrollbar = this._register(new DomScrollableElement(this._outputBody, {
+				vertical: ScrollbarVisibility.Auto,
+				horizontal: ScrollbarVisibility.Auto,
+				handleMouseWheel: true
+			}));
+			const scrollableDomNode = this._outputScrollbar.getDomNode();
+			scrollableDomNode.tabIndex = 0;
+			scrollableDomNode.style.maxHeight = `${MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT}px`;
+			this._outputContainer.appendChild(scrollableDomNode);
+			this._ensureOutputResizeObserver();
+			this._outputContent = undefined;
+		} else {
+			this._ensureOutputResizeObserver();
+		}
+
+		return true;
+	}
+
+	private _scrollOutputToBottom(): void {
+		if (!this._outputScrollbar) {
+			return;
+		}
+		const dimensions = this._outputScrollbar.getScrollDimensions();
+		this._outputScrollbar.setScrollPosition({ scrollTop: dimensions.scrollHeight });
+	}
+
+	private _scheduleOutputRelayout(): void {
+		dom.getActiveWindow().requestAnimationFrame(() => {
+			this._layoutOutput();
+			this._scrollOutputToBottom();
+		});
+	}
+
 	private _layoutOutput(): void {
 		if (!this._outputScrollbar || !this._outputContainer.classList.contains('expanded')) {
 			return;
 		}
 		const scrollableDomNode = this._outputScrollbar.getDomNode();
+		scrollableDomNode.style.width = '100%';
 		const viewportHeight = Math.min(this._outputBody.scrollHeight, MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT);
 		scrollableDomNode.style.height = `${viewportHeight}px`;
 		this._outputScrollbar.scanDomNode();
@@ -349,8 +372,15 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private async _collectOutput(terminalInstance: ITerminalInstance): Promise<{ text: string; truncated: boolean }> {
 		await terminalInstance.xtermReadyPromise;
-		this._attachedCommand ??= this._resolveCommand(terminalInstance);
-		const text = await terminalInstance.xterm?.getSelectionAsHtml(this._attachedCommand, MAX_TERMINAL_OUTPUT_PREVIEW_LINES, true);
+		let command = this._attachedCommand;
+		if (!command) {
+			command = this._resolveCommand(terminalInstance);
+		}
+		if (!command) {
+			return { text: '', truncated: false };
+		}
+		this._attachedCommand = command;
+		const text = await terminalInstance.xterm?.getHtmlForCommand(command, MAX_TERMINAL_OUTPUT_PREVIEW_LINES);
 		if (!text) {
 			return { text: '', truncated: false };
 		}
@@ -473,6 +503,39 @@ CommandsRegistry.registerCommand(openTerminalSettingsLinkCommandId, async (acces
 		}
 	}
 });
+
+class ToggleChatTerminalOutputAction extends Action implements IAction {
+	private _expanded = false;
+
+	constructor(private readonly _toggle: (expanded: boolean) => Promise<boolean>) {
+		super(
+			'chat.showTerminalOutput',
+			localize('showTerminalOutput', 'Show Output'),
+			ThemeIcon.asClassName(Codicon.chevronRight),
+			true,
+		);
+	}
+
+	public override async run(): Promise<void> {
+		const target = !this._expanded;
+		await this._toggle(target);
+	}
+
+	public syncPresentation(expanded: boolean): void {
+		this._expanded = expanded;
+		this._updatePresentation();
+	}
+
+	private _updatePresentation(): void {
+		if (this._expanded) {
+			this.label = localize('hideTerminalOutput', 'Hide Output');
+			this.class = ThemeIcon.asClassName(Codicon.chevronDown);
+		} else {
+			this.label = localize('showTerminalOutput', 'Show Output');
+			this.class = ThemeIcon.asClassName(Codicon.chevronRight);
+		}
+	}
+}
 
 export class FocusChatInstanceAction extends Action implements IAction {
 	constructor(
