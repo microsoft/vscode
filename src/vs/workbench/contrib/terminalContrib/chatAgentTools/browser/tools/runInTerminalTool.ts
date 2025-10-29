@@ -774,7 +774,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const params = new URLSearchParams(instance.resource.query);
 			params.set('command', resolvedCommand.id);
 			const commandUri = instance.resource.with({ query: params.toString() || undefined });
-			toolSpecificData.terminalCommandUri = commandUri.toJSON();
+			toolSpecificData.terminalCommandUri = commandUri;
 		}
 
 		if (toolSpecificData.terminalCommandIndex === undefined) {
