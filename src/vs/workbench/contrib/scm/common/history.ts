@@ -84,9 +84,9 @@ export interface ISCMHistoryItemGraphNode {
 
 export interface ISCMHistoryItemViewModel {
 	readonly historyItem: ISCMHistoryItem;
-	readonly isCurrent: boolean;
 	readonly inputSwimlanes: ISCMHistoryItemGraphNode[];
 	readonly outputSwimlanes: ISCMHistoryItemGraphNode[];
+	readonly kind: 'HEAD' | 'incoming-changes' | 'outgoing-changes' | 'node';
 }
 
 export interface SCMHistoryItemViewModelTreeElement {

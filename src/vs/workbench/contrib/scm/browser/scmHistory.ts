@@ -211,8 +211,22 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	}
 
 	// Draw *
-	if (historyItemViewModel.isCurrent) {
+	if (historyItemViewModel.kind === 'HEAD') {
 		// HEAD
+		const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 3, CIRCLE_STROKE_WIDTH, circleColor);
+		svg.append(outerCircle);
+
+		const innerCircle = drawCircle(circleIndex, CIRCLE_STROKE_WIDTH, CIRCLE_RADIUS);
+		svg.append(innerCircle);
+	} else if (historyItemViewModel.kind === 'incoming-changes') {
+		// Incoming changes
+		const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 3, CIRCLE_STROKE_WIDTH, circleColor);
+		svg.append(outerCircle);
+
+		const innerCircle = drawCircle(circleIndex, CIRCLE_STROKE_WIDTH, CIRCLE_RADIUS);
+		svg.append(innerCircle);
+	} else if (historyItemViewModel.kind === 'outgoing-changes') {
+		// Outgoing changes
 		const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 3, CIRCLE_STROKE_WIDTH, circleColor);
 		svg.append(outerCircle);
 
@@ -268,7 +282,7 @@ export function toISCMHistoryItemViewModelArray(
 	for (let index = 0; index < historyItems.length; index++) {
 		const historyItem = historyItems[index];
 
-		const isCurrent = historyItem.id === currentHistoryItemRef?.revision;
+		const kind = getHistoryItemViewModelKind(historyItem, currentHistoryItemRef);
 		const outputSwimlanesFromPreviousItem = viewModels.at(-1)?.outputSwimlanes ?? [];
 		const inputSwimlanes = outputSwimlanesFromPreviousItem.map(i => deepClone(i));
 		const outputSwimlanes: ISCMHistoryItemGraphNode[] = [];
@@ -346,13 +360,25 @@ export function toISCMHistoryItemViewModelArray(
 				...historyItem,
 				references
 			},
-			isCurrent,
+			kind,
 			inputSwimlanes,
 			outputSwimlanes,
-		});
+		} satisfies ISCMHistoryItemViewModel);
 	}
 
 	return viewModels;
+}
+
+export function getHistoryItemViewModelKind(historyItem: ISCMHistoryItem, currentHistoryItemRef?: ISCMHistoryItemRef): 'HEAD' | 'incoming-changes' | 'outgoing-changes' | 'node' {
+	switch (historyItem.id) {
+		case currentHistoryItemRef?.revision:
+			return 'HEAD';
+		case 'incoming-changes':
+		case 'outgoing-changes':
+			return historyItem.id;
+		default:
+			return 'node';
+	}
 }
 
 export function getHistoryItemIndex(historyItemViewModel: ISCMHistoryItemViewModel): number {
