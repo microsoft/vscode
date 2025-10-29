@@ -140,10 +140,15 @@ function createAlertBlockquoteRenderer(fallbackRenderer: (this: marked.Renderer,
 			return fallbackRenderer.call(this, token);
 		}
 
-		const match = firstTextToken.raw.trim().match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]$/i);
+		const pattern = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*?\n*/i;
+		const match = firstTextToken.raw.match(pattern);
 		if (!match) {
 			return fallbackRenderer.call(this, token);
 		}
+
+		// Remove the alert marker from the token
+		firstTextToken.raw = firstTextToken.raw.replace(pattern, '');
+		firstTextToken.text = firstTextToken.text.replace(pattern, '');
 
 		const alertIcons: Record<string, string> = {
 			'note': 'info',
@@ -159,7 +164,6 @@ function createAlertBlockquoteRenderer(fallbackRenderer: (this: marked.Renderer,
 		const iconHtml = renderIcon({ id: alertIcons[severity] }).outerHTML;
 
 		// Render the remaining content
-		paragraphTokens.shift(); // Remove the alert syntax token
 		const content = this.parser.parse(tokens);
 
 		// Return alert markup with icon and severity (skipping the first 3 characters: `<p>`)
