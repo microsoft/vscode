@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { IEditorMouseEvent } from '../../../browser/editorBrowser.js';
 
 export function isMousePositionWithinElement(element: HTMLElement, posx: number, posy: number): boolean {
 	const elementRect = dom.getDomNodePagePosition(element);
@@ -14,4 +15,22 @@ export function isMousePositionWithinElement(element: HTMLElement, posx: number,
 		return false;
 	}
 	return true;
+}
+
+export function shouldShowHover(
+	hoverEnabled: 'on' | 'off' | 'onKeyboardModifier',
+	multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey',
+	mouseEvent: IEditorMouseEvent
+): boolean {
+	if (hoverEnabled === 'on') {
+		return true;
+	}
+	if (hoverEnabled === 'off') {
+		return false;
+	}
+	if (multiCursorModifier === 'altKey') {
+		return mouseEvent.event.ctrlKey;
+	} else {
+		return mouseEvent.event.altKey;
+	}
 }

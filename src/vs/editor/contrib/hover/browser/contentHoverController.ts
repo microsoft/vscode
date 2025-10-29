@@ -17,7 +17,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { HoverVerbosityAction } from '../../../common/languages.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { isMousePositionWithinElement } from './hoverUtils.js';
+import { isMousePositionWithinElement, shouldShowHover } from './hoverUtils.js';
 import { ContentHoverWidgetWrapper } from './contentHoverWidgetWrapper.js';
 import './hover.css';
 import { Emitter } from '../../../../base/common/event.js';
@@ -249,7 +249,11 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		if (this._shouldShowHover(mouseEvent)) {
+		if (shouldShowHover(
+			this._hoverSettings.enabled,
+			this._editor.getOption(EditorOption.multiCursorModifier),
+			mouseEvent
+		)) {
 			const contentWidget: ContentHoverWidgetWrapper = this._getOrCreateContentWidget();
 			if (contentWidget.showsOrWillShow(mouseEvent)) {
 				return;
@@ -259,21 +263,6 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			return;
 		}
 		this.hideContentHover();
-	}
-
-	private _shouldShowHover(mouseEvent: IEditorMouseEvent): boolean {
-		if (this._hoverSettings.enabled === 'on') {
-			return true;
-		}
-		if (this._hoverSettings.enabled === 'off') {
-			return false;
-		}
-		const multiCursorModifier = this._editor.getOption(EditorOption.multiCursorModifier);
-		if (multiCursorModifier === 'altKey') {
-			return mouseEvent.event.ctrlKey;
-		} else {
-			return mouseEvent.event.altKey;
-		}
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {

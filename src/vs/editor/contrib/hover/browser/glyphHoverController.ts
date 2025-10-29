@@ -12,7 +12,7 @@ import { IEditorContribution, IScrollEvent } from '../../../common/editorCommon.
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHoverWidget } from './hoverTypes.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { isMousePositionWithinElement } from './hoverUtils.js';
+import { isMousePositionWithinElement, shouldShowHover } from './hoverUtils.js';
 import './hover.css';
 import { GlyphHoverWidget } from './glyphHoverWidget.js';
 
@@ -176,7 +176,11 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 		if (!mouseEvent) {
 			return;
 		}
-		if (!this._shouldShowHover(mouseEvent)) {
+		if (!shouldShowHover(
+			this._hoverSettings.enabled,
+			this._editor.getOption(EditorOption.multiCursorModifier),
+			mouseEvent
+		)) {
 			if (_sticky) {
 				return;
 			}
@@ -191,24 +195,6 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 			return;
 		}
 		this.hideGlyphHover();
-	}
-
-	private _shouldShowHover(mouseEvent: IEditorMouseEvent): boolean {
-		if (this._hoverSettings.enabled === 'on') {
-			return true;
-		}
-		if (this._hoverSettings.enabled === 'off') {
-			return false;
-		}
-		// enabled === 'onKeyboardModifier'
-		const multiCursorModifier = this._editor.getOption(EditorOption.multiCursorModifier);
-		// If multiCursorModifier is 'ctrlKey' or 'metaKey', check for altKey
-		// If multiCursorModifier is 'altKey', check for ctrlKey
-		if (multiCursorModifier === 'altKey') {
-			return mouseEvent.event.ctrlKey;
-		} else {
-			return mouseEvent.event.altKey;
-		}
 	}
 
 	private _tryShowHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
