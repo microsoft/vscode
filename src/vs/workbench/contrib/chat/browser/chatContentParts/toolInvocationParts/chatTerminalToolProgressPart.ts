@@ -64,9 +64,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private _outputContent: HTMLElement | undefined;
 	private _outputResizeObserver: ResizeObserver | undefined;
 
-	private _showOutputAction: ToggleChatTerminalOutputAction | undefined;
+	private readonly _showOutputAction = this._register(new MutableDisposable<ToggleChatTerminalOutputAction>());
 	private _showOutputActionAdded = false;
-	private _focusAction: FocusChatInstanceAction | undefined;
+	private readonly _focusAction = this._register(new MutableDisposable<FocusChatInstanceAction>());
 
 	private readonly _terminalData: IChatTerminalToolInvocationData;
 	private _attachedCommand: ITerminalCommand | undefined;
@@ -188,8 +188,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private async _addFocusAction(terminalInstance: ITerminalInstance, terminalToolSessionId: string) {
 		const isTerminalHidden = this._terminalChatService.isBackgroundTerminal(terminalToolSessionId);
-		const focusAction = this._register(this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, this._attachedCommand, isTerminalHidden));
-		this._focusAction = focusAction;
+		const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, this._attachedCommand, isTerminalHidden);
+		this._focusAction.value = focusAction;
 		this._actionBar.value?.push(focusAction, { icon: true, label: false });
 		this._ensureShowOutputAction();
 	}
@@ -198,14 +198,17 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (this._showOutputActionAdded || !this._attachedCommand?.endMarker) {
 			return;
 		}
-		if (!this._focusAction) {
+		const focusAction = this._focusAction.value;
+		if (!focusAction) {
 			return;
 		}
-		if (!this._showOutputAction) {
-			this._showOutputAction = this._register(new ToggleChatTerminalOutputAction(expanded => this._toggleOutput(expanded)));
-			this._showOutputAction.syncPresentation(this._outputContainer.classList.contains('expanded'));
+		let showOutputAction = this._showOutputAction.value;
+		if (!showOutputAction) {
+			showOutputAction = new ToggleChatTerminalOutputAction(expanded => this._toggleOutput(expanded));
+			this._showOutputAction.value = showOutputAction;
 		}
-		this._actionBar.value?.push([this._showOutputAction], { icon: true, label: false });
+		showOutputAction.syncPresentation(this._outputContainer.classList.contains('expanded'));
+		this._actionBar.value?.push([showOutputAction], { icon: true, label: false });
 		this._showOutputActionAdded = true;
 	}
 
@@ -252,7 +255,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			commandDetectionListener.clear();
 			this._actionBar.value?.clear();
 			this._showOutputActionAdded = false;
-			this._focusAction = undefined;
+			this._focusAction.clear();
+			this._showOutputAction.clear();
 			instanceListener.dispose();
 		}));
 	}
@@ -260,7 +264,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private async _toggleOutput(expanded: boolean): Promise<boolean> {
 		const currentlyExpanded = this._outputContainer.classList.contains('expanded');
 		if (expanded === currentlyExpanded) {
-			this._showOutputAction?.syncPresentation(currentlyExpanded);
+			this._showOutputAction.value?.syncPresentation(currentlyExpanded);
 			return false;
 		}
 
@@ -268,7 +272,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		if (!expanded) {
 			this._layoutOutput();
-			this._showOutputAction?.syncPresentation(false);
+			this._showOutputAction.value?.syncPresentation(false);
 			return true;
 		}
 
@@ -278,7 +282,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (didCreate) {
 			this._scheduleOutputRelayout();
 		}
-		this._showOutputAction?.syncPresentation(expanded);
+		this._showOutputAction.value?.syncPresentation(expanded);
 		return true;
 	}
 

@@ -738,12 +738,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private _setTerminalCommandUri(toolSpecificData: IChatTerminalToolInvocationData, instance: ITerminalInstance, commandDetection: ICommandDetectionCapability | undefined, explicitCommandId?: string | undefined): void {
+	private _setTerminalCommandUri(toolSpecificData: IChatTerminalToolInvocationData, instance: ITerminalInstance, commandDetection: ICommandDetectionCapability | undefined): void {
 		if (toolSpecificData.terminalCommandUri) {
 			return;
 		}
 
-		const commandId = explicitCommandId ?? commandDetection?.commands.at(-1)?.id;
+		const commandId = commandDetection?.commands.at(-1)?.id;
 		if (!commandId) {
 			return;
 		}

@@ -91,6 +91,7 @@ export class TerminalCommand implements ITerminalCommand {
 			aliases: undefined,
 			wasReplayed: true
 		});
+		console.log('deserialized command', newCommand.command, newCommand.id);
 		return newCommand;
 	}
 
