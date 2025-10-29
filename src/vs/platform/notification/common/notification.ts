@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import BaseSeverity from 'vs/base/common/severity';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { localize } from '../../../nls.js';
+import { IAction } from '../../../base/common/actions.js';
+import { Event } from '../../../base/common/event.js';
+import BaseSeverity from '../../../base/common/severity.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export import Severity = BaseSeverity;
 
@@ -21,6 +21,11 @@ export enum NotificationPriority {
 	 * Default priority: notification will be visible unless do not disturb mode is enabled.
 	 */
 	DEFAULT,
+
+	/**
+	 * Optional priority: notification might only be visible from the notifications center.
+	 */
+	OPTIONAL,
 
 	/**
 	 * Silent priority: notification will only be visible from the notifications center.
@@ -97,6 +102,29 @@ export interface INeverShowAgainOptions {
 	readonly scope?: NeverShowAgainScope;
 }
 
+export interface INotificationSource {
+
+	/**
+	 * The id of the source.
+	 */
+	readonly id: string;
+
+	/**
+	 * The label of the source.
+	 */
+	readonly label: string;
+}
+
+export function isNotificationSource(thing: unknown): thing is INotificationSource {
+	if (thing) {
+		const candidate = thing as INotificationSource;
+
+		return typeof candidate.id === 'string' && typeof candidate.label === 'string';
+	}
+
+	return false;
+}
+
 export interface INotification extends INotificationProperties {
 
 	/**
@@ -120,7 +148,7 @@ export interface INotification extends INotificationProperties {
 	/**
 	 * The source of the notification appears as additional information.
 	 */
-	readonly source?: string | { label: string; id: string };
+	readonly source?: string | INotificationSource;
 
 	/**
 	 * Actions to show as part of the notification. Primary actions show up as
@@ -245,6 +273,14 @@ export interface INotificationHandle {
 	close(): void;
 }
 
+export interface IStatusHandle {
+
+	/**
+	 * Hide the status message.
+	 */
+	close(): void;
+}
+
 interface IBasePromptChoice {
 
 	/**
@@ -318,15 +354,13 @@ export enum NotificationsFilter {
 	OFF,
 
 	/**
-	 * All notifications are configured as silent. See
-	 * `INotificationProperties.silent` for more info.
-	 */
-	SILENT,
-
-	/**
 	 * All notifications are silent except error notifications.
 	*/
 	ERROR
+}
+
+export interface INotificationSourceFilter extends INotificationSource {
+	readonly filter: NotificationsFilter;
 }
 
 /**
@@ -339,26 +373,31 @@ export interface INotificationService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * The DND mode can be enabled or disabled
-	 * and will result in all info and warning
-	 * notifications to be silent.
+	 * Emitted when the notifications filter changed.
 	 */
-	doNotDisturbMode: boolean;
+	readonly onDidChangeFilter: Event<void>;
 
 	/**
-	 * Emitted when a new notification is added.
+	 * Sets a notification filter either for all notifications
+	 * or for a specific source.
 	 */
-	readonly onDidAddNotification: Event<INotification>;
+	setFilter(filter: NotificationsFilter | INotificationSourceFilter): void;
 
 	/**
-	 * Emitted when a notification is removed.
+	 * Gets the notification filter either for all notifications
+	 * or for a specific source.
 	 */
-	readonly onDidRemoveNotification: Event<INotification>;
+	getFilter(source?: INotificationSource): NotificationsFilter;
 
 	/**
-	 * Emitted when a do not disturb mode has changed.
+	 * Returns all filters with their sources.
 	 */
-	readonly onDidChangeDoNotDisturbMode: Event<void>;
+	getFilters(): INotificationSourceFilter[];
+
+	/**
+	 * Removes a filter for a specific source.
+	 */
+	removeFilter(sourceId: string): void;
 
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
@@ -409,9 +448,9 @@ export interface INotificationService {
 	 * @param message the message to show as status
 	 * @param options provides some optional configuration options
 	 *
-	 * @returns a disposable to hide the status message
+	 * @returns a handle to hide the status message
 	 */
-	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
+	status(message: NotificationMessage, options?: IStatusMessageOptions): IStatusHandle;
 }
 
 export class NoOpNotification implements INotificationHandle {
@@ -433,4 +472,20 @@ export class NoOpProgress implements INotificationProgress {
 	done(): void { }
 	total(value: number): void { }
 	worked(value: number): void { }
+}
+
+export function withSeverityPrefix(label: string, severity: Severity): string {
+
+	// Add severity prefix to match WCAG 4.1.3 Status
+	// Messages requirements.
+
+	if (severity === Severity.Error) {
+		return localize('severityPrefix.error', "Error: {0}", label);
+	}
+
+	if (severity === Severity.Warning) {
+		return localize('severityPrefix.warning', "Warning: {0}", label);
+	}
+
+	return localize('severityPrefix.info', "Info: {0}", label);
 }

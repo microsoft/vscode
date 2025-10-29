@@ -9,10 +9,42 @@ import type * as Proto from '../tsServer/protocol/protocol';
 import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
 
-class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightProvider {
+class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightProvider, vscode.MultiDocumentHighlightProvider {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
 	) { }
+
+	public async provideMultiDocumentHighlights(
+		document: vscode.TextDocument,
+		position: vscode.Position,
+		otherDocuments: vscode.TextDocument[],
+		token: vscode.CancellationToken
+	): Promise<vscode.MultiDocumentHighlight[]> {
+		const allFiles = [document, ...otherDocuments].map(doc => this.client.toOpenTsFilePath(doc)).filter(file => !!file) as string[];
+		const file = this.client.toOpenTsFilePath(document);
+
+		if (!file || allFiles.length === 0) {
+			return [];
+		}
+
+		const args = {
+			...typeConverters.Position.toFileLocationRequestArgs(file, position),
+			filesToSearch: allFiles
+		};
+		const response = await this.client.execute('documentHighlights', args, token);
+		if (response.type !== 'response' || !response.body) {
+			return [];
+		}
+
+		const result = response.body.map(highlightItem =>
+			new vscode.MultiDocumentHighlight(
+				vscode.Uri.file(highlightItem.file),
+				[...convertDocumentHighlight(highlightItem)]
+			)
+		);
+
+		return result;
+	}
 
 	public async provideDocumentHighlights(
 		document: vscode.TextDocument,
@@ -48,6 +80,10 @@ export function register(
 	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
 ) {
-	return vscode.languages.registerDocumentHighlightProvider(selector.syntax,
-		new TypeScriptDocumentHighlightProvider(client));
+	const provider = new TypeScriptDocumentHighlightProvider(client);
+
+	return vscode.Disposable.from(
+		vscode.languages.registerDocumentHighlightProvider(selector.syntax, provider),
+		vscode.languages.registerMultiDocumentHighlightProvider(selector.syntax, provider)
+	);
 }

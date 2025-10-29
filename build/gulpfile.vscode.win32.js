@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 'use strict';
 
 const gulp = require('gulp');
@@ -16,7 +15,6 @@ const pkg = require('../package.json');
 const product = require('../product.json');
 const vfs = require('vinyl-fs');
 const rcedit = require('rcedit');
-const mkdirp = require('mkdirp');
 
 const repoPath = path.dirname(__dirname);
 const buildPath = (/** @type {string} */ arch) => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
@@ -70,13 +68,12 @@ function buildWin32Setup(arch, target) {
 	}
 
 	return cb => {
-		const ia32AppId = target === 'system' ? product.win32AppId : product.win32UserAppId;
 		const x64AppId = target === 'system' ? product.win32x64AppId : product.win32x64UserAppId;
 		const arm64AppId = target === 'system' ? product.win32arm64AppId : product.win32arm64UserAppId;
 
 		const sourcePath = buildPath(arch);
 		const outputPath = setupDir(arch, target);
-		mkdirp.sync(outputPath);
+		fs.mkdirSync(outputPath, { recursive: true });
 
 		const originalProductJsonPath = path.join(sourcePath, 'resources/app/product.json');
 		const productJsonPath = path.join(outputPath, 'product.json');
@@ -101,12 +98,11 @@ function buildWin32Setup(arch, target) {
 			TunnelApplicationName: product.tunnelApplicationName,
 			ApplicationName: product.applicationName,
 			Arch: arch,
-			AppId: { 'ia32': ia32AppId, 'x64': x64AppId, 'arm64': arm64AppId }[arch],
-			IncompatibleTargetAppId: { 'ia32': product.win32AppId, 'x64': product.win32x64AppId, 'arm64': product.win32arm64AppId }[arch],
-			IncompatibleArchAppId: { 'ia32': x64AppId, 'x64': ia32AppId, 'arm64': ia32AppId }[arch],
+			AppId: { 'x64': x64AppId, 'arm64': arm64AppId }[arch],
+			IncompatibleTargetAppId: { 'x64': product.win32x64AppId, 'arm64': product.win32arm64AppId }[arch],
 			AppUserId: product.win32AppUserModelId,
-			ArchitecturesAllowed: { 'ia32': '', 'x64': 'x64', 'arm64': 'arm64' }[arch],
-			ArchitecturesInstallIn64BitMode: { 'ia32': '', 'x64': 'x64', 'arm64': 'arm64' }[arch],
+			ArchitecturesAllowed: { 'x64': 'x64', 'arm64': 'arm64' }[arch],
+			ArchitecturesInstallIn64BitMode: { 'x64': 'x64', 'arm64': 'arm64' }[arch],
 			SourceDir: sourcePath,
 			RepoDir: repoPath,
 			OutputDir: outputPath,
@@ -115,9 +111,10 @@ function buildWin32Setup(arch, target) {
 			Quality: quality
 		};
 
-		if (quality === 'insider') {
-			definitions['AppxPackage'] = `code_insiders_explorer_${arch === 'ia32' ? 'x86' : arch}.appx`;
-			definitions['AppxPackageFullname'] = `Microsoft.${product.win32RegValueName}_1.0.0.0_neutral__8wekyb3d8bbwe`;
+		if (quality !== 'exploration') {
+			definitions['AppxPackage'] = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
+			definitions['AppxPackageDll'] = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
+			definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
 		}
 
 		packageInnoSetup(issPath, { definitions }, cb);
@@ -133,10 +130,8 @@ function defineWin32SetupTasks(arch, target) {
 	gulp.task(task.define(`vscode-win32-${arch}-${target}-setup`, task.series(cleanTask, buildWin32Setup(arch, target))));
 }
 
-defineWin32SetupTasks('ia32', 'system');
 defineWin32SetupTasks('x64', 'system');
 defineWin32SetupTasks('arm64', 'system');
-defineWin32SetupTasks('ia32', 'user');
 defineWin32SetupTasks('x64', 'user');
 defineWin32SetupTasks('arm64', 'user');
 
@@ -160,6 +155,5 @@ function updateIcon(executablePath) {
 	};
 }
 
-gulp.task(task.define('vscode-win32-ia32-inno-updater', task.series(copyInnoUpdater('ia32'), updateIcon(path.join(buildPath('ia32'), 'tools', 'inno_updater.exe')))));
 gulp.task(task.define('vscode-win32-x64-inno-updater', task.series(copyInnoUpdater('x64'), updateIcon(path.join(buildPath('x64'), 'tools', 'inno_updater.exe')))));
 gulp.task(task.define('vscode-win32-arm64-inno-updater', task.series(copyInnoUpdater('arm64'), updateIcon(path.join(buildPath('arm64'), 'tools', 'inno_updater.exe')))));

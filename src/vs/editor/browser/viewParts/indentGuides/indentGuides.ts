@@ -3,26 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./indentGuides';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketPairGuideActiveBackground1, editorBracketPairGuideActiveBackground2, editorBracketPairGuideActiveBackground3, editorBracketPairGuideActiveBackground4, editorBracketPairGuideActiveBackground5, editorBracketPairGuideActiveBackground6, editorBracketPairGuideBackground1, editorBracketPairGuideBackground2, editorBracketPairGuideBackground3, editorBracketPairGuideBackground4, editorBracketPairGuideBackground5, editorBracketPairGuideBackground6, editorIndentGuide1, editorIndentGuide2, editorIndentGuide3, editorIndentGuide4, editorIndentGuide5, editorIndentGuide6, editorActiveIndentGuide1, editorActiveIndentGuide2, editorActiveIndentGuide3, editorActiveIndentGuide4, editorActiveIndentGuide5, editorActiveIndentGuide6 } from 'vs/editor/common/core/editorColorRegistry';
-import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorOption, InternalGuidesOptions } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { ArrayQueue } from 'vs/base/common/arrays';
-import { Color } from 'vs/base/common/color';
-import { isDefined } from 'vs/base/common/types';
-import { BracketPairGuidesClassNames } from 'vs/editor/common/model/guidesTextModelPart';
-import { IndentGuide, HorizontalGuidesState } from 'vs/editor/common/textModelGuides';
+import './indentGuides.css';
+import { DynamicViewOverlay } from '../../view/dynamicViewOverlay.js';
+import { editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketPairGuideActiveBackground1, editorBracketPairGuideActiveBackground2, editorBracketPairGuideActiveBackground3, editorBracketPairGuideActiveBackground4, editorBracketPairGuideActiveBackground5, editorBracketPairGuideActiveBackground6, editorBracketPairGuideBackground1, editorBracketPairGuideBackground2, editorBracketPairGuideBackground3, editorBracketPairGuideBackground4, editorBracketPairGuideBackground5, editorBracketPairGuideBackground6, editorIndentGuide1, editorIndentGuide2, editorIndentGuide3, editorIndentGuide4, editorIndentGuide5, editorIndentGuide6, editorActiveIndentGuide1, editorActiveIndentGuide2, editorActiveIndentGuide3, editorActiveIndentGuide4, editorActiveIndentGuide5, editorActiveIndentGuide6 } from '../../../common/core/editorColorRegistry.js';
+import { RenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { EditorOption, InternalGuidesOptions } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import { ArrayQueue } from '../../../../base/common/arrays.js';
+import { Color } from '../../../../base/common/color.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { BracketPairGuidesClassNames } from '../../../common/model/guidesTextModelPart.js';
+import { IndentGuide, HorizontalGuidesState } from '../../../common/textModelGuides.js';
 
+/**
+ * Indent guides are vertical lines that help identify the indentation level of
+ * the code.
+ */
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 	private readonly _context: ViewContext;
 	private _primaryPosition: Position | null;
-	private _lineHeight: number;
 	private _spaceWidth: number;
 	private _renderResult: string[] | null;
 	private _maxIndentLeft: number;
@@ -37,7 +40,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const fontInfo = options.get(EditorOption.fontInfo);
 
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._spaceWidth = fontInfo.spaceWidth;
 		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 		this._bracketPairGuideOptions = options.get(EditorOption.guides);
@@ -60,7 +62,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const fontInfo = options.get(EditorOption.fontInfo);
 
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._spaceWidth = fontInfo.spaceWidth;
 		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 		this._bracketPairGuideOptions = options.get(EditorOption.guides);
@@ -114,7 +115,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		const scrollWidth = ctx.scrollWidth;
-		const lineHeight = this._lineHeight;
 
 		const activeCursorPosition = this._primaryPosition;
 
@@ -150,7 +150,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 					)?.left ?? (left + this._spaceWidth)) - left
 					: this._spaceWidth;
 
-				result += `<div class="core-guide ${guide.className} ${className}" style="left:${left}px;height:${lineHeight}px;width:${width}px"></div>`;
+				result += `<div class="core-guide ${guide.className} ${className}" style="left:${left}px;width:${width}px"></div>`;
 			}
 			output[lineIndex] = result;
 		}

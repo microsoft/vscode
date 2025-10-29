@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, isAbsolute, join } from 'vs/base/common/path';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { basename, isAbsolute, join } from '../../../base/common/path.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export interface IV8Profile {
 	nodes: IV8ProfileNode[];
@@ -37,7 +37,7 @@ export interface IV8InspectProfilingService {
 
 	_serviceBrand: undefined;
 
-	startProfiling(options: { port: number }): Promise<string>;
+	startProfiling(options: { host: string; port: number }): Promise<string>;
 
 	stopProfiling(sessionId: string): Promise<IV8Profile>;
 }

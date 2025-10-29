@@ -1,0 +1,18 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .part.sidebar .output-view .monaco-editor,
+.monaco-workbench .part.sidebar .output-view .monaco-editor .margin,
+.monaco-workbench .part.sidebar .output-view .monaco-editor .monaco-editor-background,
+.monaco-workbench .part.panel > .content .pane-body.output-view .monaco-editor,
+.monaco-workbench .part.panel > .content .pane-body.output-view .monaco-editor .margin,
+.monaco-workbench .part.panel > .content .pane-body.output-view .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-outputView-background);
+}
+
+.monaco-workbench .part.sidebar .output-view .sticky-widget,
+.monaco-workbench .part.panel > .content .pane-body.output-view .sticky-widget {
+	background-color: var(--vscode-outputViewStickyScroll-background, var(--vscode-panel-background));
+}

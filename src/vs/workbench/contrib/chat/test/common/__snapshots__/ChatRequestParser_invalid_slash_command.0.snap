@@ -11,7 +11,8 @@
         endLineNumber: 1,
         endColumn: 14
       },
-      text: "/explain this"
+      text: "/explain this",
+      kind: "text"
     }
   ],
   text: "/explain this"

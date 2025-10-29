@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { IframeUtils } from 'vs/base/browser/iframe';
-import * as platform from 'vs/base/common/platform';
+import * as browser from './browser.js';
+import { IframeUtils } from './iframe.js';
+import * as platform from '../common/platform.js';
 
 export interface IMouseEvent {
 	readonly browserEvent: MouseEvent;
@@ -22,6 +22,7 @@ export interface IMouseEvent {
 	readonly altKey: boolean;
 	readonly metaKey: boolean;
 	readonly timestamp: number;
+	readonly defaultPrevented: boolean;
 
 	preventDefault(): void;
 	stopPropagation(): void;
@@ -44,14 +45,16 @@ export class StandardMouseEvent implements IMouseEvent {
 	public readonly altKey: boolean;
 	public readonly metaKey: boolean;
 	public readonly timestamp: number;
+	public readonly defaultPrevented: boolean;
 
-	constructor(e: MouseEvent) {
+	constructor(targetWindow: Window, e: MouseEvent) {
 		this.timestamp = Date.now();
 		this.browserEvent = e;
 		this.leftButton = e.button === 0;
 		this.middleButton = e.button === 1;
 		this.rightButton = e.button === 2;
 		this.buttons = e.buttons;
+		this.defaultPrevented = e.defaultPrevented;
 
 		this.target = <HTMLElement>e.target;
 
@@ -74,7 +77,7 @@ export class StandardMouseEvent implements IMouseEvent {
 		}
 
 		// Find the position of the iframe this code is executing in relative to the iframe where the event was captured.
-		const iframeOffsets = IframeUtils.getPositionOfChildWindowRelativeToAncestorWindow(window, e.view);
+		const iframeOffsets = IframeUtils.getPositionOfChildWindowRelativeToAncestorWindow(targetWindow, e.view);
 		this.posx -= iframeOffsets.left;
 		this.posy -= iframeOffsets.top;
 	}
@@ -92,8 +95,9 @@ export class DragMouseEvent extends StandardMouseEvent {
 
 	public readonly dataTransfer: DataTransfer;
 
-	constructor(e: MouseEvent) {
-		super(e);
+	constructor(targetWindow: Window, e: MouseEvent) {
+		super(targetWindow, e);
+		// eslint-disable-next-line local/code-no-any-casts
 		this.dataTransfer = (<any>e).dataTransfer;
 	}
 }
@@ -131,19 +135,37 @@ export class StandardWheelEvent {
 	constructor(e: IMouseWheelEvent | null, deltaX: number = 0, deltaY: number = 0) {
 
 		this.browserEvent = e || null;
+		// eslint-disable-next-line local/code-no-any-casts
 		this.target = e ? (e.target || (<any>e).targetNode || e.srcElement) : null;
 
 		this.deltaY = deltaY;
 		this.deltaX = deltaX;
 
+		let shouldFactorDPR: boolean = false;
+		if (browser.isChrome) {
+			// Chrome version >= 123 contains the fix to factor devicePixelRatio into the wheel event.
+			// See https://chromium.googlesource.com/chromium/src.git/+/be51b448441ff0c9d1f17e0f25c4bf1ab3f11f61
+			const chromeVersionMatch = navigator.userAgent.match(/Chrome\/(\d+)/);
+			const chromeMajorVersion = chromeVersionMatch ? parseInt(chromeVersionMatch[1]) : 123;
+			shouldFactorDPR = chromeMajorVersion <= 122;
+		}
+
 		if (e) {
 			// Old (deprecated) wheel events
+			// eslint-disable-next-line local/code-no-any-casts
 			const e1 = <IWebKitMouseWheelEvent><any>e;
+			// eslint-disable-next-line local/code-no-any-casts
 			const e2 = <IGeckoMouseWheelEvent><any>e;
+			const devicePixelRatio = e.view?.devicePixelRatio || 1;
 
 			// vertical delta scroll
 			if (typeof e1.wheelDeltaY !== 'undefined') {
-				this.deltaY = e1.wheelDeltaY / 120;
+				if (shouldFactorDPR) {
+					// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
+					this.deltaY = e1.wheelDeltaY / (120 * devicePixelRatio);
+				} else {
+					this.deltaY = e1.wheelDeltaY / 120;
+				}
 			} else if (typeof e2.VERTICAL_AXIS !== 'undefined' && e2.axis === e2.VERTICAL_AXIS) {
 				this.deltaY = -e2.detail / 3;
 			} else if (e.type === 'wheel') {
@@ -167,6 +189,9 @@ export class StandardWheelEvent {
 			if (typeof e1.wheelDeltaX !== 'undefined') {
 				if (browser.isSafari && platform.isWindows) {
 					this.deltaX = - (e1.wheelDeltaX / 120);
+				} else if (shouldFactorDPR) {
+					// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
+					this.deltaX = e1.wheelDeltaX / (120 * devicePixelRatio);
 				} else {
 					this.deltaX = e1.wheelDeltaX / 120;
 				}
@@ -191,7 +216,12 @@ export class StandardWheelEvent {
 
 			// Assume a vertical scroll if nothing else worked
 			if (this.deltaY === 0 && this.deltaX === 0 && e.wheelDelta) {
-				this.deltaY = e.wheelDelta / 120;
+				if (shouldFactorDPR) {
+					// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
+					this.deltaY = e.wheelDelta / (120 * devicePixelRatio);
+				} else {
+					this.deltaY = e.wheelDelta / 120;
+				}
 			}
 		}
 	}

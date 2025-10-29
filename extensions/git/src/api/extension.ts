@@ -7,16 +7,17 @@ import { Model } from '../model';
 import { GitExtension, Repository, API } from './git';
 import { ApiRepository, ApiImpl } from './api1';
 import { Event, EventEmitter } from 'vscode';
+import { CloneManager } from '../cloneManager';
 
-export function deprecated(_target: any, key: string, descriptor: any): void {
-	if (typeof descriptor.value !== 'function') {
+function deprecated(original: any, context: ClassMemberDecoratorContext) {
+	if (context.kind !== 'method') {
 		throw new Error('not supported');
 	}
 
-	const fn = descriptor.value;
-	descriptor.value = function () {
+	const key = context.name.toString();
+	return function (this: any, ...args: any[]): any {
 		console.warn(`Git extension API method '${key}' is deprecated.`);
-		return fn.apply(this, arguments);
+		return original.apply(this, args);
 	};
 }
 
@@ -28,6 +29,7 @@ export class GitExtensionImpl implements GitExtension {
 	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
 
 	private _model: Model | undefined = undefined;
+	private _cloneManager: CloneManager | undefined = undefined;
 
 	set model(model: Model | undefined) {
 		this._model = model;
@@ -46,10 +48,15 @@ export class GitExtensionImpl implements GitExtension {
 		return this._model;
 	}
 
-	constructor(model?: Model) {
-		if (model) {
+	set cloneManager(cloneManager: CloneManager | undefined) {
+		this._cloneManager = cloneManager;
+	}
+
+	constructor(privates?: { model: Model; cloneManager: CloneManager }) {
+		if (privates) {
 			this.enabled = true;
-			this._model = model;
+			this._model = privates.model;
+			this._cloneManager = privates.cloneManager;
 		}
 	}
 
@@ -72,7 +79,7 @@ export class GitExtensionImpl implements GitExtension {
 	}
 
 	getAPI(version: number): API {
-		if (!this._model) {
+		if (!this._model || !this._cloneManager) {
 			throw new Error('Git model not found');
 		}
 
@@ -80,6 +87,6 @@ export class GitExtensionImpl implements GitExtension {
 			throw new Error(`No API version ${version} found.`);
 		}
 
-		return new ApiImpl(this._model);
+		return new ApiImpl({ model: this._model, cloneManager: this._cloneManager });
 	}
 }

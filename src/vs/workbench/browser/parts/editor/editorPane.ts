@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Composite } from 'vs/workbench/browser/composite';
-import { IEditorPane, GroupIdentifier, IEditorMemento, IEditorOpenContext, isEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { LRUCache, Touch } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { isEmptyObject } from 'vs/base/common/types';
-import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { MementoObject } from 'vs/workbench/common/memento';
-import { joinPath, IExtUri, isEqual } from 'vs/base/common/resources';
-import { indexOfPath } from 'vs/base/common/extpath';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { Composite } from '../../composite.js';
+import { IEditorPane, GroupIdentifier, IEditorMemento, IEditorOpenContext, isEditorInput } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { LRUCache, Touch } from '../../../../base/common/map.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { isEmptyObject } from '../../../../base/common/types.js';
+import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from './editor.js';
+import { joinPath, IExtUri, isEqual } from '../../../../base/common/resources.js';
+import { indexOfPath } from '../../../../base/common/extpath.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
+import { getWindowById } from '../../../../base/browser/dom.js';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -46,7 +46,7 @@ import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
  *
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class EditorPane extends Composite implements IEditorPane {
+export abstract class EditorPane<MementoType extends object = object> extends Composite<MementoType> implements IEditorPane {
 
 	//#region Events
 
@@ -57,7 +57,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 
 	//#endregion
 
-	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
+	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<unknown>>();
 
 	get minimumWidth() { return DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
 	get maximumWidth() { return DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
@@ -70,8 +70,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	protected _options: IEditorOptions | undefined;
 	get options(): IEditorOptions | undefined { return this._options; }
 
-	private _group: IEditorGroup | undefined;
-	get group(): IEditorGroup | undefined { return this._group; }
+	get window() { return getWindowById(this.group.windowId, true).window; }
 
 	/**
 	 * Should be overridden by editors that have their own ScopedContextKeyService
@@ -80,6 +79,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 
 	constructor(
 		id: string,
+		readonly group: IEditorGroup,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
 		storageService: IStorageService
@@ -145,22 +145,20 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 		this._options = options;
 	}
 
-	override setVisible(visible: boolean, group?: IEditorGroup): void {
+	override setVisible(visible: boolean): void {
 		super.setVisible(visible);
 
 		// Propagate to Editor
-		this.setEditorVisible(visible, group);
+		this.setEditorVisible(visible);
 	}
 
 	/**
-	 * Indicates that the editor control got visible or hidden in a specific group. A
-	 * editor instance will only ever be visible in one editor group.
+	 * Indicates that the editor control got visible or hidden.
 	 *
 	 * @param visible the state of visibility of this editor
-	 * @param group the editor group this editor is in.
 	 */
-	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		this._group = group;
+	protected setEditorVisible(visible: boolean): void {
+		// Subclasses can implement
 	}
 
 	setBoundarySashes(_sashes: IBoundarySashes) {
@@ -176,7 +174,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 			EditorPane.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
 		}
 
-		return editorMemento;
+		return editorMemento as IEditorMemento<T>;
 	}
 
 	getViewState(): object | undefined {
@@ -220,11 +218,11 @@ export class EditorMemento<T> extends Disposable implements IEditorMemento<T> {
 
 	constructor(
 		readonly id: string,
-		private key: string,
-		private memento: MementoObject,
-		private limit: number,
-		private editorGroupService: IEditorGroupsService,
-		private configurationService: ITextResourceConfigurationService
+		private readonly key: string,
+		private readonly memento: T,
+		private readonly limit: number,
+		private readonly editorGroupService: IEditorGroupsService,
+		private readonly configurationService: ITextResourceConfigurationService
 	) {
 		super();
 
@@ -388,7 +386,7 @@ export class EditorMemento<T> extends Disposable implements IEditorMemento<T> {
 			this.cache = new LRUCache<string, MapGroupToMemento<T>>(this.limit);
 
 			// Restore from serialized map state
-			const rawEditorMemento = this.memento[this.key];
+			const rawEditorMemento = this.memento[this.key as keyof T];
 			if (Array.isArray(rawEditorMemento)) {
 				this.cache.fromJSON(rawEditorMemento);
 			}
@@ -406,7 +404,7 @@ export class EditorMemento<T> extends Disposable implements IEditorMemento<T> {
 			this.cleanedUp = true;
 		}
 
-		this.memento[this.key] = cache.toJSON();
+		(this.memento as Record<string, unknown>)[this.key] = cache.toJSON();
 	}
 
 	private cleanUp(): void {

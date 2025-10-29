@@ -3,39 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as resources from 'vs/base/common/resources';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Extensions as ViewletExtensions, PaneCompositeRegistry } from 'vs/workbench/browser/panecomposite';
-import { CustomTreeView, RawCustomTreeViewContextKey, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as ViewContainerExtensions, ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ResolvableTreeItem, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
-import { VIEWLET_ID as EXPLORER } from 'vs/workbench/contrib/files/common/files';
-import { VIEWLET_ID as REMOTE } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
-import { VIEWLET_ID as SCM } from 'vs/workbench/contrib/scm/common/scm';
-import { WebviewViewPane } from 'vs/workbench/contrib/webviewView/browser/webviewViewPane';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { ILogService } from 'vs/platform/log/common/log';
+import { MarkdownString } from '../../../base/common/htmlContent.js';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import * as resources from '../../../base/common/resources.js';
+import { isFalsyOrWhitespace } from '../../../base/common/strings.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription, IExtensionManifest } from '../../../platform/extensions/common/extensions.js';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { PaneCompositeRegistry, Extensions as ViewletExtensions } from '../../browser/panecomposite.js';
+import { CustomTreeView, TreeViewPane } from '../../browser/parts/views/treeView.js';
+import { ViewPaneContainer } from '../../browser/parts/views/viewPaneContainer.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
+import { ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../common/views.js';
+import { ChatContextKeyExprs } from '../../contrib/chat/common/chatContextKeys.js';
+import { AGENT_SESSIONS_VIEWLET_ID as CHAT_SESSIONS } from '../../contrib/chat/common/constants.js';
+import { VIEWLET_ID as DEBUG } from '../../contrib/debug/common/debug.js';
+import { VIEWLET_ID as EXPLORER } from '../../contrib/files/common/files.js';
+import { VIEWLET_ID as REMOTE } from '../../contrib/remote/browser/remoteExplorer.js';
+import { VIEWLET_ID as SCM } from '../../contrib/scm/common/scm.js';
+import { WebviewViewPane } from '../../contrib/webviewView/browser/webviewViewPane.js';
+import { Extensions as ExtensionFeaturesRegistryExtensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../services/extensionManagement/common/extensionFeatures.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from '../../services/extensions/common/extensionsRegistry.js';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -76,8 +72,14 @@ export const viewsContainersContribution: IJSONSchema = {
 			description: localize('views.container.panel', "Contribute views containers to Panel"),
 			type: 'array',
 			items: viewsContainerSchema
+		},
+		'secondarySidebar': {
+			description: localize('views.container.secondarySidebar', "Contribute views containers to Secondary Side Bar"),
+			type: 'array',
+			items: viewsContainerSchema
 		}
-	}
+	},
+	additionalProperties: false
 };
 
 enum ViewType {
@@ -103,6 +105,8 @@ interface IUserFriendlyViewDescriptor {
 	group?: string;
 	remoteName?: string | string[];
 	virtualWorkspace?: string;
+
+	accessibilityHelpContent?: string;
 }
 
 enum InitialVisibility {
@@ -113,8 +117,8 @@ enum InitialVisibility {
 
 const viewDescriptor: IJSONSchema = {
 	type: 'object',
-	required: ['id', 'name'],
-	defaultSnippets: [{ body: { id: '${1:id}', name: '${2:name}' } }],
+	required: ['id', 'name', 'icon'],
+	defaultSnippets: [{ body: { id: '${1:id}', name: '${2:name}', icon: '${3:icon}' } }],
 	properties: {
 		type: {
 			markdownDescription: localize('vscode.extension.contributes.view.type', "Type of the view. This can either be `tree` for a tree view based view or `webview` for a webview based view. The default is `tree`."),
@@ -166,6 +170,10 @@ const viewDescriptor: IJSONSchema = {
 		initialSize: {
 			type: 'number',
 			description: localize('vscode.extension.contributs.view.size', "The initial size of the view. The size will behave like the css 'flex' property, and will set the initial size when the view is first shown. In the side bar, this is the height of the view. This value is only respected when the same extension owns both the view and the view container."),
+		},
+		accessibilityHelpContent: {
+			type: 'string',
+			markdownDescription: localize('vscode.extension.contributes.view.accessibilityHelpContent', "When the accessibility help dialog is invoked in this view, this content will be presented to the user as a markdown string. Keybindings will be resolved when provided in the format of <keybinding:commandId>. If there is no keybinding, that will be indicated and this command will be included in a quickpick for easy configuration.")
 		}
 	}
 };
@@ -228,9 +236,15 @@ const viewsContribution: IJSONSchema = {
 			default: []
 		},
 		'remote': {
-			description: localize('views.remote', "Contributes views to Remote container in the Activity bar. To contribute to this container, enableProposedApi needs to be turned on"),
+			description: localize('views.remote', "Contributes views to Remote container in the Activity bar. To contribute to this container, the 'contribViewsRemote' API proposal must be enabled."),
 			type: 'array',
 			items: remoteViewDescriptor,
+			default: []
+		},
+		'agentSessions': {
+			description: localize('views.agentSessions', "Contributes views to Agent Sessions container in the Activity bar. To contribute to this container, the 'chatSessionsProvider' API proposal must be enabled."),
+			type: 'array',
+			items: viewDescriptor,
 			default: []
 		}
 	},
@@ -253,12 +267,12 @@ const viewsExtensionPoint: IExtensionPoint<ViewExtensionPointType> = ExtensionsR
 	extensionPoint: 'views',
 	deps: [viewsContainersExtensionPoint],
 	jsonSchema: viewsContribution,
-	activationEventsGenerator: (viewExtensionPointTypeArray, result) => {
+	activationEventsGenerator: function* (viewExtensionPointTypeArray) {
 		for (const viewExtensionPointType of viewExtensionPointTypeArray) {
 			for (const viewDescriptors of Object.values(viewExtensionPointType)) {
 				for (const viewDescriptor of viewDescriptors) {
 					if (viewDescriptor.id) {
-						result.push(`onView:${viewDescriptor.id}`);
+						yield `onView:${viewDescriptor.id}`;
 					}
 				}
 			}
@@ -269,6 +283,8 @@ const viewsExtensionPoint: IExtensionPoint<ViewExtensionPointType> = ExtensionsR
 const CUSTOM_VIEWS_START_ORDER = 7;
 
 class ViewsExtensionHandler implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.viewsExtensionHandler';
 
 	private viewContainersRegistry: IViewContainersRegistry;
 	private viewsRegistry: IViewsRegistry;
@@ -281,47 +297,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 		this.handleAndRegisterCustomViewContainers();
 		this.handleAndRegisterCustomViews();
-
-		let showTreeHoverCancellation = new CancellationTokenSource();
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: 'workbench.action.showTreeHover',
-			handler: async (accessor: ServicesAccessor, ...args: any[]) => {
-				showTreeHoverCancellation.cancel();
-				showTreeHoverCancellation = new CancellationTokenSource();
-				const listService = accessor.get(IListService);
-				const treeViewsService = accessor.get(ITreeViewsService);
-				const hoverService = accessor.get(IHoverService);
-				const lastFocusedList = listService.lastFocusedList;
-				if (!(lastFocusedList instanceof AsyncDataTree)) {
-					return;
-				}
-				const focus = lastFocusedList.getFocus();
-				if (!focus || (focus.length === 0)) {
-					return;
-				}
-				const treeItem = focus[0];
-
-				if (treeItem instanceof ResolvableTreeItem) {
-					await treeItem.resolve(showTreeHoverCancellation.token);
-				}
-				if (!treeItem.tooltip) {
-					return;
-				}
-				const element = treeViewsService.getRenderedTreeElement(treeItem);
-				if (!element) {
-					return;
-				}
-				hoverService.showHover({
-					content: treeItem.tooltip,
-					target: element,
-					hoverPosition: HoverPosition.BELOW,
-					hideOnHover: false
-				}, true);
-			},
-			weight: KeybindingWeight.WorkbenchContrib,
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
-			when: ContextKeyExpr.and(RawCustomTreeViewContextKey, WorkbenchListFocusContextKey)
-		});
 	}
 
 	private handleAndRegisterCustomViewContainers() {
@@ -339,6 +314,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		let activityBarOrder = CUSTOM_VIEWS_START_ORDER + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Sidebar).length;
 		let panelOrder = 5 + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Panel).length + 1;
+		// offset by 100 because the chat view container used to have order 100 (now 1). Due to caching, we still need to account for the original order value
+		let auxiliaryBarOrder = 100 + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.AuxiliaryBar).length + 1;
 		for (const { value, collector, description } of extensionPoints) {
 			Object.entries(value).forEach(([key, value]) => {
 				if (!this.isValidViewsContainer(value, collector)) {
@@ -350,6 +327,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						break;
 					case 'panel':
 						panelOrder = this.registerCustomViewContainers(value, description, panelOrder, existingViewContainers, ViewContainerLocation.Panel);
+						break;
+					case 'secondarySidebar':
+						auxiliaryBarOrder = this.registerCustomViewContainers(value, description, auxiliaryBarOrder, existingViewContainers, ViewContainerLocation.AuxiliaryBar);
 						break;
 				}
 			});
@@ -484,6 +464,11 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					return;
 				}
 
+				if (key === 'agentSessions' && !isProposedApiEnabled(extension.description, 'chatSessionsProvider')) {
+					collector.warn(localize('RequiresChatSessionsProposedAPI', "View container '{0}' requires 'enabledApiProposals: [\"chatSessionsProvider\"]'.", key));
+					return;
+				}
+
 				const viewContainer = this.getViewContainer(key);
 				if (!viewContainer) {
 					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", key));
@@ -531,12 +516,22 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						}
 					}
 
+					let accessibilityHelpContent;
+					if (isProposedApiEnabled(extension.description, 'contribAccessibilityHelpContent') && item.accessibilityHelpContent) {
+						accessibilityHelpContent = new MarkdownString(item.accessibilityHelpContent);
+					}
+
+					let when = ContextKeyExpr.deserialize(item.when);
+					if (key === 'agentSessions') {
+						when = ContextKeyExpr.and(when, ChatContextKeyExprs.agentViewWhen);
+					}
+
 					const viewDescriptor: ICustomViewDescriptor = {
 						type: type,
 						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
 						id: item.id,
-						name: item.name,
-						when: ContextKeyExpr.deserialize(item.when),
+						name: { value: item.name, original: item.name },
+						when,
 						containerIcon: icon || viewContainer?.icon,
 						containerTitle: item.contextualTitle || (viewContainer && (typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value)),
 						canToggleVisibility: true,
@@ -547,11 +542,13 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						extensionId: extension.description.identifier,
 						originalContainerId: key,
 						group: item.group,
+						// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority, // TODO@roblou - delete after remote extensions are updated
 						virtualWorkspace: item.virtualWorkspace,
 						hideByDefault: initialVisibility === InitialVisibility.Hidden,
 						workspace: viewContainer?.id === REMOTE ? true : undefined,
-						weight
+						weight,
+						accessibilityHelpContent
 					};
 
 
@@ -597,9 +594,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		}
 	}
 
-	private convertInitialVisibility(value: any): InitialVisibility | undefined {
-		if (Object.values(InitialVisibility).includes(value)) {
-			return value;
+	private convertInitialVisibility(value: string | undefined): InitialVisibility | undefined {
+		if (Object.values(InitialVisibility).includes(value as InitialVisibility)) {
+			return value as InitialVisibility;
 		}
 		return undefined;
 	}
@@ -646,6 +643,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			case 'debug': return this.viewContainersRegistry.get(DEBUG);
 			case 'scm': return this.viewContainersRegistry.get(SCM);
 			case 'remote': return this.viewContainersRegistry.get(REMOTE);
+			case 'agentSessions': return this.viewContainersRegistry.get(CHAT_SESSIONS);
 			default: return this.viewContainersRegistry.get(`workbench.view.extension.${value}`);
 		}
 	}
@@ -661,5 +659,116 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ViewsExtensionHandler, LifecyclePhase.Starting);
+class ViewContainersDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.viewsContainers;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contrib = manifest.contributes?.viewsContainers || {};
+
+		const viewContainers = Object.keys(contrib).reduce((result, location) => {
+			const viewContainersForLocation = contrib[location];
+			result.push(...viewContainersForLocation.map(viewContainer => ({ ...viewContainer, location })));
+			return result;
+		}, [] as Array<{ id: string; title: string; location: string }>);
+
+		if (!viewContainers.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			localize('view container id', "ID"),
+			localize('view container title', "Title"),
+			localize('view container location', "Where"),
+		];
+
+		const rows: IRowData[][] = viewContainers
+			.sort((a, b) => a.id.localeCompare(b.id))
+			.map(viewContainer => {
+				return [
+					viewContainer.id,
+					viewContainer.title,
+					viewContainer.location
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+class ViewsDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.views;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contrib = manifest.contributes?.views || {};
+
+		const views = Object.keys(contrib).reduce((result, location) => {
+			const viewsForLocation = contrib[location];
+			result.push(...viewsForLocation.map(view => ({ ...view, location })));
+			return result;
+		}, [] as Array<{ id: string; name: string; location: string }>);
+
+		if (!views.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			localize('view id', "ID"),
+			localize('view name title', "Name"),
+			localize('view container location', "Where"),
+		];
+
+		const rows: IRowData[][] = views
+			.sort((a, b) => a.id.localeCompare(b.id))
+			.map(view => {
+				return [
+					view.id,
+					view.name,
+					view.location
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesRegistryExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'viewsContainers',
+	label: localize('viewsContainers', "View Containers"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ViewContainersDataRenderer),
+});
+
+Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesRegistryExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'views',
+	label: localize('views', "Views"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ViewsDataRenderer),
+});
+
+registerWorkbenchContribution2(ViewsExtensionHandler.ID, ViewsExtensionHandler, WorkbenchPhase.BlockStartup);

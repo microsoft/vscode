@@ -8,6 +8,7 @@
   "engines": {
     "vscode": "*"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {
@@ -53,6 +54,7 @@
           ".rng",
           ".rss",
           ".shproj",
+          ".slnx",
           ".storyboard",
           ".svg",
           ".targets",

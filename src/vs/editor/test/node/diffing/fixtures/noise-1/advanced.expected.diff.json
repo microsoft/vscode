@@ -14,11 +14,7 @@
 			"innerChanges": [
 				{
 					"originalRange": "[52,7 -> 52,20]",
-					"modifiedRange": "[52,7 -> 53,2]"
-				},
-				{
-					"originalRange": "[52,24 -> 52,24]",
-					"modifiedRange": "[53,6 -> 53,45]"
+					"modifiedRange": "[52,7 -> 53,41]"
 				},
 				{
 					"originalRange": "[52,77 -> 56,1 EOL]",

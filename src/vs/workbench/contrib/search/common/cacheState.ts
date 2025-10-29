@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { IFileQuery } from 'vs/workbench/services/search/common/search';
-import { equals } from 'vs/base/common/objects';
+import { defaultGenerator } from '../../../../base/common/idGenerator.js';
+import { IFileQuery } from '../../../services/search/common/search.js';
+import { equals } from '../../../../base/common/objects.js';
 
 enum LoadingPhase {
 	Created = 1,
@@ -17,7 +17,7 @@ enum LoadingPhase {
 
 export class FileQueryCacheState {
 
-	private readonly _cacheKey = defaultGenerator.nextId();
+	private readonly _cacheKey;
 	get cacheKey(): string {
 		if (this.loadingPhase === LoadingPhase.Loaded || !this.previousCacheState) {
 			return this._cacheKey;
@@ -38,9 +38,9 @@ export class FileQueryCacheState {
 		return isUpdating || !this.previousCacheState ? isUpdating : this.previousCacheState.isUpdating;
 	}
 
-	private readonly query = this.cacheQuery(this._cacheKey);
+	private readonly query;
 
-	private loadingPhase = LoadingPhase.Created;
+	private loadingPhase;
 	private loadPromise: Promise<void> | undefined;
 
 	constructor(
@@ -49,6 +49,9 @@ export class FileQueryCacheState {
 		private disposeFn: (cacheKey: string) => Promise<void>,
 		private previousCacheState: FileQueryCacheState | undefined
 	) {
+		this._cacheKey = defaultGenerator.nextId();
+		this.query = this.cacheQuery(this._cacheKey);
+		this.loadingPhase = LoadingPhase.Created;
 		if (this.previousCacheState) {
 			const current = Object.assign({}, this.query, { cacheKey: null });
 			const previous = Object.assign({}, this.previousCacheState.query, { cacheKey: null });

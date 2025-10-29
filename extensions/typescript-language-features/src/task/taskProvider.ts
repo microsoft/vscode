@@ -53,11 +53,11 @@ class TscTaskProvider extends Disposable implements vscode.TaskProvider {
 
 	public async provideTasks(token: vscode.CancellationToken): Promise<vscode.Task[]> {
 		const folders = vscode.workspace.workspaceFolders;
-		if ((this.autoDetect === AutoDetect.off) || !folders || !folders.length) {
+		if ((this.autoDetect === AutoDetect.off) || !folders?.length) {
 			return [];
 		}
 
-		const configPaths: Set<string> = new Set();
+		const configPaths = new Set<string>();
 		const tasks: vscode.Task[] = [];
 		for (const project of await this.getAllTsConfigs(token)) {
 			if (!configPaths.has(project.fsPath)) {

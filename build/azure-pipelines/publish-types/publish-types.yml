@@ -12,7 +12,8 @@ pool:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
 
   - bash: |
       TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
@@ -32,7 +33,7 @@ steps:
 
   - bash: |
       # Install build dependencies
-      (cd build && yarn)
+      (cd build && npm ci)
       node build/azure-pipelines/publish-types/check-version.js
     displayName: Check version
 
@@ -79,4 +80,4 @@ steps:
       --data '{"channel":"'"$CHANNEL"'", "link_names": true, "text":"'"$MESSAGE2"'"}' \
       https://slack.com/api/chat.postMessage
 
-    displayName: Send message on Slack
+    displayName: Send message linking to changes on Slack

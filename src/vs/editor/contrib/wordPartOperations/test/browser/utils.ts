@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceIdentifier, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 
 export class StaticServiceAccessor implements ServicesAccessor {
-	private services = new Map<ServiceIdentifier<any>, any>();
+	private services = new Map<ServiceIdentifier<unknown>, unknown>();
 
 	public withService<T>(id: ServiceIdentifier<T>, service: T): this {
 		this.services.set(id, service);
@@ -18,6 +18,11 @@ export class StaticServiceAccessor implements ServicesAccessor {
 		if (!value) {
 			throw new Error('Service does not exist');
 		}
-		return value;
+		return value as T;
+	}
+
+	getIfExists<T>(id: ServiceIdentifier<T>): T | undefined {
+		const value = this.services.get(id);
+		return value as T | undefined;
 	}
 }

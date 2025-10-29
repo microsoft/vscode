@@ -3,8 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { $, asCssValueWithDefault, h, multibyteAwareBtoa } from 'vs/base/browser/dom';
+import assert from 'assert';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle } from '../../browser/dom.js';
+import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
+import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
+import { DeferredPromise, timeout } from '../../common/async.js';
+import { runWithFakedTimers } from '../common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('dom', () => {
 	test('hasClass', () => {
@@ -18,8 +23,6 @@ suite('dom', () => {
 		assert(!element.classList.contains('bar'));
 		assert(!element.classList.contains('foo'));
 		assert(!element.classList.contains(''));
-
-
 	});
 
 	test('removeClass', () => {
@@ -73,33 +76,27 @@ suite('dom', () => {
 		assert(!element.classList.contains('bar'));
 	});
 
-	test('multibyteAwareBtoa', () => {
-		assert.ok(multibyteAwareBtoa('hello world').length > 0);
-		assert.ok(multibyteAwareBtoa('平仮名').length > 0);
-		assert.ok(multibyteAwareBtoa(new Array(100000).fill('vs').join('')).length > 0); // https://github.com/microsoft/vscode/issues/112013
-	});
-
 	suite('$', () => {
 		test('should build simple nodes', () => {
 			const div = $('div');
 			assert(div);
-			assert(div instanceof HTMLElement);
+			assert(isHTMLElement(div));
 			assert.strictEqual(div.tagName, 'DIV');
 			assert(!div.firstChild);
 		});
 
-		test('should buld nodes with id', () => {
+		test('should build nodes with id', () => {
 			const div = $('div#foo');
 			assert(div);
-			assert(div instanceof HTMLElement);
+			assert(isHTMLElement(div));
 			assert.strictEqual(div.tagName, 'DIV');
 			assert.strictEqual(div.id, 'foo');
 		});
 
-		test('should buld nodes with class-name', () => {
+		test('should build nodes with class-name', () => {
 			const div = $('div.foo');
 			assert(div);
-			assert(div instanceof HTMLElement);
+			assert(isHTMLElement(div));
 			assert.strictEqual(div.tagName, 'DIV');
 			assert.strictEqual(div.className, 'foo');
 		});
@@ -134,15 +131,15 @@ suite('dom', () => {
 	suite('h', () => {
 		test('should build simple nodes', () => {
 			const div = h('div');
-			assert(div.root instanceof HTMLElement);
+			assert(isHTMLElement(div.root));
 			assert.strictEqual(div.root.tagName, 'DIV');
 
 			const span = h('span');
-			assert(span.root instanceof HTMLElement);
+			assert(isHTMLElement(span.root));
 			assert.strictEqual(span.root.tagName, 'SPAN');
 
 			const img = h('img');
-			assert(img.root instanceof HTMLElement);
+			assert(isHTMLElement(img.root));
 			assert.strictEqual(img.root.tagName, 'IMG');
 		});
 
@@ -287,5 +284,156 @@ suite('dom', () => {
 		assert.strictEqual(asCssValueWithDefault('var(--my-var, var(--my-var2))', 'blue'), 'var(--my-var, var(--my-var2, blue))');
 	});
 
+	test('copyAttributes', () => {
+		const elementSource = document.createElement('div');
+		elementSource.setAttribute('foo', 'bar');
+		elementSource.setAttribute('bar', 'foo');
 
+		const elementTarget = document.createElement('div');
+		copyAttributes(elementSource, elementTarget);
+
+		assert.strictEqual(elementTarget.getAttribute('foo'), 'bar');
+		assert.strictEqual(elementTarget.getAttribute('bar'), 'foo');
+	});
+
+	test('trackAttributes (unfiltered)', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const elementSource = document.createElement('div');
+			const elementTarget = document.createElement('div');
+
+			const disposable = trackAttributes(elementSource, elementTarget);
+
+			elementSource.setAttribute('foo', 'bar');
+			elementSource.setAttribute('bar', 'foo');
+
+			await timeout(1);
+
+			assert.strictEqual(elementTarget.getAttribute('foo'), 'bar');
+			assert.strictEqual(elementTarget.getAttribute('bar'), 'foo');
+
+			disposable.dispose();
+		});
+	});
+
+	test('trackAttributes (filtered)', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const elementSource = document.createElement('div');
+			const elementTarget = document.createElement('div');
+
+			const disposable = trackAttributes(elementSource, elementTarget, ['foo']);
+
+			elementSource.setAttribute('foo', 'bar');
+			elementSource.setAttribute('bar', 'foo');
+
+			await timeout(1);
+
+			assert.strictEqual(elementTarget.getAttribute('foo'), 'bar');
+			assert.strictEqual(elementTarget.getAttribute('bar'), null);
+
+			disposable.dispose();
+		});
+	});
+
+	test('window utilities', () => {
+		const windows = Array.from(getWindows());
+		assert.strictEqual(windows.length, 1);
+		assert.strictEqual(getWindowsCount(), 1);
+		const windowId = getWindowId(mainWindow);
+		assert.ok(typeof windowId === 'number');
+		assert.strictEqual(getWindowById(windowId)?.window, mainWindow);
+		assert.strictEqual(getWindowById(undefined, true).window, mainWindow);
+		assert.strictEqual(hasWindow(windowId), true);
+		assert.strictEqual(isAuxiliaryWindow(mainWindow), false);
+		ensureCodeWindow(mainWindow, 1);
+		assert.ok(typeof mainWindow.vscodeWindowId === 'number');
+
+		const div = document.createElement('div');
+		assert.strictEqual(getWindow(div), mainWindow);
+		assert.strictEqual(getDocument(div), mainWindow.document);
+
+		const event = document.createEvent('MouseEvent');
+		assert.strictEqual(getWindow(event), mainWindow);
+		assert.strictEqual(getDocument(event), mainWindow.document);
+	});
+
+	suite('disposableWindowInterval', () => {
+		test('basics', async () => {
+			let count = 0;
+			const promise = new DeferredPromise<void>();
+			const interval = disposableWindowInterval(mainWindow, () => {
+				count++;
+				if (count === 3) {
+					promise.complete(undefined);
+					return true;
+				} else {
+					return false;
+				}
+			}, 0, 10);
+
+			await promise.p;
+			assert.strictEqual(count, 3);
+			interval.dispose();
+		});
+
+		test('iterations', async () => {
+			let count = 0;
+			const interval = disposableWindowInterval(mainWindow, () => {
+				count++;
+
+				return false;
+			}, 0, 0);
+
+			await timeout(5);
+			assert.strictEqual(count, 0);
+			interval.dispose();
+		});
+
+		test('dispose', async () => {
+			let count = 0;
+			const interval = disposableWindowInterval(mainWindow, () => {
+				count++;
+
+				return false;
+			}, 0, 10);
+
+			interval.dispose();
+			await timeout(5);
+			assert.strictEqual(count, 0);
+		});
+	});
+
+	suite('SafeTriangle', () => {
+		const fakeElement = (left: number, right: number, top: number, bottom: number): HTMLElement => {
+			return { getBoundingClientRect: () => ({ left, right, top, bottom }) } as HTMLElement;
+		};
+
+		test('works', () => {
+			const safeTriangle = new SafeTriangle(0, 0, fakeElement(10, 20, 10, 20));
+
+			assert.strictEqual(safeTriangle.contains(5, 5), true); // in triangle region
+			assert.strictEqual(safeTriangle.contains(15, 5), false);
+			assert.strictEqual(safeTriangle.contains(25, 5), false);
+
+			assert.strictEqual(safeTriangle.contains(5, 15), false);
+			assert.strictEqual(safeTriangle.contains(15, 15), true);
+			assert.strictEqual(safeTriangle.contains(25, 15), false);
+
+			assert.strictEqual(safeTriangle.contains(5, 25), false);
+			assert.strictEqual(safeTriangle.contains(15, 25), false);
+			assert.strictEqual(safeTriangle.contains(25, 25), false);
+		});
+
+		test('other dirations', () => {
+			const a = new SafeTriangle(30, 30, fakeElement(10, 20, 10, 20));
+			assert.strictEqual(a.contains(25, 25), true);
+
+			const b = new SafeTriangle(0, 30, fakeElement(10, 20, 10, 20));
+			assert.strictEqual(b.contains(5, 25), true);
+
+			const c = new SafeTriangle(30, 0, fakeElement(10, 20, 10, 20));
+			assert.strictEqual(c.contains(25, 5), true);
+		});
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

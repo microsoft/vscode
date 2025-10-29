@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { IPath } from 'vs/platform/window/common/window';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { memoize } from 'vs/base/common/decorators';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { parseLineAndColumnAware } from 'vs/base/common/extpath';
-import { LogLevelToString } from 'vs/platform/log/common/log';
-import { isUndefined } from 'vs/base/common/types';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EXTENSION_IDENTIFIER_WITH_LOG_REGEX } from 'vs/platform/environment/common/environmentService';
+import { Schemas } from '../../../../base/common/network.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from '../../../../platform/environment/common/environment.js';
+import { IPath } from '../../../../platform/window/common/window.js';
+import { IWorkbenchEnvironmentService } from '../common/environmentService.js';
+import { IWorkbenchConstructionOptions } from '../../../browser/web.api.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { memoize } from '../../../../base/common/decorators.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { parseLineAndColumnAware } from '../../../../base/common/extpath.js';
+import { LogLevelToString } from '../../../../platform/log/common/log.js';
+import { isUndefined } from '../../../../base/common/types.js';
+import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { EXTENSION_IDENTIFIER_WITH_LOG_REGEX } from '../../../../platform/environment/common/environmentService.js';
 
 export const IBrowserWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, IBrowserWorkbenchEnvironmentService>(IEnvironmentService);
 
@@ -70,7 +70,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 			const result: [string, string][] = [];
 			for (const entry of logLevelFromPayload.split(',')) {
 				const matches = EXTENSION_IDENTIFIER_WITH_LOG_REGEX.exec(entry);
-				if (matches && matches[1] && matches[2]) {
+				if (matches?.[1] && matches[2]) {
 					result.push([matches[1], matches[2]]);
 				}
 			}
@@ -143,11 +143,6 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get extHostLogsPath(): URI { return joinPath(this.logsHome, 'exthost'); }
-
-	@memoize
-	get extHostTelemetryLogFile(): URI {
-		return joinPath(this.extHostLogsPath, 'extensionTelemetry.log');
-	}
 
 	private extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
 
@@ -242,6 +237,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get disableTelemetry(): boolean { return false; }
 
 	@memoize
+	get disableExperiments(): boolean { return false; }
+
+	@memoize
 	get verbose(): boolean { return this.payload?.get('verbose') === 'true'; }
 
 	@memoize
@@ -257,9 +255,10 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
 
 	@memoize
-	get lastActiveProfile(): string | undefined { return this.payload?.get('lastActiveProfile'); }
+	get profile(): string | undefined { return this.payload?.get('profile'); }
 
-	editSessionId: string | undefined = this.options.editSessionId;
+	@memoize
+	get editSessionId(): string | undefined { return this.options.editSessionId; }
 
 	private payload: Map<string, string> | undefined;
 

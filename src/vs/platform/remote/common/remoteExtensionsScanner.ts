@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { InstallExtensionSummary } from '../../extensionManagement/common/extensionManagement.js';
+import { IExtensionDescription } from '../../extensions/common/extensions.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IRemoteExtensionsScannerService = createDecorator<IRemoteExtensionsScannerService>('IRemoteExtensionsScannerService');
 
@@ -14,7 +14,9 @@ export const RemoteExtensionsScannerChannelName = 'remoteExtensionsScanner';
 export interface IRemoteExtensionsScannerService {
 	readonly _serviceBrand: undefined;
 
-	whenExtensionsReady(): Promise<void>;
+	/**
+	 * Returns a promise that resolves to an array of extension identifiers that failed to install
+	 */
+	whenExtensionsReady(): Promise<InstallExtensionSummary>;
 	scanExtensions(): Promise<IExtensionDescription[]>;
-	scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null>;
 }

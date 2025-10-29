@@ -12,7 +12,9 @@ pub fn is_wsl_installed(_log: &log::Logger) -> bool {
 
 #[cfg(windows)]
 pub fn is_wsl_installed(log: &log::Logger) -> bool {
-	use std::{path::PathBuf, process::Command};
+	use std::path::PathBuf;
+
+	use crate::util::command::new_std_command;
 
 	let system32 = {
 		let sys_root = match std::env::var("SystemRoot") {
@@ -37,7 +39,7 @@ pub fn is_wsl_installed(log: &log::Logger) -> bool {
 	// Windows builds >= 22000
 	let maybe_wsl = system32.join("wsl.exe");
 	if maybe_wsl.exists() {
-		if let Ok(s) = Command::new(maybe_wsl).arg("--status").output() {
+		if let Ok(s) = new_std_command(maybe_wsl).arg("--status").output() {
 			if s.status.success() {
 				trace!(log, "wsl availability detected via subprocess");
 				return true;

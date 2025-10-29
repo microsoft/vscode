@@ -3,14 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/textAreaInput';
-import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import * as dom from 'vs/base/browser/dom';
-import * as browser from 'vs/base/browser/browser';
-import * as platform from 'vs/base/common/platform';
+import { Position } from '../../../common/core/position.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { EndOfLinePreference } from '../../../common/model.js';
+import * as dom from '../../../../base/browser/dom.js';
+import * as browser from '../../../../base/browser/browser.js';
+import * as platform from '../../../../base/common/platform.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { SimplePagedScreenReaderStrategy } from '../../../browser/controller/editContext/screenReaderUtils.js';
+import { ISimpleModel } from '../../../common/viewModel/screenReaderSimpleModel.js';
+import { TextAreaState } from '../../../browser/controller/editContext/textArea/textAreaEditContextState.js';
+import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
+import { Selection } from '../../../common/core/selection.js';
 
 // To run this test, open imeTester.html
 
@@ -24,6 +30,10 @@ class SingleLineTestModel implements ISimpleModel {
 
 	_setText(text: string) {
 		this._line = text;
+	}
+
+	getLineContent(lineNumber: number): string {
+		return this._line;
 	}
 
 	getLineMaxColumn(lineNumber: number): number {
@@ -100,7 +110,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	container.appendChild(input);
 
 	const model = new SingleLineTestModel('some  text');
-
+	const screenReaderStrategy = new SimplePagedScreenReaderStrategy();
 	const textAreaInputHost: ITextAreaInputHost = {
 		getDataToCopy: () => {
 			return {
@@ -112,9 +122,10 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 			};
 		},
 		getScreenReaderContent: (): TextAreaState => {
-			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
+			const selection = new Selection(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 
-			return PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
+			const screenReaderContentState = screenReaderStrategy.fromEditorSelection(model, selection, 10, true);
+			return TextAreaState.fromScreenReaderContentState(screenReaderContentState);
 		},
 		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
 			return null!;
@@ -126,7 +137,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 		isFirefox: browser.isFirefox,
 		isChrome: browser.isChrome,
 		isSafari: browser.isSafari,
-	});
+	}, new TestAccessibilityService(), new NullLogService());
 
 	const output = document.createElement('pre');
 	output.className = 'output';
@@ -145,7 +156,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	const updatePosition = (off: number, len: number) => {
 		cursorOffset = off;
 		cursorLength = len;
-		handler.writeScreenReaderContent('selection changed');
+		handler.writeNativeTextAreaContent('selection changed');
 		handler.focusTextArea();
 	};
 
@@ -198,5 +209,5 @@ const TESTS = [
 ];
 
 TESTS.forEach((t) => {
-	document.body.appendChild(doCreateTest(t.description, t.in, t.out));
+	mainWindow.document.body.appendChild(doCreateTest(t.description, t.in, t.out));
 });

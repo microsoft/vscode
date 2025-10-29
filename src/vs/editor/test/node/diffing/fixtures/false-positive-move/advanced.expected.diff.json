@@ -1,0 +1,140 @@
+{
+	"original": {
+		"content": "includeIssuesWithoutMilestone: boolean = false,\n): Promise<ItemsResponseResult<MilestoneModel>> {\n\tconst milestones: ItemsResponseResult<MilestoneModel> = await this.fetchPagedData<MilestoneModel>(\n\t\toptions,\n\t\t'milestoneIssuesKey',\n\t\tPagedDataType.Milestones,\n\t\tPRType.All\n\t);\n\tif (includeIssuesWithoutMilestone) {\n\t\tconst additionalIssues: ItemsResponseResult<Issue> = await this.fetchPagedData<Issue>(\n\t\t\toptions,\n\t\t\t'noMilestoneIssuesKey',\n\t\t\tPagedDataType.IssuesWithoutMilestone,\n\t\t\tPRType.All\n\t\t);\n\t\tmilestones.items.push({\n\t\t\tmilestone: {\n\t\t\t\tcreatedAt: new Date(0).toDateString(),\n\t\t\t\tid: '',\n\t\t\t\ttitle: NO_MILESTONE,\n\t\t\t},\n\t\t\tissues: await Promise.all(additionalIssues.items.map(async (issue) => {\n\t\t\t\tconst githubRepository = await this.getRepoForIssue(issue);\n\t\t\t\treturn new IssueModel(githubRepository, githubRepository.remote, issue);\n\t\t\t})),\n\t\t});\n\t}\n\treturn milestones;\n}",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "includeIssuesWithoutMilestone: boolean = false,\n): Promise<ItemsResponseResult<MilestoneModel>> {\n\ttry {\n\t\tconst milestones: ItemsResponseResult<MilestoneModel> = await this.fetchPagedData<MilestoneModel>(\n\t\t\toptions,\n\t\t\t'milestoneIssuesKey',\n\t\t\tPagedDataType.Milestones,\n\t\t\tPRType.All\n\t\t);\n\t\tif (includeIssuesWithoutMilestone) {\n\t\t\tconst additionalIssues: ItemsResponseResult<Issue> = await this.fetchPagedData<Issue>(\n\t\t\t\toptions,\n\t\t\t\t'noMilestoneIssuesKey',\n\t\t\t\tPagedDataType.IssuesWithoutMilestone,\n\t\t\t\tPRType.All\n\t\t\t);\n\t\t\tmilestones.items.push({\n\t\t\t\tmilestone: {\n\t\t\t\t\tcreatedAt: new Date(0).toDateString(),\n\t\t\t\t\tid: '',\n\t\t\t\t\ttitle: NO_MILESTONE,\n\t\t\t\t},\n\t\t\t\tissues: await Promise.all(additionalIssues.items.map(async (issue) => {\n\t\t\t\t\tconst githubRepository = await this.getRepoForIssue(issue);\n\t\t\t\t\treturn new IssueModel(githubRepository, githubRepository.remote, issue);\n\t\t\t\t})),\n\t\t\t});\n\t\t}\n\t\treturn milestones;\n\t} catch (e) {\n\t\tLogger.error(`Error fetching milestone issues: ${e instanceof Error ? e.message : e}`, FolderRepositoryManager.ID);\n\t\treturn { hasMorePages: false, hasUnsearchedRepositories: false, items: [] };\n\t}\n}\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[3,29)",
+			"modifiedRange": "[3,34)",
+			"innerChanges": [
+				{
+					"originalRange": "[3,1 -> 3,1]",
+					"modifiedRange": "[3,1 -> 4,1]"
+				},
+				{
+					"originalRange": "[3,1 -> 3,1]",
+					"modifiedRange": "[4,1 -> 4,2]"
+				},
+				{
+					"originalRange": "[4,1 -> 4,1]",
+					"modifiedRange": "[5,1 -> 5,2]"
+				},
+				{
+					"originalRange": "[5,1 -> 5,1]",
+					"modifiedRange": "[6,1 -> 6,2]"
+				},
+				{
+					"originalRange": "[6,1 -> 6,1]",
+					"modifiedRange": "[7,1 -> 7,2]"
+				},
+				{
+					"originalRange": "[7,1 -> 7,1]",
+					"modifiedRange": "[8,1 -> 8,2]"
+				},
+				{
+					"originalRange": "[8,1 -> 8,1]",
+					"modifiedRange": "[9,1 -> 9,2]"
+				},
+				{
+					"originalRange": "[9,1 -> 9,1]",
+					"modifiedRange": "[10,1 -> 10,2]"
+				},
+				{
+					"originalRange": "[10,1 -> 10,1]",
+					"modifiedRange": "[11,1 -> 11,2]"
+				},
+				{
+					"originalRange": "[11,1 -> 11,1]",
+					"modifiedRange": "[12,1 -> 12,2]"
+				},
+				{
+					"originalRange": "[12,1 -> 12,1]",
+					"modifiedRange": "[13,1 -> 13,2]"
+				},
+				{
+					"originalRange": "[13,1 -> 13,1]",
+					"modifiedRange": "[14,1 -> 14,2]"
+				},
+				{
+					"originalRange": "[14,1 -> 14,1]",
+					"modifiedRange": "[15,1 -> 15,2]"
+				},
+				{
+					"originalRange": "[15,1 -> 15,1]",
+					"modifiedRange": "[16,1 -> 16,2]"
+				},
+				{
+					"originalRange": "[16,1 -> 16,1]",
+					"modifiedRange": "[17,1 -> 17,2]"
+				},
+				{
+					"originalRange": "[17,1 -> 17,1]",
+					"modifiedRange": "[18,1 -> 18,2]"
+				},
+				{
+					"originalRange": "[18,1 -> 18,1]",
+					"modifiedRange": "[19,1 -> 19,2]"
+				},
+				{
+					"originalRange": "[19,1 -> 19,1]",
+					"modifiedRange": "[20,1 -> 20,2]"
+				},
+				{
+					"originalRange": "[20,1 -> 20,1]",
+					"modifiedRange": "[21,1 -> 21,2]"
+				},
+				{
+					"originalRange": "[21,1 -> 21,1]",
+					"modifiedRange": "[22,1 -> 22,2]"
+				},
+				{
+					"originalRange": "[22,1 -> 22,1]",
+					"modifiedRange": "[23,1 -> 23,2]"
+				},
+				{
+					"originalRange": "[23,1 -> 23,1]",
+					"modifiedRange": "[24,1 -> 24,2]"
+				},
+				{
+					"originalRange": "[24,1 -> 24,1]",
+					"modifiedRange": "[25,1 -> 25,2]"
+				},
+				{
+					"originalRange": "[25,1 -> 25,1]",
+					"modifiedRange": "[26,1 -> 26,2]"
+				},
+				{
+					"originalRange": "[26,1 -> 26,1]",
+					"modifiedRange": "[27,1 -> 27,2]"
+				},
+				{
+					"originalRange": "[27,1 -> 27,1]",
+					"modifiedRange": "[28,1 -> 28,2]"
+				},
+				{
+					"originalRange": "[28,1 -> 28,1]",
+					"modifiedRange": "[29,1 -> 29,2]"
+				},
+				{
+					"originalRange": "[29,1 -> 29,1]",
+					"modifiedRange": "[30,1 -> 34,1]"
+				}
+			]
+		},
+		{
+			"originalRange": "[30,30)",
+			"modifiedRange": "[35,36)",
+			"innerChanges": [
+				{
+					"originalRange": "[29,2 -> 29,2 EOL]",
+					"modifiedRange": "[34,2 -> 35,1 EOL]"
+				}
+			]
+		}
+	]
+}

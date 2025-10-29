@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as jsonc from 'jsonc-parser';
-import { posix } from 'path';
+import { isAbsolute, posix } from 'path';
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { coalesce } from '../utils/arrays';
@@ -17,9 +17,16 @@ function mapChildren<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): 
 }
 
 const openExtendsLinkCommandId = '_typescript.openExtendsLink';
+
+enum TsConfigLinkType {
+	Extends,
+	References
+}
+
 type OpenExtendsLinkCommandArgs = {
 	readonly resourceUri: vscode.Uri;
 	readonly extendsValue: string;
+	readonly linkType: TsConfigLinkType;
 };
 
 
@@ -43,7 +50,7 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 
 	private getExtendsLink(document: vscode.TextDocument, root: jsonc.Node): vscode.DocumentLink | undefined {
 		const node = jsonc.findNodeAtLocation(root, ['extends']);
-		return node && this.tryCreateTsConfigLink(document, node);
+		return node && this.tryCreateTsConfigLink(document, node, TsConfigLinkType.Extends);
 	}
 
 	private getReferencesLinks(document: vscode.TextDocument, root: jsonc.Node) {
@@ -51,18 +58,19 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 			jsonc.findNodeAtLocation(root, ['references']),
 			child => {
 				const pathNode = jsonc.findNodeAtLocation(child, ['path']);
-				return pathNode && this.tryCreateTsConfigLink(document, pathNode);
+				return pathNode && this.tryCreateTsConfigLink(document, pathNode, TsConfigLinkType.References);
 			});
 	}
 
-	private tryCreateTsConfigLink(document: vscode.TextDocument, node: jsonc.Node): vscode.DocumentLink | undefined {
+	private tryCreateTsConfigLink(document: vscode.TextDocument, node: jsonc.Node, linkType: TsConfigLinkType): vscode.DocumentLink | undefined {
 		if (!this.isPathValue(node)) {
 			return undefined;
 		}
 
 		const args: OpenExtendsLinkCommandArgs = {
 			resourceUri: { ...document.uri.toJSON(), $mid: undefined },
-			extendsValue: node.value
+			extendsValue: node.value,
+			linkType
 		};
 
 		const link = new vscode.DocumentLink(
@@ -95,6 +103,10 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 	}
 
 	private getFileTarget(document: vscode.TextDocument, node: jsonc.Node): vscode.Uri {
+		if (isAbsolute(node.value)) {
+			return vscode.Uri.file(node.value);
+		}
+
 		return vscode.Uri.joinPath(Utils.dirname(document.uri), node.value);
 	}
 
@@ -144,17 +156,18 @@ async function resolveNodeModulesPath(baseDirUri: vscode.Uri, pathCandidates: st
 	}
 }
 
-// Reference: https://github.com/microsoft/TypeScript/blob/febfd442cdba343771f478cf433b0892f213ad2f/src/compiler/commandLineParser.ts#L3005
+// Reference Extends:https://github.com/microsoft/TypeScript/blob/febfd442cdba343771f478cf433b0892f213ad2f/src/compiler/commandLineParser.ts#L3005
+// Reference Project References: https://github.com/microsoft/TypeScript/blob/7377f5cb9db19d79a6167065b323a45611c812b5/src/compiler/tsbuild.ts#L188C1-L194C2
 /**
 * @returns Returns undefined in case of lack of result while trying to resolve from node_modules
 */
-async function getTsconfigPath(baseDirUri: vscode.Uri, pathValue: string): Promise<vscode.Uri | undefined> {
+async function getTsconfigPath(baseDirUri: vscode.Uri, pathValue: string, linkType: TsConfigLinkType): Promise<vscode.Uri | undefined> {
 	async function resolve(absolutePath: vscode.Uri): Promise<vscode.Uri> {
 		if (absolutePath.path.endsWith('.json') || await exists(absolutePath)) {
 			return absolutePath;
 		}
 		return absolutePath.with({
-			path: `${absolutePath.path}.json`
+			path: `${absolutePath.path}${linkType === TsConfigLinkType.References ? '/tsconfig.json' : '.json'}`
 		});
 	}
 
@@ -190,8 +203,8 @@ export function register() {
 			.flat();
 
 	return vscode.Disposable.from(
-		vscode.commands.registerCommand(openExtendsLinkCommandId, async ({ resourceUri, extendsValue, }: OpenExtendsLinkCommandArgs) => {
-			const tsconfigPath = await getTsconfigPath(Utils.dirname(vscode.Uri.from(resourceUri)), extendsValue);
+		vscode.commands.registerCommand(openExtendsLinkCommandId, async ({ resourceUri, extendsValue, linkType }: OpenExtendsLinkCommandArgs) => {
+			const tsconfigPath = await getTsconfigPath(Utils.dirname(vscode.Uri.from(resourceUri)), extendsValue, linkType);
 			if (tsconfigPath === undefined) {
 				vscode.window.showErrorMessage(vscode.l10n.t("Failed to resolve {0} as module", extendsValue));
 				return;

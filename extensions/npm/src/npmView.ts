@@ -13,10 +13,12 @@ import {
 } from 'vscode';
 import { readScripts } from './readScripts';
 import {
-	createTask, getPackageManager, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, INpmTaskDefinition,
+	createInstallationTask, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, INpmTaskDefinition,
 	NpmTaskProvider,
 	startDebugging,
-	ITaskWithLocation
+	detectPackageManager,
+	ITaskWithLocation,
+	INSTALL_SCRIPT
 } from './tasks';
 
 
@@ -82,7 +84,7 @@ class NpmScript extends TreeItem {
 			: task.task.name;
 		super(name, TreeItemCollapsibleState.None);
 		this.taskLocation = task.location;
-		const command: ExplorerCommands = workspace.getConfiguration('npm').get<ExplorerCommands>('scriptExplorerAction') || 'open';
+		const command: ExplorerCommands = name === `${INSTALL_SCRIPT} ` ? 'run' : workspace.getConfiguration('npm').get<ExplorerCommands>('scriptExplorerAction') || 'open';
 
 		const commandList = {
 			'open': {
@@ -90,9 +92,11 @@ class NpmScript extends TreeItem {
 				command: 'vscode.open',
 				arguments: [
 					this.taskLocation?.uri,
-					this.taskLocation ? <TextDocumentShowOptions>{
-						selection: new Range(this.taskLocation.range.start, this.taskLocation.range.start)
-					} : undefined
+					this.taskLocation ?
+						{
+							selection: new Range(this.taskLocation.range.start, this.taskLocation.range.start)
+						} satisfies TextDocumentShowOptions
+						: undefined
 				]
 			},
 			'run': {
@@ -147,8 +151,8 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	}
 
 	private async runScript(script: NpmScript) {
-		// Call getPackageManager to trigger the multiple lock files warning.
-		await getPackageManager(this.context, script.getFolder().uri);
+		// Call detectPackageManager to trigger the multiple lock files warning.
+		await detectPackageManager(script.getFolder().uri, this.context, true);
 		tasks.executeTask(script.task);
 	}
 
@@ -178,7 +182,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (!uri) {
 			return;
 		}
-		const task = await createTask(await getPackageManager(this.context, selection.folder.workspaceFolder.uri, true), 'install', ['install'], selection.folder.workspaceFolder, uri, undefined, []);
+		const task = await createInstallationTask(this.context, selection.folder.workspaceFolder, uri);
 		tasks.executeTask(task);
 	}
 

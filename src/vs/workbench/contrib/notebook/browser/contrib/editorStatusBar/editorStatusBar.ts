@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import * as nls from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { CENTER_ACTIVE_CELL } from 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
-import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { getNotebookEditorFromEditorPane, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import * as nls from '../../../../../../nls.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../common/contributions.js';
+import { CENTER_ACTIVE_CELL } from '../navigation/arrow.js';
+import { SELECT_KERNEL_ID } from '../../controller/coreActions.js';
+import { SELECT_NOTEBOOK_INDENTATION_ID } from '../../controller/editActions.js';
+import { INotebookEditor, getNotebookEditorFromEditorPane } from '../../notebookBrowser.js';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
+import { NotebookCellsChangeType } from '../../../common/notebookCommon.js';
+import { INotebookKernel, INotebookKernelService } from '../../../common/notebookKernelService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../../../services/statusbar/browser/statusbar.js';
+import { IEditorGroupsService, IEditorPart } from '../../../../../services/editor/common/editorGroupsService.js';
+import { Event } from '../../../../../../base/common/event.js';
 
 class ImplictKernelSelector implements IDisposable {
 
@@ -70,7 +72,7 @@ class ImplictKernelSelector implements IDisposable {
 	}
 }
 
-export class KernelStatus extends Disposable implements IWorkbenchContribution {
+class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 	private readonly _editorDisposables = this._register(new DisposableStore());
 	private readonly _kernelInfoElement = this._register(new DisposableStore());
@@ -83,6 +85,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 	) {
 		super();
 		this._register(this._editorService.onDidActiveEditorChange(() => this._updateStatusbar()));
+		this._updateStatusbar();
 	}
 
 	private _updateStatusbar() {
@@ -96,7 +99,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		}
 
 		const updateStatus = () => {
-			if (activeEditor.notebookOptions.getLayoutConfiguration().globalToolbar) {
+			if (activeEditor.notebookOptions.getDisplayOptions().globalToolbar) {
 				// kernel info rendered in the notebook toolbar already
 				this._kernelInfoElement.clear();
 				return;
@@ -177,9 +180,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(KernelStatus, LifecyclePhase.Restored);
-
-export class ActiveCellStatus extends Disposable implements IWorkbenchContribution {
+class ActiveCellStatus extends Disposable implements IWorkbenchContribution {
 
 	private readonly _itemDisposables = this._register(new DisposableStore());
 	private readonly _accessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -190,6 +191,7 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 	) {
 		super();
 		this._register(this._editorService.onDidActiveEditorChange(() => this._update()));
+		this._update();
 	}
 
 	private _update() {
@@ -253,4 +255,114 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ActiveCellStatus, LifecyclePhase.Restored);
+class NotebookIndentationStatus extends Disposable {
+
+	private readonly _itemDisposables = this._register(new DisposableStore());
+	private readonly _accessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+
+	static readonly ID = 'selectNotebookIndentation';
+
+	constructor(
+		@IEditorService private readonly _editorService: IEditorService,
+		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	) {
+		super();
+		this._register(this._editorService.onDidActiveEditorChange(() => this._update()));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor') || e.affectsConfiguration('notebook')) {
+				this._update();
+			}
+		}));
+		this._update();
+	}
+
+	private _update() {
+		this._itemDisposables.clear();
+		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
+		if (activeEditor) {
+			this._show(activeEditor);
+			this._itemDisposables.add(activeEditor.onDidChangeSelection(() => {
+				this._accessor.clear();
+				this._show(activeEditor);
+			}));
+		} else {
+			this._accessor.clear();
+		}
+	}
+
+	private _show(editor: INotebookEditor) {
+		if (!editor.hasModel()) {
+			this._accessor.clear();
+			return;
+		}
+
+		const cellOptions = editor.getActiveCell()?.textModel?.getOptions();
+		if (!cellOptions) {
+			this._accessor.clear();
+			return;
+		}
+
+		const cellEditorOverridesRaw = editor.notebookOptions.getDisplayOptions().editorOptionsCustomizations;
+		const indentSize = cellEditorOverridesRaw?.['editor.indentSize'] ?? cellOptions?.indentSize;
+		const insertSpaces = cellEditorOverridesRaw?.['editor.insertSpaces'] ?? cellOptions?.insertSpaces;
+		const tabSize = cellEditorOverridesRaw?.['editor.tabSize'] ?? cellOptions?.tabSize;
+
+		const width = typeof indentSize === 'number' ? indentSize : tabSize;
+
+		const message = insertSpaces ? `Spaces: ${width}` : `Tab Size: ${width}`;
+		const newText = message;
+		if (!newText) {
+			this._accessor.clear();
+			return;
+		}
+
+		const entry: IStatusbarEntry = {
+			name: nls.localize('notebook.indentation', "Notebook Indentation"),
+			text: newText,
+			ariaLabel: newText,
+			tooltip: nls.localize('selectNotebookIndentation', "Select Indentation"),
+			command: SELECT_NOTEBOOK_INDENTATION_ID
+		};
+
+		if (!this._accessor.value) {
+			this._accessor.value = this._statusbarService.addEntry(
+				entry,
+				'notebook.status.indentation',
+				StatusbarAlignment.RIGHT,
+				100.4
+			);
+		} else {
+			this._accessor.value.update(entry);
+		}
+	}
+}
+
+class NotebookEditorStatusContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'notebook.contrib.editorStatus';
+
+	constructor(
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	) {
+		super();
+
+		for (const part of editorGroupService.parts) {
+			this.createNotebookStatus(part);
+		}
+
+		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.createNotebookStatus(part)));
+	}
+
+	private createNotebookStatus(part: IEditorPart): void {
+		const disposables = new DisposableStore();
+		Event.once(part.onWillDispose)(() => disposables.dispose());
+
+		const scopedInstantiationService = this.editorGroupService.getScopedInstantiationService(part);
+		disposables.add(scopedInstantiationService.createInstance(KernelStatus));
+		disposables.add(scopedInstantiationService.createInstance(ActiveCellStatus));
+		disposables.add(scopedInstantiationService.createInstance(NotebookIndentationStatus));
+	}
+}
+
+registerWorkbenchContribution2(NotebookEditorStatusContribution.ID, NotebookEditorStatusContribution, WorkbenchPhase.AfterRestored);

@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { Emitter } from 'vs/base/common/event';
-import * as path from 'vs/base/common/path';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { Emitter } from '../../../../base/common/event.js';
+import * as path from '../../../../base/common/path.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { promiseWithResolvers } from '../../../../base/common/async.js';
 
 export class DeltaExtensionsResult {
 	constructor(
@@ -25,7 +26,7 @@ export interface IReadOnlyExtensionDescriptionRegistry {
 	getExtensionDescriptionByIdOrUUID(extensionId: ExtensionIdentifier | string, uuid: string | undefined): IExtensionDescription | undefined;
 }
 
-export class ExtensionDescriptionRegistry implements IReadOnlyExtensionDescriptionRegistry {
+export class ExtensionDescriptionRegistry extends Disposable implements IReadOnlyExtensionDescriptionRegistry {
 
 	public static isHostExtension(extensionId: ExtensionIdentifier | string, myRegistry: ExtensionDescriptionRegistry, globalRegistry: ExtensionDescriptionRegistry): boolean {
 		if (myRegistry.getExtensionDescription(extensionId)) {
@@ -43,7 +44,7 @@ export class ExtensionDescriptionRegistry implements IReadOnlyExtensionDescripti
 		return false;
 	}
 
-	private readonly _onDidChange = new Emitter<void>();
+	private readonly _onDidChange = this._register(new Emitter<void>());
 	public readonly onDidChange = this._onDidChange.event;
 
 	private _versionId: number = 0;
@@ -56,6 +57,7 @@ export class ExtensionDescriptionRegistry implements IReadOnlyExtensionDescripti
 		private readonly _activationEventsReader: IActivationEventsReader,
 		extensionDescriptions: IExtensionDescription[]
 	) {
+		super();
 		this._extensionDescriptions = extensionDescriptions;
 		this._initialize();
 	}
@@ -79,18 +81,11 @@ export class ExtensionDescriptionRegistry implements IReadOnlyExtensionDescripti
 			this._extensionsArr.push(extensionDescription);
 
 			const activationEvents = this._activationEventsReader.readActivationEvents(extensionDescription);
-			if (Array.isArray(activationEvents)) {
-				for (let activationEvent of activationEvents) {
-					// TODO@joao: there's no easy way to contribute this
-					if (activationEvent === 'onUri') {
-						activationEvent = `onUri:${ExtensionIdentifier.toKey(extensionDescription.identifier)}`;
-					}
-
-					if (!this._activationMap.has(activationEvent)) {
-						this._activationMap.set(activationEvent, []);
-					}
-					this._activationMap.get(activationEvent)!.push(extensionDescription);
+			for (const activationEvent of activationEvents) {
+				if (!this._activationMap.has(activationEvent)) {
+					this._activationMap.set(activationEvent, []);
 				}
+				this._activationMap.get(activationEvent)!.push(extensionDescription);
 			}
 		}
 	}
@@ -261,14 +256,8 @@ export class ExtensionDescriptionRegistrySnapshot {
 }
 
 export interface IActivationEventsReader {
-	readActivationEvents(extensionDescription: IExtensionDescription): string[] | undefined;
+	readActivationEvents(extensionDescription: IExtensionDescription): string[];
 }
-
-export const basicActivationEventsReader: IActivationEventsReader = {
-	readActivationEvents: (extensionDescription: IExtensionDescription): string[] | undefined => {
-		return extensionDescription.activationEvents;
-	}
-};
 
 export class LockableExtensionDescriptionRegistry implements IReadOnlyExtensionDescriptionRegistry {
 
@@ -336,14 +325,14 @@ export class ExtensionDescriptionRegistryLock extends Disposable {
 
 class LockCustomer {
 	public readonly promise: Promise<IDisposable>;
-	private _resolve!: (value: IDisposable) => void;
+	private readonly _resolve: (value: IDisposable) => void;
 
 	constructor(
 		public readonly name: string
 	) {
-		this.promise = new Promise<IDisposable>((resolve, reject) => {
-			this._resolve = resolve;
-		});
+		const withResolvers = promiseWithResolvers<IDisposable>();
+		this.promise = withResolvers.promise;
+		this._resolve = withResolvers.resolve;
 	}
 
 	resolve(value: IDisposable): void {

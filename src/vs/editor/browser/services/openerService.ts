@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { ResourceMap } from 'vs/base/common/map';
-import { parse } from 'vs/base/common/marshalling';
-import { Schemas } from 'vs/base/common/network';
-import { normalizePath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { EditorOpenSource } from 'vs/platform/editor/common/editor';
-import { extractSelection, IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, matchesSomeScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
+import * as dom from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../base/common/linkedList.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { parse } from '../../../base/common/marshalling.js';
+import { matchesScheme, matchesSomeScheme, Schemas } from '../../../base/common/network.js';
+import { normalizePath } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { ICodeEditorService } from './codeEditorService.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { EditorOpenSource } from '../../../platform/editor/common/editor.js';
+import { extractSelection, IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, OpenOptions, ResolveExternalUriOptions } from '../../../platform/opener/common/opener.js';
 
 class CommandOpener implements IOpener {
 
@@ -45,7 +46,7 @@ class CommandOpener implements IOpener {
 		}
 
 		// execute as command
-		let args: any = [];
+		let args: unknown[] = [];
 		try {
 			args = parse(decodeURIComponent(target.query));
 		} catch {
@@ -72,6 +73,7 @@ class EditorOpener implements IOpener {
 		if (typeof target === 'string') {
 			target = URI.parse(target);
 		}
+
 		const { selection, uri } = extractSelection(target);
 		target = uri;
 
@@ -122,7 +124,7 @@ export class OpenerService implements IOpenerService {
 				if (matchesSomeScheme(href, Schemas.http, Schemas.https)) {
 					dom.windowOpenNoOpener(href);
 				} else {
-					window.location.href = href;
+					mainWindow.location.href = href;
 				}
 				return true;
 			}
@@ -168,13 +170,15 @@ export class OpenerService implements IOpenerService {
 	}
 
 	async open(target: URI | string, options?: OpenOptions): Promise<boolean> {
+
 		// check with contributed validators
-		const targetURI = typeof target === 'string' ? URI.parse(target) : target;
-		// validate against the original URI that this URI resolves to, if one exists
-		const validationTarget = this._resolvedUriTargets.get(targetURI) ?? target;
-		for (const validator of this._validators) {
-			if (!(await validator.shouldOpen(validationTarget, options))) {
-				return false;
+		if (!options?.skipValidation) {
+			const targetURI = typeof target === 'string' ? URI.parse(target) : target;
+			const validationTarget = this._resolvedUriTargets.get(targetURI) ?? target; // validate against the original URI that this URI resolves to, if one exists
+			for (const validator of this._validators) {
+				if (!(await validator.shouldOpen(validationTarget, options))) {
+					return false;
+				}
 			}
 		}
 

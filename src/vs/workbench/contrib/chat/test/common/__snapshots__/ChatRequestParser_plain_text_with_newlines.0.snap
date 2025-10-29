@@ -11,7 +11,8 @@
         endLineNumber: 3,
         endColumn: 7
       },
-      text: "line 1\nline 2\r\nline 3"
+      text: "line 1\nline 2\r\nline 3",
+      kind: "text"
     }
   ],
   text: "line 1\nline 2\r\nline 3"

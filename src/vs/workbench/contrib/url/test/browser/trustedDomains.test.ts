@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 
-import { isURLDomainTrusted } from 'vs/workbench/contrib/url/browser/trustedDomainsValidator';
-import { URI } from 'vs/base/common/uri';
-import { extractGitHubRemotesFromGitConfig } from 'vs/workbench/contrib/url/browser/trustedDomains';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { isURLDomainTrusted } from '../../common/trustedDomains.js';
 
 function linkAllowedByRules(link: string, rules: string[]) {
 	assert.ok(isURLDomainTrusted(URI.parse(link), rules), `Link\n${link}\n should be allowed by rules\n${JSON.stringify(rules)}`);
@@ -16,29 +16,8 @@ function linkNotAllowedByRules(link: string, rules: string[]) {
 	assert.ok(!isURLDomainTrusted(URI.parse(link), rules), `Link\n${link}\n should NOT be allowed by rules\n${JSON.stringify(rules)}`);
 }
 
-suite('GitHub remote extraction', () => {
-	test('All known formats', () => {
-		assert.deepStrictEqual(
-			extractGitHubRemotesFromGitConfig(
-				`
-[remote "1"]
-			url = git@github.com:sshgit/vscode.git
-[remote "2"]
-			url = git@github.com:ssh/vscode
-[remote "3"]
-			url = https://github.com/httpsgit/vscode.git
-[remote "4"]
-			url = https://github.com/https/vscode`),
-			[
-				'https://github.com/sshgit/vscode/',
-				'https://github.com/ssh/vscode/',
-				'https://github.com/httpsgit/vscode/',
-				'https://github.com/https/vscode/'
-			]);
-	});
-});
-
 suite('Link protection domain matching', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('simple', () => {
 		linkNotAllowedByRules('https://x.org', []);
 
@@ -58,6 +37,11 @@ suite('Link protection domain matching', () => {
 		linkAllowedByRules('https://127.0.0.1:3000', []);
 		linkAllowedByRules('https://localhost', []);
 		linkAllowedByRules('https://localhost:3000', []);
+		linkAllowedByRules('https://dev.localhost', []);
+		linkAllowedByRules('https://dev.localhost:3000', []);
+		linkAllowedByRules('https://app.localhost', []);
+		linkAllowedByRules('https://api.localhost:8080', []);
+		linkAllowedByRules('https://myapp.dev.localhost:8080', []);
 	});
 
 	test('* star', () => {
@@ -70,6 +54,8 @@ suite('Link protection domain matching', () => {
 		linkAllowedByRules('https://a.x.org', ['*.x.org']);
 		linkAllowedByRules('https://a.b.x.org', ['*.x.org']);
 		linkAllowedByRules('https://x.org', ['*.x.org']);
+		// https://github.com/microsoft/vscode/issues/249353
+		linkAllowedByRules('https://x.org:3000', ['*.x.org:3000']);
 	});
 
 	test('sub paths', () => {
@@ -133,5 +119,10 @@ suite('Link protection domain matching', () => {
 	test('ignore query & fragment - https://github.com/microsoft/vscode/issues/156839', () => {
 		linkAllowedByRules('https://github.com/login/oauth/authorize?foo=4', ['https://github.com/login/oauth/authorize']);
 		linkAllowedByRules('https://github.com/login/oauth/authorize#foo', ['https://github.com/login/oauth/authorize']);
+	});
+
+	test('ensure individual parts of url are compared and wildcard does not leak out', () => {
+		linkNotAllowedByRules('https://x.org/github.com', ['https://*.github.com']);
+		linkNotAllowedByRules('https://x.org/y.github.com', ['https://*.github.com']);
 	});
 });

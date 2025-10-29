@@ -3,73 +3,91 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore, IReference, ImmortalReference } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextSnapshot } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { MainThreadBulkEdits } from 'vs/workbench/api/browser/mainThreadBulkEdits';
-import { IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
-import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { BulkEditService } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperation, IMoveOperation, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestFileService, TestLifecycleService, TestWorkingCopyService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { Event } from '../../../../base/common/event.js';
+import { DisposableStore, IReference, ImmortalReference } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
+import { EndOfLineSequence, ITextSnapshot } from '../../../../editor/common/model.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { LanguageService } from '../../../../editor/common/services/languageService.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ModelService } from '../../../../editor/common/services/modelService.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { ITreeSitterLibraryService } from '../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { TestCodeEditorService } from '../../../../editor/test/browser/editorTestServices.js';
+import { TestLanguageConfigurationService } from '../../../../editor/test/common/modes/testLanguageConfigurationService.js';
+import { TestTreeSitterLibraryService } from '../../../../editor/test/common/services/testTreeSitterLibraryService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { InstantiationService } from '../../../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../platform/notification/test/common/testNotificationService.js';
+import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
+import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { UndoRedoService } from '../../../../platform/undoRedo/common/undoRedoService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { BulkEditService } from '../../../contrib/bulkEdit/browser/bulkEditService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
+import { LabelService } from '../../../services/label/common/labelService.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperation, IMoveOperation, IWorkingCopyFileService } from '../../../services/workingCopy/common/workingCopyFileService.js';
+import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
+import { TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestWorkingCopyService } from '../../../test/browser/workbenchTestServices.js';
+import { TestContextService, TestFileService, TestTextResourcePropertiesService } from '../../../test/common/workbenchTestServices.js';
+import { MainThreadBulkEdits } from '../../browser/mainThreadBulkEdits.js';
+import { MainThreadTextEditors, IMainThreadEditorLocator } from '../../browser/mainThreadEditors.js';
+import { MainThreadTextEditor } from '../../browser/mainThreadEditor.js';
+import { MainThreadDocuments } from '../../browser/mainThreadDocuments.js';
+import { IWorkspaceTextEditDto } from '../../common/extHost.protocol.js';
+import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+import { ITextResourcePropertiesService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { TestClipboardService } from '../../../../platform/clipboard/test/common/testClipboardService.js';
+import { createTestCodeEditor } from '../../../../editor/test/browser/testCodeEditor.js';
 
 suite('MainThreadEditors', () => {
 
 	let disposables: DisposableStore;
+	const existingResource = URI.parse('foo:existing');
 	const resource = URI.parse('foo:bar');
 
 	let modelService: IModelService;
 
 	let bulkEdits: MainThreadBulkEdits;
+	let editors: MainThreadTextEditors;
+	let editorLocator: IMainThreadEditorLocator;
+	let testEditor: MainThreadTextEditor;
 
 	const movedResources = new Map<URI, URI>();
 	const copiedResources = new Map<URI, URI>();
 	const createdResources = new Set<URI>();
 	const deletedResources = new Set<URI>();
+
+	const editorId = 'testEditorId';
 
 	setup(() => {
 		disposables = new DisposableStore();
@@ -79,19 +97,11 @@ suite('MainThreadEditors', () => {
 		createdResources.clear();
 		deletedResources.clear();
 
-
 		const configService = new TestConfigurationService();
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
-		modelService = new ModelService(
-			configService,
-			new TestTextResourcePropertiesService(configService),
-			undoRedoService,
-			disposables.add(new LanguageService()),
-			new TestLanguageConfigurationService(),
-		);
 
 		const services = new ServiceCollection();
 		services.set(IBulkEditService, new SyncDescriptor(BulkEditService));
@@ -104,20 +114,29 @@ suite('MainThreadEditors', () => {
 		services.set(IDialogService, dialogService);
 		services.set(INotificationService, notificationService);
 		services.set(IUndoRedoService, undoRedoService);
-		services.set(IModelService, modelService);
+		services.set(ITextResourcePropertiesService, new SyncDescriptor(TestTextResourcePropertiesService));
+		services.set(IModelService, new SyncDescriptor(ModelService));
 		services.set(ICodeEditorService, new TestCodeEditorService(themeService));
 		services.set(IFileService, new TestFileService());
 		services.set(IUriIdentityService, new SyncDescriptor(UriIdentityService));
-		services.set(IEditorService, new TestEditorService());
+		services.set(ITreeSitterLibraryService, new TestTreeSitterLibraryService());
+		services.set(IEditorService, disposables.add(new TestEditorService()));
 		services.set(ILifecycleService, new TestLifecycleService());
 		services.set(IWorkingCopyService, new TestWorkingCopyService());
 		services.set(IEditorGroupsService, new TestEditorGroupsService());
+		services.set(IClipboardService, new TestClipboardService());
 		services.set(ITextFileService, new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }
+			// eslint-disable-next-line local/code-no-any-casts
 			override files = <any>{
 				onDidSave: Event.None,
 				onDidRevert: Event.None,
-				onDidChangeDirty: Event.None
+				onDidChangeDirty: Event.None,
+				onDidChangeEncoding: Event.None
+			};
+			// eslint-disable-next-line local/code-no-any-casts
+			override untitled = <any>{
+				onDidChangeEncoding: Event.None
 			};
 			override create(operations: { resource: URI }[]) {
 				for (const o of operations) {
@@ -177,9 +196,38 @@ suite('MainThreadEditors', () => {
 			}
 		});
 
+		services.set(ILanguageService, disposables.add(new LanguageService()));
+		services.set(ILanguageConfigurationService, new TestLanguageConfigurationService());
+
 		const instaService = new InstantiationService(services);
 
 		bulkEdits = instaService.createInstance(MainThreadBulkEdits, SingleProxyRPCProtocol(null));
+		const documents = instaService.createInstance(MainThreadDocuments, SingleProxyRPCProtocol(null));
+
+		// Create editor locator
+		editorLocator = {
+			getEditor(id: string): MainThreadTextEditor | undefined {
+				return id === editorId ? testEditor : undefined;
+			},
+			findTextEditorIdFor() { return undefined; },
+			getIdOfCodeEditor() { return undefined; }
+		};
+
+		editors = instaService.createInstance(MainThreadTextEditors, editorLocator, SingleProxyRPCProtocol(null));
+		modelService = instaService.invokeFunction(accessor => accessor.get(IModelService));
+
+		// Create a test code editor using the helper
+		const model = modelService.createModel('Hello world!', null, existingResource);
+		const testCodeEditor = disposables.add(createTestCodeEditor(model));
+
+		testEditor = disposables.add(instaService.createInstance(
+			MainThreadTextEditor,
+			editorId,
+			model,
+			testCodeEditor,
+			{ onGainedFocus() { }, onLostFocus() { } },
+			documents
+		));
 	});
 
 	teardown(() => {
@@ -204,7 +252,7 @@ suite('MainThreadEditors', () => {
 		// Act as if the user edited the model
 		model.applyEdits([EditOperation.insert(new Position(0, 0), 'something')]);
 
-		return bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit] }).then((result) => {
+		return bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [workspaceResourceEdit] })).then((result) => {
 			assert.strictEqual(result, false);
 		});
 	});
@@ -230,29 +278,125 @@ suite('MainThreadEditors', () => {
 			}
 		};
 
-		const p1 = bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit1] }).then((result) => {
+		const p1 = bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [workspaceResourceEdit1] })).then((result) => {
 			// first edit request succeeds
 			assert.strictEqual(result, true);
 		});
-		const p2 = bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit2] }).then((result) => {
+		const p2 = bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [workspaceResourceEdit2] })).then((result) => {
 			// second edit request fails
 			assert.strictEqual(result, false);
 		});
 		return Promise.all([p1, p2]);
 	});
 
+	test('applyWorkspaceEdit: noop eol edit keeps undo stack clean', async () => {
+
+		const initialText = 'hello\nworld';
+		const model = disposables.add(modelService.createModel(initialText, null, resource));
+		const initialAlternativeVersionId = model.getAlternativeVersionId();
+
+		const insertEdit: IWorkspaceTextEditDto = {
+			resource: resource,
+			versionId: model.getVersionId(),
+			textEdit: {
+				range: new Range(1, 6, 1, 6),
+				text: '2'
+			}
+		};
+
+		const insertResult = await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [insertEdit] }));
+		assert.strictEqual(insertResult, true);
+		assert.strictEqual(model.getValue(), 'hello2\nworld');
+		assert.notStrictEqual(model.getAlternativeVersionId(), initialAlternativeVersionId);
+
+		const eolEdit: IWorkspaceTextEditDto = {
+			resource: resource,
+			versionId: model.getVersionId(),
+			textEdit: {
+				range: new Range(1, 1, 1, 1),
+				text: '',
+				eol: EndOfLineSequence.LF
+			}
+		};
+
+		const eolResult = await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [eolEdit] }));
+		assert.strictEqual(eolResult, true);
+		assert.strictEqual(model.getValue(), 'hello2\nworld');
+
+		const undoResult = model.undo();
+		if (undoResult) {
+			await undoResult;
+		}
+		assert.strictEqual(model.getValue(), initialText);
+		assert.strictEqual(model.getAlternativeVersionId(), initialAlternativeVersionId);
+	});
+
 	test(`applyWorkspaceEdit with only resource edit`, () => {
-		return bulkEdits.$tryApplyWorkspaceEdit({
+		return bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({
 			edits: [
 				{ oldResource: resource, newResource: resource, options: undefined },
 				{ oldResource: undefined, newResource: resource, options: undefined },
 				{ oldResource: resource, newResource: undefined, options: undefined }
 			]
-		}).then((result) => {
+		})).then((result) => {
 			assert.strictEqual(result, true);
 			assert.strictEqual(movedResources.get(resource), resource);
 			assert.strictEqual(createdResources.has(resource), true);
 			assert.strictEqual(deletedResources.has(resource), true);
 		});
+	});
+
+	test('applyWorkspaceEdit can control undo/redo stack 1', async () => {
+		const model = modelService.getModel(existingResource)!;
+
+		const edit1: ISingleEditOperation = {
+			range: new Range(1, 1, 1, 2),
+			text: 'h',
+			forceMoveMarkers: false
+		};
+
+		const applied1 = await editors.$tryApplyEdits(editorId, model.getVersionId(), [edit1], { undoStopBefore: false, undoStopAfter: false });
+		assert.strictEqual(applied1, true);
+		assert.strictEqual(model.getValue(), 'hello world!');
+
+		const edit2: ISingleEditOperation = {
+			range: new Range(1, 2, 1, 6),
+			text: 'ELLO',
+			forceMoveMarkers: false
+		};
+
+		const applied2 = await editors.$tryApplyEdits(editorId, model.getVersionId(), [edit2], { undoStopBefore: false, undoStopAfter: false });
+		assert.strictEqual(applied2, true);
+		assert.strictEqual(model.getValue(), 'hELLO world!');
+
+		await model.undo();
+		assert.strictEqual(model.getValue(), 'Hello world!');
+	});
+
+	test('applyWorkspaceEdit can control undo/redo stack 2', async () => {
+		const model = modelService.getModel(existingResource)!;
+
+		const edit1: ISingleEditOperation = {
+			range: new Range(1, 1, 1, 2),
+			text: 'h',
+			forceMoveMarkers: false
+		};
+
+		const applied1 = await editors.$tryApplyEdits(editorId, model.getVersionId(), [edit1], { undoStopBefore: false, undoStopAfter: false });
+		assert.strictEqual(applied1, true);
+		assert.strictEqual(model.getValue(), 'hello world!');
+
+		const edit2: ISingleEditOperation = {
+			range: new Range(1, 2, 1, 6),
+			text: 'ELLO',
+			forceMoveMarkers: false
+		};
+
+		const applied2 = await editors.$tryApplyEdits(editorId, model.getVersionId(), [edit2], { undoStopBefore: true, undoStopAfter: false });
+		assert.strictEqual(applied2, true);
+		assert.strictEqual(model.getValue(), 'hELLO world!');
+
+		await model.undo();
+		assert.strictEqual(model.getValue(), 'hello world!');
 	});
 });

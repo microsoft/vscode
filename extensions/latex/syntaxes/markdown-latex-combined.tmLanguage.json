@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/01814480aecb9e1280fce20b7302178630755da9",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/d689e50d5a02534f9385306b3d0225d78be4db85",
 	"name": "Markdown",
 	"scopeName": "text.tex.markdown_latex_combined",
 	"patterns": [
@@ -44,6 +44,9 @@
 				},
 				{
 					"include": "#html"
+				},
+				{
+					"include": "#table"
 				},
 				{
 					"include": "#paragraph"
@@ -1257,7 +1260,7 @@
 			]
 		},
 		"fenced_code_block_powershell": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(powershell|ps1|psm1|psd1)((\\s+|:|,|\\{|\\?)[^`]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(powershell|ps1|psm1|psd1|pwsh)((\\s+|:|,|\\{|\\?)[^`]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -2255,12 +2258,7 @@
 					]
 				}
 			},
-			"name": "markup.heading.markdown",
-			"patterns": [
-				{
-					"include": "#inline"
-				}
-			]
+			"name": "markup.heading.markdown"
 		},
 		"heading-setext": {
 			"patterns": [
@@ -2440,7 +2438,7 @@
 					"while": "((^|\\G)([ ]{2,4}|\\t))|(^[ \\t]*$)"
 				},
 				{
-					"begin": "(^|\\G)([ ]{0,3})([0-9]+\\.)([ \\t])",
+					"begin": "(^|\\G)([ ]{0,3})([0-9]+[\\.\\)])([ \\t])",
 					"beginCaptures": {
 						"3": {
 							"name": "punctuation.definition.list.begin.markdown"
@@ -2460,7 +2458,7 @@
 			]
 		},
 		"paragraph": {
-			"begin": "(^|\\G)[ ]{0,3}(?=\\S)",
+			"begin": "(^|\\G)[ ]{0,3}(?=[^ \\t\\n])",
 			"name": "meta.paragraph.markdown",
 			"patterns": [
 				{
@@ -2473,7 +2471,7 @@
 					"include": "#heading-setext"
 				}
 			],
-			"while": "(^|\\G)((?=\\s*[-=]{3,}\\s*$)|[ ]{4,}(?=\\S))"
+			"while": "(^|\\G)((?=\\s*[-=]{3,}\\s*$)|[ ]{4,}(?=[^ \\t\\n]))"
 		},
 		"raw_block": {
 			"begin": "(^|\\G)([ ]{4}|\\t)",
@@ -2485,14 +2483,70 @@
 			"name": "meta.separator.markdown"
 		},
 		"frontMatter": {
-			"begin": "\\A-{3}\\s*$",
-			"contentName": "meta.embedded.block.frontmatter",
+			"begin": "\\A(?=(-{3,}))",
+			"end": "^ {,3}\\1-*[ \\t]*$|^[ \\t]*\\.{3}$",
+			"applyEndPatternLast": 1,
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.end.frontmatter"
+				}
+			},
 			"patterns": [
 				{
-					"include": "source.yaml"
+					"begin": "\\A(-{3,})(.*)$",
+					"while": "^(?! {,3}\\1-*[ \\t]*$|[ \\t]*\\.{3}$)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.begin.frontmatter"
+						},
+						"2": {
+							"name": "comment.frontmatter"
+						}
+					},
+					"contentName": "meta.embedded.block.frontmatter",
+					"patterns": [
+						{
+							"include": "source.yaml"
+						}
+					]
 				}
-			],
-			"end": "(^|\\G)-{3}|\\.{3}\\s*$"
+			]
+		},
+		"table": {
+			"name": "markup.table.markdown",
+			"begin": "(^|\\G)(\\|)(?=[^|].+\\|\\s*$)",
+			"beginCaptures": {
+				"2": {
+					"name": "punctuation.definition.table.markdown"
+				}
+			},
+			"while": "(^|\\G)(?=\\|)",
+			"patterns": [
+				{
+					"match": "\\|",
+					"name": "punctuation.definition.table.markdown"
+				},
+				{
+					"match": "(?<=\\|)\\s*(:?-+:?)\\s*(?=\\|)",
+					"captures": {
+						"1": {
+							"name": "punctuation.separator.table.markdown"
+						}
+					}
+				},
+				{
+					"match": "(?<=\\|)\\s*(?=\\S)((\\\\\\||[^|])+)(?<=\\S)\\s*(?=\\|)",
+					"captures": {
+						"1": {
+							"patterns": [
+								{
+									"include": "#inline"
+								}
+							]
+						}
+					}
+				}
+			]
 		},
 		"inline": {
 			"patterns": [
@@ -2956,7 +3010,7 @@
 					"name": "punctuation.definition.link.title.end.markdown"
 				}
 			},
-			"match": "(?<![\\]\\\\])(\\[)(\\S+?)(\\])",
+			"match": "(?<![\\]\\\\])(\\[)((?:[^\\s\\[\\]\\\\]|\\\\[\\[\\]])+?)((?<!\\\\)\\])",
 			"name": "meta.link.reference.markdown"
 		},
 		"raw": {

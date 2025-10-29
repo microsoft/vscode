@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IMarkerNavigationService, MarkerList } from 'vs/editor/contrib/gotoError/browser/markerNavigationService';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IMarker } from 'vs/platform/markers/common/markers';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { MarkerNavigationWidget } from './gotoErrorWidget';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorCommand, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { IMarkerNavigationService, MarkerList } from './markerNavigationService.js';
+import * as nls from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IMarker } from '../../../../platform/markers/common/markers.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { MarkerNavigationWidget } from './gotoErrorWidget.js';
 
 export class MarkerController implements IEditorContribution {
 
@@ -99,7 +99,7 @@ export class MarkerController implements IEditorContribution {
 			if (!this._widget || !this._widget.position || !this._model) {
 				return;
 			}
-			const info = this._model.find(this._editor.getModel()!.uri, this._widget!.position!);
+			const info = this._model.find(this._editor.getModel()!.uri, this._widget.position);
 			if (info) {
 				this._widget.updateMarker(info.marker);
 			} else {
@@ -128,40 +128,46 @@ export class MarkerController implements IEditorContribution {
 	}
 
 	showAtMarker(marker: IMarker): void {
-		if (this._editor.hasModel()) {
-			const model = this._getOrCreateModel(this._editor.getModel().uri);
-			model.resetIndex();
-			model.move(true, this._editor.getModel(), new Position(marker.startLineNumber, marker.startColumn));
-			if (model.selected) {
-				this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
-			}
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
+		const textModel = this._editor.getModel();
+		const model = this._getOrCreateModel(textModel.uri);
+		model.resetIndex();
+		model.move(true, textModel, new Position(marker.startLineNumber, marker.startColumn));
+		if (model.selected) {
+			this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
 		}
 	}
 
-	async nagivate(next: boolean, multiFile: boolean) {
-		if (this._editor.hasModel()) {
-			const model = this._getOrCreateModel(multiFile ? undefined : this._editor.getModel().uri);
-			model.move(next, this._editor.getModel(), this._editor.getPosition());
-			if (!model.selected) {
-				return;
-			}
-			if (model.selected.marker.resource.toString() !== this._editor.getModel().uri.toString()) {
-				// show in different editor
-				this._cleanUp();
-				const otherEditor = await this._editorService.openCodeEditor({
-					resource: model.selected.marker.resource,
-					options: { pinned: false, revealIfOpened: true, selectionRevealType: TextEditorSelectionRevealType.NearTop, selection: model.selected.marker }
-				}, this._editor);
+	async navigate(next: boolean, multiFile: boolean) {
+		if (!this._editor.hasModel()) {
+			return;
+		}
 
-				if (otherEditor) {
-					MarkerController.get(otherEditor)?.close();
-					MarkerController.get(otherEditor)?.nagivate(next, multiFile);
-				}
+		const textModel = this._editor.getModel();
+		const model = this._getOrCreateModel(multiFile ? undefined : textModel.uri);
+		model.move(next, textModel, this._editor.getPosition());
+		if (!model.selected) {
+			return;
+		}
+		if (model.selected.marker.resource.toString() !== textModel.uri.toString()) {
+			// show in different editor
+			this._cleanUp();
+			const otherEditor = await this._editorService.openCodeEditor({
+				resource: model.selected.marker.resource,
+				options: { pinned: false, revealIfOpened: true, selectionRevealType: TextEditorSelectionRevealType.NearTop, selection: model.selected.marker }
+			}, this._editor);
 
-			} else {
-				// show in this editor
-				this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
+			if (otherEditor) {
+				MarkerController.get(otherEditor)?.close();
+				MarkerController.get(otherEditor)?.navigate(next, multiFile);
 			}
+
+		} else {
+			// show in this editor
+			this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
 		}
 	}
 }
@@ -178,19 +184,18 @@ class MarkerNavigationAction extends EditorAction {
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		if (editor.hasModel()) {
-			MarkerController.get(editor)?.nagivate(this._next, this._multiFile);
+			await MarkerController.get(editor)?.navigate(this._next, this._multiFile);
 		}
 	}
 }
 
 export class NextMarkerAction extends MarkerNavigationAction {
 	static ID: string = 'editor.action.marker.next';
-	static LABEL: string = nls.localize('markerAction.next.label', "Go to Next Problem (Error, Warning, Info)");
+	static LABEL = nls.localize2('markerAction.next.label', "Go to Next Problem (Error, Warning, Info)");
 	constructor() {
 		super(true, false, {
 			id: NextMarkerAction.ID,
 			label: NextMarkerAction.LABEL,
-			alias: 'Go to Next Problem (Error, Warning, Info)',
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -199,7 +204,7 @@ export class NextMarkerAction extends MarkerNavigationAction {
 			},
 			menuOpts: {
 				menuId: MarkerNavigationWidget.TitleMenu,
-				title: NextMarkerAction.LABEL,
+				title: NextMarkerAction.LABEL.value,
 				icon: registerIcon('marker-navigation-next', Codicon.arrowDown, nls.localize('nextMarkerIcon', 'Icon for goto next marker.')),
 				group: 'navigation',
 				order: 1
@@ -210,12 +215,11 @@ export class NextMarkerAction extends MarkerNavigationAction {
 
 class PrevMarkerAction extends MarkerNavigationAction {
 	static ID: string = 'editor.action.marker.prev';
-	static LABEL: string = nls.localize('markerAction.previous.label', "Go to Previous Problem (Error, Warning, Info)");
+	static LABEL = nls.localize2('markerAction.previous.label', "Go to Previous Problem (Error, Warning, Info)");
 	constructor() {
 		super(false, false, {
 			id: PrevMarkerAction.ID,
 			label: PrevMarkerAction.LABEL,
-			alias: 'Go to Previous Problem (Error, Warning, Info)',
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -224,7 +228,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 			},
 			menuOpts: {
 				menuId: MarkerNavigationWidget.TitleMenu,
-				title: PrevMarkerAction.LABEL,
+				title: PrevMarkerAction.LABEL.value,
 				icon: registerIcon('marker-navigation-previous', Codicon.arrowUp, nls.localize('previousMarkerIcon', 'Icon for goto previous marker.')),
 				group: 'navigation',
 				order: 2
@@ -237,8 +241,7 @@ class NextMarkerInFilesAction extends MarkerNavigationAction {
 	constructor() {
 		super(true, true, {
 			id: 'editor.action.marker.nextInFiles',
-			label: nls.localize('markerAction.nextInFiles.label', "Go to Next Problem in Files (Error, Warning, Info)"),
-			alias: 'Go to Next Problem in Files (Error, Warning, Info)',
+			label: nls.localize2('markerAction.nextInFiles.label', "Go to Next Problem in Files (Error, Warning, Info)"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -259,8 +262,7 @@ class PrevMarkerInFilesAction extends MarkerNavigationAction {
 	constructor() {
 		super(false, true, {
 			id: 'editor.action.marker.prevInFiles',
-			label: nls.localize('markerAction.previousInFiles.label', "Go to Previous Problem in Files (Error, Warning, Info)"),
-			alias: 'Go to Previous Problem in Files (Error, Warning, Info)',
+			label: nls.localize2('markerAction.previousInFiles.label', "Go to Previous Problem in Files (Error, Warning, Info)"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,

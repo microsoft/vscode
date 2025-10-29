@@ -79,7 +79,8 @@
         ],
         "extensions": [
           ".gitignore_global",
-          ".gitignore"
+          ".gitignore",
+          ".git-blame-ignore-revs"
         ],
         "configuration": "./languages/ignore.language-configuration.json"
       }
@@ -103,7 +104,7 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "18.x"
+    "@types/node": "22.x"
   },
   "repository": {
     "type": "git",

@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
-import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IAction } from 'vs/base/common/actions';
-import { Emitter, Event } from 'vs/base/common/event';
-import { HistoryNavigator } from 'vs/base/common/history';
-import { equals } from 'vs/base/common/objects';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import 'vs/css!./inputBox';
-import * as nls from 'vs/nls';
+import * as dom from '../../dom.js';
+import * as cssJs from '../../cssValue.js';
+import { DomEmitter } from '../../event.js';
+import { renderFormattedText, renderText } from '../../formattedTextRenderer.js';
+import { IHistoryNavigationWidget } from '../../history.js';
+import { ActionBar } from '../actionbar/actionbar.js';
+import * as aria from '../aria/aria.js';
+import { AnchorAlignment, IContextViewProvider } from '../contextview/contextview.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { ScrollableElement } from '../scrollbar/scrollableElement.js';
+import { Widget } from '../widget.js';
+import { IAction } from '../../../common/actions.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { HistoryNavigator, IHistory } from '../../../common/history.js';
+import { equals } from '../../../common/objects.js';
+import { ScrollbarVisibility } from '../../../common/scrollable.js';
+import './inputBox.css';
+import * as nls from '../../../../nls.js';
+import { MutableDisposable, type IDisposable } from '../../../common/lifecycle.js';
 
 
 const $ = dom.$;
@@ -36,6 +38,7 @@ export interface IInputOptions {
 	readonly flexibleMaxHeight?: number;
 	readonly actions?: ReadonlyArray<IAction>;
 	readonly inputBoxStyles: IInputBoxStyles;
+	readonly history?: IHistory<string>;
 }
 
 export interface IInputBoxStyles {
@@ -111,12 +114,13 @@ export class InputBox extends Widget {
 	private cachedContentHeight: number | undefined;
 	private maxHeight: number = Number.POSITIVE_INFINITY;
 	private scrollableElement: ScrollableElement | undefined;
+	private readonly hover: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private _onDidChange = this._register(new Emitter<string>());
-	public readonly onDidChange: Event<string> = this._onDidChange.event;
+	public get onDidChange(): Event<string> { return this._onDidChange.event; }
 
 	private _onDidHeightChange = this._register(new Emitter<number>());
-	public readonly onDidHeightChange: Event<number> = this._onDidHeightChange.event;
+	public get onDidHeightChange(): Event<number> { return this._onDidHeightChange.event; }
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IInputOptions) {
 		super();
@@ -166,9 +170,9 @@ export class InputBox extends Widget {
 			// from ScrollableElement to DOM
 			this._register(this.scrollableElement.onScroll(e => this.input.scrollTop = e.scrollTop));
 
-			const onSelectionChange = this._register(new DomEmitter(document, 'selectionchange'));
+			const onSelectionChange = this._register(new DomEmitter(container.ownerDocument, 'selectionchange'));
 			const onAnchoredSelectionChange = Event.filter(onSelectionChange.event, () => {
-				const selection = document.getSelection();
+				const selection = container.ownerDocument.getSelection();
 				return selection?.anchorNode === wrapper;
 			});
 
@@ -230,7 +234,14 @@ export class InputBox extends Widget {
 
 	public setTooltip(tooltip: string): void {
 		this.tooltip = tooltip;
-		this.input.title = tooltip;
+		if (!this.hover.value) {
+			this.hover.value = this._register(getBaseLayerHoverDelegate().setupDelayedHoverAtMouse(this.input, () => ({
+				content: this.tooltip,
+				appearance: {
+					compact: true,
+				}
+			})));
+		}
 	}
 
 	public setAriaLabel(label: string): void {
@@ -287,7 +298,7 @@ export class InputBox extends Widget {
 	}
 
 	public hasFocus(): boolean {
-		return document.activeElement === this.input;
+		return dom.isActiveElement(this.input);
 	}
 
 	public select(range: IRange | null = null): void {
@@ -303,6 +314,18 @@ export class InputBox extends Widget {
 
 	public isSelectionAtEnd(): boolean {
 		return this.input.selectionEnd === this.input.value.length && this.input.selectionStart === this.input.selectionEnd;
+	}
+
+	public getSelection(): IRange | null {
+		const selectionStart = this.input.selectionStart;
+		if (selectionStart === null) {
+			return null;
+		}
+		const selectionEnd = this.input.selectionEnd ?? selectionStart;
+		return {
+			start: selectionStart,
+			end: selectionEnd,
+		};
 	}
 
 	public enable(): void {
@@ -383,7 +406,7 @@ export class InputBox extends Widget {
 		this.element.classList.add(this.classForType(message.type));
 
 		const styles = this.stylesForType(this.message.type);
-		this.element.style.border = `1px solid ${dom.asCssValueWithDefault(styles.border, 'transparent')}`;
+		this.element.style.border = `1px solid ${cssJs.asCssValueWithDefault(styles.border, 'transparent')}`;
 
 		if (this.message.content && (this.hasFocus() || force)) {
 			this._showMessage();
@@ -461,14 +484,14 @@ export class InputBox extends Widget {
 				div = dom.append(container, $('.monaco-inputbox-container'));
 				layout();
 
-				const renderOptions: MarkdownRenderOptions = {
-					inline: true,
-					className: 'monaco-inputbox-message'
-				};
 
-				const spanElement = (this.message.formatContent
-					? renderFormattedText(this.message.content!, renderOptions)
-					: renderText(this.message.content!, renderOptions));
+				const spanElement = $('span.monaco-inputbox-message');
+				if (this.message.formatContent) {
+					renderFormattedText(this.message.content!, undefined, spanElement);
+				} else {
+					renderText(this.message.content!, undefined, spanElement);
+				}
+
 				spanElement.classList.add(this.classForType(this.message.type));
 
 				const styles = this.stylesForType(this.message.type);
@@ -558,7 +581,7 @@ export class InputBox extends Widget {
 		this.input.style.color = foreground;
 
 		// there's always a border, even if the color is not set.
-		this.element.style.border = `1px solid ${dom.asCssValueWithDefault(border, 'transparent')}`;
+		this.element.style.border = `1px solid ${cssJs.asCssValueWithDefault(border, 'transparent')}`;
 	}
 
 	public layout(): void {
@@ -601,7 +624,6 @@ export class InputBox extends Widget {
 }
 
 export interface IHistoryInputOptions extends IInputOptions {
-	history: string[];
 	readonly showHistoryHint?: () => boolean;
 }
 
@@ -617,18 +639,24 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 	readonly onDidBlur = this._onDidBlur.event;
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions) {
-		const NLS_PLACEHOLDER_HISTORY_HINT = nls.localize({ key: 'history.inputbox.hint', comment: ['Text will be prefixed with \u21C5 plus a single space, then used as a hint where input field keeps history'] }, "for history");
-		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX = ` or \u21C5 ${NLS_PLACEHOLDER_HISTORY_HINT}`;
-		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS = ` (\u21C5 ${NLS_PLACEHOLDER_HISTORY_HINT})`;
+		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_NO_PARENS = nls.localize({
+			key: 'history.inputbox.hint.suffix.noparens',
+			comment: ['Text is the suffix of an input field placeholder coming after the action the input field performs, this will be used when the input field ends in a closing parenthesis ")", for example "Filter (e.g. text, !exclude)". The character inserted into the final string is \u21C5 to represent the up and down arrow keys.']
+		}, ' or {0} for history', `\u21C5`);
+		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS = nls.localize({
+			key: 'history.inputbox.hint.suffix.inparens',
+			comment: ['Text is the suffix of an input field placeholder coming after the action the input field performs, this will be used when the input field does NOT end in a closing parenthesis (eg. "Find"). The character inserted into the final string is \u21C5 to represent the up and down arrow keys.']
+		}, ' ({0} for history)', `\u21C5`);
+
 		super(container, contextViewProvider, options);
-		this.history = new HistoryNavigator<string>(options.history, 100);
+		this.history = this._register(new HistoryNavigator<string>(options.history, 100));
 
 		// Function to append the history suffix to the placeholder if necessary
 		const addSuffix = () => {
-			if (options.showHistoryHint && options.showHistoryHint() && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX) && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS) && this.history.getHistory().length) {
-				const suffix = this.placeholder.endsWith(')') ? NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX : NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS;
+			if (options.showHistoryHint && options.showHistoryHint() && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_NO_PARENS) && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS) && this.history.getHistory().length) {
+				const suffix = this.placeholder.endsWith(')') ? NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_NO_PARENS : NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS;
 				const suffixedPlaceholder = this.placeholder + suffix;
-				if (options.showPlaceholderOnFocus && document.activeElement !== this.input) {
+				if (options.showPlaceholderOnFocus && !dom.isActiveElement(this.input)) {
 					this.placeholder = suffixedPlaceholder;
 				}
 				else {
@@ -666,7 +694,7 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 				}
 			};
 			if (!resetPlaceholder(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS)) {
-				resetPlaceholder(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX);
+				resetPlaceholder(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_NO_PARENS);
 			}
 		});
 	}
@@ -746,6 +774,11 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 
 	public clearHistory(): void {
 		this.history.clear();
+	}
+
+	public override setPlaceHolder(placeHolder: string): void {
+		super.setPlaceHolder(placeHolder);
+		this.setTooltip(placeHolder);
 	}
 
 	protected override onBlur(): void {

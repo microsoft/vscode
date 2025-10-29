@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
+import { Event } from '../../../base/common/event.js';
+import * as platform from '../../../base/common/platform.js';
 import type { IExperimentationFilterProvider } from 'tas-client-umd';
 
 export const ASSIGNMENT_STORAGE_KEY = 'VSCode.ABExp.FeatureData';
-export const ASSIGNMENT_REFETCH_INTERVAL = 0; // no polling
+export const ASSIGNMENT_REFETCH_INTERVAL = 60 * 60 * 1000; // 1 hour
 
 export interface IAssignmentService {
 	readonly _serviceBrand: undefined;
+
+	readonly onDidRefetchAssignments: Event<void>;
 	getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
 }
 
@@ -61,6 +64,11 @@ export enum Filters {
 	ClientId = 'X-MSEdge-ClientId',
 
 	/**
+	 * Developer Device Id which can be used as an alternate unit for experimentation.
+	 */
+	DeveloperDeviceId = 'X-VSCode-DevDeviceId',
+
+	/**
 	 * Extension header.
 	 */
 	ExtensionName = 'X-VSCode-ExtensionName',
@@ -87,17 +95,34 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 		private version: string,
 		private appName: string,
 		private machineId: string,
+		private devDeviceId: string,
 		private targetPopulation: TargetPopulation
 	) { }
+
+	/**
+	 * Returns a version string that can be parsed by the TAS client.
+	 * The tas client cannot handle suffixes lke "-insider"
+	 * Ref: https://github.com/microsoft/tas-client/blob/30340d5e1da37c2789049fcf45928b954680606f/vscode-tas-client/src/vscode-tas-client/VSCodeFilterProvider.ts#L35
+	 *
+	 * @param version Version string to be trimmed.
+	*/
+	private static trimVersionSuffix(version: string): string {
+		const regex = /\-[a-zA-Z0-9]+$/;
+		const result = version.split(regex);
+
+		return result[0];
+	}
 
 	getFilterValue(filter: string): string | null {
 		switch (filter) {
 			case Filters.ApplicationVersion:
-				return this.version; // productService.version
+				return AssignmentFilterProvider.trimVersionSuffix(this.version); // productService.version
 			case Filters.Build:
 				return this.appName; // productService.nameLong
 			case Filters.ClientId:
 				return this.machineId;
+			case Filters.DeveloperDeviceId:
+				return this.devDeviceId;
 			case Filters.Language:
 				return platform.language;
 			case Filters.ExtensionName:

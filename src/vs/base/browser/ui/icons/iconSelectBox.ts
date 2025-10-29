@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./iconSelectBox';
-import * as dom from 'vs/base/browser/dom';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IInputBoxStyles, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { IMatch } from 'vs/base/common/filters';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import './iconSelectBox.css';
+import * as dom from '../../dom.js';
+import { alert } from '../aria/aria.js';
+import { IInputBoxStyles, InputBox } from '../inputbox/inputBox.js';
+import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
+import { Emitter } from '../../../common/event.js';
+import { IDisposable, DisposableStore, Disposable, MutableDisposable } from '../../../common/lifecycle.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { localize } from '../../../../nls.js';
+import { IMatch } from '../../../common/filters.js';
+import { ScrollbarVisibility } from '../../../common/scrollable.js';
+import { HighlightedLabel } from '../highlightedlabel/highlightedLabel.js';
 
 export interface IIconSelectBoxOptions {
 	readonly icons: ThemeIcon[];
@@ -45,6 +45,7 @@ export class IconSelectBox extends Disposable {
 
 	protected inputBox: InputBox | undefined;
 	private scrollableElement: DomScrollableElement | undefined;
+	private iconsContainer: HTMLElement | undefined;
 	private iconIdElement: HighlightedLabel | undefined;
 	private readonly iconContainerWidth = 36;
 	private readonly iconContainerHeight = 36;
@@ -70,8 +71,7 @@ export class IconSelectBox extends Disposable {
 			inputBoxStyles: this.options.inputBoxStyles,
 		}));
 
-		const iconsContainer = dom.$('.icon-select-icons-container', { id: `${this.domId}_icons` });
-		iconsContainer.style.paddingRight = '10px';
+		const iconsContainer = this.iconsContainer = dom.$('.icon-select-icons-container', { id: `${this.domId}_icons` });
 		iconsContainer.role = 'listbox';
 		iconsContainer.tabIndex = 0;
 		this.scrollableElement = disposables.add(new DomScrollableElement(iconsContainer, {
@@ -81,7 +81,7 @@ export class IconSelectBox extends Disposable {
 		dom.append(iconSelectBoxContainer, this.scrollableElement.getDomNode());
 
 		if (this.options.showIconInfo) {
-			this.iconIdElement = new HighlightedLabel(dom.append(dom.append(iconSelectBoxContainer, dom.$('.icon-select-id-container')), dom.$('.icon-select-id-label')));
+			this.iconIdElement = this._register(new HighlightedLabel(dom.append(dom.append(iconSelectBoxContainer, dom.$('.icon-select-id-container')), dom.$('.icon-select-id-label'))));
 		}
 
 		const iconsDisposables = disposables.add(new MutableDisposable());
@@ -97,8 +97,10 @@ export class IconSelectBox extends Disposable {
 					matches.push(match);
 				}
 			}
-			iconsDisposables.value = this.renderIcons(icons, matches, iconsContainer);
-			this.scrollableElement?.scanDomNode();
+			if (icons.length) {
+				iconsDisposables.value = this.renderIcons(icons, matches, iconsContainer);
+				this.scrollableElement?.scanDomNode();
+			}
 		}));
 
 		this.inputBox.inputElement.role = 'combobox';
@@ -132,10 +134,6 @@ export class IconSelectBox extends Disposable {
 				disposables.add(dom.addDisposableListener(iconContainer, dom.EventType.CLICK, (e: MouseEvent) => {
 					e.stopPropagation();
 					this.setSelection(index);
-				}));
-
-				disposables.add(dom.addDisposableListener(iconContainer, dom.EventType.MOUSE_OVER, (e: MouseEvent) => {
-					this.focusIcon(index);
 				}));
 
 				if (icon === focusedIcon) {
@@ -218,16 +216,22 @@ export class IconSelectBox extends Disposable {
 		this.domNode.style.width = `${dimension.width}px`;
 		this.domNode.style.height = `${dimension.height}px`;
 
-		const iconsContainerWidth = dimension.width - 40;
+		const iconsContainerWidth = dimension.width - 30;
 		this.numberOfElementsPerRow = Math.floor(iconsContainerWidth / this.iconContainerWidth);
 		if (this.numberOfElementsPerRow === 0) {
 			throw new Error('Insufficient width');
 		}
 
 		const extraSpace = iconsContainerWidth % this.iconContainerWidth;
-		const margin = Math.floor(extraSpace / this.numberOfElementsPerRow);
+		const iconElementMargin = Math.floor(extraSpace / this.numberOfElementsPerRow);
 		for (const { element } of this.renderedIcons) {
-			element.style.marginRight = `${margin}px`;
+			element.style.marginRight = `${iconElementMargin}px`;
+		}
+
+		const containerPadding = extraSpace % this.numberOfElementsPerRow;
+		if (this.iconsContainer) {
+			this.iconsContainer.style.paddingLeft = `${Math.floor(containerPadding / 2)}px`;
+			this.iconsContainer.style.paddingRight = `${Math.ceil(containerPadding / 2)}px`;
 		}
 
 		if (this.scrollableElement) {

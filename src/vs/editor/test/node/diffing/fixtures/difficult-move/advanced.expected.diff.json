@@ -48,5 +48,31 @@
 				}
 			]
 		}
+	],
+	"moves": [
+		{
+			"originalRange": "[223,226)",
+			"modifiedRange": "[158,161)",
+			"changes": [
+				{
+					"originalRange": "[223,226)",
+					"modifiedRange": "[158,161)",
+					"innerChanges": [
+						{
+							"originalRange": "[223,1 -> 223,3]",
+							"modifiedRange": "[158,1 -> 158,1]"
+						},
+						{
+							"originalRange": "[224,1 -> 224,3]",
+							"modifiedRange": "[159,1 -> 159,1]"
+						},
+						{
+							"originalRange": "[225,1 -> 225,3]",
+							"modifiedRange": "[160,1 -> 160,1]"
+						}
+					]
+				}
+			]
+		}
 	]
 }

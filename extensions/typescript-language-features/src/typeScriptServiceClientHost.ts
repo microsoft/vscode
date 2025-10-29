@@ -90,8 +90,8 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			services,
 			allModeIds));
 
-		this.client.onDiagnosticsReceived(({ kind, resource, diagnostics }) => {
-			this.diagnosticsReceived(kind, resource, diagnostics);
+		this.client.onDiagnosticsReceived(({ kind, resource, diagnostics, spans }) => {
+			this.diagnosticsReceived(kind, resource, diagnostics, spans);
 		}, null, this._disposables);
 
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this._disposables);
@@ -236,14 +236,16 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	private async diagnosticsReceived(
 		kind: DiagnosticKind,
 		resource: vscode.Uri,
-		diagnostics: Proto.Diagnostic[]
+		diagnostics: Proto.Diagnostic[],
+		spans: Proto.TextSpan[] | undefined,
 	): Promise<void> {
 		const language = await this.findLanguage(resource);
 		if (language) {
 			language.diagnosticsReceived(
 				kind,
 				resource,
-				this.createMarkerDatas(diagnostics, language.diagnosticSource));
+				this.createMarkerDatas(diagnostics, language.diagnosticSource),
+				spans?.map(span => typeConverters.Range.fromTextSpan(span)));
 		}
 	}
 
@@ -255,13 +257,9 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		}
 
 		this.findLanguage(this.client.toResource(body.configFile)).then(language => {
-			if (!language) {
-				return;
-			}
-
-			language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), body.diagnostics.map(tsDiag => {
+			language?.configFileDiagnosticsReceived(this.client.toResource(body.configFile), body.diagnostics.map(tsDiag => {
 				const range = tsDiag.start && tsDiag.end ? typeConverters.Range.fromTextSpan(tsDiag) : new vscode.Range(0, 0, 0, 1);
-				const diagnostic = new vscode.Diagnostic(range, body.diagnostics[0].text, this.getDiagnosticSeverity(tsDiag));
+				const diagnostic = new vscode.Diagnostic(range, tsDiag.text, this.getDiagnosticSeverity(tsDiag));
 				diagnostic.source = language.diagnosticSource;
 				return diagnostic;
 			}));

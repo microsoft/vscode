@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OperatingSystem } from 'vs/base/common/platform';
-import { IBrowser } from 'vs/editor/browser/controller/textAreaInput';
+import { OperatingSystem } from '../../../../base/common/platform.js';
+import { IBrowser } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
 
 export interface IRecordedTextareaState {
 	selectionDirection: 'forward' | 'backward' | 'none';

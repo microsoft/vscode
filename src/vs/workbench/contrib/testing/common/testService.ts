@@ -3,36 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { AbstractIncrementalTestCollection, ICallProfileRunHandler, IncrementalTestCollectionItem, InternalTestItem, ITestItemContext, ResolvedTestRunRequest, IStartControllerTests, IStartControllerTestsResult, TestItemExpandState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import { assert } from '../../../../base/common/assert.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { IObservable } from '../../../../base/common/observable.js';
+import { IPrefixTreeNode, WellDefinedPrefixTree } from '../../../../base/common/prefixTree.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Location } from '../../../../editor/common/languages.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { MutableObservableValue } from './observableValue.js';
+import { TestExclusions } from './testExclusions.js';
+import { TestId, TestIdPathParts } from './testId.js';
+import { ITestResult } from './testResult.js';
+import { AbstractIncrementalTestCollection, ICallProfileRunHandler, IncrementalTestCollectionItem, InternalTestItem, IStartControllerTests, IStartControllerTestsResult, ITestItemContext, ResolvedTestRunRequest, TestControllerCapability, TestItemExpandState, TestMessageFollowupRequest, TestMessageFollowupResponse, TestRunProfileBitset, TestsDiff } from './testTypes.js';
 
 export const ITestService = createDecorator<ITestService>('testService');
 
 export interface IMainThreadTestController {
 	readonly id: string;
-	readonly label: IObservableValue<string>;
-	readonly canRefresh: IObservableValue<boolean>;
+	readonly label: IObservable<string>;
+	readonly capabilities: IObservable<TestControllerCapability>;
 	syncTests(token: CancellationToken): Promise<void>;
 	refreshTests(token: CancellationToken): Promise<void>;
 	configureRunProfile(profileId: number): void;
 	expandTest(id: string, levels: number): Promise<void>;
+	getRelatedCode(testId: string, token: CancellationToken): Promise<Location[]>;
 	startContinuousRun(request: ICallProfileRunHandler[], token: CancellationToken): Promise<IStartControllerTestsResult[]>;
 	runTests(request: IStartControllerTests[], token: CancellationToken): Promise<IStartControllerTestsResult[]>;
 }
 
+export interface IMainThreadTestHostProxy {
+	provideTestFollowups(req: TestMessageFollowupRequest, token: CancellationToken): Promise<TestMessageFollowupResponse[]>;
+	getTestsRelatedToCode(uri: URI, position: Position, token: CancellationToken): Promise<string[]>;
+	executeTestFollowup(id: number): Promise<void>;
+	disposeTestFollowups(ids: number[]): void;
+}
+
 export interface IMainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> {
-	onBusyProvidersChange: Event<number>;
+	readonly onBusyProvidersChange: Event<number>;
 
 	/**
 	 * Number of providers working to discover tests.
@@ -139,7 +154,7 @@ export const expandAndGetTestById = async (collection: IMainThreadTestCollection
 /**
  * Waits for the test to no longer be in the "busy" state.
  */
-const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCollectionItem) => {
+export const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCollectionItem) => {
 	if (!test.item.busy) {
 		return;
 	}
@@ -158,34 +173,180 @@ const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCol
  * Iterator that expands to and iterates through tests in the file. Iterates
  * in strictly descending order.
  */
-export const testsInFile = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true): AsyncIterable<IncrementalTestCollectionItem> {
-	for (const test of testService.collection.all) {
-		if (!test.item.uri) {
-			continue;
-		}
+export const testsInFile = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true, descendInFile = true): AsyncIterable<readonly IncrementalTestCollectionItem[]> {
+	// In this function we go to a bit of effort to avoid awaiting unnecessarily
+	// and bulking the test collections we do collect for consumers. This fixes
+	// a performance issue (#235819) where a large number of tests in a file
+	// would cause a long delay switching editors.
+	const queue = new LinkedList<Iterable<string> | DeferredPromise<Iterable<string>>>();
 
-		if (ident.extUri.isEqual(uri, test.item.uri)) {
-			yield test;
-		}
+	const existing = [...testService.collection.getNodeByUrl(uri)].sort((a, b) => a.item.extId.length - b.item.extId.length);
 
-		if (ident.extUri.isEqualOrParent(uri, test.item.uri)) {
-			if (test.expand === TestItemExpandState.Expandable) {
-				await testService.collection.expand(test.item.extId, 1);
+	// getNodeByUrl will return all known tests in the URI, but this can include
+	// children of tests even when `descendInFile` is false. Remove those cases.
+	for (let i = 0; i < existing.length - 1; i++) {
+		const prefix = existing[i].item.extId + TestIdPathParts.Delimiter;
+		for (let k = i + 1; k < existing.length; k++) {
+			if (existing[k].item.extId.startsWith(prefix)) {
+				existing.splice(k--, 1);
 			}
-			if (waitForIdle) {
-				await waitForTestToBeIdle(testService, test);
+		}
+	}
+
+	queue.push(existing.length ? existing.map(e => e.item.extId) : testService.collection.rootIds);
+
+	let n = 0;
+	let gather: IncrementalTestCollectionItem[] = [];
+	while (queue.size > 0) {
+		const next = queue.pop()!;
+		let ids: Iterable<string>;
+		if (!(next instanceof DeferredPromise)) {
+			ids = next;
+		} else if (next.isSettled) {
+			ids = next.value || Iterable.empty();
+		} else {
+			if (gather.length) {
+				yield gather;
+				gather = [];
+			}
+			ids = await next.p;
+		}
+
+		for (const id of ids) {
+			n++;
+			const test = testService.collection.getNodeById(id);
+			if (!test) {
+				continue; // possible because we expand async and things could delete
+			}
+
+			if (!test.item.uri) {
+				queue.push(test.children);
+				continue;
+			}
+
+			if (ident.extUri.isEqual(uri, test.item.uri)) {
+				gather.push(test);
+
+				if (!descendInFile) {
+					continue;
+				}
+			}
+
+			if (ident.extUri.isEqualOrParent(uri, test.item.uri)) {
+				let prom: Promise<void> | undefined;
+				if (test.expand === TestItemExpandState.Expandable) {
+					prom = testService.collection.expand(test.item.extId, 1);
+				}
+				if (waitForIdle) {
+					if (prom) {
+						prom = prom.then(() => waitForTestToBeIdle(testService, test));
+					} else if (test.item.busy) {
+						prom = waitForTestToBeIdle(testService, test);
+					}
+				}
+
+				if (prom) {
+					queue.push(DeferredPromise.fromPromise(prom.then(() => test.children)));
+				} else if (test.children.size) {
+					queue.push(test.children);
+				}
+			}
+		}
+	}
+
+	if (gather.length) {
+		yield gather;
+	}
+};
+
+/**
+ * Iterator that iterates to the top-level children of tests under the given
+ * the URI.
+ */
+export const testsUnderUri = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true): AsyncIterable<IncrementalTestCollectionItem> {
+
+	const queue = [testService.collection.rootIds];
+	while (queue.length) {
+		for (const testId of queue.pop()!) {
+			const test = testService.collection.getNodeById(testId);
+
+			// Expand tests with URIs that are parent of the item, add tests
+			// that are within the URI. Don't add their children, since those
+			// tests already encompass their children.
+			if (!test) {
+				// no-op
+			} else if (test.item.uri && ident.extUri.isEqualOrParent(test.item.uri, uri)) {
+				yield test;
+			} else if (!test.item.uri || ident.extUri.isEqualOrParent(uri, test.item.uri)) {
+				if (test.expand === TestItemExpandState.Expandable) {
+					await testService.collection.expand(test.item.extId, 1);
+				}
+				if (waitForIdle) {
+					await waitForTestToBeIdle(testService, test);
+				}
+				queue.push(test.children.values());
 			}
 		}
 	}
 };
 
 /**
- * An instance of the RootProvider should be registered for each extension
- * host.
+ * Simplifies the array of tests by preferring test item parents if all of
+ * their children are included.
  */
-export interface ITestRootProvider {
-	// todo: nothing, yet
-}
+export const simplifyTestsToExecute = (collection: IMainThreadTestCollection, tests: IncrementalTestCollectionItem[]): IncrementalTestCollectionItem[] => {
+	if (tests.length < 2) {
+		return tests;
+	}
+
+	const tree = new WellDefinedPrefixTree<IncrementalTestCollectionItem>();
+	for (const test of tests) {
+		tree.insert(TestId.fromString(test.item.extId).path, test);
+	}
+
+	const out: IncrementalTestCollectionItem[] = [];
+
+	// Returns the node if it and any children should be included. Otherwise
+	// pushes into the `out` any individual children that should be included.
+	const process = (currentId: string[], node: IPrefixTreeNode<IncrementalTestCollectionItem>) => {
+		// directly included, don't try to over-specify, and children should be ignored
+		if (node.value) {
+			return node.value;
+		}
+
+		assert(!!node.children, 'expect to have children');
+
+		const thisChildren: IncrementalTestCollectionItem[] = [];
+		for (const [part, child] of node.children) {
+			currentId.push(part);
+			const c = process(currentId, child);
+			if (c) { thisChildren.push(c); }
+			currentId.pop();
+		}
+
+		if (!thisChildren.length) {
+			return;
+		}
+
+		// If there are multiple children and we have all of them, then tell the
+		// parent this node should be included. Otherwise include children individually.
+		const id = new TestId(currentId);
+		const test = collection.getNodeById(id.toString());
+		if (test?.children.size === thisChildren.length) {
+			return test;
+		}
+
+		out.push(...thisChildren);
+		return;
+	};
+
+	for (const [id, node] of tree.entries) {
+		const n = process([id], node);
+		if (n) { out.push(n); }
+	}
+
+	return out;
+};
 
 /**
  * A run request that expresses the intent of the request and allows the
@@ -200,6 +361,17 @@ export interface AmbiguousRunTestsRequest {
 	exclude?: InternalTestItem[];
 	/** Whether this was triggered from an auto run. */
 	continuous?: boolean;
+	/** Whether this was trigged by a user action in UI. Default=true */
+	preserveFocus?: boolean;
+}
+
+export interface ITestFollowup {
+	message: string;
+	execute(): Promise<void>;
+}
+
+export interface ITestFollowups extends IDisposable {
+	followups: ITestFollowup[];
 }
 
 export interface ITestService {
@@ -208,7 +380,7 @@ export interface ITestService {
 	 * Fires when the user requests to cancel a test run -- or all runs, if no
 	 * runId is given.
 	 */
-	readonly onDidCancelTestRun: Event<{ runId: string | undefined }>;
+	readonly onDidCancelTestRun: Event<{ runId: string | undefined; taskId: string | undefined }>;
 
 	/**
 	 * Event that fires when the excluded tests change.
@@ -234,6 +406,11 @@ export interface ITestService {
 	 * Whether inline editor decorations should be visible.
 	 */
 	readonly showInlineOutput: MutableObservableValue<boolean>;
+
+	/**
+	 * Registers an interface that represents an extension host..
+	 */
+	registerExtHost(controller: IMainThreadTestHostProxy): IDisposable;
 
 	/**
 	 * Registers an interface that runs tests for the given provider ID.
@@ -271,6 +448,11 @@ export interface ITestService {
 	runResolvedTests(req: ResolvedTestRunRequest, token?: CancellationToken): Promise<ITestResult>;
 
 	/**
+	 * Provides followup actions for a test run.
+	 */
+	provideTestFollowups(req: TestMessageFollowupRequest, token: CancellationToken): Promise<ITestFollowups>;
+
+	/**
 	 * Ensures the test diff from the remote ext host is flushed and waits for
 	 * any "busy" tests to become idle before resolving.
 	 */
@@ -279,10 +461,20 @@ export interface ITestService {
 	/**
 	 * Cancels an ongoing test run by its ID, or all runs if no ID is given.
 	 */
-	cancelTestRun(runId?: string): void;
+	cancelTestRun(runId?: string, taskId?: string): void;
 
 	/**
 	 * Publishes a test diff for a controller.
 	 */
 	publishDiff(controllerId: string, diff: TestsDiff): void;
+
+	/**
+	 * Gets all tests related to the given code position.
+	 */
+	getTestsRelatedToCode(uri: URI, position: Position, token?: CancellationToken): Promise<InternalTestItem[]>;
+
+	/**
+	 * Gets code related to the given test item.
+	 */
+	getCodeRelatedToTest(test: InternalTestItem, token?: CancellationToken): Promise<Location[]>;
 }

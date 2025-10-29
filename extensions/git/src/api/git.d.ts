@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, Event, Disposable, ProviderResult, Command, CancellationToken } from 'vscode';
+import { Uri, Event, Disposable, ProviderResult, Command, CancellationToken, SourceControlHistoryItem } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface Git {
@@ -16,7 +16,8 @@ export interface InputBox {
 
 export const enum ForcePushMode {
 	Force,
-	ForceWithLease
+	ForceWithLease,
+	ForceWithLeaseIfIncludes,
 }
 
 export const enum RefType {
@@ -29,18 +30,26 @@ export interface Ref {
 	readonly type: RefType;
 	readonly name?: string;
 	readonly commit?: string;
+	readonly commitDetails?: Commit;
 	readonly remote?: string;
 }
 
 export interface UpstreamRef {
 	readonly remote: string;
 	readonly name: string;
+	readonly commit?: string;
 }
 
 export interface Branch extends Ref {
 	readonly upstream?: UpstreamRef;
 	readonly ahead?: number;
 	readonly behind?: number;
+}
+
+export interface CommitShortStat {
+	readonly files: number;
+	readonly insertions: number;
+	readonly deletions: number;
 }
 
 export interface Commit {
@@ -51,6 +60,7 @@ export interface Commit {
 	readonly authorName?: string;
 	readonly authorEmail?: string;
 	readonly commitDate?: Date;
+	readonly shortStat?: CommitShortStat;
 }
 
 export interface Submodule {
@@ -113,6 +123,7 @@ export interface RepositoryState {
 	readonly mergeChanges: Change[];
 	readonly indexChanges: Change[];
 	readonly workingTreeChanges: Change[];
+	readonly untrackedChanges: Change[];
 
 	readonly onDidChange: Event<void>;
 }
@@ -133,6 +144,12 @@ export interface LogOptions {
 	readonly range?: string;
 	readonly reverse?: boolean;
 	readonly sortByAuthorDate?: boolean;
+	readonly shortStats?: boolean;
+	readonly author?: string;
+	readonly grep?: string;
+	readonly refNames?: string[];
+	readonly maxParents?: number;
+	readonly skip?: number;
 }
 
 export interface CommitOptions {
@@ -166,10 +183,23 @@ export interface InitOptions {
 	defaultBranch?: string;
 }
 
+export interface CloneOptions {
+	parentPath?: Uri;
+	/**
+	 * ref is only used if the repository cache is missed.
+	 */
+	ref?: string;
+	recursive?: boolean;
+	/**
+	 * If no postCloneAction is provided, then the users setting for git.openAfterClone is used.
+	 */
+	postCloneAction?: 'none';
+}
+
 export interface RefQuery {
 	readonly contains?: string;
 	readonly count?: number;
-	readonly pattern?: string;
+	readonly pattern?: string | string[];
 	readonly sort?: 'alphabetically' | 'committerdate';
 }
 
@@ -184,9 +214,13 @@ export interface Repository {
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
 
+	readonly onDidCommit: Event<void>;
+	readonly onDidCheckout: Event<void>;
+
 	getConfigs(): Promise<{ key: string; value: string; }[]>;
 	getConfig(key: string): Promise<string>;
 	setConfig(key: string, value: string): Promise<string>;
+	unsetConfig(key: string): Promise<string>;
 	getGlobalConfig(key: string): Promise<string>;
 
 	getObjectDetails(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }>;
@@ -222,9 +256,11 @@ export interface Repository {
 	getBranchBase(name: string): Promise<Branch | undefined>;
 	setBranchUpstream(name: string, upstream: string): Promise<void>;
 
+	checkIgnore(paths: string[]): Promise<Set<string>>;
+
 	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]>;
 
-	getMergeBase(ref1: string, ref2: string): Promise<string>;
+	getMergeBase(ref1: string, ref2: string): Promise<string | undefined>;
 
 	tag(name: string, upstream: string): Promise<void>;
 	deleteTag(name: string): Promise<void>;
@@ -245,6 +281,12 @@ export interface Repository {
 	log(options?: LogOptions): Promise<Commit[]>;
 
 	commit(message: string, opts?: CommitOptions): Promise<void>;
+	merge(ref: string): Promise<void>;
+	mergeAbort(): Promise<void>;
+
+	applyStash(index?: number): Promise<void>;
+	popStash(index?: number): Promise<void>;
+	dropStash(index?: number): Promise<void>;
 }
 
 export interface RemoteSource {
@@ -300,6 +342,23 @@ export interface BranchProtectionProvider {
 	provideBranchProtection(): BranchProtection[];
 }
 
+export interface AvatarQueryCommit {
+	readonly hash: string;
+	readonly authorName?: string;
+	readonly authorEmail?: string;
+}
+
+export interface AvatarQuery {
+	readonly commits: AvatarQueryCommit[];
+	readonly size: number;
+}
+
+export interface SourceControlHistoryItemDetailsProvider {
+	provideAvatar(repository: Repository, query: AvatarQuery): ProviderResult<Map<string, string | undefined>>;
+	provideHoverCommands(repository: Repository): ProviderResult<Command[]>;
+	provideMessageLinks(repository: Repository, message: string): ProviderResult<string>;
+}
+
 export type APIState = 'uninitialized' | 'initialized';
 
 export interface PublishEvent {
@@ -318,8 +377,16 @@ export interface API {
 
 	toGitUri(uri: Uri, ref: string): Uri;
 	getRepository(uri: Uri): Repository | null;
+	getRepositoryRoot(uri: Uri): Promise<Uri | null>;
+	getRepositoryWorkspace(uri: Uri): Promise<Uri[] | null>;
 	init(root: Uri, options?: InitOptions): Promise<Repository | null>;
-	openRepository(root: Uri): Promise<Repository | null>
+	/**
+	 * Checks the cache of known cloned repositories, and clones if the repository is not found.
+	 * Make sure to pass `postCloneAction` 'none' if you want to have the uri where you can find the repository returned.
+	 * @returns The URI of a folder or workspace file which, when opened, will open the cloned repository.
+	 */
+	clone(uri: Uri, options?: CloneOptions): Promise<Uri | null>;
+	openRepository(root: Uri): Promise<Repository | null>;
 
 	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
@@ -327,6 +394,7 @@ export interface API {
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
 	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable;
+	registerSourceControlHistoryItemDetailsProvider(provider: SourceControlHistoryItemDetailsProvider): Disposable;
 }
 
 export interface GitExtension {
@@ -349,16 +417,20 @@ export interface GitExtension {
 
 export const enum GitErrorCodes {
 	BadConfigFile = 'BadConfigFile',
+	BadRevision = 'BadRevision',
 	AuthenticationFailed = 'AuthenticationFailed',
 	NoUserNameConfigured = 'NoUserNameConfigured',
 	NoUserEmailConfigured = 'NoUserEmailConfigured',
 	NoRemoteRepositorySpecified = 'NoRemoteRepositorySpecified',
 	NotAGitRepository = 'NotAGitRepository',
+	NotASafeGitRepository = 'NotASafeGitRepository',
 	NotAtRepositoryRoot = 'NotAtRepositoryRoot',
 	Conflict = 'Conflict',
 	StashConflict = 'StashConflict',
 	UnmergedChanges = 'UnmergedChanges',
 	PushRejected = 'PushRejected',
+	ForcePushWithLeaseRejected = 'ForcePushWithLeaseRejected',
+	ForcePushWithLeaseIfIncludesRejected = 'ForcePushWithLeaseIfIncludesRejected',
 	RemoteConnectionError = 'RemoteConnectionError',
 	DirtyWorkTree = 'DirtyWorkTree',
 	CantOpenResource = 'CantOpenResource',
@@ -386,5 +458,10 @@ export const enum GitErrorCodes {
 	EmptyCommitMessage = 'EmptyCommitMessage',
 	BranchFastForwardRejected = 'BranchFastForwardRejected',
 	BranchNotYetBorn = 'BranchNotYetBorn',
-	TagConflict = 'TagConflict'
+	TagConflict = 'TagConflict',
+	CherryPickEmpty = 'CherryPickEmpty',
+	CherryPickConflict = 'CherryPickConflict',
+	WorktreeContainsChanges = 'WorktreeContainsChanges',
+	WorktreeAlreadyExists = 'WorktreeAlreadyExists',
+	WorktreeBranchAlreadyUsed = 'WorktreeBranchAlreadyUsed'
 }

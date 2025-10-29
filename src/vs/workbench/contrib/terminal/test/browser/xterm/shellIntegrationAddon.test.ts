@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal } from 'xterm';
-import { strictEqual, deepStrictEqual, deepEqual } from 'assert';
+import type { Terminal } from '@xterm/xterm';
+import { deepEqual, deepStrictEqual, strictEqual } from 'assert';
 import * as sinon from 'sinon';
-import { parseKeyValueAssignment, parseMarkSequence, deserializeMessage, ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { importAMDNodeModule } from 'vs/amdX';
-import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { deserializeMessage, parseKeyValueAssignment, parseMarkSequence, ShellIntegrationAddon } from '../../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
+import { writeP } from '../../../browser/terminalTestHelpers.js';
 
 class TestShellIntegrationAddon extends ShellIntegrationAddon {
 	getCommandDetectionMock(terminal: Terminal): sinon.SinonMock {
@@ -28,19 +27,16 @@ class TestShellIntegrationAddon extends ShellIntegrationAddon {
 }
 
 suite('ShellIntegrationAddon', () => {
-	let store: DisposableStore;
-	setup(() => store = new DisposableStore());
-	teardown(() => store.dispose());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let xterm: Terminal;
 	let shellIntegrationAddon: TestShellIntegrationAddon;
 	let capabilities: ITerminalCapabilityStore;
 
 	setup(async () => {
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 }));
-		shellIntegrationAddon = store.add(new TestShellIntegrationAddon('', true, undefined, new NullLogService()));
+		shellIntegrationAddon = store.add(new TestShellIntegrationAddon('', true, undefined, undefined, new NullLogService()));
 		xterm.loadAddon(shellIntegrationAddon);
 		capabilities = shellIntegrationAddon.capabilities;
 	});
@@ -252,13 +248,13 @@ suite('ShellIntegrationAddon', () => {
 				deepEqual(parseMarkSequence(['', '']), { id: undefined, hidden: false });
 			});
 			test('ID', async () => {
-				deepEqual(parseMarkSequence(['Id=3', '']), { id: "3", hidden: false });
+				deepEqual(parseMarkSequence(['Id=3', '']), { id: '3', hidden: false });
 			});
 			test('hidden', async () => {
 				deepEqual(parseMarkSequence(['', 'Hidden']), { id: undefined, hidden: true });
 			});
 			test('ID + hidden', async () => {
-				deepEqual(parseMarkSequence(['Id=4555', 'Hidden']), { id: "4555", hidden: true });
+				deepEqual(parseMarkSequence(['Id=4555', 'Hidden']), { id: '4555', hidden: true });
 			});
 		});
 	});
@@ -291,6 +287,8 @@ suite('ShellIntegrationAddon', () => {
 			['escaped newline (upper hex)', `${Backslash}x0A`, Newline],
 			['escaped backslash followed by literal "x0a" is not a newline', `${Backslash}${Backslash}x0a`, `${Backslash}x0a`],
 			['non-initial escaped backslash followed by literal "x0a" is not a newline', `foo${Backslash}${Backslash}x0a`, `foo${Backslash}x0a`],
+			['PS1 simple', '[\\u@\\h \\W]\\$', '[\\u@\\h \\W]\\$'],
+			['PS1 VSC SI', `${Backslash}x1b]633;A${Backslash}x07\\[${Backslash}x1b]0;\\u@\\h:\\w\\a\\]${Backslash}x1b]633;B${Backslash}x07`, '\x1b]633;A\x07\\[\x1b]0;\\u@\\h:\\w\\a\\]\x1b]633;B\x07']
 		];
 
 		cases.forEach(([title, input, expected]) => {

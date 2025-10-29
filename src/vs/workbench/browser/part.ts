@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/part';
-import { Component } from 'vs/workbench/common/component';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, IDimension } from 'vs/base/browser/dom';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ISerializableView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { assertIsDefined } from 'vs/base/common/types';
+import './media/part.css';
+import { Component } from '../common/component.js';
+import { IThemeService, IColorTheme } from '../../platform/theme/common/themeService.js';
+import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition } from '../../base/browser/dom.js';
+import { IStorageService } from '../../platform/storage/common/storage.js';
+import { ISerializableView, IViewSize } from '../../base/browser/ui/grid/grid.js';
+import { Event, Emitter } from '../../base/common/event.js';
+import { IWorkbenchLayoutService } from '../services/layout/browser/layoutService.js';
+import { assertReturnsDefined } from '../../base/common/types.js';
+import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 
 export interface IPartOptions {
 	readonly hasTitle?: boolean;
@@ -19,25 +20,32 @@ export interface IPartOptions {
 }
 
 export interface ILayoutContentResult {
+	readonly headerSize: IDimension;
 	readonly titleSize: IDimension;
 	readonly contentSize: IDimension;
+	readonly footerSize: IDimension;
 }
 
 /**
  * Parts are layed out in the workbench and have their own layout that
  * arranges an optional title and mandatory content area to show content.
  */
-export abstract class Part extends Component implements ISerializableView {
+export abstract class Part<MementoType extends object = object> extends Component<MementoType> implements ISerializableView {
 
 	private _dimension: Dimension | undefined;
 	get dimension(): Dimension | undefined { return this._dimension; }
+
+	private _contentPosition: IDomPosition | undefined;
+	get contentPosition(): IDomPosition | undefined { return this._contentPosition; }
 
 	protected _onDidVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onDidVisibilityChange = this._onDidVisibilityChange.event;
 
 	private parent: HTMLElement | undefined;
-	private titleArea: HTMLElement | undefined;
-	private contentArea: HTMLElement | undefined;
+	private headerArea: HTMLElement | undefined;
+	protected titleArea: HTMLElement | undefined;
+	protected contentArea: HTMLElement | undefined;
+	private footerArea: HTMLElement | undefined;
 	private partLayout: PartLayout | undefined;
 
 	constructor(
@@ -49,7 +57,7 @@ export abstract class Part extends Component implements ISerializableView {
 	) {
 		super(id, themeService, storageService);
 
-		layoutService.registerPart(this);
+		this._register(layoutService.registerPart(this));
 	}
 
 	protected override onThemeChange(theme: IColorTheme): void {
@@ -58,10 +66,6 @@ export abstract class Part extends Component implements ISerializableView {
 		if (this.parent) {
 			super.onThemeChange(theme);
 		}
-	}
-
-	override updateStyles(): void {
-		super.updateStyles();
 	}
 
 	/**
@@ -95,31 +99,76 @@ export abstract class Part extends Component implements ISerializableView {
 	}
 
 	/**
-	 * Returns the title area container.
-	 */
-	protected getTitleArea(): HTMLElement | undefined {
-		return this.titleArea;
-	}
-
-	/**
 	 * Subclasses override to provide a content area implementation.
 	 */
 	protected createContentArea(parent: HTMLElement, options?: object): HTMLElement | undefined {
 		return undefined;
 	}
 
-	/**
-	 * Returns the content area container.
-	 */
-	protected getContentArea(): HTMLElement | undefined {
-		return this.contentArea;
+	protected setHeaderArea(headerContainer: HTMLElement): void {
+		if (this.headerArea) {
+			throw new Error('Header already exists');
+		}
+
+		if (!this.parent || !this.titleArea) {
+			return;
+		}
+
+		prepend(this.parent, headerContainer);
+		headerContainer.classList.add('header-or-footer');
+		headerContainer.classList.add('header');
+
+		this.headerArea = headerContainer;
+		this.partLayout?.setHeaderVisibility(true);
+		this.relayout();
 	}
 
+	protected setFooterArea(footerContainer: HTMLElement): void {
+		if (this.footerArea) {
+			throw new Error('Footer already exists');
+		}
+
+		if (!this.parent || !this.titleArea) {
+			return;
+		}
+
+		this.parent.appendChild(footerContainer);
+		footerContainer.classList.add('header-or-footer');
+		footerContainer.classList.add('footer');
+
+		this.footerArea = footerContainer;
+		this.partLayout?.setFooterVisibility(true);
+		this.relayout();
+	}
+
+	protected removeHeaderArea(): void {
+		if (this.headerArea) {
+			this.headerArea.remove();
+			this.headerArea = undefined;
+			this.partLayout?.setHeaderVisibility(false);
+			this.relayout();
+		}
+	}
+
+	protected removeFooterArea(): void {
+		if (this.footerArea) {
+			this.footerArea.remove();
+			this.footerArea = undefined;
+			this.partLayout?.setFooterVisibility(false);
+			this.relayout();
+		}
+	}
+
+	private relayout() {
+		if (this.dimension && this.contentPosition) {
+			this.layout(this.dimension.width, this.dimension.height, this.contentPosition.top, this.contentPosition.left);
+		}
+	}
 	/**
 	 * Layout title and content area in the given dimension.
 	 */
 	protected layoutContents(width: number, height: number): ILayoutContentResult {
-		const partLayout = assertIsDefined(this.partLayout);
+		const partLayout = assertReturnsDefined(this.partLayout);
 
 		return partLayout.layout(width, height);
 	}
@@ -136,8 +185,9 @@ export abstract class Part extends Component implements ISerializableView {
 	abstract minimumHeight: number;
 	abstract maximumHeight: number;
 
-	layout(width: number, height: number, _top: number, _left: number): void {
+	layout(width: number, height: number, top: number, left: number): void {
 		this._dimension = new Dimension(width, height);
+		this._contentPosition = { top, left };
 	}
 
 	setVisible(visible: boolean) {
@@ -151,7 +201,12 @@ export abstract class Part extends Component implements ISerializableView {
 
 class PartLayout {
 
+	private static readonly HEADER_HEIGHT = 35;
 	private static readonly TITLE_HEIGHT = 35;
+	private static readonly Footer_HEIGHT = 35;
+
+	private headerVisible: boolean = false;
+	private footerVisible: boolean = false;
 
 	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined) { }
 
@@ -165,19 +220,85 @@ class PartLayout {
 			titleSize = Dimension.None;
 		}
 
+		// Header Size: Width (Fill), Height (Variable)
+		let headerSize: Dimension;
+		if (this.headerVisible) {
+			headerSize = new Dimension(width, Math.min(height, PartLayout.HEADER_HEIGHT));
+		} else {
+			headerSize = Dimension.None;
+		}
+
+		// Footer Size: Width (Fill), Height (Variable)
+		let footerSize: Dimension;
+		if (this.footerVisible) {
+			footerSize = new Dimension(width, Math.min(height, PartLayout.Footer_HEIGHT));
+		} else {
+			footerSize = Dimension.None;
+		}
+
 		let contentWidth = width;
 		if (this.options && typeof this.options.borderWidth === 'function') {
 			contentWidth -= this.options.borderWidth(); // adjust for border size
 		}
 
 		// Content Size: Width (Fill), Height (Variable)
-		const contentSize = new Dimension(contentWidth, height - titleSize.height);
+		const contentSize = new Dimension(contentWidth, height - titleSize.height - headerSize.height - footerSize.height);
 
 		// Content
 		if (this.contentArea) {
 			size(this.contentArea, contentSize.width, contentSize.height);
 		}
 
-		return { titleSize, contentSize };
+		return { headerSize, titleSize, contentSize, footerSize };
+	}
+
+	setFooterVisibility(visible: boolean): void {
+		this.footerVisible = visible;
+	}
+
+	setHeaderVisibility(visible: boolean): void {
+		this.headerVisible = visible;
+	}
+}
+
+export interface IMultiWindowPart {
+	readonly element: HTMLElement;
+}
+
+export abstract class MultiWindowParts<T extends IMultiWindowPart, MementoType extends object = object> extends Component<MementoType> {
+
+	protected readonly _parts = new Set<T>();
+	get parts() { return Array.from(this._parts); }
+
+	abstract readonly mainPart: T;
+
+	registerPart(part: T): IDisposable {
+		this._parts.add(part);
+
+		return toDisposable(() => this.unregisterPart(part));
+	}
+
+	protected unregisterPart(part: T): void {
+		this._parts.delete(part);
+	}
+
+	getPart(container: HTMLElement): T {
+		return this.getPartByDocument(container.ownerDocument);
+	}
+
+	protected getPartByDocument(document: Document): T {
+		if (this._parts.size > 1) {
+			for (const part of this._parts) {
+				if (part.element?.ownerDocument === document) {
+					return part;
+				}
+			}
+		}
+
+		return this.mainPart;
+	}
+
+	get activePart(): T {
+		return this.getPartByDocument(getActiveDocument());
 	}
 }

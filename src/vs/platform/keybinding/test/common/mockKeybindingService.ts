@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { ResolvedKeybinding, KeyCodeChord, Keybinding } from 'vs/base/common/keybindings';
-import { OS } from 'vs/base/common/platform';
-import { ContextKeyExpression, ContextKeyValue, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { NoMatchingKb, ResolutionResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+import { Event } from '../../../../base/common/event.js';
+import { KeyCodeChord, Keybinding, ResolvedKeybinding } from '../../../../base/common/keybindings.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { OS } from '../../../../base/common/platform.js';
+import { ContextKeyExpression, ContextKeyValue, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IScopedContextKeyService } from '../../../contextkey/common/contextkey.js';
+import { IKeybindingService, IKeyboardEvent } from '../../common/keybinding.js';
+import { NoMatchingKb, ResolutionResult } from '../../common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../common/usLayoutResolvedKeybinding.js';
 
 class MockKeybindingContextKey<T extends ContextKeyValue = ContextKeyValue> implements IContextKey<T> {
 	private _defaultValue: T | undefined;
@@ -79,7 +80,7 @@ export class MockScopableContextKeyService extends MockContextKeyService {
 	 * Don't implement this for all tests since we rarely depend on this behavior and it isn't implemented fully
 	 */
 	public override createScoped(domNote: HTMLElement): IScopedContextKeyService {
-		return new MockContextKeyService();
+		return new MockScopableContextKeyService();
 	}
 }
 
@@ -147,6 +148,10 @@ export class MockKeybindingService implements IKeybindingService {
 		return false;
 	}
 
+	public enableKeybindingHoldMode(commandId: string): undefined {
+		return undefined;
+	}
+
 	public mightProducePrintableCharacter(e: IKeyboardEvent): boolean {
 		return false;
 	}
@@ -164,6 +169,6 @@ export class MockKeybindingService implements IKeybindingService {
 	}
 
 	public registerSchemaContribution() {
-		// noop
+		return Disposable.None;
 	}
 }

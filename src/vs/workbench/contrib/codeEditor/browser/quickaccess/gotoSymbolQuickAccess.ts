@@ -3,38 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IKeyMods, IQuickPickSeparator, IQuickInputService, IQuickPick, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IRange } from 'vs/editor/common/core/range';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessRegistry, Extensions as QuickaccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from 'vs/editor/contrib/quickAccess/browser/gotoSymbolQuickAccess';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { ITextModel } from 'vs/editor/common/model';
-import { DisposableStore, IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { prepareQuery } from 'vs/base/common/fuzzyScorer';
-import { SymbolKind } from 'vs/editor/common/languages';
-import { fuzzyScore, createMatches } from 'vs/base/common/filters';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/browser/editorNavigationQuickAccess';
-import { IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { isCompositeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { Event } from '../../../../../base/common/event.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { IKeyMods, IQuickPickSeparator, IQuickInputService, IQuickPick, ItemActivation } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IQuickAccessRegistry, Extensions as QuickaccessExtensions } from '../../../../../platform/quickinput/common/quickAccess.js';
+import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from '../../../../../editor/contrib/quickAccess/browser/gotoSymbolQuickAccess.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IWorkbenchEditorConfiguration } from '../../../../common/editor.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { DisposableStore, IDisposable, toDisposable, Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { registerAction2, Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
+import { prepareQuery } from '../../../../../base/common/fuzzyScorer.js';
+import { SymbolKind } from '../../../../../editor/common/languages.js';
+import { fuzzyScore } from '../../../../../base/common/filters.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IQuickAccessTextEditorContext } from '../../../../../editor/contrib/quickAccess/browser/editorNavigationQuickAccess.js';
+import { IOutlineService, OutlineTarget } from '../../../../services/outline/browser/outline.js';
+import { isCompositeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { accessibilityHelpIsShown, accessibleViewIsShown } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { matchesFuzzyIconAware, parseLabelWithIcons } from '../../../../../base/common/iconLabels.js';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
-	protected readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
+	protected readonly onDidActiveTextEditorControlChange: Event<void>;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -47,6 +51,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		super(languageFeaturesService, outlineModelService, {
 			openSideBySideDirection: () => this.configuration.openSideBySideDirection
 		});
+		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 	}
 
 	//#region DocumentSymbols (text editor required)
@@ -115,12 +120,12 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 			return [];
 		}
 
-		return this.doGetSymbolPicks(this.getDocumentSymbols(model, token), prepareQuery(filter), options, token);
+		return this.doGetSymbolPicks(this.getDocumentSymbols(model, token), prepareQuery(filter), options, token, model);
 	}
 
 	//#endregion
 
-	protected override provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+	protected override provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem, { useSeparators: true }>): IDisposable {
 		if (this.canPickWithOutlineService()) {
 			return this.doGetOutlinePicks(picker);
 		}
@@ -131,7 +136,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		return this.editorService.activeEditorPane ? this.outlineService.canCreateOutline(this.editorService.activeEditorPane) : false;
 	}
 
-	private doGetOutlinePicks(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+	private doGetOutlinePicks(picker: IQuickPick<IGotoSymbolQuickPickItem, { useSeparators: true }>): IDisposable {
 		const pane = this.editorService.activeEditorPane;
 		if (!pane) {
 			return Disposable.None;
@@ -180,7 +185,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 				picker.hide();
 				const [entry] = picker.selectedItems;
 				if (entry && entries[entry.index]) {
-					outline.reveal(entries[entry.index].element, {}, false);
+					outline.reveal(entries[entry.index].element, {}, false, false);
 				}
 			}));
 
@@ -192,14 +197,22 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 						item.highlights = undefined;
 						return true;
 					}
-					const score = fuzzyScore(picker.value, picker.value.toLowerCase(), 1 /*@-character*/, item.label, item.label.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
+
+					const trimmedQuery = picker.value.substring(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim();
+					const parsedLabel = parseLabelWithIcons(item.label);
+					const score = fuzzyScore(trimmedQuery, trimmedQuery.toLowerCase(), 0,
+						parsedLabel.text, parsedLabel.text.toLowerCase(), 0,
+						{ firstMatchCanBeWeak: true, boostFullMatch: true });
+
 					if (!score) {
 						return false;
 					}
+
 					item.score = score[1];
-					item.highlights = { label: createMatches(score) };
+					item.highlights = { label: matchesFuzzyIconAware(trimmedQuery, parsedLabel) ?? undefined };
 					return true;
 				});
+
 				if (filteredItems.length === 0) {
 					const label = localize('empty', 'No matching entries');
 					picker.items = [{ label, index: -1, kind: SymbolKind.String }];
@@ -242,13 +255,12 @@ class GotoSymbolAction extends Action2 {
 		super({
 			id: GotoSymbolAction.ID,
 			title: {
-				value: localize('gotoSymbol', "Go to Symbol in Editor..."),
+				...localize2('gotoSymbol', "Go to Symbol in Editor..."),
 				mnemonicTitle: localize({ key: 'miGotoSymbolInEditor', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in Editor..."),
-				original: 'Go to Symbol in Editor...'
 			},
 			f1: true,
 			keybinding: {
-				when: undefined,
+				when: ContextKeyExpr.and(accessibleViewIsShown.negate(), accessibilityHelpIsShown.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO
 			},

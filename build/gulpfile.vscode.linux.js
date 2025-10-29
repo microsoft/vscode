@@ -8,18 +8,20 @@
 const gulp = require('gulp');
 const replace = require('gulp-replace');
 const rename = require('gulp-rename');
-const shell = require('gulp-shell');
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
-const util = require('./lib/util');
+const { rimraf } = require('./lib/util');
 const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const packageJson = require('../package.json');
 const product = require('../product.json');
 const dependenciesGenerator = require('./linux/dependencies-generator');
-const sysrootInstaller = require('./linux/debian/install-sysroot');
 const debianRecommendedDependencies = require('./linux/debian/dep-lists').recommendedDeps;
 const path = require('path');
+const cp = require('child_process');
+const util = require('util');
+
+const exec = util.promisify(cp.exec);
 const root = path.dirname(__dirname);
 const commit = getVersion(root);
 
@@ -37,7 +39,9 @@ function prepareDebPackage(arch) {
 	const debArch = getDebPackageArch(arch);
 	const destination = '.build/linux/deb/' + debArch + '/' + product.applicationName + '-' + debArch;
 
-	return function () {
+	return async function () {
+		const dependencies = await dependenciesGenerator.getDependencies('deb', binaryDir, product.applicationName, debArch);
+
 		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(rename('usr/share/applications/' + product.applicationName + '.desktop'));
 
@@ -80,10 +84,8 @@ function prepareDebPackage(arch) {
 		let size = 0;
 		const control = code.pipe(es.through(
 			function (f) { size += f.isDirectory() ? 4096 : f.contents.length; },
-			async function () {
+			function () {
 				const that = this;
-				const sysroot = await sysrootInstaller.getSysroot(debArch);
-				const dependencies = dependenciesGenerator.getDependencies('deb', binaryDir, product.applicationName, debArch, sysroot);
 				gulp.src('resources/linux/debian/control.template', { base: '.' })
 					.pipe(replace('@@NAME@@', product.applicationName))
 					.pipe(replace('@@VERSION@@', packageJson.version + '-' + linuxPackageRevision))
@@ -105,9 +107,14 @@ function prepareDebPackage(arch) {
 
 		const postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@ARCHITECTURE@@', debArch))
 			.pipe(rename('DEBIAN/postinst'));
 
-		const all = es.merge(control, postinst, postrm, prerm, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, code);
+		const templates = gulp.src('resources/linux/debian/templates.template', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('DEBIAN/templates'));
+
+		const all = es.merge(control, templates, postinst, postrm, prerm, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, code);
 
 		return all.pipe(vfs.dest(destination));
 	};
@@ -118,11 +125,13 @@ function prepareDebPackage(arch) {
  */
 function buildDebPackage(arch) {
 	const debArch = getDebPackageArch(arch);
-	return shell.task([
-		'chmod 755 ' + product.applicationName + '-' + debArch + '/DEBIAN/postinst ' + product.applicationName + '-' + debArch + '/DEBIAN/prerm ' + product.applicationName + '-' + debArch + '/DEBIAN/postrm',
-		'mkdir -p deb',
-		'fakeroot dpkg-deb -b ' + product.applicationName + '-' + debArch + ' deb'
-	], { cwd: '.build/linux/deb/' + debArch });
+	const cwd = `.build/linux/deb/${debArch}`;
+
+	return async () => {
+		await exec(`chmod 755 ${product.applicationName}-${debArch}/DEBIAN/postinst ${product.applicationName}-${debArch}/DEBIAN/prerm ${product.applicationName}-${debArch}/DEBIAN/postrm`, { cwd });
+		await exec('mkdir -p deb', { cwd });
+		await exec(`fakeroot dpkg-deb -Zxz -b ${product.applicationName}-${debArch} deb`, { cwd });
+	};
 }
 
 /**
@@ -145,8 +154,11 @@ function getRpmPackageArch(arch) {
 function prepareRpmPackage(arch) {
 	const binaryDir = '../VSCode-linux-' + arch;
 	const rpmArch = getRpmPackageArch(arch);
+	const stripBinary = process.env['STRIP'] ?? '/usr/bin/strip';
 
-	return function () {
+	return async function () {
+		const dependencies = await dependenciesGenerator.getDependencies('rpm', binaryDir, product.applicationName, rpmArch);
+
 		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '.desktop'));
 
@@ -186,7 +198,6 @@ function prepareRpmPackage(arch) {
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = 'BUILD/usr/share/' + product.applicationName + '/' + p.dirname; }));
 
-		const dependencies = dependenciesGenerator.getDependencies('rpm', binaryDir, product.applicationName, rpmArch);
 		const spec = gulp.src('resources/linux/rpm/code.spec.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
@@ -198,6 +209,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(replace('@@DEPENDENCIES@@', dependencies.join(', ')))
+			.pipe(replace('@@STRIP@@', stripBinary))
 			.pipe(rename('SPECS/' + product.applicationName + '.spec'));
 
 		const specIcon = gulp.src('resources/linux/rpm/code.xpm', { base: '.' })
@@ -215,14 +227,14 @@ function prepareRpmPackage(arch) {
 function buildRpmPackage(arch) {
 	const rpmArch = getRpmPackageArch(arch);
 	const rpmBuildPath = getRpmBuildPath(rpmArch);
-	const rpmOut = rpmBuildPath + '/RPMS/' + rpmArch;
-	const destination = '.build/linux/rpm/' + rpmArch;
+	const rpmOut = `${rpmBuildPath}/RPMS/${rpmArch}`;
+	const destination = `.build/linux/rpm/${rpmArch}`;
 
-	return shell.task([
-		'mkdir -p ' + destination,
-		'HOME="$(pwd)/' + destination + '" rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
-		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/'
-	]);
+	return async () => {
+		await exec(`mkdir -p ${destination}`);
+		await exec(`HOME="$(pwd)/${destination}" rpmbuild -bb ${rpmBuildPath}/SPECS/${product.applicationName}.spec --target=${rpmArch}`);
+		await exec(`cp "${rpmOut}/$(ls ${rpmOut})" ${destination}/`);
+	};
 }
 
 /**
@@ -283,9 +295,8 @@ function prepareSnapPackage(arch) {
  * @param {string} arch
  */
 function buildSnapPackage(arch) {
-	const snapBuildPath = getSnapBuildPath(arch);
-	// Default target for snapcraft runs: pull, build, stage and prime, and finally assembles the snap.
-	return shell.task(`cd ${snapBuildPath} && snapcraft`);
+	const cwd = getSnapBuildPath(arch);
+	return () => exec('snapcraft', { cwd });
 }
 
 const BUILD_TARGETS = [
@@ -296,18 +307,18 @@ const BUILD_TARGETS = [
 
 BUILD_TARGETS.forEach(({ arch }) => {
 	const debArch = getDebPackageArch(arch);
-	const prepareDebTask = task.define(`vscode-linux-${arch}-prepare-deb`, task.series(util.rimraf(`.build/linux/deb/${debArch}`), prepareDebPackage(arch)));
+	const prepareDebTask = task.define(`vscode-linux-${arch}-prepare-deb`, task.series(rimraf(`.build/linux/deb/${debArch}`), prepareDebPackage(arch)));
 	gulp.task(prepareDebTask);
 	const buildDebTask = task.define(`vscode-linux-${arch}-build-deb`, buildDebPackage(arch));
 	gulp.task(buildDebTask);
 
 	const rpmArch = getRpmPackageArch(arch);
-	const prepareRpmTask = task.define(`vscode-linux-${arch}-prepare-rpm`, task.series(util.rimraf(`.build/linux/rpm/${rpmArch}`), prepareRpmPackage(arch)));
+	const prepareRpmTask = task.define(`vscode-linux-${arch}-prepare-rpm`, task.series(rimraf(`.build/linux/rpm/${rpmArch}`), prepareRpmPackage(arch)));
 	gulp.task(prepareRpmTask);
 	const buildRpmTask = task.define(`vscode-linux-${arch}-build-rpm`, buildRpmPackage(arch));
 	gulp.task(buildRpmTask);
 
-	const prepareSnapTask = task.define(`vscode-linux-${arch}-prepare-snap`, task.series(util.rimraf(`.build/linux/snap/${arch}`), prepareSnapPackage(arch)));
+	const prepareSnapTask = task.define(`vscode-linux-${arch}-prepare-snap`, task.series(rimraf(`.build/linux/snap/${arch}`), prepareSnapPackage(arch)));
 	gulp.task(prepareSnapTask);
 	const buildSnapTask = task.define(`vscode-linux-${arch}-build-snap`, task.series(prepareSnapTask, buildSnapPackage(arch)));
 	gulp.task(buildSnapTask);

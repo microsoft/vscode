@@ -3,12 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { splitLines } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { IModelContentChange } from 'vs/editor/common/textModelEvents';
-import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
+import { splitLines } from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { Position } from '../core/position.js';
+import { IRange } from '../core/range.js';
+import { PrefixSumComputer } from './prefixSumComputer.js';
+
+export interface IModelContentChange {
+	/**
+	 * The old range that got replaced.
+	 */
+	readonly range: IRange;
+	/**
+	 * The offset of the range that got replaced.
+	 */
+	readonly rangeOffset: number;
+	/**
+	 * The length of the range that got replaced.
+	 */
+	readonly rangeLength: number;
+	/**
+	 * The new text for the range.
+	 */
+	readonly text: string;
+}
 
 export interface IModelChangedEvent {
 	/**

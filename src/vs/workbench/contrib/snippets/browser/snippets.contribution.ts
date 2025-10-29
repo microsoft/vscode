@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import * as nls from 'vs/nls';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ConfigureSnippetsAction } from 'vs/workbench/contrib/snippets/browser/commands/configureSnippets';
-import { ApplyFileSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/fileTemplateSnippets';
-import { InsertSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/insertSnippet';
-import { SurroundWithSnippetEditorAction } from 'vs/workbench/contrib/snippets/browser/commands/surroundWithSnippet';
-import { SnippetCodeActions } from 'vs/workbench/contrib/snippets/browser/snippetCodeActionProvider';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
-import { SnippetsService } from 'vs/workbench/contrib/snippets/browser/snippetsService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
+import * as nls from '../../../../nls.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import * as JSONContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { ConfigureSnippetsAction } from './commands/configureSnippets.js';
+import { ApplyFileSnippetAction } from './commands/fileTemplateSnippets.js';
+import { InsertSnippetAction } from './commands/insertSnippet.js';
+import { SurroundWithSnippetEditorAction } from './commands/surroundWithSnippet.js';
+import { SnippetCodeActions } from './snippetCodeActionProvider.js';
+import { ISnippetsService } from './snippets.js';
+import { SnippetsService } from './snippetsService.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 
-import 'vs/workbench/contrib/snippets/browser/tabCompletion';
-import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
+import './tabCompletion.js';
+import { editorConfigurationBaseNode } from '../../../../editor/common/config/editorConfigurationSchema.js';
 
 // service
 registerSingleton(ISnippetsService, SnippetsService, InstantiationType.Delayed);

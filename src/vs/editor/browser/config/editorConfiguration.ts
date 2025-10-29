@@ -3,22 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import * as arrays from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
-import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
-import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
-import { migrateOptions } from 'vs/editor/browser/config/migrateOptions';
-import { TabFocus } from 'vs/editor/browser/config/tabFocus';
-import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { BareFontInfo, FontInfo, IValidatedEditorOptions } from 'vs/editor/common/config/fontInfo';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import * as browser from '../../../base/browser/browser.js';
+import * as arrays from '../../../base/common/arrays.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import * as objects from '../../../base/common/objects.js';
+import * as platform from '../../../base/common/platform.js';
+import { ElementSizeObserver } from './elementSizeObserver.js';
+import { FontMeasurements } from './fontMeasurements.js';
+import { migrateOptions } from './migrateOptions.js';
+import { TabFocus } from './tabFocus.js';
+import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from '../../common/config/editorOptions.js';
+import { EditorZoom } from '../../common/config/editorZoom.js';
+import { BareFontInfo, FontInfo, IValidatedEditorOptions } from '../../common/config/fontInfo.js';
+import { createBareFontInfoFromValidatedSettings } from '../../common/config/fontInfoFromSettings.js';
+import { IDimension } from '../../common/core/2d/dimension.js';
+import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
+import { AccessibilitySupport, IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { getWindow, getWindowById } from '../../../base/browser/dom.js';
+import { PixelRatio } from '../../../base/browser/pixelRatio.js';
+import { MenuId } from '../../../platform/actions/common/actions.js';
+import { InputMode } from '../../common/inputMode.js';
 
 export interface IEditorConstructionOptions extends IEditorOptions {
 	/**
@@ -41,6 +46,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 	public readonly onDidChangeFast: Event<ConfigurationChangedEvent> = this._onDidChangeFast.event;
 
 	public readonly isSimpleWidget: boolean;
+	public readonly contextMenuId: MenuId;
 	private readonly _containerObserver: ElementSizeObserver;
 
 	private _isDominatedByLongLines: boolean = false;
@@ -48,6 +54,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 	private _lineNumbersDigitCount: number = 1;
 	private _reservedHeight: number = 0;
 	private _glyphMarginDecorationLaneCount: number = 1;
+	private _targetWindowId: number;
 
 	private readonly _computeOptionsMemory: ComputeOptionsMemory = new ComputeOptionsMemory();
 	/**
@@ -65,13 +72,16 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 
 	constructor(
 		isSimpleWidget: boolean,
+		contextMenuId: MenuId,
 		options: Readonly<IEditorConstructionOptions>,
 		container: HTMLElement | null,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 		this.isSimpleWidget = isSimpleWidget;
+		this.contextMenuId = contextMenuId;
 		this._containerObserver = this._register(new ElementSizeObserver(container, options.dimension));
+		this._targetWindowId = getWindow(container).vscodeWindowId;
 
 		this._rawOptions = deepCloneAndMigrateOptions(options);
 		this._validatedOptions = EditorOptionsUtil.validateOptions(this._rawOptions);
@@ -85,8 +95,9 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 		this._register(TabFocus.onDidChangeTabFocus(() => this._recomputeOptions()));
 		this._register(this._containerObserver.onDidChange(() => this._recomputeOptions()));
 		this._register(FontMeasurements.onDidChange(() => this._recomputeOptions()));
-		this._register(browser.PixelRatio.onDidChange(() => this._recomputeOptions()));
+		this._register(PixelRatio.getInstance(getWindow(container)).onDidChange(() => this._recomputeOptions()));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
+		this._register(InputMode.onDidChangeInputMode(() => this._recomputeOptions()));
 	}
 
 	private _recomputeOptions(): void {
@@ -104,7 +115,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 
 	private _computeOptions(): ComputedEditorOptions {
 		const partialEnv = this._readEnvConfiguration();
-		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.pixelRatio, this.isSimpleWidget);
+		const bareFontInfo = createBareFontInfoFromValidatedSettings(this._validatedOptions, partialEnv.pixelRatio, this.isSimpleWidget);
 		const fontInfo = this._readFontInfo(bareFontInfo);
 		const env: IEnvironmentalOptions = {
 			memory: this._computeOptionsMemory,
@@ -117,9 +128,11 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
-			tabFocusMode: TabFocus.getTabFocusMode(),
+			tabFocusMode: this._validatedOptions.get(EditorOption.tabFocusMode) || TabFocus.getTabFocusMode(),
+			inputMode: InputMode.getInputMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport,
-			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount
+			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount,
+			editContextSupported: partialEnv.editContextSupported
 		};
 		return EditorOptionsUtil.computeOptions(this._validatedOptions, env);
 	}
@@ -130,7 +143,9 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			outerWidth: this._containerObserver.getWidth(),
 			outerHeight: this._containerObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
-			pixelRatio: browser.PixelRatio.value,
+			pixelRatio: PixelRatio.getInstance(getWindowById(this._targetWindowId, true).window).value,
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
+			editContextSupported: typeof (globalThis as any).EditContext === 'function',
 			accessibilitySupport: (
 				this._accessibilityService.isScreenReaderOptimized()
 					? AccessibilitySupport.Enabled
@@ -140,7 +155,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 	}
 
 	protected _readFontInfo(bareFontInfo: BareFontInfo): FontInfo {
-		return FontMeasurements.readFontInfo(bareFontInfo);
+		return FontMeasurements.readFontInfo(getWindowById(this._targetWindowId, true).window, bareFontInfo);
 	}
 
 	public getRawOptions(): IEditorOptions {
@@ -216,14 +231,13 @@ function digitCount(n: number): number {
 
 function getExtraEditorClassName(): string {
 	let extra = '';
-	if (!browser.isSafari && !browser.isWebkitWebView) {
-		// Use user-select: none in all browsers except Safari and native macOS WebView
-		extra += 'no-user-select ';
-	}
-	if (browser.isSafari) {
+	if (browser.isSafari || browser.isWebkitWebView) {
 		// See https://github.com/microsoft/vscode/issues/108822
 		extra += 'no-minimap-shadow ';
 		extra += 'enable-user-select ';
+	} else {
+		// Use user-select: none in all browsers except Safari and native macOS WebView
+		extra += 'no-user-select ';
 	}
 	if (platform.isMacintosh) {
 		extra += 'mac ';
@@ -238,15 +252,16 @@ export interface IEnvConfiguration {
 	emptySelectionClipboard: boolean;
 	pixelRatio: number;
 	accessibilitySupport: AccessibilitySupport;
+	editContextSupported: boolean;
 }
 
 class ValidatedEditorOptions implements IValidatedEditorOptions {
-	private readonly _values: any[] = [];
+	private readonly _values: unknown[] = [];
 	public _read<T>(option: EditorOption): T {
-		return this._values[option];
+		return this._values[option] as T;
 	}
 	public get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
-		return this._values[id];
+		return this._values[id] as FindComputedEditorOptionValueById<T>;
 	}
 	public _write<T>(option: EditorOption, value: T): void {
 		this._values[option] = value;
@@ -254,12 +269,12 @@ class ValidatedEditorOptions implements IValidatedEditorOptions {
 }
 
 export class ComputedEditorOptions implements IComputedEditorOptions {
-	private readonly _values: any[] = [];
+	private readonly _values: unknown[] = [];
 	public _read<T>(id: EditorOption): T {
 		if (id >= this._values.length) {
 			throw new Error('Cannot read uninitialized value');
 		}
-		return this._values[id];
+		return this._values[id] as T;
 	}
 	public get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
 		return this._read(id);
@@ -274,7 +289,7 @@ class EditorOptionsUtil {
 	public static validateOptions(options: IEditorOptions): ValidatedEditorOptions {
 		const result = new ValidatedEditorOptions();
 		for (const editorOption of editorOptionsRegistry) {
-			const value = (editorOption.name === '_never_' ? undefined : (options as any)[editorOption.name]);
+			const value = (editorOption.name === '_never_' ? undefined : (options as Record<string, unknown>)[editorOption.name]);
 			result._write(editorOption.id, editorOption.validate(value));
 		}
 		return result;
@@ -327,8 +342,8 @@ class EditorOptionsUtil {
 		let changed = false;
 		for (const editorOption of editorOptionsRegistry) {
 			if (update.hasOwnProperty(editorOption.name)) {
-				const result = editorOption.applyUpdate((options as any)[editorOption.name], (update as any)[editorOption.name]);
-				(options as any)[editorOption.name] = result.newValue;
+				const result = editorOption.applyUpdate((options as Record<string, unknown>)[editorOption.name], (update as Record<string, unknown>)[editorOption.name]);
+				(options as Record<string, unknown>)[editorOption.name] = result.newValue;
 				changed = changed || result.didChange;
 			}
 		}

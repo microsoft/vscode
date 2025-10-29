@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { ITerminalCommandSelector } from 'vs/platform/terminal/common/terminal';
-import { ITerminalQuickFixService, ITerminalQuickFixProvider, ITerminalQuickFixProviderSelector } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { Emitter } from '../../../../../base/common/event.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
+import { ITerminalCommandSelector } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalQuickFixService, ITerminalQuickFixProvider, ITerminalQuickFixProviderSelector } from './quickFix.js';
+import { isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
+import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
 
 export class TerminalQuickFixService implements ITerminalQuickFixService {
 	declare _serviceBrand: undefined;
@@ -18,6 +18,8 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 
 	private _providers: Map<string, ITerminalQuickFixProvider> = new Map();
 	get providers(): Map<string, ITerminalQuickFixProvider> { return this._providers; }
+
+	private _pendingProviders: Map<string, ITerminalQuickFixProvider> = new Map();
 
 	private readonly _onDidRegisterProvider = new Emitter<ITerminalQuickFixProviderSelector>();
 	readonly onDidRegisterProvider = this._onDidRegisterProvider.event;
@@ -47,6 +49,14 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	registerCommandSelector(selector: ITerminalCommandSelector): void {
 		this._selectors.set(selector.id, selector);
 		this._onDidRegisterCommandSelector.fire(selector);
+
+		// Check if there's a pending provider for this selector
+		const pendingProvider = this._pendingProviders.get(selector.id);
+		if (pendingProvider) {
+			this._pendingProviders.delete(selector.id);
+			this._providers.set(selector.id, pendingProvider);
+			this._onDidRegisterProvider.fire({ selector, provider: pendingProvider });
+		}
 	}
 
 	registerQuickFixProvider(id: string, provider: ITerminalQuickFixProvider): IDisposable {
@@ -58,16 +68,20 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 			if (disposed) {
 				return;
 			}
-			this._providers.set(id, provider);
 			const selector = this._selectors.get(id);
-			if (!selector) {
-				throw new Error(`No registered selector for ID: ${id}`);
+			if (selector) {
+				// Selector is already available, register immediately
+				this._providers.set(id, provider);
+				this._onDidRegisterProvider.fire({ selector, provider });
+			} else {
+				// Selector not yet available, store provider as pending
+				this._pendingProviders.set(id, provider);
 			}
-			this._onDidRegisterProvider.fire({ selector, provider });
 		});
 		return toDisposable(() => {
 			disposed = true;
 			this._providers.delete(id);
+			this._pendingProviders.delete(id);
 			const selector = this._selectors.get(id);
 			if (selector) {
 				this._selectors.delete(id);
@@ -80,9 +94,9 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 const quickFixExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ITerminalCommandSelector[]>({
 	extensionPoint: 'terminalQuickFixes',
 	defaultExtensionKind: ['workspace'],
-	activationEventsGenerator: (terminalQuickFixes: ITerminalCommandSelector[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (terminalQuickFixes: readonly ITerminalCommandSelector[]) {
 		for (const quickFixContrib of terminalQuickFixes ?? []) {
-			result.push(`onTerminalQuickFixRequest:${quickFixContrib.id}`);
+			yield `onTerminalQuickFixRequest:${quickFixContrib.id}`;
 		}
 	},
 	jsonSchema: {

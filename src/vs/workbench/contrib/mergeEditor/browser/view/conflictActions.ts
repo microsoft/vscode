@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, createStyleSheet, h, isInShadowDOM, reset } from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { hash } from 'vs/base/common/hash';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, derived, IObservable, transaction } from 'vs/base/common/observable';
-import { ICodeEditor, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { localize } from 'vs/nls';
-import { ModifiedBaseRange, ModifiedBaseRangeState, ModifiedBaseRangeStateKind } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
-import { FixedZoneWidget } from 'vs/workbench/contrib/mergeEditor/browser/view/fixedZoneWidget';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
+import { $, h, isInShadowDOM, reset } from '../../../../../base/browser/dom.js';
+import { createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
+import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { hash } from '../../../../../base/common/hash.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, transaction } from '../../../../../base/common/observable.js';
+import { ICodeEditor, IViewZoneChangeAccessor } from '../../../../../editor/browser/editorBrowser.js';
+import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../../editor/common/config/fontInfo.js';
+import { localize } from '../../../../../nls.js';
+import { ModifiedBaseRange, ModifiedBaseRangeState, ModifiedBaseRangeStateKind } from '../model/modifiedBaseRange.js';
+import { FixedZoneWidget } from './fixedZoneWidget.js';
+import { MergeEditorViewModel } from './viewModel.js';
 
 export class ConflictActionsFactory extends Disposable {
 	private readonly _styleClassName: string;
@@ -32,12 +34,8 @@ export class ConflictActionsFactory extends Disposable {
 		this._styleElement = createStyleSheet(
 			isInShadowDOM(this._editor.getContainerDomNode())
 				? this._editor.getContainerDomNode()
-				: undefined
+				: undefined, undefined, this._store
 		);
-
-		this._register(toDisposable(() => {
-			this._styleElement.remove();
-		}));
 
 		this._updateLensStyle();
 	}
@@ -58,8 +56,8 @@ export class ConflictActionsFactory extends Disposable {
 			newStyle += `${this._styleClassName} { font-family: var(${fontFamilyVar}), ${EDITOR_FONT_DEFAULTS.fontFamily}}`;
 		}
 		this._styleElement.textContent = newStyle;
-		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily ?? 'inherit');
-		this._editor.getContainerDomNode().style.setProperty(fontFeaturesVar, editorFontInfo.fontFeatureSettings);
+		this._editor.getContainerDomNode().style?.setProperty(fontFamilyVar, fontFamily ?? 'inherit');
+		this._editor.getContainerDomNode().style?.setProperty(fontFeaturesVar, editorFontInfo.fontFeatureSettings);
 	}
 
 	private _getLayoutInfo() {

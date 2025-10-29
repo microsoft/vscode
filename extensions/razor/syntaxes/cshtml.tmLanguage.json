@@ -1,18 +1,40 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/dotnet/razor/blob/master/src/Razor/src/Microsoft.AspNetCore.Razor.VSCode.Extension/syntaxes/aspnetcorerazor.tmLanguage.json",
+		"This file has been converted from https://github.com/dotnet/razor/blob/master/src/Razor/src/Microsoft.VisualStudio.RazorExtension/EmbeddedGrammars/aspnetcorerazor.tmLanguage.json",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/razor/commit/69f60231df08319b544d3d32a588575acbb58ff0",
+	"version": "https://github.com/dotnet/razor/commit/9b1e979b6c3fe7cfbe30f595b9b0994d20bd482c",
 	"name": "ASP.NET Razor",
 	"scopeName": "text.html.cshtml",
+	"injections": {
+		"string.quoted.double.html": {
+			"patterns": [
+				{
+					"include": "#explicit-razor-expression"
+				},
+				{
+					"include": "#implicit-expression"
+				}
+			]
+		},
+		"string.quoted.single.html": {
+			"patterns": [
+				{
+					"include": "#explicit-razor-expression"
+				},
+				{
+					"include": "#implicit-expression"
+				}
+			]
+		}
+	},
 	"patterns": [
 		{
 			"include": "#razor-control-structures"
 		},
 		{
-			"include": "text.html.basic"
+			"include": "text.html.derivative"
 		}
 	],
 	"repository": {
@@ -133,7 +155,7 @@
 							"include": "#razor-control-structures"
 						},
 						{
-							"include": "text.html.basic"
+							"include": "text.html.derivative"
 						}
 					]
 				}
@@ -217,7 +239,7 @@
 			},
 			"patterns": [
 				{
-					"include": "text.html.basic#attribute"
+					"include": "text.html.derivative"
 				}
 			],
 			"end": "/?>",
@@ -264,7 +286,7 @@
 							"include": "#razor-control-structures"
 						},
 						{
-							"include": "text.html.basic#attribute"
+							"include": "text.html.derivative"
 						}
 					]
 				},
@@ -527,6 +549,15 @@
 				},
 				{
 					"include": "#using-directive"
+				},
+				{
+					"include": "#rendermode-directive"
+				},
+				{
+					"include": "#preservewhitespace-directive"
+				},
+				{
+					"include": "#typeparam-directive"
 				}
 			]
 		},
@@ -848,6 +879,75 @@
 				},
 				"4": {
 					"name": "entity.name.variable.property.cs"
+				}
+			}
+		},
+		"rendermode-directive": {
+			"name": "meta.directive",
+			"match": "(@)(rendermode)\\s+([^$]+)?",
+			"captures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#transition"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.control.razor.directive.rendermode"
+				},
+				"3": {
+					"patterns": [
+						{
+							"include": "source.cs#type"
+						}
+					]
+				}
+			}
+		},
+		"preservewhitespace-directive": {
+			"name": "meta.directive",
+			"match": "(@)(preservewhitespace)\\s+([^$]+)?",
+			"captures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#transition"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.control.razor.directive.preservewhitespace"
+				},
+				"3": {
+					"patterns": [
+						{
+							"include": "source.cs#boolean-literal"
+						}
+					]
+				}
+			}
+		},
+		"typeparam-directive": {
+			"name": "meta.directive",
+			"match": "(@)(typeparam)\\s+([^$]+)?",
+			"captures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#transition"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.control.razor.directive.typeparam"
+				},
+				"3": {
+					"patterns": [
+						{
+							"include": "source.cs#type"
+						}
+					]
 				}
 			}
 		},
@@ -1535,6 +1635,9 @@
 			"patterns": [
 				{
 					"include": "source.cs#switch-label"
+				},
+				{
+					"include": "#csharp-code-block"
 				},
 				{
 					"include": "#razor-codeblock-body"
