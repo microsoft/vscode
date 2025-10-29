@@ -609,7 +609,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('chat.renderRelatedFiles')) {
-				this.renderChatEditingSessionState();
+				this.input.renderChatRelatedFiles();
 			}
 
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests) || e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)) {
@@ -2234,12 +2234,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this._onDidChangeContentHeight.fire();
 		}));
-		this._register(this.input.attachmentModel.onDidChange(() => {
-			if (this._editingSession) {
-				// TODO still needed? Do this inside input part and fire onDidChangeHeight?
-				this.renderChatEditingSessionState();
-			}
-		}));
 		this._register(this.inputEditor.onDidChangeModelContent(() => {
 			this.parsedChatRequest = undefined;
 			this.updateChatInputContext();
@@ -2335,11 +2329,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (events?.some(e => e?.kind === 'addRequest') && this.visible) {
 				this.scrollToEnd();
 			}
-
-			if (this._editingSession) {
-				this.renderChatEditingSessionState();
-			}
 		})));
+		this.viewModelDisposables.add(autorun(reader => {
+			this._editingSession.read(reader); // re-render when the session changes
+			this.renderChatEditingSessionState();
+		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
 			this.input.saveState();

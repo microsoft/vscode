@@ -19,6 +19,7 @@ import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatResponseModel } from './chatModel.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IChatProgress } from './chatService.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
@@ -116,6 +117,15 @@ export interface IChatEditingSession extends IDisposable {
 	readEntry(uri: URI, reader: IReader): IModifiedFileEntry | undefined;
 
 	restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void>;
+
+	/**
+	 * Marks all edits to the given resources as agent edits until
+	 * {@link stopExternalEdits} is called with the same ID. This is used for
+	 * agents that make changes on-disk rather than streaming edits through the
+	 * chat session.
+	 */
+	startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[]): Promise<IChatProgress[]>;
+	stopExternalEdits(responseModel: IChatResponseModel, operationId: number): Promise<IChatProgress[]>;
 
 	/**
 	 * Gets the snapshot URI of a file at the request and _after_ changes made in the undo stop.

@@ -60,6 +60,12 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined>(this, undefined);
 	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined> = this._isCurrentlyBeingModifiedByObs;
 
+	/**
+	 * Flag to track if we're currently in an external edit operation.
+	 * When true, file system changes should be treated as agent edits, not user edits.
+	 */
+	protected _isExternalEditInProgress = false;
+
 	protected readonly _lastModifyingResponseObs = observableValueOpts<IChatResponseModel | undefined>({ equalsFn: (a, b) => a?.requestId === b?.requestId }, undefined);
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined> = this._lastModifyingResponseObs;
 
@@ -363,4 +369,37 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	abstract resetToInitialContent(): Promise<void>;
 
 	abstract initialContent: string;
+
+	/**
+	 * Computes the edits between two snapshots of the file content.
+	 * @param beforeSnapshot The content before the changes
+	 * @param afterSnapshot The content after the changes
+	 * @returns Array of text edits or cell edit operations
+	 */
+	abstract computeEditsFromSnapshots(beforeSnapshot: string, afterSnapshot: string): Promise<(TextEdit | ICellEditOperation)[]>;
+
+	/**
+	 * Marks the start of an external edit operation.
+	 * File system changes will be treated as agent edits until stopExternalEdit is called.
+	 */
+	startExternalEdit(): void {
+		this._isExternalEditInProgress = true;
+	}
+
+	/**
+	 * Marks the end of an external edit operation.
+	 */
+	stopExternalEdit(): void {
+		this._isExternalEditInProgress = false;
+	}
+
+	/**
+	 * Saves the current model state to disk.
+	 */
+	abstract save(): Promise<void>;
+
+	/**
+	 * Reloads the model from disk to ensure it's in sync with file system changes.
+	 */
+	abstract revertToDisk(): Promise<void>;
 }

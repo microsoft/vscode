@@ -85,6 +85,7 @@ export interface IChatTextEditGroup {
 	state?: IChatTextEditGroupState;
 	kind: 'textEditGroup';
 	done: boolean | undefined;
+	isExternalEdit?: boolean;
 }
 
 export function isCellTextEditOperation(value: unknown): value is ICellTextEditOperation {
@@ -103,6 +104,7 @@ export interface IChatNotebookEditGroup {
 	state?: IChatTextEditGroupState;
 	kind: 'notebookEditGroup';
 	done: boolean | undefined;
+	isExternalEdit?: boolean;
 }
 
 /**
