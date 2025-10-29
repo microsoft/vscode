@@ -1143,7 +1143,7 @@ suite('PromptsService', () => {
 			assert.ok(result.find(p => p.header?.description === 'Prompt 2'));
 		});
 
-		test('listParsedPromptFilesCached returns cached value and triggers background fetch', async () => {
+		test('getCachedParsedPromptFile returns cached value and triggers background fetch', async () => {
 			const rootFolderName = 'cached-prompts';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
@@ -1174,19 +1174,19 @@ suite('PromptsService', () => {
 			const testUri = URI.joinPath(rootFolderUri, '.github/prompts/test.prompt.md');
 
 			// First call should return undefined and trigger background fetch
-			const result1 = service.listParsedPromptFilesCached(PromptsType.prompt, testUri);
+			const result1 = service.getCachedParsedPromptFile(testUri);
 			assert.strictEqual(result1, undefined);
 
-			// Wait a bit for background fetch
-			await new Promise(resolve => setTimeout(resolve, 100));
+			// Wait for background fetch to complete
+			await service.waitForPendingCacheOperations();
 
 			// Second call should return the cached value
-			const result2 = service.listParsedPromptFilesCached(PromptsType.prompt, testUri);
+			const result2 = service.getCachedParsedPromptFile(testUri);
 			assert.ok(result2);
 			assert.strictEqual(result2.header?.description, 'Test Prompt');
 		});
 
-		test('onDidChangeParsedPromptFilesCacheByType fires when cache updates', async () => {
+		test('onDidChangeParsedPromptFileCache fires when cache updates', async () => {
 			const rootFolderName = 'cache-event-test';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
@@ -1216,24 +1216,24 @@ suite('PromptsService', () => {
 				}])).mock();
 
 			let eventFired = false;
-			const disposable = service.onDidChangeParsedPromptFilesCacheByType(PromptsType.instructions)(
+			const disposable = service.onDidChangeParsedPromptFileCache(PromptsType.instructions)(
 				() => { eventFired = true; }
 			);
 
 			const testUri = URI.joinPath(rootFolderUri, '.github/prompts/test.instructions.md');
 
 			// Trigger cache population
-			service.listParsedPromptFilesCached(PromptsType.instructions, testUri);
+			service.getCachedParsedPromptFile(testUri);
 
 			// Wait for background fetch to complete
-			await new Promise(resolve => setTimeout(resolve, 100));
+			await service.waitForPendingCacheOperations();
 
 			assert.ok(eventFired, 'Event should have been fired when cache was updated');
 
 			disposable.dispose();
 		});
 
-		test('listParsedPromptFilesCached works for different PromptsTypes', async () => {
+		test('getCachedParsedPromptFile works for different PromptsTypes', async () => {
 			const rootFolderName = 'multi-type-cache';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
@@ -1295,17 +1295,17 @@ suite('PromptsService', () => {
 			const agentUri = URI.joinPath(rootFolderUri, '.github/agents/test.agent.md');
 
 			// Trigger cache population for all types
-			service.listParsedPromptFilesCached(PromptsType.prompt, promptUri);
-			service.listParsedPromptFilesCached(PromptsType.instructions, instructionsUri);
-			service.listParsedPromptFilesCached(PromptsType.agent, agentUri);
+			service.getCachedParsedPromptFile(promptUri);
+			service.getCachedParsedPromptFile(instructionsUri);
+			service.getCachedParsedPromptFile(agentUri);
 
 			// Wait for background fetches
-			await new Promise(resolve => setTimeout(resolve, 150));
+			await service.waitForPendingCacheOperations();
 
 			// All should now be cached
-			const promptResult = service.listParsedPromptFilesCached(PromptsType.prompt, promptUri);
-			const instructionsResult = service.listParsedPromptFilesCached(PromptsType.instructions, instructionsUri);
-			const agentResult = service.listParsedPromptFilesCached(PromptsType.agent, agentUri);
+			const promptResult = service.getCachedParsedPromptFile(promptUri);
+			const instructionsResult = service.getCachedParsedPromptFile(instructionsUri);
+			const agentResult = service.getCachedParsedPromptFile(agentUri);
 
 			assert.ok(promptResult);
 			assert.strictEqual(promptResult.header?.description, 'Test Prompt');
@@ -1317,7 +1317,7 @@ suite('PromptsService', () => {
 			assert.strictEqual(agentResult.header?.description, 'Test Agent');
 		});
 
-		test('onDidChangeParsedPromptFilesCacheBySlashCommand fires on cache update', async () => {
+		test('onDidChangeParsedPromptFileCache fires on slash command cache update', async () => {
 			const rootFolderName = 'slash-command-event';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
@@ -1347,7 +1347,7 @@ suite('PromptsService', () => {
 
 			let eventFired = false;
 
-			const disposable = service.onDidChangeParsedPromptFilesCacheBySlashCommand(() => {
+			const disposable = service.onDidChangeParsedPromptFileCache(PromptsType.prompt)(() => {
 				eventFired = true;
 			});
 
@@ -1355,7 +1355,7 @@ suite('PromptsService', () => {
 			service.resolvePromptSlashCommandFromCache('test');
 
 			// Wait for background fetch
-			await new Promise(resolve => setTimeout(resolve, 100));
+			await service.waitForPendingCacheOperations();
 
 			assert.ok(eventFired, 'Event should fire');
 

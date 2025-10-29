@@ -189,24 +189,18 @@ export interface IPromptsService extends IDisposable {
 	resolvePromptSlashCommandFromCache(command: string): ParsedPromptFile | undefined;
 
 	/**
-	 * Gets the parsed prompt file from cache by URI for a specific prompt type.
+	 * Gets the parsed prompt file from cache by URI.
 	 * If not in cache, triggers async population and returns undefined.
-	 * @param type - the PromptsType to check cache for
 	 * @param uri - the URI of the prompt file
 	 */
-	listParsedPromptFilesCached(type: PromptsType, uri: URI): ParsedPromptFile | undefined;
+	getCachedParsedPromptFile(uri: URI): ParsedPromptFile | undefined;
 
 	/**
-	 * Event that is triggered when slash command -> ParsedPromptFile cache is updated.
-	 * Event handler can call resolvePromptSlashCommandFromCache in case there is new value populated.
+	 * Event that is triggered when the parsed prompt file cache is updated for a specific PromptsType.
+	 * Event handler can call getCachedParsedPromptFile in case there is new value populated.
+	 * @param type - the PromptsType to listen for cache updates (use PromptsType.prompt for slash command cache)
 	 */
-	readonly onDidChangeParsedPromptFilesCacheBySlashCommand: Event<void>;
-
-	/**
-	 * Event that is triggered when the URI -> ParsedPromptFile cache for a specific PromptsType is updated.
-	 * @param type - the PromptsType to listen for cache updates
-	 */
-	onDidChangeParsedPromptFilesCacheByType(type: PromptsType): Event<void>;
+	onDidChangeParsedPromptFileCache(type: PromptsType): Event<void>;
 
 	/**
 	 * Returns a prompt command if the command name is valid.
