@@ -14,7 +14,7 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
-import { autorun, autorunWithStore, derived, IObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -1385,46 +1385,8 @@ export class InlineChatController2 implements IEditorContribution {
 			const { chatModel } = session;
 			const showShowUntil = this._showWidgetOverrideObs.read(r);
 			const hasNoRequests = chatModel.getRequests().length === 0;
-			const hideOnRequest = inlineChatService.hideOnRequest.read(r);
 
-			const responseListener = store.add(new MutableDisposable());
-
-			if (hideOnRequest) {
-				// hide the request once the request has been added, reveal it again when no edit was made
-				// or when an error happened
-				store.add(chatModel.onDidChange(e => {
-					if (e.kind === 'addRequest') {
-						transaction(tx => {
-							this._showWidgetOverrideObs.set(false, tx);
-							visibleSessionObs.set(undefined, tx);
-						});
-						const { response } = e.request;
-						if (!response) {
-							return;
-						}
-						responseListener.value = response.onDidChange(async e => {
-
-							if (!response.isComplete) {
-								return;
-							}
-
-							responseListener.value = undefined; // listen only ONCE
-
-							const shouldShow = response.isCanceled // cancelled
-								|| response.result?.errorDetails // errors
-								|| !response.response.value.find(part => part.kind === 'textEditGroup'
-									&& part.edits.length > 0
-									&& isEqual(part.uri, model.uri)); // NO edits for file
-
-							if (shouldShow) {
-								visibleSessionObs.set(session, undefined);
-							}
-						});
-					}
-				}));
-			}
-
-			if (showShowUntil || hasNoRequests || !hideOnRequest) {
+			if (showShowUntil || hasNoRequests) {
 				visibleSessionObs.set(session, undefined);
 			} else {
 				visibleSessionObs.set(undefined, undefined);

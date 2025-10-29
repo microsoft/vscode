@@ -5,7 +5,6 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../editor/common/core/position.js';
@@ -66,9 +65,6 @@ export interface IInlineChatSessionService {
 	registerSessionKeyComputer(scheme: string, value: ISessionKeyComputer): IDisposable;
 
 	dispose(): void;
-
-
-	hideOnRequest: IObservable<boolean>;
 
 	createSession2(editor: ICodeEditor, uri: URI, token: CancellationToken): Promise<IInlineChatSession2>;
 	getSession2(uri: URI): IInlineChatSession2 | undefined;
