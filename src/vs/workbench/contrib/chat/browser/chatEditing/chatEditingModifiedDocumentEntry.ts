@@ -53,6 +53,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return this._textModelChangeService.diffInfo.map(diff => diff.changes.length);
 	}
 
+	get diffInfo() {
+		return this._textModelChangeService.diffInfo;
+	}
+
 	get linesAdded() {
 		return this._textModelChangeService.diffInfo.map(diff => {
 			let added = 0;

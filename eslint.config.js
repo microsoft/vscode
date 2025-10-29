@@ -1108,6 +1108,7 @@ export default tseslint.config(
 			'local': pluginLocal,
 		},
 		rules: {
+			'local/code-no-dangerous-type-assertions': 'off',
 			'local/code-must-use-super-dispose': 'off',
 			'local/code-no-test-only': 'error',
 			'local/code-no-test-async-suite': 'warn',
