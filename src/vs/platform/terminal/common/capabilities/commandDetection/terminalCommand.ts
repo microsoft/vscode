@@ -289,7 +289,6 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 		id?: string
 	) {
 		this.id = id ?? generateUuid();
-		console.log('terminal partial command id ', this.id);
 	}
 
 	serialize(cwd: string | undefined): ISerializedTerminalCommand | undefined {
