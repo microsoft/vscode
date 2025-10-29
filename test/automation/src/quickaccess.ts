@@ -244,7 +244,7 @@ export class QuickAccess {
 		}
 	}
 
-	async getCommandNames(searchValue: string, expectedResultCount: number | undefined): Promise<string[]> {
+	async getVisibleCommandNames(searchValue: string, expectedResultCount: number | undefined): Promise<string[]> {
 
 		if (expectedResultCount === undefined) {
 			// open commands picker

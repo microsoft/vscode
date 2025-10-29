@@ -16,9 +16,9 @@ export function setup(logger: Logger) {
 			const app = this.app as Application;
 
 			await app.workbench.settingsEditor.addUserSetting('chat.disableAIFeatures', 'true');
-			await app.workbench.quickaccess.getCommandNames('agent', 0);
+			await app.workbench.quickaccess.getVisibleCommandNames('agent', 0);
 
-			const commands = await app.workbench.quickaccess.getCommandNames('chat', undefined);
+			const commands = await app.workbench.quickaccess.getVisibleCommandNames('chat', undefined);
 			let expectedFound = false;
 			const unexpectedFound: string[] = [];
 			for (const command of commands) {
@@ -27,7 +27,7 @@ export function setup(logger: Logger) {
 					continue;
 				}
 
-				if (command.indexOf('Chat') >= 0 || command.indexOf('Agent') >= 0 || command.indexOf('Copilot') >= 0) {
+				if (command.includes('Chat') || command.includes('Agent') || command.includes('Copilot')) {
 					unexpectedFound.push(command);
 				}
 			}
