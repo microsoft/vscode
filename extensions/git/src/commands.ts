@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlHistoryItemRef } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
@@ -3142,8 +3142,9 @@ export class CommandCenter {
 			return;
 		}
 
+		const sourceCommit = sourceRef.ref.commit;
+
 		try {
-			const sourceCommit = sourceRef.ref.commit;
 			const changes = await repository.diffTrees(sourceCommit, historyItem.id);
 
 			if (changes.length === 0) {
@@ -3164,7 +3165,65 @@ export class CommandCenter {
 				resources
 			});
 		} catch (err) {
-			throw new Error(l10n.t('Failed to compare references: {0}', err.message ?? err));
+			window.showErrorMessage(l10n.t('Failed to compare references "{0}" and "{1}": {2}', sourceCommit, historyItem.id, err.message));
+		}
+	}
+
+	@command('git.graph.openIncomingChanges', { repository: true })
+	async openIncomingChanges(repository: Repository): Promise<void> {
+		await this._openChangesBetweenRefs(
+			repository,
+			repository.historyProvider.currentHistoryItemRef,
+			repository.historyProvider.currentHistoryItemRemoteRef);
+	}
+
+	@command('git.graph.openOutgoingChanges', { repository: true })
+	async openOutgoingChanges(repository: Repository): Promise<void> {
+		await this._openChangesBetweenRefs(
+			repository,
+			repository.historyProvider.currentHistoryItemRemoteRef,
+			repository.historyProvider.currentHistoryItemRef);
+	}
+
+	@command('git.graph.compareWithMergeBase', { repository: true })
+	async compareWithMergeBase(repository: Repository): Promise<void> {
+		await this._openChangesBetweenRefs(
+			repository,
+			repository.historyProvider.currentHistoryItemBaseRef,
+			repository.historyProvider.currentHistoryItemRef);
+	}
+
+	private async _openChangesBetweenRefs(
+		repository: Repository,
+		ref1: SourceControlHistoryItemRef | undefined,
+		ref2: SourceControlHistoryItemRef | undefined
+	): Promise<void> {
+		if (!repository || !ref1 || !ref2) {
+			return;
+		}
+
+		try {
+			const changes = await repository.diffTrees(ref1.id, ref2.id);
+
+			if (changes.length === 0) {
+				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref1.name, ref2.name));
+				return;
+			}
+
+			const resources = changes.map(change => toMultiFileDiffEditorUris(change, ref1.id, ref2.id));
+			const title = `${ref1.name} ↔ ${ref2.name}`;
+			const multiDiffSourceUri = Uri.from({
+				scheme: 'git-ref-compare',
+				path: `${repository.root}/${ref1.id}..${ref2.id}`
+			});
+
+			await commands.executeCommand('_workbench.openMultiDiffEditor', {
+				multiDiffSourceUri,
+				title,
+				resources
+			});
+		} catch (err) {
+			window.showErrorMessage(l10n.t('Failed to open changes between "{0}" and "{1}": {2}', ref1.name, ref2.name, err.message));
 		}
 	}
 
