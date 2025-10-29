@@ -73,7 +73,7 @@ export class PromptHoverProvider implements HoverProvider {
 				if (attribute.range.containsPosition(position)) {
 					switch (attribute.key) {
 						case PromptHeaderAttributes.name:
-							return this.createHover(localize('promptHeader.instructions.name', 'The name of the instruction file as shown in the UI. If not set, the name is deribved from the file name.'), attribute.range);
+							return this.createHover(localize('promptHeader.instructions.name', 'The name of the instruction file as shown in the UI. If not set, the name is derived from the file name.'), attribute.range);
 						case PromptHeaderAttributes.description:
 							return this.createHover(localize('promptHeader.instructions.description', 'The description of the instruction file. It can be used to provide additional context or information about the instructions and is passed to the language model as part of the prompt.'), attribute.range);
 						case PromptHeaderAttributes.applyTo:
