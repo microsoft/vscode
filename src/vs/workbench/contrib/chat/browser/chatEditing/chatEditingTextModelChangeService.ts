@@ -163,7 +163,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return diff ? diff.identical : false;
 	}
 
-	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<{ rewriteRatio: number; maxLineNumber: number }> {
+	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<{ rewriteRatio: number; maxLineNumber: number }> {
 
 		assertType(textEdits.every(TextEdit.isTextEdit), 'INVALID args, can only handle text edits');
 		assert(isEqual(resource, this.modifiedModel.uri), ' INVALID args, can only edit THIS document');
@@ -245,7 +245,12 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return { rewriteRatio, maxLineNumber };
 	}
 
-	private _createEditSource(responseModel: IChatResponseModel) {
+	private _createEditSource(responseModel: IChatResponseModel | undefined) {
+
+		if (!responseModel) {
+			return EditSources.unknown({ name: 'editSessionUndoRedo' });
+		}
+
 		const sessionId = responseModel.session.sessionId;
 		const request = responseModel.session.getRequests().at(-1);
 		const languageId = this.modifiedModel.getLanguageId();

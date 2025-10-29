@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import * as resources from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -29,7 +29,7 @@ import { ExtensionsRegistry } from '../../../services/extensions/common/extensio
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
 import { AGENT_SESSIONS_VIEWLET_ID, ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
@@ -201,7 +201,7 @@ class ContributedChatSessionData implements IDisposable {
 	}
 
 	constructor(
-		readonly session: ChatSession,
+		readonly session: IChatSession,
 		readonly chatSessionType: string,
 		readonly resource: URI,
 		readonly options: Record<string, string> | undefined,
@@ -228,11 +228,13 @@ class ContributedChatSessionData implements IDisposable {
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
 
-	private readonly _itemsProviders: Map<string, IChatSessionItemProvider> = new Map();
+	private readonly _itemsProviders: Map</* type */ string, IChatSessionItemProvider> = new Map();
+
 	private readonly _contributions: Map</* type */ string, { readonly contribution: IChatSessionsExtensionPoint; readonly extension: IRelaxedExtensionDescription }> = new Map();
+	private readonly _contributionDisposables = this._register(new DisposableMap</* type */ string>());
+
 	private readonly _contentProviders: Map</* scheme */ string, IChatSessionContentProvider> = new Map();
 	private readonly _alternativeIdMap: Map</* alternativeId */ string, /* primaryType */ string> = new Map();
-	private readonly _disposableStores: Map<string, DisposableStore> = new Map();
 	private readonly _contextKeys = new Set<string>();
 
 	private readonly _onDidChangeItemsProviders = this._register(new Emitter<IChatSessionItemProvider>());
@@ -305,7 +307,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public reportInProgress(chatSessionType: string, count: number): void {
 		let displayName: string | undefined;
 
-		if (chatSessionType === 'local') {
+		if (chatSessionType === localChatSessionType) {
 			displayName = 'Local Chat Agent';
 		} else {
 			displayName = this._contributions.get(chatSessionType)?.contribution.displayName;
@@ -412,11 +414,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._sessionTypeWelcomeMessages.delete(contribution.type);
 				this._sessionTypeWelcomeTips.delete(contribution.type);
 				this._sessionTypeInputPlaceholders.delete(contribution.type);
-				const store = this._disposableStores.get(contribution.type);
-				if (store) {
-					store.dispose();
-					this._disposableStores.delete(contribution.type);
-				}
+				this._contributionDisposables.deleteAndDispose(contribution.type);
 			}
 		};
 	}
@@ -475,7 +473,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.${contribution.type}`)
 				),
 				submenu: MenuId.ChatSessionsCreateSubMenu,
-				isSplitButton: true
+				isSplitButton: menuActions.length > 1
 			});
 		} else {
 			// We control creation instead
@@ -540,15 +538,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private _evaluateAvailability(): void {
 		let hasChanges = false;
 		for (const { contribution, extension } of this._contributions.values()) {
-			const isCurrentlyRegistered = this._disposableStores.has(contribution.type);
+			const isCurrentlyRegistered = this._contributionDisposables.has(contribution.type);
 			const shouldBeRegistered = this._isContributionAvailable(contribution);
 			if (isCurrentlyRegistered && !shouldBeRegistered) {
 				// Disable the contribution by disposing its disposable store
-				const store = this._disposableStores.get(contribution.type);
-				if (store) {
-					store.dispose();
-					this._disposableStores.delete(contribution.type);
-				}
+				this._contributionDisposables.deleteAndDispose(contribution.type);
+
 				// Also dispose any cached sessions for this contribution
 				this._disposeSessionsForContribution(contribution.type);
 				hasChanges = true;
@@ -571,7 +566,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
 		const disposableStore = new DisposableStore();
-		this._disposableStores.set(contribution.type, disposableStore);
+		this._contributionDisposables.set(contribution.type, disposableStore);
 
 		disposableStore.add(this._registerAgent(contribution, ext));
 		disposableStore.add(this._registerCommands(contribution));
@@ -677,7 +672,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._contentProviders.has(chatSessionResource.scheme);
 	}
 
-	public async getChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
+	async getAllChatSessionItems(token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>> {
+		return Promise.all(Array.from(this.getAllChatSessionContributions(), async contrib => {
+			return {
+				chatSessionType: contrib.type,
+				items: await this.getChatSessionItems(contrib.type, token)
+			};
+		}));
+	}
+
+	private async getChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
 		if (!(await this.hasChatSessionItemProvider(chatSessionType))) {
 			return [];
 		}
@@ -778,7 +782,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return chatSessionItem;
 	}
 
-	public async getChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
+	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		if (!(await this.canResolveChatSession(sessionResource))) {
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}
@@ -828,7 +832,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			this._editableSessions.set(sessionResource, data);
 		}
 		// Trigger refresh of the session views that might need to update their rendering
-		this._onDidChangeSessionItems.fire('local');
+		this._onDidChangeSessionItems.fire(localChatSessionType);
 	}
 
 	public getEditableData(sessionResource: URI): IEditableData | undefined {

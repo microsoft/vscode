@@ -17,6 +17,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { language } from '../../../../../base/common/platform.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -47,6 +48,7 @@ import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/t
 import { ActiveEditorContext, IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { GroupDirection, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -54,18 +56,20 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { SCMHistoryItemChangeRangeContentProvider, ScmHistoryItemChangeRangeUriFields } from '../../../scm/browser/scmHistoryChatContext.js';
+import { ISCMService } from '../../../scm/common/scm.js';
 import { IChatAgentResult, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
-import { IChatSessionItem, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, AGENT_SESSIONS_VIEWLET_ID } from '../../common/constants.js';
+import { AGENT_SESSIONS_VIEWLET_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
@@ -75,10 +79,6 @@ import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEd
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
-import { ISCMService } from '../../../scm/common/scm.js';
-import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
-import { basename } from '../../../../../base/common/resources.js';
-import { SCMHistoryItemChangeRangeContentProvider, ScmHistoryItemChangeRangeUriFields } from '../../../scm/browser/scmHistoryChatContext.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -566,7 +566,7 @@ export function registerChatActions() {
 			}
 
 			const getPicks = async () => {
-				const items = await chatService.getHistory();
+				const items = await chatService.getLocalSessionHistory();
 				items.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
 
 				let lastDate: string | undefined = undefined;
@@ -681,7 +681,7 @@ export function registerChatActions() {
 
 			const getPicks = async (showAllChats: boolean = false, showAllAgents: boolean = false) => {
 				// Fast picks: Get cached/immediate items first
-				const cachedItems = await chatService.getHistory();
+				const cachedItems = await chatService.getLocalSessionHistory();
 				cachedItems.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
 
 				const allFastPickItems: IChatPickerItem[] = cachedItems.map((i) => {
@@ -734,55 +734,46 @@ export function registerChatActions() {
 						// Use the new Promise-based API to get chat sessions
 						const cancellationToken = new CancellationTokenSource();
 						try {
-							const providers = chatSessionsService.getAllChatSessionContributions();
-							const providerNSessions: { providerType: string; session: IChatSessionItem }[] = [];
+							const providerNSessions = await chatSessionsService.getAllChatSessionItems(cancellationToken.token);
+							for (const { chatSessionType, items } of providerNSessions) {
+								for (const session of items) {
 
-							for (const provider of providers) {
-								const sessions = await chatSessionsService.getChatSessionItems(provider.type, cancellationToken.token);
-								if (!sessions?.length) {
-									continue;
-								}
-								providerNSessions.push(...sessions.map(session => ({ providerType: provider.type, session })));
-							}
+									const ckey = contextKeyService.createKey('chatSessionType', chatSessionType);
+									const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
+									const { primary } = getContextMenuActions(actions, 'inline');
+									ckey.reset();
 
-							for (const session of providerNSessions) {
-								const sessionContent = session.session;
+									// Use primary actions if available, otherwise fall back to secondary actions
+									const buttons = primary.map(action => ({
+										id: action.id,
+										tooltip: action.tooltip,
+										iconClass: action.class || ThemeIcon.asClassName(Codicon.symbolClass),
+									}));
+									// Create agent pick from the session content
+									const agentPick: ICodingAgentPickerItem = {
+										label: session.label,
+										description: '',
+										session: { providerType: chatSessionType, session: session },
+										chat: {
+											sessionId: session.id,
+											title: session.label,
+											isActive: false,
+											lastMessageDate: 0,
+										},
+										buttons,
+										id: session.id
+									};
 
-								const ckey = contextKeyService.createKey('chatSessionType', session.providerType);
-								const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
-								const { primary } = getContextMenuActions(actions, 'inline');
-								ckey.reset();
-
-								// Use primary actions if available, otherwise fall back to secondary actions
-								const buttons = primary.map(action => ({
-									id: action.id,
-									tooltip: action.tooltip,
-									iconClass: action.class || ThemeIcon.asClassName(Codicon.symbolClass),
-								}));
-								// Create agent pick from the session content
-								const agentPick: ICodingAgentPickerItem = {
-									label: sessionContent.label,
-									description: '',
-									session: { providerType: session.providerType, session: sessionContent },
-									chat: {
-										sessionId: sessionContent.id,
-										title: sessionContent.label,
-										isActive: false,
-										lastMessageDate: 0,
-									},
-									buttons,
-									id: sessionContent.id
-								};
-
-								// Check if this agent already exists (update existing or add new)
-								const existingIndex = agentPicks.findIndex(pick => pick.chat.sessionId === sessionContent.id);
-								if (existingIndex >= 0) {
-									agentPicks[existingIndex] = agentPick;
-								} else {
-									// Respect show limits
-									const maxToShow = showAllAgents ? Number.MAX_SAFE_INTEGER : 5;
-									if (agentPicks.length < maxToShow) {
-										agentPicks.push(agentPick);
+									// Check if this agent already exists (update existing or add new)
+									const existingIndex = agentPicks.findIndex(pick => pick.chat.sessionId === session.id);
+									if (existingIndex >= 0) {
+										agentPicks[existingIndex] = agentPick;
+									} else {
+										// Respect show limits
+										const maxToShow = showAllAgents ? Number.MAX_SAFE_INTEGER : 5;
+										if (agentPicks.length < maxToShow) {
+											agentPicks.push(agentPick);
+										}
 									}
 								}
 							}
@@ -1024,7 +1015,7 @@ export function registerChatActions() {
 
 			// Check if there are any non-local chat session item providers registered
 			const allProviders = chatSessionsService.getAllChatSessionItemProviders();
-			const hasNonLocalProviders = allProviders.some(provider => provider.chatSessionType !== 'local');
+			const hasNonLocalProviders = allProviders.some(provider => provider.chatSessionType !== localChatSessionType);
 
 			if (hasNonLocalProviders) {
 				await this.showIntegratedPicker(

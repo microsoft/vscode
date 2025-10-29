@@ -12,7 +12,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
 
 //#region Interfaces, Types
@@ -53,10 +53,8 @@ export interface IAgentSessionViewModel {
 	};
 }
 
-export const LOCAL_AGENT_SESSION_TYPE = 'local';
-
 export function isLocalAgentSessionItem(session: IAgentSessionViewModel): boolean {
-	return session.provider.chatSessionType === LOCAL_AGENT_SESSION_TYPE;
+	return session.provider.chatSessionType === localChatSessionType;
 }
 
 export function isAgentSession(obj: IAgentSessionsViewModel | IAgentSessionViewModel): obj is IAgentSessionViewModel {
@@ -167,14 +165,14 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 				});
 			}
 
-			if (INCLUDE_HISTORY && provider.chatSessionType === LOCAL_AGENT_SESSION_TYPE) {
+			if (INCLUDE_HISTORY && provider.chatSessionType === localChatSessionType) {
 				// TODO@bpasero this needs to come from the local provider:
 				// - do we want to show history or not and how
 				// - can we support all properties including `startTime` properly
-				for (const history of await this.chatService.getHistory()) {
+				for (const history of await this.chatService.getLocalSessionHistory()) {
 					newSessions.push({
 						id: history.sessionId,
-						resource: ChatSessionUri.forSession(LOCAL_AGENT_SESSION_TYPE, history.sessionId),
+						resource: ChatSessionUri.forSession(localChatSessionType, history.sessionId),
 						label: history.title,
 						provider: provider,
 						timing: {

@@ -1004,6 +1004,24 @@
         "title": "%command.graphCompareRef%",
         "category": "Git",
         "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.graph.openIncomingChanges",
+        "title": "%command.graphOpenIncomingChanges%",
+        "category": "Git",
+        "enablement": "!operationInProgress && git.currentHistoryItemIsBehind"
+      },
+      {
+        "command": "git.graph.openOutgoingChanges",
+        "title": "%command.graphOpenOutgoingChanges%",
+        "category": "Git",
+        "enablement": "!operationInProgress && git.currentHistoryItemIsAhead"
+      },
+      {
+        "command": "git.graph.compareWithMergeBase",
+        "title": "%command.graphCompareWithMergeBase%",
+        "category": "Git",
+        "enablement": "!operationInProgress && git.currentHistoryItemHasMergeBase"
       }
     ],
     "continueEditSession": [
@@ -1610,6 +1628,18 @@
         },
         {
           "command": "git.graph.cherryPick",
+          "when": "false"
+        },
+        {
+          "command": "git.graph.openIncomingChanges",
+          "when": "false"
+        },
+        {
+          "command": "git.graph.openOutgoingChanges",
+          "when": "false"
+        },
+        {
+          "command": "git.graph.compareWithMergeBase",
           "when": "false"
         },
         {
@@ -2230,6 +2260,21 @@
           "command": "git.publish",
           "when": "scmProvider == git && !scmCurrentHistoryItemRefHasRemote",
           "group": "navigation@903"
+        },
+        {
+          "command": "git.graph.openIncomingChanges",
+          "when": "scmProvider == git",
+          "group": "1_changes@1"
+        },
+        {
+          "command": "git.graph.openOutgoingChanges",
+          "when": "scmProvider == git",
+          "group": "1_changes@2"
+        },
+        {
+          "command": "git.graph.compareWithMergeBase",
+          "when": "scmProvider == git",
+          "group": "2_compare@1"
         }
       ],
       "scm/historyItem/context": [

@@ -10,7 +10,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
-import { IChatSessionItem, IChatSessionItemProvider } from '../../common/chatSessionsService.js';
+import { IChatSessionItem, IChatSessionItemProvider, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 
@@ -28,7 +28,7 @@ export type ChatSessionItemWithProvider = IChatSessionItem & {
 	};
 };
 
-export function isChatSession(schemes: string[], editor?: EditorInput): boolean {
+export function isChatSession(schemes: readonly string[], editor?: EditorInput): boolean {
 	if (!(editor instanceof ChatEditorInput)) {
 		return false;
 	}
@@ -45,14 +45,10 @@ export function isChatSession(schemes: string[], editor?: EditorInput): boolean 
 }
 
 /**
- * Returns chat session type from a URI, or 'local' if not specified or cannot be determined.
+ * Returns chat session type from a URI, or {@linkcode localChatSessionType} if not specified or cannot be determined.
  */
 export function getChatSessionType(editor: ChatEditorInput): string {
-	if (editor.resource.scheme === Schemas.vscodeChatEditor || editor.resource.scheme === Schemas.vscodeChatSession) {
-		return 'local';
-	}
-
-	return editor.resource.scheme;
+	return editor.getSessionType();
 }
 
 /**
@@ -74,7 +70,7 @@ export function findExistingChatEditorByUri(sessionUri: URI, sessionId: string, 
 }
 
 export function isLocalChatSessionItem(item: ChatSessionItemWithProvider): boolean {
-	return item.provider.chatSessionType === 'local';
+	return item.provider.chatSessionType === localChatSessionType;
 }
 
 // Helper function to update relative time for chat sessions (similar to timeline)
@@ -163,7 +159,7 @@ export function getSessionItemContextOverlay(
 	// Mark active sessions - check if session is currently open in editor or widget
 	let isActiveSession = false;
 
-	if (!session.isHistory && provider?.chatSessionType === 'local') {
+	if (!session.isHistory && provider?.chatSessionType === localChatSessionType) {
 		// Local non-history sessions are always active
 		isActiveSession = true;
 	} else if (session.isHistory && chatWidgetService && chatService && editorGroupsService) {
