@@ -22,7 +22,7 @@ export function setup(logger: Logger) {
 
 			// assert that AI related commands are not present
 			let expectedFound = false;
-			const unexpectedFound: string[] = [];
+			const unexpectedFound: Set<string> = new Set();
 			for (const term of ['chat', 'agent', 'copilot']) {
 				const commands = await app.workbench.quickaccess.getVisibleCommandNames(term);
 				for (const command of commands) {
@@ -32,7 +32,7 @@ export function setup(logger: Logger) {
 					}
 
 					if (command.includes('Chat') || command.includes('Agent') || command.includes('Copilot')) {
-						unexpectedFound.push(command);
+						unexpectedFound.add(command);
 					}
 				}
 			}
@@ -41,8 +41,8 @@ export function setup(logger: Logger) {
 				throw new Error(`Expected AI related command not found`);
 			}
 
-			if (unexpectedFound.length > 0) {
-				throw new Error(`Unexpected AI related commands found after having disabled AI features: ${JSON.stringify(unexpectedFound, undefined, 0)}`);
+			if (unexpectedFound.size > 0) {
+				throw new Error(`Unexpected AI related commands found after having disabled AI features: ${JSON.stringify(Array.from(unexpectedFound), undefined, 0)}`);
 			}
 		});
 	});
