@@ -226,6 +226,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private _messageValue: string | { element: HTMLElement; disposables: DisposableStore } | undefined;
 	private _canSelectMany: boolean = false;
 	private _manuallyManageCheckboxes: boolean = false;
+	private _alwaysShowActions: boolean = false;
 	private messageElement: HTMLElement | undefined;
 	private tree: Tree | undefined;
 	private treeLabels: ResourceLabels | undefined;
@@ -522,6 +523,15 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this._manuallyManageCheckboxes = manuallyManageCheckboxes;
 	}
 
+	get alwaysShowActions(): boolean {
+		return this._alwaysShowActions;
+	}
+
+	set alwaysShowActions(alwaysShowActions: boolean) {
+		this._alwaysShowActions = alwaysShowActions;
+		this.updateTreeActionsVisibility();
+	}
+
 	get hasIconForParentNode(): boolean {
 		return this._hasIconForParentNode;
 	}
@@ -675,12 +685,20 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		DOM.append(container, this.domNode);
 	}
 
+	private updateTreeActionsVisibility(): void {
+		if (!this.treeContainer) {
+			return;
+		}
+		this.treeContainer.classList.toggle('always-show-actions', this._alwaysShowActions);
+	}
+
 	private create() {
 		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view');
 		this.messageElement = DOM.append(this.domNode, DOM.$('.message'));
 		this.updateMessage();
 		this.treeContainer = DOM.append(this.domNode, DOM.$('.customview-tree'));
 		this.treeContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
+		this.updateTreeActionsVisibility();
 		const focusTracker = this._register(DOM.trackFocus(this.domNode));
 		this._register(focusTracker.onDidFocus(() => this.focused = true));
 		this._register(focusTracker.onDidBlur(() => this.focused = false));

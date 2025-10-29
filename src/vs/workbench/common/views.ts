@@ -632,6 +632,8 @@ export interface ITreeView extends IDisposable {
 
 	manuallyManageCheckboxes: boolean;
 
+	alwaysShowActions: boolean;
+
 	message?: string | IMarkdownString;
 
 	title: string;

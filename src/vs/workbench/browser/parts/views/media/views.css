@@ -245,6 +245,11 @@
 	display: block;
 }
 
+/* Always show actions when the setting is enabled */
+.customview-tree.always-show-actions .monaco-list .monaco-list-row .custom-view-tree-node-item .actions {
+	display: block;
+}
+
 /* filter view pane */
 
 .monaco-workbench .auxiliarybar.pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item.viewpane-filter-container {

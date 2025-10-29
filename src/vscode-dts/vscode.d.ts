@@ -12117,6 +12117,13 @@ declare module 'vscode' {
 		 *     - [x] Child 2
 		 */
 		manageCheckboxStateManually?: boolean;
+
+		/**
+		 * Whether tree item actions (inline action buttons) should always be visible or only visible on hover, selection, or focus.
+		 * By default, actions are only visible when the tree item is hovered, selected, or focused.
+		 * When set to `true`, actions will always be visible for all tree items.
+		 */
+		alwaysShowActions?: boolean;
 	}
 
 	/**
