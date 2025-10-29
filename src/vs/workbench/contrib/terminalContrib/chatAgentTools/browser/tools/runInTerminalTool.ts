@@ -47,6 +47,9 @@ import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IHistoryService } from '../../../../../services/history/common/history.js';
 
 // #region Tool data
 
@@ -281,13 +284,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IHistoryService private readonly _historyService: IHistoryService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@IChatService private readonly _chatService: IChatService
+		@IChatService private readonly _chatService: IChatService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -369,6 +374,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			} catch (e) {
 				console.error(e);
 				this._logService.info(`RunInTerminalTool: autoApprove: Failed to parse sub-commands via ${treeSitterLanguage} grammar`);
+			}
+
+			const fileWriteCaptures = await this._treeSitterCommandParser.getFileWrites(treeSitterLanguage, actualCommand);
+			if (fileWriteCaptures.length) {
+				this._logService.info('RunInTerminalTool: autoApprove: Detected file writes');
+				let cwd = await instance?.getCwdResource();
+				if (!cwd) {
+					const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+					const workspaceFolder = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
+					cwd = workspaceFolder?.uri;
+				}
+				if (cwd) {
+					const fileUris = fileWriteCaptures.map(e => URI.joinPath(cwd, e.node.text));
+					console.log('.');
+				}
 			}
 
 			if (subCommands) {
