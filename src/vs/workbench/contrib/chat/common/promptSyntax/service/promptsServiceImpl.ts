@@ -94,6 +94,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	private onDidChangeCustomAgentsEmitter: Emitter<void> | undefined;
 
+	/**
+	 * Update trackers for per-type caches, stored to allow sharing with custom agents.
+	 */
+	private updateTrackers: {
+		[PromptsType.prompt]?: UpdateTracker;
+		[PromptsType.instructions]?: UpdateTracker;
+		[PromptsType.agent]?: UpdateTracker;
+	} = {};
+
 	constructor(
 		@ILogService public readonly logger: ILogService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -137,6 +146,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Set up update trackers for per-type caches
 		for (const type of [PromptsType.prompt, PromptsType.instructions, PromptsType.agent]) {
 			const updateTracker = this._register(new UpdateTracker(this.fileLocator, type, this.modelService));
+			this.updateTrackers[type] = updateTracker;
 			this._register(updateTracker.onDidPromptChange((event) => {
 				if (event.kind === 'fileSystem') {
 					this.promptFileByTypeCache[type].clear();
@@ -162,11 +172,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public get onDidChangeCustomAgents(): Event<void> {
 		if (!this.onDidChangeCustomAgentsEmitter) {
 			const emitter = this.onDidChangeCustomAgentsEmitter = this._register(new Emitter<void>());
-			const updateTracker = this._register(new UpdateTracker(this.fileLocator, PromptsType.agent, this.modelService));
-			this._register(updateTracker.onDidPromptChange((event) => {
-				this.cachedCustomAgents = undefined; // reset cached custom agents
-				emitter.fire();
-			}));
+			// Reuse the agent update tracker created in the constructor
+			const updateTracker = this.updateTrackers[PromptsType.agent];
+			if (updateTracker) {
+				this._register(updateTracker.onDidPromptChange((event) => {
+					this.cachedCustomAgents = undefined; // reset cached custom agents
+					emitter.fire();
+				}));
+			}
 		}
 		return this.onDidChangeCustomAgentsEmitter.event;
 	}

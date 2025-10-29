@@ -199,7 +199,7 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Event that is triggered when slash command -> ParsedPromptFile cache is updated.
 	 * Event handler can call resolvePromptSlashCommandFromCache in case there is new value populated.
-	 * @deprecated Use onDidChangeParsedPromptFilesCacheBySlashCommand instead
+	 * @deprecated Use onDidChangeParsedPromptFilesCacheBySlashCommand instead. This will be removed in a future version.
 	 */
 	readonly onDidChangeParsedPromptFilesCache: Event<void>;
 
