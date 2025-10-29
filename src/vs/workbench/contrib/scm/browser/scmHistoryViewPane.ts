@@ -1531,6 +1531,7 @@ export class SCMHistoryViewPane extends ViewPane {
 
 	private readonly _scmProviderCtx: IContextKey<string | undefined>;
 	private readonly _scmCurrentHistoryItemRefHasRemote: IContextKey<boolean>;
+	private readonly _scmCurrentHistoryItemRefHasBase: IContextKey<boolean>;
 	private readonly _scmCurrentHistoryItemRefInFilter: IContextKey<boolean>;
 
 	private readonly _contextMenuDisposables = new MutableDisposable<DisposableStore>();
@@ -1559,6 +1560,7 @@ export class SCMHistoryViewPane extends ViewPane {
 
 		this._scmProviderCtx = ContextKeys.SCMProvider.bindTo(this.scopedContextKeyService);
 		this._scmCurrentHistoryItemRefHasRemote = ContextKeys.SCMCurrentHistoryItemRefHasRemote.bindTo(this.scopedContextKeyService);
+		this._scmCurrentHistoryItemRefHasBase = ContextKeys.SCMCurrentHistoryItemRefHasBase.bindTo(this.scopedContextKeyService);
 		this._scmCurrentHistoryItemRefInFilter = ContextKeys.SCMCurrentHistoryItemRefInFilter.bindTo(this.scopedContextKeyService);
 
 		this._actionRunner = this.instantiationService.createInstance(SCMHistoryViewPaneActionRunner);
@@ -1683,6 +1685,11 @@ export class SCMHistoryViewPane extends ViewPane {
 				// HistoryItemRemoteRef changed
 				reader.store.add(autorun(reader => {
 					this._scmCurrentHistoryItemRefHasRemote.set(!!historyProvider.historyItemRemoteRef.read(reader));
+				}));
+
+				// HistoryItemBaseRef changed
+				reader.store.add(autorun(reader => {
+					this._scmCurrentHistoryItemRefHasBase.set(!!historyProvider.historyItemBaseRef.read(reader));
 				}));
 
 				// ViewMode changed
@@ -1958,6 +1965,10 @@ export class SCMHistoryViewPane extends ViewPane {
 			// HistoryItem
 			this._contextMenuDisposables.value = new DisposableStore();
 
+			const historyProvider = element.repository.provider.historyProvider.get();
+			const historyItemRef = historyProvider?.historyItemRef.get();
+			const historyItem = element.historyItemViewModel.historyItem;
+
 			const historyItemRefMenuItems = MenuRegistry.getMenuItems(MenuId.SCMHistoryItemRefContext).filter(item => isIMenuItem(item));
 
 			// If there are any history item references we have to add a submenu item for each orignal action,
@@ -2020,9 +2031,13 @@ export class SCMHistoryViewPane extends ViewPane {
 				}
 			}
 
+			const contextKeyService = this.scopedContextKeyService.createOverlay([
+				['scmHistoryItemHasCurrentHistoryItemRef', historyItem.references?.find(ref => ref.id === historyItemRef?.id) !== undefined]
+			]);
+
 			const menuActions = this._menuService.getMenuActions(
 				MenuId.SCMHistoryItemContext,
-				this.scopedContextKeyService, {
+				contextKeyService, {
 				arg: element.repository.provider,
 				shouldForwardArgs: true
 			}).filter(group => group[0] !== 'inline');
