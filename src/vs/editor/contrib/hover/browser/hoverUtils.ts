@@ -29,7 +29,7 @@ export function shouldShowHover(
 		return false;
 	}
 	if (multiCursorModifier === 'altKey') {
-		return mouseEvent.event.ctrlKey;
+		return mouseEvent.event.ctrlKey || mouseEvent.event.metaKey;
 	} else {
 		return mouseEvent.event.altKey;
 	}
