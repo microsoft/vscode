@@ -87,8 +87,8 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 					picks.push({
 						...McpResourcePickHelper.item(resource),
 						validateForAttachment: async (): Promise<boolean> => {
-							if (helper.validateForAttachment) {
-								const val = await helper.validateForAttachment(resource, server);
+							if (helper.checkIfDirectoryAndPopulate) {
+								const val = await helper.checkIfDirectoryAndPopulate(resource, server);
 								if (val === true) {
 									helper.addCurrentMCPQuickPickItemLevel(server, resources);
 								} else {

@@ -161,7 +161,7 @@ export class McpResourcePickHelper extends Disposable {
 		return attachmentResult;
 	}
 
-	public async validateForAttachment(resource: IMcpResource | IMcpResourceTemplate, server: IMcpServer): Promise<boolean> {
+	public async checkIfDirectoryAndPopulate(resource: IMcpResource | IMcpResourceTemplate, server: IMcpServer): Promise<boolean> {
 		try {
 			return !await this.navigate(resource, server);
 		} catch (error) {
@@ -436,7 +436,7 @@ export class McpResourcePickHelper extends Disposable {
 	}
 }
 
-export abstract class AbstractMcpResourceAccessPick extends Disposable {
+export abstract class AbstractMcpResourceAccessPick {
 	constructor(
 		private readonly _scopeTo: IMcpServer | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -444,24 +444,24 @@ export abstract class AbstractMcpResourceAccessPick extends Disposable {
 		@IChatWidgetService protected readonly _chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly _viewsService: IViewsService,
 	) {
-		super();
 	}
 
 	protected applyToPick(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions) {
 		picker.canAcceptInBackground = true;
 		picker.busy = true;
 		picker.keepScrollPosition = true;
+		const store = new DisposableStore();
 
 		type ResourceQuickPickItem = IQuickPickItem & { resource: IMcpResource | IMcpResourceTemplate; server: IMcpServer };
 
 		const attachButton = localize('mcp.quickaccess.attach', "Attach to chat");
 
-		const helper = this._register(this._instantiationService.createInstance(McpResourcePickHelper));
+		const helper = store.add(this._instantiationService.createInstance(McpResourcePickHelper));
 		if (this._scopeTo) {
 			helper.explicitServers = [this._scopeTo];
 		}
 		const picksObservable = helper.getPicks(token);
-		this._register(autorun(reader => {
+		store.add(autorun(reader => {
 			const servers = picksObservable.read(reader);
 			const items: (ResourceQuickPickItem | IQuickPickSeparator)[] = [];
 			for (const [server, resources] of servers) {
@@ -476,7 +476,7 @@ export abstract class AbstractMcpResourceAccessPick extends Disposable {
 			picker.busy = false;
 		}));
 
-		this._register(picker.onDidTriggerItemButton(event => {
+		store.add(picker.onDidTriggerItemButton(event => {
 			if (event.button.tooltip === attachButton) {
 				picker.busy = true;
 				const resourceItem = event.item as ResourceQuickPickItem;
@@ -490,8 +490,9 @@ export abstract class AbstractMcpResourceAccessPick extends Disposable {
 			}
 		}));
 
-		this._register(picker.onDidHide(() => {
+		store.add(picker.onDidHide(() => {
 			helper.dispose();
+			store.dispose();
 		}));
 
 		picker.onDidAccept(async event => {
