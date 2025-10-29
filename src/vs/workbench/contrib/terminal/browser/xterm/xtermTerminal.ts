@@ -439,7 +439,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			if (!length || !row) {
 				throw new Error(`No row ${row} or output length ${length} for command ${command}`);
 			}
-			this.raw.select(command.startX ?? 0, row + 1, length - Math.floor(length / this.raw.cols));
+			this.raw.select(0, row + 1, length - Math.floor(length / this.raw.cols));
 		}
 
 		const result = this._serializeAddon.serializeAsHTML({ onlySelection: true });
