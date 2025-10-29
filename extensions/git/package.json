@@ -1021,7 +1021,7 @@
         "command": "git.graph.compareWithMergeBase",
         "title": "%command.graphCompareWithMergeBase%",
         "category": "Git",
-        "enablement": "!operationInProgress && git.currentHistoryItemHasMergeBase"
+        "enablement": "!operationInProgress && scmCurrentHistoryItemRefHasBase"
       }
     ],
     "continueEditSession": [
@@ -2270,11 +2270,6 @@
           "command": "git.graph.openOutgoingChanges",
           "when": "scmProvider == git",
           "group": "1_changes@2"
-        },
-        {
-          "command": "git.graph.compareWithMergeBase",
-          "when": "scmProvider == git",
-          "group": "2_compare@1"
         }
       ],
       "scm/historyItem/context": [
@@ -2302,6 +2297,11 @@
           "command": "git.graph.compareRef",
           "when": "scmProvider == git",
           "group": "5_compare@1"
+        },
+        {
+          "command": "git.graph.compareWithMergeBase",
+          "when": "scmProvider == git && scmHistoryItemHasCurrentHistoryItemRef",
+          "group": "5_compare@2"
         },
         {
           "command": "git.copyCommitId",
