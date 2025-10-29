@@ -33,6 +33,7 @@
 .chat-terminal-content-title.expanded {
 	border-bottom-left-radius: 0px;
 	border-bottom-right-radius: 0px;
+	border-bottom: 0;
 }
 
 .chat-terminal-content-part .chat-terminal-action-bar {
