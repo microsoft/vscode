@@ -22,7 +22,7 @@ import { CommentThreadAdditionalActions } from './commentThreadAdditionalActions
 import { CommentContextKeys } from '../common/commentContextKeys.js';
 import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
 import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
-import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textLinkActiveForeground, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { PANEL_BORDER } from '../../../common/theme.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from './commentColors.js';
@@ -407,11 +407,6 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		const blockQuoteBackground = theme.getColor(textBlockQuoteBackground);
 		if (blockQuoteBackground) {
 			content.push(`.review-widget .body .review-comment blockquote { background: ${blockQuoteBackground}; }`);
-		}
-
-		const blockQuoteBOrder = theme.getColor(textBlockQuoteBorder);
-		if (blockQuoteBOrder) {
-			content.push(`.review-widget .body .review-comment blockquote { border-color: ${blockQuoteBOrder}; }`);
 		}
 
 		const border = theme.getColor(PANEL_BORDER);
