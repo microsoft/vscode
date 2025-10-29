@@ -29,8 +29,7 @@ registerEditorContribution(INLINE_CHAT_ID, InlineChatController1, EditorContribu
 registerEditorContribution(InlineChatController.ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 
 registerAction2(InlineChatActions.KeepSessionAction2);
-registerAction2(InlineChatActions.UndoSessionAction2);
-registerAction2(InlineChatActions.CloseSessionAction2);
+registerAction2(InlineChatActions.UndoAndCloseSessionAction2);
 registerAction2(InlineChatActions.RevealWidget);
 registerAction2(InlineChatActions.CancelRequestAction);
 

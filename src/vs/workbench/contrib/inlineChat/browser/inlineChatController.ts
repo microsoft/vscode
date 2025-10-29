@@ -37,6 +37,7 @@ import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 import { MessageController } from '../../../../editor/contrib/message/browser/messageController.js';
 import { localize } from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -1325,8 +1326,10 @@ export class InlineChatController2 implements IEditorContribution {
 					renderInputOnTop: false,
 					renderStyle: 'compact',
 					filter: _item => false, // filter ALL items
-					rendererOptions: {
-						renderTextEditsAsSummary: _uri => true
+					menus: {
+						telemetrySource: 'inlineChatWidget',
+						executeToolbar: MenuId.ChatEditorInlineExecute,
+						inputSideToolbar: MenuId.ChatEditorInlineInputSide
 					},
 					defaultMode: ChatMode.Ask
 				},
