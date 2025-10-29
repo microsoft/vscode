@@ -612,6 +612,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				themeIcon: Codicon.sendToRemoteAgent,
 				isSticky: false,
 			},
+			isContributedChatSession: true,
 			capabilities: contribution.capabilities,
 			extensionId: ext.identifier,
 			extensionVersion: ext.version,
