@@ -285,11 +285,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 		private readonly _xterm: Terminal,
 		id?: string
 	) {
-<<<<<<< HEAD
-		this.id = id ?? generateUuid();
-=======
 		this.id = generateUuid();
->>>>>>> 65b5887f54e (cleanup)
 	}
 
 	serialize(cwd: string | undefined): ISerializedTerminalCommand | undefined {

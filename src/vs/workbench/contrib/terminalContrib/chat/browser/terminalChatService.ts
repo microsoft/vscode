@@ -11,6 +11,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { IChatService } from '../../../chat/common/chatService.js';
 
 /**
  * Used to manage chat tool invocations and the underlying terminal instances they create/use.
@@ -42,6 +43,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
 
@@ -64,14 +66,19 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			this._updateHasToolTerminalContextKey();
 		}));
 		const listener = this._register(instance.capabilities.get(TerminalCapability.CommandDetection)!.onCommandFinished(e => {
-			console.log('command finished, setting id for tool session:', e.id);
 			this._commandIdByToolSessionId.set(terminalToolSessionId, e.id);
 			this._persistToStorage();
 			listener.dispose();
 		}));
-		// To do, on chat tool session dispose, clear commandIdByToolSessionId map entry
-
-
+		this._register(this._chatService.onDidDisposeSession(e => {
+			if (e.sessionId === terminalToolSessionId) {
+				this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
+				this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
+				this._commandIdByToolSessionId.delete(terminalToolSessionId);
+				this._persistToStorage();
+				this._updateHasToolTerminalContextKey();
+			}
+		}));
 
 		if (typeof instance.persistentProcessId === 'number') {
 			this._persistToStorage();
