@@ -376,9 +376,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._logService.info(`RunInTerminalTool: autoApprove: Failed to parse sub-commands via ${treeSitterLanguage} grammar`);
 			}
 
+			let fileWrites: URI[] | string[] = [];
 			const fileWriteCaptures = await this._treeSitterCommandParser.getFileWrites(treeSitterLanguage, actualCommand);
 			if (fileWriteCaptures.length) {
-				this._logService.info('RunInTerminalTool: autoApprove: Detected file writes');
 				let cwd = await instance?.getCwdResource();
 				if (!cwd) {
 					const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
@@ -386,10 +386,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					cwd = workspaceFolder?.uri;
 				}
 				if (cwd) {
-					const fileUris = fileWriteCaptures.map(e => URI.joinPath(cwd, e.node.text));
-					console.log('.');
+					fileWrites = fileWriteCaptures.map(e => URI.joinPath(cwd, e.node.text));
+				} else {
+					this._logService.info('RunInTerminalTool: autoApprove: Cwd could not be detected');
+					fileWrites = fileWriteCaptures.map(e => e.node.text);
 				}
 			}
+			this._logService.info('RunInTerminalTool: autoApprove: File writes detected', fileWrites.map(e => e.toString()));
+
+
 
 			if (subCommands) {
 				const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));

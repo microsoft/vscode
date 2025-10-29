@@ -337,7 +337,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		enum: ['never', 'outsideWorkspace', 'all'],
 		enumDescriptions: [
 			localize('blockFileWrites.never', "Allow all detected file writes."),
-			localize('blockFileWrites.outsideWorkspace', "Block file writes detected outside the workspace."),
+			localize('blockFileWrites.outsideWorkspace', "Block file writes detected outside the workspace. This depends on the shell integration feature working correctly to determine the current working directory of the terminal."),
 			localize('blockFileWrites.all', "Block all detected file writes."),
 		],
 		default: 'outsideWorkspace',
