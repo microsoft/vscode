@@ -1251,7 +1251,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private async computeHistoryItems(): Promise<IChatHistoryListItem[]> {
 		try {
-			const items = await this.chatService.getHistory();
+			const items = await this.chatService.getLocalSessionHistory();
 			return items
 				.filter(i => !i.isActive)
 				.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0))
