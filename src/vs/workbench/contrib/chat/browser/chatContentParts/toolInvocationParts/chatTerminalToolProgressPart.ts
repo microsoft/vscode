@@ -235,11 +235,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 
 			commandDetectionListener.value = commandDetection.onCommandFinished(command => {
-				if (!this._matchesInvocationCommand(command, terminalInstance)) {
-					if (this._terminalData.terminalCommandUri || this._terminalData.terminalCommandIndex !== undefined) {
-						return;
-					}
-				}
 				this._attachedCommand = command;
 				this._ensureShowOutputAction();
 				commandDetectionListener.clear();
@@ -407,33 +402,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		return container;
 	}
 
-	private _matchesInvocationCommand(command: ITerminalCommand, instance: ITerminalInstance): boolean {
-		const commandUriComponents = this._terminalData.terminalCommandUri;
-		if (commandUriComponents) {
-			const commandUri = URI.revive(commandUriComponents);
-			const commandId = new URLSearchParams(commandUri.query).get('command');
-			if (commandId && command.id === commandId) {
-				return true;
-			}
-		}
-
-		const commandIndex = this._terminalData.terminalCommandIndex;
-		if (commandIndex !== undefined) {
-			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
-			if (commands && commands[commandIndex] === command) {
-				return true;
-			}
-		}
-
-		if (!commandUriComponents && commandIndex === undefined) {
-			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
-			if (commands && commands.at(-1) === command) {
-				return true;
-			}
-		}
-
-		return false;
-	}
 
 	private _resolveCommand(instance: ITerminalInstance, options?: { allowFallback?: boolean }): ITerminalCommand | undefined {
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
