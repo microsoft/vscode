@@ -355,7 +355,7 @@ suite('PromptHoverProvider', () => {
 				'---',
 			].join('\n');
 			const hover = await getHover(content, 2, 1, PromptsType.instructions);
-			assert.strictEqual(hover, 'The name of the instruction file as shown in the UI. If not set, the name is deribved from the file name.');
+			assert.strictEqual(hover, 'The name of the instruction file as shown in the UI. If not set, the name is derived from the file name.');
 		});
 	});
 });
