@@ -88,6 +88,11 @@ export type IChatSessionHistoryItem = {
 	participant: string;
 };
 
+/**
+ * The session type used for local agent chat sessions.
+ */
+export const localChatSessionType = 'local';
+
 export interface IChatSession extends IDisposable {
 	readonly onWillDispose: Event<void>;
 
