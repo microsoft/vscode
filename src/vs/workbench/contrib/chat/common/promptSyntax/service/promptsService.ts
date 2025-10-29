@@ -157,6 +157,11 @@ export interface IPromptsService extends IDisposable {
 	listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]>;
 
 	/**
+	 * List all available prompt files with their parsed content.
+	 */
+	listParsedPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly ParsedPromptFile[]>;
+
+	/**
 	 * List all available prompt files.
 	 */
 	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]>;
@@ -184,10 +189,31 @@ export interface IPromptsService extends IDisposable {
 	resolvePromptSlashCommandFromCache(command: string): ParsedPromptFile | undefined;
 
 	/**
+	 * Gets the parsed prompt file from cache by URI for a specific prompt type.
+	 * If not in cache, triggers async population and returns undefined.
+	 * @param type - the PromptsType to check cache for
+	 * @param uri - the URI of the prompt file
+	 */
+	listParsedPromptsCached(type: PromptsType, uri: URI): ParsedPromptFile | undefined;
+
+	/**
+	 * Event that is triggered when slash command -> ParsedPromptFile cache is updated.
+	 * Event handler can call resolvePromptSlashCommandFromCache in case there is new value populated.
+	 * @deprecated Use onDidChangeParsedPromptFilesCacheBySlashCommand instead
+	 */
+	readonly onDidChangeParsedPromptFilesCache: Event<void>;
+
+	/**
 	 * Event that is triggered when slash command -> ParsedPromptFile cache is updated.
 	 * Event handler can call resolvePromptSlashCommandFromCache in case there is new value populated.
 	 */
-	readonly onDidChangeParsedPromptFilesCache: Event<void>;
+	readonly onDidChangeParsedPromptFilesCacheBySlashCommand: Event<void>;
+
+	/**
+	 * Event that is triggered when the URI -> ParsedPromptFile cache for a specific PromptsType is updated.
+	 * @param type - the PromptsType to listen for cache updates
+	 */
+	onDidChangeParsedPromptFilesCacheByType(type: PromptsType): Event<void>;
 
 	/**
 	 * Returns a prompt command if the command name is valid.
