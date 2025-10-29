@@ -296,7 +296,7 @@ export class ChatService extends Disposable implements IChatService {
 	 * Chat sessions that have already been loaded into the chat view are excluded from the result.
 	 * Imported chat sessions are also excluded from the result.
 	 */
-	async getHistory(): Promise<IChatDetail[]> {
+	async getLocalSessionHistory(): Promise<IChatDetail[]> {
 		const liveSessionItems = Array.from(this._sessionModels.values())
 			.filter(session => !session.isImported && !session.inputType)
 			.map(session => {

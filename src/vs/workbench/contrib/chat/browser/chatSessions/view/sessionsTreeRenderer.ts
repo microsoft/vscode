@@ -577,7 +577,7 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
 		try {
 			// Get all chat history
-			const allHistory = await this.chatService.getHistory();
+			const allHistory = await this.chatService.getLocalSessionHistory();
 
 			// Create history items with provider reference and timestamps
 			const historyItems = allHistory.map((historyDetail): ChatSessionItemWithProvider => ({
