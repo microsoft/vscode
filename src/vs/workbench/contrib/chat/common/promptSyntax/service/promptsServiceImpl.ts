@@ -173,13 +173,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (!this.onDidChangeCustomAgentsEmitter) {
 			const emitter = this.onDidChangeCustomAgentsEmitter = this._register(new Emitter<void>());
 			// Reuse the agent update tracker created in the constructor
-			const updateTracker = this.updateTrackers[PromptsType.agent];
-			if (updateTracker) {
-				this._register(updateTracker.onDidPromptChange((event) => {
-					this.cachedCustomAgents = undefined; // reset cached custom agents
-					emitter.fire();
-				}));
-			}
+			const updateTracker = this.updateTrackers[PromptsType.agent]!;
+			this._register(updateTracker.onDidPromptChange((event) => {
+				this.cachedCustomAgents = undefined; // reset cached custom agents
+				emitter.fire();
+			}));
 		}
 		return this.onDidChangeCustomAgentsEmitter.event;
 	}
