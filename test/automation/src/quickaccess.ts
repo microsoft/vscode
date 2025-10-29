@@ -244,102 +244,20 @@ export class QuickAccess {
 		}
 	}
 
-	async getVisibleCommandNames(searchValue: string, expectedResultCount: number | undefined): Promise<string[]> {
+	async getVisibleCommandNames(searchValue: string): Promise<string[]> {
 
-		if (expectedResultCount === undefined) {
-			// open commands picker
-			await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${searchValue}`);
+		// open commands picker
+		await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${searchValue}`);
 
-			// wait for quick input elements to be available
-			let commandNames: string[] = [];
-			await this.quickInput.waitForQuickInputElements(elementNames => {
-				commandNames = elementNames;
-				return true;
-			});
-
-			// close the quick input
-			await this.quickInput.closeQuickInput();
-
-			return commandNames;
-		}
-
-		const PollingStrategy = {
-			Stop: true,
-			Continue: false
-		};
-
-		let retries = 0;
-		let success = false;
+		// wait for quick input elements to be available
 		let commandNames: string[] = [];
-
-		while (++retries < 10) {
-			let retry = false;
-
-			try {
-				// open commands picker
-				await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${searchValue}`);
-
-				// wait for quick input elements to be available
-				await this.quickInput.waitForQuickInputElements(elementNames => {
-					this.code.logger.log('QuickAccess: getCommandNames resulting elements: ', elementNames);
-
-					// Quick access seems to be still running -> retry
-					if (elementNames.length === 0) {
-						this.code.logger.log('QuickAccess: command search returned 0 elements, will continue polling...');
-
-						return PollingStrategy.Continue;
-					}
-
-					// Quick access does not seem healthy/ready -> retry
-					const firstElementName = elementNames[0];
-					if (firstElementName === 'No matching commands') {
-						if (expectedResultCount === 0) {
-							commandNames = [];
-							success = true;
-
-							return PollingStrategy.Stop;
-						}
-
-						this.code.logger.log(`QuickAccess: command search returned "No matching commands", will retry...`);
-
-						retry = true;
-
-						return PollingStrategy.Stop;
-					}
-
-					// Check if result count matches expected
-					if (elementNames.length === expectedResultCount) {
-						commandNames = elementNames;
-						success = true;
-
-						return PollingStrategy.Stop;
-					}
-
-					this.code.logger.log(`QuickAccess: command search returned ${elementNames.length} results but was expecting ${expectedResultCount}, will retry...`);
-
-					retry = true;
-
-					return PollingStrategy.Stop;
-				});
-			} catch (error) {
-				this.code.logger.log(`QuickAccess: command search waitForQuickInputElements threw an error ${error}, will retry...`);
-
-				retry = true;
-			}
-
-			if (!retry) {
-				break;
-			}
-
-			await this.quickInput.closeQuickInput();
-		}
+		await this.quickInput.waitForQuickInputElements(elementNames => {
+			commandNames = elementNames;
+			return true;
+		});
 
 		// close the quick input
 		await this.quickInput.closeQuickInput();
-
-		if (!success) {
-			throw new Error(`Quick open command search was unable to find ${expectedResultCount} result items after 10 attempts, giving up.`);
-		}
 
 		return commandNames;
 	}

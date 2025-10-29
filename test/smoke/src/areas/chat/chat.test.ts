@@ -16,9 +16,12 @@ export function setup(logger: Logger) {
 			const app = this.app as Application;
 
 			await app.workbench.settingsEditor.addUserSetting('chat.disableAIFeatures', 'true');
-			await app.workbench.quickaccess.getVisibleCommandNames('agent', 0);
 
-			const commands = await app.workbench.quickaccess.getVisibleCommandNames('chat', undefined);
+			// await for setting to apply in the UI
+			await app.code.waitForElements('.noauxiliarybar', true, elements => elements.length === 1);
+
+			// assert that AI related commands are not present
+			const commands = await app.workbench.quickaccess.getVisibleCommandNames('chat');
 			let expectedFound = false;
 			const unexpectedFound: string[] = [];
 			for (const command of commands) {
