@@ -28,10 +28,10 @@ export class ExtHostChatContext implements ExtHostChatContextShape {
 	async $provideChatContext(handle: number, options: {}, token: CancellationToken): Promise<IChatContextItem[]> {
 		this._items.delete(handle); // clear previous items
 		const provider = this._getProvider(handle);
-		if (!provider.provideChatContext) {
+		if (!provider.provideChatContextExplicit) {
 			throw new Error('provideChatContext not implemented');
 		}
-		const result = (await provider.provideChatContext!(options, token)) ?? [];
+		const result = (await provider.provideChatContextExplicit!(options, token)) ?? [];
 		const items: IChatContextItem[] = [];
 		for (const item of result) {
 			const itemHandle = this._itemPool++;

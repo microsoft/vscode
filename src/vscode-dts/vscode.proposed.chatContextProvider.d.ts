@@ -26,9 +26,31 @@ declare module 'vscode' {
 
 	export interface ChatContextProvider<T extends ChatContextItem = ChatContextItem> {
 
-		provideChatContext?(options: {}, token: CancellationToken): ProviderResult<T[] | undefined>;
+		/**
+		 * Provide a list of chat context items that a user can choose from. Shows when the user asks to view chat context items a provider.
+		 * Chat context items can be provided without a `value`, as the `value` can be resolved later using `resolveChatContext`.
+		 *
+		 * @param options
+		 * @param token
+		 */
+		provideChatContextExplicit?(options: {}, token: CancellationToken): ProviderResult<T[]>;
 
+		/**
+		 * Given a particular resource, provide a chat context item for it. This is used for implicit context (see the settings `chat.implicitContext.enabled` and `chat.implicitContext.suggestedContext`).
+		 * Chat context items can be provided without a `value`, as the `value` can be resolved later using `resolveChatContext`.
+		 *
+		 * @param resource
+		 * @param options
+		 * @param token
+		 */
 		provideChatContextForResource?(resource: Uri, options: {}, token: CancellationToken): ProviderResult<T | undefined>;
+
+		/**
+		 * If a chat context item is provided without a `value`, from either of the `provide` methods, this method is called to resolve the `value` for the item.
+		 *
+		 * @param context
+		 * @param token
+		 */
 		resolveChatContext(context: T, token: CancellationToken): ProviderResult<ChatContextItem>;
 	}
 

@@ -49,9 +49,6 @@ export class WebviewEditor extends EditorPane {
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
 	public override get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
 
-	private readonly _onDidChangeInput = this._register(new Emitter<WebviewInput | undefined>());
-	public get onDidChangeInput(): Event<WebviewInput | undefined> { return this._onDidChangeInput.event; }
-
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IScopedContextKeyService>());
 
 	constructor(
@@ -156,7 +153,6 @@ export class WebviewEditor extends EditorPane {
 		await input.resolve();
 
 		if (token.isCancellationRequested || this._isDisposed) {
-			this._onDidChangeInput.fire(input instanceof WebviewInput ? input : undefined);
 			return;
 		}
 
@@ -169,7 +165,6 @@ export class WebviewEditor extends EditorPane {
 			if (this._dimension) {
 				this.layout(this._dimension);
 			}
-			this._onDidChangeInput.fire(input);
 		}
 	}
 

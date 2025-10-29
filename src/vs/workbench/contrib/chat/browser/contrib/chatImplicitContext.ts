@@ -5,7 +5,7 @@
 
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
@@ -45,7 +45,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILanguageModelIgnoredFilesService private readonly ignoredFilesService: ILanguageModelIgnoredFilesService,
-		@IChatContextService private readonly chatContextService: IChatContextService,
+		@IChatContextService private readonly chatContextService: IChatContextService
 	) {
 		super();
 		this._currentCancelTokenSource = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -96,16 +96,9 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				}
 				const webviewEditor = this.findActiveWebviewEditor();
 				if (webviewEditor) {
-					const inputDisposable: MutableDisposable<IDisposable> = activeEditorDisposables.add(new MutableDisposable<IDisposable>());
-					activeEditorDisposables.add(webviewEditor.onDidChangeInput(input => {
-						inputDisposable.value = input?.onDidChangeLabel(() => {
-							this.updateImplicitContext();
-						});
+					activeEditorDisposables.add(Event.debounce((webviewEditor.input as WebviewInput).webview.onMessage, () => undefined, 500)(() => {
 						this.updateImplicitContext();
 					}));
-					inputDisposable.value = webviewEditor.input?.onDidChangeLabel(() => {
-						this.updateImplicitContext();
-					});
 				}
 
 				this.updateImplicitContext();
