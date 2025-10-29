@@ -14,7 +14,7 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
-import { autorun, autorunWithStore, derived, IObservable, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -1371,7 +1371,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 		const visibleSessionObs = observableValue<IInlineChatSession2 | undefined>(this, undefined);
 
-		this._store.add(autorunWithStore((r, store) => {
+		this._store.add(autorun(r => {
 
 			const model = editorObs.model.read(r);
 			const session = this._currentSession.read(r);
@@ -1415,8 +1415,6 @@ export class InlineChatController2 implements IEditorContribution {
 
 				entry?.autoAcceptController.read(undefined)?.cancel();
 
-				// const requestCount = observableFromEvent(this, session.chatModel.onDidChange, () => session.chatModel.getRequests().length).read(r);
-				// this._zone.value.widget.updateToolbar(requestCount > 0);
 			}
 		}));
 
@@ -1424,6 +1422,8 @@ export class InlineChatController2 implements IEditorContribution {
 
 			const session = visibleSessionObs.read(r);
 			const entry = session?.editingSession.readEntry(session.uri, r);
+
+			// make sure there is an editor integration
 			const pane = this._editorService.visibleEditorPanes.find(candidate => candidate.getControl() === this._editor || isNotebookWithCellEditor(candidate, this._editor));
 			if (pane && entry) {
 				entry?.getEditorIntegration(pane);

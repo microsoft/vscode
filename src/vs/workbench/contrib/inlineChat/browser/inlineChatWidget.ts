@@ -593,6 +593,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 
 	override reset() {
 		this._accessibleViewer.clear();
+		this.chatWidget.setInput();
 		super.reset();
 	}
 
