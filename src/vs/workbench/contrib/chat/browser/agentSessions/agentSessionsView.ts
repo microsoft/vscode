@@ -141,10 +141,9 @@ export class AgentSessionsView extends ViewPane {
 			return;
 		}
 
-		const uri = session.resource;
-		const existingSessionEditor = findExistingChatEditorByUri(uri, session.id, this.editorGroupsService);
+		const existingSessionEditor = findExistingChatEditorByUri(session.resource, this.editorGroupsService);
 		if (existingSessionEditor) {
-			await this.editorGroupsService.getGroup(existingSessionEditor.groupId)?.openEditor(existingSessionEditor.editor, e.editorOptions);
+			await existingSessionEditor.group.openEditor(existingSessionEditor.editor, e.editorOptions);
 			return;
 		}
 
@@ -158,7 +157,7 @@ export class AgentSessionsView extends ViewPane {
 		sessionOptions.ignoreInView = true;
 
 		await this.editorService.openEditor({
-			resource: uri,
+			resource: session.resource,
 			options: upcast<IEditorOptions, IChatEditorOptions>({
 				...sessionOptions,
 				title: { preferred: session.label },
