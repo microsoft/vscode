@@ -249,8 +249,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		const shouldShowHover = this._shouldShowHover(mouseEvent);
-		if (shouldShowHover) {
+		if (this._shouldShowHover(mouseEvent)) {
 			const contentWidget: ContentHoverWidgetWrapper = this._getOrCreateContentWidget();
 			if (contentWidget.showsOrWillShow(mouseEvent)) {
 				return;
@@ -269,10 +268,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (this._hoverSettings.enabled === 'off') {
 			return false;
 		}
-		// enabled === 'onKeyboardModifier'
 		const multiCursorModifier = this._editor.getOption(EditorOption.multiCursorModifier);
-		// If multiCursorModifier is 'ctrlKey' or 'metaKey', check for altKey
-		// If multiCursorModifier is 'altKey', check for ctrlKey
 		if (multiCursorModifier === 'altKey') {
 			return mouseEvent.event.ctrlKey;
 		} else {

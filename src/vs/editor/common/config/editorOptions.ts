@@ -2380,7 +2380,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			return this.defaultValue;
 		}
 		const input = _input as Unknown<IEditorHoverOptions>;
-		// Handle backward compatibility with boolean values
+		// Backward compatibility
 		if (typeof input.enabled === 'boolean') {
 			input.enabled = input.enabled ? 'on' : 'off';
 		}
