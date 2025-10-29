@@ -54,6 +54,9 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 			type: 'pickerPick',
 			label: localize('mcp.addContext', "MCP Resources..."),
 			icon: Codicon.mcp,
+			isEnabled(widget) {
+				return !!widget.attachmentCapabilities.supportsMCPAttachments;
+			},
 			asPicker: () => {
 				const helper = this._instantiationService.createInstance(McpResourcePickHelper);
 				return {

@@ -34,7 +34,6 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -121,7 +120,6 @@ export class GettingStartedPage extends EditorPane {
 
 	public static readonly ID = 'gettingStartedPage';
 
-	private editorInput!: GettingStartedInput;
 	private inProgressScroll = Promise.resolve();
 
 	private readonly dispatchListeners: DisposableStore = new DisposableStore();
@@ -164,6 +162,10 @@ export class GettingStartedPage extends EditorPane {
 
 	private readonly categoriesSlideDisposables: DisposableStore;
 	private showFeaturedWalkthrough = true;
+
+	get editorInput(): GettingStartedInput {
+		return this._input as GettingStartedInput;
+	}
 
 	constructor(
 		group: IEditorGroup,
@@ -340,11 +342,28 @@ export class GettingStartedPage extends EditorPane {
 		};
 	}
 
-	override async setInput(newInput: GettingStartedInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
-		this.container.classList.remove('animatable');
-		this.editorInput = newInput;
-		this.editorInput.showTelemetryNotice = (options as GettingStartedEditorOptions)?.showTelemetryNotice ?? true;
+	override async setInput(newInput: GettingStartedInput, options: GettingStartedEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
 		await super.setInput(newInput, options, context, token);
+		await this.applyInput(options);
+	}
+
+	override async setOptions(options: GettingStartedEditorOptions | undefined): Promise<void> {
+		super.setOptions(options);
+
+		if (
+			this.editorInput.selectedCategory !== options?.selectedCategory ||
+			this.editorInput.selectedStep !== options?.selectedStep
+		) {
+			await this.applyInput(options);
+		}
+	}
+
+	private async applyInput(options: GettingStartedEditorOptions | undefined): Promise<void> {
+		this.editorInput.showTelemetryNotice = options?.showTelemetryNotice ?? true;
+		this.editorInput.selectedCategory = options?.selectedCategory;
+		this.editorInput.selectedStep = options?.selectedStep;
+
+		this.container.classList.remove('animatable');
 		await this.buildCategoriesSlide();
 		if (this.shouldAnimate()) {
 			setTimeout(() => this.container.classList.add('animatable'), 0);
@@ -541,6 +560,7 @@ export class GettingStartedPage extends EditorPane {
 		});
 
 		if (this.currentMediaType !== stepToExpand.media.type) {
+			this.mediaDisposables.clear();
 
 			this.currentMediaType = stepToExpand.media.type;
 

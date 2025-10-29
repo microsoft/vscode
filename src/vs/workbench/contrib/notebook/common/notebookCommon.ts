@@ -292,7 +292,7 @@ export interface INotebookSnapshotOptions {
 	transientOptions?: TransientOptions;
 }
 
-export interface INotebookTextModel extends INotebookTextModelLike {
+export interface INotebookTextModel extends INotebookTextModelLike, IDisposable {
 	readonly notebookType: string;
 	readonly viewType: string;
 	metadata: NotebookDocumentMetadata;

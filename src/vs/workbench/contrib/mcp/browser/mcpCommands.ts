@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, disposableWindowInterval, EventType, h } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, disposableWindowInterval, EventType } from '../../../../base/browser/dom.js';
 import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { IManagedHoverTooltipHTMLElement } from '../../../../base/browser/ui/hover/hover.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -30,7 +30,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { nativeHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -91,9 +90,9 @@ export class ListMcpServerCommand extends Action2 {
 					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 					ChatContextKeys.lockedToCodingAgent.negate()
 				),
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 2,
+				order: 101,
 			}],
 		});
 	}
@@ -109,6 +108,8 @@ export class ListMcpServerCommand extends Action2 {
 		const pick = quickInput.createQuickPick<ItemType>({ useSeparators: true });
 		pick.placeholder = localize('mcp.selectServer', 'Select an MCP Server');
 
+		mcpService.activateCollections();
+
 		store.add(pick);
 
 		store.add(autorun(reader => {
@@ -116,9 +117,9 @@ export class ListMcpServerCommand extends Action2 {
 			const firstRun = pick.items.length === 0;
 			pick.items = [
 				{ id: '$add', label: localize('mcp.addServer', 'Add Server'), description: localize('mcp.addServer.description', 'Add a new server configuration'), alwaysShow: true, iconClass: ThemeIcon.asClassName(Codicon.add) },
-				...Object.values(servers).filter(s => s.length).flatMap((servers): (ItemType | IQuickPickSeparator)[] => [
-					{ type: 'separator', label: servers[0].collection.label, id: servers[0].collection.id },
-					...servers.map(server => ({
+				...Object.values(servers).filter(s => s!.length).flatMap((servers): (ItemType | IQuickPickSeparator)[] => [
+					{ type: 'separator', label: servers![0].collection.label, id: servers![0].collection.id },
+					...servers!.map(server => ({
 						id: server.definition.id,
 						label: server.definition.label,
 						description: McpConnectionState.toString(server.connectionState.read(reader)),
@@ -477,7 +478,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			}
 		});
 
-		this._store.add(actionViewItemService.register(MenuId.ChatExecute, McpCommandIds.ListServer, (action, options) => {
+		this._store.add(actionViewItemService.register(MenuId.ChatInput, McpCommandIds.ListServer, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
@@ -488,34 +489,30 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 
 					super.render(container);
 					container.classList.add('chat-mcp');
+					container.style.position = 'relative';
 
-					const action = h('button.chat-mcp-action', [h('span@icon')]);
+					const stateIndicator = container.appendChild($('.chat-mcp-state-indicator'));
+					stateIndicator.style.display = 'none';
 
 					this._register(autorun(r => {
 						const displayed = displayedState.read(r);
 						const { state } = displayed;
-						const { root, icon } = action;
 						this.updateTooltip();
-						container.classList.toggle('chat-mcp-has-action', state !== DisplayedState.None);
 
-						if (!root.parentElement) {
-							container.appendChild(root);
-						}
 
-						root.ariaLabel = this.getLabelForState(displayed);
-						root.className = 'chat-mcp-action';
-						icon.className = '';
+						stateIndicator.ariaLabel = this.getLabelForState(displayed);
+						stateIndicator.className = 'chat-mcp-state-indicator';
 						if (state === DisplayedState.NewTools) {
-							root.classList.add('chat-mcp-action-new');
-							icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.refresh));
+							stateIndicator.style.display = 'block';
+							stateIndicator.classList.add('chat-mcp-state-new', ...ThemeIcon.asClassNameArray(Codicon.refresh));
 						} else if (state === DisplayedState.Error) {
-							root.classList.add('chat-mcp-action-error');
-							icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+							stateIndicator.style.display = 'block';
+							stateIndicator.classList.add('chat-mcp-state-error', ...ThemeIcon.asClassNameArray(Codicon.warning));
 						} else if (state === DisplayedState.Refreshing) {
-							root.classList.add('chat-mcp-action-refreshing');
-							icon.classList.add(...ThemeIcon.asClassNameArray(spinningLoading));
+							stateIndicator.style.display = 'block';
+							stateIndicator.classList.add('chat-mcp-state-refreshing', ...ThemeIcon.asClassNameArray(spinningLoading));
 						} else {
-							root.remove();
+							stateIndicator.style.display = 'none';
 						}
 					}));
 				}
@@ -605,7 +602,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 							const checkbox = store.add(new Checkbox(
 								settingLabelStr,
 								config.get() !== McpAutoStartValue.Never,
-								{ ...defaultCheckboxStyles, hoverDelegate: nativeHoverDelegate }
+								{ ...defaultCheckboxStyles }
 							));
 
 							checkboxContainer.appendChild(checkbox.domNode);

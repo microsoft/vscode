@@ -275,8 +275,9 @@ registerTerminalAction({
 });
 
 registerActiveInstanceAction({
-	id: TerminalSuggestCommandId.RequestCompletions,
-	title: localize2('workbench.action.terminal.requestCompletions', 'Request Completions'),
+	id: TerminalSuggestCommandId.TriggerSuggest,
+	title: localize2('workbench.action.terminal.triggerSuggest', 'Trigger Suggest'),
+	f1: false,
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space },
@@ -484,29 +485,18 @@ class TerminalSuggestProvidersConfigurationManager extends Disposable {
 	}
 
 	private _updateConfiguration(): void {
-		const providerInfos: ITerminalSuggestProviderInfo[] = [];
-
 		// Add statically declared providers from package.json contributions
-		for (const contributedProvider of this._terminalContributionService.terminalCompletionProviders) {
-			providerInfos.push({
-				id: contributedProvider.id,
-				description: contributedProvider.description
-			});
-		}
+		const providers = new Map<string, ITerminalSuggestProviderInfo>();
+		this._terminalContributionService.terminalCompletionProviders.forEach(o => providers.set(o.id, o));
 
 		// Add dynamically registered providers (that aren't already declared statically)
-		const staticProviderIds = new Set(providerInfos.map(p => p.id));
-		const dynamicProviders = Array.from(this._terminalCompletionService.providers);
-		for (const provider of dynamicProviders) {
-			if (provider.id && !staticProviderIds.has(provider.id)) {
-				providerInfos.push({
-					id: provider.id,
-					description: undefined
-				});
+		for (const { id } of this._terminalCompletionService.providers) {
+			if (id && !providers.has(id)) {
+				providers.set(id, { id });
 			}
 		}
 
-		registerTerminalSuggestProvidersConfiguration(providerInfos);
+		registerTerminalSuggestProvidersConfiguration(providers);
 	}
 }
 

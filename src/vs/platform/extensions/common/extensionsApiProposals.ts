@@ -62,7 +62,7 @@ const _allApiProposals = {
 	},
 	chatSessionsProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatSessionsProvider.d.ts',
-		version: 2
+		version: 3
 	},
 	chatStatusItem: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatStatusItem.d.ts',
@@ -141,9 +141,6 @@ const _allApiProposals = {
 	},
 	contribRemoteHelp: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribRemoteHelp.d.ts',
-	},
-	contribSecondarySidebar: {
-		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribSecondarySidebar.d.ts',
 	},
 	contribShareMenu: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribShareMenu.d.ts',
@@ -274,6 +271,9 @@ const _allApiProposals = {
 	mappedEditsProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.mappedEditsProvider.d.ts',
 	},
+	mcpToolDefinitions: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.mcpToolDefinitions.d.ts',
+	},
 	multiDocumentHighlightProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.multiDocumentHighlightProvider.d.ts',
 	},
@@ -324,6 +324,9 @@ const _allApiProposals = {
 	},
 	quickInputButtonLocation: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.quickInputButtonLocation.d.ts',
+	},
+	quickPickItemResource: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.quickPickItemResource.d.ts',
 	},
 	quickPickItemTooltip: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.quickPickItemTooltip.d.ts',
@@ -388,9 +391,6 @@ const _allApiProposals = {
 	telemetry: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.telemetry.d.ts',
 	},
-	terminalCompletionProvider: {
-		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.terminalCompletionProvider.d.ts',
-	},
 	terminalDataWriteEvent: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.terminalDataWriteEvent.d.ts',
 	},
@@ -438,6 +438,9 @@ const _allApiProposals = {
 	},
 	toolProgress: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.toolProgress.d.ts',
+	},
+	treeItemMarkdownLabel: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.treeItemMarkdownLabel.d.ts',
 	},
 	treeViewActiveItem: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.treeViewActiveItem.d.ts',

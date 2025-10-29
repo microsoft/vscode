@@ -16,7 +16,7 @@ import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/ex
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
-import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
+import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerStaticMetadata, McpServerStaticToolAvailability, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { ExtHostMcpShape, IMcpAuthenticationDetails, IStartMcpOptions, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
@@ -24,6 +24,8 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
 import { IExtHostVariableResolverProvider } from './extHostVariableResolverService.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { McpHttpServerDefinition, McpStdioServerDefinition, McpToolAvailability } from './extHostTypes.js';
 
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
@@ -76,10 +78,13 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	}
 
 	$stopMcp(id: number): void {
-		if (this._sseEventSources.has(id)) {
-			this._sseEventSources.deleteAndDispose(id);
-			this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Stopped });
-		}
+		this._sseEventSources.get(id)
+			?.close()
+			.then(() => this._didClose(id));
+	}
+
+	private _didClose(id: number) {
+		this._sseEventSources.deleteAndDispose(id);
 	}
 
 	$sendMessage(id: number, message: string): void {
@@ -140,10 +145,25 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 					id = id + i;
 				}
 
+				let staticMetadata: McpServerStaticMetadata | undefined;
+				const castAs2 = item as McpStdioServerDefinition | McpHttpServerDefinition;
+				if (isProposedApiEnabled(extension, 'mcpToolDefinitions') && castAs2.metadata) {
+					staticMetadata = {
+						capabilities: castAs2.metadata.capabilities as MCP.ServerCapabilities,
+						instructions: castAs2.metadata.instructions,
+						serverInfo: castAs2.metadata.serverInfo as MCP.Implementation,
+						tools: castAs2.metadata.tools?.map(t => ({
+							availability: t.availability === McpToolAvailability.Dynamic ? McpServerStaticToolAvailability.Dynamic : McpServerStaticToolAvailability.Initial,
+							definition: t.definition as MCP.Tool,
+						})),
+					};
+				}
+
 				servers.push({
 					id,
 					label: item.label,
 					cacheNonce: item.version || '$$NONE',
+					staticMetadata,
 					launch: Convert.McpServerDefinition.from(item),
 				});
 			}
@@ -217,6 +237,7 @@ export class McpHTTPHandle extends Disposable {
 		resourceMetadata?: IAuthorizationProtectedResourceMetadata;
 		scopes?: string[];
 	};
+	private _didSendClose = false;
 
 	constructor(
 		private readonly _id: number,
@@ -247,7 +268,38 @@ export class McpHTTPHandle extends Disposable {
 		}
 	}
 
-	_send(message: string) {
+	async close() {
+		if (this._mode.value === HttpMode.Http && this._mode.sessionId && !this._didSendClose) {
+			this._didSendClose = true;
+			try {
+				await this._closeSession(this._mode.sessionId);
+			} catch {
+				// ignored -- already logged
+			}
+		}
+
+		this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Stopped });
+	}
+
+	private async _closeSession(sessionId: string) {
+		const headers: Record<string, string> = {
+			...Object.fromEntries(this._launch.headers),
+			'Mcp-Session-Id': sessionId,
+		};
+
+		await this._addAuthHeader(headers);
+
+		// no fetch with retry here -- don't try to auth if we get an auth failure
+		await this._fetch(
+			this._launch.uri.toString(true),
+			{
+				method: 'DELETE',
+				headers,
+			},
+		);
+	}
+
+	private _send(message: string) {
 		if (this._mode.value === HttpMode.SSE) {
 			return this._sendLegacySSE(this._mode.endpoint, message);
 		} else {

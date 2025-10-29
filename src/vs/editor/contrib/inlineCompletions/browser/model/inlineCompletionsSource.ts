@@ -109,6 +109,8 @@ export class InlineCompletionsSource extends Disposable {
 				}
 			}));
 		}
+
+		this._state.recomputeInitiallyAndOnChange(this._store);
 	}
 
 	private _updateCompletionsEnablement(enalementSetting: string) {
@@ -268,8 +270,10 @@ export class InlineCompletionsSource extends Disposable {
 					const result = suggestions.map(c => ({
 						range: c.editRange.toString(),
 						text: c.insertText,
-						isInlineEdit: !!c.isInlineEdit,
-						source: c.source.provider.groupId,
+						hint: c.hint,
+						isInlineEdit: c.isInlineEdit,
+						showInlineEditMenu: c.showInlineEditMenu,
+						providerId: c.source.provider.providerId?.toString(),
 					}));
 					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now(), didAllProvidersReturn });
 				}
@@ -399,7 +403,6 @@ export class InlineCompletionsSource extends Disposable {
 		}
 
 		const emptyEndOfLifeEvent: InlineCompletionEndOfLifeEvent = {
-			id: requestResponseInfo.requestUuid,
 			opportunityId: requestResponseInfo.requestUuid,
 			noSuggestionReason: requestResponseInfo.noSuggestionReason ?? 'unknown',
 			extensionId: 'vscode-core',
@@ -418,7 +421,6 @@ export class InlineCompletionsSource extends Disposable {
 			timeUntilProviderResponse: undefined,
 			viewKind: undefined,
 			preceeded: undefined,
-			error: undefined,
 			superseded: undefined,
 			reason: undefined,
 			correlationId: undefined,

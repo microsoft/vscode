@@ -10,7 +10,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { AutoOpenBarrier, Barrier, Promises, disposableTimeout, timeout } from '../../../../base/common/async.js';
+import { AutoOpenBarrier, Promises, disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { debounce } from '../../../../base/common/decorators.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
@@ -72,7 +72,7 @@ import { IEnvironmentVariableInfo } from '../common/environmentVariable.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
-import { getWorkspaceForTerminal, preparePathForShell } from '../common/terminalEnvironment.js';
+import { getUriLabelForShell, getShellIntegrationTimeout, getWorkspaceForTerminal, preparePathForShell } from '../common/terminalEnvironment.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
@@ -92,6 +92,7 @@ import { TerminalContribCommandId } from '../terminalContribExports.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { PromptInputState } from '../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 
 const enum Constants {
 	/**
@@ -200,10 +201,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private readonly _scopedContextKeyService: IContextKeyService;
 	private _resizeDebouncer?: TerminalResizeDebouncer;
-	private _pauseInputEventBarrier: Barrier | undefined;
-	pauseInputEvents(barrier: Barrier): void {
-		this._pauseInputEventBarrier = barrier;
-	}
 
 	readonly capabilities = this._register(new TerminalCapabilityStoreMultiplexer());
 	readonly statusList: ITerminalStatusList;
@@ -278,7 +275,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
 	get shellType(): TerminalShellType | undefined { return this._shellType; }
 	get os(): OperatingSystem | undefined { return this._processManager.os; }
-	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
+	get hasRemoteAuthority(): boolean { return this._processManager.remoteAuthority !== undefined; }
 	get remoteAuthority(): string | undefined { return this._processManager.remoteAuthority; }
 	get hasFocus(): boolean { return dom.isAncestorOfActiveElement(this._wrapperElement); }
 	get title(): string { return this._title; }
@@ -654,6 +651,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._contributions.get(id) as T | null;
 	}
 
+	private async _handleOnData(data: string): Promise<void> {
+		await this._processManager.write(data);
+		this._onDidInputData.fire(data);
+	}
+
 	private _getIcon(): TerminalIcon | undefined {
 		if (!this._icon) {
 			this._icon = this._processManager.processState >= ProcessState.Launching
@@ -787,7 +789,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const disableShellIntegrationReporting = (this.shellLaunchConfig.executable === undefined || this.shellType === undefined) || !shellIntegrationSupportedShellTypes.includes(this.shellType);
-		const xterm = this._scopedInstantiationService.createInstance(XtermTerminal, Terminal, {
+		const xterm = this._scopedInstantiationService.createInstance(XtermTerminal, this._resource, Terminal, {
 			cols: this._cols,
 			rows: this._rows,
 			xtermColorProvider: this._scopedInstantiationService.createInstance(TerminalInstanceColorProvider, this._targetRef),
@@ -800,15 +802,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			() => this._isVisible,
 			() => xterm,
 			async (cols, rows) => {
-				xterm.raw.resize(cols, rows);
+				xterm.resize(cols, rows);
 				await this._updatePtyDimensions(xterm.raw);
 			},
 			async (cols) => {
-				xterm.raw.resize(cols, xterm.raw.rows);
+				xterm.resize(cols, xterm.raw.rows);
 				await this._updatePtyDimensions(xterm.raw);
 			},
 			async (rows) => {
-				xterm.raw.resize(xterm.raw.cols, rows);
+				xterm.resize(xterm.raw.cols, rows);
 				await this._updatePtyDimensions(xterm.raw);
 			}
 		));
@@ -848,9 +850,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._register(this._processManager.onProcessData(e => this._onProcessData(e)));
 		this._register(xterm.raw.onData(async data => {
-			await this._pauseInputEventBarrier?.wait();
-			await this._processManager.write(data);
-			this._onDidInputData.fire(data);
+			await this._handleOnData(data);
 		}));
 		this._register(xterm.raw.onBinary(data => this._processManager.processBinary(data)));
 		// Init winpty compat and link handler after process creation as they rely on the
@@ -862,7 +862,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (processTraits?.windowsPty?.backend === 'conpty') {
 				this._register(xterm.raw.parser.registerCsiHandler({ final: 'c' }, params => {
 					if (params.length === 0 || params.length === 1 && params[0] === 0) {
-						this._processManager.write('\x1b[?61;4c');
+						this._handleOnData('\x1b[?61;4c');
 						return true;
 					}
 					return false;
@@ -917,18 +917,31 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
+		const timeoutMs = getShellIntegrationTimeout(
+			this._configurationService,
+			siInjectionEnabled,
+			this.hasRemoteAuthority,
+			this._processManager.processReadyTimestamp
+		);
 
-		// Await command detection if the terminal is starting up
-		if (!commandDetection && (this._processManager.processState === ProcessState.Uninitialized || this._processManager.processState === ProcessState.Launching)) {
+		if (!commandDetection || commandDetection.promptInputModel.state !== PromptInputState.Input) {
 			const store = new DisposableStore();
+
 			await Promise.race([
 				new Promise<void>(r => {
 					store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
 						commandDetection = e;
-						r();
+						if (commandDetection.promptInputModel.state === PromptInputState.Input) {
+							r();
+						} else {
+							store.add(commandDetection.promptInputModel.onDidStartInput(() => {
+								r();
+							}));
+						}
 					}));
 				}),
-				timeout(2000),
+				timeout(timeoutMs)
 			]);
 			store.dispose();
 		}
@@ -1330,6 +1343,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os);
 	}
 
+	async getUriLabelForShell(uri: URI): Promise<string> {
+		// Wait for shell type to be ready
+		await this.processReady;
+		return getUriLabelForShell(uri, this._processManager.backend!, this.shellType, this.os);
+	}
+
 	setVisible(visible: boolean): void {
 		const didChange = this._isVisible !== visible;
 		this._isVisible = visible;
@@ -1512,7 +1531,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Re-evaluate dimensions if the container has been set since the xterm instance was created
 		if (this._container && this._cols === 0 && this._rows === 0) {
 			this._initDimensions();
-			this.xterm?.raw.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
+			this.xterm?.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
 		}
 		const originalIcon = this.shellLaunchConfig.icon;
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows).then(result => {

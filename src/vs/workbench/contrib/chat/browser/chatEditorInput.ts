@@ -16,11 +16,12 @@ import * as nls from '../../../../nls.js';
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
+import { IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
@@ -39,6 +40,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	public sessionId: string | undefined;
 	private hasCustomTitle: boolean = false;
+	private cachedIcon: ThemeIcon | URI | undefined;
 
 	private model: IChatModel | undefined;
 
@@ -61,6 +63,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		readonly options: IChatEditorOptions,
 		@IChatService private readonly chatService: IChatService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -69,8 +72,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			if (!parsed || typeof parsed !== 'number') {
 				throw new Error('Invalid chat URI');
 			}
-		} else if (resource.scheme !== Schemas.vscodeChatSession) {
-			throw new Error('Invalid chat URI');
 		}
 
 		this.sessionId = (options.target && 'sessionId' in options.target) ?
@@ -139,15 +140,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			return false;
 		}
 
-		if (this.resource.scheme === Schemas.vscodeChatSession) {
-			return isEqual(this.resource, otherInput.resource);
-		}
-
 		if (this.resource.scheme === Schemas.vscodeChatEditor && otherInput.resource.scheme === Schemas.vscodeChatEditor) {
 			return this.sessionId === otherInput.sessionId;
 		}
 
-		return false;
+		return isEqual(this.resource, otherInput.resource);
 	}
 
 	override get typeId(): string {
@@ -176,21 +173,75 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			}
 		}
 
+		// If a preferred title was provided in options, use it
+		if (this.options.title?.preferred) {
+			return this.options.title.preferred;
+		}
+
 		// Fall back to default naming pattern
 		const inputCountSuffix = (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
 		const defaultName = this.options.title?.fallback ?? nls.localize('chatEditorName', "Chat");
 		return defaultName + inputCountSuffix;
 	}
 
-	override getIcon(): ThemeIcon {
+	override getTitle(verbosity?: Verbosity): string {
+		const name = this.getName();
+		if (verbosity === Verbosity.LONG) { // Verbosity LONG is used for tooltips
+			const sessionType = this.getSessionType();
+			const sessionTypeDisplayName = this.getSessionTypeDisplayName(sessionType);
+			if (sessionTypeDisplayName) {
+				return `${name} | ${sessionTypeDisplayName}`;
+			}
+		}
+		return name;
+	}
+
+	private getSessionTypeDisplayName(sessionType: string): string | undefined {
+		if (sessionType === localChatSessionType) {
+			return;
+		}
+		const contributions = this.chatSessionsService.getAllChatSessionContributions();
+		const contribution = contributions.find(c => c.type === sessionType);
+		return contribution?.displayName;
+	}
+
+	override getIcon(): ThemeIcon | URI | undefined {
+		const resolvedIcon = this.resolveIcon();
+		if (resolvedIcon) {
+			this.cachedIcon = resolvedIcon;
+			return resolvedIcon;
+		}
+
+		// Fall back to default icon
 		return ChatEditorIcon;
+	}
+
+	private resolveIcon(): ThemeIcon | URI | undefined {
+		// TODO@osortega,@rebornix double check: Chat Session Item icon is reserved for chat session list and deprecated for chat session status. thus here we use session type icon. We may want to show status for the Editor Title.
+		const sessionType = this.getSessionType();
+		if (sessionType !== localChatSessionType) {
+			const typeIcon = this.chatSessionsService.getIconForSessionType(sessionType);
+			if (typeIcon) {
+				return typeIcon;
+			}
+		}
+
+		return undefined;
+	}
+
+	public getSessionType(): string {
+		if (this.resource.scheme === Schemas.vscodeChatEditor || this.resource.scheme === Schemas.vscodeChatSession) {
+			return localChatSessionType;
+		}
+
+		return this.resource.scheme;
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
 		const searchParams = new URLSearchParams(this.resource.query);
 		const chatSessionType = searchParams.get('chatSessionType');
 		const inputType = chatSessionType ?? this.resource.authority;
-		if (this.resource.scheme === Schemas.vscodeChatSession) {
+		if (this.resource.scheme !== Schemas.vscodeChatEditor) {
 			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Chat, CancellationToken.None);
 		} else if (typeof this.sessionId === 'string') {
 			this.model = await this.chatService.getOrRestoreSession(this.sessionId)
@@ -215,10 +266,30 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 					ChatEditorInput.countsInUseMap.delete(this.inputName);
 				}
 			}
+			// Invalidate icon cache when label changes
+			this.cachedIcon = undefined;
 			this._onDidChangeLabel.fire();
 		}));
 
+		// Check if icon has changed after model resolution
+		const newIcon = this.resolveIcon();
+		if (newIcon && (!this.cachedIcon || !this.iconsEqual(this.cachedIcon, newIcon))) {
+			this.cachedIcon = newIcon;
+		}
+
+		this._onDidChangeLabel.fire();
+
 		return this._register(new ChatEditorModel(this.model));
+	}
+
+	private iconsEqual(a: ThemeIcon | URI, b: ThemeIcon | URI): boolean {
+		if (ThemeIcon.isThemeIcon(a) && ThemeIcon.isThemeIcon(b)) {
+			return a.id === b.id;
+		}
+		if (a instanceof URI && b instanceof URI) {
+			return a.toString() === b.toString();
+		}
+		return false;
 	}
 
 	override dispose(): void {
