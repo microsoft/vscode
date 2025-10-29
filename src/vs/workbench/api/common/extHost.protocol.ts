@@ -1309,8 +1309,8 @@ export interface ExtHostLanguageModelsShape {
 }
 
 export interface ExtHostChatContextShape {
-	$provideChatContext(handle: number, options: {}, token: CancellationToken): Promise<IChatContextItem[]>;
-	$provideChatContextForResource(handle: number, resource: UriComponents, options: {}, token: CancellationToken): Promise<IChatContextItem | undefined>;
+	$provideChatContext(handle: number, token: CancellationToken): Promise<IChatContextItem[]>;
+	$provideChatContextForResource(handle: number, options: { resource: UriComponents }, token: CancellationToken): Promise<IChatContextItem | undefined>;
 	$resolveChatContext(handle: number, context: IChatContextItem, token: CancellationToken): Promise<IChatContextItem>;
 }
 

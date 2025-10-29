@@ -25,13 +25,13 @@ export class ExtHostChatContext implements ExtHostChatContextShape {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadChatContext);
 	}
 
-	async $provideChatContext(handle: number, options: {}, token: CancellationToken): Promise<IChatContextItem[]> {
+	async $provideChatContext(handle: number, token: CancellationToken): Promise<IChatContextItem[]> {
 		this._items.delete(handle); // clear previous items
 		const provider = this._getProvider(handle);
 		if (!provider.provideChatContextExplicit) {
 			throw new Error('provideChatContext not implemented');
 		}
-		const result = (await provider.provideChatContextExplicit!(options, token)) ?? [];
+		const result = (await provider.provideChatContextExplicit!(token)) ?? [];
 		const items: IChatContextItem[] = [];
 		for (const item of result) {
 			const itemHandle = this._itemPool++;
@@ -50,14 +50,14 @@ export class ExtHostChatContext implements ExtHostChatContextShape {
 		return items;
 	}
 
-	async $provideChatContextForResource(handle: number, resource: UriComponents, options: {}, token: CancellationToken): Promise<IChatContextItem | undefined> {
+	async $provideChatContextForResource(handle: number, options: { resource: UriComponents }, token: CancellationToken): Promise<IChatContextItem | undefined> {
 		const provider = this._getProvider(handle);
 
 		if (!provider.provideChatContextForResource) {
 			throw new Error('provideChatContextForResource not implemented');
 		}
 
-		let result = await provider.provideChatContextForResource(URI.revive(resource), options, token);
+		let result = await provider.provideChatContextForResource({ resource: URI.revive(options.resource) }, token);
 		if (result && (result.value === undefined)) {
 			result = await provider.resolveChatContext(result, token);
 		}

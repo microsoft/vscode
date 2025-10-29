@@ -111,7 +111,7 @@ export class ChatContextService extends Disposable {
 						iconClass: ThemeIcon.asClassName(item.icon),
 						asAttachment: async (): Promise<IGenericChatRequestVariableEntry> => {
 							let contextValue = item;
-							if (providerEntry?.chatContextProvider?.provider!.resolveChatContext) {
+							if ((contextValue.value === undefined) && providerEntry?.chatContextProvider?.provider!.resolveChatContext) {
 								contextValue = await providerEntry.chatContextProvider.provider.resolveChatContext(item, CancellationToken.None);
 							}
 							return {

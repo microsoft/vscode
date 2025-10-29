@@ -29,13 +29,13 @@ export class MainThreadChatContext extends Disposable implements MainThreadChatC
 		this._providers.set(handle, { selector, support, id });
 		this._chatContextService.registerChatContextProvider(id, selector, {
 			provideChatContext: (token: CancellationToken) => {
-				return this._proxy.$provideChatContext(handle, {}, token);
+				return this._proxy.$provideChatContext(handle, token);
 			},
 			resolveChatContext: support.supportsResolve ? (context: IChatContextItem, token: CancellationToken) => {
 				return this._proxy.$resolveChatContext(handle, context, token);
 			} : undefined,
 			provideChatContextForResource: support.supportsResource ? (resource: URI, token: CancellationToken) => {
-				return this._proxy.$provideChatContextForResource(handle, resource, {}, token);
+				return this._proxy.$provideChatContextForResource(handle, { resource }, token);
 			} : undefined
 		});
 	}
