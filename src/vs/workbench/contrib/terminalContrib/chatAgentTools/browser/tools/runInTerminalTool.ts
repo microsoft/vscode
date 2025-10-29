@@ -50,6 +50,8 @@ import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../tre
 import { URI } from '../../../../../../base/common/uri.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
+import { type ICommandLineAnalyzer, type ICommandLineAnalyzerOptions } from './commandLineAnalyzer/commandLineAnalyzer.js';
+import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 
 // #region Tool data
 
@@ -265,6 +267,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _commandSimplifier: CommandSimplifier;
 	private readonly _treeSitterCommandParser: TreeSitterCommandParser;
 	private readonly _telemetry: RunInTerminalToolTelemetry;
+	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
 	protected readonly _commandLineAutoApprover: CommandLineAutoApprover;
 	protected readonly _profileFetcher: TerminalProfileFetcher;
 	protected readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
@@ -302,6 +305,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._treeSitterCommandParser = this._instantiationService.createInstance(TreeSitterCommandParser);
 		this._commandSimplifier = _instantiationService.createInstance(CommandSimplifier, this._osBackend, this._treeSitterCommandParser);
 		this._telemetry = _instantiationService.createInstance(RunInTerminalToolTelemetry);
+		this._commandLineAnalyzers = [
+			this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`CommandLineFileWriteAnalyzer: ${message}`, args)),
+		];
 		this._commandLineAutoApprover = this._register(_instantiationService.createInstance(CommandLineAutoApprover));
 		this._profileFetcher = _instantiationService.createInstance(TerminalProfileFetcher);
 
@@ -394,46 +400,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			this._logService.info('RunInTerminalTool: autoApprove: File writes detected', fileWrites.map(e => e.toString()));
 
-			// Check file write protection
-			let isFileWriteBlocked = false;
-			if (fileWrites.length > 0) {
-				const blockDetectedFileWrites = this._configurationService.getValue<string>(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites);
-				switch (blockDetectedFileWrites) {
-					case 'all': {
-						isFileWriteBlocked = true;
-						this._logService.info('RunInTerminalTool: autoApprove: File writes blocked due to "all" setting');
-						break;
-					}
-					case 'outsideWorkspace': {
-						// Check if any file writes are outside the workspace
-						const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
-						if (workspaceFolders.length > 0) {
-							for (const fileWrite of fileWrites) {
-								const fileUri = URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite);
-								const isInsideWorkspace = workspaceFolders.some(folder =>
-									folder.uri.scheme === fileUri.scheme &&
-									(fileUri.path.startsWith(folder.uri.path + '/') || fileUri.path === folder.uri.path)
-								);
-								if (!isInsideWorkspace) {
-									isFileWriteBlocked = true;
-									this._logService.info(`RunInTerminalTool: autoApprove: File write blocked outside workspace: ${fileUri.toString()}`);
-									break;
-								}
-							}
-						} else {
-							// No workspace folders, consider all writes as outside workspace
-							isFileWriteBlocked = true;
-							this._logService.info('RunInTerminalTool: autoApprove: File writes blocked - no workspace folders');
-						}
-						break;
-					}
-					case 'never':
-					default: {
-						// Allow all file writes
-						break;
-					}
-				}
-			}
+			const commandLineAnalyzerOptions: ICommandLineAnalyzerOptions = {
+				instance,
+				commandLine: actualCommand,
+				os,
+				shell,
+				treeSitterLanguage,
+			};
+			const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
 
 			if (subCommands) {
 				const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
@@ -483,7 +457,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 
 				// Apply auto approval or force it off depending on enablement/opt-in state
-				if (isAutoApproveEnabled && !isFileWriteBlocked) {
+				if (isAutoApproveEnabled && commandLineAnalyzerResults.every(r => r.isAutoApproveAllowed)) {
 					autoApproveInfo = this._createAutoApproveInfo(
 						isAutoApproved,
 						isDenied,
@@ -493,9 +467,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					);
 				} else {
 					isAutoApproved = false;
-					if (isFileWriteBlocked) {
-						this._logService.info('RunInTerminalTool: autoApprove: Auto approval disabled due to blocked file writes');
-					}
 				}
 
 				// Send telemetry about auto approval process
@@ -510,16 +481,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 				// Add disclaimers for various security concerns
 				const disclaimers: string[] = [];
-
-				// File write warning
-				if (fileWrites.length > 0) {
-					const fileWritesList = fileWrites.map(fw => URI.isUri(fw) ? fw.fsPath : fw).join(', ');
-					if (isFileWriteBlocked) {
-						disclaimers.push(localize('runInTerminal.fileWriteBlockedDisclaimer', 'File write operations detected that cannot be auto approved: {0}', fileWritesList));
-					} else {
-						disclaimers.push(localize('runInTerminal.fileWriteDisclaimer', 'File write operations detected: {0}', fileWritesList));
-					}
-				}
+				disclaimers.push(...commandLineAnalyzerResults.map(e => e.disclaimers).flat());
 
 				// Prompt injection warning for common commands that return content from the web
 				const subCommandsLowerFirstWordOnly = subCommands.map(command => command.split(' ')[0].toLowerCase());
@@ -544,7 +506,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (shellType === 'powershell') {
 				shellType = 'pwsh';
 			}
-			confirmationMessages = (isAutoApproved && isAutoApproveAllowed && !isFileWriteBlocked) ? undefined : {
+			confirmationMessages = (isAutoApproved && isAutoApproveAllowed && commandLineAnalyzerResults.every(r => r.isAutoApproveAllowed)) ? undefined : {
 				title: args.isBackground
 					? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
 					: localize('runInTerminal', "Run `{0}` command?", shellType),
