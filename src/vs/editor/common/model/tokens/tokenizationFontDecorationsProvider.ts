@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IDecorationOptions, IDecorationRenderOptions } from '../../editorCommon.js';
-import { IModelDecoration, IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from '../../model.js';
+import { IModelDecoration } from '../../model.js';
 import { TokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { Range } from '../../core/range.js';
-import { Position } from '../../core/position.js';
 import { DecorationProvider } from '../decorationProvider.js';
 import { TextModel } from '../textModel.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IFontOption } from '../../languages.js';
+import { IModelOptionsChangedEvent } from '../../textModelEvents.js';
 
 export class TokenizationFontDecorationProvider extends Disposable implements DecorationProvider {
 
@@ -33,16 +32,9 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 		});
 	}
 
-	//#endregion
+	public handleDidChangeOptions(e: IModelOptionsChangedEvent): void { }
 
 	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
-		if (ownerId === undefined) {
-			return [];
-		}
-		// What is the best structure to access the decorations in a given range?
-		/**
-
-		 */
 		const decorations: IModelDecoration[] = [];
 		for (let i = range.startLineNumber; i < range.endLineNumber; i++) {
 			if (this.specialFontInfo.has(i)) {
@@ -52,7 +44,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 						id: `font-decoration-${i}-${fontOption.startIndex}-${fontOption.length}`,
 						options: {
 							description: 'FontOptionDecoration',
-							inlineClassName: '',
+							inlineClassName: `font-decoration-${i}-${fontOption.startIndex}-${fontOption.length}`,
 						},
 						ownerId: 0,
 						range: new Range(i, fontOption.startIndex + 1, i, fontOption.startIndex + 1 + fontOption.length)
@@ -64,12 +56,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	}
 
 	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
-		if (ownerId === undefined) {
-			return [];
-		}
-		if (!this.colorizationOptions.enabled) {
-			return [];
-		}
 		return this.getDecorationsInRange(
 			new Range(1, 1, this.textModel.getLineCount(), 1),
 			ownerId,
@@ -77,48 +63,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 		);
 	}
 }
-
-class ColorProvider {
-	public readonly unexpectedClosingBracketClassName = 'unexpected-closing-bracket';
-
-	getInlineClassName(bracket: BracketInfo, independentColorPoolPerBracketType: boolean): string {
-		if (bracket.isInvalid) {
-			return this.unexpectedClosingBracketClassName;
-		}
-		return this.getInlineClassNameOfLevel(independentColorPoolPerBracketType ? bracket.nestingLevelOfEqualBracketType : bracket.nestingLevel);
-	}
-
-	getInlineClassNameOfLevel(level: number): string {
-		// To support a dynamic amount of colors up to 6 colors,
-		// we use a number that is a lcm of all numbers from 1 to 6.
-		return `bracket-highlighting-${level % 30}`;
-	}
-}
-
-registerThemingParticipant((theme, collector) => {
-	const colors = [
-		editorBracketHighlightingForeground1,
-		editorBracketHighlightingForeground2,
-		editorBracketHighlightingForeground3,
-		editorBracketHighlightingForeground4,
-		editorBracketHighlightingForeground5,
-		editorBracketHighlightingForeground6
-	];
-	const colorProvider = new ColorProvider();
-
-	// The colors are added into the collector
-	collector.addRule(`.monaco-editor .${colorProvider.unexpectedClosingBracketClassName} { color: ${theme.getColor(editorBracketHighlightingUnexpectedBracketForeground)}; }`);
-
-	const colorValues = colors
-		.map(c => theme.getColor(c))
-		.filter((c): c is Color => !!c)
-		.filter(c => !c.isTransparent());
-
-	for (let level = 0; level < 30; level++) {
-		const color = colorValues[level % colorValues.length];
-		collector.addRule(`.monaco-editor .${colorProvider.getInlineClassNameOfLevel(level)} { color: ${color}; }`);
-	}
-});
 
 /*
 export class TokenizationFontDecorations extends Disposable {

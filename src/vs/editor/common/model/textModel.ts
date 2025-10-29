@@ -50,7 +50,7 @@ import { TokenArray } from '../tokens/lineTokens.js';
 import { SetWithKey } from '../../../base/common/collections.js';
 import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { TextEdit } from '../core/edits/textEdit.js';
-import { TokenizationFontDecorations } from './tokens/tokenizationFontDecorationsProvider.js';
+import { TokenizationFontDecorationProvider } from './tokens/tokenizationFontDecorationsProvider.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -291,6 +291,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _decorations: { [decorationId: string]: IntervalNode };
 	private _decorationsTree: DecorationsTrees;
 	private readonly _decorationProvider: ColorizedBracketPairsDecorationProvider;
+	private readonly _fontDecorationProvider: TokenizationFontDecorationProvider;
 	//#endregion
 
 	private readonly _tokenizationTextModelPart: TokenizationTextModelPart;
@@ -366,7 +367,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			languageId,
 			this._attachedViews
 		);
-		this._register(this.instantiationService.createInstance(TokenizationFontDecorations, this, this._tokenizationTextModelPart));
+		this._fontDecorationProvider = this._register(new TokenizationFontDecorationProvider(this, this._tokenizationTextModelPart));
 
 		this._isTooLargeForSyncing = (bufferTextLength > TextModel._MODEL_SYNC_LIMIT);
 
@@ -389,6 +390,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 
 		this._register(this._decorationProvider.onDidChange(() => {
+			this._onDidChangeDecorations.beginDeferredEmit();
+			this._onDidChangeDecorations.fire();
+			this._onDidChangeDecorations.endDeferredEmit();
+		}));
+		this._register(this._fontDecorationProvider.onDidChange(() => {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._onDidChangeDecorations.fire();
 			this._onDidChangeDecorations.endDeferredEmit();
@@ -689,6 +695,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		this._bracketPairs.handleDidChangeOptions(e);
 		this._decorationProvider.handleDidChangeOptions(e);
+		this._fontDecorationProvider.handleDidChangeOptions(e);
 		this._onDidChangeOptions.fire(e);
 	}
 
@@ -1778,6 +1785,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const decorations = this._getDecorationsInRange(range, ownerId, filterOutValidation, filterFontDecorations, onlyMarginDecorations);
 		// After we fetch the decorations, we add the ones from the bracket decoration provider
 		pushMany(decorations, this._decorationProvider.getDecorationsInRange(range, ownerId, filterOutValidation));
+		pushMany(decorations, this._fontDecorationProvider.getDecorationsInRange(range, ownerId, filterOutValidation));
 		return decorations;
 	}
 
@@ -1787,6 +1795,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const decorations = this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation, filterFontDecorations, onlyMarginDecorations);
 		// After we fetch the decorations, we add the ones from the bracket decoration provider
 		pushMany(decorations, this._decorationProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation, onlyMinimapDecorations));
+		pushMany(decorations, this._fontDecorationProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation, onlyMinimapDecorations));
 		return decorations;
 	}
 
@@ -1820,6 +1829,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		// getting all the decorations from the tree and concatenating with those from the bracket pairs
 		let result = this._decorationsTree.getAll(this, ownerId, filterOutValidation, filterFontDecorations, false, false);
 		result = result.concat(this._decorationProvider.getAllDecorations(ownerId, filterOutValidation));
+		result = result.concat(this._fontDecorationProvider.getAllDecorations(ownerId, filterOutValidation));
 		return result;
 	}
 
