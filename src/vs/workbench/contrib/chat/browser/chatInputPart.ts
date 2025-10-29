@@ -1931,7 +1931,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			let added = 0;
 			let removed = 0;
 			const entries = modifiedEntries.read(reader);
-			for (const entry of modifiedEntries.read(reader)) {
+			for (const entry of entries) {
 				if (entry.linesAdded && entry.linesRemoved) {
 					added += entry.linesAdded.read(reader);
 					removed += entry.linesRemoved.read(reader);
@@ -2007,7 +2007,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			dom.append(innerContainer, workingSetContainer);
 		}
 
-		autorun(reader => {
+		store.add(autorun(reader => {
 			const entries = listEntries.read(reader);
 			const maxItemsShown = 6;
 			const itemsShown = Math.min(entries.length, maxItemsShown);
@@ -2017,7 +2017,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			list.getHTMLElement().style.height = `${height}px`;
 			list.splice(0, list.length, entries);
 			this._onDidChangeHeight.fire();
-		});
+		}));
 	}
 
 	async renderChatRelatedFiles() {
