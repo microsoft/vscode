@@ -394,7 +394,46 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			this._logService.info('RunInTerminalTool: autoApprove: File writes detected', fileWrites.map(e => e.toString()));
 
-
+			// Check file write protection
+			let isFileWriteBlocked = false;
+			if (fileWrites.length > 0) {
+				const blockDetectedFileWrites = this._configurationService.getValue<string>(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites);
+				switch (blockDetectedFileWrites) {
+					case 'all': {
+						isFileWriteBlocked = true;
+						this._logService.info('RunInTerminalTool: autoApprove: File writes blocked due to "all" setting');
+						break;
+					}
+					case 'outsideWorkspace': {
+						// Check if any file writes are outside the workspace
+						const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
+						if (workspaceFolders.length > 0) {
+							for (const fileWrite of fileWrites) {
+								const fileUri = URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite);
+								const isInsideWorkspace = workspaceFolders.some(folder =>
+									folder.uri.scheme === fileUri.scheme &&
+									(fileUri.path.startsWith(folder.uri.path + '/') || fileUri.path === folder.uri.path)
+								);
+								if (!isInsideWorkspace) {
+									isFileWriteBlocked = true;
+									this._logService.info(`RunInTerminalTool: autoApprove: File write blocked outside workspace: ${fileUri.toString()}`);
+									break;
+								}
+							}
+						} else {
+							// No workspace folders, consider all writes as outside workspace
+							isFileWriteBlocked = true;
+							this._logService.info('RunInTerminalTool: autoApprove: File writes blocked - no workspace folders');
+						}
+						break;
+					}
+					case 'never':
+					default: {
+						// Allow all file writes
+						break;
+					}
+				}
+			}
 
 			if (subCommands) {
 				const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
@@ -444,7 +483,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 
 				// Apply auto approval or force it off depending on enablement/opt-in state
-				if (isAutoApproveEnabled) {
+				if (isAutoApproveEnabled && !isFileWriteBlocked) {
 					autoApproveInfo = this._createAutoApproveInfo(
 						isAutoApproved,
 						isDenied,
@@ -454,6 +493,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					);
 				} else {
 					isAutoApproved = false;
+					if (isFileWriteBlocked) {
+						this._logService.info('RunInTerminalTool: autoApprove: Auto approval disabled due to blocked file writes');
+					}
 				}
 
 				// Send telemetry about auto approval process
@@ -466,14 +508,31 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					autoApproveDefault
 				});
 
-				// Add a disclaimer warning about prompt injection for common commands that return
-				// content from the web
+				// Add disclaimers for various security concerns
+				const disclaimers: string[] = [];
+
+				// File write warning
+				if (fileWrites.length > 0) {
+					const fileWritesList = fileWrites.map(fw => URI.isUri(fw) ? fw.fsPath : fw).join(', ');
+					if (isFileWriteBlocked) {
+						disclaimers.push(localize('runInTerminal.fileWriteBlockedDisclaimer', 'File write operations detected that cannot be auto approved: {0}', fileWritesList));
+					} else {
+						disclaimers.push(localize('runInTerminal.fileWriteDisclaimer', 'File write operations detected: {0}', fileWritesList));
+					}
+				}
+
+				// Prompt injection warning for common commands that return content from the web
 				const subCommandsLowerFirstWordOnly = subCommands.map(command => command.split(' ')[0].toLowerCase());
 				if (!isAutoApproved && (
 					subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLower.includes(command)) ||
 					(isPowerShell(shell, os) && subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLowerPwshOnly.includes(command)))
 				)) {
-					disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + localize('runInTerminal.promptInjectionDisclaimer', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true });
+					disclaimers.push(localize('runInTerminal.promptInjectionDisclaimer', 'Web content may contain malicious code or attempt prompt injection attacks.'));
+				}
+
+				// Combine disclaimers
+				if (disclaimers.length > 0) {
+					disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimers.join(' '), { supportThemeIcons: true });
 				}
 
 				if (!isAutoApproved && isAutoApproveEnabled) {
@@ -485,7 +544,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (shellType === 'powershell') {
 				shellType = 'pwsh';
 			}
-			confirmationMessages = (isAutoApproved && isAutoApproveAllowed) ? undefined : {
+			confirmationMessages = (isAutoApproved && isAutoApproveAllowed && !isFileWriteBlocked) ? undefined : {
 				title: args.isBackground
 					? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
 					: localize('runInTerminal', "Run `{0}` command?", shellType),
