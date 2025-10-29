@@ -95,13 +95,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private onDidChangeCustomAgentsEmitter: Emitter<void> | undefined;
 
 	/**
-	 * Update trackers for per-type caches, stored to allow sharing with custom agents.
+	 * Agent update tracker for reuse within `onDidChangeCustomAgents()`.
 	 */
-	private updateTrackers: {
-		[PromptsType.prompt]?: UpdateTracker;
-		[PromptsType.instructions]?: UpdateTracker;
-		[PromptsType.agent]?: UpdateTracker;
-	} = {};
+	private agentUpdateTracker: UpdateTracker | undefined;
 
 	constructor(
 		@ILogService public readonly logger: ILogService,
@@ -146,7 +142,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Set up update trackers for per-type caches
 		for (const type of [PromptsType.prompt, PromptsType.instructions, PromptsType.agent]) {
 			const updateTracker = this._register(new UpdateTracker(this.fileLocator, type, this.modelService));
-			this.updateTrackers[type] = updateTracker;
+			// Store only the agent update tracker for reuse in onDidChangeCustomAgents()
+			if (type === PromptsType.agent) {
+				this.agentUpdateTracker = updateTracker;
+			}
 			this._register(updateTracker.onDidPromptChange((event) => {
 				if (event.kind === 'fileSystem') {
 					this.promptFileByTypeCache[type].clear();
@@ -173,7 +172,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (!this.onDidChangeCustomAgentsEmitter) {
 			const emitter = this.onDidChangeCustomAgentsEmitter = this._register(new Emitter<void>());
 			// Reuse the agent update tracker created in the constructor
-			const updateTracker = this.updateTrackers[PromptsType.agent]!;
+			const updateTracker = this.agentUpdateTracker!;
 			this._register(updateTracker.onDidPromptChange((event) => {
 				this.cachedCustomAgents = undefined; // reset cached custom agents
 				emitter.fire();
