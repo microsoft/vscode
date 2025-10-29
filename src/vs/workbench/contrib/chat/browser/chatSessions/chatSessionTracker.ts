@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { GroupModelChangeKind } from '../../../../common/editor.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './common.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../common/chatSessionsService.js';
-import { IChatService } from '../../common/chatService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatModel } from '../../common/chatModel.js';
+import { IChatService } from '../../common/chatService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './common.js';
 
 export class ChatSessionTracker extends Disposable {
 	private readonly _onDidChangeEditors = this._register(new Emitter<{ sessionType: string; kind: GroupModelChangeKind }>());
@@ -71,7 +71,7 @@ export class ChatSessionTracker extends Disposable {
 	}
 
 	async getHybridSessionsForProvider(provider: IChatSessionItemProvider): Promise<IChatSessionItem[]> {
-		if (provider.chatSessionType === 'local') {
+		if (provider.chatSessionType === localChatSessionType) {
 			return []; // Local provider doesn't need hybrid sessions
 		}
 
