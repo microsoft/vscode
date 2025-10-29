@@ -1673,16 +1673,24 @@ export class Repository {
 		return result.stdout;
 	}
 
-	async diffBetween(ref1: string, ref2: string, options: { path?: string; similarityThreshold?: number; symmetric?: boolean }): Promise<string | Change[]> {
-		const range = options.symmetric ? `${ref1}...${ref2}` : `${ref1}..${ref2}`;
-		if (!options.path) {
-			return await this.diffFiles(range, { cached: false, similarityThreshold: options.similarityThreshold });
+	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
+	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
+	diffBetween(ref1: string, ref2: string, path?: string | undefined): Promise<string | Change[]>;
+	async diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
+		const range = `${ref1}...${ref2}`;
+		if (!path) {
+			return await this.diffFiles(range, { cached: false });
 		}
 
-		const args = ['diff', range, '--', this.sanitizeRelativePath(options.path)];
+		const args = ['diff', range, '--', this.sanitizeRelativePath(path)];
 		const result = await this.exec(args);
 
 		return result.stdout.trim();
+	}
+
+	async diffBetween2(ref1: string, ref2: string, options: { similarityThreshold?: number; symmetric?: boolean }): Promise<Change[]> {
+		const range = options.symmetric ? `${ref1}...${ref2}` : `${ref1}..${ref2}`;
+		return await this.diffFiles(range, { cached: false, similarityThreshold: options.similarityThreshold });
 	}
 
 	private async diffFiles(ref: string | undefined, options: { cached: boolean; similarityThreshold?: number }): Promise<Change[]> {
