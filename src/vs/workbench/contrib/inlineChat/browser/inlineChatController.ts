@@ -1428,6 +1428,19 @@ export class InlineChatController2 implements IEditorContribution {
 			if (pane && entry) {
 				entry?.getEditorIntegration(pane);
 			}
+
+			// make sure the ZONE isn't inbetween a diff and move above if so
+			if (entry?.diffInfo && this._zone.value.position) {
+				const { position } = this._zone.value;
+				const diff = entry.diffInfo.read(r);
+
+				for (const change of diff.changes) {
+					if (change.modified.contains(position.lineNumber)) {
+						this._zone.value.updatePositionAndHeight(new Position(change.modified.startLineNumber - 1, 1));
+						break;
+					}
+				}
+			}
 		}));
 	}
 
