@@ -5,23 +5,23 @@
 
 /* Alert color mappings using theme variables */
 blockquote[data-severity="note"] {
-	--vscode-textBlockQuote-border: var(--vscode-editorInfo-foreground);
+	--vscode-textBlockQuote-border: var(--vscode-markdownAlert-noteBorder);
 }
 
 blockquote[data-severity="tip"] {
-	--vscode-textBlockQuote-border: var(--vscode-charts-green);
+	--vscode-textBlockQuote-border: var(--vscode-markdownAlert-tipBorder);
 }
 
 blockquote[data-severity="important"] {
-	--vscode-textBlockQuote-border: var(--vscode-charts-purple);
+	--vscode-textBlockQuote-border: var(--vscode-markdownAlert-importantBorder);
 }
 
 blockquote[data-severity="warning"] {
-	--vscode-textBlockQuote-border: var(--vscode-editorWarning-foreground);
+	--vscode-textBlockQuote-border: var(--vscode-markdownAlert-warningBorder);
 }
 
 blockquote[data-severity="caution"] {
-	--vscode-textBlockQuote-border: var(--vscode-editorError-foreground);
+	--vscode-textBlockQuote-border: var(--vscode-markdownAlert-cautionBorder);
 }
 
 /* Alert title styling */
