@@ -28,8 +28,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { IChatRequestImplicitVariableEntry, IGenericChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
-import { IChatRequestStringVariable } from '../../common/chatVariables.js';
+import { IChatRequestImplicitVariableEntry, IGenericChatRequestVariableEntry, isStringImplicitContextValue } from '../../common/chatVariableEntries.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatAttachmentModel } from '../chatAttachmentModel.js';
 
@@ -69,7 +68,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const attachmentTypeName = file?.scheme === Schemas.vscodeNotebookCell ? localize('cell.lowercase', "cell") : localize('file.lowercase', "file");
 
 		let title: string;
-		if (typeof this.attachment.value === 'string') {
+		if (isStringImplicitContextValue(this.attachment.value)) {
 			title = this.renderString(label);
 		} else {
 			title = this.renderResource(this.attachment.value, label);
@@ -186,22 +185,14 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		if (!this.attachment.value) {
 			return;
 		}
-		if (typeof this.attachment.value === 'string') {
-			let chatStringValue: IChatRequestStringVariable | string;
-			if (this.attachment.uri) {
-				chatStringValue = {
-					value: this.attachment.value,
-					uri: this.attachment.uri
-				};
-			} else {
-				chatStringValue = this.attachment.value;
-			}
+		if (isStringImplicitContextValue(this.attachment.value)) {
 			const context: IGenericChatRequestVariableEntry = {
 				kind: 'generic',
-				value: chatStringValue,
+				value: this.attachment.value,
 				id: 'implicitContext-' + Date.now(),
 				name: this.attachment.name,
-				icon: this.attachment.icon
+				icon: this.attachment.icon,
+				modelDescription: this.attachment.value.modelDescription
 			};
 			this.attachmentModel.addContext(context);
 		} else {

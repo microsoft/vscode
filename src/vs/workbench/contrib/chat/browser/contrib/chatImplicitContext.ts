@@ -23,7 +23,7 @@ import { WebviewEditor } from '../../../webviewPanel/browser/webviewEditor.js';
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
-import { IChatRequestImplicitVariableEntry, IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
+import { IChatRequestImplicitVariableEntry, IChatRequestVariableEntry, isStringImplicitContextValue, StringChatContextValue } from '../../common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { getPromptsTypeForLanguageId } from '../../common/promptSyntax/promptTypes.js';
@@ -170,7 +170,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		const codeEditor = this.findActiveCodeEditor();
 		const model = codeEditor?.getModel();
 		const selection = codeEditor?.getSelection();
-		let newValue: Location | URI | StringImplicitContextValue | undefined;
+		let newValue: Location | URI | StringChatContextValue | undefined;
 		let isSelection = false;
 
 		let languageId: string | undefined;
@@ -234,7 +234,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 					value: webviewContext.value,
 					name: webviewContext.label,
 					icon: webviewContext.icon,
-					uri: webviewEditor.input.resource
+					uri: webviewEditor.input.resource,
+					modelDescription: webviewContext.modelDescription
 				};
 			}
 		}
@@ -269,34 +270,12 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 	}
 }
 
-export interface StringImplicitContextValue {
-	value: string;
-	name: string;
-	icon: ThemeIcon;
-	uri: URI;
-}
-
-export function isStringImplicitContextValue(value: unknown): value is StringImplicitContextValue {
-	const asStringImplicitContextValue = value as Partial<StringImplicitContextValue>;
-	return (
-		typeof asStringImplicitContextValue === 'object' &&
-		asStringImplicitContextValue !== null &&
-		typeof asStringImplicitContextValue.value === 'string' &&
-		typeof asStringImplicitContextValue.name === 'string' &&
-		ThemeIcon.isThemeIcon(asStringImplicitContextValue.icon) &&
-		URI.isUri(asStringImplicitContextValue.uri)
-	);
-}
-
 export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {
-	private _icon: ThemeIcon | undefined;
-	get icon(): ThemeIcon | undefined {
-		return this._icon;
-	}
-
 	get id() {
 		if (URI.isUri(this.value)) {
 			return 'vscode.implicit.file';
+		} else if (isStringImplicitContextValue(this.value)) {
+			return 'vscode.implicit.string';
 		} else if (this.value) {
 			if (this._isSelection) {
 				return 'vscode.implicit.selection';
@@ -308,15 +287,11 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		}
 	}
 
-	private _name: string | undefined;
 	get name(): string {
 		if (URI.isUri(this.value)) {
 			return `file:${basename(this.value)}`;
-		} else if (typeof this.value === 'string') {
-			if (!this._name) {
-				throw new Error('Name must be provided for string implicit context values');
-			}
-			return this._name;
+		} else if (isStringImplicitContextValue(this.value)) {
+			return this.value.name;
 		} else if (this.value) {
 			return `file:${basename(this.value.uri)}`;
 		} else {
@@ -327,8 +302,10 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	readonly kind = 'implicit';
 
 	get modelDescription(): string {
-		if (URI.isUri(this.value) || (typeof this.value === 'string')) {
+		if (URI.isUri(this.value)) {
 			return `User's active file`;
+		} else if (isStringImplicitContextValue(this.value)) {
+			return this.value.modelDescription ?? `User's active context from ${this.value.name}`;
 		} else if (this._isSelection) {
 			return `User's active selection`;
 		} else {
@@ -346,7 +323,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	private _onDidChangeValue = this._register(new Emitter<void>());
 	readonly onDidChangeValue = this._onDidChangeValue.event;
 
-	private _value: Location | URI | string | undefined;
+	private _value: Location | URI | StringChatContextValue | undefined;
 	get value() {
 		return this._value;
 	}
@@ -363,26 +340,45 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 
 	private _uri: URI | undefined;
 	get uri(): URI | undefined {
+		if (isStringImplicitContextValue(this.value)) {
+			return this.value.uri;
+		}
 		return this._uri;
 	}
 
-	setValue(value: Location | URI | StringImplicitContextValue | undefined, isSelection: boolean, languageId?: string): void {
+	get icon(): ThemeIcon | undefined {
+		if (isStringImplicitContextValue(this.value)) {
+			return this.value.icon;
+		}
+		return undefined;
+	}
+
+	setValue(value: Location | URI | StringChatContextValue | undefined, isSelection: boolean, languageId?: string): void {
 		if (isStringImplicitContextValue(value)) {
-			this._value = value.value;
-			this._name = value.name;
-			this._icon = value.icon;
-			this._uri = value.uri;
+			this._value = value;
 		} else {
 			this._value = value;
 			this._uri = URI.isUri(value) ? value : value?.uri;
-			this._name = undefined;
-			this._icon = undefined;
 		}
 		this._isSelection = isSelection;
 		this._onDidChangeValue.fire();
 	}
 
 	public toBaseEntries(): IChatRequestVariableEntry[] {
+		if (isStringImplicitContextValue(this.value)) {
+			return [
+				{
+					kind: 'string',
+					id: this.id,
+					name: this.name,
+					value: this.value.value,
+					modelDescription: this.modelDescription,
+					icon: this.value.icon,
+					uri: this.value.uri
+				}
+			];
+		}
+
 		return [{
 			kind: 'file',
 			id: this.id,

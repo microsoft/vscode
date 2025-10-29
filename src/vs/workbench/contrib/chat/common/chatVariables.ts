@@ -11,7 +11,7 @@ import { Location } from '../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatModel } from './chatModel.js';
 import { IChatContentReference, IChatProgressMessage } from './chatService.js';
-import { IDiagnosticVariableEntryFilterData } from './chatVariableEntries.js';
+import { IDiagnosticVariableEntryFilterData, StringChatContextValue } from './chatVariableEntries.js';
 import { IToolAndToolSetEnablementMap } from './languageModelToolsService.js';
 
 export interface IChatVariableData {
@@ -29,20 +29,10 @@ export interface IChatRequestProblemsVariable {
 	filter: IDiagnosticVariableEntryFilterData;
 }
 
-export interface IChatRequestStringVariable {
-	value: string;
-	uri: URI;
-}
-
 export const isIChatRequestProblemsVariable = (obj: unknown): obj is IChatRequestProblemsVariable =>
 	typeof obj === 'object' && obj !== null && 'id' in obj && (obj as IChatRequestProblemsVariable).id === 'vscode.problems';
 
-export const isIChatRequestStringVariable = (obj: unknown): obj is IChatRequestStringVariable => {
-	const asStringVar = obj as Partial<IChatRequestStringVariable>;
-	return typeof asStringVar?.value === 'string' && URI.isUri(asStringVar?.uri);
-};
-
-export type IChatRequestVariableValue = string | URI | Location | Uint8Array | IChatRequestProblemsVariable | IChatRequestStringVariable | unknown;
+export type IChatRequestVariableValue = string | URI | Location | Uint8Array | IChatRequestProblemsVariable | StringChatContextValue | unknown;
 
 export type IChatVariableResolverProgress =
 	| IChatContentReference
