@@ -1,0 +1,26 @@
+{
+	"name": "stellar-chat-webview",
+	"version": "1.0.0",
+	"private": true,
+	"description": "Stellar AI Chat Webview for VS Code",
+	"scripts": {
+		"build": "webpack --mode production",
+		"watch": "webpack --mode development --watch"
+	},
+	"dependencies": {
+		"react": "^18.2.0",
+		"react-dom": "^18.2.0",
+		"zustand": "^4.4.0"
+	},
+	"devDependencies": {
+		"@types/react": "^18.2.0",
+		"@types/react-dom": "^18.2.0",
+		"css-loader": "^6.8.0",
+		"style-loader": "^3.3.0",
+		"ts-loader": "^9.4.0",
+		"typescript": "^5.2.0",
+		"webpack": "^5.88.0",
+		"webpack-cli": "^5.1.0"
+	}
+}
+

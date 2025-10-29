@@ -185,6 +185,9 @@ import './contrib/mcp/electron-browser/mcp.contribution.js';
 // Policy Export
 import './contrib/policyExport/electron-browser/policyExport.contribution.js';
 
+// Stellar Right Bar
+import './contrib/stellarRightBar/browser/stellarRightBar.contribution.js';
+
 //#endregion
 
 
