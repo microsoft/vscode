@@ -165,7 +165,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				return;
 			}
 			this._terminalForOutput = instance;
-			this._attachedCommand = this._resolveCommand(instance, { allowFallback: false });
+			this._attachedCommand = this._resolveCommand(instance);
 			this._registerInstanceListener(instance);
 			await this._addFocusAction(instance, terminalToolSessionId);
 		};
@@ -211,8 +211,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private _registerInstanceListener(terminalInstance: ITerminalInstance) {
 		const commandDetectionListener = this._register(new MutableDisposable<IDisposable>());
-		const tryResolveCommand = (allowFallback: boolean): boolean => {
-			const resolvedCommand = this._resolveCommand(terminalInstance, { allowFallback });
+		const tryResolveCommand = (): boolean => {
+			const resolvedCommand = this._resolveCommand(terminalInstance);
 			if (!resolvedCommand) {
 				return false;
 			}
@@ -229,7 +229,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				return;
 			}
 
-			const resolvedImmediately = tryResolveCommand(false);
+			const resolvedImmediately = tryResolveCommand();
 			if (resolvedImmediately && this._attachedCommand?.endMarker) {
 				return;
 			}
@@ -403,7 +403,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 
-	private _resolveCommand(instance: ITerminalInstance, options?: { allowFallback?: boolean }): ITerminalCommand | undefined {
+	private _resolveCommand(instance: ITerminalInstance): ITerminalCommand | undefined {
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 		const commands = commandDetection?.commands;
 		if (!commands || commands.length === 0) {

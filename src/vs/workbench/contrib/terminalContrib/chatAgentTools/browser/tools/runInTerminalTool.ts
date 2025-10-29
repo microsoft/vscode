@@ -639,7 +639,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let exitCode: number | undefined;
 			try {
 				let strategy: ITerminalExecuteStrategy;
-				this._setTerminalCommandUri(toolSpecificData, toolTerminal.instance, commandDetection, commandDetection?.currentCommand?.id);
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
 						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false);
@@ -662,7 +661,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}
 				}));
 				const executeResult = await strategy.execute(command, token);
-				this._setTerminalCommandUri(toolSpecificData, toolTerminal.instance, commandDetection);
 				// Reset user input state after command execution completes
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
