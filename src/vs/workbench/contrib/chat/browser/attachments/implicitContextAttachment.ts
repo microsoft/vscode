@@ -28,7 +28,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { IChatRequestImplicitVariableEntry, IGenericChatRequestVariableEntry, isStringImplicitContextValue } from '../../common/chatVariableEntries.js';
+import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, isStringImplicitContextValue } from '../../common/chatVariableEntries.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatAttachmentModel } from '../chatAttachmentModel.js';
 
@@ -186,13 +186,14 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 			return;
 		}
 		if (isStringImplicitContextValue(this.attachment.value)) {
-			const context: IGenericChatRequestVariableEntry = {
-				kind: 'generic',
-				value: this.attachment.value,
-				id: 'implicitContext-' + Date.now(),
+			const context: IChatRequestStringVariableEntry = {
+				kind: 'string',
+				value: this.attachment.value.value,
+				id: this.attachment.id,
 				name: this.attachment.name,
-				icon: this.attachment.icon,
-				modelDescription: this.attachment.value.modelDescription
+				icon: this.attachment.value.icon,
+				modelDescription: this.attachment.value.modelDescription,
+				uri: this.attachment.value.uri
 			};
 			this.attachmentModel.addContext(context);
 		} else {
