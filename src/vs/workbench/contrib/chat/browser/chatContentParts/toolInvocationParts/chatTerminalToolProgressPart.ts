@@ -518,7 +518,6 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		this._terminalService.setActiveInstance(this._instance);
 		await this._instance?.focusWhenReady(true);
 
-		// Reveal the command if available so the user immediately sees it.
 		let commandToReveal = this._command;
 		if (!commandToReveal) {
 			const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);

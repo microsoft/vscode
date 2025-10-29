@@ -437,7 +437,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				if (!marker) {
 					continue;
 				}
-				this._currentCommand = new PartialTerminalCommand(this._terminal, e.id);
 				this._currentCommand.commandStartMarker = e.startLine !== undefined ? this._terminal.registerMarker(e.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
 				this._currentCommand.commandStartX = e.startX;
 				this._currentCommand.promptStartMarker = e.promptStartLine !== undefined ? this._terminal.registerMarker(e.promptStartLine - (buffer.baseY + buffer.cursorY)) : undefined;
