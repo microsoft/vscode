@@ -22,8 +22,10 @@ export interface IChatContextPickerPickItem extends Partial<IQuickItem> {
 	detail?: string;
 	disabled?: boolean;
 	validateForAttachment?(): Promise<boolean>;
-	asAttachment(): IChatRequestVariableEntry | Promise<IChatRequestVariableEntry>;
+	asAttachment(): ChatContextPickAttachment | Promise<ChatContextPickAttachment>;
 }
+
+export type ChatContextPickAttachment = IChatRequestVariableEntry | 'noop';
 
 export function isChatContextPickerPickItem(item: unknown): item is IChatContextPickerPickItem {
 	return isObject(item) && typeof (item as IChatContextPickerPickItem).asAttachment === 'function';
@@ -61,6 +63,8 @@ export interface IChatContextPicker {
 		label: string;
 		commandId: string;
 	};
+
+	readonly dispose?: () => void;
 }
 
 export interface IChatContextPickerItem extends IChatContextItem {

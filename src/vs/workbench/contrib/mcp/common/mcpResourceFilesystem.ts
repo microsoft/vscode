@@ -34,6 +34,7 @@ interface IReadData {
 /**
  * Helper function to check if a resource path represents a directory.
  * Works cross-platform by checking if the path ends with a forward slash.
+ * This is for fallback only as mime type is checked.
  * @param path The resource path to check
  * @returns true if the path represents a directory, false otherwise
  */

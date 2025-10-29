@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -61,6 +61,9 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 					picks: (_query, token) => this._getResourcePicks(token, helper),
 					goBack: () => {
 						return helper.navigateBack();
+					},
+					dispose: () => {
+						helper.dispose();
 					}
 				};
 			},
@@ -68,12 +71,12 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 	}
 
 	private _getResourcePicks(token: CancellationToken, helper: McpResourcePickHelper) {
-		const observable = observableValue<{ busy: boolean; picks: ChatContextPick[] }>(this, { busy: true, picks: [] });
-		// TODO: still need to dispose helper
 		const picksObservable = helper.getPicks(token);
-		this._register(autorun(reader => {
+
+		return derived(this, reader => {
 			const servers = picksObservable.read(reader);
 			const picks: ChatContextPick[] = [];
+
 			for (const [server, resources] of servers) {
 				if (resources.length === 0) {
 					continue;
@@ -87,7 +90,7 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 							if (helper.validateForAttachment) {
 								const val = await helper.validateForAttachment(resource, server);
 								if (val === true) {
-									helper.AddCurrentMCPQuickPickItemLevel(server, resources);
+									helper.addCurrentMCPQuickPickItemLevel(server, resources);
 								} else {
 									return false;
 								}
@@ -104,9 +107,8 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 					});
 				}
 			}
-			observable.set({ picks, busy: false }, undefined);
-		}));
 
-		return observable;
+			return { picks, busy: false };
+		});
 	}
 }
