@@ -480,10 +480,10 @@ suite('Glob', () => {
 			}
 		};
 
-		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', hasSibling));
-		assert.strictEqual(glob.match(expression, 'test.js', () => false), null);
-		assert.strictEqual(glob.match(expression, 'test.js', name => name === 'te.ts'), null);
-		assert.strictEqual(glob.match(expression, 'test.js'), null);
+		assert.strictEqual('**/*.js', glob.parse(expression)('test.js', undefined, hasSibling));
+		assert.strictEqual(glob.parse(expression)('test.js', undefined, () => false), null);
+		assert.strictEqual(glob.parse(expression)('test.js', undefined, name => name === 'te.ts'), null);
+		assert.strictEqual(glob.parse(expression)('test.js', undefined), null);
 
 		expression = {
 			'**/*.js': {
@@ -491,7 +491,7 @@ suite('Glob', () => {
 			}
 		};
 
-		assert.strictEqual(glob.match(expression, 'test.js', hasSibling), null);
+		assert.strictEqual(glob.parse(expression)('test.js', undefined, hasSibling), null);
 
 		expression = {
 			// eslint-disable-next-line local/code-no-any-casts
@@ -499,11 +499,11 @@ suite('Glob', () => {
 			} as any
 		};
 
-		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', hasSibling));
+		assert.strictEqual('**/*.js', glob.parse(expression)('test.js', undefined, hasSibling));
 
 		expression = {};
 
-		assert.strictEqual(glob.match(expression, 'test.js', hasSibling), null);
+		assert.strictEqual(glob.parse(expression)('test.js', undefined, hasSibling), null);
 	});
 
 	test('expression support (multiple)', function () {
@@ -519,11 +519,11 @@ suite('Glob', () => {
 			'**/*.bananas': { bananas: true } as any
 		};
 
-		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', hasSibling));
-		assert.strictEqual('**/*.as', glob.match(expression, 'test.as', hasSibling));
-		assert.strictEqual('**/*.bananas', glob.match(expression, 'test.bananas', hasSibling));
-		assert.strictEqual('**/*.bananas', glob.match(expression, 'test.bananas'));
-		assert.strictEqual(glob.match(expression, 'test.foo', hasSibling), null);
+		assert.strictEqual('**/*.js', glob.parse(expression)('test.js', undefined, hasSibling));
+		assert.strictEqual('**/*.as', glob.parse(expression)('test.as', undefined, hasSibling));
+		assert.strictEqual('**/*.bananas', glob.parse(expression)('test.bananas', undefined, hasSibling));
+		assert.strictEqual('**/*.bananas', glob.parse(expression)('test.bananas', undefined));
+		assert.strictEqual(glob.parse(expression)('test.foo', undefined, hasSibling), null);
 	});
 
 	test('brackets', () => {
@@ -789,16 +789,16 @@ suite('Glob', () => {
 		const siblings = ['foo.ts', 'foo.js', 'foo', 'bar'];
 		const hasSibling = (name: string) => siblings.indexOf(name) !== -1;
 
-		assert.strictEqual(glob.match(expr, 'bar', hasSibling), '**/bar');
-		assert.strictEqual(glob.match(expr, 'foo', hasSibling), null);
-		assert.strictEqual(glob.match(expr, 'foo/bar', hasSibling), '**/bar');
+		assert.strictEqual(glob.parse(expr)('bar', undefined, hasSibling), '**/bar');
+		assert.strictEqual(glob.parse(expr)('foo', undefined, hasSibling), null);
+		assert.strictEqual(glob.parse(expr)('foo/bar', undefined, hasSibling), '**/bar');
 		if (isWindows) {
 			// backslash is a valid file name character on posix
-			assert.strictEqual(glob.match(expr, 'foo\\bar', hasSibling), '**/bar');
+			assert.strictEqual(glob.parse(expr)('foo\\bar', undefined, hasSibling), '**/bar');
 		}
-		assert.strictEqual(glob.match(expr, 'foo/foo', hasSibling), null);
-		assert.strictEqual(glob.match(expr, 'foo.js', hasSibling), '**/*.js');
-		assert.strictEqual(glob.match(expr, 'bar.js', hasSibling), null);
+		assert.strictEqual(glob.parse(expr)('foo/foo', undefined, hasSibling), null);
+		assert.strictEqual(glob.parse(expr)('foo.js', undefined, hasSibling), '**/*.js');
+		assert.strictEqual(glob.parse(expr)('bar.js', undefined, hasSibling), null);
 	});
 
 	test('expression with multipe basename globs', function () {

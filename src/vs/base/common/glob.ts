@@ -548,17 +548,12 @@ function toRegExp(pattern: string, options: IGlobOptions): ParsedStringPattern {
  */
 export function match(pattern: string | IRelativePattern, path: string, options?: IGlobOptions): boolean;
 export function match(expression: IExpression, path: string, options?: IGlobOptions): boolean;
-export function match(expression: IExpression, path: string, hasSibling?: (name: string) => boolean): string /* the matching pattern */;
-export function match(arg1: string | IExpression | IRelativePattern, path: string, arg3?: IGlobOptions | ((name: string) => boolean)): boolean | string | null | Promise<string | null> {
+export function match(arg1: string | IExpression | IRelativePattern, path: string, options?: IGlobOptions): boolean {
 	if (!arg1 || typeof path !== 'string') {
 		return false;
 	}
 
-	if (typeof arg3 === 'function') {
-		return parse(arg1)(path, undefined, arg3);
-	} else {
-		return parse(arg1, arg3 as IGlobOptions)(path, undefined);
-	}
+	return parse(arg1, options)(path) as boolean;
 }
 
 /**
