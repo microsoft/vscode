@@ -22,6 +22,7 @@ import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditi
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
+import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
@@ -46,7 +47,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	static getNewEditorUri(): URI {
 		const handle = Math.floor(Math.random() * 1e9);
-		return ChatEditorUri.generate(handle);
+		return ChatEditorUri.forHandle(handle);
 	}
 
 	static getNextCount(inputName: string): number {
@@ -74,9 +75,16 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			}
 		}
 
-		this.sessionId = (options.target && 'sessionId' in options.target) ?
-			options.target.sessionId :
-			undefined;
+		if (resource.scheme === Schemas.vscodeLocalChatSession) {
+			const parsed = LocalChatSessionUri.parse(resource);
+			if (!parsed?.sessionId) {
+				throw new Error('Invalid chat session URI');
+			}
+			if (parsed.chatSessionType !== localChatSessionType) {
+				throw new Error('Chat session URI must be of local chat session type');
+			}
+			this.sessionId = parsed.sessionId;
+		}
 
 		// Check if we already have a custom title for this session
 		const hasExistingCustomTitle = this.sessionId && (
@@ -230,7 +238,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	public getSessionType(): string {
-		if (this.resource.scheme === Schemas.vscodeChatEditor || this.resource.scheme === Schemas.vscodeChatSession) {
+		if (this.resource.scheme === Schemas.vscodeChatEditor || this.resource.scheme === Schemas.vscodeLocalChatSession) {
 			return localChatSessionType;
 		}
 
@@ -241,7 +249,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const searchParams = new URLSearchParams(this.resource.query);
 		const chatSessionType = searchParams.get('chatSessionType');
 		const inputType = chatSessionType ?? this.resource.authority;
-		if (this.resource.scheme !== Schemas.vscodeChatEditor) {
+		if (this.resource.scheme !== Schemas.vscodeChatEditor && this.resource.scheme !== Schemas.vscodeLocalChatSession) {
 			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Chat, CancellationToken.None);
 		} else if (typeof this.sessionId === 'string') {
 			this.model = await this.chatService.getOrRestoreSession(this.sessionId)
@@ -328,7 +336,7 @@ export namespace ChatEditorUri {
 
 	export const scheme = Schemas.vscodeChatEditor;
 
-	export function generate(handle: number): URI {
+	export function forHandle(handle: number): URI {
 		return URI.from({ scheme, path: `chat-${handle}` });
 	}
 
@@ -379,8 +387,14 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
 		try {
 			const parsed: ISerializedChatEditorInput = JSON.parse(serializedEditor);
-			const resource = URI.revive(parsed.resource);
-			return instantiationService.createInstance(ChatEditorInput, resource, { ...parsed.options, target: { sessionId: parsed.sessionId } });
+
+			let resource = URI.revive(parsed.resource);
+			if (resource.scheme === Schemas.vscodeChatEditor) {
+				// We don't have a sessionId in the URI, so we need to create a new one
+				resource = LocalChatSessionUri.forSession(parsed.sessionId);
+			}
+
+			return instantiationService.createInstance(ChatEditorInput, resource, { ...parsed.options });
 		} catch (err) {
 			return undefined;
 		}

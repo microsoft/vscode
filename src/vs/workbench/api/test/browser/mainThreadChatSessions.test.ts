@@ -81,7 +81,7 @@ suite('ObservableChatSession', function () {
 	}
 
 	async function createInitializedSession(sessionContent: any, sessionId = 'test-id'): Promise<ObservableChatSession> {
-		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const resource = URI.parse(`${Schemas.vscodeLocalChatSession}:/test/${sessionId}`);
 		const session = new ObservableChatSession(resource, 1, proxy, logService, dialogService);
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 		await session.initialize(CancellationToken.None);
@@ -90,7 +90,7 @@ suite('ObservableChatSession', function () {
 
 	test('constructor creates session with proper initial state', function () {
 		const sessionId = 'test-id';
-		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const resource = URI.parse(`${Schemas.vscodeLocalChatSession}:/test/${sessionId}`);
 		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
 
 		assert.strictEqual(session.providerHandle, 1);
@@ -105,7 +105,7 @@ suite('ObservableChatSession', function () {
 
 	test('session queues progress before initialization and processes it after', async function () {
 		const sessionId = 'test-id';
-		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const resource = URI.parse(`${Schemas.vscodeLocalChatSession}:/test/${sessionId}`);
 		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
 
 		const progress1: IChatProgress = { kind: 'progressMessage', content: { value: 'Hello', isTrusted: false } };
@@ -156,7 +156,7 @@ suite('ObservableChatSession', function () {
 
 	test('initialization is idempotent and returns same promise', async function () {
 		const sessionId = 'test-id';
-		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const resource = URI.parse(`${Schemas.vscodeLocalChatSession}:/test/${sessionId}`);
 		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
 
 		const sessionContent = createSessionContent();
@@ -284,7 +284,7 @@ suite('ObservableChatSession', function () {
 
 	test('dispose properly cleans up resources and notifies listeners', function () {
 		const sessionId = 'test-id';
-		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const resource = URI.parse(`${Schemas.vscodeLocalChatSession}:/test/${sessionId}`);
 		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
 
 		let disposeEventFired = false;

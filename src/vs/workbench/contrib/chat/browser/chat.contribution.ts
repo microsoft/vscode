@@ -789,7 +789,7 @@ class ChatResolverContribution extends Disposable {
 		super();
 
 		this._registerEditor(Schemas.vscodeChatEditor);
-		this._registerEditor(Schemas.vscodeChatSession);
+		this._registerEditor(Schemas.vscodeLocalChatSession);
 
 		this._register(chatSessionsService.onDidChangeContentProviderSchemes((e) => {
 			for (const scheme of e.added) {

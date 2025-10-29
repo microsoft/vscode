@@ -31,7 +31,6 @@ import { IChatSessionsService, localChatSessionType } from '../../common/chatSes
 import { AGENT_SESSIONS_VIEWLET_ID, ChatConfiguration } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem } from '../chatSessions/common.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { ACTION_ID_OPEN_CHAT, CHAT_CATEGORY } from './chatActions.js';
@@ -193,12 +192,11 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 				return;
 			} else if (isLocalChatSessionItem(context.session)) {
 				const options: IChatEditorOptions = {
-					target: { sessionId },
 					ignoreInView: true,
 				};
 				// For local sessions, create a new chat editor
 				await editorService.openEditor({
-					resource: ChatEditorInput.getNewEditorUri(),
+					resource: context.session.resource,
 					options,
 				}, AUX_WINDOW_GROUP);
 
@@ -250,12 +248,11 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 				return;
 			} else if (isLocalChatSessionItem(context.session)) {
 				const options: IChatEditorOptions = {
-					target: { sessionId },
 					ignoreInView: true,
 				};
 				// For local sessions, create a new chat editor
 				await editorService.openEditor({
-					resource: ChatEditorInput.getNewEditorUri(),
+					resource: context.session.resource,
 					options,
 				}, SIDE_GROUP);
 
