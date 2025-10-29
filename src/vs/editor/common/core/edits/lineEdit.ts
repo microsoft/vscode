@@ -406,7 +406,7 @@ export namespace SerializedLineReplacement {
 			&& typeof thing[0] === 'number'
 			&& typeof thing[1] === 'number'
 			&& Array.isArray(thing[2])
-			&& thing[2].every((e: any) => typeof e === 'string')
+			&& thing[2].every((e: unknown) => typeof e === 'string')
 		);
 	}
 }

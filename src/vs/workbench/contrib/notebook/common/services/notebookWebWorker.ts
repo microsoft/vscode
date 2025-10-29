@@ -178,7 +178,7 @@ class CellSequence implements ISequence {
 }
 
 export class NotebookWorker implements IWebWorkerServerRequestHandler, IDisposable {
-	_requestHandlerBrand: any;
+	_requestHandlerBrand: void = undefined;
 
 	private _models: { [uri: string]: MirrorNotebookDocument };
 

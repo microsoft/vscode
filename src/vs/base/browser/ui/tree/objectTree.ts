@@ -81,7 +81,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		return this.model.has(element);
 	}
 
-	protected createModel(user: string, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
+	protected createModel(user: string, options: IObjectTreeOptions<T | null, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
 		return new ObjectTreeModel(user, options);
 	}
 }
@@ -297,7 +297,7 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 		this.model.setChildren(element, children, options);
 	}
 
-	protected override createModel(user: string, options: ICompressibleObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
+	protected override createModel(user: string, options: ICompressibleObjectTreeOptions<T | null, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
 		return new CompressibleObjectTreeModel(user, options);
 	}
 

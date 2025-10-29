@@ -18,6 +18,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { Lazy } from '../../../../base/common/lazy.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { createBrowserAboutDialogDetails } from '../../../../platform/dialogs/browser/dialog.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -36,12 +37,12 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService private productService: IProductService,
 		@IClipboardService clipboardService: IClipboardService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 
-		this.impl = new Lazy(() => new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, clipboardService, openerService));
-
+		this.impl = new Lazy(() => new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, clipboardService, openerService, markdownRendererService));
 		this.model = (this.dialogService as DialogService).model;
 
 		this._register(this.model.onWillShowDialog(() => {

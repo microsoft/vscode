@@ -10,8 +10,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
-import { IChatSessionItem, IChatSessionItemProvider } from '../../common/chatSessionsService.js';
-import { ChatSessionUri } from '../../common/chatUri.js';
+import { IChatSessionItem, IChatSessionItemProvider, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 
@@ -29,12 +28,12 @@ export type ChatSessionItemWithProvider = IChatSessionItem & {
 	};
 };
 
-export function isChatSession(editor?: EditorInput): boolean {
+export function isChatSession(schemes: readonly string[], editor?: EditorInput): boolean {
 	if (!(editor instanceof ChatEditorInput)) {
 		return false;
 	}
 
-	if (editor.resource?.scheme !== 'vscode-chat-editor' && editor.resource?.scheme !== 'vscode-chat-session') {
+	if (!schemes.includes(editor.resource?.scheme) && editor.resource?.scheme !== Schemas.vscodeChatSession && editor.resource?.scheme !== Schemas.vscodeChatEditor) {
 		return false;
 	}
 
@@ -46,29 +45,10 @@ export function isChatSession(editor?: EditorInput): boolean {
 }
 
 /**
- * Returns chat session type from a URI, or 'local' if not specified or cannot be determined.
+ * Returns chat session type from a URI, or {@linkcode localChatSessionType} if not specified or cannot be determined.
  */
 export function getChatSessionType(editor: ChatEditorInput): string {
-	if (!editor.resource) {
-		return 'local';
-	}
-
-	const { scheme, query } = editor.resource;
-
-	if (scheme === Schemas.vscodeChatSession) {
-		const parsed = ChatSessionUri.parse(editor.resource);
-		if (parsed) {
-			return parsed.chatSessionType;
-		}
-	}
-
-	const sessionTypeFromQuery = new URLSearchParams(query).get('chatSessionType');
-	if (sessionTypeFromQuery) {
-		return sessionTypeFromQuery;
-	}
-
-	// Default to 'local' for vscode-chat-editor scheme or when type cannot be determined
-	return 'local';
+	return editor.getSessionType();
 }
 
 /**
@@ -90,7 +70,7 @@ export function findExistingChatEditorByUri(sessionUri: URI, sessionId: string, 
 }
 
 export function isLocalChatSessionItem(item: ChatSessionItemWithProvider): boolean {
-	return item.provider.chatSessionType === 'local';
+	return item.provider.chatSessionType === localChatSessionType;
 }
 
 // Helper function to update relative time for chat sessions (similar to timeline)
@@ -123,6 +103,7 @@ export function extractTimestamp(item: IChatSessionItem): number | undefined {
 
 	// For other items, timestamp might already be set
 	if ('timestamp' in item) {
+		// eslint-disable-next-line local/code-no-any-casts
 		return (item as any).timestamp;
 	}
 
@@ -178,7 +159,7 @@ export function getSessionItemContextOverlay(
 	// Mark active sessions - check if session is currently open in editor or widget
 	let isActiveSession = false;
 
-	if (!session.isHistory && provider?.chatSessionType === 'local') {
+	if (!session.isHistory && provider?.chatSessionType === localChatSessionType) {
 		// Local non-history sessions are always active
 		isActiveSession = true;
 	} else if (session.isHistory && chatWidgetService && chatService && editorGroupsService) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../../base/browser/dom.js';
-import { append, $ } from '../../../../../../base/browser/dom.js';
+import { $, append } from '../../../../../../base/browser/dom.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
@@ -14,6 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { truncate } from '../../../../../../base/common/strings.js';
+import { upcast } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
@@ -23,6 +24,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
@@ -33,21 +35,22 @@ import { IProgressService } from '../../../../../../platform/progress/common/pro
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../../browser/dnd.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
-import { ViewPane, IViewPaneOptions } from '../../../../../browser/parts/views/viewPane.js';
+import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatService } from '../../../common/chatService.js';
-import { IChatSessionItemProvider } from '../../../common/chatSessionsService.js';
+import { IChatSessionItemProvider, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../../common/chatUri.js';
-import { ChatConfiguration } from '../../../common/constants.js';
-import { IChatWidgetService, ChatViewId } from '../../chat.js';
+import { ChatConfiguration, ChatEditorTitleMaxLength } from '../../../common/constants.js';
+import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
+import { ChatViewId, IChatWidgetService } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatEditorInput } from '../../chatEditorInput.js';
 import { ChatViewPane } from '../../chatViewPane.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
+import { ChatSessionItemWithProvider, findExistingChatEditorByUri, getSessionItemContextOverlay, isLocalChatSessionItem, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 
@@ -80,6 +83,7 @@ export class SessionsViewPane extends ViewPane {
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
 		private readonly sessionTracker: ChatSessionTracker,
+		private readonly viewId: string,
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -101,6 +105,7 @@ export class SessionsViewPane extends ViewPane {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		this.minimumBodySize = 44;
 
 		// Listen for changes in the provider if it's a LocalChatSessionsProvider
 		if (provider instanceof LocalChatSessionsProvider) {
@@ -119,6 +124,10 @@ export class SessionsViewPane extends ViewPane {
 				}
 			}
 		}));
+
+		if (provider) { // TODO: Why can this be undefined?
+			this.scopedContextKeyService.createKey('chatSessionType', provider.chatSessionType);
+		}
 	}
 
 	override shouldShowWelcome(): boolean {
@@ -139,7 +148,7 @@ export class SessionsViewPane extends ViewPane {
 			icon: Codicon.plus,
 		}, undefined, undefined, undefined, undefined);
 
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService);
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.scopedContextKeyService);
 
 		const actions = menu.getActions({ shouldForwardArgs: true });
 		const primaryActions = getActionBarActions(
@@ -295,8 +304,7 @@ export class SessionsViewPane extends ViewPane {
 		const accessibilityProvider = new SessionsAccessibilityProvider();
 
 		// Use the existing ResourceLabels service for consistent styling
-		const labels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		const renderer = this.instantiationService.createInstance(SessionsRenderer, labels);
+		const renderer = this.instantiationService.createInstance(SessionsRenderer, this.viewDescriptorService.getViewLocationById(this.viewId));
 		this._register(renderer);
 
 		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {
@@ -304,7 +312,7 @@ export class SessionsViewPane extends ViewPane {
 				return null;
 			}
 
-			return ChatSessionUri.forSession(element.provider.chatSessionType, element.id);
+			return element.resource;
 		};
 
 		this.tree = this.instantiationService.createInstance(
@@ -335,7 +343,7 @@ export class SessionsViewPane extends ViewPane {
 						if (elements.length === 1) {
 							return elements[0].label;
 						}
-						return nls.localize('chatSessions.dragLabel', "{0} chat sessions", elements.length);
+						return nls.localize('chatSessions.dragLabel', "{0} agent sessions", elements.length);
 					},
 					drop: () => { },
 					onDragOver: () => false,
@@ -373,10 +381,10 @@ export class SessionsViewPane extends ViewPane {
 		this._register(this.tree.onMouseDblClick(e => {
 			const scrollingByPage = this.configurationService.getValue<boolean>('workbench.list.scrollByPage');
 			if (e.element === null && !scrollingByPage) {
-				if (this.provider?.chatSessionType && this.provider.chatSessionType !== 'local') {
+				if (this.provider?.chatSessionType && this.provider.chatSessionType !== localChatSessionType) {
 					this.commandService.executeCommand(`workbench.action.chat.openNewSessionEditor.${this.provider?.chatSessionType}`);
 				} else {
-					this.commandService.executeCommand('workbench.action.openChat');
+					this.commandService.executeCommand(ACTION_ID_OPEN_CHAT);
 				}
 			}
 		}));
@@ -455,6 +463,18 @@ export class SessionsViewPane extends ViewPane {
 			return;
 		}
 
+		if (session.resource.scheme !== ChatSessionUri.scheme) {
+			await this.openerService.open(session.resource, {
+				editorOptions: upcast<IEditorOptions, IChatEditorOptions>({
+					title: {
+						preferred: session.label
+					},
+					pinned: true
+				})
+			});
+			return;
+		}
+
 		try {
 			// Check first if we already have an open editor for this session
 			const uri = ChatSessionUri.forSession(session.provider.chatSessionType, session.id);
@@ -493,7 +513,9 @@ export class SessionsViewPane extends ViewPane {
 			const options: IChatEditorOptions = {
 				pinned: true,
 				ignoreInView: true,
-				preferredTitle: truncate(session.label, 30),
+				title: {
+					preferred: truncate(session.label, ChatEditorTitleMaxLength),
+				},
 				preserveFocus: true,
 			};
 			await this.editorService.openEditor({

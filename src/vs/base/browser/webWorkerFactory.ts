@@ -12,12 +12,15 @@ import { Disposable, toDisposable } from '../common/lifecycle.js';
 import { coalesce } from '../common/arrays.js';
 import { getNLSLanguage, getNLSMessages } from '../../nls.js';
 import { Emitter } from '../common/event.js';
+import { getMonacoEnvironment } from './browser.js';
 
 // Reuse the trusted types policy defined from worker bootstrap
 // when available.
 // Refs https://github.com/microsoft/vscode/issues/222193
 let ttPolicy: ReturnType<typeof createTrustedTypesPolicy>;
+// eslint-disable-next-line local/code-no-any-casts
 if (typeof self === 'object' && self.constructor && self.constructor.name === 'DedicatedWorkerGlobalScope' && (globalThis as any).workerttPolicy !== undefined) {
+	// eslint-disable-next-line local/code-no-any-casts
 	ttPolicy = (globalThis as any).workerttPolicy;
 } else {
 	ttPolicy = createTrustedTypesPolicy('defaultWorkerFactory', { createScriptURL: value => value });
@@ -34,11 +37,7 @@ function getWorker(descriptor: IWebWorkerDescriptor, id: number): Worker | Promi
 	const label = descriptor.label || 'anonymous' + id;
 
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
-	interface IMonacoEnvironment {
-		getWorker?(moduleId: string, label: string): Worker | Promise<Worker>;
-		getWorkerUrl?(moduleId: string, label: string): string;
-	}
-	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
+	const monacoEnvironment = getMonacoEnvironment();
 	if (monacoEnvironment) {
 		if (typeof monacoEnvironment.getWorker === 'function') {
 			return monacoEnvironment.getWorker('workerMain.js', label);

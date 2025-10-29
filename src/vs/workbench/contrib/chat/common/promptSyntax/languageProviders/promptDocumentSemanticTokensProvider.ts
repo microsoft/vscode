@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { DocumentSemanticTokensProvider, ProviderResult, SemanticTokens, SemanticTokensLegend } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
-import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
+import { isGithubTarget } from './promptValidator.js';
 
-export class PromptDocumentSemanticTokensProvider extends Disposable implements DocumentSemanticTokensProvider {
+export class PromptDocumentSemanticTokensProvider implements DocumentSemanticTokensProvider {
 	/**
 	 * Debug display name for this provider.
 	 */
@@ -19,26 +18,27 @@ export class PromptDocumentSemanticTokensProvider extends Disposable implements 
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
 	) {
-		super();
-
-		this._register(this.languageService.documentSemanticTokensProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, this));
 	}
 
 	provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens> {
 		const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
 		if (!promptType) {
-			// if the model is not a prompt, we don't provide any completions
+			// if the model is not a prompt, we don't provide any semantic tokens
 			return undefined;
 		}
 
-		const parser = this.promptsService.getParsedPromptFile(model);
-		if (!parser.body) {
+		const promptAST = this.promptsService.getParsedPromptFile(model);
+		if (!promptAST.body) {
 			return undefined;
 		}
 
-		const variableReferences = parser.body.variableReferences;
+		if (isGithubTarget(promptType, promptAST.header?.target)) {
+			// In GitHub Copilot mode, we don't provide variable semantic tokens to tool references
+			return undefined;
+		}
+
+		const variableReferences = promptAST.body.variableReferences;
 		if (!variableReferences.length) {
 			return undefined;
 		}
@@ -56,9 +56,11 @@ export class PromptDocumentSemanticTokensProvider extends Disposable implements 
 			: a.range.startLineNumber - b.range.startLineNumber);
 
 		for (const ref of ordered) {
+			// Also include the '#tool:' prefix for syntax highlighting purposes, even if it's not originally part of the variable name itself.
+			const extraCharCount = '#tool:'.length;
 			const line = ref.range.startLineNumber - 1; // zero-based
-			const char = ref.range.startColumn - 2; // zero-based, include the leading #
-			const length = ref.range.endColumn - ref.range.startColumn + 1;
+			const char = ref.range.startColumn - extraCharCount - 1; // zero-based
+			const length = ref.range.endColumn - ref.range.startColumn + extraCharCount;
 			const deltaLine = line - lastLine;
 			const deltaChar = deltaLine === 0 ? char - lastChar : char;
 			data.push(deltaLine, deltaChar, length, 0 /* variable token type index */, 0 /* no modifiers */);
