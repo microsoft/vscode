@@ -8,7 +8,7 @@ import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../
 import { numberComparator } from '../../../../../../../base/common/arrays.js';
 import { findFirstMin } from '../../../../../../../base/common/arraysFind.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableValue, transaction } from '../../../../../../../base/common/observable.js';
+import { DebugLocation, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableValue, transaction } from '../../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../../base/common/platform.js';
 import { splitLines } from '../../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -394,12 +394,12 @@ export function observeElementPosition(element: HTMLElement, store: DisposableSt
 	};
 }
 
-export function rectToProps(fn: (reader: IReader) => Rect) {
+export function rectToProps(fn: (reader: IReader) => Rect, debugLocation: DebugLocation = DebugLocation.ofCaller()) {
 	return {
-		left: derived({ name: 'editor.validOverlay.left' }, reader => /** @description left */ fn(reader).left),
-		top: derived({ name: 'editor.validOverlay.top' }, reader => /** @description top */ fn(reader).top),
-		width: derived({ name: 'editor.validOverlay.width' }, reader => /** @description width */ fn(reader).right - fn(reader).left),
-		height: derived({ name: 'editor.validOverlay.height' }, reader => /** @description height */ fn(reader).bottom - fn(reader).top),
+		left: derived({ name: 'editor.validOverlay.left' }, reader => /** @description left */ fn(reader).left, debugLocation),
+		top: derived({ name: 'editor.validOverlay.top' }, reader => /** @description top */ fn(reader).top, debugLocation),
+		width: derived({ name: 'editor.validOverlay.width' }, reader => /** @description width */ fn(reader).right - fn(reader).left, debugLocation),
+		height: derived({ name: 'editor.validOverlay.height' }, reader => /** @description height */ fn(reader).bottom - fn(reader).top, debugLocation),
 	};
 }
 
