@@ -57,7 +57,11 @@ export class ExtHostChatContext implements ExtHostChatContextShape {
 			throw new Error('provideChatContextForResource not implemented');
 		}
 
-		const result = await provider.provideChatContextForResource(URI.revive(resource), options, token);
+		let result = await provider.provideChatContextForResource(URI.revive(resource), options, token);
+		if (result && (result.value === undefined)) {
+			result = await provider.resolveChatContext(result, token);
+		}
+
 		const item: IChatContextItem | undefined = result ? {
 			handle: this._itemPool++,
 			icon: result.icon,
