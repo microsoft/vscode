@@ -384,10 +384,35 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			startCol = Math.max(command.startX ?? 0, 0);
 		}
 
-		const endLine = command.endMarker?.line !== undefined ? command.endMarker.line - 1 : this.raw.buffer.active.length - 1;
+		let endLine = command.endMarker?.line !== undefined ? command.endMarker.line - 1 : this.raw.buffer.active.length - 1;
 		if (endLine < startLine) {
 			return '';
 		}
+		// Trim empty lines from the end
+		let emptyLinesFromEnd = 0;
+		for (let i = endLine; i >= startLine; i--) {
+			const line = this.raw.buffer.active.getLine(i);
+			if (line && line.translateToString(true).trim() === '') {
+				emptyLinesFromEnd++;
+			} else {
+				break;
+			}
+		}
+		endLine = endLine - emptyLinesFromEnd;
+
+		// Trim empty lines from the start
+		let emptyLinesFromStart = 0;
+		for (let i = startLine; i <= endLine; i++) {
+			const line = this.raw.buffer.active.getLine(i);
+			if (line && line.translateToString(true).trim() === '') {
+				emptyLinesFromStart++;
+			} else {
+				break;
+			}
+		}
+		startLine = startLine + emptyLinesFromStart;
+		startCol = 0;
+
 		if (maxLines && endLine - startLine > maxLines) {
 			startLine = endLine - maxLines;
 			startCol = 0;
