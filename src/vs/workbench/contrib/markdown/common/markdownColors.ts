@@ -11,22 +11,22 @@ import { chartsGreen, chartsPurple } from '../../../../platform/theme/common/col
  * Markdown alert colors for GitHub-style alert syntax.
  */
 
-export const markdownAlertNoteColor = registerColor('markdownAlert.noteBorder',
+export const markdownAlertNoteColor = registerColor('markdownAlert.note.foreground',
 	editorInfoForeground,
-	localize('markdownAlertNoteBorder', "Border color for note alerts in markdown."));
+	localize('markdownAlertNoteForeground', "Foreground color for note alerts in markdown."));
 
-export const markdownAlertTipColor = registerColor('markdownAlert.tipBorder',
+export const markdownAlertTipColor = registerColor('markdownAlert.tip.foreground',
 	chartsGreen,
-	localize('markdownAlertTipBorder', "Border color for tip alerts in markdown."));
+	localize('markdownAlertTipForeground', "Foreground color for tip alerts in markdown."));
 
-export const markdownAlertImportantColor = registerColor('markdownAlert.importantBorder',
+export const markdownAlertImportantColor = registerColor('markdownAlert.important.foreground',
 	chartsPurple,
-	localize('markdownAlertImportantBorder', "Border color for important alerts in markdown."));
+	localize('markdownAlertImportantForeground', "Foreground color for important alerts in markdown."));
 
-export const markdownAlertWarningColor = registerColor('markdownAlert.warningBorder',
+export const markdownAlertWarningColor = registerColor('markdownAlert.warning.foreground',
 	editorWarningForeground,
-	localize('markdownAlertWarningBorder', "Border color for warning alerts in markdown."));
+	localize('markdownAlertWarningForeground', "Foreground color for warning alerts in markdown."));
 
-export const markdownAlertCautionColor = registerColor('markdownAlert.cautionBorder',
+export const markdownAlertCautionColor = registerColor('markdownAlert.caution.foreground',
 	editorErrorForeground,
-	localize('markdownAlertCautionBorder', "Border color for caution alerts in markdown."));
+	localize('markdownAlertCautionForeground', "Foreground color for caution alerts in markdown."));
