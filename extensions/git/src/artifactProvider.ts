@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri } from 'vscode';
-import { IDisposable } from './util';
+import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable } from 'vscode';
+import { dispose, IDisposable } from './util';
 import { Repository } from './repository';
 
 export class GitArtifactProvider implements SourceControlArtifactProvider, IDisposable {
@@ -12,6 +12,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 	readonly onDidChangeArtifacts: Event<string> = this._onDidChangeArtifacts.event;
 
 	private readonly _groups: SourceControlArtifactGroup[];
+	private readonly _disposables: Disposable[] = [];
 
 	constructor(
 		private readonly repository: Repository,
@@ -21,7 +22,10 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 			{ id: 'branches', name: l10n.t('Branches'), icon: new ThemeIcon('git-branch') },
 			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag') }
 		];
+
+		this._disposables.push(this._onDidChangeArtifacts);
 	}
+
 	provideArtifactGroups(): SourceControlArtifactGroup[] {
 		return this._groups;
 	}
@@ -58,5 +62,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 		return [];
 	}
 
-	dispose(): void { }
+	dispose(): void {
+		dispose(this._disposables);
+	}
 }
