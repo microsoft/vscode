@@ -428,9 +428,18 @@ export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string
 export function generateTokensCSSForFontMap(fontMap: readonly ITokenFont[]): string {
 	const rules: string[] = [];
 	// We somehow need to get the range of the font infos here so it can be encoded in the class name
+	const consideredFonts = new Set<number>();
 	for (let i = 1, len = fontMap.length; i < len; i++) {
 		const font = fontMap[i];
-		let rule = `.font-decoration-${hash(font)} {`;
+		if (!font.fontFamily && !font.fontSize && !font.lineHeight) {
+			continue;
+		}
+		const hashFont = hash(`${font.fontFamily}-${font.fontSize}-${font.lineHeight}`);
+		if (consideredFonts.has(hashFont)) {
+			continue;
+		}
+		consideredFonts.add(hashFont);
+		let rule = `.font-decoration-${hashFont} {`;
 		if (font.fontFamily) {
 			rule += ` font-family: ${font.fontFamily};`;
 		}
@@ -440,7 +449,8 @@ export function generateTokensCSSForFontMap(fontMap: readonly ITokenFont[]): str
 		if (font.lineHeight) {
 			rule += ` line-height: ${font.lineHeight}px;`;
 		}
-		rules[i] = rule;
+		rule += ` }`;
+		rules.push(rule);
 	}
 	return rules.join('\n');
 }

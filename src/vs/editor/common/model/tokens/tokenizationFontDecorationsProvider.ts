@@ -43,7 +43,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 				const fontOptions = this.specialFontInfo.get(i);
 				if (fontOptions) {
 					for (const fontOption of fontOptions) {
-						const hashFont = hash(fontOption);
+						const hashFont = hash(`${fontOption.fontFamily}-${fontOption.fontSize}-${fontOption.lineHeight}`);
 						decorations.push({
 							id: `font-decoration-${hashFont}`,
 							options: {

@@ -358,11 +358,12 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		const fontCssRules = generateTokensCSSForFontMap(fontMap);
 		// Add css rules for the font family, font size and line height here
 		// pass in the font-size map, the font-family map, the line-height map
-		console.log('cssRules', colorCssRules + fontCssRules);
+		console.log('cssRules', colorCssRules + '\n' + fontCssRules);
 
 		this._styleElement.textContent = colorCssRules + fontCssRules;
 		// Setting the color map
 		TokenizationRegistry.setColorMap(colorMap);
+		// TokenizationRegistry.setFontMap(fontMap);
 
 		if (this._currentTheme && this._currentTokenColorMap) {
 			this._threadedBackgroundTokenizerFactory.acceptTheme(this._currentTheme, this._currentTokenColorMap);

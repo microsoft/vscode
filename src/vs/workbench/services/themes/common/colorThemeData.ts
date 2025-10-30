@@ -296,7 +296,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	public getTokenFontIndex(): TokenFontIndex {
 		if (!this.tokenFontIndex) {
 			const index = new TokenFontIndex();
-			this.customSemanticTokenRules.forEach(r => index.add(r.style.fontFamily, r.style.fontSize, r.style.lineHeight));
+			this.tokenColors.forEach(r => index.add(r.settings.fontFamily, r.settings.fontSize, r.settings.lineHeight));
 			this.tokenFontIndex = index;
 		}
 		console.log('this.tokenColorIndex', this.tokenColorIndex);
@@ -1023,12 +1023,12 @@ class TokenColorIndex {
 
 class TokenFontIndex {
 
-	private _lastColorId: number;
+	private _lastFontId: number;
 	private _id2font: ITokenFont[];
 	private _font2id: Map<ITokenFont, number>;
 
 	constructor() {
-		this._lastColorId = 0;
+		this._lastFontId = 0;
 		this._id2font = [];
 		this._font2id = new Map();
 	}
@@ -1039,7 +1039,7 @@ class TokenFontIndex {
 		if (value) {
 			return value;
 		}
-		value = ++this._lastColorId;
+		value = ++this._lastFontId;
 		this._font2id.set(font, value);
 		this._id2font[value] = font;
 		return value;
