@@ -74,7 +74,7 @@ export function isAgentSessionsViewModel(obj: IAgentSessionsViewModel | IAgentSe
 const INCLUDE_HISTORY = false;
 export class AgentSessionsViewModel extends Disposable implements IAgentSessionsViewModel {
 
-	private static NO_DESCRIPTION_LABEL = `_<${localize('chat.session.noDescription', 'No description')}>_`;
+	private static NO_DESCRIPTION_LABEL = new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`);
 
 	readonly sessions: IAgentSessionViewModel[] = [];
 
@@ -151,11 +151,30 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 					continue; // TODO@bpasero this needs to be fixed at the provider level
 				}
 
+				let description;
+				if (session.description) {
+					description = session.description;
+				} else {
+					switch (session.status) {
+						case ChatSessionStatus.InProgress:
+							description = localize('chat.session.status.inProgress', 'Working...');
+							break;
+						case ChatSessionStatus.Failed:
+							description = localize('chat.session.status.error', 'Failed');
+							break;
+						case ChatSessionStatus.Completed:
+							description = localize('chat.session.status.completed', 'Finished');
+							break;
+						default:
+							description = AgentSessionsViewModel.NO_DESCRIPTION_LABEL;
+					}
+				}
+
 				newSessions.push({
 					provider,
 					resource: session.resource,
 					label: session.label,
-					description: session.description || new MarkdownString(AgentSessionsViewModel.NO_DESCRIPTION_LABEL),
+					description,
 					icon: session.iconPath,
 					tooltip: session.tooltip,
 					status: session.status,
@@ -179,7 +198,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 						timing: {
 							startTime: history.lastMessageDate ?? Date.now()
 						},
-						description: new MarkdownString(AgentSessionsViewModel.NO_DESCRIPTION_LABEL),
+						description: AgentSessionsViewModel.NO_DESCRIPTION_LABEL,
 					});
 				}
 			}
