@@ -9,7 +9,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const child_process_1 = require("child_process");
 const path_1 = __importDefault(require("path"));
-const typescript_1 = __importDefault(require("typescript"));
 const url_1 = require("url");
 const workerpool_1 = __importDefault(require("workerpool"));
 class LSPClient {
@@ -19,20 +18,8 @@ class LSPClient {
     buffer = '';
     initializePromise;
     projectPath;
-    _openedFiles = new Set();
-    _sourceFileCache = new Map();
     constructor(projectPath) {
         this.projectPath = projectPath;
-    }
-    getOrCreateSourceFile(fileName) {
-        let sourceFile = this._sourceFileCache.get(fileName);
-        if (!sourceFile) {
-            const fs = require('fs');
-            const fileContent = fs.readFileSync(fileName, 'utf-8');
-            sourceFile = typescript_1.default.createSourceFile(fileName, fileContent, typescript_1.default.ScriptTarget.Latest, true);
-            this._sourceFileCache.set(fileName, sourceFile);
-        }
-        return sourceFile;
     }
     async start() {
         const lspPath = path_1.default.join(__dirname, '..', '..', '..', 'node_modules', '@typescript', 'native-preview', 'bin', 'tsgo.js');
@@ -109,7 +96,6 @@ class LSPClient {
     }
     async initialize() {
         const rootUri = (0, url_1.pathToFileURL)(path_1.default.dirname(this.projectPath)).toString();
-        // const rootUri = `file://${this.projectPath.replace(/\\/g, '/')}`;
         await this.sendRequest('initialize', {
             processId: process.pid,
             rootUri,
@@ -123,10 +109,15 @@ class LSPClient {
         });
         this.sendRequest('initialized', {});
     }
+    _openedFiles = new Set();
     async findRenameLocations(fileName, position) {
         await this.initializePromise;
-        const sourceFile = this.getOrCreateSourceFile(fileName);
-        const { line, character } = sourceFile.getLineAndCharacterOfPosition(position);
+        // Read the file to convert offset to line/character
+        const fs = await import('fs');
+        const fileContent = fs.readFileSync(fileName, 'utf-8');
+        const lines = fileContent.substring(0, position).split('\n');
+        const line = lines.length - 1;
+        const character = lines[lines.length - 1].length;
         const uri = (0, url_1.pathToFileURL)(fileName).toString();
         // Send didOpen notification to inform LSP server about the file
         if (!this._openedFiles.has(uri)) {
@@ -135,7 +126,7 @@ class LSPClient {
                     uri,
                     languageId: 'typescript',
                     version: 1,
-                    text: sourceFile.getFullText(),
+                    text: fileContent,
                 },
             });
             this._openedFiles.add(uri);
@@ -156,16 +147,19 @@ class LSPClient {
         const locations = [];
         for (const [uri, edits] of Object.entries(renameResult.changes)) {
             const filePath = (0, url_1.fileURLToPath)(uri);
-            const editSourceFile = this.getOrCreateSourceFile(filePath);
             for (const edit of edits) {
-                // Convert LSP line/character to TypeScript offset
-                const offset = editSourceFile.getPositionOfLineAndCharacter(edit.range.start.line, edit.range.start.character);
-                const endOffset = editSourceFile.getPositionOfLineAndCharacter(edit.range.end.line, edit.range.end.character);
+                const fileContent = fs.readFileSync(filePath, 'utf-8');
+                const lines = fileContent.split('\n');
+                let offset = 0;
+                for (let i = 0; i < edit.range.start.line; i++) {
+                    offset += lines[i].length + 1; // +1 for newline
+                }
+                offset += edit.range.start.character;
                 const location = {
                     fileName: filePath,
                     textSpan: {
                         start: offset,
-                        length: endOffset - offset,
+                        length: edit.range.end.character - edit.range.start.character,
                     },
                 };
                 locations.push(location);

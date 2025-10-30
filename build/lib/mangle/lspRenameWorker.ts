@@ -26,22 +26,8 @@ class LSPClient {
 	private initializePromise: Promise<void> | undefined;
 	private projectPath: string;
 
-	private readonly _openedFiles = new Set<string>();
-	private readonly _sourceFileCache = new Map<string, ts.SourceFile>();
-
 	constructor(projectPath: string) {
 		this.projectPath = projectPath;
-	}
-
-	private getOrCreateSourceFile(fileName: string): ts.SourceFile {
-		let sourceFile = this._sourceFileCache.get(fileName);
-		if (!sourceFile) {
-			const fs = require('fs');
-			const fileContent = fs.readFileSync(fileName, 'utf-8');
-			sourceFile = ts.createSourceFile(fileName, fileContent, ts.ScriptTarget.Latest, true);
-			this._sourceFileCache.set(fileName, sourceFile);
-		}
-		return sourceFile;
 	}
 
 	async start(): Promise<void> {
@@ -135,10 +121,8 @@ class LSPClient {
 
 	private async initialize(): Promise<void> {
 
-
 		const rootUri = pathToFileURL(path.dirname(this.projectPath)).toString();
 
-		// const rootUri = `file://${this.projectPath.replace(/\\/g, '/')}`;
 		await this.sendRequest<any>('initialize', {
 			processId: process.pid,
 			rootUri,
@@ -154,11 +138,17 @@ class LSPClient {
 		this.sendRequest('initialized', {});
 	}
 
+	private readonly _openedFiles = new Set<string>();
+
 	async findRenameLocations(fileName: string, position: number): Promise<readonly ts.RenameLocation[]> {
 		await this.initializePromise;
 
-		const sourceFile = this.getOrCreateSourceFile(fileName);
-		const { line, character } = sourceFile.getLineAndCharacterOfPosition(position);
+		// Read the file to convert offset to line/character
+		const fs = await import('fs');
+		const fileContent = fs.readFileSync(fileName, 'utf-8');
+		const lines = fileContent.substring(0, position).split('\n');
+		const line = lines.length - 1;
+		const character = lines[lines.length - 1].length;
 
 		const uri = pathToFileURL(fileName).toString();
 
@@ -169,7 +159,7 @@ class LSPClient {
 					uri,
 					languageId: 'typescript',
 					version: 1,
-					text: sourceFile.getFullText(),
+					text: fileContent,
 				},
 			});
 			this._openedFiles.add(uri);
@@ -195,18 +185,21 @@ class LSPClient {
 		for (const [uri, edits] of Object.entries(renameResult.changes)) {
 			const filePath = fileURLToPath(uri);
 
-			const editSourceFile = this.getOrCreateSourceFile(filePath);
-
 			for (const edit of edits as any[]) {
-				// Convert LSP line/character to TypeScript offset
-				const offset = editSourceFile.getPositionOfLineAndCharacter(edit.range.start.line, edit.range.start.character);
-				const endOffset = editSourceFile.getPositionOfLineAndCharacter(edit.range.end.line, edit.range.end.character);
+				const fileContent = fs.readFileSync(filePath, 'utf-8');
+				const lines = fileContent.split('\n');
+
+				let offset = 0;
+				for (let i = 0; i < edit.range.start.line; i++) {
+					offset += lines[i].length + 1; // +1 for newline
+				}
+				offset += edit.range.start.character;
 
 				const location: ts.RenameLocation = {
 					fileName: filePath,
 					textSpan: {
 						start: offset,
-						length: endOffset - offset,
+						length: edit.range.end.character - edit.range.start.character,
 					},
 				};
 				locations.push(location);
