@@ -361,7 +361,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-		// Collect pending command resolutions
+		// Collect pending unawaited promises (usually triggered from sync methods)
 		for (const promise of this.pendingUnawaitedPromises) {
 			allPending.push(promise);
 		}
