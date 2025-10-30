@@ -356,7 +356,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Determine auto approval, this happens even when auto approve is off to that reasoning
 		// can be reviewed in the terminal channel. It also allows gauging the effective set of
 		// commands that would be auto approved if it were enabled.
-		const actualCommand = toolEditedCommand ?? args.command;
+		const commandLine = toolEditedCommand ?? args.command;
 
 		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
 		const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
@@ -364,7 +364,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const commandLineAnalyzerOptions: ICommandLineAnalyzerOptions = {
 			instance,
-			commandLine: actualCommand,
+			commandLine,
 			os,
 			shell,
 			treeSitterLanguage: isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
@@ -372,17 +372,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		};
 		const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
 
-		// Add disclaimers for various security concerns
-		const disclaimers: string[] = [];
-		disclaimers.push(...commandLineAnalyzerResults.map(e => e.disclaimers ?? []).flat());
-
-		// Combine disclaimers
+		const disclaimersRaw = commandLineAnalyzerResults.map(e => e.disclaimers ?? []).flat();
 		let disclaimer: IMarkdownString | undefined;
-		if (disclaimers.length > 0) {
-			disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimers.join(' '), { supportThemeIcons: true });
+		if (disclaimersRaw.length > 0) {
+			disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimersRaw.join(' '), { supportThemeIcons: true });
 		}
 
-		const isAutoApproved = commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
 		const customActions = commandLineAnalyzerResults.map(e => e.customActions ?? []).flat();
 		toolSpecificData.autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
 
@@ -390,7 +385,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (shellType === 'powershell') {
 			shellType = 'pwsh';
 		}
-		const confirmationMessages = (isAutoApproved && isAutoApproveAllowed && commandLineAnalyzerResults.every(r => r.isAutoApproveAllowed)) ? undefined : {
+
+		const isFinalAutoApproved = isAutoApproveAllowed && commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
+		const confirmationMessages = isFinalAutoApproved ? undefined : {
 			title: args.isBackground
 				? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
 				: localize('runInTerminal', "Run `{0}` command?", shellType),
