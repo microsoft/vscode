@@ -375,14 +375,6 @@
 	display: none;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .terminal-tabs-chat-entry .terminal-tabs-chat-entry-count {
-	margin-left: 4px;
-}
-
-.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-chat-entry .terminal-tabs-chat-entry-count {
-	margin-left: 0;
-}
-
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .terminal-tabs-entry {
 	text-align: center;
 }
