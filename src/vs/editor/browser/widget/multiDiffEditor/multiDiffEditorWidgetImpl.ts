@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { addStandardDisposableListener, Dimension, getWindow, h, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { SmoothScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { compareBy, numberComparator } from '../../../../base/common/arrays.js';
 import { findFirstMax } from '../../../../base/common/arraysFind.js';
@@ -12,6 +12,7 @@ import { Disposable, IReference, toDisposable } from '../../../../base/common/li
 import { IObservable, IReader, ITransaction, autorun, autorunWithStore, derived, disposableObservableValue, globalTransaction, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { Scrollable, ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -88,7 +89,10 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			horizontal: ScrollbarVisibility.Auto,
 			useShadows: false,
 		}, this._scrollable));
-		this._elements = h('div.monaco-component.multiDiffEditor', {}, [
+		this._elements = h('div.monaco-component.multiDiffEditor', {
+			'aria-label': localize('multiDiffEditor.ariaLabel', 'Multi File Diff Editor'),
+			'role': 'region'
+		}, [
 			h('div', {}, [this._scrollableElement.getDomNode()]),
 			h('div.placeholder@placeholder', {}, [h('div')]),
 		]);
@@ -224,6 +228,17 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				this.render(reader);
 			});
 		})));
+
+		// Add keyboard navigation support
+		this._register(addStandardDisposableListener(this._element, 'keydown', (e) => {
+			if (e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow) || e.equals(KeyMod.Alt | KeyCode.DownArrow)) {
+				e.preventDefault();
+				this.goToNextFile();
+			} else if (e.equals(KeyMod.CtrlCmd | KeyCode.UpArrow) || e.equals(KeyMod.Alt | KeyCode.UpArrow)) {
+				e.preventDefault();
+				this.goToPreviousFile();
+			}
+		}));
 	}
 
 	public setScrollState(scrollState: { top?: number; left?: number }): void {
@@ -345,6 +360,75 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		}
 
 		this._scrollableElements.content.style.transform = `translateY(${-(scrollTop + contentScrollOffsetToScrollOffset)}px)`;
+	}
+
+	public goToNextFile(): void {
+		const viewModel = this._viewModel.get();
+		if (!viewModel) {
+			return;
+		}
+
+		const items = viewModel.items.get();
+		const activeItem = viewModel.activeDiffItem.get();
+		const currentIndex = activeItem ? items.indexOf(activeItem) : -1;
+		const nextIndex = Math.min(currentIndex + 1, items.length - 1);
+
+		if (nextIndex !== currentIndex && nextIndex >= 0) {
+			const nextItem = items[nextIndex];
+			viewModel.activeDiffItem.setCache(nextItem, undefined);
+			this.scrollToItem(nextIndex);
+			this.focusFileContainer(nextIndex);
+		}
+	}
+
+	public goToPreviousFile(): void {
+		const viewModel = this._viewModel.get();
+		if (!viewModel) {
+			return;
+		}
+
+		const items = viewModel.items.get();
+		const activeItem = viewModel.activeDiffItem.get();
+		const currentIndex = activeItem ? items.indexOf(activeItem) : -1;
+		const prevIndex = Math.max(currentIndex - 1, 0);
+
+		if (prevIndex !== currentIndex && prevIndex >= 0) {
+			const prevItem = items[prevIndex];
+			viewModel.activeDiffItem.setCache(prevItem, undefined);
+			this.scrollToItem(prevIndex);
+			this.focusFileContainer(prevIndex);
+		}
+	}
+
+	private scrollToItem(index: number): void {
+		const viewItems = this._viewItems.get();
+		if (index < 0 || index >= viewItems.length) {
+			return;
+		}
+
+		let scrollTop = 0;
+		for (let i = 0; i < index; i++) {
+			scrollTop += viewItems[i].contentHeight.get() + this._spaceBetweenPx;
+		}
+
+		this._scrollableElement.setScrollPosition({ scrollTop });
+	}
+
+	private focusFileContainer(index: number): void {
+		const viewItems = this._viewItems.get();
+		if (index < 0 || index >= viewItems.length) {
+			return;
+		}
+
+		const viewItem = viewItems[index];
+		const template = viewItem.template.get();
+		if (template) {
+			// Focus the main file container div to trigger screen reader announcement
+			const containerElement = template.getContainerElement();
+			if (containerElement) {
+				containerElement.focus();
+			}
+		}
 	}
 }
 

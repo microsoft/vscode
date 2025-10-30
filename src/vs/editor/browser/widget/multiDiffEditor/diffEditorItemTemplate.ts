@@ -7,6 +7,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, globalTransaction, observableValue } from '../../../../base/common/observable.js';
+import { localize } from '../../../../nls.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -244,20 +245,42 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			let isDeleted = false;
 			let isAdded = false;
 			let flag = '';
+			let status = 'Modified';
 			if (data.viewModel.modifiedUri && data.viewModel.originalUri && data.viewModel.modifiedUri.path !== data.viewModel.originalUri.path) {
 				flag = 'R';
 				isRenamed = true;
+				status = 'Renamed';
 			} else if (!data.viewModel.modifiedUri) {
 				flag = 'D';
 				isDeleted = true;
+				status = 'Deleted';
 			} else if (!data.viewModel.originalUri) {
 				flag = 'A';
 				isAdded = true;
+				status = 'Added';
 			}
 			this._elements.status.classList.toggle('renamed', isRenamed);
 			this._elements.status.classList.toggle('deleted', isDeleted);
 			this._elements.status.classList.toggle('added', isAdded);
 			this._elements.status.innerText = flag;
+
+			// Set aria-label for the individual file container
+			const originalFileName = data.viewModel.originalUri?.path.split('/').pop();
+			const modifiedFileName = data.viewModel.modifiedUri?.path.split('/').pop();
+
+			// Set aria-labels for the headers
+			let fileAriaLabel = '';
+			if (isRenamed) {
+				fileAriaLabel = localize('renamedFileHeader', 'Renamed file from {0} to {1}', originalFileName, modifiedFileName);
+			} else if (isAdded) {
+				fileAriaLabel = localize('modifiedFileHeader', '{0} file {1}', status, modifiedFileName);
+			} else {
+				fileAriaLabel = localize('modifiedFileHeader', '{0} file {1}', status, originalFileName);
+			}
+
+			this._elements.root.setAttribute('aria-label', fileAriaLabel);
+			this._elements.root.setAttribute('role', 'region');
+			this._elements.root.setAttribute('tabindex', '0');
 
 			this._resourceLabel2?.setUri(isRenamed ? data.viewModel.originalUri : undefined, { strikethrough: true });
 
@@ -322,5 +345,9 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 	public hide(): void {
 		this._elements.root.style.top = `-100000px`;
 		this._elements.root.style.visibility = 'hidden'; // Some editor parts are still visible
+	}
+
+	public getContainerElement(): HTMLElement {
+		return this._elements.root;
 	}
 }
