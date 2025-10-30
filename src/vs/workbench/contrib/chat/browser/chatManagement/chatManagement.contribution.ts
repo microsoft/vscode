@@ -12,6 +12,7 @@ import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../../../browser/e
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatManagementEditor } from './chatManagementEditor.js';
 import { ChatManagementEditorInput } from './chatManagementEditorInput.js';
@@ -48,7 +49,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.manage.copilot',
+			id: MANAGE_CHAT_COMMAND_ID,
 			title: {
 				...localize2('openAiManagement', "Manage Copilot"),
 				mnemonicTitle: localize({ key: 'miManageCopilot', comment: ['&& denotes a mnemonic'] }, "Manage &&Copilot"),
@@ -78,7 +79,7 @@ registerAction2(class extends Action2 {
 
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	command: {
-		id: 'workbench.action.manage.copilot',
+		id: MANAGE_CHAT_COMMAND_ID,
 		title: localize('manageCopilotShort', "Copilot"),
 	},
 	group: '2_configuration',

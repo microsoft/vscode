@@ -20,6 +20,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
 import { IActionProvider } from '../../../../../base/browser/ui/dropdown/dropdown.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -100,7 +101,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					tooltip: localize('chat.moreModels.tooltip', "Add premium models"),
 					class: undefined,
 					run: () => {
-						commandService.executeCommand('workbench.action.openAiManagement');
+						commandService.executeCommand(MANAGE_CHAT_COMMAND_ID);
 					}
 				});
 			}

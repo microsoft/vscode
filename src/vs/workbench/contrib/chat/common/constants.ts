@@ -119,5 +119,5 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 }
 
 export const AGENT_SESSIONS_VIEWLET_ID = 'workbench.view.chat.sessions'; // TODO@bpasero clear once settled
-
+export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
 export const ChatEditorTitleMaxLength = 30;
