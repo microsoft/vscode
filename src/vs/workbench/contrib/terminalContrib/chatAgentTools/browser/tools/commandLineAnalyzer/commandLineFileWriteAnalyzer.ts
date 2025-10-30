@@ -30,8 +30,10 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 
 	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<URI[] | string[]> {
 		let fileWrites: URI[] | string[] = [];
-		const fileWriteCaptures = await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine);
-		if (fileWriteCaptures.length) {
+		const capturedFileWrites = await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine);
+		// TODO: Handle environment variables https://github.com/microsoft/vscode/issues/274166
+		// TODO: Handle command substitions/complex destinations https://github.com/microsoft/vscode/issues/274167
+		if (capturedFileWrites.length) {
 			let cwd = await options.instance?.getCwdResource();
 			if (!cwd) {
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
@@ -39,10 +41,10 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 				cwd = workspaceFolder?.uri;
 			}
 			if (cwd) {
-				fileWrites = fileWriteCaptures.map(e => URI.joinPath(cwd, e.node.text));
+				fileWrites = capturedFileWrites.map(e => URI.joinPath(cwd, e));
 			} else {
 				this._log('Cwd could not be detected');
-				fileWrites = fileWriteCaptures.map(e => e.node.text);
+				fileWrites = capturedFileWrites;
 			}
 		}
 		this._log('File writes detected', fileWrites.map(e => e.toString()));
