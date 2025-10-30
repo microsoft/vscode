@@ -165,7 +165,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._terminalForOutput = instance;
 			this._attachedCommand = this._resolveCommand(instance);
 			this._registerInstanceListener(instance);
-			await this._addActions(instance, terminalToolSessionId);
+			await this._addFocusAction(instance, terminalToolSessionId);
 			if (this._terminalData?.output?.html) {
 				this._ensureShowOutputAction();
 			}
@@ -186,7 +186,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._register(listener);
 	}
 
-	private async _addActions(terminalInstance: ITerminalInstance, terminalToolSessionId: string) {
+	private async _addFocusAction(terminalInstance: ITerminalInstance, terminalToolSessionId: string) {
 		const isTerminalHidden = this._terminalChatService.isBackgroundTerminal(terminalToolSessionId);
 		const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, this._attachedCommand, isTerminalHidden);
 		this._focusAction.value = focusAction;
