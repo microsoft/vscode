@@ -21,7 +21,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
-import { EXPERIMENTAL_INDICATOR_DESCRIPTION, POLICY_SETTING_TAG, PREVIEW_INDICATOR_DESCRIPTION } from '../common/preferences.js';
+import { ADVANCED_INDICATOR_DESCRIPTION, EXPERIMENTAL_INDICATOR_DESCRIPTION, POLICY_SETTING_TAG, PREVIEW_INDICATOR_DESCRIPTION } from '../common/preferences.js';
 import { SettingsTreeSettingElement } from './settingsTreeModels.js';
 
 const $ = DOM.$;
@@ -319,12 +319,15 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	updatePreviewIndicator(element: SettingsTreeSettingElement) {
 		const isPreviewSetting = element.tags?.has('preview');
 		const isExperimentalSetting = element.tags?.has('experimental');
-		this.previewIndicator.element.style.display = (isPreviewSetting || isExperimentalSetting) ? 'inline' : 'none';
+		const isAdvancedSetting = element.tags?.has('advanced');
+		this.previewIndicator.element.style.display = (isPreviewSetting || isExperimentalSetting || isAdvancedSetting) ? 'inline' : 'none';
 		this.previewIndicator.label.text = isPreviewSetting ?
 			localize('previewLabel', "Preview") :
-			localize('experimentalLabel', "Experimental");
+			isExperimentalSetting ?
+				localize('experimentalLabel', "Experimental") :
+				localize('advancedLabel', "Advanced");
 
-		const content = isPreviewSetting ? PREVIEW_INDICATOR_DESCRIPTION : EXPERIMENTAL_INDICATOR_DESCRIPTION;
+		const content = isPreviewSetting ? PREVIEW_INDICATOR_DESCRIPTION : isExperimentalSetting ? EXPERIMENTAL_INDICATOR_DESCRIPTION : ADVANCED_INDICATOR_DESCRIPTION;
 		const showHover = (focus: boolean) => {
 			return this.hoverService.showInstantHover({
 				...this.defaultHoverOptions,
@@ -570,11 +573,13 @@ function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languag
 export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IWorkbenchConfigurationService, userDataProfilesService: IUserDataProfilesService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
 
-	// Add preview or experimental indicator text
+	// Add preview or experimental or advanced indicator text
 	if (element.tags?.has('preview')) {
 		ariaLabelSections.push(localize('previewLabel', "Preview"));
 	} else if (element.tags?.has('experimental')) {
 		ariaLabelSections.push(localize('experimentalLabel', "Experimental"));
+	} else if (element.tags?.has('advanced')) {
+		ariaLabelSections.push(localize('advancedLabel', "Advanced"));
 	}
 
 	// Add workspace trust text
