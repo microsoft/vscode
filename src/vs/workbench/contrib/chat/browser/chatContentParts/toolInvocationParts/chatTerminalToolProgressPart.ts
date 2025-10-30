@@ -157,12 +157,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		if (pastTenseMessage) {
 			const sanitizedMessage = stripIcons(pastTenseMessage);
-			this.domNode.ariaLabel = `${toolInvocation.toolId} command: ${command} - ${sanitizedMessage}`;
+			this.domNode.ariaLabel = localize('terminalToolCommand', "{0} command: {1} - {2}", toolInvocation.toolId, command, sanitizedMessage);
 			if (this._configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
 				status(sanitizedMessage);
 			}
 		} else {
-			this.domNode.ariaLabel = `${toolInvocation.toolId} command: ${command}`;
+			this.domNode.ariaLabel = localize('terminalToolCommandNoMessage', "{0} command: {1}", toolInvocation.toolId, command);
 		}
 	}
 
