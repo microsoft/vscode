@@ -1229,7 +1229,7 @@ class SCMHistoryViewModel extends Disposable {
 				}) ?? []));
 			} while (typeof state?.loadMore === 'string' && !historyItems.find(item => item.id === state?.loadMore));
 
-			// Computer the merge base
+			// Compute the merge base
 			const mergeBase = historyItemRef && historyItemRemoteRef && state?.mergeBase === undefined
 				? await historyProvider.resolveHistoryItemRefsCommonAncestor([
 					historyItemRef.name,
