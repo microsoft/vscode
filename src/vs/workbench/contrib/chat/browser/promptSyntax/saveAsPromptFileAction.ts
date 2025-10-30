@@ -15,7 +15,7 @@ import { ITextFileService } from '../../../../services/textfile/common/textfiles
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { getPromptsTypeForLanguageId, PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
+import { ctxReviewModeEnabled } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
 
@@ -36,7 +36,7 @@ export class SaveAsPromptFileAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(ResourceContextKey.Scheme.key, 'untitled'),
 					ContextKeyExpr.equals(ResourceContextKey.LangId.key, PROMPT_LANGUAGE_ID),
-					ctxIsGlobalEditingSession.toNegated()
+					ctxReviewModeEnabled.negate(),
 				)
 			}
 		});
