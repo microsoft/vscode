@@ -310,7 +310,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							// file watching specifically we want to handle
 							// the atomic-write cases where the file is being
 							// deleted and recreated with different contents.
-							if (isEqual(changedFileName, pathBasename, !isLinux || this.request.ignoreGlobPatternCase) && !await Promises.exists(realPath)) {
+							if (isEqual(changedFileName, pathBasename, !isLinux) && !await Promises.exists(realPath)) {
 								this.onWatchedPathDeleted(requestResource);
 
 								return;
@@ -373,7 +373,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				else {
 
 					// File added/deleted
-					if (type === 'rename' || !isEqual(changedFileName, pathBasename, !isLinux || this.request.ignoreGlobPatternCase)) {
+					if (type === 'rename' || !isEqual(changedFileName, pathBasename, !isLinux)) {
 
 						// Depending on the OS the watcher runs on, there
 						// is different behaviour for when the watched
@@ -594,7 +594,7 @@ export async function watchFileContents(path: string, onData: (chunk: Uint8Array
 
 					try {
 						// Consume the new contents of the file until finished
-						// everytime there is a change event signalling a change
+						// every time there is a change event signalling a change
 						while (!cts.token.isCancellationRequested) {
 							const { bytesRead } = await Promises.read(handle, buffer, 0, bufferSize, null);
 							if (!bytesRead || cts.token.isCancellationRequested) {
