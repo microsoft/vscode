@@ -152,7 +152,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private async _createActionBar(elements: { actionBar: HTMLElement }): Promise<void> {
 		this._actionBar.value = new ActionBar(elements.actionBar, {});
-		this._ensureShowOutputAction();
 
 		const terminalToolSessionId = this._terminalData.terminalToolSessionId;
 		if (!terminalToolSessionId) {
@@ -167,6 +166,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._attachedCommand = this._resolveCommand(instance);
 			this._registerInstanceListener(instance);
 			await this._addActions(instance, terminalToolSessionId);
+			if (this._terminalData?.output?.html) {
+				this._ensureShowOutputAction();
+			}
 		};
 
 		await attachInstance(await this._terminalChatService.getTerminalInstanceByToolSessionId(terminalToolSessionId));
@@ -192,11 +194,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return;
 		}
 		this._actionBar.value.push(focusAction, { icon: true, label: false });
-		this._ensureShowOutputAction();
 	}
 
 	private _ensureShowOutputAction(): void {
-		if (!this._actionBar.value) {
+		if (!this._actionBar.value || this._showOutputActionAdded) {
 			return;
 		}
 		const hasSerializedOutput = !!this._terminalData.output?.html;
