@@ -51,7 +51,6 @@ export class TerminalTabbedView extends Disposable {
 	private _plusButton: HTMLElement | undefined;
 	private _chatTerminalsEntry: HTMLElement | undefined;
 	private _chatTerminalsLabel: HTMLElement | undefined;
-	private _chatTerminalsCount: HTMLElement | undefined;
 
 	private _tabTreeIndex: number;
 	private _terminalContainerIndex: number;
@@ -203,7 +202,6 @@ export class TerminalTabbedView extends Disposable {
 		const icon = dom.append(entry, $('.terminal-tabs-chat-entry-icon'));
 		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.commentDiscussion));
 		this._chatTerminalsLabel = dom.append(entry, $('.terminal-tabs-chat-entry-label'));
-		this._chatTerminalsCount = dom.append(entry, $('.terminal-tabs-chat-entry-count'));
 
 		const runChatTerminalsCommand = () => {
 			void this._commandService.executeCommand('workbench.action.terminal.chat.viewChatTerminals');
@@ -222,7 +220,7 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _updateChatTerminalsEntry(): void {
-		if (!this._chatTerminalsEntry || !this._chatTerminalsLabel || !this._chatTerminalsCount) {
+		if (!this._chatTerminalsEntry || !this._chatTerminalsLabel) {
 			return;
 		}
 
@@ -233,9 +231,7 @@ export class TerminalTabbedView extends Disposable {
 		if (!hasChatTerminals) {
 			this._chatTerminalsEntry.style.display = 'none';
 			this._chatTerminalsLabel.textContent = '';
-			this._chatTerminalsCount.textContent = '';
 			this._chatTerminalsEntry.removeAttribute('aria-label');
-			this._chatTerminalsEntry.title = '';
 			this._chatTerminalsEntry.style.marginTop = '0px';
 			const widthWhenHidden = this._tabListElement.clientWidth;
 			if (widthWhenHidden > 0) {
@@ -250,22 +246,18 @@ export class TerminalTabbedView extends Disposable {
 			this._chatTerminalsLabel.textContent = chatTerminalCount === 1
 				? localize('terminal.tabs.chatEntryLabelSingle', "{0} Chat Terminal", chatTerminalCount)
 				: localize('terminal.tabs.chatEntryLabelPlural', "{0} Chat Terminals", chatTerminalCount);
-			this._chatTerminalsCount.textContent = '';
 		} else {
-			this._chatTerminalsLabel.textContent = '';
-			this._chatTerminalsCount.textContent = `${chatTerminalCount}`;
+			this._chatTerminalsLabel.textContent = `${chatTerminalCount}`;
 		}
 
 		const ariaLabel = chatTerminalCount === 1
 			? localize('terminal.tabs.chatEntryAriaLabelSingle', "Show 1 chat terminal")
 			: localize('terminal.tabs.chatEntryAriaLabelPlural', "Show {0} chat terminals", chatTerminalCount);
 		this._chatTerminalsEntry.setAttribute('aria-label', ariaLabel);
-		this._chatTerminalsEntry.title = ariaLabel;
 		const width = this._tabListElement.clientWidth;
 		if (width > 0) {
 			this._layoutTabList(width);
 		}
-		this._updateChatEntryMarginTop();
 	}
 
 	private _getLastListWidth(): number {
@@ -422,7 +414,6 @@ export class TerminalTabbedView extends Disposable {
 		const fallbackHeight = availableHeight || contentHeight || TerminalTabsListSizes.TabHeight;
 		const layoutHeight = contentHeight > 0 && availableHeight > 0 ? Math.min(contentHeight, availableHeight) : fallbackHeight;
 		this._tabList.layout(layoutHeight, width);
-		this._updateChatEntryMarginTop();
 	}
 
 	private _getAvailableTabListHeight(): number {
@@ -431,20 +422,6 @@ export class TerminalTabbedView extends Disposable {
 		return Math.max(totalHeight - chatEntryHeight, 0);
 	}
 
-	private _updateChatEntryMarginTop(): void {
-		if (!this._chatTerminalsEntry) {
-			return;
-		}
-		if (this._chatTerminalsEntry.style.display === 'none') {
-			this._chatTerminalsEntry.style.marginTop = '0px';
-			return;
-		}
-		const rowsContainer = this._tabListElement.querySelector<HTMLElement>('.monaco-list-rows');
-		const rowsHeight = rowsContainer ? rowsContainer.clientHeight : 0;
-		const fallbackHeight = this._tabList.length * TerminalTabsListSizes.TabHeight;
-		const marginTop = rowsHeight > 0 ? rowsHeight : fallbackHeight;
-		this._chatTerminalsEntry.style.marginTop = marginTop > 0 ? `${marginTop}px` : '0px';
-	}
 
 	private _attachEventListeners(parentDomElement: HTMLElement, terminalContainer: HTMLElement): void {
 		this._register(dom.addDisposableListener(this._tabContainer, 'mouseleave', async (event: MouseEvent) => {
