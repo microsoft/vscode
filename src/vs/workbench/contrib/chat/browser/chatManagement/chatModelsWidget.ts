@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatModelsWidget.css';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -109,9 +109,7 @@ class ModelsFilterAction extends Action {
 	constructor() {
 		super('workbench.models.filter', localize('filter', "Filter"), ThemeIcon.asClassName(Codicon.filter));
 	}
-
 	override async run(): Promise<void> {
-		// Action is handled by the dropdown
 	}
 }
 
@@ -121,7 +119,7 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		action: IAction,
 		options: IActionViewItemOptions,
 		private readonly searchWidget: SuggestEnabledInput,
-		private readonly getVendors: () => { vendor: string; displayName: string }[],
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IContextMenuService contextMenuService: IContextMenuService
 	) {
 		super(action,
@@ -159,7 +157,6 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 				if (!isChecked) {
 					this.doSearchWidgetAction(query);
 				} else {
-					// Remove the filter
 					const queryWithRemovedFilter = currentQuery
 						.replace(query, '')
 						.replace(`@provider:${vendor}`, '')
@@ -214,14 +211,11 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 			checked: isChecked,
 			run: () => {
 				if (!isChecked) {
-					// Remove opposite filter if present
 					const oppositeQuery = `@visible:${!visible}`;
 					const newQuery = currentQuery.replace(oppositeQuery, '').replace(/\s+/g, ' ').trim();
-					// Add the new filter
 					const finalQuery = newQuery ? `${newQuery} ${query}` : query;
 					this.searchWidget.setValue(finalQuery);
 				} else {
-					// Remove the filter
 					const queryWithRemovedFilter = currentQuery
 						.replace(query, '')
 						.replace(/\s+/g, ' ')
@@ -234,26 +228,20 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 	}
 
 	private getActions(): IAction[] {
-		const vendors = this.getVendors();
+		const vendors = this.languageModelsService.getVendors();
 		const actions: IAction[] = [];
 
-		// Add visible filter at the top
-		actions.push(
-			this.createVisibleAction(true, localize('filter.visible', 'Visible'))
-		);
+		actions.push(this.createVisibleAction(true, localize('filter.visible', 'Visible')));
 
 		if (vendors.length > 0) {
 			actions.push(new Separator());
-			actions.push(...vendors.map(vendor =>
-				this.createProviderAction(vendor.vendor, vendor.displayName)
-			));
+			actions.push(...vendors.map(vendor => this.createProviderAction(vendor.vendor, vendor.displayName)));
 		}
 
 		if (actions.length > 1) {
 			actions.push(new Separator());
 		}
 
-		// Add capability filters
 		actions.push(
 			this.createCapabilityAction('tools', localize('capability.tools', 'Tools')),
 			this.createCapabilityAction('vision', localize('capability.vision', 'Vision')),
@@ -266,257 +254,243 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 
 class Delegate implements ITableVirtualDelegate<TableEntry> {
 	readonly headerRowHeight = HEADER_HEIGHT;
-
 	getHeight(element: TableEntry): number {
-		if (isVendorEntry(element)) {
-			return VENDOR_ROW_HEIGHT;
-		}
-		return MODEL_ROW_HEIGHT;
+		return isVendorEntry(element) ? VENDOR_ROW_HEIGHT : MODEL_ROW_HEIGHT;
 	}
 }
 
-interface ITwistieColumnTemplateData {
-	container: HTMLElement;
-	twistie: HTMLElement;
-	disposables: IDisposable[];
+interface IModelTableColumnTemplateData {
+	readonly container: HTMLElement;
+	readonly disposables: DisposableStore;
+	readonly elementDisposables: DisposableStore;
 }
 
-class TwistieColumnRenderer implements ITableRenderer<TableEntry, ITwistieColumnTemplateData> {
-	static readonly TEMPLATE_ID = 'twistie';
+abstract class ModelsTableColumnRenderer<T extends IModelTableColumnTemplateData> implements ITableRenderer<TableEntry, T> {
+	abstract readonly templateId: string;
+	abstract renderTemplate(container: HTMLElement): T;
 
-	readonly templateId: string = TwistieColumnRenderer.TEMPLATE_ID;
+	renderElement(element: TableEntry, index: number, templateData: T): void {
+		templateData.elementDisposables.clear();
+		const isVendor = isVendorEntry(element);
+		templateData.container.parentElement!.classList.toggle('models-vendor-row', isVendor);
+		if (isVendor) {
+			this.renderVendorElement(element, index, templateData);
+		} else {
+			this.renderModelElement(element, index, templateData);
+		}
+	}
+
+	abstract renderVendorElement(element: IVendorItemEntry, index: number, templateData: T): void;
+	abstract renderModelElement(element: IModelItemEntry, index: number, templateData: T): void;
+
+	disposeTemplate(templateData: T): void {
+		templateData.elementDisposables.dispose();
+		templateData.disposables.dispose();
+	}
+}
+
+interface IToggleCollapseColumnTemplateData extends IModelTableColumnTemplateData {
+	readonly container: HTMLElement;
+	readonly actionBar: ActionBar;
+}
+
+class ToggleCollapseColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColumnTemplateData> {
+
+	static readonly TEMPLATE_ID = 'toggleCollapse';
+
+	readonly templateId: string = ToggleCollapseColumnRenderer.TEMPLATE_ID;
 
 	private readonly _onDidToggleCollapse = new Emitter<string>();
 	readonly onDidToggleCollapse = this._onDidToggleCollapse.event;
 
-	constructor() { }
-
-	renderTemplate(container: HTMLElement): ITwistieColumnTemplateData {
-		const twistie = DOM.append(container, $('.models-twistie.codicon'));
-		return { container, twistie, disposables: [] };
+	renderTemplate(container: HTMLElement): IToggleCollapseColumnTemplateData {
+		const disposables = new DisposableStore();
+		const elementDisposables = new DisposableStore();
+		const actionBar = disposables.add(new ActionBar(DOM.append(container, $('.collapse-actions-column'))));
+		return {
+			container,
+			actionBar,
+			disposables,
+			elementDisposables
+		};
 	}
 
-	renderElement(entry: TableEntry, index: number, templateData: ITwistieColumnTemplateData): void {
-		templateData.disposables.forEach(d => d.dispose());
-		templateData.disposables = [];
+	override renderElement(entry: TableEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
+		templateData.actionBar.clear();
+		super.renderElement(entry, index, templateData);
+	}
 
-		if (isVendorEntry(entry)) {
-			// Vendor entry - show twistie
-			templateData.container.classList.add('models-vendor-row');
-			templateData.twistie.style.visibility = 'visible';
-			templateData.twistie.className = entry.collapsed
-				? 'models-twistie codicon codicon-chevron-right'
-				: 'models-twistie codicon codicon-chevron-down';
+	override renderVendorElement(entry: IVendorItemEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
+		templateData.actionBar.push(this.createToggleCollapseAction(entry), { icon: true, label: false });
+	}
 
-			const clickListener = DOM.addDisposableListener(templateData.twistie, DOM.EventType.CLICK, (e: MouseEvent) => {
-				e.stopPropagation();
-				e.preventDefault();
+	private createToggleCollapseAction(entry: IVendorItemEntry): IAction {
+		const label = entry.collapsed ? localize('expand', 'Expand') : localize('collapse', 'Collapse');
+		return {
+			id: 'toggleCollapse',
+			label,
+			tooltip: label,
+			enabled: true,
+			class: ThemeIcon.asClassName(entry.collapsed ? Codicon.chevronRight : Codicon.chevronDown),
+			run: () => {
 				this._onDidToggleCollapse.fire(entry.vendorEntry.vendor);
-			});
-			templateData.disposables.push(clickListener);
-		} else {
-			// Model entry - hide twistie
-			templateData.container.classList.remove('models-vendor-row');
-			templateData.twistie.style.visibility = 'hidden';
-		}
+			}
+		};
 	}
 
-	disposeTemplate(templateData: ITwistieColumnTemplateData): void {
-		templateData.disposables.forEach(d => d.dispose());
+	override renderModelElement(entry: IModelItemEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
 	}
 }
 
-
-
-interface IProviderColumnTemplateData {
-	providerLabel: HighlightedLabel;
+interface IModelNameColumnTemplateData extends IModelTableColumnTemplateData {
+	readonly statusIcon: HTMLElement;
+	readonly nameLabel: HighlightedLabel;
 }
 
-class ProviderColumnRenderer implements ITableRenderer<TableEntry, IProviderColumnTemplateData> {
-	static readonly TEMPLATE_ID = 'provider';
-
-	readonly templateId: string = ProviderColumnRenderer.TEMPLATE_ID;
-
-	constructor() { }
-
-	renderTemplate(container: HTMLElement): IProviderColumnTemplateData {
-		const providerLabel = new HighlightedLabel(container);
-		return { providerLabel };
-	}
-
-	renderElement(entry: TableEntry, index: number, templateData: IProviderColumnTemplateData): void {
-		if (isVendorEntry(entry)) {
-			// Vendor entry - show nothing
-			templateData.providerLabel.element.parentElement!.classList.add('models-vendor-row');
-			templateData.providerLabel.set('', undefined);
-		} else {
-			// Model entry
-			templateData.providerLabel.element.parentElement!.classList.remove('models-vendor-row');
-			const { modelEntry, providerMatches, vendorMatches } = entry;
-			const matches = providerMatches || vendorMatches;
-			templateData.providerLabel.set(modelEntry.vendorDisplayName, matches);
-		}
-	}
-
-	disposeTemplate(templateData: IProviderColumnTemplateData): void {
-		templateData.providerLabel.dispose();
-	}
-}
-
-interface IModelNameColumnTemplateData {
-	container: HTMLElement;
-	statusIcon: HTMLElement;
-	nameLabel: HighlightedLabel;
-	disposables: DisposableStore;
-}
-
-class ModelNameColumnRenderer implements ITableRenderer<TableEntry, IModelNameColumnTemplateData> {
+class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumnTemplateData> {
 	static readonly TEMPLATE_ID = 'modelName';
 
 	readonly templateId: string = ModelNameColumnRenderer.TEMPLATE_ID;
 
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService
-	) { }
+	) {
+		super();
+	}
 
 	renderTemplate(container: HTMLElement): IModelNameColumnTemplateData {
+		const disposables = new DisposableStore();
+		const elementDisposables = new DisposableStore();
 		const nameContainer = DOM.append(container, $('.model-name-container'));
-		const nameLabel = new HighlightedLabel(DOM.append(nameContainer, $('.model-name')));
+		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameContainer, $('.model-name'))));
 		const statusIcon = DOM.append(nameContainer, $('.model-status-icon'));
-
 		return {
 			container,
 			statusIcon,
 			nameLabel,
-			disposables: new DisposableStore(),
+			disposables,
+			elementDisposables
 		};
 	}
 
-	renderElement(entry: TableEntry, index: number, templateData: IModelNameColumnTemplateData): void {
-		// Clear previous disposables
-		templateData.disposables.clear();
+	override renderElement(entry: TableEntry, index: number, templateData: IModelNameColumnTemplateData): void {
+		DOM.clearNode(templateData.statusIcon);
+		super.renderElement(entry, index, templateData);
+	}
 
-		if (isVendorEntry(entry)) {
-			// Vendor entry - show vendor display name in bold
-			templateData.container.classList.add('models-vendor-row');
-			DOM.clearNode(templateData.statusIcon);
-			templateData.statusIcon.style.display = 'none';
-			templateData.nameLabel.set(entry.vendorEntry.vendorDisplayName, undefined);
-			templateData.container.classList.add('vendor-row');
+	override renderVendorElement(entry: IVendorItemEntry, index: number, templateData: IModelNameColumnTemplateData): void {
+		templateData.nameLabel.set(entry.vendorEntry.vendorDisplayName, undefined);
+	}
+
+	override renderModelElement(entry: IModelItemEntry, index: number, templateData: IModelNameColumnTemplateData): void {
+		const { modelEntry, modelNameMatches } = entry;
+
+		templateData.statusIcon.className = 'model-status-icon';
+		if (modelEntry.metadata.statusIcon) {
+			templateData.statusIcon.classList.add(...ThemeIcon.asClassNameArray(modelEntry.metadata.statusIcon));
+			templateData.statusIcon.style.display = '';
 		} else {
-			// Model entry
-			const { modelEntry, modelNameMatches } = entry;
-			templateData.container.classList.remove('models-vendor-row');
-			templateData.container.classList.remove('vendor-row');
-
-			DOM.clearNode(templateData.statusIcon);
-			templateData.statusIcon.className = 'model-status-icon';
-			if (modelEntry.metadata.statusIcon) {
-				templateData.statusIcon.classList.add(...ThemeIcon.asClassNameArray(modelEntry.metadata.statusIcon));
-				templateData.statusIcon.style.display = '';
-			} else {
-				templateData.statusIcon.style.display = 'none';
-			}
-
-			templateData.nameLabel.set(modelEntry.metadata.name, modelNameMatches);
-
-			const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-			markdown.appendMarkdown(`**${entry.modelEntry.metadata.name}**`);
-			if (entry.modelEntry.metadata.id !== entry.modelEntry.metadata.version) {
-				markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.modelEntry.metadata.id}@${entry.modelEntry.metadata.version}_&nbsp;</span>`);
-			} else {
-				markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.modelEntry.metadata.id}_&nbsp;</span>`);
-			}
-			markdown.appendText(`\n`);
-
-			if (entry.modelEntry.metadata.statusIcon && entry.modelEntry.metadata.tooltip) {
-				if (entry.modelEntry.metadata.statusIcon) {
-					markdown.appendMarkdown(`$(${entry.modelEntry.metadata.statusIcon.id})&nbsp;`);
-				}
-				markdown.appendMarkdown(`${entry.modelEntry.metadata.tooltip}`);
-				markdown.appendText(`\n`);
-			}
-
-			templateData.disposables.add(this.hoverService.setupDelayedHover(templateData.container!, () => ({
-				content: markdown,
-				appearance: {
-					showPointer: true,
-					skipFadeInAnimation: true,
-				},
-				position: {
-					hoverPosition: HoverPosition.BELOW
-				}
-			})));
+			templateData.statusIcon.style.display = 'none';
 		}
-	}
 
-	disposeTemplate(templateData: IModelNameColumnTemplateData): void {
-		templateData.disposables.dispose();
-		templateData.nameLabel.dispose();
+		templateData.nameLabel.set(modelEntry.metadata.name, modelNameMatches);
+
+		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+		markdown.appendMarkdown(`**${entry.modelEntry.metadata.name}**`);
+		if (entry.modelEntry.metadata.id !== entry.modelEntry.metadata.version) {
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.modelEntry.metadata.id}@${entry.modelEntry.metadata.version}_&nbsp;</span>`);
+		} else {
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.modelEntry.metadata.id}_&nbsp;</span>`);
+		}
+		markdown.appendText(`\n`);
+
+		if (entry.modelEntry.metadata.statusIcon && entry.modelEntry.metadata.tooltip) {
+			if (entry.modelEntry.metadata.statusIcon) {
+				markdown.appendMarkdown(`$(${entry.modelEntry.metadata.statusIcon.id})&nbsp;`);
+			}
+			markdown.appendMarkdown(`${entry.modelEntry.metadata.tooltip}`);
+			markdown.appendText(`\n`);
+		}
+
+		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container!, () => ({
+			content: markdown,
+			appearance: {
+				showPointer: true,
+				skipFadeInAnimation: true,
+			},
+			position: {
+				hoverPosition: HoverPosition.BELOW
+			}
+		})));
 	}
 }
 
-interface ICostColumnTemplateData {
-	multiplierElement: HTMLElement;
+interface IMultiplierColumnTemplateData extends IModelTableColumnTemplateData {
+	readonly multiplierElement: HTMLElement;
 }
 
-class MultiplierColumnRenderer implements ITableRenderer<TableEntry, ICostColumnTemplateData> {
+class MultiplierColumnRenderer extends ModelsTableColumnRenderer<IMultiplierColumnTemplateData> {
 	static readonly TEMPLATE_ID = 'multiplier';
 
 	readonly templateId: string = MultiplierColumnRenderer.TEMPLATE_ID;
 
-	constructor() { }
-
-	renderTemplate(container: HTMLElement): ICostColumnTemplateData {
+	renderTemplate(container: HTMLElement): IMultiplierColumnTemplateData {
+		const disposables = new DisposableStore();
+		const elementDisposables = new DisposableStore();
 		const multiplierElement = DOM.append(container, $('.model-multiplier'));
-		return { multiplierElement };
+		return {
+			container,
+			multiplierElement,
+			disposables,
+			elementDisposables
+		};
 	}
 
-	renderElement(entry: TableEntry, index: number, templateData: ICostColumnTemplateData): void {
-		if (isVendorEntry(entry)) {
-			// Vendor entry - show nothing
-			templateData.multiplierElement.parentElement!.classList.add('models-vendor-row');
-			templateData.multiplierElement.textContent = '';
-		} else {
-			// Model entry
-			templateData.multiplierElement.parentElement!.classList.remove('models-vendor-row');
-			templateData.multiplierElement.textContent = (entry.modelEntry.metadata.detail && entry.modelEntry.metadata.detail.trim().toLowerCase() !== entry.modelEntry.vendor.trim().toLowerCase()) ? entry.modelEntry.metadata.detail : '-';
-		}
+	override renderVendorElement(entry: IVendorItemEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
+		templateData.multiplierElement.textContent = '';
 	}
 
-	disposeTemplate(templateData: ICostColumnTemplateData): void { }
+	override renderModelElement(entry: IModelItemEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
+		templateData.multiplierElement.textContent = (entry.modelEntry.metadata.detail && entry.modelEntry.metadata.detail.trim().toLowerCase() !== entry.modelEntry.vendor.trim().toLowerCase()) ? entry.modelEntry.metadata.detail : '-';
+	}
 }
 
-interface ITokenLimitsColumnTemplateData {
-	container: HTMLElement;
-	tokenLimitsElement: HTMLElement;
-	disposables: DisposableStore;
+interface ITokenLimitsColumnTemplateData extends IModelTableColumnTemplateData {
+	readonly tokenLimitsElement: HTMLElement;
 }
 
-class TokenLimitsColumnRenderer implements ITableRenderer<TableEntry, ITokenLimitsColumnTemplateData> {
+class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsColumnTemplateData> {
 	static readonly TEMPLATE_ID = 'tokenLimits';
 
 	readonly templateId: string = TokenLimitsColumnRenderer.TEMPLATE_ID;
 
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService
-	) { }
-
-	renderTemplate(container: HTMLElement): ITokenLimitsColumnTemplateData {
-		const tokenLimitsElement = DOM.append(container, $('.model-token-limits'));
-		return { container, tokenLimitsElement, disposables: new DisposableStore() };
+	) {
+		super();
 	}
 
-	renderElement(entry: TableEntry, index: number, templateData: ITokenLimitsColumnTemplateData): void {
-		DOM.clearNode(templateData.tokenLimitsElement);
-		if (isVendorEntry(entry)) {
-			// Vendor entry - show nothing
-			templateData.container.classList.add('models-vendor-row');
-			return;
-		}
+	renderTemplate(container: HTMLElement): ITokenLimitsColumnTemplateData {
+		const disposables = new DisposableStore();
+		const elementDisposables = new DisposableStore();
+		const tokenLimitsElement = DOM.append(container, $('.model-token-limits'));
+		return {
+			container,
+			tokenLimitsElement,
+			disposables,
+			elementDisposables
+		};
+	}
 
-		// Model entry
-		templateData.container.classList.remove('models-vendor-row');
+	override renderElement(entry: TableEntry, index: number, templateData: ITokenLimitsColumnTemplateData): void {
+		DOM.clearNode(templateData.tokenLimitsElement);
+		super.renderElement(entry, index, templateData);
+	}
+
+	override renderVendorElement(entry: IVendorItemEntry, index: number, templateData: ITokenLimitsColumnTemplateData): void {
+	}
+
+	override renderModelElement(entry: IModelItemEntry, index: number, templateData: ITokenLimitsColumnTemplateData): void {
 		const { modelEntry } = entry;
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		if (modelEntry.metadata.maxInputTokens || modelEntry.metadata.maxOutputTokens) {
@@ -543,7 +517,7 @@ class TokenLimitsColumnRenderer implements ITableRenderer<TableEntry, ITokenLimi
 			}
 		}
 
-		templateData.disposables.add(this.hoverService.setupDelayedHover(templateData.container, () => ({
+		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => ({
 			content: markdown,
 			appearance: {
 				showPointer: true,
@@ -554,59 +528,55 @@ class TokenLimitsColumnRenderer implements ITableRenderer<TableEntry, ITokenLimi
 			}
 		})));
 	}
-
-	disposeTemplate(templateData: ITokenLimitsColumnTemplateData): void { }
 }
 
-interface ICapabilitiesColumnTemplateData {
-	metadataRow: HTMLElement;
+interface ICapabilitiesColumnTemplateData extends IModelTableColumnTemplateData {
+	readonly metadataRow: HTMLElement;
 }
 
-class CapabilitiesColumnRenderer implements ITableRenderer<TableEntry, ICapabilitiesColumnTemplateData> {
+class CapabilitiesColumnRenderer extends ModelsTableColumnRenderer<ICapabilitiesColumnTemplateData> {
 	static readonly TEMPLATE_ID = 'capabilities';
 
 	readonly templateId: string = CapabilitiesColumnRenderer.TEMPLATE_ID;
 
-	constructor() { }
-
 	renderTemplate(container: HTMLElement): ICapabilitiesColumnTemplateData {
+		const disposables = new DisposableStore();
+		const elementDisposables = new DisposableStore();
 		const metadataRow = DOM.append(container, $('.model-metadata'));
-		return { metadataRow };
+		return {
+			container,
+			metadataRow,
+			disposables,
+			elementDisposables
+		};
 	}
 
-	renderElement(entry: TableEntry, index: number, templateData: ICapabilitiesColumnTemplateData): void {
+	override renderElement(entry: TableEntry, index: number, templateData: ICapabilitiesColumnTemplateData): void {
 		DOM.clearNode(templateData.metadataRow);
+		super.renderElement(entry, index, templateData);
+	}
 
-		if (isVendorEntry(entry)) {
-			// Vendor entry - show nothing
-			templateData.metadataRow.parentElement!.classList.add('models-vendor-row');
-			return;
-		}
+	override renderVendorElement(entry: IVendorItemEntry, index: number, templateData: ICapabilitiesColumnTemplateData): void {
+	}
 
-		// Model entry
-		templateData.metadataRow.parentElement!.classList.remove('models-vendor-row');
+	override renderModelElement(entry: IModelItemEntry, index: number, templateData: ICapabilitiesColumnTemplateData): void {
 		const { modelEntry } = entry;
 		if (modelEntry.metadata.capabilities?.toolCalling) {
 			const toolsBadge = DOM.append(templateData.metadataRow, $('.model-badge.badge'));
 			toolsBadge.textContent = localize('models.tools', 'Tools');
 		}
-
 		if (modelEntry.metadata.capabilities?.vision) {
 			const visionBadge = DOM.append(templateData.metadataRow, $('.model-badge.badge'));
 			visionBadge.textContent = localize('models.vision', 'Vision');
 		}
 	}
-
-	disposeTemplate(templateData: ICapabilitiesColumnTemplateData): void { }
 }
 
-interface IActionsColumnTemplateData {
-	container: HTMLElement;
-	actionBar: ActionBar;
-	disposables: DisposableStore;
+interface IActionsColumnTemplateData extends IModelTableColumnTemplateData {
+	readonly actionBar: ActionBar;
 }
 
-class ActionsColumnRenderer implements ITableRenderer<TableEntry, IActionsColumnTemplateData> {
+class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemplateData> {
 	static readonly TEMPLATE_ID = 'actions';
 
 	readonly templateId: string = ActionsColumnRenderer.TEMPLATE_ID;
@@ -617,64 +587,61 @@ class ActionsColumnRenderer implements ITableRenderer<TableEntry, IActionsColumn
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ICommandService private readonly commandService: ICommandService,
-	) { }
+	) {
+		super();
+	}
 
 	renderTemplate(container: HTMLElement): IActionsColumnTemplateData {
+		const disposables = new DisposableStore();
+		const elementDisposables = new DisposableStore();
 		const parent = DOM.append(container, $('.actions-column'));
-		const actionBar = new ActionBar(parent, {
-			actionViewItemProvider: undefined
-		});
+		const actionBar = disposables.add(new ActionBar(parent));
 
 		return {
 			container,
 			actionBar,
-			disposables: new DisposableStore(),
+			disposables,
+			elementDisposables
 		};
 	}
-	renderElement(entry: TableEntry, index: number, templateData: IActionsColumnTemplateData): void {
-		templateData.disposables.clear();
+
+	override renderElement(entry: TableEntry, index: number, templateData: IActionsColumnTemplateData): void {
 		templateData.actionBar.clear();
+		super.renderElement(entry, index, templateData);
+	}
 
-		if (isVendorEntry(entry)) {
-			templateData.container.classList.add('models-vendor-row');
-			if (entry.vendorEntry.managementCommand) {
-				const { vendorEntry } = entry;
-				const action = toAction({
-					id: 'manageVendor',
-					label: localize('models.manageProvider', 'Manage {0}...', entry.vendorEntry.vendorDisplayName),
-					class: ThemeIcon.asClassName(Codicon.gear),
-					run: async () => {
-						await this.commandService.executeCommand(vendorEntry.managementCommand!, vendorEntry.vendor);
-						this._onDidChange.fire();
-					}
-
-				});
-				templateData.actionBar.push(action, { icon: true, label: false });
-			}
-		} else {
-			// Model entry - show action bar with show/hide action
-			const { modelEntry } = entry;
-			templateData.container.classList.remove('models-vendor-row');
-
-			const isVisible = modelEntry.metadata.isUserSelectable ?? false;
-			const toggleVisibilityAction = toAction({
-				id: 'toggleVisibility',
-				label: isVisible ? localize('models.hide', 'Hide') : localize('models.show', 'Show'),
-				class: ThemeIcon.asClassName(isVisible ? Codicon.eye : Codicon.eyeClosed),
-				tooltip: isVisible ? localize('models.visible', 'Visible') : localize('models.hidden', 'Hidden'),
+	override renderVendorElement(entry: IVendorItemEntry, index: number, templateData: IActionsColumnTemplateData): void {
+		if (entry.vendorEntry.managementCommand) {
+			const { vendorEntry } = entry;
+			const action = toAction({
+				id: 'manageVendor',
+				label: localize('models.manageProvider', 'Manage {0}...', entry.vendorEntry.vendorDisplayName),
+				class: ThemeIcon.asClassName(Codicon.gear),
 				run: async () => {
-					const newVisibility = !isVisible;
-					this.languageModelsService.updateModelPickerPreference(modelEntry.identifier, newVisibility);
+					await this.commandService.executeCommand(vendorEntry.managementCommand!, vendorEntry.vendor);
 					this._onDidChange.fire();
 				}
+
 			});
-			templateData.actionBar.push(toggleVisibilityAction, { icon: true, label: false });
+			templateData.actionBar.push(action, { icon: true, label: false });
 		}
 	}
 
-	disposeTemplate(templateData: IActionsColumnTemplateData): void {
-		templateData.disposables.dispose();
-		templateData.actionBar.dispose();
+	override renderModelElement(entry: IModelItemEntry, index: number, templateData: IActionsColumnTemplateData): void {
+		const { modelEntry } = entry;
+		const isVisible = modelEntry.metadata.isUserSelectable ?? false;
+		const toggleVisibilityAction = toAction({
+			id: 'toggleVisibility',
+			label: isVisible ? localize('models.hide', 'Hide') : localize('models.show', 'Show'),
+			class: ThemeIcon.asClassName(isVisible ? Codicon.eye : Codicon.eyeClosed),
+			tooltip: isVisible ? localize('models.visible', 'Visible') : localize('models.hidden', 'Hidden'),
+			run: async () => {
+				const newVisibility = !isVisible;
+				this.languageModelsService.updateModelPickerPreference(modelEntry.identifier, newVisibility);
+				this._onDidChange.fire();
+			}
+		});
+		templateData.actionBar.push(toggleVisibilityAction, { icon: true, label: false });
 	}
 }
 
@@ -713,19 +680,15 @@ export class ChatModelsWidget extends Disposable {
 		this.viewModel = this._register(this.instantiationService.createInstance(ChatModelsViewModel));
 		this.element = DOM.$('.models-widget');
 		this.create(this.element);
+
 		extensionService.whenInstalledExtensionsRegistered().then(async () => {
 			await this.viewModel.resolve();
 			this.refreshTable();
 		});
-
-		// Refresh when model entries change (e.g., due to entitlement changes)
-		this._register(this.viewModel.onDidChangeModelEntries(() => {
-			this.refreshTable();
-		}));
+		this._register(this.viewModel.onDidChangeModelEntries(() => this.refreshTable()));
 	}
 
 	private create(container: HTMLElement): void {
-		// Search and button container
 		const searchAndButtonContainer = DOM.append(container, $('.models-search-and-button-container'));
 
 		const placeholder = localize('Search.FullTextSearchPlaceholder', "Type to search...");
@@ -739,19 +702,14 @@ export class ChatModelsWidget extends Disposable {
 				provideResults: (query: string) => {
 					const queryParts = query.split(/\s/g);
 					const lastPart = queryParts[queryParts.length - 1];
-
 					if (lastPart.startsWith('@provider:')) {
-						// Suggest provider names
 						const vendors = this.languageModelsService.getVendors();
 						return vendors.map(v => `@provider:"${v.displayName}"`);
 					} else if (lastPart.startsWith('@capability:')) {
-						// Suggest capabilities
 						return SEARCH_SUGGESTIONS.CAPABILITIES;
 					} else if (lastPart.startsWith('@visible:')) {
-						// Suggest visibility filters
 						return SEARCH_SUGGESTIONS.VISIBILITY;
 					} else if (lastPart.startsWith('@')) {
-						// Suggest filter types
 						return SEARCH_SUGGESTIONS.FILTER_TYPES;
 					}
 					return [];
@@ -768,34 +726,29 @@ export class ChatModelsWidget extends Disposable {
 		));
 		this._register(this.searchWidget.onInputDidChange(() => this.filterModels()));
 
-		// Create actions
 		const filterAction = new ModelsFilterAction();
 		const refreshAction = this._register(new Action(
 			'workbench.models.refresh',
 			localize('refresh', "Refresh"),
 			ThemeIcon.asClassName(Codicon.refresh),
 			true,
-			async () => {
-				await this.refresh();
-			}
+			() => this.refresh()
 		));
 		const clearSearchAction = this._register(new Action(
 			'workbench.models.clearSearch',
 			localize('clearSearch', "Clear Search"),
 			ThemeIcon.asClassName(preferencesClearInputIcon),
 			false,
-			async () => {
+			() => {
 				this.searchWidget.setValue('');
 				this.searchWidget.focus();
 			}
 		));
 
-		// Update clear action state when search text changes
 		this._register(this.searchWidget.onInputDidChange(() => {
 			clearSearchAction.enabled = !!this.searchWidget.getValue();
 		}));
 
-		// Handle ESC key to clear search
 		this._register(this.searchWidget.inputWidget.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Escape) {
 				e.preventDefault();
@@ -807,19 +760,12 @@ export class ChatModelsWidget extends Disposable {
 			}
 		}));
 
-		// Add toolbar with all actions
 		this.searchActionsContainer = DOM.append(searchContainer, $('.models-search-actions'));
 		const actions = [clearSearchAction, refreshAction, filterAction];
 		const toolBar = this._register(new ToolBar(this.searchActionsContainer, this.contextMenuService, {
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action.id === filterAction.id) {
-					return this.instantiationService.createInstance(
-						ModelsSearchFilterDropdownMenuActionViewItem,
-						action,
-						options,
-						this.searchWidget,
-						() => this.languageModelsService.getVendors()
-					);
+					return this.instantiationService.createInstance(ModelsSearchFilterDropdownMenuActionViewItem, action, options, this.searchWidget);
 				}
 				return undefined;
 			},
@@ -830,7 +776,6 @@ export class ChatModelsWidget extends Disposable {
 		// Add padding to input box for toolbar
 		this.searchWidget.inputWidget.getContainerDomNode().style.paddingRight = `${DOM.getTotalWidth(this.searchActionsContainer) + 12}px`;
 
-		// Enable Model Provider button next to search
 		this.addButtonContainer = DOM.append(searchAndButtonContainer, $('.section-title-actions'));
 		const buttonOptions: IButtonOptions = {
 			...defaultButtonStyles,
@@ -853,8 +798,7 @@ export class ChatModelsWidget extends Disposable {
 		this.tableContainer = DOM.append(container, $('.models-table-container'));
 
 		// Create table
-		const twistieColumnRenderer = new TwistieColumnRenderer();
-		const providerColumnRenderer = this.instantiationService.createInstance(ProviderColumnRenderer);
+		const twistieColumnRenderer = new ToggleCollapseColumnRenderer();
 		const modelNameColumnRenderer = this.instantiationService.createInstance(ModelNameColumnRenderer);
 		const costColumnRenderer = this.instantiationService.createInstance(MultiplierColumnRenderer);
 		const tokenLimitsColumnRenderer = this.instantiationService.createInstance(TokenLimitsColumnRenderer);
@@ -883,7 +827,7 @@ export class ChatModelsWidget extends Disposable {
 					weight: 0,
 					minimumWidth: 40,
 					maximumWidth: 40,
-					templateId: TwistieColumnRenderer.TEMPLATE_ID,
+					templateId: ToggleCollapseColumnRenderer.TEMPLATE_ID,
 					project(row: TableEntry): TableEntry { return row; }
 				},
 				{
@@ -930,7 +874,6 @@ export class ChatModelsWidget extends Disposable {
 			],
 			[
 				twistieColumnRenderer,
-				providerColumnRenderer,
 				modelNameColumnRenderer,
 				costColumnRenderer,
 				tokenLimitsColumnRenderer,
@@ -963,11 +906,9 @@ export class ChatModelsWidget extends Disposable {
 	}
 
 	private async refreshTable(): Promise<void> {
-		// Get all models from the view model with current search value
 		const searchValue = this.searchWidget.getValue();
 		const modelItems = this.viewModel.fetch(searchValue);
 
-		// Get vendors without models for the add button
 		const vendors = this.languageModelsService.getVendors();
 		const vendorsWithModels = new Set(modelItems
 			.filter((item): item is IModelItemEntry => !isVendorEntry(item))
@@ -977,12 +918,9 @@ export class ChatModelsWidget extends Disposable {
 
 		this.table.splice(0, this.table.length, modelItems);
 
-		// Check if user has a plan assigned (not Unknown or Available)
-		const hasPlan = this.chatEntitlementService.entitlement !== ChatEntitlement.Unknown &&
-			this.chatEntitlementService.entitlement !== ChatEntitlement.Available;
+		const hasPlan = this.chatEntitlementService.entitlement !== ChatEntitlement.Unknown && this.chatEntitlementService.entitlement !== ChatEntitlement.Available;
 		this.addButton.enabled = hasPlan && vendorsWithoutModels.length > 0;
 
-		// Update dropdown actions with provider names
 		this.dropdownActions = vendorsWithoutModels.map(vendor => toAction({
 			id: `enable-${vendor.vendor}`,
 			label: vendor.displayName,
@@ -1019,9 +957,5 @@ export class ChatModelsWidget extends Disposable {
 	public async refresh(): Promise<void> {
 		await this.viewModel.resolve();
 		this.refreshTable();
-	}
-
-	override dispose(): void {
-		super.dispose();
 	}
 }

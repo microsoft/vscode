@@ -75,7 +75,7 @@ export class ChatModelsViewModel extends EditorModel {
 	private readonly _onDidChangeModelEntries = this._register(new Emitter<void>());
 	readonly onDidChangeModelEntries = this._onDidChangeModelEntries.event;
 
-	private _modelEntries: IModelEntry[];
+	private modelEntries: IModelEntry[];
 	private readonly collapsedVendors = new Set<string>();
 
 	constructor(
@@ -83,9 +83,8 @@ export class ChatModelsViewModel extends EditorModel {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
 	) {
 		super();
-		this._modelEntries = [];
+		this.modelEntries = [];
 
-		// Refresh data when entitlement changes
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(async () => {
 			await this.resolve();
 			this._onDidChangeModelEntries.fire();
@@ -93,9 +92,8 @@ export class ChatModelsViewModel extends EditorModel {
 	}
 
 	fetch(searchValue: string): (IModelItemEntry | IVendorItemEntry)[] {
-		let modelEntries = this._modelEntries;
+		let modelEntries = this.modelEntries;
 
-		// @visible:true or @visible:false
 		const visibleMatches = VISIBLE_REGEX.exec(searchValue);
 		if (visibleMatches && visibleMatches[1]) {
 			const visible = visibleMatches[1].toLowerCase() === 'true';
@@ -103,22 +101,13 @@ export class ChatModelsViewModel extends EditorModel {
 			searchValue = searchValue.replace(VISIBLE_REGEX, '');
 		}
 
-		// Extract all @provider:PROVIDER_NAME or @vendor:VENDOR_NAME filters
 		const providerNames: string[] = [];
 		let match: RegExpExecArray | null;
 
-		// Find all provider matches (non-greedy match with ".+?" instead of "..+")
 		const providerRegexGlobal = /@provider:\s*((".+?")|([^\s]+))/gi;
 		while ((match = providerRegexGlobal.exec(searchValue)) !== null) {
 			const providerName = match[2] ? match[2].substring(1, match[2].length - 1) : match[3];
 			providerNames.push(providerName);
-		}
-
-		// Find all vendor matches
-		const vendorRegexGlobal = /@vendor:\s*((".+?")|([^\s]+))/gi;
-		while ((match = vendorRegexGlobal.exec(searchValue)) !== null) {
-			const vendorName = match[2] ? match[2].substring(1, match[2].length - 1) : match[3];
-			providerNames.push(vendorName);
 		}
 
 		// Apply provider filter with OR logic if multiple providers
@@ -127,7 +116,6 @@ export class ChatModelsViewModel extends EditorModel {
 			searchValue = searchValue.replace(/@provider:\s*((".+?")|([^\s]+))/gi, '').replace(/@vendor:\s*((".+?")|([^\s]+))/gi, '');
 		}
 
-		// @capability:CAPABILITY_NAME
 		const capabilityMatches = CAPABILITY_REGEX.exec(searchValue);
 		if (capabilityMatches && capabilityMatches[1]) {
 			const capability = capabilityMatches[1].toLowerCase();
@@ -144,7 +132,6 @@ export class ChatModelsViewModel extends EditorModel {
 	}
 
 	private filterByProviders(modelEntries: IModelEntry[], providers: string[]): IModelEntry[] {
-		// OR logic: include models that match ANY of the providers
 		const lowerProviders = providers.map(p => p.toLowerCase().trim());
 		return modelEntries.filter(m =>
 			lowerProviders.some(provider =>
@@ -219,7 +206,7 @@ export class ChatModelsViewModel extends EditorModel {
 	}
 
 	override async resolve(): Promise<void> {
-		this._modelEntries = [];
+		this.modelEntries = [];
 
 		const vendors = this.languageModelsService.getVendors();
 
@@ -241,20 +228,16 @@ export class ChatModelsViewModel extends EditorModel {
 				};
 			}));
 
-			this._modelEntries.push(...models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name)));
+			this.modelEntries.push(...models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name)));
 		}
 
-		this._modelEntries = distinct(this._modelEntries, modelEntry => ChatModelsViewModel.getId(modelEntry));
+		this.modelEntries = distinct(this.modelEntries, modelEntry => ChatModelsViewModel.getId(modelEntry));
 
 		return super.resolve();
 	}
 
 	private static getId(modelEntry: IModelEntry): string {
 		return modelEntry.identifier + modelEntry.vendor + (modelEntry.metadata.version || '');
-	}
-
-	get modelEntries(): IModelEntry[] {
-		return this._modelEntries;
 	}
 
 	toggleVendorCollapsed(vendorId: string): void {

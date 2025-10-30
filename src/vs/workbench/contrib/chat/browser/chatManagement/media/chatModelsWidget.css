@@ -41,10 +41,6 @@
 	box-sizing: content-box;
 }
 
-.models-widget .models-add-model-button {
-	white-space: nowrap;
-}
-
 /** Table styling **/
 
 .models-widget .models-table-container {
@@ -57,33 +53,30 @@
 	cursor: default;
 }
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td {
+.models-widget .models-table-container .monaco-table-td {
 	align-items: center;
 	display: flex;
 	overflow: hidden;
+	padding-left: 10px;
 }
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
-	display: none;
-	flex: 1;
+.models-widget .models-table-container .monaco-table-td[data-col-index="1"] {
+	padding-left: 8px;
 }
 
-.models-widget .models-table-container .monaco-list-row.selected .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
-.models-widget .models-table-container .monaco-table.focused .monaco-list-row.focused .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
-.models-widget .models-table-container .monaco-list-row:hover .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
-	display: flex;
+.models-widget .models-table-container .monaco-table-th {
+	padding-left: 10px;
+	background-color: var(--vscode-keybindingTable-headerBackground);
 }
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .monaco-action-bar .action-item > .icon {
-	width: 16px;
-	height: 16px;
-	cursor: pointer;
-	margin-top: 3px;
+.models-widget .models-table-container .monaco-table-th[data-col-index="1"] {
+	padding-left: 8px;
 }
+
 
 /** Twistie column styling **/
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .models-twistie {
+.models-widget .models-table-container .monaco-table-td .models-twistie {
 	cursor: pointer;
 	display: flex;
 	align-items: center;
@@ -92,14 +85,14 @@
 	padding: 0 6px;
 }
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .models-twistie:hover {
+.models-widget .models-table-container .monaco-table-td .models-twistie:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	border-radius: 3px;
 }
 
 /** Model Name column styling **/
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-name-container {
+.models-widget .models-table-container .monaco-table-td .model-name-container {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -107,13 +100,13 @@
 	width: 100%;
 }
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-name-container .model-status-icon {
+.models-widget .models-table-container .monaco-table-td .model-name-container .model-status-icon {
 	flex-shrink: 0;
 	margin-left: auto;
 	margin-right: 4px;
 }
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-name-container .model-name {
+.models-widget .models-table-container .monaco-table-td .model-name-container .model-name {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -122,69 +115,59 @@
 
 /** Actions column styling **/
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .actions-column {
+.models-widget .models-table-container .monaco-table-td .actions-column {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	width: 100%;
 }
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .actions-column .monaco-action-bar {
+.models-widget .models-table-container .monaco-table-td .actions-column .monaco-action-bar {
 	margin-right: 9px;
 }
 
 /** Cost column styling **/
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-multiplier {
+.models-widget .models-table-container .monaco-table-td .model-multiplier {
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
 /** Token Limits column styling **/
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-token-limits {
+.models-widget .models-table-container .monaco-table-td .model-token-limits {
 	display: flex;
 	gap: 12px;
 	white-space: nowrap;
 }
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-token-limits .token-limit-item {
+.models-widget .models-table-container .monaco-table-td .model-token-limits .token-limit-item {
 	display: flex;
 	align-items: center;
 	gap: 4px;
 }
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-token-limits .codicon {
+.models-widget .models-table-container .monaco-table-td .model-token-limits .codicon {
 	font-size: 12px;
 }
 
 /** Capabilities column styling **/
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-metadata {
+.models-widget .models-table-container .monaco-table-td .model-metadata {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 	flex-wrap: wrap;
 }
 
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-badge {
+.models-widget .models-table-container .monaco-table-td .model-badge {
 	border: 1px solid rgba(136, 136, 136, 0.45);
 	padding: 0 6px;
 	border-radius: 3px;
 	font-size: 11px;
 }
 
-/** Row alternating colors **/
-
-.models-widget .models-table-container .monaco-table .monaco-list-row[data-parity=odd]:not(.focused):not(.selected):not(:hover) .monaco-table-tr,
-.models-widget .models-table-container .monaco-table .monaco-list:not(:focus) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr,
-.models-widget .models-table-container .monaco-table .monaco-list:not(.focused) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr {
-	background-color: var(--vscode-editor-background);
-}
-
-.models-widget .models-table-container .monaco-table-th {
-	background-color: var(--vscode-keybindingTable-headerBackground);
-}
+/** Vendor row styling **/
 
 .models-widget .models-table-container .models-vendor-row {
 	background-color: var(--vscode-keybindingTable-headerBackground);
@@ -194,16 +177,13 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.models-widget .models-table-container .vendor-row {
+.models-widget .models-table-container .models-vendor-row .model-name {
 	font-weight: bold;
 }
 
-.models-widget .models-table-container .monaco-table-th,
-.models-widget .models-table-container .monaco-table-td {
-	padding-left: 10px;
-}
-
-.models-widget .models-table-container .monaco-table-th[data-col-index="1"],
-.models-widget .models-table-container .monaco-table-td[data-col-index="1"] {
-	padding-left: 8px;
+/** Row alternating colors **/
+.models-widget .models-table-container .monaco-table .monaco-list-row[data-parity=odd]:not(.focused):not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row),
+.models-widget .models-table-container .monaco-table .monaco-list:not(:focus) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row),
+.models-widget .models-table-container .monaco-table .monaco-list:not(.focused) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row) {
+	background-color: var(--vscode-editor-background);
 }
