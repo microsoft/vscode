@@ -86,7 +86,7 @@ export class MockChatService implements IChatService {
 	async clearAllHistoryEntries() {
 		throw new Error('Method not implemented.');
 	}
-	async removeHistoryEntry(sessionId: string) {
+	async removeHistoryEntry(resource: URI) {
 		throw new Error('Method not implemented.');
 	}
 
@@ -100,7 +100,7 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	setChatSessionTitle(sessionId: string, title: string): void {
+	setChatSessionTitle(sessionResource: URI, title: string): void {
 		throw new Error('Method not implemented.');
 	}
 

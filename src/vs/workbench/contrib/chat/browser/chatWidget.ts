@@ -7,7 +7,7 @@ import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import * as dom from '../../../../base/browser/dom.js';
-import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
+import { IMouseWheelEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -94,6 +94,7 @@ import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewPane } from './chatViewPane.js';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 
 const $ = dom.$;
 
@@ -146,7 +147,7 @@ export function isInlineChat(widget: IChatWidget): boolean {
 }
 
 interface IChatHistoryListItem {
-	readonly sessionId: string;
+	readonly sessionResource: URI;
 	readonly title: string;
 	readonly lastMessageDate: number;
 	readonly isActive: boolean;
@@ -413,8 +414,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly promptUriCache = new Map<string, URI>();
 	private _isLoadingPromptDescriptions = false;
 
-	// UI state for temporarily hiding chat history
-	private _historyVisible = true;
 	private _mostRecentlyFocusedItemIndex: number = -1;
 
 	private set viewModel(viewModel: ChatViewModel | undefined) {
@@ -524,6 +523,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -609,7 +609,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('chat.renderRelatedFiles')) {
-				this.renderChatEditingSessionState();
+				this.input.renderChatRelatedFiles();
 			}
 
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests) || e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)) {
@@ -977,17 +977,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._onDidClear.fire();
 	}
 
-	public toggleHistoryVisibility(): void {
-		this._historyVisible = !this._historyVisible;
-		// Find and hide/show the existing history section via CSS class toggles
-		const historyRoot = this.welcomeMessageContainer.querySelector<HTMLElement>('.chat-welcome-history-root');
-		if (historyRoot) {
-			historyRoot.classList.toggle('chat-welcome-history-hidden', !this._historyVisible);
-		}
-		const shouldShowHistory = this._historyVisible && !!historyRoot;
-		this.welcomeMessageContainer.classList.toggle('has-chat-history', shouldShowHistory);
-	}
-
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
 		// Update context key when items change
 		this.updateEmptyStateWithHistoryContext();
@@ -1071,7 +1060,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * @internal
 	 */
 	private renderWelcomeViewContentIfNeeded() {
-		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
+		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal' || this.lifecycleService.willShutdown) {
 			return;
 		}
 
@@ -1112,7 +1101,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 				// Optional: recent chat history above welcome content when enabled
 				const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
-				if (showHistory && !this._lockedAgent && this._historyVisible) {
+				if (showHistory && !this._lockedAgent) {
 					this.renderWelcomeHistorySection();
 				}
 				this.welcomePart.value = this.instantiationService.createInstance(
@@ -1130,13 +1119,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					e.preventDefault();
 					e.stopPropagation();
 					this.contextMenuService.showContextMenu({
-						menuId: MenuId.ChatWelcomeHistoryContext,
-						menuActionOptions: { shouldForwardArgs: true },
-						contextKeyService: this.contextKeyService.createOverlay([
-							['chatHistoryVisible', this._historyVisible]
-						]),
-						getAnchor: () => ({ x: e.clientX, y: e.clientY }),
-						getActionsContext: () => ({})
+						menuId: MenuId.ChatWelcomeContext,
+						contextKeyService: this.contextKeyService,
+						getAnchor: () => new StandardMouseEvent(dom.getWindow(this.welcomeMessageContainer), e)
 					});
 				});
 			}
@@ -1168,8 +1153,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.historyListContainer = dom.append(container, $('.chat-welcome-history-list'));
-			historyRoot.classList.toggle('chat-welcome-history-hidden', !this._historyVisible);
-			this.welcomeMessageContainer.classList.toggle('has-chat-history', this._historyVisible && initialHistoryItems.length > 0);
+			this.welcomeMessageContainer.classList.toggle('has-chat-history', initialHistoryItems.length > 0);
 
 			// Compute today's midnight once for label decisions
 			const todayMidnight = new Date();
@@ -1188,7 +1172,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 				const renderer = this.instantiationService.createInstance(
 					ChatHistoryListRenderer,
-					async (item) => await this.openHistorySession(item.sessionId),
+					async (item) => await this.openHistorySession(item.sessionResource),
 					(timestamp, todayMs) => this.formatHistoryTimestamp(timestamp, todayMs),
 					todayMidnightMs
 				);
@@ -1256,8 +1240,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				.filter(i => !i.isActive)
 				.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0))
 				.slice(0, 3)
-				.map(item => ({
-					sessionId: item.sessionId,
+				.map((item): IChatHistoryListItem => ({
+					sessionResource: item.sessionResource,
 					title: item.title,
 					lastMessageDate: typeof item.lastMessageDate === 'number' ? item.lastMessageDate : Date.now(),
 					isActive: item.isActive
@@ -1291,11 +1275,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return fromNowByDay(last, true, true);
 	}
 
-	private async openHistorySession(sessionId: string): Promise<void> {
+	private async openHistorySession(sessionResource: URI): Promise<void> {
 		try {
 			const viewsService = this.instantiationService.invokeFunction(accessor => accessor.get(IViewsService));
 			const chatView = await viewsService.openView<ChatViewPane>(ChatViewId);
-			await chatView?.loadSession?.(sessionId);
+			await chatView?.loadSession(sessionResource);
 		} catch (e) {
 			this.logService.error('Failed to open chat session from history', e);
 		}
@@ -1646,6 +1630,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private renderChatSuggestNextWidget(): void {
+		if (this.lifecycleService.willShutdown) {
+			return;
+		}
+
 		// Skip rendering in coding agent sessions
 		if (this.isLockedToCodingAgent) {
 			this.chatSuggestNextWidget.hide();
@@ -2234,12 +2222,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this._onDidChangeContentHeight.fire();
 		}));
-		this._register(this.input.attachmentModel.onDidChange(() => {
-			if (this._editingSession) {
-				// TODO still needed? Do this inside input part and fire onDidChangeHeight?
-				this.renderChatEditingSessionState();
-			}
-		}));
 		this._register(this.inputEditor.onDidChangeModelContent(() => {
 			this.parsedChatRequest = undefined;
 			this.updateChatInputContext();
@@ -2335,11 +2317,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (events?.some(e => e?.kind === 'addRequest') && this.visible) {
 				this.scrollToEnd();
 			}
-
-			if (this._editingSession) {
-				this.renderChatEditingSessionState();
-			}
 		})));
+		this.viewModelDisposables.add(autorun(reader => {
+			this._editingSession.read(reader); // re-render when the session changes
+			this.renderChatEditingSessionState();
+		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
 			this.input.saveState();

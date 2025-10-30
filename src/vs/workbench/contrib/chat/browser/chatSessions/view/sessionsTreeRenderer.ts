@@ -42,7 +42,6 @@ import { IWorkbenchLayoutService, Position } from '../../../../../services/layou
 import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
 import { IChatService } from '../../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../../../common/chatUri.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatWidgetService } from '../../chat.js';
 import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.js';
@@ -582,7 +581,7 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 			// Create history items with provider reference and timestamps
 			const historyItems = allHistory.map((historyDetail): ChatSessionItemWithProvider => ({
 				id: historyDetail.sessionId,
-				resource: LocalChatSessionUri.forSession(historyDetail.sessionId),
+				resource: historyDetail.sessionResource,
 				label: historyDetail.title,
 				iconPath: Codicon.chatSparkle,
 				provider: this.provider,
