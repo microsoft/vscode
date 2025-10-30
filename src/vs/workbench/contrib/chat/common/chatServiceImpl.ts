@@ -1184,7 +1184,6 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Can only delete local chat sessions, got: ${parsed.chatSessionType}`);
 		}
 
-		const sessionId = parsed.sessionId;
-		return sessionId;
+		return parsed.sessionId;
 	}
 }
