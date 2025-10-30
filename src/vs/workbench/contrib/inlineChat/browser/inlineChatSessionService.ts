@@ -5,15 +5,18 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IValidEditOperation } from '../../../../editor/common/model.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { showChatView } from '../../chat/browser/chat.js';
 import { IChatEditingSession } from '../../chat/common/chatEditingService.js';
-import { IChatModel } from '../../chat/common/chatModel.js';
+import { IChatModel, IChatRequestModel } from '../../chat/common/chatModel.js';
+import { IChatService } from '../../chat/common/chatService.js';
 import { Session, StashedSession } from './inlineChatSession.js';
 
 export interface ISessionKeyComputer {
@@ -63,10 +66,31 @@ export interface IInlineChatSessionService {
 
 	dispose(): void;
 
-
-	hideOnRequest: IObservable<boolean>;
-
 	createSession2(editor: ICodeEditor, uri: URI, token: CancellationToken): Promise<IInlineChatSession2>;
 	getSession2(uri: URI): IInlineChatSession2 | undefined;
+	getSession2(sessionId: string): IInlineChatSession2 | undefined;
 	readonly onDidChangeSessions: Event<this>;
+}
+
+export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | undefined, resend: boolean) {
+
+	const viewsService = accessor.get(IViewsService);
+	const chatService = accessor.get(IChatService);
+	const layoutService = accessor.get(IWorkbenchLayoutService);
+
+	const widget = await showChatView(viewsService, layoutService);
+
+	if (widget && widget.viewModel && model) {
+		let lastRequest: IChatRequestModel | undefined;
+		for (const request of model.getRequests().slice()) {
+			await chatService.adoptRequest(widget.viewModel.model.sessionId, request);
+			lastRequest = request;
+		}
+
+		if (lastRequest && resend) {
+			chatService.resendRequest(lastRequest, { location: widget.location });
+		}
+
+		widget.focusResponseItem();
+	}
 }

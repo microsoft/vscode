@@ -11,7 +11,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, IObservable, IReader } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ISelection } from '../../../../editor/common/core/selection.js';
 import { Command, Location, TextEdit } from '../../../../editor/common/languages.js';
@@ -191,6 +191,12 @@ export interface IChatUndoStop {
 	id: string;
 }
 
+export interface IChatExternalEditsDto {
+	kind: 'externalEdits';
+	start: boolean; /** true=start, false=stop */
+	resources: UriComponents[];
+}
+
 export interface IChatTaskDto {
 	content: IMarkdownString;
 	kind: 'progressTask';
@@ -245,6 +251,7 @@ export interface IChatTextEdit {
 	edits: TextEdit[];
 	kind: 'textEdit';
 	done?: boolean;
+	isExternalEdit?: boolean;
 }
 
 export interface IChatClearToPreviousToolInvocation {
@@ -257,6 +264,7 @@ export interface IChatNotebookEdit {
 	edits: ICellEditOperation[];
 	kind: 'notebookEdit';
 	done?: boolean;
+	isExternalEdit?: boolean;
 }
 
 export interface IChatConfirmation {

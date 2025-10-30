@@ -390,7 +390,7 @@ class ChatEditingOverlayController {
 
 			const { session, entry } = data;
 
-			if (!session.isGlobalEditingSession && !inlineChatService.hideOnRequest.read(r)) {
+			if (!session.isGlobalEditingSession) {
 				// inline chat - no chat overlay unless hideOnRequest is on
 				hide();
 				return;

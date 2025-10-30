@@ -15,7 +15,7 @@ import { Disposable, DisposableStore } from '../../../../../../base/common/lifec
 import { basename } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
-import type { SingleOrMany } from '../../../../../../base/common/types.js';
+import type { DeepImmutable, SingleOrMany } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -47,6 +47,8 @@ import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
+import { type ICommandLineAnalyzer, type ICommandLineAnalyzerOptions } from './commandLineAnalyzer/commandLineAnalyzer.js';
+import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 
 // #region Tool data
 
@@ -262,6 +264,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _commandSimplifier: CommandSimplifier;
 	private readonly _treeSitterCommandParser: TreeSitterCommandParser;
 	private readonly _telemetry: RunInTerminalToolTelemetry;
+	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
 	protected readonly _commandLineAutoApprover: CommandLineAutoApprover;
 	protected readonly _profileFetcher: TerminalProfileFetcher;
 	protected readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
@@ -287,7 +290,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@IChatService private readonly _chatService: IChatService
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
 
@@ -297,6 +300,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._treeSitterCommandParser = this._instantiationService.createInstance(TreeSitterCommandParser);
 		this._commandSimplifier = _instantiationService.createInstance(CommandSimplifier, this._osBackend, this._treeSitterCommandParser);
 		this._telemetry = _instantiationService.createInstance(RunInTerminalToolTelemetry);
+		this._commandLineAnalyzers = [
+			this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`CommandLineFileWriteAnalyzer: ${message}`, args)),
+		];
 		this._commandLineAutoApprover = this._register(_instantiationService.createInstance(CommandLineAutoApprover));
 		this._profileFetcher = _instantiationService.createInstance(TerminalProfileFetcher);
 
@@ -371,6 +377,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._logService.info(`RunInTerminalTool: autoApprove: Failed to parse sub-commands via ${treeSitterLanguage} grammar`);
 			}
 
+			const commandLineAnalyzerOptions: ICommandLineAnalyzerOptions = {
+				instance,
+				commandLine: actualCommand,
+				os,
+				shell,
+				treeSitterLanguage,
+			};
+			const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
+
 			if (subCommands) {
 				const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
 				const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(actualCommand);
@@ -419,7 +434,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 
 				// Apply auto approval or force it off depending on enablement/opt-in state
-				if (isAutoApproveEnabled) {
+				if (isAutoApproveEnabled && commandLineAnalyzerResults.every(r => r.isAutoApproveAllowed)) {
 					autoApproveInfo = this._createAutoApproveInfo(
 						isAutoApproved,
 						isDenied,
@@ -441,14 +456,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					autoApproveDefault
 				});
 
-				// Add a disclaimer warning about prompt injection for common commands that return
-				// content from the web
+				// Add disclaimers for various security concerns
+				const disclaimers: string[] = [];
+				disclaimers.push(...commandLineAnalyzerResults.map(e => e.disclaimers).flat());
+
+				// Prompt injection warning for common commands that return content from the web
 				const subCommandsLowerFirstWordOnly = subCommands.map(command => command.split(' ')[0].toLowerCase());
 				if (!isAutoApproved && (
 					subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLower.includes(command)) ||
 					(isPowerShell(shell, os) && subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLowerPwshOnly.includes(command)))
 				)) {
-					disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + localize('runInTerminal.promptInjectionDisclaimer', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true });
+					disclaimers.push(localize('runInTerminal.promptInjectionDisclaimer', 'Web content may contain malicious code or attempt prompt injection attacks.'));
+				}
+
+				// Combine disclaimers
+				if (disclaimers.length > 0) {
+					disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimers.join(' '), { supportThemeIcons: true });
 				}
 
 				if (!isAutoApproved && isAutoApproveEnabled) {
@@ -460,7 +483,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (shellType === 'powershell') {
 				shellType = 'pwsh';
 			}
-			confirmationMessages = (isAutoApproved && isAutoApproveAllowed) ? undefined : {
+			confirmationMessages = (isAutoApproved && isAutoApproveAllowed && commandLineAnalyzerResults.every(r => r.isAutoApproveAllowed)) ? undefined : {
 				title: args.isBackground
 					? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
 					: localize('runInTerminal', "Run `{0}` command?", shellType),
@@ -488,7 +511,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
+
+		const toolSpecificData = invocation.toolSpecificData as DeepImmutable<IChatTerminalToolInvocationData> | undefined;
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}

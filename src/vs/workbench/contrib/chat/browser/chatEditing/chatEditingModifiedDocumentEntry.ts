@@ -53,6 +53,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return this._textModelChangeService.diffInfo.map(diff => diff.changes.length);
 	}
 
+	get diffInfo() {
+		return this._textModelChangeService.diffInfo;
+	}
+
 	get linesAdded() {
 		return this._textModelChangeService.diffInfo.map(diff => {
 			let added = 0;
@@ -122,7 +126,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		);
 
 		this._textModelChangeService = this._register(instantiationService.createInstance(ChatEditingTextModelChangeService,
-			this.originalModel, this.modifiedModel, this._stateObs));
+			this.originalModel, this.modifiedModel, this._stateObs, () => this._isExternalEditInProgress));
 
 		this._register(this._textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
 			this._stateObs.set(action, undefined);
@@ -299,5 +303,47 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	private _shouldAutoSave() {
 		return this.modifiedURI.scheme !== Schemas.untitled;
+	}
+
+	async computeEditsFromSnapshots(beforeSnapshot: string, afterSnapshot: string): Promise<(TextEdit | ICellEditOperation)[]> {
+		// Simple full-content replacement approach
+		// This is similar to how streaming edits work - we just replace the entire content
+		const endLine = beforeSnapshot.split(/\r?\n/).length;
+
+		return [{
+			range: {
+				startLineNumber: 1,
+				startColumn: 1,
+				endLineNumber: endLine,
+				endColumn: beforeSnapshot.split(/\r?\n/)[endLine - 1]?.length + 1 || 1
+			},
+			text: afterSnapshot
+		}];
+	}
+
+	async save(): Promise<void> {
+		if (this.modifiedModel.uri.scheme === Schemas.untitled) {
+			return;
+		}
+
+		// Save the current model state to disk if dirty
+		if (this._textFileService.isDirty(this.modifiedModel.uri)) {
+			await this._textFileService.save(this.modifiedModel.uri, {
+				reason: SaveReason.EXPLICIT,
+				skipSaveParticipants: true
+			});
+		}
+	}
+
+	async revertToDisk(): Promise<void> {
+		if (this.modifiedModel.uri.scheme === Schemas.untitled) {
+			return;
+		}
+
+		// Revert to reload from disk, ensuring in-memory model matches disk
+		const fileModel = this._textFileService.files.get(this.modifiedModel.uri);
+		if (fileModel && !fileModel.isDisposed()) {
+			await fileModel.revert({ soft: false });
+		}
 	}
 }

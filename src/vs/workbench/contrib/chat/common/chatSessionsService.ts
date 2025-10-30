@@ -58,7 +58,8 @@ export interface IChatSessionsExtensionPoint {
 	readonly commands?: IChatSessionCommandContribution[];
 }
 export interface IChatSessionItem {
-	id: string; // TODO: remove
+	/** @deprecated Use {@link resource} instead */
+	id: string;
 	resource: URI;
 	label: string;
 	iconPath?: ThemeIcon;

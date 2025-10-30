@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentSessionsViewModel, IAgentSessionViewModel, isAgentSession, isAgentSessionsViewModel, isLocalAgentSessionItem } from '../../browser/agentSessions/agentSessionViewModel.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, localChatSessionType } from '../../common/chatSessionsService.js';
-import { ChatSessionUri } from '../../common/chatUri.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { MockChatSessionsService } from '../common/mockChatSessionsService.js';
 
@@ -598,7 +598,7 @@ suite('AgentSessionsViewModel', () => {
 			provideChatSessionItems: async () => [
 				{
 					id: 'local-session',
-					resource: ChatSessionUri.forSession(localChatSessionType, 'local-session'),
+					resource: LocalChatSessionUri.forSession('local-session'),
 					label: 'Local Session',
 					timing: { startTime: Date.now() }
 				}

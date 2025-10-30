@@ -100,12 +100,15 @@ export function collectContextMenuActions(menu: IMenu): IAction[] {
 }
 
 export class StatusBarAction extends Action {
+	readonly commandTitle: string | undefined;
 
 	constructor(
 		private command: Command,
 		private commandService: ICommandService
 	) {
-		super(`statusbaraction{${command.id}}`, command.title, '', true);
+		super(`statusbaraction{${command.id}}`, getStatusBarCommandGenericName(command), '', true);
+
+		this.commandTitle = command.title;
 		this.tooltip = command.tooltip || '';
 	}
 
@@ -115,9 +118,11 @@ export class StatusBarAction extends Action {
 }
 
 class StatusBarActionViewItem extends ActionViewItem {
+	private readonly _commandTitle: string | undefined;
 
 	constructor(action: StatusBarAction, options: IBaseActionViewItemOptions) {
 		super(null, action, { ...options, icon: false, label: true });
+		this._commandTitle = action.commandTitle;
 	}
 
 	override render(container: HTMLElement): void {
@@ -129,7 +134,7 @@ class StatusBarActionViewItem extends ActionViewItem {
 		if (this.options.label && this.label) {
 			// Convert text nodes to span elements to enable
 			// text overflow on the left hand side of the label
-			const elements = renderLabelWithIcons(this.action.label)
+			const elements = renderLabelWithIcons(this._commandTitle ?? this.action.label)
 				.map(element => {
 					if (typeof element === 'string') {
 						const span = document.createElement('span');

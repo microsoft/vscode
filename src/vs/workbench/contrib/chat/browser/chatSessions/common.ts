@@ -7,7 +7,7 @@ import { fromNow } from '../../../../../base/common/date.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionItemProvider, localChatSessionType } from '../../common/chatSessionsService.js';
@@ -33,7 +33,7 @@ export function isChatSession(schemes: readonly string[], editor?: EditorInput):
 		return false;
 	}
 
-	if (!schemes.includes(editor.resource?.scheme) && editor.resource?.scheme !== Schemas.vscodeChatSession && editor.resource?.scheme !== Schemas.vscodeChatEditor) {
+	if (!schemes.includes(editor.resource?.scheme) && editor.resource?.scheme !== Schemas.vscodeLocalChatSession && editor.resource?.scheme !== Schemas.vscodeChatEditor) {
 		return false;
 	}
 
@@ -54,15 +54,11 @@ export function getChatSessionType(editor: ChatEditorInput): string {
 /**
  * Find existing chat editors that have the same session URI (for external providers)
  */
-export function findExistingChatEditorByUri(sessionUri: URI, sessionId: string, editorGroupsService: IEditorGroupsService): { editor: ChatEditorInput; groupId: number } | undefined {
-	if (!sessionUri) {
-		return undefined;
-	}
-
+export function findExistingChatEditorByUri(sessionUri: URI, editorGroupsService: IEditorGroupsService): { editor: ChatEditorInput; group: IEditorGroup } | undefined {
 	for (const group of editorGroupsService.groups) {
 		for (const editor of group.editors) {
-			if (editor instanceof ChatEditorInput && (editor.resource.toString() === sessionUri.toString() || editor.sessionId === sessionId)) {
-				return { editor, groupId: group.id };
+			if (editor instanceof ChatEditorInput && editor.isForSession(sessionUri)) {
+				return { editor, group };
 			}
 		}
 	}
@@ -149,6 +145,7 @@ export function getSessionItemContextOverlay(
 	if (session.id === 'show-history') {
 		return overlay;
 	}
+
 	if (provider) {
 		overlay.push([ChatContextKeys.sessionType.key, provider.chatSessionType]);
 	}
@@ -169,17 +166,7 @@ export function getSessionItemContextOverlay(
 			isActiveSession = true;
 		} else {
 			// Check if session is open in any editor
-			for (const group of editorGroupsService.groups) {
-				for (const editor of group.editors) {
-					if (editor instanceof ChatEditorInput && editor.sessionId === session.id) {
-						isActiveSession = true;
-						break;
-					}
-				}
-				if (isActiveSession) {
-					break;
-				}
-			}
+			isActiveSession = !!findExistingChatEditorByUri(session.resource, editorGroupsService);
 		}
 	}
 
