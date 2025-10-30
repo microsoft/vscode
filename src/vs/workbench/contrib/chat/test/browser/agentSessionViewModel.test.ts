@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentSessionsViewModel, IAgentSessionViewModel, isAgentSession, isAgentSessionsViewModel, isLocalAgentSessionItem } from '../../browser/agentSessions/agentSessionViewModel.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, localChatSessionType } from '../../common/chatSessionsService.js';
-import { ChatSessionUri } from '../../common/chatUri.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { MockChatSessionsService } from '../common/mockChatSessionsService.js';
 
@@ -73,9 +73,9 @@ suite('AgentSessionsViewModel', () => {
 		await viewModel.resolve(undefined);
 
 		assert.strictEqual(viewModel.sessions.length, 2);
-		assert.strictEqual(viewModel.sessions[0].id, 'session-1');
+		assert.strictEqual(viewModel.sessions[0].resource.toString(), 'test://session-1');
 		assert.strictEqual(viewModel.sessions[0].label, 'Test Session 1');
-		assert.strictEqual(viewModel.sessions[1].id, 'session-2');
+		assert.strictEqual(viewModel.sessions[1].resource.toString(), 'test://session-2');
 		assert.strictEqual(viewModel.sessions[1].label, 'Test Session 2');
 	});
 
@@ -117,8 +117,8 @@ suite('AgentSessionsViewModel', () => {
 		await viewModel.resolve(undefined);
 
 		assert.strictEqual(viewModel.sessions.length, 2);
-		assert.strictEqual(viewModel.sessions[0].id, 'session-1');
-		assert.strictEqual(viewModel.sessions[1].id, 'session-2');
+		assert.strictEqual(viewModel.sessions[0].resource.toString(), 'test://session-1');
+		assert.strictEqual(viewModel.sessions[1].resource.toString(), 'test://session-2');
 	});
 
 	test('should fire onWillResolve and onDidResolve events', async () => {
@@ -215,7 +215,7 @@ suite('AgentSessionsViewModel', () => {
 
 		assert.strictEqual(viewModel.sessions.length, 1);
 		const session = viewModel.sessions[0];
-		assert.strictEqual(session.id, 'session-1');
+		assert.strictEqual(session.resource.toString(), 'test://session-1');
 		assert.strictEqual(session.label, 'Test Session');
 		assert.ok(session.description instanceof MarkdownString);
 		if (session.description instanceof MarkdownString) {
@@ -288,7 +288,7 @@ suite('AgentSessionsViewModel', () => {
 		await viewModel.resolve(undefined);
 
 		assert.strictEqual(viewModel.sessions.length, 1);
-		assert.strictEqual(viewModel.sessions[0].id, 'valid-session');
+		assert.strictEqual(viewModel.sessions[0].resource.toString(), 'test://valid');
 	});
 
 	test('should handle resolve with specific provider', async () => {
@@ -598,7 +598,7 @@ suite('AgentSessionsViewModel', () => {
 			provideChatSessionItems: async () => [
 				{
 					id: 'local-session',
-					resource: ChatSessionUri.forSession(localChatSessionType, 'local-session'),
+					resource: LocalChatSessionUri.forSession('local-session'),
 					label: 'Local Session',
 					timing: { startTime: Date.now() }
 				}
@@ -745,7 +745,7 @@ suite('AgentSessionsViewModel', () => {
 		// Provider 2 should be called again
 		assert.strictEqual(provider2CallCount, 2);
 		// Session 1 should be preserved with original label
-		assert.strictEqual(viewModel.sessions.find(s => s.id === 'session-1')?.label, originalSession1Label);
+		assert.strictEqual(viewModel.sessions.find(s => s.resource.toString() === 'test://session-1')?.label, originalSession1Label);
 	});
 
 	test('should accumulate providers when resolve is called with different provider types', async () => {
@@ -817,7 +817,6 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
-			id: 'local-1',
 			resource: URI.parse('test://local-1'),
 			label: 'Local',
 			description: 'test',
@@ -830,7 +829,6 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
-			id: 'remote-1',
 			resource: URI.parse('test://remote-1'),
 			label: 'Remote',
 			description: 'test',
@@ -848,7 +846,6 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
-			id: 'test-1',
 			resource: URI.parse('test://test-1'),
 			label: 'Test',
 			description: 'test',
@@ -870,7 +867,6 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
-			id: 'test-1',
 			resource: URI.parse('test://test-1'),
 			label: 'Test',
 			description: 'test',

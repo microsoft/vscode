@@ -95,7 +95,7 @@ export namespace ChatAgentLocation {
 const chatAlwaysUnsupportedFileSchemes = new Set([
 	Schemas.vscodeChatEditor,
 	Schemas.walkThrough,
-	Schemas.vscodeChatSession,
+	Schemas.vscodeLocalChatSession,
 	Schemas.vscodeSettings,
 	Schemas.webviewPanel,
 	'ccreq',

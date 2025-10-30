@@ -34,7 +34,7 @@ import { getChatSessionType } from './chatSessions/common.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
-	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
+	target?: { data: IExportableChatData | ISerializableChatData };
 	title?: {
 		preferred?: string;
 		fallback?: string;

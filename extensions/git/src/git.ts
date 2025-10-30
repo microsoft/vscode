@@ -1688,9 +1688,8 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
-	async diffBetween2(ref1: string, ref2: string, options: { similarityThreshold?: number; symmetric?: boolean }): Promise<Change[]> {
-		const range = options.symmetric ? `${ref1}...${ref2}` : `${ref1}..${ref2}`;
-		return await this.diffFiles(range, { cached: false, similarityThreshold: options.similarityThreshold });
+	async diffBetween2(ref1: string, ref2: string, options: { similarityThreshold?: number }): Promise<Change[]> {
+		return await this.diffFiles(`${ref1}...${ref2}`, { cached: false, similarityThreshold: options.similarityThreshold });
 	}
 
 	private async diffFiles(ref: string | undefined, options: { cached: boolean; similarityThreshold?: number }): Promise<Change[]> {
@@ -1706,6 +1705,29 @@ export class Repository {
 
 		if (ref) {
 			args.push(ref);
+		}
+
+		args.push('--');
+
+		const gitResult = await this.exec(args);
+		if (gitResult.exitCode) {
+			return [];
+		}
+
+		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
+	}
+
+	async diffTrees(treeish1: string, treeish2?: string, options?: { similarityThreshold?: number }): Promise<Change[]> {
+		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR'];
+
+		if (options?.similarityThreshold) {
+			args.push(`--find-renames=${options.similarityThreshold}%`);
+		}
+
+		args.push(treeish1);
+
+		if (treeish2) {
+			args.push(treeish2);
 		}
 
 		args.push('--');

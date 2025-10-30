@@ -269,10 +269,6 @@ div.chat-welcome-view {
 	width: 100%;
 	padding: 8px;
 
-	&.chat-welcome-history-hidden {
-		display: none;
-	}
-
 	.chat-welcome-history-header {
 		display: flex;
 		align-items: center;
