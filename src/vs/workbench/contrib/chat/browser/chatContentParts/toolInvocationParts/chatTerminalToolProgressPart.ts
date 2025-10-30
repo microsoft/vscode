@@ -369,6 +369,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private async _collectOutput(terminalInstance: ITerminalInstance): Promise<{ text: string; truncated: boolean }> {
 		const xterm = await terminalInstance.xtermReadyPromise;
+		if (!xterm) {
+			return { text: '', truncated: false };
+		}
 		let command = this._attachedCommand;
 		if (!command) {
 			command = this._resolveCommand(terminalInstance);
@@ -377,7 +380,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return { text: '', truncated: false };
 		}
 		this._attachedCommand = command;
-		const text = await xterm.getHtmlForCommand(command, MAX_TERMINAL_OUTPUT_PREVIEW_LINES);
+		const text = await xterm.getCommandOutputAsHtml(command, MAX_TERMINAL_OUTPUT_PREVIEW_LINES);
 		if (!text) {
 			return { text: '', truncated: false };
 		}

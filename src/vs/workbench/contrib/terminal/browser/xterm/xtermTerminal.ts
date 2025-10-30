@@ -368,7 +368,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		return this._serializeAddon.serializeAsHTML();
 	}
 
-	async getHtmlForCommand(command: ITerminalCommand, maxLines: number): Promise<string> {
+	async getCommandOutputAsHtml(command: ITerminalCommand, maxLines: number): Promise<string> {
 		if (!this._serializeAddon) {
 			const Addon = await this._xtermAddonLoader.importAddon('serialize');
 			this._serializeAddon = new Addon();
