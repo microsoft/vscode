@@ -2344,7 +2344,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 					markdownEnumDescriptions: [
 						nls.localize('hover.enabled.on', "Hover is enabled."),
 						nls.localize('hover.enabled.off', "Hover is disabled."),
-						nls.localize('hover.enabled.onKeyboardModifier', "Hover is shown when the opposite modifier key of the Multi Cursor Modifier is pressed. (ctrlCmd or alt)")
+						nls.localize('hover.enabled.onKeyboardModifier', "Hover is shown when holding {0} or Alt (the opposite modifier of `#editor.multiCursorModifier#`)", platform.isMacintosh ? `Cmd` : `Ctrl`)
 					],
 					description: nls.localize('hover.enabled', "Controls whether the hover is shown.")
 				},
