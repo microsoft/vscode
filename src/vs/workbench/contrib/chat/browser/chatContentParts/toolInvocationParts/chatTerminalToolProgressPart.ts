@@ -8,6 +8,7 @@ import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../../../base/common/iconLabels.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
@@ -122,7 +123,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		});
 		let pastTenseMessage: string | undefined;
 		if (toolInvocation.pastTenseMessage) {
-			pastTenseMessage = `${typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value}`;
+			pastTenseMessage = typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value;
 		}
 		const markdownContent = new MarkdownString(pastTenseMessage, {
 			supportThemeIcons: true,
@@ -154,12 +155,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this.domNode.tabIndex = 0;
 		this.domNode.role = 'region';
 
-		this.domNode.ariaLabel = pastTenseMessage
-			? `${toolInvocation.toolId}: ${command} - ${pastTenseMessage}`
-			: `${toolInvocation.toolId}: ${command}`;
-
-		if (pastTenseMessage && this._configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
-			status(pastTenseMessage);
+		if (pastTenseMessage) {
+			const sanitizedMessage = stripIcons(pastTenseMessage);
+			this.domNode.ariaLabel = `${toolInvocation.toolId} command: ${command} - ${sanitizedMessage}`;
+			if (this._configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
+				status(sanitizedMessage);
+			}
+		} else {
+			this.domNode.ariaLabel = `${toolInvocation.toolId} command: ${command}`;
 		}
 	}
 
