@@ -5,7 +5,7 @@
 
 import { CharCode } from './charCode.js';
 import { compareAnything } from './comparers.js';
-import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from './filters.js';
+import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesContiguousSubString, matchesPrefix } from './filters.js';
 import { hash } from './hash.js';
 import { sep } from './path.js';
 import { isLinux, isWindows } from './platform.js';
@@ -322,8 +322,12 @@ function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], pat
 }
 
 function doScoreFuzzy2Single(target: string, query: IPreparedQueryPiece, patternStart: number, wordStart: number): FuzzyScore2 {
-	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), wordStart, { firstMatchCanBeWeak: true, boostFullMatch: true });
+
+	const score = fuzzyScore(query.expectContiguousMatch ? query.normalized : query.original, query.expectContiguousMatch ? query.normalizedLowercase : query.originalLowercase, patternStart, target, target.toLowerCase(), wordStart, { firstMatchCanBeWeak: true, boostFullMatch: true });
 	if (!score) {
+		return NO_SCORE2;
+	}
+	if (query.expectContiguousMatch && matchesContiguousSubString(query.normalized, target) === null) {
 		return NO_SCORE2;
 	}
 
