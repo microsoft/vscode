@@ -6,8 +6,6 @@
 import { LayoutPriority, Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Disposable, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITerminalChatService, ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from './terminal.js';
@@ -26,6 +24,7 @@ import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { getInstanceHoverInfo } from './terminalTooltip.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { TerminalTabsChatEntry } from './terminalTabsChatEntry.js';
 
 const $ = dom.$;
 
@@ -50,8 +49,7 @@ export class TerminalTabbedView extends Disposable {
 	private _sashDisposables: IDisposable[] | undefined;
 
 	private _plusButton: HTMLElement | undefined;
-	private _chatTerminalsEntry: HTMLElement | undefined;
-	private _chatTerminalsLabel: HTMLElement | undefined;
+	private _chatEntry: TerminalTabsChatEntry | undefined;
 
 	private _tabTreeIndex: number;
 	private _terminalContainerIndex: number;
@@ -98,7 +96,7 @@ export class TerminalTabbedView extends Disposable {
 		this._tabsListEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
 
 		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement, this._register(new DisposableStore())));
-		this._createChatTerminalsEntry(tabListContainer);
+		this._chatEntry = this._register(new TerminalTabsChatEntry(tabListContainer, this._tabListElement, this._tabContainer, this._commandService, this._terminalChatService, width => this._layoutTabList(width)));
 
 		const terminalOuterContainer = $('.terminal-outer-container');
 		this._terminalContainer = $('.terminal-groups-container');
@@ -192,69 +190,8 @@ export class TerminalTabbedView extends Disposable {
 		}
 	}
 
-	private _createChatTerminalsEntry(container: HTMLElement): void {
-		this._chatTerminalsEntry = dom.append(container, $('.terminal-tabs-chat-entry'));
-		this._chatTerminalsEntry.tabIndex = 0;
-		this._chatTerminalsEntry.setAttribute('role', 'button');
-
-		const entry = dom.append(this._chatTerminalsEntry, $('.terminal-tabs-entry'));
-		const icon = dom.append(entry, $('.terminal-tabs-chat-entry-icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.commentDiscussionSparkle));
-		this._chatTerminalsLabel = dom.append(entry, $('.terminal-tabs-chat-entry-label'));
-
-		const runChatTerminalsCommand = () => {
-			void this._commandService.executeCommand('workbench.action.terminal.chat.viewChatTerminals');
-		};
-
-		this._register(dom.addDisposableListener(this._chatTerminalsEntry, dom.EventType.CLICK, e => {
-			e.preventDefault();
-			runChatTerminalsCommand();
-		}));
-		this._register(dom.addDisposableListener(this._chatTerminalsEntry, dom.EventType.KEY_DOWN, e => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				runChatTerminalsCommand();
-			}
-		}));
-	}
-
 	private _updateChatTerminalsEntry(): void {
-		if (!this._chatTerminalsEntry || !this._chatTerminalsLabel) {
-			return;
-		}
-
-		const chatTerminalCount = this._terminalChatService.getToolSessionTerminalInstances().length;
-		const hasChatTerminals = chatTerminalCount > 0;
-
-		if (!hasChatTerminals) {
-			this._chatTerminalsEntry.style.display = 'none';
-			this._chatTerminalsLabel.textContent = '';
-			this._chatTerminalsEntry.removeAttribute('aria-label');
-			const widthWhenHidden = this._tabListElement.clientWidth;
-			if (widthWhenHidden > 0) {
-				this._layoutTabList(widthWhenHidden);
-			}
-			return;
-		}
-
-		this._chatTerminalsEntry.style.display = '';
-		const hasText = this._tabContainer.classList.contains('has-text');
-		if (hasText) {
-			this._chatTerminalsLabel.textContent = chatTerminalCount === 1
-				? localize('terminal.tabs.chatEntryLabelSingle', "{0} Chat Terminal", chatTerminalCount)
-				: localize('terminal.tabs.chatEntryLabelPlural', "{0} Chat Terminals", chatTerminalCount);
-		} else {
-			this._chatTerminalsLabel.textContent = `${chatTerminalCount}`;
-		}
-
-		const ariaLabel = chatTerminalCount === 1
-			? localize('terminal.tabs.chatEntryAriaLabelSingle', "Show 1 chat terminal")
-			: localize('terminal.tabs.chatEntryAriaLabelPlural', "Show {0} chat terminals", chatTerminalCount);
-		this._chatTerminalsEntry.setAttribute('aria-label', ariaLabel);
-		const width = this._tabListElement.clientWidth;
-		if (width > 0) {
-			this._layoutTabList(width);
-		}
+		this._chatEntry?.update();
 	}
 
 	private _getLastListWidth(): number {
@@ -415,7 +352,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _getAvailableTabListHeight(): number {
 		const totalHeight = this._height ?? 0;
-		const chatEntryHeight = this._chatTerminalsEntry?.offsetHeight ?? TerminalTabsListSizes.TabHeight;
+		const chatEntryHeight = this._chatEntry?.element.offsetHeight ?? TerminalTabsListSizes.TabHeight;
 		return Math.max(totalHeight - chatEntryHeight, 0);
 	}
 
