@@ -43,6 +43,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { IChatWidget, IChatWidgetService, showChatWidgetInViewOrEditor } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
+import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -204,6 +205,16 @@ export class ChatSubmitAction extends SubmitAction {
 						title: localize2('chat.newChat.label', "Send to New Chat"),
 						icon: Codicon.plus
 					}
+				}, {
+					id: MenuId.ChatEditorInlineExecute,
+					group: 'navigation',
+					order: 4,
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.or(ctxHasEditorModification.negate(), ChatContextKeys.inputHasText),
+						whenNotInProgress,
+						ChatContextKeys.requestInProgress.negate(),
+						menuCondition
+					),
 				}]
 		});
 	}
@@ -1136,6 +1147,14 @@ export class CancelAction extends Action2 {
 			icon: Codicon.stopCircle,
 			menu: [{
 				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.requestInProgress,
+					ChatContextKeys.remoteJobCreating.negate()
+				),
+				order: 4,
+				group: 'navigation',
+			}, {
+				id: MenuId.ChatEditorInlineExecute,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.requestInProgress,
 					ChatContextKeys.remoteJobCreating.negate()

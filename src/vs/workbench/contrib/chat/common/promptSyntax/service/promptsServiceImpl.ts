@@ -260,11 +260,21 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return value;
 	}
 
+	private async getPromptDetails(promptPath: IPromptPath): Promise<{ name: string; description?: string }> {
+		const parsedPromptFile = await this.parseNew(promptPath.uri, CancellationToken.None).catch(() => undefined);
+		return {
+			name: parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri),
+			description: parsedPromptFile?.header?.description ?? promptPath.description
+		};
+	}
+
 	private async getPromptPath(command: string): Promise<URI | undefined> {
 		const promptPaths = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		const result = promptPaths.find(promptPath => getCommandNameFromPromptPath(promptPath) === command);
-		if (result) {
-			return result.uri;
+		for (const promptPath of promptPaths) {
+			const details = await this.getPromptDetails(promptPath);
+			if (details.name === command) {
+				return promptPath.uri;
+			}
 		}
 		const textModel = this.modelService.getModels().find(model => model.getLanguageId() === PROMPT_LANGUAGE_ID && getCommandNameFromURI(model.uri) === command);
 		if (textModel) {
@@ -275,23 +285,24 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	public async getPromptCommandName(uri: URI): Promise<string> {
 		const promptPaths = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		const promptPath = promptPaths.find(promptPath => isEqual(promptPath.uri, uri));
+		let promptPath = promptPaths.find(promptPath => isEqual(promptPath.uri, uri));
 		if (!promptPath) {
-			return getCommandNameFromURI(uri);
+			promptPath = { uri, storage: PromptsStorage.local, type: PromptsType.prompt }; // make up a prompt path
 		}
-		return getCommandNameFromPromptPath(promptPath);
+		const { name } = await this.getPromptDetails(promptPath);
+		return name;
 	}
 
 	public async findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
 		const promptFiles = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		return promptFiles.map(promptPath => {
-			const command = getCommandNameFromPromptPath(promptPath);
+		return Promise.all(promptFiles.map(async promptPath => {
+			const { name } = await this.getPromptDetails(promptPath);
 			return {
-				command,
+				command: name,
 				detail: localize('prompt.file.detail', 'Prompt file: {0}', this.labelService.getUriLabel(promptPath.uri, { relative: true })),
 				promptPath
 			};
-		});
+		}));
 	}
 
 	public async getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]> {
@@ -310,7 +321,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		const customAgents = await Promise.all(
 			agentFiles.map(async (promptPath): Promise<ICustomAgent> => {
-				const { uri, name: agentName } = promptPath;
+				const uri = promptPath.uri;
 				const ast = await this.parseNew(uri, token);
 
 				let metadata: any | undefined;
@@ -342,7 +353,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					metadata,
 				} satisfies IAgentInstructions;
 
-				const name = agentName ?? getCleanPromptName(uri);
+				const name = ast.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
 
 				const source: IAgentSource = IAgentSource.fromPromptPath(promptPath);
 				if (!ast.header) {
@@ -438,10 +449,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.fileLocator.getAgentFileURIFromModeFile(oldURI);
 	}
 
-}
-
-function getCommandNameFromPromptPath(promptPath: IPromptPath): string {
-	return promptPath.name ?? getCommandNameFromURI(promptPath.uri);
 }
 
 function getCommandNameFromURI(uri: URI): string {

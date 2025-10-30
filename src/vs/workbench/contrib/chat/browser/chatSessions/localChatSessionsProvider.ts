@@ -204,7 +204,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		const status = chatWidget?.viewModel?.model ? this.modelToStatus(chatWidget.viewModel.model) : undefined;
 		const widgetSession: ChatSessionItemWithProvider = {
 			id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
-			resource: URI.parse(`${Schemas.vscodeChatSession}://widget`),
+			resource: URI.parse(`${Schemas.vscodeLocalChatSession}://widget`),
 			label: chatWidget?.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat").value,
 			description: nls.localize('chat.sessions.chatView.description', "Chat View"),
 			iconPath: Codicon.chatSparkle,
@@ -254,7 +254,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		// TODO: This should not be a session items
 		const historyNode: IChatSessionItem = {
 			id: LocalChatSessionsProvider.HISTORY_NODE_ID,
-			resource: URI.parse(`${Schemas.vscodeChatSession}://history`),
+			resource: URI.parse(`${Schemas.vscodeLocalChatSession}://history`),
 			label: nls.localize('chat.sessions.showHistory', "History"),
 			timing: { startTime: 0 }
 		};
