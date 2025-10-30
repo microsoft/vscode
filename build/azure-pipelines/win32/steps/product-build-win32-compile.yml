@@ -52,10 +52,8 @@ steps:
   - pwsh: |
       set-StrictMode -Version Latest
       $ErrorActionPreference = "Stop"
-      tar --version
-      pwsh --version
-      7z
-    displayName: Print versions
+      & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -all -property catalog_productDisplayVersion
+    displayName: Print Visual Studio version
 
   - powershell: node build/setup-npm-registry.js $env:NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))

@@ -42,6 +42,7 @@ steps:
   - script: |
       set -e
       sw_vers
+      zip --version
       tar --version
       pwsh --version
     displayName: Print versions
