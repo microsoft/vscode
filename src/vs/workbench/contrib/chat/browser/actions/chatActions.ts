@@ -1052,7 +1052,7 @@ export function registerChatActions() {
 			super({
 				id: ACTION_ID_OPEN_CHAT,
 				title: localize2('interactiveSession.open', "New Chat Editor"),
-				icon: Codicon.newFile,
+				icon: Codicon.plus,
 				f1: true,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
@@ -1069,6 +1069,11 @@ export function registerChatActions() {
 					id: MenuId.ChatNewMenu,
 					group: '2_new',
 					order: 2
+				}, {
+					id: MenuId.EditorTitle,
+					group: 'navigation',
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.lockedToCodingAgent.negate()),
+					order: 1
 				}],
 			});
 		}
