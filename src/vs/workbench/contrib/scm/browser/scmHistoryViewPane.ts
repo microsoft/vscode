@@ -1198,6 +1198,8 @@ class SCMHistoryViewModel extends Disposable {
 	async getHistoryItems(): Promise<SCMHistoryItemViewModelTreeElement[]> {
 		const repository = this.repository.get();
 		const historyProvider = repository?.provider.historyProvider.get();
+		const historyItemRef = historyProvider?.historyItemRef.get();
+		const historyItemRemoteRef = historyProvider?.historyItemRemoteRef.get();
 
 		if (!repository || !historyProvider) {
 			this._scmHistoryItemCountCtx.set(0);
@@ -1228,11 +1230,11 @@ class SCMHistoryViewModel extends Disposable {
 			} while (typeof state?.loadMore === 'string' && !historyItems.find(item => item.id === state?.loadMore));
 
 			// Computer the merge base
-			const mergeBase = state?.mergeBase === undefined
+			const mergeBase = historyItemRef && historyItemRemoteRef && state?.mergeBase === undefined
 				? await historyProvider.resolveHistoryItemRefsCommonAncestor([
-					historyProvider.historyItemRef.get()!.name,
-					historyProvider.historyItemRemoteRef.get()!.name])
-				: state.mergeBase;
+					historyItemRef.name,
+					historyItemRemoteRef.name])
+				: state?.mergeBase;
 
 			// Create the color map
 			const colorMap = this._getGraphColorMap(historyItemRefs);
