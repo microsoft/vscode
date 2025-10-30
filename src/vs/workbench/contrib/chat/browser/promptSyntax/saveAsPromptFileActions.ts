@@ -61,7 +61,7 @@ class BaseSaveAsPromptFileAction extends Action2 {
 
 function createOptions(id: string, title: ICommandActionTitle, description: ILocalizedString, languageId: string): Readonly<IAction2Options> {
 	return {
-		id: SAVE_AS_PROMPT_FILE_ACTION_ID,
+		id: id,
 		title: title,
 		metadata: {
 			description: description,
