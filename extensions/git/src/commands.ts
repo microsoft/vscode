@@ -5184,7 +5184,6 @@ export class CommandCenter {
 
 	@command('git.repositories.checkout', { repository: true })
 	async artifactCheckout(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
-		console.log(repository, artifact);
 		if (!repository || !artifact) {
 			return;
 		}
