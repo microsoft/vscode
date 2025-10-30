@@ -50,6 +50,7 @@ import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatWidgetService } from '../chat.js';
+import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID } from './agentSessions.js';
 
 export class AgentSessionsView extends ViewPane {
 
@@ -172,7 +173,10 @@ export class AgentSessionsView extends ViewPane {
 		}
 
 		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService.createOverlay(getSessionItemContextOverlay(
-			session,
+			{
+				id: session.resource.toString(),
+				...session
+			},
 			session.provider,
 			this.chatWidgetService,
 			this.chatService,
@@ -381,8 +385,6 @@ export class AgentSessionsView extends ViewPane {
 
 const chatAgentsIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View');
 
-const AGENT_SESSIONS_VIEW_CONTAINER_ID = 'workbench.viewContainer.agentSessions';
-const AGENT_SESSIONS_VIEW_ID = 'workbench.view.agentSessions';
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Agent Sessions");
 
 const agentSessionsViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
