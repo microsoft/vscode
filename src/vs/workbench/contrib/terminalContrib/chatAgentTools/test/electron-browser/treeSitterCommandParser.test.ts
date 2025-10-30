@@ -197,4 +197,174 @@ import { arch } from '../../../../../../base/common/process.js';
 			});
 		});
 	});
+
+	suite('extractPwshDoubleAmpersandChainOperators', () => {
+		async function t(commandLine: string, expectedMatches: string[]) {
+			const result = await parser.extractPwshDoubleAmpersandChainOperators(commandLine);
+			const actualMatches = result.map(capture => capture.node.text);
+			deepStrictEqual(actualMatches, expectedMatches);
+		}
+
+		test('simple command with &&', () => t('Get-Date && Get-Location', ['&&']));
+		test('multiple && operators', () => t('echo first && echo second && echo third', ['&&', '&&']));
+		test('mixed operators - && and ;', () => t('echo hello && echo world ; echo done', ['&&']));
+		test('no && operators', () => t('Get-Date ; Get-Location', []));
+		test('&& in string literal should not match', () => t('Write-Host "test && test"', []));
+		test('&& in single quotes should not match', () => t('Write-Host \'test && test\'', []));
+		test('&& with complex commands', () => t('Get-ChildItem -Path C:\\ && Set-Location C:\\Users', ['&&']));
+		test('&& with parameters', () => t('Get-Process -Name notepad && Stop-Process -Name notepad', ['&&']));
+		test('&& with pipeline inside', () => t('Get-Process | Where-Object {$_.Name -eq "notepad"} && Write-Host "Found"', ['&&']));
+		// TODO: A lot of these tests are skipped until proper parsing of && is supported in https://github.com/airbus-cert/tree-sitter-powershell/issues/27
+		test.skip('nested && in script blocks', () => t('if ($true) { echo hello && echo world } && echo done', ['&&', '&&']));
+		test.skip('&& with method calls', () => t('"hello".ToUpper() && "world".ToLower()', ['&&']));
+		test.skip('&& with array operations', () => t('@(1,2,3) | ForEach-Object { $_ } && Write-Host "done"', ['&&']));
+		test.skip('&& with hashtable', () => t('@{key="value"} && Write-Host "created"', ['&&']));
+		test.skip('&& with type casting', () => t('[int]"123" && [string]456', ['&&']));
+		test.skip('&& with comparison operators', () => t('5 -gt 3 && "hello" -like "h*"', ['&&']));
+		test.skip('&& with variable assignment', () => t('$var = "test" && Write-Host $var', ['&&']));
+		test.skip('&& with expandable strings', () => t('$name="World" && "Hello $name"', ['&&']));
+		test('&& with subexpressions', () => t('Write-Host $(Get-Date) && Get-Location', ['&&']));
+		test('&& with here-strings', () => t('Write-Host @"\nhello\nworld\n"@ && Get-Date', ['&&']));
+		test('&& with splatting', () => t('$params = @{Path="C:\\"}; Get-ChildItem @params && Write-Host "done"', ['&&']));
+
+		suite('complex scenarios', () => {
+			test('multiple && with different command types', () => t('Get-Service && Start-Service spooler && Get-Process', ['&&', '&&']));
+			test('&& with error handling', () => t('try { Get-Content "file.txt" && Write-Host "success" } catch { Write-Error "failed" }', ['&&']));
+			test('&& inside foreach', () => t('ForEach-Object { Write-Host $_.Name && Write-Host $_.Length }', ['&&']));
+			test('&& with conditional logic', () => t('if (Test-Path "file.txt") { Get-Content "file.txt" && Write-Host "read" }', ['&&']));
+			test.skip('&& with switch statement', () => t('switch ($var) { 1 { "one" && "first" } 2 { "two" && "second" } }', ['&&', '&&']));
+			test('&& in do-while', () => t('do { Write-Host $i && $i++ } while ($i -lt 5)', ['&&']));
+			test('&& in for loop', () => t('for ($i=0; $i -lt 5; $i++) { Write-Host $i && Start-Sleep 1 }', ['&&']));
+			test('&& with parallel processing', () => t('1..10 | ForEach-Object -Parallel { Write-Host $_ && Start-Sleep 1 }', ['&&']));
+		});
+
+		suite('edge cases', () => {
+			test('empty string', () => t('', []));
+			test('whitespace only', () => t('   \n\t  ', []));
+			test('single &', () => t('Get-Date & Get-Location', []));
+			test.skip('triple &&&', () => t('echo hello &&& echo world', ['&&']));
+			test.skip('&& at beginning', () => t('&& echo hello', ['&&']));
+			test('&& at end', () => t('echo hello &&', ['&&']));
+			test('spaced && operators', () => t('echo hello & & echo world', []));
+			test('&& with unicode', () => t('Write-Host "测试" && Write-Host "🚀"', ['&&']));
+			test('very long command with &&', () => t('Write-Host "' + 'a'.repeat(1000) + '" && Get-Date', ['&&']));
+			test('deeply nested with &&', () => t('if ($true) { if ($true) { if ($true) { echo nested && echo deep } } }', ['&&']));
+			test('&& with escaped characters', () => t('Write-Host "hello`"world" && Get-Date', ['&&']));
+			test.skip('&& with backticks', () => t('Write-Host `hello && Get-Date', ['&&']));
+			test.skip('malformed syntax with &&', () => t('echo "unclosed && Get-Date', ['&&']));
+		});
+
+		suite('real-world scenarios', () => {
+			test('git workflow', () => t('git add . && git commit -m "message" && git push', ['&&', '&&']));
+			test.skip('build and test', () => t('dotnet build && dotnet test && dotnet publish', ['&&', '&&']));
+			test('file operations', () => t('New-Item -Type File "test.txt" && Add-Content "test.txt" "hello" && Get-Content "test.txt"', ['&&', '&&']));
+			test('service management', () => t('Stop-Service spooler && Set-Service spooler -StartupType Manual && Start-Service spooler', ['&&', '&&']));
+			test('registry operations', () => t('New-Item -Path "HKCU:\\Software\\Test" && Set-ItemProperty -Path "HKCU:\\Software\\Test" -Name "Value" -Value "Data"', ['&&']));
+			test('module import and usage', () => t('Import-Module ActiveDirectory && Get-ADUser -Filter *', ['&&']));
+			test('remote operations', () => t('Enter-PSSession -ComputerName server && Get-Process && Exit-PSSession', ['&&', '&&']));
+			test('scheduled task', () => t('Register-ScheduledTask -TaskName "MyTask" -Action (New-ScheduledTaskAction -Execute "powershell.exe") && Start-ScheduledTask "MyTask"', ['&&']));
+		});
+	});
+
+	suite('getFileWrites', () => {
+		suite('bash', () => {
+			async function t(commandLine: string, expectedFiles: string[]) {
+				const actualFiles = await parser.getFileWrites(TreeSitterCommandParserLanguage.Bash, commandLine);
+				deepStrictEqual(actualFiles, expectedFiles);
+			}
+
+			test('simple output redirection', () => t('echo hello > file.txt', ['file.txt']));
+			test('append redirection', () => t('echo hello >> file.txt', ['file.txt']));
+			test('multiple redirections', () => t('echo hello > file1.txt && echo world > file2.txt', ['file1.txt', 'file2.txt']));
+			test('error redirection', () => t('command 2> error.log', ['error.log']));
+			test('combined stdout and stderr', () => t('command > output.txt 2>&1', ['output.txt']));
+			test('here document', () => t('cat > file.txt << EOF\nhello\nworld\nEOF', ['file.txt']));
+			test('quoted filenames', () => t('echo hello > "file with spaces.txt"', ['"file with spaces.txt"']));
+			test('single quoted filenames', () => t('echo hello > \'file.txt\'', ['\'file.txt\'']));
+			test.skip('variable in filename', () => t('echo hello > $HOME/file.txt', ['$HOME/file.txt']));
+			test.skip('command substitution in filename', () => t('echo hello > $(date +%Y%m%d).log', ['$(date +%Y%m%d).log']));
+			test('tilde expansion in filename', () => t('echo hello > ~/file.txt', ['~/file.txt']));
+			test('absolute path', () => t('echo hello > /tmp/file.txt', ['/tmp/file.txt']));
+			test('relative path', () => t('echo hello > ./output/file.txt', ['./output/file.txt']));
+			test('file descriptor redirection', () => t('command 3> file.txt', ['file.txt']));
+			test('redirection with numeric file descriptor', () => t('command 1> stdout.txt 2> stderr.txt', ['stdout.txt', 'stderr.txt']));
+			test('append with error redirection', () => t('command >> output.log 2>> error.log', ['output.log', 'error.log']));
+
+			suite('complex scenarios', () => {
+				test('multiple commands with redirections', () => t('echo first > file1.txt; echo second > file2.txt; echo third > file3.txt', ['file1.txt', 'file2.txt', 'file3.txt']));
+				test('pipeline with redirection', () => t('cat input.txt | grep pattern > output.txt', ['output.txt']));
+				test('redirection in subshell', () => t('(echo hello; echo world) > combined.txt', ['combined.txt']));
+				test('redirection with background job', () => t('long_command > output.txt &', ['output.txt']));
+				test('conditional redirection', () => t('test -f input.txt && cat input.txt > output.txt || echo "not found" > error.txt', ['output.txt', 'error.txt']));
+				test('loop with redirection', () => t('for file in *.txt; do cat "$file" >> combined.txt; done', ['combined.txt']));
+				test.skip('function with redirection', () => t('function backup() { cp "$1" > backup_"$1"; }', ['backup_$1']));
+			});
+
+			suite('edge cases', () => {
+				test('no redirections', () => t('echo hello', []));
+				test('input redirection only', () => t('sort < input.txt', ['input.txt']));
+				test('pipe without redirection', () => t('echo hello | grep hello', []));
+				test('redirection to /dev/null', () => t('command > /dev/null', ['/dev/null']));
+				test('redirection to device', () => t('echo hello > /dev/tty', ['/dev/tty']));
+				test('special characters in filename', () => t('echo hello > file-with_special.chars123.txt', ['file-with_special.chars123.txt']));
+				test('unicode filename', () => t('echo hello > 测试文件.txt', ['测试文件.txt']));
+				test('very long filename', () => t('echo hello > ' + 'a'.repeat(100) + '.txt', [Array(100).fill('a').join('') + '.txt']));
+			});
+		});
+
+		suite('pwsh', () => {
+			async function t(commandLine: string, expectedFiles: string[]) {
+				const actualFiles = await parser.getFileWrites(TreeSitterCommandParserLanguage.PowerShell, commandLine);
+				deepStrictEqual(actualFiles, expectedFiles);
+			}
+
+			test('simple output redirection', () => t('Write-Host "hello" > file.txt', ['file.txt']));
+			test('append redirection', () => t('Write-Host "hello" >> file.txt', ['file.txt']));
+			test('multiple redirections', () => t('Write-Host "hello" > file1.txt ; Write-Host "world" > file2.txt', ['file1.txt', 'file2.txt']));
+			test('error redirection', () => t('Get-Content missing.txt 2> error.log', ['error.log']));
+			test('warning redirection', () => t('Write-Warning "test" 3> warning.log', ['warning.log']));
+			test('verbose redirection', () => t('Write-Verbose "test" 4> verbose.log', ['verbose.log']));
+			test('debug redirection', () => t('Write-Debug "test" 5> debug.log', ['debug.log']));
+			test('information redirection', () => t('Write-Information "test" 6> info.log', ['info.log']));
+			test('all streams redirection', () => t('Get-Process *> all.log', ['all.log']));
+			test('quoted filenames', () => t('Write-Host "hello" > "file with spaces.txt"', ['"file with spaces.txt"']));
+			test('single quoted filenames', () => t('Write-Host "hello" > \'file.txt\'', ['\'file.txt\'']));
+			test('variable in filename', () => t('Write-Host "hello" > $env:TEMP\\file.txt', ['$env:TEMP\\file.txt']));
+			test('subexpression in filename', () => t('Write-Host "hello" > $(Get-Date -Format "yyyyMMdd").log', ['$(Get-Date -Format "yyyyMMdd").log']));
+			test('Windows path', () => t('Write-Host "hello" > C:\\temp\\file.txt', ['C:\\temp\\file.txt']));
+			test('UNC path', () => t('Write-Host "hello" > \\\\server\\share\\file.txt', ['\\\\server\\share\\file.txt']));
+			test('relative path', () => t('Write-Host "hello" > .\\output\\file.txt', ['.\\output\\file.txt']));
+
+			suite('complex scenarios', () => {
+				test('pipeline with redirection', () => t('Get-Process | Where-Object {$_.CPU -gt 100} > processes.txt', ['processes.txt']));
+				test('multiple streams to different files', () => t('Get-Content missing.txt > output.txt 2> error.txt 3> warning.txt', ['output.txt', 'error.txt', 'warning.txt']));
+				test('redirection in script block', () => t('ForEach-Object { Write-Host $_.Name > names.txt }', ['names.txt']));
+				test('conditional redirection', () => t('if (Test-Path "file.txt") { Get-Content "file.txt" > output.txt } else { Write-Host "not found" > error.txt }', ['output.txt', 'error.txt']));
+				test('try-catch with redirection', () => t('try { Get-Content "file.txt" > output.txt } catch { $_.Exception.Message > error.txt }', ['output.txt', 'error.txt']));
+				test('foreach loop with redirection', () => t('foreach ($file in Get-ChildItem) { $file.Name >> filelist.txt }', ['filelist.txt']));
+				test('switch with redirection', () => t('switch ($var) { 1 { "one" > output1.txt } 2 { "two" > output2.txt } }', ['output1.txt', 'output2.txt']));
+			});
+
+			suite('edge cases', () => {
+				test('no redirections', () => t('Write-Host "hello"', []));
+				test('redirection to null', () => t('Write-Host "hello" > $null', ['$null']));
+				test('redirection to console', () => t('Write-Host "hello" > CON', ['CON']));
+				test('special characters in filename', () => t('Write-Host "hello" > file-with_special.chars123.txt', ['file-with_special.chars123.txt']));
+				test('unicode filename', () => t('Write-Host "hello" > 测试文件.txt', ['测试文件.txt']));
+				test('very long filename', () => t('Write-Host "hello" > ' + 'a'.repeat(100) + '.txt', [Array(100).fill('a').join('') + '.txt']));
+				test('redirection operator in string', () => t('Write-Host "test > redirect" > file.txt', ['file.txt']));
+				test('multiple redirection operators', () => t('Write-Host "hello" >> file.txt > otherfile.txt', ['file.txt', 'otherfile.txt']));
+			});
+
+			suite('real-world scenarios', () => {
+				test('logging script output', () => t('Get-EventLog -LogName System -Newest 100 > system_events.log', ['system_events.log']));
+				test('error logging', () => t('Start-Process -FilePath "nonexistent.exe" 2> process_errors.log', ['process_errors.log']));
+				test('backup script with logging', () => t('Copy-Item -Path "source/*" -Destination "backup/" -Recurse > backup.log 2> backup_errors.log', ['backup.log', 'backup_errors.log']));
+				test('system information export', () => t('Get-ComputerInfo | Out-String > system_info.txt', ['system_info.txt']));
+				test('service status report', () => t('Get-Service | Where-Object {$_.Status -eq "Running"} | Select-Object Name, Status > running_services.csv', ['running_services.csv']));
+				test('registry export', () => t('Get-ItemProperty -Path "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion" > registry_info.txt', ['registry_info.txt']));
+				test('process monitoring', () => t('while ($true) { Get-Process | Measure-Object WorkingSet -Sum >> memory_usage.log; Start-Sleep 60 }', ['memory_usage.log']));
+			});
+		});
+	});
 });
