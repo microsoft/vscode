@@ -321,7 +321,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 		// Not found in cache.
-		// Kick off a async process to refresh the cache while we returns the current cached value
+		// Kick off an async process to refresh the cache while we returns the current cached value
 		const promise = this.populatePromptCacheForCommand(command).catch((error) => { });
 		this.trackUnawaitedPromise(promise);
 		return undefined;
@@ -337,7 +337,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const value = cache?.value;
 		if (value === undefined) {
 			// Not found in cache.
-			// Kick off a async process to refresh the cache while we returns the current cached value
+			// Kick off an async process to refresh the cache while we returns the current cached value
 			const promise = this.populatePromptCacheForUri(uri).catch((error) => { });
 			this.trackUnawaitedPromise(promise);
 			return undefined;
