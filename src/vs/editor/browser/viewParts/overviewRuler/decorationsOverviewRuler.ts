@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
+import { ScrollbarState } from '../../../../base/browser/ui/scrollbar/scrollbarState.js';
 import { Color } from '../../../../base/common/color.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ViewPart } from '../../view/viewPart.js';
@@ -330,7 +331,8 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return this._markRenderingIsNeeded();
 	}
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollHeightChanged ? this._markRenderingIsNeeded() : false;
+		// Always re-render on scroll changes to update viewport position
+		return e.scrollHeightChanged || e.scrollTopChanged ? this._markRenderingIsNeeded() : false;
 	}
 	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return this._markRenderingIsNeeded();
@@ -411,6 +413,9 @@ export class DecorationsOverviewRuler extends ViewPart {
 		const x = this._settings.x;
 		const w = this._settings.w;
 
+
+		// Draw viewport representations for debugging
+		this._renderViewportDebug(canvasCtx, canvasWidth, canvasHeight, outerHeight, heightRatio);
 
 
 		for (const decorationGroup of decorations) {
@@ -516,5 +521,41 @@ export class DecorationsOverviewRuler extends ViewPart {
 			canvasCtx.lineTo(canvasWidth, 0);
 			canvasCtx.stroke();
 		}
+	}
+
+	private _renderViewportDebug(canvasCtx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number, scrollHeight: number, heightRatio: number): void {
+		const viewLayout = this._context.viewLayout;
+		const scrollTop = viewLayout.getCurrentScrollTop();
+		const visibleHeight = this._context.configuration.options.get(EditorOption.layoutInfo).height;
+
+		// Create ScrollbarState to get viewport and slider representations
+		const state = new ScrollbarState(
+			0, // arrowSize
+			0, // scrollbarSize
+			0, // oppositeScrollbarSize
+			visibleHeight, // visibleSize
+			scrollHeight, // scrollSize
+			scrollTop // scrollPosition
+		);
+
+		const debugInfo = state.getDebugInfo();
+		console.log('Overview Ruler Debug:', debugInfo);
+
+		// The ScrollbarState positions are in scrollbar coordinates, we need to map them to canvas coordinates
+		// The scrollbar's available size corresponds to the full canvas height
+		const availableSize = state.getRectangleLargeSize();
+
+		// Draw the true viewport representation (green, semi-transparent)
+		const viewportY = availableSize > 0 ? (state.getViewportPosition() / availableSize) * canvasHeight : 0;
+		const viewportHeight = availableSize > 0 ? (state.getViewportSize() / availableSize) * canvasHeight : 0;
+		canvasCtx.fillStyle = 'rgba(0, 128, 0, 1)';
+		canvasCtx.fillRect(0, viewportY, canvasWidth, viewportHeight);
+
+		// Draw the slider representation (red border)
+		// const sliderY = availableSize > 0 ? (state.getSliderPosition() / availableSize) * canvasHeight : 0;
+		// const sliderHeight = availableSize > 0 ? (state.getSliderSize() / availableSize) * canvasHeight : 0;
+		// canvasCtx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+		// canvasCtx.lineWidth = 2;
+		// canvasCtx.strokeRect(1, sliderY, canvasWidth - 2, sliderHeight);
 	}
 }

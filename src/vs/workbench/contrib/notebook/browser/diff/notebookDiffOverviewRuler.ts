@@ -6,6 +6,7 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { createFastDomNode, FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
+import { ScrollbarState } from '../../../../../base/browser/ui/scrollbar/scrollbarState.js';
 import { Color } from '../../../../../base/common/color.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -13,8 +14,6 @@ import { IColorTheme, IThemeService, Themable } from '../../../../../platform/th
 import { IDiffElementViewModelBase } from './diffElementViewModel.js';
 import { NotebookDiffEditorEventDispatcher } from './eventDispatcher.js';
 import { INotebookTextDiffEditor } from './notebookDiffEditorBrowser.js';
-
-const MINIMUM_SLIDER_SIZE = 20;
 
 export class NotebookDiffOverviewRuler extends Themable {
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
@@ -158,16 +157,19 @@ export class NotebookDiffOverviewRuler extends Themable {
 		const scrollTop = this.notebookEditor.getScrollTop();
 		const scrollHeight = this.notebookEditor.getScrollHeight();
 
-		const computedAvailableSize = Math.max(0, layoutInfo.height);
-		const computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * 0);
-		const visibleSize = layoutInfo.height;
-		const computedSliderSize = Math.round(Math.max(MINIMUM_SLIDER_SIZE, Math.floor(visibleSize * computedRepresentableSize / scrollHeight)));
-		const computedSliderRatio = (computedRepresentableSize - computedSliderSize) / (scrollHeight - visibleSize);
-		const computedSliderPosition = Math.round(scrollTop * computedSliderRatio);
+		// Use ScrollbarState to get accurate viewport representation without artificial enlargement
+		const state = new ScrollbarState(
+			0, // arrowSize - notebooks don't have arrows
+			0, // scrollbarSize - not relevant for viewport calculation
+			0, // oppositeScrollbarSize - not relevant
+			layoutInfo.height, // visibleSize
+			scrollHeight, // scrollSize
+			scrollTop // scrollPosition
+		);
 
 		return {
-			height: computedSliderSize,
-			top: computedSliderPosition
+			height: state.getViewportSize(),
+			top: state.getViewportPosition()
 		};
 	}
 

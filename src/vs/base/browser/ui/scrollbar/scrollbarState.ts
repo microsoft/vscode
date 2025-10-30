@@ -62,6 +62,15 @@ export class ScrollbarState {
 	private _computedSliderRatio: number;
 	private _computedSliderPosition: number;
 
+	/**
+	 * The true viewport size (proportional to visibleSize/scrollSize) without artificial enlargement
+	 */
+	private _computedViewportSize: number;
+	/**
+	 * The true viewport position without being affected by artificial slider enlargement
+	 */
+	private _computedViewportPosition: number;
+
 	constructor(arrowSize: number, scrollbarSize: number, oppositeScrollbarSize: number, visibleSize: number, scrollSize: number, scrollPosition: number) {
 		this._scrollbarSize = Math.round(scrollbarSize);
 		this._oppositeScrollbarSize = Math.round(oppositeScrollbarSize);
@@ -76,6 +85,8 @@ export class ScrollbarState {
 		this._computedSliderSize = 0;
 		this._computedSliderRatio = 0;
 		this._computedSliderPosition = 0;
+		this._computedViewportSize = 0;
+		this._computedViewportPosition = 0;
 
 		this._refreshComputedValues();
 	}
@@ -135,6 +146,8 @@ export class ScrollbarState {
 				computedSliderSize: Math.round(computedRepresentableSize),
 				computedSliderRatio: 0,
 				computedSliderPosition: 0,
+				computedViewportSize: Math.round(computedRepresentableSize),
+				computedViewportPosition: 0,
 			};
 		}
 
@@ -146,12 +159,19 @@ export class ScrollbarState {
 		const computedSliderRatio = (computedRepresentableSize - computedSliderSize) / (scrollSize - visibleSize);
 		const computedSliderPosition = (scrollPosition * computedSliderRatio);
 
+		// Compute the true viewport representation without artificial enlargement
+		const computedViewportSize = Math.round(Math.floor(visibleSize * computedRepresentableSize / scrollSize));
+		const computedViewportRatio = (computedRepresentableSize - computedViewportSize) / (scrollSize - visibleSize);
+		const computedViewportPosition = (scrollPosition * computedViewportRatio);
+
 		return {
 			computedAvailableSize: Math.round(computedAvailableSize),
 			computedIsNeeded: computedIsNeeded,
 			computedSliderSize: Math.round(computedSliderSize),
 			computedSliderRatio: computedSliderRatio,
 			computedSliderPosition: Math.round(computedSliderPosition),
+			computedViewportSize: computedViewportSize,
+			computedViewportPosition: Math.round(computedViewportPosition),
 		};
 	}
 
@@ -162,6 +182,8 @@ export class ScrollbarState {
 		this._computedSliderSize = r.computedSliderSize;
 		this._computedSliderRatio = r.computedSliderRatio;
 		this._computedSliderPosition = r.computedSliderPosition;
+		this._computedViewportSize = r.computedViewportSize;
+		this._computedViewportPosition = r.computedViewportPosition;
 	}
 
 	public getArrowSize(): number {
@@ -190,6 +212,36 @@ export class ScrollbarState {
 
 	public getSliderPosition(): number {
 		return this._computedSliderPosition;
+	}
+
+	/**
+	 * Get the true viewport size (proportional representation without artificial enlargement)
+	 */
+	public getViewportSize(): number {
+		return this._computedViewportSize;
+	}
+
+	/**
+	 * Get the true viewport position (proportional representation without artificial enlargement)
+	 */
+	public getViewportPosition(): number {
+		return this._computedViewportPosition;
+	}
+
+	/**
+	 * Debug method to compare slider vs viewport values
+	 */
+	public getDebugInfo(): { slider: { size: number; position: number }; viewport: { size: number; position: number } } {
+		return {
+			slider: {
+				size: this._computedSliderSize,
+				position: this._computedSliderPosition
+			},
+			viewport: {
+				size: this._computedViewportSize,
+				position: this._computedViewportPosition
+			}
+		};
 	}
 
 	/**

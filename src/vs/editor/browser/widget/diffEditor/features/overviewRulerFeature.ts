@@ -155,8 +155,8 @@ export class OverviewRulerFeature extends Disposable {
 						scrollTop
 					);
 
-					viewportDomElement.setTop(state.getSliderPosition());
-					viewportDomElement.setHeight(state.getSliderSize());
+					viewportDomElement.setTop(state.getViewportPosition());
+					viewportDomElement.setHeight(state.getViewportSize());
 				} else {
 					viewportDomElement.setTop(0);
 					viewportDomElement.setHeight(0);
