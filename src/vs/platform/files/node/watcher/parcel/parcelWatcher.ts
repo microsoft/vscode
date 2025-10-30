@@ -65,8 +65,9 @@ export class ParcelWatcherInstance extends Disposable {
 	) {
 		super();
 
-		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
-		this.excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
+		const options = { ignoreCase: this.request.ignoreGlobPatternCase };
+		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes, options) : undefined;
+		this.excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes, options) : undefined;
 
 		this._register(toDisposable(() => this.subscriptions.clear()));
 	}
@@ -550,6 +551,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			}
 
 			// Filtering
+			// TODO: review case sensitivity
 			rootDeleted = event.type === FileChangeType.DELETED && isEqual(event.resource.fsPath, watcher.request.path, !isLinux);
 			if (isFiltered(event, filter)) {
 				if (this.verboseLogging) {

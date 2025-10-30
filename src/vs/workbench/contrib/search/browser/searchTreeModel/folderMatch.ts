@@ -56,6 +56,7 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
+		// TODO: Pass uri => this.uriIdentityService.extUri.getComparisonKey(uri) into these maps?
 		this._fileMatches = new ResourceMap<ISearchTreeFileMatch>();
 		this._folderMatches = new ResourceMap<FolderMatchWithResourceImpl>();
 		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResourceImpl>(key => this.uriIdentityService.extUri.ignorePathCasing(key));

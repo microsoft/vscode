@@ -1367,6 +1367,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		} else {
 			// Otherwise we create a new ignorefile and add it to the tree
 			const ignoreParent = ignoreTree.findSubstr(dirUri);
+			// TODO: Make sure to pass ignoreCase parameter
 			const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path, ignoreParent);
 			ignoreTree.set(dirUri, ignoreFile);
 			// If we haven't seen this resource before then we need to add it to the list of resources we're tracking

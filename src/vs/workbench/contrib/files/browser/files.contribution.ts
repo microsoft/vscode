@@ -371,7 +371,12 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			default: 60000,
 			markdownDescription: nls.localize('files.participants.timeout', "Timeout in milliseconds after which file participants for create, rename, and delete are cancelled. Use `0` to disable participants."),
-		}
+		},
+		'files.ignoreGlobPatternCase': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('files.ignoreGlobPatternCase', "Enables case insensitive glob pattern matching for files.exclude, files.watcherExclude, files.readonlyInclude, and files.readonlyExclude."),
+		},
 	}
 });
 

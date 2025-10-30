@@ -96,8 +96,9 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	) {
 		super();
 
-		this.excludes = parseWatcherPatterns(this.request.path, this.request.excludes);
-		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
+		const globOptions = { ignoreCase: this.request.ignoreGlobPatternCase };
+		this.excludes = parseWatcherPatterns(this.request.path, this.request.excludes, globOptions);
+		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes, globOptions) : undefined;
 		this.filter = isWatchRequestWithCorrelation(this.request) ? this.request.filter : undefined; // filtering is only enabled when correlating because watchers are otherwise potentially reused
 
 		this.ready = this.watch();
@@ -309,7 +310,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							// file watching specifically we want to handle
 							// the atomic-write cases where the file is being
 							// deleted and recreated with different contents.
-							if (isEqual(changedFileName, pathBasename, !isLinux) && !await Promises.exists(realPath)) {
+							if (isEqual(changedFileName, pathBasename, !isLinux || this.request.ignoreGlobPatternCase) && !await Promises.exists(realPath)) {
 								this.onWatchedPathDeleted(requestResource);
 
 								return;
@@ -372,7 +373,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				else {
 
 					// File added/deleted
-					if (type === 'rename' || !isEqual(changedFileName, pathBasename, !isLinux)) {
+					if (type === 'rename' || !isEqual(changedFileName, pathBasename, !isLinux || this.request.ignoreGlobPatternCase)) {
 
 						// Depending on the OS the watcher runs on, there
 						// is different behaviour for when the watched
