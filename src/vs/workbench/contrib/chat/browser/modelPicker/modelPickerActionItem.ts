@@ -87,7 +87,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					tooltip: localize('chat.manageModels.tooltip', "Manage language models"),
 					class: undefined,
 					run: () => {
-						commandService.executeCommand('workbench.action.openAiManagement');
+						commandService.executeCommand(MANAGE_CHAT_COMMAND_ID);
 					}
 				});
 			}
