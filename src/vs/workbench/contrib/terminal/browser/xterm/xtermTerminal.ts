@@ -411,7 +411,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			}
 		}
 		startLine = startLine + emptyLinesFromStart;
-		startCol = 0;
 
 		if (maxLines && endLine - startLine > maxLines) {
 			startLine = endLine - maxLines;
