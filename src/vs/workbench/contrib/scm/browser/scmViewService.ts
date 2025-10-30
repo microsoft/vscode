@@ -113,6 +113,8 @@ export class SCMViewService implements ISCMViewService {
 	readonly menus: ISCMMenus;
 	readonly explorerEnabledConfig: IObservable<boolean>;
 	readonly selectionModeConfig: IObservable<ISCMRepositorySelectionMode>;
+	readonly graphShowIncomingChangesConfig: IObservable<boolean>;
+	readonly graphShowOutgoingChangesConfig: IObservable<boolean>;
 
 	private didFinishLoading: boolean = false;
 	private didSelectRepository: boolean = false;
@@ -243,6 +245,8 @@ export class SCMViewService implements ISCMViewService {
 		this.menus = instantiationService.createInstance(SCMMenus);
 
 		const explorerEnabledConfig = observableConfigValue<boolean>('scm.repositories.explorer', false, this.configurationService);
+		this.graphShowIncomingChangesConfig = observableConfigValue<boolean>('scm.graph.showIncomingChanges', true, this.configurationService);
+		this.graphShowOutgoingChangesConfig = observableConfigValue<boolean>('scm.graph.showOutgoingChanges', true, this.configurationService);
 		this.selectionModeConfig = observableConfigValue<ISCMRepositorySelectionMode>('scm.repositories.selectionMode', ISCMRepositorySelectionMode.Single, this.configurationService);
 		this.explorerEnabledConfig = derived(reader => {
 			return explorerEnabledConfig.read(reader) === true && this.selectionModeConfig.read(reader) === ISCMRepositorySelectionMode.Single;

@@ -278,6 +278,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					continue;
 				}
 
+				// Skip external edits - they're already applied on disk
+				if (part.isExternalEdit) {
+					continue;
+				}
+
 				ensureEditorOpen(part.uri);
 
 				// get new edits and start editing session
