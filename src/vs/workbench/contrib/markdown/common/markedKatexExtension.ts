@@ -50,12 +50,16 @@ export namespace MarkedKatexExtension {
 	}
 
 	function escapeHtmlAttribute(text: string): string {
-		return text
-			.replace(/&/g, '&amp;')
-			.replace(/"/g, '&quot;')
-			.replace(/'/g, '&#39;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;');
+		return text.replace(/[&"<>]/g, char => {
+			switch (char) {
+				case '&': return '&amp;';
+				case '"': return '&quot;';
+				case `'`: return '&#39;';
+				case '<': return '&lt;';
+				case '>': return '&gt;';
+				default: return char;
+			}
+		});
 	}
 
 	function inlineKatex(options: MarkedKatexOptions, renderer: marked.RendererExtensionFunction): marked.TokenizerAndRendererExtension {
