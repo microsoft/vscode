@@ -140,11 +140,8 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 			autoApproveDefault
 		});
 
-		// Add disclaimers for various security concerns
-		const disclaimers: string[] = [];
-		// disclaimers.push(...commandLineAnalyzerResults.map(e => e.disclaimers).flat());
-
 		// Prompt injection warning for common commands that return content from the web
+		const disclaimers: string[] = [];
 		const subCommandsLowerFirstWordOnly = subCommands.map(command => command.split(' ')[0].toLowerCase());
 		if (!isAutoApproved && (
 			subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLower.includes(command)) ||

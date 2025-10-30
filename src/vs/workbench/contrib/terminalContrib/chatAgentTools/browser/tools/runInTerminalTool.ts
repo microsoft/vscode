@@ -25,7 +25,7 @@ import { ITerminalLogService, ITerminalProfile } from '../../../../../../platfor
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress, type IToolConfirmationMessages } from '../../../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -320,9 +320,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunInTerminalInputParams;
 
-		const alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
-		const presentation = alternativeRecommendation ? ToolInvocationPresentation.Hidden : undefined;
-
 		const os = await this._osBackend;
 		const shell = await this._profileFetcher.getCopilotShell();
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
@@ -334,87 +331,77 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (toolEditedCommand === args.command) {
 			toolEditedCommand = undefined;
 		}
+		const toolSpecificData: IChatTerminalToolInvocationData = {
+			kind: 'terminal',
+			terminalToolSessionId,
+			commandLine: {
+				original: args.command,
+				toolEdited: toolEditedCommand
+			},
+			language,
+		};
 
-		let autoApproveInfo: IMarkdownString | undefined;
-		let confirmationMessages: IToolConfirmationMessages | undefined;
+		// HACK: Exit early if there's an alternative recommendation, this is a little hacky but
+		// it's the current mechanism for re-routing terminal tool calls to something else.
+		const alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
 		if (alternativeRecommendation) {
-			confirmationMessages = undefined;
-		} else {
-			// Determine auto approval, this happens even when auto approve is off to that reasoning
-			// can be reviewed in the terminal channel. It also allows gauging the effective set of
-			// commands that would be auto approved if it were enabled.
-			const actualCommand = toolEditedCommand ?? args.command;
-
-			const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
-			const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-			const isAutoApproveAllowed = isAutoApproveEnabled && isAutoApproveWarningAccepted;
-
-			let subCommands: string[] | undefined;
-			const treeSitterLanguage = isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash;
-			try {
-				subCommands = await this._treeSitterCommandParser.extractSubCommands(treeSitterLanguage, actualCommand);
-				this._logService.info(`RunInTerminalTool: autoApprove: Parsed sub-commands via ${treeSitterLanguage} grammar`, subCommands);
-			} catch (e) {
-				console.error(e);
-				this._logService.info(`RunInTerminalTool: autoApprove: Failed to parse sub-commands via ${treeSitterLanguage} grammar`);
-			}
-
-			const commandLineAnalyzerOptions: ICommandLineAnalyzerOptions = {
-				instance,
-				commandLine: actualCommand,
-				os,
-				shell,
-				treeSitterLanguage,
-				terminalToolSessionId,
-			};
-			const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
-
-			// TODO: Should this require auto approve and veto instead?
-			const isAutoApproved = commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
-
-			// Add disclaimers for various security concerns
-			const disclaimers: string[] = [];
-			disclaimers.push(...commandLineAnalyzerResults.map(e => e.disclaimers ?? []).flat());
-
-			// Combine disclaimers
-			let disclaimer: IMarkdownString | undefined;
-			if (disclaimers.length > 0) {
-				disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimers.join(' '), { supportThemeIcons: true });
-			}
-
-			const customActions = commandLineAnalyzerResults.map(e => e.customActions ?? []).flat();
-
-			// TODO: This isn't great
-			autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
-
-			let shellType = basename(shell, '.exe');
-			if (shellType === 'powershell') {
-				shellType = 'pwsh';
-			}
-			confirmationMessages = (isAutoApproved && isAutoApproveAllowed && commandLineAnalyzerResults.every(r => r.isAutoApproveAllowed)) ? undefined : {
-				title: args.isBackground
-					? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
-					: localize('runInTerminal', "Run `{0}` command?", shellType),
-				message: new MarkdownString(args.explanation),
-				disclaimer,
-				terminalCustomActions: customActions,
+			toolSpecificData.alternativeRecommendation = alternativeRecommendation;
+			return {
+				confirmationMessages: undefined,
+				presentation: ToolInvocationPresentation.Hidden,
+				toolSpecificData,
 			};
 		}
 
+		// Determine auto approval, this happens even when auto approve is off to that reasoning
+		// can be reviewed in the terminal channel. It also allows gauging the effective set of
+		// commands that would be auto approved if it were enabled.
+		const actualCommand = toolEditedCommand ?? args.command;
+
+		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
+		const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
+		const isAutoApproveAllowed = isAutoApproveEnabled && isAutoApproveWarningAccepted;
+
+		const commandLineAnalyzerOptions: ICommandLineAnalyzerOptions = {
+			instance,
+			commandLine: actualCommand,
+			os,
+			shell,
+			treeSitterLanguage: isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
+			terminalToolSessionId,
+		};
+		const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
+
+		// Add disclaimers for various security concerns
+		const disclaimers: string[] = [];
+		disclaimers.push(...commandLineAnalyzerResults.map(e => e.disclaimers ?? []).flat());
+
+		// Combine disclaimers
+		let disclaimer: IMarkdownString | undefined;
+		if (disclaimers.length > 0) {
+			disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimers.join(' '), { supportThemeIcons: true });
+		}
+
+		const isAutoApproved = commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
+		const customActions = commandLineAnalyzerResults.map(e => e.customActions ?? []).flat();
+		toolSpecificData.autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
+
+		let shellType = basename(shell, '.exe');
+		if (shellType === 'powershell') {
+			shellType = 'pwsh';
+		}
+		const confirmationMessages = (isAutoApproved && isAutoApproveAllowed && commandLineAnalyzerResults.every(r => r.isAutoApproveAllowed)) ? undefined : {
+			title: args.isBackground
+				? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
+				: localize('runInTerminal', "Run `{0}` command?", shellType),
+			message: new MarkdownString(args.explanation),
+			disclaimer,
+			terminalCustomActions: customActions,
+		};
+
 		return {
 			confirmationMessages,
-			presentation,
-			toolSpecificData: {
-				kind: 'terminal',
-				terminalToolSessionId,
-				commandLine: {
-					original: args.command,
-					toolEdited: toolEditedCommand
-				},
-				language,
-				alternativeRecommendation,
-				autoApproveInfo,
-			}
+			toolSpecificData,
 		};
 	}
 
