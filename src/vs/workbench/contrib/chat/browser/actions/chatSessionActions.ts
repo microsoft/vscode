@@ -264,24 +264,28 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): Promise<void> {
-		if (!context) {
-			return;
-		}
-
 		const editorService = accessor.get(IEditorService);
 		const viewsService = accessor.get(IViewsService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const sessionId = context.session.id;
-		if (context.session.provider?.chatSessionType) {
-			// Check if this session is already open in another editor
-			const existingEditor = findExistingChatEditorByUri(context.session.resource, editorGroupsService);
-			if (existingEditor) {
-				await editorService.openEditor(existingEditor.editor, existingEditor.group);
-				return;
-			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
-				return;
-			}
+
+		if (!context) {
+			return;
+		}
+
+		if (context.session.provider.chatSessionType !== localChatSessionType) {
+			// We only allow local sessions to be opened in the side bar
+			return;
+		}
+
+		// Check if this session is already open in another editor
+		// TODO: this feels strange. Should we prefer moving the editor to the sidebar instead?
+		const existingEditor = findExistingChatEditorByUri(context.session.resource, editorGroupsService);
+		if (existingEditor) {
+			await editorService.openEditor(existingEditor.editor, existingEditor.group);
+			return;
+		} else if (chatWidgetService.getWidgetBySessionId(context.session.id)) {
+			return;
 		}
 
 		// Open the chat view in the sidebar

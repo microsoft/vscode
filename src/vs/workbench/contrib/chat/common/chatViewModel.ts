@@ -64,6 +64,7 @@ export interface IChatSetCheckpointEvent {
 export interface IChatViewModel {
 	readonly model: IChatModel;
 	readonly sessionId: string;
+	readonly sessionResource: URI;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
 	readonly requestInProgress: boolean;
@@ -260,6 +261,10 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	get sessionId() {
 		return this._model.sessionId;
+	}
+
+	get sessionResource(): URI {
+		return this._model.sessionResource;
 	}
 
 	get requestInProgress(): boolean {
