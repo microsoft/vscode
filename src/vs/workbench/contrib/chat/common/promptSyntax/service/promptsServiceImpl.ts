@@ -33,11 +33,6 @@ import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, PromptsStorage } from './promptsService.js';
 
-type CachedParsedPromptFile = {
-	value: ParsedPromptFile | undefined;
-	pendingPromise: Promise<ParsedPromptFile | undefined> | undefined;
-};
-
 /**
  * Provides prompt services.
  * This includes working with prompt files, instruction files, and agent files.
@@ -349,7 +344,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-
 		await Promise.allSettled(allPending);
 	}
 
@@ -543,6 +537,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 }
+
+type CachedParsedPromptFile = {
+	value: ParsedPromptFile | undefined;
+	pendingPromise: Promise<ParsedPromptFile | undefined> | undefined;
+};
 
 function getCommandNameFromURI(uri: URI): string {
 	return basename(uri.fsPath, PROMPT_FILE_EXTENSION);
