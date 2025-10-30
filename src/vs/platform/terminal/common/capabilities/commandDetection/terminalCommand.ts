@@ -285,7 +285,8 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 		private readonly _xterm: Terminal,
 		id?: string
 	) {
-		this.id = generateUuid();
+		//TODO: this does not restore properly due to conflicting with the one created in the. PtyHost
+		this.id = id ?? generateUuid();
 	}
 
 	serialize(cwd: string | undefined): ISerializedTerminalCommand | undefined {
