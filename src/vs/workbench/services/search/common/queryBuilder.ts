@@ -617,7 +617,7 @@ export class QueryBuilder {
 			disregardGlobalIgnoreFiles: typeof options.disregardGlobalIgnoreFiles === 'boolean' ? options.disregardGlobalIgnoreFiles : !folderConfig.search.useGlobalIgnoreFiles,
 			disregardParentIgnoreFiles: typeof options.disregardParentIgnoreFiles === 'boolean' ? options.disregardParentIgnoreFiles : !folderConfig.search.useParentIgnoreFiles,
 			ignoreSymlinks: typeof options.ignoreSymlinks === 'boolean' ? options.ignoreSymlinks : !folderConfig.search.followSymlinks,
-			ignoreGlobPatternCase: options.ignoreGlobPatternCase // TODO: folderConfig.search.ignoreGlobPatternCase?
+			ignoreGlobPatternCase: options.ignoreGlobPatternCase || folderConfig.search.ignoreGlobPatternCase
 		};
 	}
 }

@@ -477,6 +477,7 @@ export interface ISearchConfigurationProperties {
 		semanticSearchBehavior: string;
 		keywordSuggestions: boolean;
 	};
+	ignoreGlobPatternCase: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
