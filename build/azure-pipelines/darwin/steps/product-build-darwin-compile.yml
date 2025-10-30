@@ -39,6 +39,13 @@ steps:
   - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
     displayName: Extract compilation output
 
+  - script: |
+      set -e
+      sw_vers
+      tar --version
+      pwsh --version
+    displayName: Print versions
+
   - script: node build/setup-npm-registry.js $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry

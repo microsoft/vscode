@@ -46,6 +46,16 @@ steps:
 
   - script: |
       set -e
+      cat /etc/os-release
+      dpkg-deb --version
+      tar --version
+      pwsh --version
+      fakeroot --version
+      rpmbuild --version
+    displayName: Print versions
+
+  - script: |
+      set -e
       # Start X server
       ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
       ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
@@ -264,10 +274,6 @@ steps:
 
     - script:  |
         set -e
-        cat /etc/os-release
-        apt --version
-        dpkg-deb --version
-        fakeroot --version
         npm run gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
         mkdir -p .build/linux/deb
         cp .build/linux/deb/*/deb/*.deb .build/linux/deb/
