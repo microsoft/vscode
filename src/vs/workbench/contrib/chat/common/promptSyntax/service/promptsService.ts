@@ -16,6 +16,8 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 
 /**
  * Provides prompt services.
+ * This includes working with prompt files, instruction files, and agent files.
+ * These are all referred to as "prompts" within this service, distinguished by different PromptsType values.
  */
 export const IPromptsService = createDecorator<IPromptsService>('IPromptsService');
 
@@ -264,6 +266,12 @@ export interface IPromptsService extends IDisposable {
 	 * @param oldURI
 	 */
 	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined;
+
+	/**
+	 * Helper method for tests to await all pending cache operations.
+	 * @internal
+	 */
+	waitForPendingCacheOperations(): Promise<void>;
 }
 
 export interface IChatPromptSlashCommand {
