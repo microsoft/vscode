@@ -312,7 +312,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			precondition: ChatContextKeys.enabled,
 			menu: [{
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(TerminalContextKeys.hasToolTerminal, ContextKeyExpr.equals('view', ChatViewId)),
+				when: ContextKeyExpr.and(TerminalChatContextKeys.hasChatTerminals, ContextKeyExpr.equals('view', ChatViewId)),
 				group: 'terminal',
 				order: 0,
 				isHiddenByDefault: true

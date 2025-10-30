@@ -132,6 +132,7 @@ export class TerminalTabbedView extends Disposable {
 		}));
 
 		this._register(Event.any(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession, this._terminalService.onDidDisposeInstance)(() => {
+			this._refreshShowTabs();
 			this._updateChatTerminalsEntry();
 		}));
 
@@ -154,11 +155,16 @@ export class TerminalTabbedView extends Disposable {
 	private _shouldShowTabs(): boolean {
 		const enabled = this._terminalConfigurationService.config.tabs.enabled;
 		const hide = this._terminalConfigurationService.config.tabs.hideCondition;
+		const hasChatTerminals = this._terminalChatService.getToolSessionTerminalInstances().length > 0;
 		if (!enabled) {
 			return false;
 		}
 
 		if (hide === 'never') {
+			return true;
+		}
+
+		if (this._terminalGroupService.instances.length && hasChatTerminals) {
 			return true;
 		}
 
