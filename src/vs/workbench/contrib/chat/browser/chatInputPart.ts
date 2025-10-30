@@ -128,7 +128,7 @@ export interface IChatInputPartOptions {
 		inputSideToolbar?: MenuId;
 	};
 	editorOverflowWidgetsDomNode?: HTMLElement;
-	renderWorkingSet?: boolean;
+	renderWorkingSet: boolean;
 	enableImplicitContext?: boolean;
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
@@ -1866,7 +1866,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const shouldRender = listEntries.map(r => r.length > 0);
 
 		this._renderingChatEdits.value = autorun(reader => {
-			if (shouldRender.read(reader)) {
+			if (this.options.renderWorkingSet && shouldRender.read(reader)) {
 				this.renderChatEditingSessionWithEntries(
 					reader.store,
 					chatEditingSession!,
