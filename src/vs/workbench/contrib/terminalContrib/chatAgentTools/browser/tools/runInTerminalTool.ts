@@ -14,7 +14,7 @@ import { createCommandUri, MarkdownString, type IMarkdownString } from '../../..
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
-import { count } from '../../../../../../base/common/strings.js';
+import { count, escape } from '../../../../../../base/common/strings.js';
 import type { SingleOrMany } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
@@ -27,7 +27,7 @@ import { IRemoteAgentService } from '../../../../../services/remote/common/remot
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { openTerminalSettingsLinkCommandId } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
-import { ChatConfiguration } from '../../../../chat/common/constants.js';
+import { ChatConfiguration, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES } from '../../../../chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress, type IToolConfirmationMessages, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance, ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
@@ -41,7 +41,7 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { dedupeRules, generateAutoApproveActions, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import { dedupeRules, generateAutoApproveActions, isFish, isPowerShell, isWindowsPowerShell, isZsh, sanitizeTerminalOutput } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
@@ -566,7 +566,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
 				await Event.toPromise(outputMonitor.onDidFinishCommand);
 				const pollingResult = outputMonitor.pollingResult;
-				this._setTerminalCommandUri(toolSpecificData, toolTerminal.instance, commandDetection);
+				await this._updateTerminalCommandMetadata(toolSpecificData, toolTerminal.instance, commandDetection, pollingResult?.output ? { text: pollingResult.output } : undefined);
 
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
@@ -602,7 +602,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
-				this._setTerminalCommandUri(toolSpecificData, toolTerminal.instance, commandDetection);
+				await this._updateTerminalCommandMetadata(
+					toolSpecificData,
+					toolTerminal.instance,
+					commandDetection,
+					pollingResult?.output ? { text: pollingResult.output } : undefined
+				);
 				store.dispose();
 				this._logService.debug(`RunInTerminalTool: Finished polling \`${pollingResult?.output.length}\` lines of output in \`${pollingResult?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
@@ -687,7 +692,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
-				this._setTerminalCommandUri(toolSpecificData, toolTerminal.instance, commandDetection);
+				await this._updateTerminalCommandMetadata(
+					toolSpecificData,
+					toolTerminal.instance,
+					commandDetection,
+					terminalResult ? { text: terminalResult } : undefined
+				);
 				store.dispose();
 				const timingExecuteMs = Date.now() - timingStart;
 				this._telemetry.logInvoke(toolTerminal.instance, {
@@ -738,20 +748,56 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private _setTerminalCommandUri(toolSpecificData: IChatTerminalToolInvocationData, instance: ITerminalInstance, commandDetection: ICommandDetectionCapability | undefined): void {
-		if (toolSpecificData.terminalCommandUri) {
+	private async _updateTerminalCommandMetadata(
+		toolSpecificData: IChatTerminalToolInvocationData,
+		instance: ITerminalInstance,
+		commandDetection: ICommandDetectionCapability | undefined,
+		fallbackOutput?: { text: string; truncated?: boolean }
+	): Promise<void> {
+		const command = commandDetection?.commands.at(-1);
+		if (command?.id && !toolSpecificData.terminalCommandUri) {
+			const params = new URLSearchParams(instance.resource.query);
+			params.set('command', command.id);
+			const commandUri = instance.resource.with({ query: params.toString() || undefined });
+			toolSpecificData.terminalCommandUri = commandUri;
+		}
+
+		if (toolSpecificData.output?.html) {
 			return;
 		}
 
-		const commandId = commandDetection?.commands.at(-1)?.id;
-		if (!commandId) {
-			return;
+		let serializedHtml: string | undefined;
+		let truncated = fallbackOutput?.truncated ?? false;
+
+		if (command?.endMarker) {
+			try {
+				const xterm = await instance.xtermReadyPromise;
+				if (xterm) {
+					const html = await xterm.getCommandOutputAsHtml(command, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
+					if (html) {
+						serializedHtml = html;
+						truncated = false;
+					}
+				}
+			} catch (error) {
+				this._logService.debug('RunInTerminalTool: Failed to capture terminal HTML output for serialization', error);
+			}
 		}
 
-		const params = new URLSearchParams(instance.resource.query);
-		params.set('command', commandId);
-		const commandUri = instance.resource.with({ query: params.toString() || undefined });
-		toolSpecificData.terminalCommandUri = commandUri;
+		if (!serializedHtml && fallbackOutput?.text) {
+			const sanitized = sanitizeTerminalOutput(fallbackOutput.text);
+			if (sanitized) {
+				serializedHtml = escape(sanitized);
+				truncated = fallbackOutput.truncated ?? truncated;
+			}
+		}
+
+		if (serializedHtml) {
+			toolSpecificData.output = {
+				html: serializedHtml,
+				truncated
+			};
+		}
 	}
 
 	private _handleTerminalVisibility(toolTerminal: IToolTerminal) {

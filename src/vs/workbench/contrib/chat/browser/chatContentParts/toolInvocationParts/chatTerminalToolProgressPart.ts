@@ -22,7 +22,7 @@ import '../media/chatTerminalToolProgressPart.css';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES } from '../../../common/constants.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
@@ -39,7 +39,6 @@ import * as domSanitize from '../../../../../../base/browser/domSanitize.js';
 import { DomSanitizerConfig } from '../../../../../../base/browser/domSanitize.js';
 import { allowedMarkdownHtmlAttributes } from '../../../../../../base/browser/markdownRenderer.js';
 
-const MAX_TERMINAL_OUTPUT_PREVIEW_LINES = 1000;
 const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
 
 const sanitizerConfig = Object.freeze<DomSanitizerConfig>({
@@ -153,6 +152,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private async _createActionBar(elements: { actionBar: HTMLElement }): Promise<void> {
 		this._actionBar.value = new ActionBar(elements.actionBar, {});
+		this._ensureShowOutputAction();
 
 		const terminalToolSessionId = this._terminalData.terminalToolSessionId;
 		if (!terminalToolSessionId) {
@@ -166,11 +166,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._terminalForOutput = instance;
 			this._attachedCommand = this._resolveCommand(instance);
 			this._registerInstanceListener(instance);
-			await this._addFocusAction(instance, terminalToolSessionId);
+			await this._addActions(instance, terminalToolSessionId);
 		};
 
 		await attachInstance(await this._terminalChatService.getTerminalInstanceByToolSessionId(terminalToolSessionId));
-
 		if (this._terminalForOutput) {
 			return;
 		}
@@ -185,20 +184,28 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._register(listener);
 	}
 
-	private async _addFocusAction(terminalInstance: ITerminalInstance, terminalToolSessionId: string) {
+	private async _addActions(terminalInstance: ITerminalInstance, terminalToolSessionId: string) {
 		const isTerminalHidden = this._terminalChatService.isBackgroundTerminal(terminalToolSessionId);
 		const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, this._attachedCommand, isTerminalHidden);
 		this._focusAction.value = focusAction;
-		this._actionBar.value?.push(focusAction, { icon: true, label: false });
+		if (!this._actionBar.value) {
+			return;
+		}
+		this._actionBar.value.push(focusAction, { icon: true, label: false });
 		this._ensureShowOutputAction();
 	}
 
 	private _ensureShowOutputAction(): void {
-		if (this._showOutputActionAdded || !this._attachedCommand?.endMarker) {
+		if (!this._actionBar.value) {
 			return;
 		}
-		const focusAction = this._focusAction.value;
-		if (!focusAction) {
+		const hasSerializedOutput = !!this._terminalData.output?.html;
+		const commandFinished = !!this._attachedCommand?.endMarker;
+		if (!hasSerializedOutput && !commandFinished) {
+			return;
+		}
+		if (this._showOutputActionAdded) {
+			this._showOutputAction.value?.syncPresentation(this._outputContainer.classList.contains('expanded'));
 			return;
 		}
 		let showOutputAction = this._showOutputAction.value;
@@ -253,9 +260,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 			commandDetectionListener.clear();
 			this._actionBar.clear();
-			this._showOutputActionAdded = false;
 			this._focusAction.clear();
-			this._showOutputAction.clear();
+			const keepOutputAction = !!this._terminalData.output?.html;
+			this._showOutputActionAdded = false;
+			if (!keepOutputAction) {
+				this._showOutputAction.clear();
+			}
+			this._ensureShowOutputAction();
 			instanceListener.dispose();
 		}));
 	}
@@ -292,14 +303,17 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private async _renderOutputIfNeeded(): Promise<boolean> {
-		if (this._outputContent || !this._terminalForOutput) {
+		if (this._outputContent) {
 			this._ensureOutputResizeObserver();
 			return false;
 		}
 
+		if (!this._terminalForOutput) {
+			this._terminalForOutput = this._terminalService.getInstanceFromResource(this._terminalData.terminalCommandUri);
+		}
 		const output = await this._collectOutput(this._terminalForOutput);
 		const content = this._renderOutput(output);
-		const theme = this._terminalForOutput.xterm?.getXtermTheme();
+		const theme = this._terminalForOutput?.xterm?.getXtermTheme();
 		if (theme) {
 			const inlineTerminal = content.querySelector('div');
 			if (inlineTerminal) {
@@ -367,7 +381,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}));
 	}
 
-	private async _collectOutput(terminalInstance: ITerminalInstance): Promise<{ text: string; truncated: boolean }> {
+	private async _collectOutput(terminalInstance: ITerminalInstance | undefined): Promise<{ text: string; truncated: boolean }> {
+		const storedOutput = this._terminalData.output;
+		if (storedOutput?.html) {
+			return { text: storedOutput.html, truncated: storedOutput.truncated ?? false };
+		}
+		if (!terminalInstance) {
+			return { text: '', truncated: false };
+		}
 		const xterm = await terminalInstance.xtermReadyPromise;
 		if (!xterm) {
 			return { text: '', truncated: false };
@@ -376,11 +397,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (!command) {
 			command = this._resolveCommand(terminalInstance);
 		}
-		if (!command) {
+		if (!command?.endMarker) {
 			return { text: '', truncated: false };
 		}
 		this._attachedCommand = command;
-		const text = await xterm.getCommandOutputAsHtml(command, MAX_TERMINAL_OUTPUT_PREVIEW_LINES);
+		const text = await xterm.getCommandOutputAsHtml(command, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
 		if (!text) {
 			return { text: '', truncated: false };
 		}
@@ -400,7 +421,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (result.truncated) {
 			const note = document.createElement('div');
 			note.classList.add('chat-terminal-output-info');
-			note.textContent = localize('chat.terminalOutputTruncated', 'Output truncated to first {0} characters.', MAX_TERMINAL_OUTPUT_PREVIEW_LINES);
+			note.textContent = localize('chat.terminalOutputTruncated', 'Output truncated to first {0} characters.', CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
 			container.appendChild(note);
 		}
 
