@@ -44,16 +44,13 @@ import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../searc
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { isSupportedChatFileScheme, ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
 import { isQuickChat } from '../chatWidget.js';
 import { resizeImage } from '../imageUtils.js';
 import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-
-// Schemes that should not be available for chat context attach
-const UNSUPPORTED_CONTEXT_SCHEMES = new Set(['webview-panel', 'walkThrough', 'vscode-settings']);
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -465,7 +462,7 @@ export class AttachContextAction extends Action2 {
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
 			filter: (pick) => {
 				if (isIQuickPickItemWithResource(pick) && pick.resource) {
-					return !UNSUPPORTED_CONTEXT_SCHEMES.has(pick.resource.scheme);
+					return instantiationService.invokeFunction(accessor => isSupportedChatFileScheme(accessor, pick.resource!.scheme));
 				}
 				return true;
 			},

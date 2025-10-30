@@ -21,7 +21,7 @@ import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorI
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
-import { IChatSessionsService } from '../common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
@@ -197,7 +197,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	private getSessionTypeDisplayName(sessionType: string): string | undefined {
-		if (sessionType === 'local') {
+		if (sessionType === localChatSessionType) {
 			return;
 		}
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
@@ -219,7 +219,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	private resolveIcon(): ThemeIcon | URI | undefined {
 		// TODO@osortega,@rebornix double check: Chat Session Item icon is reserved for chat session list and deprecated for chat session status. thus here we use session type icon. We may want to show status for the Editor Title.
 		const sessionType = this.getSessionType();
-		if (sessionType !== 'local') {
+		if (sessionType !== localChatSessionType) {
 			const typeIcon = this.chatSessionsService.getIconForSessionType(sessionType);
 			if (typeIcon) {
 				return typeIcon;
@@ -229,16 +229,12 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return undefined;
 	}
 
-	private getSessionType(): string {
-		if (!this.resource) {
-			return 'local';
+	public getSessionType(): string {
+		if (this.resource.scheme === Schemas.vscodeChatEditor || this.resource.scheme === Schemas.vscodeChatSession) {
+			return localChatSessionType;
 		}
 
-		const { scheme } = this.resource;
-		if (scheme === Schemas.vscodeChatEditor || scheme === Schemas.vscodeChatSession) {
-			return 'local';
-		}
-		return scheme;
+		return this.resource.scheme;
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {

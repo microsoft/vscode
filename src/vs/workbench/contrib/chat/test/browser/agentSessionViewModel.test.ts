@@ -10,9 +10,9 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IChatSessionItem, IChatSessionItemProvider, ChatSessionStatus } from '../../common/chatSessionsService.js';
+import { AgentSessionsViewModel, IAgentSessionViewModel, isAgentSession, isAgentSessionsViewModel, isLocalAgentSessionItem } from '../../browser/agentSessions/agentSessionViewModel.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
-import { AgentSessionsViewModel, IAgentSessionViewModel, LOCAL_AGENT_SESSION_TYPE, isLocalAgentSessionItem, isAgentSession, isAgentSessionsViewModel } from '../../browser/agentSessions/agentSessionViewModel.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { MockChatSessionsService } from '../common/mockChatSessionsService.js';
 
@@ -593,12 +593,12 @@ suite('AgentSessionsViewModel', () => {
 
 	test('should handle local agent session type specially', async () => {
 		const provider: IChatSessionItemProvider = {
-			chatSessionType: LOCAL_AGENT_SESSION_TYPE,
+			chatSessionType: localChatSessionType,
 			onDidChangeChatSessionItems: Event.None,
 			provideChatSessionItems: async () => [
 				{
 					id: 'local-session',
-					resource: ChatSessionUri.forSession(LOCAL_AGENT_SESSION_TYPE, 'local-session'),
+					resource: ChatSessionUri.forSession(localChatSessionType, 'local-session'),
 					label: 'Local Session',
 					timing: { startTime: Date.now() }
 				}
@@ -614,7 +614,7 @@ suite('AgentSessionsViewModel', () => {
 		await viewModel.resolve(undefined);
 
 		assert.strictEqual(viewModel.sessions.length, 1);
-		assert.strictEqual(viewModel.sessions[0].provider.chatSessionType, LOCAL_AGENT_SESSION_TYPE);
+		assert.strictEqual(viewModel.sessions[0].provider.chatSessionType, localChatSessionType);
 	});
 
 	test('should correctly construct resource URIs for sessions', async () => {
@@ -813,7 +813,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 	test('isLocalAgentSessionItem should identify local sessions', () => {
 		const localSession: IAgentSessionViewModel = {
 			provider: {
-				chatSessionType: LOCAL_AGENT_SESSION_TYPE,
+				chatSessionType: localChatSessionType,
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
