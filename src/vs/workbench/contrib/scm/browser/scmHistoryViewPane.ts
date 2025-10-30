@@ -467,6 +467,8 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 
 		templateData.graphContainer.textContent = '';
 		templateData.graphContainer.classList.toggle('current', historyItemViewModel.kind === 'HEAD');
+		templateData.graphContainer.classList.toggle('incoming-changes', historyItemViewModel.kind === 'incoming-changes');
+		templateData.graphContainer.classList.toggle('outgoing-changes', historyItemViewModel.kind === 'outgoing-changes');
 		templateData.graphContainer.appendChild(renderSCMHistoryItemGraph(historyItemViewModel));
 
 		const historyItemRef = provider.historyProvider.get()?.historyItemRef?.get();
@@ -1241,6 +1243,8 @@ class SCMHistoryViewModel extends Disposable {
 				historyProvider.historyItemRef.get(),
 				historyProvider.historyItemRemoteRef.get(),
 				historyProvider.historyItemBaseRef.get(),
+				this._scmViewService.graphShowIncomingChangesConfig.get(),
+				this._scmViewService.graphShowOutgoingChangesConfig.get(),
 				mergeBase)
 				.map(historyItemViewModel => ({
 					repository,
@@ -1597,6 +1601,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IProgressService private readonly _progressService: IProgressService,
+		@ISCMViewService private readonly _scmViewService: ISCMViewService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -1688,6 +1693,14 @@ export class SCMHistoryViewPane extends ViewPane {
 			this._visibilityDisposables.add(autorun(reader => {
 				this._treeViewModel.isViewModelEmpty.read(reader);
 				this._onDidChangeViewWelcomeState.fire();
+			}));
+
+			// Settings change
+			this._visibilityDisposables.add(runOnChange(this._scmViewService.graphShowIncomingChangesConfig, async () => {
+				await this.refresh();
+			}));
+			this._visibilityDisposables.add(runOnChange(this._scmViewService.graphShowOutgoingChangesConfig, async () => {
+				await this.refresh();
 			}));
 
 			// Repository change

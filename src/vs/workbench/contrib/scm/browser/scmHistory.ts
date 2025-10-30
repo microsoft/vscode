@@ -284,6 +284,8 @@ export function toISCMHistoryItemViewModelArray(
 	currentHistoryItemRef?: ISCMHistoryItemRef,
 	currentHistoryItemRemoteRef?: ISCMHistoryItemRef,
 	currentHistoryItemBaseRef?: ISCMHistoryItemRef,
+	addIncomingChanges?: boolean,
+	addOutgoingChanges?: boolean,
 	mergeBase?: string
 ): ISCMHistoryItemViewModel[] {
 	let colorIndex = -1;
@@ -379,7 +381,7 @@ export function toISCMHistoryItemViewModelArray(
 	// Inject incoming/outgoing changes nodes if ahead/behind and there is a merge base
 	if (currentHistoryItemRef?.revision !== currentHistoryItemRemoteRef?.revision && mergeBase) {
 		// Incoming changes node
-		if (currentHistoryItemRemoteRef && currentHistoryItemRemoteRef.revision !== mergeBase) {
+		if (addIncomingChanges && currentHistoryItemRemoteRef && currentHistoryItemRemoteRef.revision !== mergeBase) {
 			const beforeHistoryItemIndex = viewModels
 				.findLastIndex(vm => vm.outputSwimlanes.some(node => node.id === mergeBase));
 			const afterHistoryItemIndex = viewModels
@@ -425,7 +427,7 @@ export function toISCMHistoryItemViewModelArray(
 		}
 
 		// Outgoing changes node
-		if (currentHistoryItemRef?.revision && currentHistoryItemRef.revision !== mergeBase) {
+		if (addOutgoingChanges && currentHistoryItemRef?.revision && currentHistoryItemRef.revision !== mergeBase) {
 			let beforeHistoryItemIndex = viewModels
 				.findLastIndex(vm => vm.outputSwimlanes.some(node => node.id === currentHistoryItemRef.revision));
 			const afterHistoryItemIndex = viewModels

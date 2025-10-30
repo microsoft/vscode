@@ -409,6 +409,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.graph.badges', "Controls which badges are shown in the Source Control Graph view. The badges are shown on the right side of the graph indicating the names of history item groups."),
 			default: 'filter'
+		},
+		'scm.graph.showIncomingChanges': {
+			type: 'boolean',
+			description: localize('scm.graph.showIncomingChanges', "Controls whether to show incoming changes in the Source Control Graph view."),
+			default: true
+		},
+		'scm.graph.showOutgoingChanges': {
+			type: 'boolean',
+			description: localize('scm.graph.showOutgoingChanges', "Controls whether to show outgoing changes in the Source Control Graph view."),
+			default: true
 		}
 	}
 });
