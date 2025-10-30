@@ -329,9 +329,9 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 
 		const visible = new Set<ITerminalInstance>([...groupService.instances, ...editorService.instances]);
-		const toolInstances = new Set(terminalChatService.getToolSessionTerminalInstances());
+		const toolInstances = terminalChatService.getToolSessionTerminalInstances();
 
-		if (toolInstances.size === 0) {
+		if (toolInstances.length === 0) {
 			return;
 		}
 

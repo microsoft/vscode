@@ -82,7 +82,8 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	}
 
 	getToolSessionTerminalInstances(): readonly ITerminalInstance[] {
-		return Array.from(this._terminalInstancesByToolSessionId.values());
+		// Ensure unique instances in case multiple tool sessions map to the same terminal
+		return Array.from(new Set(this._terminalInstancesByToolSessionId.values()));
 	}
 
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean {
