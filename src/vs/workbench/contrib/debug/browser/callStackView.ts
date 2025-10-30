@@ -58,27 +58,29 @@ type CallStackItem = IStackFrame | IThread | IDebugSession | string | ThreadAndS
 
 interface ICallStackItemContext {
 	sessionId: string;
-	threadId?: number;
-	frameId?: number;
+	threadId?: string;
+	frameId?: string;
 	frameName?: string;
 	frameLocation?: { range: IRange; source: DebugProtocol.Source };
 }
 
 function getSessionContext(element: IDebugSession): ICallStackItemContext {
-	return { sessionId: element.getId() };
+	return {
+		sessionId: element.getId()
+	};
 }
 
 function getThreadContext(element: IThread): ICallStackItemContext {
 	return {
 		...getSessionContext(element.session),
-		threadId: element.threadId
+		threadId: element.getId()
 	};
 }
 
 function getStackFrameContext(element: StackFrame): ICallStackItemContext {
 	return {
 		...getThreadContext(element.thread),
-		frameId: element.frameId,
+		frameId: element.getId(),
 		frameName: element.name,
 		frameLocation: { range: element.range, source: element.source.raw }
 	};
