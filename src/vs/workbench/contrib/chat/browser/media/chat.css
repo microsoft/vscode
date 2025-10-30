@@ -1280,7 +1280,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
 .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-input-background);
+	background-color: var(--vscode-input-background) !important;
 }
 
 .interactive-session .interactive-input-part.editing .chat-input-container .chat-editor-container .monaco-editor,
