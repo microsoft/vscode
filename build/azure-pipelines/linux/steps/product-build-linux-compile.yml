@@ -264,6 +264,10 @@ steps:
 
     - script:  |
         set -e
+        cat /etc/os-release
+        apt --version
+        dpkg-deb --version
+        fakeroot --version
         npm run gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
         mkdir -p .build/linux/deb
         cp .build/linux/deb/*/deb/*.deb .build/linux/deb/
@@ -295,6 +299,8 @@ steps:
 
     - script:  |
         set -e
+        cat /etc/os-release
+        rpmbuild --version
         npm run gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
         mkdir -p .build/linux/rpm
         cp .build/linux/rpm/*/*.rpm .build/linux/rpm/

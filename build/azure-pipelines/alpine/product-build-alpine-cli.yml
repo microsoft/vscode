@@ -62,6 +62,8 @@ jobs:
     # inspired by: https://github.com/emk/rust-musl-builder/blob/main/Dockerfile
     - bash: |
         set -e
+        bash --version
+        apt --version
         sudo apt-get update
         sudo apt-get install -yq build-essential musl-dev musl-tools linux-libc-dev pkgconf xutils-dev lld
         sudo ln -s "/usr/bin/g++" "/usr/bin/musl-g++" || echo "link exists"
