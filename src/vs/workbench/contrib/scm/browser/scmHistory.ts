@@ -382,12 +382,13 @@ export function toISCMHistoryItemViewModelArray(
 	if (currentHistoryItemRef?.revision !== currentHistoryItemRemoteRef?.revision && mergeBase) {
 		// Incoming changes node
 		if (addIncomingChanges && currentHistoryItemRemoteRef && currentHistoryItemRemoteRef.revision !== mergeBase) {
+			// Find the before/after indices
 			const beforeHistoryItemIndex = viewModels
 				.findLastIndex(vm => vm.outputSwimlanes.some(node => node.id === mergeBase));
 			const afterHistoryItemIndex = viewModels
 				.findIndex(vm => vm.historyItem.id === mergeBase);
 
-			// Update the before node so that both the incoming and outgoing swimlanes
+			// Update the before node so that the incoming and outgoing swimlanes
 			// point to the `incoming-changes` node instead of the merge base
 			viewModels[beforeHistoryItemIndex] = {
 				...viewModels[beforeHistoryItemIndex],
@@ -428,16 +429,16 @@ export function toISCMHistoryItemViewModelArray(
 
 		// Outgoing changes node
 		if (addOutgoingChanges && currentHistoryItemRef?.revision && currentHistoryItemRef.revision !== mergeBase) {
+			// Find the before/after indices
 			let beforeHistoryItemIndex = viewModels
 				.findLastIndex(vm => vm.outputSwimlanes.some(node => node.id === currentHistoryItemRef.revision));
 			const afterHistoryItemIndex = viewModels
 				.findIndex(vm => vm.historyItem.id === currentHistoryItemRef.revision);
-
 			if (beforeHistoryItemIndex === -1 && afterHistoryItemIndex > 0) {
 				beforeHistoryItemIndex = afterHistoryItemIndex - 1;
 			}
 
-			// Update the after node to point to the outgoing changes node
+			// Update the after node to point to the `outgoing-changes` node
 			viewModels[afterHistoryItemIndex].inputSwimlanes.push({
 				id: currentHistoryItemRef.revision,
 				color: historyItemRefColor
@@ -446,8 +447,8 @@ export function toISCMHistoryItemViewModelArray(
 			const inputSwimlanes = beforeHistoryItemIndex !== -1
 				? viewModels[beforeHistoryItemIndex].outputSwimlanes
 					.map(node => {
-						return node.id === mergeBase && node.color === historyItemRemoteRefColor
-							? { ...node, id: addIncomingChanges ? SCMIncomingHistoryItemId : mergeBase }
+						return addIncomingChanges && node.id === mergeBase && node.color === historyItemRemoteRefColor
+							? { ...node, id: SCMIncomingHistoryItemId }
 							: node;
 					})
 				: [];
