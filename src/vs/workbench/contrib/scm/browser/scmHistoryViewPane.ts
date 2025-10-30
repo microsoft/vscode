@@ -30,7 +30,7 @@ import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverLabelForeground, historyItemHoverDefaultLabelBackground, getHistoryItemIndex } from './scmHistory.js';
 import { getHistoryItemEditorTitle, getProviderKey, isSCMHistoryItemChangeNode, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
-import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
+import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement, SCMIncomingHistoryItemId, SCMOutgoingHistoryItemId } from '../common/history.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService, ViewMode } from '../common/scm.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
@@ -328,11 +328,23 @@ registerAction2(class extends Action2 {
 			}
 		}
 
-		const title = historyItems.length === 1 ?
-			getHistoryItemEditorTitle(historyItem) :
-			localize('historyItemChangesEditorTitle', "All Changes ({0} ↔ {1})", historyItemLast.displayId ?? historyItemLast.id, historyItem.displayId ?? historyItem.id);
+		let title: string, historyItemId: string, historyItemParentId: string | undefined;
 
-		const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItem);
+		if (historyItem.id === SCMIncomingHistoryItemId) {
+			title = historyItem.subject;
+			historyItemId = historyProvider!.historyItemRemoteRef.get()!.id;
+			historyItemParentId = historyItem.parentIds[0];
+		} else if (historyItem.id === SCMOutgoingHistoryItemId) {
+			title = historyItem.subject;
+			historyItemId = historyProvider!.historyItemRef.get()!.id;
+			historyItemParentId = historyItem.parentIds[0];
+		} else {
+			title = getHistoryItemEditorTitle(historyItem);
+			historyItemId = historyItem.id;
+			historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+		}
+
+		const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItemId, historyItemParentId, '');
 		commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri });
 	}
 });
@@ -455,7 +467,6 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 
 		templateData.graphContainer.textContent = '';
 		templateData.graphContainer.classList.toggle('current', historyItemViewModel.kind === 'HEAD');
-
 		templateData.graphContainer.appendChild(renderSCMHistoryItemGraph(historyItemViewModel));
 
 		const historyItemRef = provider.historyProvider.get()?.historyItemRef?.get();
@@ -903,16 +914,14 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 				const historyItemRef = historyProvider?.historyItemRef.get();
 				const historyItemRemoteRef = historyProvider?.historyItemRemoteRef.get();
 
-				if (!historyItemRef || !historyItemRemoteRef) {
+				if (!historyProvider || !historyItemRef || !historyItemRemoteRef) {
 					return [];
 				}
 
 				historyItemId = historyItemViewModel.kind === 'incoming-changes'
 					? historyItemRemoteRef.id
 					: historyItemRef.id;
-				historyItemParentId = historyItemViewModel.kind === 'incoming-changes'
-					? historyItemRef.id
-					: historyItemRemoteRef.id;
+				historyItemParentId = historyItem.parentIds[0];
 			} else {
 				// Regular node
 				historyItemId = historyItem.id;
@@ -1008,10 +1017,11 @@ class SCMHistoryTreeDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 			const provider = element.repository.provider;
 			const historyItem = element.historyItemViewModel.historyItem;
 			const attachmentName = `$(${Codicon.repo.id})\u00A0${provider.name}\u00A0$(${Codicon.gitCommit.id})\u00A0${historyItem.displayId ?? historyItem.id}`;
+			const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
 
 			historyItems.push({
 				name: attachmentName,
-				resource: ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItem),
+				resource: ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItem.id, historyItemParentId, historyItem.displayId),
 				historyItem: historyItem
 			});
 		}
@@ -1032,8 +1042,9 @@ class SCMHistoryTreeDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 		if (isSCMHistoryItemViewModelTreeElement(element)) {
 			const provider = element.repository.provider;
 			const historyItem = element.historyItemViewModel.historyItem;
+			const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
 
-			return ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItem);
+			return ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItem.id, historyItemParentId, historyItem.displayId);
 		}
 
 		return undefined;
@@ -1047,6 +1058,7 @@ type HistoryItemRefsFilter = 'all' | 'auto' | string[];
 type RepositoryState = {
 	viewModels: SCMHistoryItemViewModelTreeElement[];
 	historyItemsFilter: ISCMHistoryItemRef[];
+	mergeBase: string | undefined;
 	loadMore: boolean | string;
 };
 
@@ -1213,13 +1225,12 @@ class SCMHistoryViewModel extends Disposable {
 				}) ?? []));
 			} while (typeof state?.loadMore === 'string' && !historyItems.find(item => item.id === state?.loadMore));
 
-			// Temporary solution
-			const mergeBase = await historyProvider.resolveHistoryItemRefsCommonAncestor([
-				historyProvider.historyItemRef.get()!.name,
-				historyProvider.historyItemRemoteRef.get()!.name,
-			]);
-
-			console.log('Merge base:', mergeBase);
+			// Computer the merge base
+			const mergeBase = state?.mergeBase === undefined
+				? await historyProvider.resolveHistoryItemRefsCommonAncestor([
+					historyProvider.historyItemRef.get()!.name,
+					historyProvider.historyItemRemoteRef.get()!.name])
+				: state.mergeBase;
 
 			// Create the color map
 			const colorMap = this._getGraphColorMap(historyItemRefs);
@@ -1237,7 +1248,7 @@ class SCMHistoryViewModel extends Disposable {
 					type: 'historyItemViewModel'
 				}) satisfies SCMHistoryItemViewModelTreeElement);
 
-			state = { historyItemsFilter: historyItemRefs, viewModels, loadMore: false };
+			state = { historyItemsFilter: historyItemRefs, viewModels, mergeBase, loadMore: false };
 			this._repositoryState.set(repository, state);
 
 			this._scmHistoryItemCountCtx.set(viewModels.length);
@@ -1298,7 +1309,6 @@ class SCMHistoryViewModel extends Disposable {
 
 		if (historyItemRef) {
 			colorMap.set(historyItemRef.id, historyItemRef.color);
-			colorMap.set('refs/heads/outgoing-changes', historyItemRef.color);
 
 			if (historyItemRemoteRef) {
 				colorMap.set(historyItemRemoteRef.id, historyItemRemoteRef.color);

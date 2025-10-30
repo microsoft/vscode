@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { deepClone } from '../../../../base/common/objects.js';
 import { badgeBackground, chartsBlue, chartsPurple, foreground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable, ColorIdentifier, registerColor } from '../../../../platform/theme/common/colorUtils.js';
-import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel } from '../common/history.js';
+import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel, SCMIncomingHistoryItemId, SCMOutgoingHistoryItemId } from '../common/history.js';
 import { rot } from '../../../../base/common/numbers.js';
 import { svgElem } from '../../../../base/browser/dom.js';
 import { PANEL_BACKGROUND } from '../../../common/theme.js';
@@ -220,8 +220,21 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 		svg.append(innerCircle);
 	} else if (historyItemViewModel.kind === 'incoming-changes') {
 		// Incoming changes
-		const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 3, CIRCLE_STROKE_WIDTH, circleColor);
-		svg.append(outerCircle);
+		// @lszomoru - Tweak this
+		const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+		circle.setAttribute('cx', `${SWIMLANE_WIDTH * (circleIndex + 1)}`);
+		circle.setAttribute('cy', `${SWIMLANE_WIDTH}`);
+		circle.setAttribute('r', `${CIRCLE_RADIUS}`);
+
+		circle.style.strokeWidth = `${CIRCLE_STROKE_WIDTH + 1}px`;
+		circle.style.strokeDasharray = '3,2';
+		circle.style.stroke = asCssVariable(circleColor);
+		circle.style.fill = 'none';
+
+		svg.append(circle);
+
+		// const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 3, CIRCLE_STROKE_WIDTH, circleColor);
+		// svg.append(outerCircle);
 
 		const innerCircle = drawCircle(circleIndex, CIRCLE_STROKE_WIDTH, CIRCLE_RADIUS);
 		svg.append(innerCircle);
@@ -296,7 +309,7 @@ export function toISCMHistoryItemViewModelArray(
 	for (let index = 0; index < historyItems.length; index++) {
 		const historyItem = historyItems[index];
 
-		const kind = getHistoryItemViewModelKind(historyItem, currentHistoryItemRef);
+		const kind = historyItem.id === currentHistoryItemRef?.revision ? 'HEAD' : 'node';
 		const outputSwimlanesFromPreviousItem = viewModels.at(-1)?.outputSwimlanes ?? [];
 		const inputSwimlanes = outputSwimlanesFromPreviousItem.map(i => deepClone(i));
 		const outputSwimlanes: ISCMHistoryItemGraphNode[] = [];
@@ -380,81 +393,93 @@ export function toISCMHistoryItemViewModelArray(
 		} satisfies ISCMHistoryItemViewModel);
 	}
 
-	// Inject incoming/outgoing changes nodes if ahead/behind
-	const aheadOrBehind = currentHistoryItemRef?.revision !== currentHistoryItemRemoteRef?.revision;
-	if (aheadOrBehind) {
-		const currentHistoryItemViewModelIndex = viewModels
-			.findIndex(vm => vm.historyItem.id === currentHistoryItemRef?.revision);
+	// Inject incoming/outgoing changes nodes if ahead/behind and there is a merge base
+	if (currentHistoryItemRef?.revision !== currentHistoryItemRemoteRef?.revision && mergeBase) {
+		// Incoming changes node
+		if (currentHistoryItemRemoteRef && currentHistoryItemRemoteRef.revision !== mergeBase) {
+			const beforeHistoryItemIndex = viewModels
+				.findLastIndex(vm => vm.outputSwimlanes.some(node => node.id === mergeBase));
+			const afterHistoryItemIndex = viewModels
+				.findIndex(vm => vm.historyItem.id === mergeBase);
 
-		if (currentHistoryItemViewModelIndex !== -1) {
-			const currentHistoryItemViewModel = viewModels[currentHistoryItemViewModelIndex];
-			const currentHistoryItem = currentHistoryItemViewModel.historyItem;
+			// Update the before node so that both the incoming and outgoing swimlanes
+			// point to the `incoming-changes` node instead of the merge base
+			viewModels[beforeHistoryItemIndex] = {
+				...viewModels[beforeHistoryItemIndex],
+				inputSwimlanes: viewModels[beforeHistoryItemIndex].inputSwimlanes
+					.map(node => {
+						return node.id === mergeBase && node.color === historyItemRemoteRefColor
+							? { ...node, id: SCMIncomingHistoryItemId }
+							: node;
+					}),
+				outputSwimlanes: viewModels[beforeHistoryItemIndex].outputSwimlanes
+					.map(node => {
+						return node.id === mergeBase && node.color === historyItemRemoteRefColor
+							? { ...node, id: SCMIncomingHistoryItemId }
+							: node;
+					})
+			};
 
-			const isNewSwimlane = currentHistoryItemViewModel.inputSwimlanes
-				.every(node => node.id !== currentHistoryItemRef?.revision);
-
-			if (isNewSwimlane) {
-				// Outgoing changes node
-				const inputSwimlanes = currentHistoryItemViewModel.inputSwimlanes.map(i => deepClone(i));
-				const outputSwimlanes = [...currentHistoryItemViewModel.inputSwimlanes.map(i => deepClone(i)), {
-					id: currentHistoryItem.id,
-					color: getLabelColorIdentifier(currentHistoryItem, colorMap)!
-				}];
-
-				const outgoingChangesHistoryItem = {
-					id: 'outgoing-changes',
-					parentIds: [currentHistoryItem.id],
-					subject: localize('outgoingChanges', 'Outgoing Changes'),
-					message: localize('outgoingChanges', 'Outgoing Changes'),
-					author: currentHistoryItemRef?.name
-				} satisfies ISCMHistoryItem;
-
-				// Insert outgoing changes node
-				viewModels.splice(currentHistoryItemViewModelIndex, 0, {
-					historyItem: outgoingChangesHistoryItem,
-					kind: 'outgoing-changes',
-					inputSwimlanes,
-					outputSwimlanes
-				});
-
-				// Update current history item input swimlanes
-				currentHistoryItemViewModel.inputSwimlanes.push({
-					id: currentHistoryItem.id,
-					color: getLabelColorIdentifier(currentHistoryItem, colorMap)!
-				});
-			}
-		}
-		const mergeBaseHistoryItemViewModelIndex = viewModels.findIndex(vm => vm.historyItem.id === mergeBase);
-		const mergeBaseHistoryItemViewModelIndex2 = viewModels.findLastIndex(vm => vm.outputSwimlanes.some(node => node.id === mergeBase));
-
-
-		if (mergeBaseHistoryItemViewModelIndex !== -1 && mergeBaseHistoryItemViewModelIndex !== -1) {
-			const mergeBaseHistoryItemViewModel = viewModels[mergeBaseHistoryItemViewModelIndex];
-			const mergeBaseHistoryItem = mergeBaseHistoryItemViewModel.historyItem;
-
-			const mergeBaseHistoryItemViewModel2 = viewModels[mergeBaseHistoryItemViewModelIndex2];
-
-			const inputSwimlanes = mergeBaseHistoryItemViewModel2.outputSwimlanes.map(i => deepClone(i));
-			const outputSwimlanes = mergeBaseHistoryItemViewModel.inputSwimlanes.map(i => deepClone(i));
-
-			const index = inputSwimlanes.findIndex(node => node.id === mergeBaseHistoryItem.id);
-			inputSwimlanes.splice(index, 1, {
-				id: 'incoming-changes',
-				color: currentHistoryItemRemoteRef?.color!
-			});
+			// Create incoming changes node
+			const inputSwimlanes = viewModels[beforeHistoryItemIndex].outputSwimlanes.map(i => deepClone(i));
+			const outputSwimlanes = viewModels[afterHistoryItemIndex].inputSwimlanes.map(i => deepClone(i));
 
 			const incomingChangesHistoryItem = {
-				id: 'incoming-changes',
-				parentIds: [mergeBaseHistoryItem.id],
+				id: SCMIncomingHistoryItemId,
+				parentIds: [mergeBase],
+				author: currentHistoryItemRemoteRef?.name,
 				subject: localize('incomingChanges', 'Incoming Changes'),
-				message: localize('incomingChanges', 'Incoming Changes'),
-				author: currentHistoryItemRemoteRef?.name
+				message: ''
 			} satisfies ISCMHistoryItem;
 
 			// Insert incoming changes node
-			viewModels.splice(currentHistoryItemViewModelIndex, 0, {
+			viewModels.splice(afterHistoryItemIndex, 0, {
 				historyItem: incomingChangesHistoryItem,
 				kind: 'incoming-changes',
+				inputSwimlanes,
+				outputSwimlanes
+			});
+		}
+
+		// Outgoing changes node
+		if (currentHistoryItemRef?.revision && currentHistoryItemRef.revision !== mergeBase) {
+			let beforeHistoryItemIndex = viewModels
+				.findLastIndex(vm => vm.outputSwimlanes.some(node => node.id === currentHistoryItemRef.revision));
+			const afterHistoryItemIndex = viewModels
+				.findIndex(vm => vm.historyItem.id === currentHistoryItemRef.revision);
+
+			if (beforeHistoryItemIndex === -1 && afterHistoryItemIndex > 0) {
+				beforeHistoryItemIndex = afterHistoryItemIndex - 1;
+			}
+
+			// Update the after node to point to the outgoing changes node
+			viewModels[afterHistoryItemIndex].inputSwimlanes.push({
+				id: currentHistoryItemRef.revision,
+				color: historyItemRefColor
+			});
+
+			const inputSwimlanes = beforeHistoryItemIndex !== -1
+				? viewModels[beforeHistoryItemIndex].outputSwimlanes
+					.map(node => {
+						return node.id === mergeBase && node.color === historyItemRemoteRefColor
+							? { ...node, id: SCMIncomingHistoryItemId }
+							: node;
+					})
+				: [];
+			const outputSwimlanes = viewModels[afterHistoryItemIndex].inputSwimlanes.slice(0);
+
+			const outgoingChangesHistoryItem = {
+				id: SCMOutgoingHistoryItemId,
+				parentIds: [mergeBase],
+				author: currentHistoryItemRef?.name,
+				subject: localize('outgoingChanges', 'Outgoing Changes'),
+				message: ''
+			} satisfies ISCMHistoryItem;
+
+			// Insert outgoing changes node
+			viewModels.splice(afterHistoryItemIndex, 0, {
+				historyItem: outgoingChangesHistoryItem,
+				kind: 'outgoing-changes',
 				inputSwimlanes,
 				outputSwimlanes
 			});
@@ -462,18 +487,6 @@ export function toISCMHistoryItemViewModelArray(
 	}
 
 	return viewModels;
-}
-
-export function getHistoryItemViewModelKind(historyItem: ISCMHistoryItem, currentHistoryItemRef?: ISCMHistoryItemRef): 'HEAD' | 'incoming-changes' | 'outgoing-changes' | 'node' {
-	switch (historyItem.id) {
-		case currentHistoryItemRef?.revision:
-			return 'HEAD';
-		case 'incoming-changes':
-		case 'outgoing-changes':
-			return historyItem.id;
-		default:
-			return 'node';
-	}
 }
 
 export function getHistoryItemIndex(historyItemViewModel: ISCMHistoryItemViewModel): number {
