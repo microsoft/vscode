@@ -1435,7 +1435,6 @@ export function registerChatActions() {
 		}
 	});
 
-
 	registerAction2(class ShowExtensionsUsingCopilot extends Action2 {
 
 		constructor() {
