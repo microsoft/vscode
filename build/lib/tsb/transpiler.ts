@@ -8,7 +8,7 @@ import ts from 'typescript';
 import threads from 'node:worker_threads';
 import Vinyl from 'vinyl';
 import { cpus } from 'node:os';
-import { getTargetStringFromTsConfig } from '../tsconfig';
+import { getTargetStringFromTsConfig } from '../tsconfigUtils';
 
 interface TranspileReq {
 	readonly tsSrcs: string[];

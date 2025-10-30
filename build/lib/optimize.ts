@@ -15,7 +15,7 @@ import esbuild from 'esbuild';
 import sourcemaps from 'gulp-sourcemaps';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
-import { getTargetStringFromTsConfig } from './tsconfig';
+import { getTargetStringFromTsConfig } from './tsconfigUtils';
 
 declare module 'gulp-sourcemaps' {
 	interface WriteOptions {

@@ -54,7 +54,7 @@ const esbuild_1 = __importDefault(require("esbuild"));
 const gulp_sourcemaps_1 = __importDefault(require("gulp-sourcemaps"));
 const fancy_log_1 = __importDefault(require("fancy-log"));
 const ansi_colors_1 = __importDefault(require("ansi-colors"));
-const tsconfig_1 = require("./tsconfig");
+const tsconfigUtils_1 = require("./tsconfigUtils");
 const REPO_ROOT_PATH = path_1.default.join(__dirname, '../..');
 const DEFAULT_FILE_HEADER = [
     '/*!--------------------------------------------------------',
@@ -226,6 +226,6 @@ function minifyTask(src, sourceMapBaseUrl) {
 }
 function getBuildTarget() {
     const tsconfigPath = path_1.default.join(REPO_ROOT_PATH, 'src', 'tsconfig.base.json');
-    return (0, tsconfig_1.getTargetStringFromTsConfig)(tsconfigPath);
+    return (0, tsconfigUtils_1.getTargetStringFromTsConfig)(tsconfigPath);
 }
 //# sourceMappingURL=optimize.js.map
