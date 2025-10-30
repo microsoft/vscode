@@ -160,11 +160,19 @@
 	flex-wrap: wrap;
 }
 
-.models-widget .models-table-container .monaco-table-td .model-badge {
-	border: 1px solid rgba(136, 136, 136, 0.45);
+.models-widget .models-table-container .monaco-table-td .model-capability {
 	padding: 0 6px;
 	border-radius: 3px;
 	font-size: 11px;
+	color: var(--vscode-radio-inactiveForeground);
+	background-color: var(--vscode-radio-inactiveBackground);
+	border-color: var(--vscode-radio-inactiveBorder, transparent);
+}
+
+.models-widget .models-table-container .monaco-table-td .model-capability.active {
+	color: var(--vscode-radio-activeForeground);
+	background-color: var(--vscode-radio-activeBackground);
+	border-color: var(--vscode-radio-activeBorder, transparent);
 }
 
 /** Vendor row styling **/

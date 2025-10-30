@@ -14,7 +14,7 @@ export const MODEL_ENTRY_TEMPLATE_ID = 'model.entry.template';
 export const VENDOR_ENTRY_TEMPLATE_ID = 'vendor.entry.template';
 
 const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
-const CAPABILITY_REGEX = /@capability:\s*([^\s]+)/i;
+const CAPABILITY_REGEX = /@capability:\s*([^\s]+)/gi;
 const VISIBLE_REGEX = /@visible:\s*(true|false)/i;
 
 export const SEARCH_SUGGESTIONS = {
@@ -54,8 +54,7 @@ export interface IModelItemEntry {
 	templateId: string;
 	providerMatches?: IMatch[];
 	modelNameMatches?: IMatch[];
-	capabilityMatches?: IMatch[];
-	vendorMatches?: IMatch[];
+	capabilityMatches?: string[];
 }
 
 export interface IVendorItemEntry {
@@ -93,6 +92,7 @@ export class ChatModelsViewModel extends EditorModel {
 
 	fetch(searchValue: string): (IModelItemEntry | IVendorItemEntry)[] {
 		let modelEntries = this.modelEntries;
+		const capabilityMatchesMap = new Map<string, string[]>();
 
 		const visibleMatches = VISIBLE_REGEX.exec(searchValue);
 		if (visibleMatches && visibleMatches[1]) {
@@ -116,19 +116,30 @@ export class ChatModelsViewModel extends EditorModel {
 			searchValue = searchValue.replace(/@provider:\s*((".+?")|([^\s]+))/gi, '').replace(/@vendor:\s*((".+?")|([^\s]+))/gi, '');
 		}
 
-		const capabilityMatches = CAPABILITY_REGEX.exec(searchValue);
-		if (capabilityMatches && capabilityMatches[1]) {
-			const capability = capabilityMatches[1].toLowerCase();
-			modelEntries = this.filterByCapability(modelEntries, capability);
-			searchValue = searchValue.replace(CAPABILITY_REGEX, '');
+		// Apply capability filters with AND logic if multiple capabilities
+		const capabilityNames: string[] = [];
+		let capabilityMatch: RegExpExecArray | null;
+
+		while ((capabilityMatch = CAPABILITY_REGEX.exec(searchValue)) !== null) {
+			capabilityNames.push(capabilityMatch[1].toLowerCase());
+		}
+
+		if (capabilityNames.length > 0) {
+			const filteredEntries = this.filterByCapabilities(modelEntries, capabilityNames);
+			modelEntries = [];
+			for (const { entry, matchedCapabilities } of filteredEntries) {
+				modelEntries.push(entry);
+				capabilityMatchesMap.set(ChatModelsViewModel.getId(entry), matchedCapabilities);
+			}
+			searchValue = searchValue.replace(/@capability:\s*([^\s]+)/gi, '');
 		}
 
 		searchValue = searchValue.trim();
 		if (!searchValue) {
-			return this.groupByVendor(modelEntries);
+			return this.groupByVendor(modelEntries, capabilityMatchesMap);
 		}
 
-		return this.filterByText(modelEntries, searchValue);
+		return this.filterByText(modelEntries, searchValue, capabilityMatchesMap);
 	}
 
 	private filterByProviders(modelEntries: IModelEntry[], providers: string[]): IModelEntry[] {
@@ -145,30 +156,70 @@ export class ChatModelsViewModel extends EditorModel {
 		return modelEntries.filter(m => (m.metadata.isUserSelectable ?? false) === visible);
 	}
 
-	private filterByCapability(modelEntries: IModelEntry[], capability: string): IModelEntry[] {
-		return modelEntries.filter(m => {
+	private filterByCapabilities(modelEntries: IModelEntry[], capabilities: string[]): { entry: IModelEntry; matchedCapabilities: string[] }[] {
+		const result: { entry: IModelEntry; matchedCapabilities: string[] }[] = [];
+		for (const m of modelEntries) {
 			if (!m.metadata.capabilities) {
-				return false;
+				continue;
 			}
-			switch (capability) {
-				case 'tools':
-				case 'toolcalling':
-					return m.metadata.capabilities.toolCalling === true;
-				case 'vision':
-					return m.metadata.capabilities.vision === true;
-				case 'agent':
-				case 'agentmode':
-					return m.metadata.capabilities.agentMode === true;
-				default:
-					// Check edit tools
-					return m.metadata.capabilities.editTools?.some(tool =>
-						tool.toLowerCase().includes(capability)
-					) ?? false;
+			const allMatchedCapabilities: string[] = [];
+			let matchesAll = true;
+
+			for (const capability of capabilities) {
+				const matchedForThisCapability = this.getMatchingCapabilities(m, capability);
+				if (matchedForThisCapability.length === 0) {
+					matchesAll = false;
+					break;
+				}
+				allMatchedCapabilities.push(...matchedForThisCapability);
 			}
-		});
+
+			if (matchesAll) {
+				result.push({ entry: m, matchedCapabilities: distinct(allMatchedCapabilities) });
+			}
+		}
+		return result;
 	}
 
-	private filterByText(modelEntries: IModelEntry[], searchValue: string): IModelItemEntry[] {
+	private getMatchingCapabilities(modelEntry: IModelEntry, capability: string): string[] {
+		const matchedCapabilities: string[] = [];
+		if (!modelEntry.metadata.capabilities) {
+			return matchedCapabilities;
+		}
+
+		switch (capability) {
+			case 'tools':
+			case 'toolcalling':
+				if (modelEntry.metadata.capabilities.toolCalling === true) {
+					matchedCapabilities.push('toolCalling');
+				}
+				break;
+			case 'vision':
+				if (modelEntry.metadata.capabilities.vision === true) {
+					matchedCapabilities.push('vision');
+				}
+				break;
+			case 'agent':
+			case 'agentmode':
+				if (modelEntry.metadata.capabilities.agentMode === true) {
+					matchedCapabilities.push('agentMode');
+				}
+				break;
+			default:
+				// Check edit tools
+				if (modelEntry.metadata.capabilities.editTools) {
+					for (const tool of modelEntry.metadata.capabilities.editTools) {
+						if (tool.toLowerCase().includes(capability)) {
+							matchedCapabilities.push(tool);
+						}
+					}
+				}
+				break;
+		}
+		return matchedCapabilities;
+	}
+
+	private filterByText(modelEntries: IModelEntry[], searchValue: string, capabilityMatchesMap: Map<string, string[]>): IModelItemEntry[] {
 		const quoteAtFirstChar = searchValue.charAt(0) === '"';
 		const quoteAtLastChar = searchValue.charAt(searchValue.length - 1) === '"';
 		const completeMatch = quoteAtFirstChar && quoteAtLastChar;
@@ -187,18 +238,17 @@ export class ChatModelsViewModel extends EditorModel {
 			const modelMatches = new ModelItemMatches(modelEntry, searchValue, words, completeMatch);
 			if (modelMatches.modelNameMatches
 				|| modelMatches.providerMatches
-				|| modelMatches.vendorMatches
 				|| modelMatches.capabilityMatches
 			) {
+				const modelId = ChatModelsViewModel.getId(modelEntry);
 				result.push({
 					type: 'model',
-					id: ChatModelsViewModel.getId(modelEntry),
+					id: modelId,
 					templateId: MODEL_ENTRY_TEMPLATE_ID,
 					modelEntry,
 					modelNameMatches: modelMatches.modelNameMatches || undefined,
 					providerMatches: modelMatches.providerMatches || undefined,
-					vendorMatches: modelMatches.vendorMatches || undefined,
-					capabilityMatches: modelMatches.capabilityMatches || undefined
+					capabilityMatches: capabilityMatchesMap.get(modelId),
 				});
 			}
 		}
@@ -249,7 +299,7 @@ export class ChatModelsViewModel extends EditorModel {
 		this._onDidChangeModelEntries.fire();
 	}
 
-	private groupByVendor(modelEntries: IModelEntry[]): (IVendorItemEntry | IModelItemEntry)[] {
+	private groupByVendor(modelEntries: IModelEntry[], capabilityMatchesMap: Map<string, string[]>): (IVendorItemEntry | IModelItemEntry)[] {
 		const result: (IVendorItemEntry | IModelItemEntry)[] = [];
 		const vendorMap = new Map<string, IModelEntry[]>();
 
@@ -277,11 +327,13 @@ export class ChatModelsViewModel extends EditorModel {
 
 			if (!isCollapsed) {
 				for (const modelEntry of models) {
+					const modelId = ChatModelsViewModel.getId(modelEntry);
 					result.push({
 						type: 'model',
-						id: ChatModelsViewModel.getId(modelEntry),
+						id: modelId,
 						modelEntry,
-						templateId: MODEL_ENTRY_TEMPLATE_ID
+						templateId: MODEL_ENTRY_TEMPLATE_ID,
+						capabilityMatches: capabilityMatchesMap.get(modelId),
 					});
 				}
 			}
@@ -295,7 +347,6 @@ class ModelItemMatches {
 
 	readonly modelNameMatches: IMatch[] | null = null;
 	readonly providerMatches: IMatch[] | null = null;
-	readonly vendorMatches: IMatch[] | null = null;
 	readonly capabilityMatches: IMatch[] | null = null;
 
 	constructor(modelEntry: IModelEntry, searchValue: string, words: string[], completeMatch: boolean) {
@@ -312,9 +363,6 @@ class ModelItemMatches {
 
 			// Match against vendor display name
 			this.providerMatches = this.matches(searchValue, modelEntry.vendorDisplayName, (word, wordToMatchAgainst) => matchesWords(word, wordToMatchAgainst, true), words);
-
-			// Match against vendor id
-			this.vendorMatches = this.matches(searchValue, modelEntry.vendor, or(matchesWords, matchesCamelCase), words);
 
 			// Match against capabilities
 			if (modelEntry.metadata.capabilities) {

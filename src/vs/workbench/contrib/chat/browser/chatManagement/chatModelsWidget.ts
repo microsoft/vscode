@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatModelsWidget.css';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -113,6 +113,22 @@ class ModelsFilterAction extends Action {
 	}
 }
 
+function toggleFilter(currentQuery: string, query: string, alternativeQueries: string[] = []): string {
+	const allQueries = [query, ...alternativeQueries];
+	const isChecked = allQueries.some(q => currentQuery.includes(q));
+
+	if (!isChecked) {
+		const trimmedQuery = currentQuery.trim();
+		return trimmedQuery ? `${trimmedQuery} ${query}` : query;
+	} else {
+		let queryWithRemovedFilter = currentQuery;
+		for (const q of allQueries) {
+			queryWithRemovedFilter = queryWithRemovedFilter.replace(q, '');
+		}
+		return queryWithRemovedFilter.replace(/\s+/g, ' ').trim();
+	}
+}
+
 class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 
 	constructor(
@@ -134,13 +150,6 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		);
 	}
 
-	private doSearchWidgetAction(queryToAppend: string): void {
-		const currentValue = this.searchWidget.getValue().trim();
-		const newValue = currentValue ? `${currentValue} ${queryToAppend}` : queryToAppend;
-		this.searchWidget.setValue(newValue);
-		this.searchWidget.focus();
-	}
-
 	private createProviderAction(vendor: string, displayName: string): IAction {
 		const query = `@provider:"${displayName}"`;
 		const currentQuery = this.searchWidget.getValue();
@@ -153,19 +162,7 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 			class: undefined,
 			enabled: true,
 			checked: isChecked,
-			run: () => {
-				if (!isChecked) {
-					this.doSearchWidgetAction(query);
-				} else {
-					const queryWithRemovedFilter = currentQuery
-						.replace(query, '')
-						.replace(`@provider:${vendor}`, '')
-						.replace(/\s+/g, ' ')
-						.trim();
-					this.searchWidget.setValue(queryWithRemovedFilter);
-				}
-				this.searchWidget.focus();
-			}
+			run: () => this.toggleFilterAndSearch(query, [`@provider:${vendor}`])
 		};
 	}
 
@@ -181,24 +178,13 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 			class: undefined,
 			enabled: true,
 			checked: isChecked,
-			run: () => {
-				if (!isChecked) {
-					this.doSearchWidgetAction(query);
-				} else {
-					// Remove the filter
-					const queryWithRemovedFilter = currentQuery
-						.replace(query, '')
-						.replace(/\s+/g, ' ')
-						.trim();
-					this.searchWidget.setValue(queryWithRemovedFilter);
-				}
-				this.searchWidget.focus();
-			}
+			run: () => this.toggleFilterAndSearch(query)
 		};
 	}
 
 	private createVisibleAction(visible: boolean, label: string): IAction {
 		const query = `@visible:${visible}`;
+		const oppositeQuery = `@visible:${!visible}`;
 		const currentQuery = this.searchWidget.getValue();
 		const isChecked = currentQuery.includes(query);
 
@@ -209,22 +195,15 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 			class: undefined,
 			enabled: true,
 			checked: isChecked,
-			run: () => {
-				if (!isChecked) {
-					const oppositeQuery = `@visible:${!visible}`;
-					const newQuery = currentQuery.replace(oppositeQuery, '').replace(/\s+/g, ' ').trim();
-					const finalQuery = newQuery ? `${newQuery} ${query}` : query;
-					this.searchWidget.setValue(finalQuery);
-				} else {
-					const queryWithRemovedFilter = currentQuery
-						.replace(query, '')
-						.replace(/\s+/g, ' ')
-						.trim();
-					this.searchWidget.setValue(queryWithRemovedFilter);
-				}
-				this.searchWidget.focus();
-			}
+			run: () => this.toggleFilterAndSearch(query, [oppositeQuery])
 		};
+	}
+
+	private toggleFilterAndSearch(query: string, alternativeQueries: string[] = []): void {
+		const currentQuery = this.searchWidget.getValue();
+		const newQuery = toggleFilter(currentQuery, query, alternativeQueries);
+		this.searchWidget.setValue(newQuery);
+		this.searchWidget.focus();
 	}
 
 	private getActions(): IAction[] {
@@ -539,6 +518,9 @@ class CapabilitiesColumnRenderer extends ModelsTableColumnRenderer<ICapabilities
 
 	readonly templateId: string = CapabilitiesColumnRenderer.TEMPLATE_ID;
 
+	private readonly _onDidClickCapability = new Emitter<string>();
+	readonly onDidClickCapability = this._onDidClickCapability.event;
+
 	renderTemplate(container: HTMLElement): ICapabilitiesColumnTemplateData {
 		const disposables = new DisposableStore();
 		const elementDisposables = new DisposableStore();
@@ -560,15 +542,36 @@ class CapabilitiesColumnRenderer extends ModelsTableColumnRenderer<ICapabilities
 	}
 
 	override renderModelElement(entry: IModelItemEntry, index: number, templateData: ICapabilitiesColumnTemplateData): void {
-		const { modelEntry } = entry;
+		const { modelEntry, capabilityMatches } = entry;
+
 		if (modelEntry.metadata.capabilities?.toolCalling) {
-			const toolsBadge = DOM.append(templateData.metadataRow, $('.model-badge.badge'));
-			toolsBadge.textContent = localize('models.tools', 'Tools');
+			templateData.elementDisposables.add(this.createCapabilityButton(
+				templateData.metadataRow,
+				capabilityMatches?.includes('toolCalling') || false,
+				localize('models.tools', 'Tools'),
+				'tools'
+			));
 		}
+
 		if (modelEntry.metadata.capabilities?.vision) {
-			const visionBadge = DOM.append(templateData.metadataRow, $('.model-badge.badge'));
-			visionBadge.textContent = localize('models.vision', 'Vision');
+			templateData.elementDisposables.add(this.createCapabilityButton(
+				templateData.metadataRow,
+				capabilityMatches?.includes('vision') || false,
+				localize('models.vision', 'Vision'),
+				'vision'
+			));
 		}
+	}
+
+	private createCapabilityButton(container: HTMLElement, isActive: boolean, label: string, capability: string): IDisposable {
+		const disposables = new DisposableStore();
+		const buttonContainer = DOM.append(container, $('.model-badge-container'));
+		const button = disposables.add(new Button(buttonContainer, { secondary: true }));
+		button.element.classList.add('model-capability');
+		button.element.classList.toggle('active', isActive);
+		button.label = label;
+		disposables.add(button.onDidClick(() => this._onDidClickCapability.fire(capability)));
+		return disposables;
 	}
 }
 
@@ -813,6 +816,14 @@ export class ChatModelsWidget extends Disposable {
 			this.viewModel.resolve().then(() => {
 				this.refreshTable();
 			});
+		}));
+
+		this._register(capabilitiesColumnRenderer.onDidClickCapability(capability => {
+			const currentQuery = this.searchWidget.getValue();
+			const query = `@capability:${capability}`;
+			const newQuery = toggleFilter(currentQuery, query);
+			this.searchWidget.setValue(newQuery);
+			this.searchWidget.focus();
 		}));
 
 		this.table = this._register(this.instantiationService.createInstance(
