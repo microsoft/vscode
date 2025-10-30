@@ -1263,7 +1263,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				if (cancelled) {
 					// If the editor was newly added to the model but cancelled, close it to prevent leaks
 					if (context.isNew && this.model.contains(editor)) {
-						this.doCloseEditor(editor, true, { fromError: true });
+						this.doCloseEditor(editor, true);
 					}
 					return undefined;
 				}
