@@ -736,7 +736,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.extensionUnification.enabled': {
 			type: 'boolean',
-			description: nls.localize('chat.extensionUnification.enabled', "Enables unification of GitHub Copilot extensions. When enabled, only the GitHub Copilot Chat extension will be active and all functionality will be served by it. When disabled, GitHub Copilot Chat and GitHub Copilot extensions will operate independently."),
+			description: nls.localize('chat.extensionUnification.enabled', "Enables the unification of GitHub Copilot extensions. When enabled, all GitHub Copilot functionality is served from the GitHub Copilot Chat extension. When disabled, the GitHub Copilot and GitHub Copilot Chat extensions operate independently."),
 			default: false,
 			tags: ['experimental'],
 			experiment: {
