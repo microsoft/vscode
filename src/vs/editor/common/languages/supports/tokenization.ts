@@ -409,7 +409,7 @@ export class ThemeTrieElement {
 	}
 }
 
-export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string {
+export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string { // ---- 
 	const rules: string[] = [];
 	for (let i = 1, len = colorMap.length; i < len; i++) {
 		const color = colorMap[i];

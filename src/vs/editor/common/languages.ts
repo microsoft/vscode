@@ -77,7 +77,7 @@ export interface ILineFontChangedEvent {
  */
 export interface IFontOption {
 	readonly startIndex: number;
-	readonly length: number;
+	readonly endIndex: number;
 	readonly fontFamily: string | null;
 	readonly fontSize: string | null;
 	readonly lineHeight: number | null;

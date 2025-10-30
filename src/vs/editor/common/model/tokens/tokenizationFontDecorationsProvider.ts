@@ -26,9 +26,11 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	) {
 		super();
 		this.tokenizationTextModelPart.onDidChangeFontInfo(fontChanges => {
+			console.log('fontChanges : ', fontChanges);
 			for (const fontChange of fontChanges) {
 				this.specialFontInfo.set(fontChange.lineNumber, fontChange.options);
 			}
+			this.onDidChangeEmitter.fire();
 		});
 	}
 
@@ -36,22 +38,29 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 
 	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
 		const decorations: IModelDecoration[] = [];
-		for (let i = range.startLineNumber; i < range.endLineNumber; i++) {
+		for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
 			if (this.specialFontInfo.has(i)) {
-				const fontOptions = this.specialFontInfo.get(i)!;
-				for (const fontOption of fontOptions) {
-					decorations.push({
-						id: `font-decoration-${i}-${fontOption.startIndex}-${fontOption.length}`,
-						options: {
-							description: 'FontOptionDecoration',
-							inlineClassName: `font-decoration-${i}-${fontOption.startIndex}-${fontOption.length}`,
-						},
-						ownerId: 0,
-						range: new Range(i, fontOption.startIndex + 1, i, fontOption.startIndex + 1 + fontOption.length)
-					});
+				const fontOptions = this.specialFontInfo.get(i);
+				console.log('getDecorationsInRange');
+				console.log('range : ', range);
+				console.log('this.specialFontInfo : ', this.specialFontInfo);
+				console.log('fontOptions : ', fontOptions);
+				if (fontOptions) {
+					for (const fontOption of fontOptions) {
+						decorations.push({
+							id: `font-decoration-${i}-${fontOption.startIndex}-${fontOption.endIndex}`,
+							options: {
+								description: 'FontOptionDecoration',
+								inlineClassName: `font-decoration-${i}-${fontOption.startIndex}-${fontOption.endIndex}`,
+							},
+							ownerId: 0,
+							range: new Range(i, fontOption.startIndex + 1, i, fontOption.endIndex + 1)
+						});
+					}
 				}
 			}
 		}
+		console.log('decorations : ', decorations);
 		return decorations;
 	}
 
