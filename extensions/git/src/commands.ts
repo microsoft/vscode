@@ -3169,22 +3169,6 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.graph.openIncomingChanges', { repository: true })
-	async openIncomingChanges(repository: Repository): Promise<void> {
-		await this._openChangesBetweenRefs(
-			repository,
-			repository.historyProvider.currentHistoryItemRef,
-			repository.historyProvider.currentHistoryItemRemoteRef);
-	}
-
-	@command('git.graph.openOutgoingChanges', { repository: true })
-	async openOutgoingChanges(repository: Repository): Promise<void> {
-		await this._openChangesBetweenRefs(
-			repository,
-			repository.historyProvider.currentHistoryItemRemoteRef,
-			repository.historyProvider.currentHistoryItemRef);
-	}
-
 	@command('git.graph.compareWithMergeBase', { repository: true })
 	async compareWithMergeBase(repository: Repository): Promise<void> {
 		await this._openChangesBetweenRefs(
