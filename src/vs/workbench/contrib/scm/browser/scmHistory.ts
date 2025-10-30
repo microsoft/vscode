@@ -80,6 +80,19 @@ function drawCircle(index: number, radius: number, strokeWidth: number, colorIde
 	return circle;
 }
 
+function drawDashedCircle(index: number, radius: number, strokeWidth: number, colorIdentifier: string): SVGCircleElement {
+	const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+	circle.setAttribute('cx', `${SWIMLANE_WIDTH * (index + 1)}`);
+	circle.setAttribute('cy', `${SWIMLANE_WIDTH}`);
+	circle.setAttribute('r', `${CIRCLE_RADIUS + 1}`);
+
+	circle.style.stroke = asCssVariable(colorIdentifier);
+	circle.style.strokeWidth = `${strokeWidth}px`;
+	circle.style.strokeDasharray = '4,2';
+
+	return circle;
+}
+
 function drawVerticalLine(x1: number, y1: number, y2: number, color: string, strokeWidth = 1): SVGPathElement {
 	const path = createPath(color, strokeWidth);
 	path.setAttribute('d', `M ${x1} ${y1} V ${y2}`);
@@ -218,46 +231,16 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 
 		const innerCircle = drawCircle(circleIndex, CIRCLE_STROKE_WIDTH, CIRCLE_RADIUS);
 		svg.append(innerCircle);
-	} else if (historyItemViewModel.kind === 'incoming-changes') {
-		// Incoming changes
-		// @lszomoru - Tweak this
-		const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-		circle.setAttribute('cx', `${SWIMLANE_WIDTH * (circleIndex + 1)}`);
-		circle.setAttribute('cy', `${SWIMLANE_WIDTH}`);
-		circle.setAttribute('r', `${CIRCLE_RADIUS}`);
+	} else if (historyItemViewModel.kind === 'incoming-changes' || historyItemViewModel.kind === 'outgoing-changes') {
+		// Incoming/Outgoing changes
+		const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 3, CIRCLE_STROKE_WIDTH, circleColor);
+		svg.append(outerCircle);
 
-		circle.style.strokeWidth = `${CIRCLE_STROKE_WIDTH + 1}px`;
-		circle.style.strokeDasharray = '3,2';
-		circle.style.stroke = asCssVariable(circleColor);
-		circle.style.fill = 'none';
-
-		svg.append(circle);
-
-		// const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 3, CIRCLE_STROKE_WIDTH, circleColor);
-		// svg.append(outerCircle);
-
-		const innerCircle = drawCircle(circleIndex, CIRCLE_STROKE_WIDTH, CIRCLE_RADIUS);
+		const innerCircle = drawCircle(circleIndex, CIRCLE_STROKE_WIDTH, CIRCLE_RADIUS + 5);
 		svg.append(innerCircle);
-	} else if (historyItemViewModel.kind === 'outgoing-changes') {
-		// Outgoing changes
-		// @lszomoru - Tweak this
-		const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-		circle.setAttribute('cx', `${SWIMLANE_WIDTH * (circleIndex + 1)}`);
-		circle.setAttribute('cy', `${SWIMLANE_WIDTH}`);
-		circle.setAttribute('r', `${CIRCLE_RADIUS}`);
 
-		circle.style.strokeWidth = `${CIRCLE_STROKE_WIDTH + 1}px`;
-		circle.style.strokeDasharray = '3,2';
-		circle.style.stroke = asCssVariable(circleColor);
-		circle.style.fill = 'none';
-
-		svg.append(circle);
-
-		// const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 3, CIRCLE_STROKE_WIDTH, circleColor);
-		// svg.append(outerCircle);
-
-		const innerCircle = drawCircle(circleIndex, CIRCLE_STROKE_WIDTH, CIRCLE_RADIUS);
-		svg.append(innerCircle);
+		const dashedCircle = drawDashedCircle(circleIndex, CIRCLE_RADIUS + 1, CIRCLE_STROKE_WIDTH, circleColor);
+		svg.append(dashedCircle);
 	} else {
 		if (historyItem.parentIds.length > 1) {
 			// Multi-parent node
