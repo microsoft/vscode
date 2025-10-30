@@ -447,7 +447,7 @@ export function toISCMHistoryItemViewModelArray(
 				? viewModels[beforeHistoryItemIndex].outputSwimlanes
 					.map(node => {
 						return node.id === mergeBase && node.color === historyItemRemoteRefColor
-							? { ...node, id: SCMIncomingHistoryItemId }
+							? { ...node, id: addIncomingChanges ? SCMIncomingHistoryItemId : mergeBase }
 							: node;
 					})
 				: [];
