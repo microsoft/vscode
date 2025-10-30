@@ -1633,10 +1633,6 @@
           "when": "false"
         },
         {
-          "command": "git.graph.compareWithRemote",
-          "when": "false"
-        },
-        {
           "command": "git.diff.stageHunk",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
         },
