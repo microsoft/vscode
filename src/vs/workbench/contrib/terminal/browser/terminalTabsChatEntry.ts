@@ -26,8 +26,8 @@ export class TerminalTabsChatEntry extends Disposable {
 	constructor(
 		container: HTMLElement,
 		private readonly _tabContainer: HTMLElement,
-		private readonly _commandService: ICommandService,
-		private readonly _terminalChatService: ITerminalChatService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 	) {
 		super();
 
@@ -43,7 +43,6 @@ export class TerminalTabsChatEntry extends Disposable {
 		const runChatTerminalsCommand = () => {
 			void this._commandService.executeCommand('workbench.action.terminal.chat.viewChatTerminals');
 		};
-
 		this._register(dom.addDisposableListener(this._entry, dom.EventType.CLICK, e => {
 			e.preventDefault();
 			runChatTerminalsCommand();

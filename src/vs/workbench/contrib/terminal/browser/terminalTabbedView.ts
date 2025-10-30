@@ -15,8 +15,7 @@ import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { IMenu, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
 import { openContextMenu } from './terminalContextMenu.js';
@@ -76,7 +75,6 @@ export class TerminalTabbedView extends Disposable {
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -91,12 +89,18 @@ export class TerminalTabbedView extends Disposable {
 		tabListContainer.appendChild(this._tabListElement);
 		this._tabContainer.appendChild(tabListContainer);
 
+		this._register(dom.addDisposableListener(this._tabContainer, dom.EventType.DBLCLICK, async () => {
+			const instance = await this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+			this._terminalGroupService.setActiveInstance(instance);
+			await instance.focusWhenReady();
+		}));
+
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
 		this._tabsListMenu = this._register(menuService.createMenu(MenuId.TerminalTabContext, contextKeyService));
 		this._tabsListEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
 
 		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement, this._register(new DisposableStore())));
-		this._chatEntry = this._register(new TerminalTabsChatEntry(tabListContainer, this._tabContainer, this._commandService, this._terminalChatService));
+		this._chatEntry = this._register(this._instantiationService.createInstance(TerminalTabsChatEntry, tabListContainer, this._tabContainer));
 
 		const terminalOuterContainer = $('.terminal-outer-container');
 		this._terminalContainer = $('.terminal-groups-container');
