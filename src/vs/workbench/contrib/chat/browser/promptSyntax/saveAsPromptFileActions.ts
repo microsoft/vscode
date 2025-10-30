@@ -11,6 +11,7 @@ import { ILocalizedString, localize2 } from '../../../../../nls.js';
 import { ICommandActionTitle } from '../../../../../platform/action/common/action.js';
 import { Action2, IAction2Options, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
@@ -31,6 +32,7 @@ class BaseSaveAsPromptFileAction extends Action2 {
 		//const fileService = accessor.get(IFileService);
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const textFileService = accessor.get(ITextFileService);
+		const fileService = accessor.get(IFileService);
 		const activeCodeEditor = codeEditorService.getActiveCodeEditor();
 		if (!activeCodeEditor) {
 			return;
@@ -48,7 +50,11 @@ class BaseSaveAsPromptFileAction extends Action2 {
 			return;
 		}
 		const newFile = joinPath(newFolder.uri, newName);
-		await textFileService.saveAs(model.uri, newFile, { from: model.uri });
+		if (model.uri.scheme === Schemas.untitled) {
+			await textFileService.saveAs(model.uri, newFile, { from: model.uri });
+		} else {
+			await fileService.copy(model.uri, newFile);
+		}
 		await codeEditorService.openCodeEditor({ resource: newFile }, activeCodeEditor);
 	}
 }
