@@ -31,6 +31,8 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<URI[] | string[]> {
 		let fileWrites: URI[] | string[] = [];
 		const capturedFileWrites = await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine);
+		// TODO: Handle environment variables https://github.com/microsoft/vscode/issues/274166
+		// TODO: Handle command substitions/complex destinations https://github.com/microsoft/vscode/issues/274167
 		if (capturedFileWrites.length) {
 			let cwd = await options.instance?.getCwdResource();
 			if (!cwd) {

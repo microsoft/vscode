@@ -281,8 +281,8 @@ import { arch } from '../../../../../../base/common/process.js';
 			test('here document', () => t('cat > file.txt << EOF\nhello\nworld\nEOF', ['file.txt']));
 			test('quoted filenames', () => t('echo hello > "file with spaces.txt"', ['"file with spaces.txt"']));
 			test('single quoted filenames', () => t('echo hello > \'file.txt\'', ['\'file.txt\'']));
-			test.skip('variable in filename', () => t('echo hello > $HOME/file.txt', ['$HOME/file.txt']));
-			test.skip('command substitution in filename', () => t('echo hello > $(date +%Y%m%d).log', ['$(date +%Y%m%d).log']));
+			test('variable in filename', () => t('echo hello > $HOME/file.txt', ['$HOME/file.txt']));
+			test('command substitution in filename', () => t('echo hello > $(date +%Y%m%d).log', ['$(date +%Y%m%d).log']));
 			test('tilde expansion in filename', () => t('echo hello > ~/file.txt', ['~/file.txt']));
 			test('absolute path', () => t('echo hello > /tmp/file.txt', ['/tmp/file.txt']));
 			test('relative path', () => t('echo hello > ./output/file.txt', ['./output/file.txt']));
@@ -297,7 +297,7 @@ import { arch } from '../../../../../../base/common/process.js';
 				test('redirection with background job', () => t('long_command > output.txt &', ['output.txt']));
 				test('conditional redirection', () => t('test -f input.txt && cat input.txt > output.txt || echo "not found" > error.txt', ['output.txt', 'error.txt']));
 				test('loop with redirection', () => t('for file in *.txt; do cat "$file" >> combined.txt; done', ['combined.txt']));
-				test.skip('function with redirection', () => t('function backup() { cp "$1" > backup_"$1"; }', ['backup_$1']));
+				test('function with redirection', () => t('function backup() { cp "$1" > backup_"$1"; }', ['backup_"$1"']));
 			});
 
 			suite('edge cases', () => {

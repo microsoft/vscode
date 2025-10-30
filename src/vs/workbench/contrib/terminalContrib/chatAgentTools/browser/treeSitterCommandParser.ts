@@ -45,7 +45,7 @@ export class TreeSitterCommandParser {
 			case TreeSitterCommandParserLanguage.Bash:
 				query = [
 					'(file_redirect',
-					'  destination: [(word) (string (string_content)) (raw_string)] @file)',
+					'  destination: [(word) (string (string_content)) (raw_string) (concatenation)] @file)',
 				].join('\n');
 				break;
 			case TreeSitterCommandParserLanguage.PowerShell:
