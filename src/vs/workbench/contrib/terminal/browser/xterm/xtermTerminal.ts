@@ -433,7 +433,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			const Addon = await this._xtermAddonLoader.importAddon('serialize');
 			this._serializeAddon = new Addon();
 			this.raw.loadAddon(this._serializeAddon);
-		} else if (command) {
+		}
+
+		if (command) {
 			const length = command.getOutput()?.length;
 			const row = command.marker?.line;
 			if (!length || !row) {
