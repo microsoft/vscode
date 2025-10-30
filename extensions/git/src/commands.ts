@@ -3161,11 +3161,6 @@ export class CommandCenter {
 			return;
 		}
 
-		if (historyItem.id === sourceRef.ref.commit) {
-			window.showInformationMessage(l10n.t('The selected references are the same.'));
-			return;
-		}
-
 		await this._openChangesBetweenRefs(
 			repository,
 			sourceRef.ref.name,
