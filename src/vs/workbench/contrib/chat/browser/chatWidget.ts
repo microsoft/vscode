@@ -94,7 +94,6 @@ import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewPane } from './chatViewPane.js';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 
 const $ = dom.$;
@@ -1242,7 +1241,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0))
 				.slice(0, 3)
 				.map((item): IChatHistoryListItem => ({
-					sessionResource: LocalChatSessionUri.forSession(item.sessionId),
+					sessionResource: item.sessionResource,
 					title: item.title,
 					lastMessageDate: typeof item.lastMessageDate === 'number' ? item.lastMessageDate : Date.now(),
 					isActive: item.isActive

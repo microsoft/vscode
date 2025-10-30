@@ -811,7 +811,9 @@ export interface IChatCompleteResponse {
 }
 
 export interface IChatDetail {
+	/** @deprecated Use {@link sessionResource} instead */
 	sessionId: string;
+	sessionResource: URI;
 	title: string;
 	lastMessageDate: number;
 	isActive: boolean;
@@ -923,10 +925,10 @@ export interface IChatService {
 	cancelCurrentRequestForSession(sessionId: string): void;
 	clearSession(sessionId: string): Promise<void>;
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
+	setChatSessionTitle(sessionResource: URI, title: string): void;
 	getLocalSessionHistory(): Promise<IChatDetail[]>;
-	setChatSessionTitle(sessionId: string, title: string): void;
 	clearAllHistoryEntries(): Promise<void>;
-	removeHistoryEntry(sessionId: string): Promise<void>;
+	removeHistoryEntry(sessionResource: URI): Promise<void>;
 	getChatStorageFolder(): URI;
 	logChatIndex(): void;
 

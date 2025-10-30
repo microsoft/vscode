@@ -17,7 +17,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { language } from '../../../../../base/common/platform.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -67,7 +67,6 @@ import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
@@ -611,17 +610,17 @@ export function registerChatActions() {
 			store.add(picker.onDidTriggerItemButton(async context => {
 				if (context.button === openInEditorButton) {
 					editorService.openEditor({
-						resource: LocalChatSessionUri.forSession(context.item.chat.sessionId),
+						resource: context.item.chat.sessionResource,
 						options: { pinned: true }
 					}, ACTIVE_GROUP);
 					picker.hide();
 				} else if (context.button === deleteButton) {
-					chatService.removeHistoryEntry(context.item.chat.sessionId);
+					chatService.removeHistoryEntry(context.item.chat.sessionResource);
 					picker.items = await getPicks();
 				} else if (context.button === renameButton) {
 					const title = await quickInputService.input({ title: localize('newChatTitle', "New chat title"), value: context.item.chat.title });
 					if (title) {
-						chatService.setChatSessionTitle(context.item.chat.sessionId, title);
+						chatService.setChatSessionTitle(context.item.chat.sessionResource, title);
 					}
 
 					// The quick input hides the picker, it gets disposed, so we kick it off from scratch
@@ -631,8 +630,7 @@ export function registerChatActions() {
 			store.add(picker.onDidAccept(async () => {
 				try {
 					const item = picker.selectedItems[0];
-					const sessionId = item.chat.sessionId;
-					await view.loadSession(sessionId);
+					await view.loadSession(item.chat.sessionResource);
 				} finally {
 					picker.hide();
 				}
@@ -749,7 +747,6 @@ export function registerChatActions() {
 							const providerNSessions = await chatSessionsService.getAllChatSessionItems(cancellationToken.token);
 							for (const { chatSessionType, items } of providerNSessions) {
 								for (const session of items) {
-
 									const ckey = contextKeyService.createKey('chatSessionType', chatSessionType);
 									const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
 									const { primary } = getContextMenuActions(actions, 'inline');
@@ -768,6 +765,7 @@ export function registerChatActions() {
 										session: { providerType: chatSessionType, session: session },
 										chat: {
 											sessionId: session.id,
+											sessionResource: session.resource,
 											title: session.label,
 											isActive: false,
 											lastMessageDate: 0,
@@ -777,7 +775,7 @@ export function registerChatActions() {
 									};
 
 									// Check if this agent already exists (update existing or add new)
-									const existingIndex = agentPicks.findIndex(pick => pick.chat.sessionId === session.id);
+									const existingIndex = agentPicks.findIndex(pick => isEqual(pick.chat.sessionResource, session.resource));
 									if (existingIndex >= 0) {
 										agentPicks[existingIndex] = agentPick;
 									} else {
@@ -871,12 +869,12 @@ export function registerChatActions() {
 				if (context.button === openInEditorButton) {
 					const options: IChatEditorOptions = { pinned: true };
 					editorService.openEditor({
-						resource: LocalChatSessionUri.forSession(context.item.chat.sessionId),
+						resource: context.item.chat.sessionResource,
 						options,
 					}, ACTIVE_GROUP);
 					picker.hide();
 				} else if (context.button === deleteButton) {
-					chatService.removeHistoryEntry(context.item.chat.sessionId);
+					chatService.removeHistoryEntry(context.item.chat.sessionResource);
 					// Refresh picker items after deletion
 					const { fast, slow } = await getPicks(showAllChats, showAllAgents);
 					picker.items = fast;
@@ -901,7 +899,7 @@ export function registerChatActions() {
 				} else if (context.button === renameButton) {
 					const title = await quickInputService.input({ title: localize('newChatTitle', "New chat title"), value: context.item.chat.title });
 					if (title) {
-						chatService.setChatSessionTitle(context.item.chat.sessionId, title);
+						chatService.setChatSessionTitle(context.item.chat.sessionResource, title);
 					}
 
 					// The quick input hides the picker, it gets disposed, so we kick it off from scratch
@@ -978,7 +976,7 @@ export function registerChatActions() {
 							await this.showChatSessionInEditor(item.session.providerType, item.session.session, editorService);
 						}
 					} else if (isChatPickerItem(item)) {
-						await view.loadSession(item.chat.sessionId);
+						await view.loadSession(item.chat.sessionResource);
 					}
 				} finally {
 					picker.hide();
