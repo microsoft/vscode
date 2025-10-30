@@ -277,11 +277,11 @@ export class ChatManagementEditor extends EditorPane {
 				} else {
 					buttonLabel = localize('plan.upgradeToPro', 'Upgrade to Copilot Pro');
 				}
-				commandId = 'workbench.action.upgradePlan';
+				commandId = 'workbench.action.chat.upgradePlan';
 			} else if (shouldUpgrade && (isFreePlan || anonymousUser)) {
 				// Upgrade case for free plan
 				buttonLabel = localize('upgradeToCopilotPro', 'Upgrade to Copilot Pro');
-				commandId = 'workbench.action.upgradePlan';
+				commandId = 'workbench.action.chat.upgradePlan';
 			} else if (newUser) {
 				buttonLabel = localize('enableAIFeatures', "Use AI Features");
 				commandId = newUser && anonymousUser ? 'workbench.action.chat.triggerSetupAnonymousWithoutDialog' : 'workbench.action.chat.triggerSetup';
@@ -297,7 +297,9 @@ export class ChatManagementEditor extends EditorPane {
 			}
 
 			this.actionButton.label = buttonLabel;
-			this.actionButton.onDidClick(() => this.commandService.executeCommand(commandId));
+			this.actionButton.onDidClick(() => {
+				this.commandService.executeCommand(commandId);
+			});
 		} else {
 			this.actionButton.element.style.display = 'none';
 		}

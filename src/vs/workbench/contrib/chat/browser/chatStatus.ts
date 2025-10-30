@@ -44,7 +44,7 @@ import { IInlineCompletionsService } from '../../../../editor/browser/services/i
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { AGENT_SESSIONS_VIEWLET_ID, MANAGE_CHAT_COMMAND_ID } from '../common/constants.js';
+import { AGENT_SESSIONS_VIEWLET_ID } from '../common/constants.js';
 import { ChatUsageWidget } from './chatManagement/chatUsageWidget.js';
 
 const gaugeForeground = registerColor('gauge.foreground', {
@@ -381,10 +381,10 @@ class ChatStatusDashboard extends Disposable {
 
 			addSeparator(localize('usageTitle', "Copilot Usage"), toAction({
 				id: 'workbench.action.manageCopilot',
-				label: localize('quotaLabel', "Manage Copilot"),
-				tooltip: localize('quotaTooltip', "Manage Copilot"),
+				label: localize('quotaLabel', "Manage Chat"),
+				tooltip: localize('quotaTooltip', "Manage Chat"),
 				class: ThemeIcon.asClassName(Codicon.settings),
-				run: () => this.runCommandAndClose(MANAGE_CHAT_COMMAND_ID),
+				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
 
 			// Create and append usage widget
