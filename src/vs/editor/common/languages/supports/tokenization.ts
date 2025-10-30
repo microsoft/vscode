@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Color } from '../../../../base/common/color.js';
+import { hash } from '../../../../base/common/hash.js';
+import { ITokenFont } from '../../../../platform/theme/common/themeService.js';
 import { LanguageId, FontStyle, ColorId, StandardTokenType, MetadataConsts } from '../../encodedTokenAttributes.js';
 
 export interface ITokenThemeRule {
@@ -409,7 +411,7 @@ export class ThemeTrieElement {
 	}
 }
 
-export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string { // ---- 
+export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string { // ----
 	const rules: string[] = [];
 	for (let i = 1, len = colorMap.length; i < len; i++) {
 		const color = colorMap[i];
@@ -420,5 +422,25 @@ export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string
 	rules.push('.mtku { text-decoration: underline; text-underline-position: under; }');
 	rules.push('.mtks { text-decoration: line-through; }');
 	rules.push('.mtks.mtku { text-decoration: underline line-through; text-underline-position: under; }');
+	return rules.join('\n');
+}
+
+export function generateTokensCSSForFontMap(fontMap: readonly ITokenFont[]): string {
+	const rules: string[] = [];
+	// We somehow need to get the range of the font infos here so it can be encoded in the class name
+	for (let i = 1, len = fontMap.length; i < len; i++) {
+		const font = fontMap[i];
+		let rule = `.font-decoration-${hash(font)} {`;
+		if (font.fontFamily) {
+			rule += ` font-family: ${font.fontFamily};`;
+		}
+		if (font.fontSize) {
+			rule += ` font-size: ${font.fontSize};`;
+		}
+		if (font.lineHeight) {
+			rule += ` line-height: ${font.lineHeight}px;`;
+		}
+		rules[i] = rule;
+	}
 	return rules.join('\n');
 }

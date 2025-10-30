@@ -47,6 +47,9 @@ export interface TokenStyleData {
 	underline: boolean | undefined;
 	strikethrough: boolean | undefined;
 	italic: boolean | undefined;
+	fontFamily: string | undefined;
+	fontSize: string | undefined;
+	lineHeight: number | undefined;
 }
 
 export class TokenStyle implements Readonly<TokenStyleData> {
@@ -56,6 +59,9 @@ export class TokenStyle implements Readonly<TokenStyleData> {
 		public readonly underline: boolean | undefined,
 		public readonly strikethrough: boolean | undefined,
 		public readonly italic: boolean | undefined,
+		public readonly fontFamily: string | undefined,
+		public readonly fontSize: string | undefined,
+		public readonly lineHeight: number | undefined
 	) {
 	}
 }
@@ -74,12 +80,17 @@ export namespace TokenStyle {
 		if (obj) {
 			const boolOrUndef = (b: any) => (typeof b === 'boolean') ? b : undefined;
 			const colorOrUndef = (s: any) => (typeof s === 'string') ? Color.fromHex(s) : undefined;
+			const stringOrUndef = (s: any) => (typeof s === 'string') ? s : undefined;
+			const numberOrUndef = (n: any) => (typeof n === 'number') ? n : undefined;
 			return new TokenStyle(
 				colorOrUndef(obj._foreground),
 				boolOrUndef(obj._bold),
 				boolOrUndef(obj._underline),
 				boolOrUndef(obj._strikethrough),
-				boolOrUndef(obj._italic)
+				boolOrUndef(obj._italic),
+				stringOrUndef(obj._fontFamily),
+				stringOrUndef(obj._fontSize),
+				numberOrUndef(obj._lineHeight),
 			);
 		}
 		return undefined;
@@ -98,12 +109,12 @@ export namespace TokenStyle {
 	export function is(s: any): s is TokenStyle {
 		return s instanceof TokenStyle;
 	}
-	export function fromData(data: { foreground: Color | undefined; bold: boolean | undefined; underline: boolean | undefined; strikethrough: boolean | undefined; italic: boolean | undefined }): TokenStyle {
-		return new TokenStyle(data.foreground, data.bold, data.underline, data.strikethrough, data.italic);
+	export function fromData(data: { foreground: Color | undefined; bold: boolean | undefined; underline: boolean | undefined; strikethrough: boolean | undefined; italic: boolean | undefined; fontFamily: string | undefined; fontSize: string | undefined; lineHeight: number | undefined }): TokenStyle {
+		return new TokenStyle(data.foreground, data.bold, data.underline, data.strikethrough, data.italic, data.fontFamily, data.fontSize, data.lineHeight);
 	}
 	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined): TokenStyle;
-	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined, bold: boolean | undefined, underline: boolean | undefined, strikethrough: boolean | undefined, italic: boolean | undefined): TokenStyle;
-	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined, bold?: boolean, underline?: boolean, strikethrough?: boolean, italic?: boolean): TokenStyle {
+	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined, bold: boolean | undefined, underline: boolean | undefined, strikethrough: boolean | undefined, italic: boolean | undefined, fontFamily: string | undefined, fontSize: string | undefined, lineHeight: number | undefined): TokenStyle;
+	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined, bold?: boolean, underline?: boolean, strikethrough?: boolean, italic?: boolean, fontFamily?: string, fontSize?: string, lineHeight?: number): TokenStyle {
 		let foregroundColor = undefined;
 		if (foreground !== undefined) {
 			foregroundColor = Color.fromHex(foreground);
@@ -121,7 +132,7 @@ export namespace TokenStyle {
 				}
 			}
 		}
-		return new TokenStyle(foregroundColor, bold, underline, strikethrough, italic);
+		return new TokenStyle(foregroundColor, bold, underline, strikethrough, italic, fontFamily, fontSize, lineHeight);
 	}
 }
 

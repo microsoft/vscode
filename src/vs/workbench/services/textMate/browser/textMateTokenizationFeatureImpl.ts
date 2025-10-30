@@ -18,7 +18,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
 import { ITokenizationSupport, LazyTokenizationSupport, TokenizationRegistry } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { generateTokensCSSForColorMap } from '../../../../editor/common/languages/supports/tokenization.js';
+import { generateTokensCSSForColorMap, generateTokensCSSForFontMap } from '../../../../editor/common/languages/supports/tokenization.js';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
@@ -38,6 +38,7 @@ import { ITMSyntaxExtensionPoint, grammarsExtPoint } from '../common/TMGrammars.
 import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap } from '../common/TMScopeRegistry.js';
 import { ITextMateThemingRule, IWorkbenchColorTheme, IWorkbenchThemeService } from '../../themes/common/workbenchThemeService.js';
 import type { IGrammar, IOnigLib, IRawTheme } from 'vscode-textmate';
+import { ITokenFont } from '../../../../platform/theme/common/themeService.js';
 
 export class TextMateTokenizationFeature extends Disposable implements ITextMateTokenizationService {
 	private static reportTokenizationTimeCounter = { sync: 0, async: 0 };
@@ -55,6 +56,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 	private readonly _tokenizersRegistrations;
 	private _currentTheme: IRawTheme | null;
 	private _currentTokenColorMap: string[] | null;
+	private _currentTokenFontMap: ITokenFont[] | null;
 	private readonly _threadedBackgroundTokenizerFactory;
 
 	constructor(
@@ -79,6 +81,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		this._tokenizersRegistrations = this._register(new DisposableStore());
 		this._currentTheme = null;
 		this._currentTokenColorMap = null;
+		this._currentTokenFontMap = null;
 		this._threadedBackgroundTokenizerFactory = this._instantiationService.createInstance(
 			ThreadedBackgroundTokenizerFactory,
 			(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample) => this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, true, isRandomSample),
@@ -335,11 +338,12 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 	private _updateTheme(colorTheme: IWorkbenchColorTheme, forceUpdate: boolean): void {
 		if (!forceUpdate && this._currentTheme && this._currentTokenColorMap && equalsTokenRules(this._currentTheme.settings, colorTheme.tokenColors)
-			&& equalArray(this._currentTokenColorMap, colorTheme.tokenColorMap)) {
+			&& equalArray(this._currentTokenColorMap, colorTheme.tokenColorMap) && this._currentTokenFontMap && equalArray(this._currentTokenFontMap, colorTheme.tokenFontMap)) {
 			return;
 		}
 		this._currentTheme = { name: colorTheme.label, settings: colorTheme.tokenColors };
 		this._currentTokenColorMap = colorTheme.tokenColorMap;
+		this._currentTokenFontMap = colorTheme.tokenFontMap;
 
 		console.log('_updateTheme');
 		console.log('this._currentTokenColorMap', this._currentTokenColorMap);
@@ -347,12 +351,16 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 		this._grammarFactory?.setTheme(this._currentTheme, this._currentTokenColorMap);
 		const colorMap = toColorMap(this._currentTokenColorMap);
+		const fontMap = toFontMap(this._currentTokenFontMap);
 		console.log('colorMap', colorMap);
 
-		const cssRules = generateTokensCSSForColorMap(colorMap);
-		console.log('cssRules', cssRules);
+		const colorCssRules = generateTokensCSSForColorMap(colorMap);
+		const fontCssRules = generateTokensCSSForFontMap(fontMap);
+		// Add css rules for the font family, font size and line height here
+		// pass in the font-size map, the font-family map, the line-height map
+		console.log('cssRules', colorCssRules + fontCssRules);
 
-		this._styleElement.textContent = cssRules;
+		this._styleElement.textContent = colorCssRules + fontCssRules;
 		// Setting the color map
 		TokenizationRegistry.setColorMap(colorMap);
 
@@ -457,6 +465,14 @@ function toColorMap(colorMap: string[]): Color[] {
 	const result: Color[] = [null!];
 	for (let i = 1, len = colorMap.length; i < len; i++) {
 		result[i] = Color.fromHex(colorMap[i]);
+	}
+	return result;
+}
+
+function toFontMap(fontMap: ITokenFont[]): ITokenFont[] {
+	const result: ITokenFont[] = [null!];
+	for (let i = 1, len = fontMap.length; i < len; i++) {
+		result[i] = fontMap[i];
 	}
 	return result;
 }

@@ -12,6 +12,7 @@ import { TextModel } from '../textModel.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IFontOption } from '../../languages.js';
 import { IModelOptionsChangedEvent } from '../../textModelEvents.js';
+import { hash } from '../../../../base/common/hash.js';
 
 export class TokenizationFontDecorationProvider extends Disposable implements DecorationProvider {
 
@@ -26,7 +27,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	) {
 		super();
 		this.tokenizationTextModelPart.onDidChangeFontInfo(fontChanges => {
-			console.log('fontChanges : ', fontChanges);
 			for (const fontChange of fontChanges) {
 				this.specialFontInfo.set(fontChange.lineNumber, fontChange.options);
 			}
@@ -41,17 +41,14 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 		for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
 			if (this.specialFontInfo.has(i)) {
 				const fontOptions = this.specialFontInfo.get(i);
-				console.log('getDecorationsInRange');
-				console.log('range : ', range);
-				console.log('this.specialFontInfo : ', this.specialFontInfo);
-				console.log('fontOptions : ', fontOptions);
 				if (fontOptions) {
 					for (const fontOption of fontOptions) {
+						const hashFont = hash(fontOption);
 						decorations.push({
-							id: `font-decoration-${i}-${fontOption.startIndex}-${fontOption.endIndex}`,
+							id: `font-decoration-${hashFont}`,
 							options: {
 								description: 'FontOptionDecoration',
-								inlineClassName: `font-decoration-${i}-${fontOption.startIndex}-${fontOption.endIndex}`,
+								inlineClassName: `font-decoration-${hashFont}`,
 							},
 							ownerId: 0,
 							range: new Range(i, fontOption.startIndex + 1, i, fontOption.endIndex + 1)
@@ -60,7 +57,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 				}
 			}
 		}
-		console.log('decorations : ', decorations);
 		return decorations;
 	}
 

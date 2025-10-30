@@ -12,7 +12,7 @@ import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
 import * as resources from '../../../../base/common/resources.js';
 import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground, DEFAULT_COLOR_CONFIG_VALUE } from '../../../../platform/theme/common/colorRegistry.js';
-import { ITokenStyle, getThemeTypeSelector } from '../../../../platform/theme/common/themeService.js';
+import { ITokenFont, ITokenStyle, getThemeTypeSelector } from '../../../../platform/theme/common/themeService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -81,6 +81,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 	private textMateThemingRules: ITextMateThemingRule[] | undefined = undefined; // created on demand
 	private tokenColorIndex: TokenColorIndex | undefined = undefined; // created on demand
+	private tokenFontIndex: TokenFontIndex | undefined = undefined; // created on demand
 
 	private constructor(id: string, label: string, settingsId: string) {
 		this.id = id;
@@ -185,7 +186,10 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			bold: -1,
 			underline: -1,
 			strikethrough: -1,
-			italic: -1
+			italic: -1,
+			fontFamily: -1,
+			fontSize: -1,
+			lineHeight: -1
 		};
 
 		function _processStyle(matchScore: number, style: TokenStyle, definition: TokenStyleDefinition) {
@@ -289,8 +293,22 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return this.tokenColorIndex;
 	}
 
+	public getTokenFontIndex(): TokenFontIndex {
+		if (!this.tokenFontIndex) {
+			const index = new TokenFontIndex();
+			this.customSemanticTokenRules.forEach(r => index.add(r.style.fontFamily, r.style.fontSize, r.style.lineHeight));
+			this.tokenFontIndex = index;
+		}
+		console.log('this.tokenColorIndex', this.tokenColorIndex);
+		return this.tokenFontIndex;
+	}
+
 	public get tokenColorMap(): string[] {
 		return this.getTokenColorIndex().asArray(); //
+	}
+
+	public get tokenFontMap(): ITokenFont[] {
+		return this.getTokenFontIndex().asArray();
 	}
 
 	public getTokenStyleMetadata(typeWithLanguage: string, modifiers: string[], defaultLanguage: string, useDefault = true, definitions: TokenStyleDefinitions = {}): ITokenStyle | undefined {
@@ -906,7 +924,7 @@ function readSemanticTokenRule(selectorString: string, settings: ISemanticTokenC
 	if (typeof settings === 'string') {
 		style = TokenStyle.fromSettings(settings, undefined);
 	} else if (isSemanticTokenColorizationSetting(settings)) {
-		style = TokenStyle.fromSettings(settings.foreground, settings.fontStyle, settings.bold, settings.underline, settings.strikethrough, settings.italic);
+		style = TokenStyle.fromSettings(settings.foreground, settings.fontStyle, settings.bold, settings.underline, settings.strikethrough, settings.italic, settings.fontFamily, settings.fontSize, settings.lineHeight);
 	}
 	if (style) {
 		return { selector, style };
@@ -1001,7 +1019,43 @@ class TokenColorIndex {
 	public asArray(): string[] {
 		return this._id2color.slice(0);
 	}
+}
 
+class TokenFontIndex {
+
+	private _lastColorId: number;
+	private _id2font: ITokenFont[];
+	private _font2id: Map<ITokenFont, number>;
+
+	constructor() {
+		this._lastColorId = 0;
+		this._id2font = [];
+		this._font2id = new Map();
+	}
+
+	public add(fontFamily: string | undefined, fontSize: string | undefined, lineHeight: number | undefined): number {
+		const font: ITokenFont = { fontFamily, fontSize, lineHeight };
+		let value = this._font2id.get(font);
+		if (value) {
+			return value;
+		}
+		value = ++this._lastColorId;
+		this._font2id.set(font, value);
+		this._id2font[value] = font;
+		return value;
+	}
+
+	public get(font: ITokenFont): number {
+		const value = this._font2id.get(font);
+		if (value) {
+			return value;
+		}
+		return 0;
+	}
+
+	public asArray(): ITokenFont[] {
+		return this._id2font.slice(0);
+	}
 }
 
 function normalizeColor(color: string | Color | undefined | null): string | undefined {
