@@ -40,17 +40,21 @@ export namespace MarkedKatexExtension {
 
 				// Wrap in a container with data-latex attribute as a fallback for extracting the original LaTeX source
 				// This ensures we can always retrieve the source even if the annotation element is not present
-				const container = document.createElement('span');
-				container.className = 'vscode-katex-container';
-				container.setAttribute('data-latex', token.text);
-				container.innerHTML = html;
-				out = container.outerHTML;
+				out = `<span class="vscode-katex-container" data-latex="${escapeHtmlAttribute(token.text)}">${html}</span>`;
 			} catch {
 				// On failure, just use the original text including the wrapping $ or $$
 				out = token.raw;
 			}
 			return out + (isBlock ? '\n' : '');
 		};
+	}
+
+	function escapeHtmlAttribute(text: string): string {
+		return text
+			.replace(/&/g, '&amp;')
+			.replace(/"/g, '&quot;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;');
 	}
 
 	function inlineKatex(options: MarkedKatexOptions, renderer: marked.RendererExtensionFunction): marked.TokenizerAndRendererExtension {

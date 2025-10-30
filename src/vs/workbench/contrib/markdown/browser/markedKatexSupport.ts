@@ -32,6 +32,7 @@ export class MarkedKatexSupport {
 					'stretchy',
 					'encoding',
 					'accent',
+					'data-latex',
 
 					// SVG
 					'd',
