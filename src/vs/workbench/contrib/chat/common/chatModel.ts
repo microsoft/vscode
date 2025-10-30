@@ -645,6 +645,7 @@ export class Response extends AbstractResponse implements IDisposable {
 			let found = false;
 			const groupKind = progress.kind === 'textEdit' && !notebookUri ? 'textEditGroup' : 'notebookEditGroup';
 			const edits: any = groupKind === 'textEditGroup' ? progress.edits : progress.edits.map(edit => TextEdit.isTextEdit(edit) ? { uri: progress.uri, edit } : edit);
+			const isExternalEdit = progress.isExternalEdit;
 			for (let i = 0; !found && i < this._responseParts.length; i++) {
 				const candidate = this._responseParts[i];
 				if (candidate.kind === groupKind && !candidate.done && isEqual(candidate.uri, uri)) {
@@ -658,7 +659,8 @@ export class Response extends AbstractResponse implements IDisposable {
 					kind: groupKind,
 					uri,
 					edits: groupKind === 'textEditGroup' ? [edits] : edits,
-					done: progress.done
+					done: progress.done,
+					isExternalEdit,
 				});
 			}
 			this._updateRepr(quiet);
