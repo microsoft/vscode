@@ -146,7 +146,7 @@ function compileTask(src, out, build, options = {}) {
         // mangle: TypeScript to TypeScript
         let mangleStream = event_stream_1.default.through();
         if (build && !options.disableMangle) {
-            let ts2tsMangler = new index_1.Mangler(compile.projectPath, (...data) => (0, fancy_log_1.default)(ansi_colors_1.default.blue('[mangler]'), ...data), { mangleExports: true, manglePrivateFields: true });
+            let ts2tsMangler = new index_1.Mangler(compile.projectPath, (...data) => (0, fancy_log_1.default)(ansi_colors_1.default.blue('[mangler]'), ...data), { mangleExports: true, manglePrivateFields: true, useLspRename: true });
             const newContentsByFileName = ts2tsMangler.computeNewFileContents(new Set(['saveState']));
             mangleStream = event_stream_1.default.through(async function write(data) {
                 const tsNormalPath = ts.normalizePath(data.path);

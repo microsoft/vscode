@@ -351,10 +351,12 @@ class Mangler {
         this.projectPath = projectPath;
         this.log = log;
         this.config = config;
-        this.renameWorkerPool = workerpool_1.default.pool(path_1.default.join(__dirname, 'renameWorker.js'), {
+        const workerScript = config.useLspRename ? 'lspRenameWorker.js' : 'renameWorker.js';
+        this.renameWorkerPool = workerpool_1.default.pool(path_1.default.join(__dirname, workerScript), {
             maxWorkers: 4,
             minWorkers: 'max'
         });
+        this.log(`Mangler using worker: ${workerScript}`);
     }
     async computeNewFileContents(strictImplicitPublicHandling) {
         const service = typescript_1.default.createLanguageService(new staticLanguageServiceHost_1.StaticLanguageServiceHost(this.projectPath));
@@ -538,6 +540,8 @@ class Mangler {
                     appendRename(newName, loc);
                 }
             }
+        }).catch(err => {
+            this.log('ERROR during rename preparation', err);
         });
         await this.renameWorkerPool.terminate();
         this.log(`Done preparing edits: ${editsByFile.size} files`);

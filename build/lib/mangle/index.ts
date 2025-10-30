@@ -407,13 +407,15 @@ export class Mangler {
 	constructor(
 		private readonly projectPath: string,
 		private readonly log: typeof console.log = () => { },
-		private readonly config: { readonly manglePrivateFields: boolean; readonly mangleExports: boolean },
+		private readonly config: { readonly manglePrivateFields: boolean; readonly mangleExports: boolean; readonly useLspRename?: boolean },
 	) {
 
-		this.renameWorkerPool = workerpool.pool(path.join(__dirname, 'renameWorker.js'), {
+		const workerScript = config.useLspRename ? 'lspRenameWorker.js' : 'renameWorker.js';
+		this.renameWorkerPool = workerpool.pool(path.join(__dirname, workerScript), {
 			maxWorkers: 4,
 			minWorkers: 'max'
 		});
+		this.log(`Mangler using worker: ${workerScript}`);
 	}
 
 	async computeNewFileContents(strictImplicitPublicHandling?: Set<string>): Promise<Map<string, MangleOutput>> {
@@ -634,6 +636,8 @@ export class Mangler {
 					appendRename(newName, loc);
 				}
 			}
+		}).catch(err => {
+			this.log('ERROR during rename preparation', err);
 		});
 
 		await this.renameWorkerPool.terminate();
