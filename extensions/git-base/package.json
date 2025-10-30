@@ -77,6 +77,10 @@
           "Ignore",
           "ignore"
         ],
+        "filenamePatterns": [
+          "**/.config/git/ignore",
+          "**/.git/info/exclude"
+        ],
         "extensions": [
           ".gitignore_global",
           ".gitignore",
