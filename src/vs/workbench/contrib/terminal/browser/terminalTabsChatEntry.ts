@@ -17,6 +17,12 @@ export class TerminalTabsChatEntry extends Disposable {
 	private readonly _entry: HTMLElement;
 	private readonly _label: HTMLElement;
 
+	override dispose(): void {
+		this._entry.remove();
+		this._label.remove();
+		super.dispose();
+	}
+
 	constructor(
 		container: HTMLElement,
 		private readonly _tabListElement: HTMLElement,
