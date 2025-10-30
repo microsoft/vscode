@@ -151,13 +151,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
 		this.domNode = progressPart.domNode;
+		this.domNode.tabIndex = 0;
 
-		if (pastTenseMessage) {
-			this.domNode.ariaLabel = pastTenseMessage;
+		this.domNode.ariaLabel = pastTenseMessage
+			? `${toolInvocation.toolId}: ${command} - ${pastTenseMessage}`
+			: `${toolInvocation.toolId}: ${command}`;
 
-			if (this._configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
-				status(pastTenseMessage);
-			}
+		if (pastTenseMessage && this._configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
+			status(pastTenseMessage);
 		}
 	}
 
