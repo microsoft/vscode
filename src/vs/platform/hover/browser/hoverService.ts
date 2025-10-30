@@ -460,8 +460,13 @@ export class HoverService extends Disposable implements IHoverService {
 			mouseOverStore.add(triggerShowHover(typeof hoverDelegate.delay === 'function' ? hoverDelegate.delay(content) : hoverDelegate.delay, false, target));
 		}, true));
 
-		const onFocus = () => {
+		const onFocus = (e: FocusEvent) => {
 			if (isMouseDown || hoverPreparation) {
+				return;
+			}
+			// If the actual focused element is a child element that has its own hover,
+			// don't show the parent's hover to avoid tooltip overlap
+			if (e.target !== targetElement && isHTMLElement(e.target) && e.target.hasAttribute('custom-hover')) {
 				return;
 			}
 			const target: IHoverDelegateTarget = {
