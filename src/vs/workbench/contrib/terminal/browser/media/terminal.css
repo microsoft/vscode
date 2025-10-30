@@ -342,13 +342,12 @@
 	cursor: pointer;
 	background-color: transparent;
 	color: inherit;
-	align-content: center;
-	align-self: center;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-entry {
 	display: flex;
 	align-items: center;
+	justify-content: center;
 	gap: 4px;
 	width: 100%;
 	height: 100%;
@@ -365,10 +364,6 @@
 .monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .terminal-tabs-chat-entry .terminal-tabs-entry {
 	justify-content: center;
 	padding: 0 10px;
-}
-
-.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-chat-entry .terminal-tabs-entry {
-	justify-content: center;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-label:empty {
