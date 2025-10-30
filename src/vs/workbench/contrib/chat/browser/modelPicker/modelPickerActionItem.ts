@@ -21,6 +21,7 @@ import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPic
 import { IActionProvider } from '../../../../../base/browser/ui/dropdown/dropdown.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
+import { CHAT_MANAGEMENT_SECTION_MODELS } from '../chatManagement/chatManagementEditorInput.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -87,7 +88,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					tooltip: localize('chat.manageModels.tooltip', "Manage language models"),
 					class: undefined,
 					run: () => {
-						commandService.executeCommand(MANAGE_CHAT_COMMAND_ID);
+						commandService.executeCommand(MANAGE_CHAT_COMMAND_ID, { section: CHAT_MANAGEMENT_SECTION_MODELS });
 					}
 				});
 			}
@@ -101,7 +102,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					tooltip: localize('chat.moreModels.tooltip', "Add premium models"),
 					class: undefined,
 					run: () => {
-						commandService.executeCommand(MANAGE_CHAT_COMMAND_ID);
+						commandService.executeCommand(MANAGE_CHAT_COMMAND_ID, { section: CHAT_MANAGEMENT_SECTION_MODELS });
 					}
 				});
 			}

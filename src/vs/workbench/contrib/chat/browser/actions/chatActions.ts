@@ -40,6 +40,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -1404,6 +1405,38 @@ export function registerChatActions() {
 			widgetService.lastFocusedWidget?.focusInput();
 		}
 	});
+
+	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.provider.enterprise.id));
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.manageSettings',
+				title: localize2('manageChat', "Manage Chat"),
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ContextKeyExpr.and(
+					ContextKeyExpr.or(
+						ChatContextKeys.Entitlement.planFree,
+						ChatContextKeys.Entitlement.planPro,
+						ChatContextKeys.Entitlement.planProPlus
+					),
+					nonEnterpriseCopilotUsers
+				),
+				menu: {
+					id: MenuId.ChatTitleBarMenu,
+					group: 'y_manage',
+					order: 1,
+					when: nonEnterpriseCopilotUsers
+				}
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const openerService = accessor.get(IOpenerService);
+			openerService.open(URI.parse(defaultChat.manageSettingsUrl));
+		}
+	});
+
 
 	registerAction2(class ShowExtensionsUsingCopilot extends Action2 {
 

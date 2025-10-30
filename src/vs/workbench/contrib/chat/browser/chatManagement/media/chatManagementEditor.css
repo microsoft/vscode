@@ -7,24 +7,69 @@
 	height: 100%;
 	overflow: hidden;
 	max-width: 1200px;
-	margin: auto;
+	margin: 0 auto;
+	display: flex;
+	flex-direction: column;
 }
 
-/* Header */
+.ai-models-management-editor {
+	height: 100%;
+	overflow: hidden;
+	max-width: 1200px;
+	margin: 0 auto;
+	padding: 15px;
+}
+
+/* Header - spans full width */
 .ai-management-editor .ai-management-header {
 	box-sizing: border-box;
-	margin: 20px 10px 0px 10px;
-	padding-bottom: 8px;
+	margin-left: 20px;
+	padding: 10px 15px 5px 15px;
 	border-bottom: 1px solid var(--vscode-settings-headerBorder);
-	max-width: 1200px;
+	flex-shrink: 0;
+}
+
+/* Split view container - takes remaining space */
+.ai-management-editor .split-view-container {
+	flex: 1;
+	min-height: 0;
+	position: relative;
+}
+
+.ai-management-editor .sidebar-view,
+.ai-management-editor .contents-view {
+	height: 100%;
+	overflow: hidden;
+}
+
+.ai-management-editor .contents-container {
+	height: 100%;
+	overflow: hidden;
+}
+
+.ai-management-editor .sidebar-container {
+	padding-left: 20px;
+	padding-top: 15px;
+	height: 100%;
+	overflow: hidden;
+	box-sizing: border-box;
+}
+
+.ai-management-editor .sidebar-container .section-list-item {
+	padding-left: 20px;
+	display: flex;
+	align-items: center;
+}
+
+.ai-management-editor .sidebar-container .section-list-item > .section-list-item-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .ai-management-editor .ai-management-body {
-	position: relative;
-	margin: 0px 10px 0px 10px;
-	overflow-y: auto;
-	overflow-x: hidden;
-	max-width: 1200px;
+	padding: 15px;
+	height: 100%;
+	box-sizing: border-box;
 }
 
 .ai-management-editor .header-title-container {
@@ -46,6 +91,10 @@
 	color: var(--vscode-foreground);
 }
 
+.ai-management-editor .hide {
+	display: none !important;
+}
+
 .ai-management-editor .plan-badge {
 	padding: 4px 12px;
 	border-radius: 12px;
@@ -63,88 +112,11 @@
 	white-space: nowrap;
 }
 
-/* Sections */
-.ai-management-editor .ai-section {
-	margin: 10px 10px 0px 10px;
+/* Widget sections */
+.ai-management-editor .ai-management-body > * {
+	margin-bottom: 20px;
 }
 
-.ai-management-editor .section-title-container {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	background-color: var(--vscode-sideBarSectionHeader-background);
-	border: 1px solid var(--vscode-sideBarSectionHeader-border);
-	padding: 4px;
-	border-radius: 4px;
-}
-
-.ai-management-editor .section-title-container.clickable {
-	cursor: pointer;
-}
-
-.ai-management-editor .section-title-container.clickable:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
-.ai-management-editor .section-title-container.clickable:active {
-	background-color: var(--vscode-list-activeSelectionBackground);
-}
-
-.ai-management-editor .section-title {
-	font-size: 16px;
-	font-weight: 600;
-	line-height: 24px;
-}
-
-.ai-management-editor .toggle-button-container {
-	display: flex;
-	align-items: center;
-	width: 24px;
-	height: 24px;
-	flex-shrink: 0;
-}
-
-.ai-management-editor .section-toggle-button {
-	padding: 0;
-	min-width: 24px;
-	width: 24px;
-	height: 24px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	border: none;
-	background: transparent;
-	cursor: pointer;
-	flex-shrink: 0;
-}
-
-.ai-management-editor .section-content {
-	margin: 16px 0px 0px 32px;
-}
-
-/* Action Section */
-.ai-management-editor .action-section {
-	text-align: center;
-	padding: 24px;
-}
-
-.ai-management-editor .action-button-container {
-	display: flex;
-	justify-content: center;
-	margin-bottom: 12px;
-}
-
-.ai-management-editor .action-button-container .monaco-button {
-	max-width: 200px;
-	width: 100%;
-}
-
-.ai-management-editor .action-description {
-	margin: 0;
-}
-
-.ai-management-editor .action-description .description {
-	font-size: 13px;
-	color: var(--vscode-descriptionForeground);
-	text-align: center;
+.ai-management-editor .ai-management-body > *:last-child {
+	margin-bottom: 0;
 }

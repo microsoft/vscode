@@ -11,6 +11,7 @@ import { ILanguageModelsService, ILanguageModelChatMetadata } from '../../../cha
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 export const MODEL_ENTRY_TEMPLATE_ID = 'model.entry.template';
+export const VENDOR_ENTRY_TEMPLATE_ID = 'vendor.entry.template';
 
 const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
 const CAPABILITY_REGEX = /@capability:\s*([^\s]+)/i;
@@ -33,15 +34,21 @@ export const SEARCH_SUGGESTIONS = {
 	]
 };
 
-export interface IModelEntry {
+export interface IVendorEntry {
 	vendor: string;
 	vendorDisplayName: string;
 	managementCommand?: string;
+}
+
+export interface IModelEntry {
+	vendor: string;
+	vendorDisplayName: string;
 	identifier: string;
 	metadata: ILanguageModelChatMetadata;
 }
 
 export interface IModelItemEntry {
+	type: 'model';
 	id: string;
 	modelEntry: IModelEntry;
 	templateId: string;
@@ -51,12 +58,25 @@ export interface IModelItemEntry {
 	vendorMatches?: IMatch[];
 }
 
+export interface IVendorItemEntry {
+	type: 'vendor';
+	id: string;
+	vendorEntry: IVendorEntry;
+	templateId: string;
+	collapsed: boolean;
+}
+
+export function isVendorEntry(entry: IModelItemEntry | IVendorItemEntry): entry is IVendorItemEntry {
+	return entry.type === 'vendor';
+}
+
 export class ChatModelsViewModel extends EditorModel {
 
 	private readonly _onDidChangeModelEntries = this._register(new Emitter<void>());
 	readonly onDidChangeModelEntries = this._onDidChangeModelEntries.event;
 
 	private _modelEntries: IModelEntry[];
+	private readonly collapsedVendors = new Set<string>();
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -72,7 +92,7 @@ export class ChatModelsViewModel extends EditorModel {
 		}));
 	}
 
-	fetch(searchValue: string): IModelItemEntry[] {
+	fetch(searchValue: string): (IModelItemEntry | IVendorItemEntry)[] {
 		let modelEntries = this._modelEntries;
 
 		// @visible:true or @visible:false
@@ -117,11 +137,7 @@ export class ChatModelsViewModel extends EditorModel {
 
 		searchValue = searchValue.trim();
 		if (!searchValue) {
-			return modelEntries.map((modelEntry): IModelItemEntry => ({
-				id: ChatModelsViewModel.getId(modelEntry),
-				modelEntry,
-				templateId: MODEL_ENTRY_TEMPLATE_ID
-			}));
+			return this.groupByVendor(modelEntries);
 		}
 
 		return this.filterByText(modelEntries, searchValue);
@@ -188,6 +204,7 @@ export class ChatModelsViewModel extends EditorModel {
 				|| modelMatches.capabilityMatches
 			) {
 				result.push({
+					type: 'model',
 					id: ChatModelsViewModel.getId(modelEntry),
 					templateId: MODEL_ENTRY_TEMPLATE_ID,
 					modelEntry,
@@ -213,10 +230,12 @@ export class ChatModelsViewModel extends EditorModel {
 				if (!metadata) {
 					return undefined;
 				}
+				if (vendor.vendor === 'copilot' && metadata.id === 'auto') {
+					return undefined;
+				}
 				return {
 					vendor: vendor.vendor,
 					vendorDisplayName: vendor.displayName,
-					managementCommand: vendor.managementCommand,
 					identifier,
 					metadata
 				};
@@ -236,6 +255,56 @@ export class ChatModelsViewModel extends EditorModel {
 
 	get modelEntries(): IModelEntry[] {
 		return this._modelEntries;
+	}
+
+	toggleVendorCollapsed(vendorId: string): void {
+		if (this.collapsedVendors.has(vendorId)) {
+			this.collapsedVendors.delete(vendorId);
+		} else {
+			this.collapsedVendors.add(vendorId);
+		}
+		this._onDidChangeModelEntries.fire();
+	}
+
+	private groupByVendor(modelEntries: IModelEntry[]): (IVendorItemEntry | IModelItemEntry)[] {
+		const result: (IVendorItemEntry | IModelItemEntry)[] = [];
+		const vendorMap = new Map<string, IModelEntry[]>();
+
+		for (const modelEntry of modelEntries) {
+			const models = vendorMap.get(modelEntry.vendor) || [];
+			models.push(modelEntry);
+			vendorMap.set(modelEntry.vendor, models);
+		}
+
+		for (const [vendor, models] of vendorMap) {
+			const firstModel = models[0];
+			const isCollapsed = this.collapsedVendors.has(vendor);
+			const vendorInfo = this.languageModelsService.getVendors().find(v => v.vendor === vendor);
+			result.push({
+				type: 'vendor',
+				id: `vendor-${vendor}`,
+				vendorEntry: {
+					vendor: firstModel.vendor,
+					vendorDisplayName: firstModel.vendorDisplayName,
+					managementCommand: vendorInfo?.managementCommand
+				},
+				templateId: VENDOR_ENTRY_TEMPLATE_ID,
+				collapsed: isCollapsed
+			});
+
+			if (!isCollapsed) {
+				for (const modelEntry of models) {
+					result.push({
+						type: 'model',
+						id: ChatModelsViewModel.getId(modelEntry),
+						modelEntry,
+						templateId: MODEL_ENTRY_TEMPLATE_ID
+					});
+				}
+			}
+		}
+
+		return result;
 	}
 }
 

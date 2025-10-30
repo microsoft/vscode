@@ -37,7 +37,7 @@
 
 .models-widget .models-search-container .models-search-actions .action-label {
 	padding: 3px;
-	margin-left: 0px;
+	margin-left: 0;
 	box-sizing: content-box;
 }
 
@@ -81,6 +81,22 @@
 	margin-top: 3px;
 }
 
+/** Twistie column styling **/
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .models-twistie {
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	align-self: stretch;
+	justify-content: center;
+	padding: 0 6px;
+}
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .models-twistie:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: 3px;
+}
+
 /** Model Name column styling **/
 
 .models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-name-container {
@@ -93,12 +109,28 @@
 
 .models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-name-container .model-status-icon {
 	flex-shrink: 0;
+	margin-left: auto;
+	margin-right: 4px;
 }
 
 .models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-name-container .model-name {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	flex: 0 1 auto;
+}
+
+/** Actions column styling **/
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .actions-column {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+}
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .actions-column .monaco-action-bar {
+	margin-right: 9px;
 }
 
 /** Cost column styling **/
@@ -106,10 +138,6 @@
 .models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-multiplier {
 	overflow: hidden;
 	text-overflow: ellipsis;
-}
-
-.models-widget .models-table-container .monaco-table-tr .monaco-table-td .visibility-column {
-	margin: auto;
 }
 
 /** Token Limits column styling **/
@@ -141,7 +169,7 @@
 
 .models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-badge {
 	border: 1px solid rgba(136, 136, 136, 0.45);
-	padding: 0px 6px;
+	padding: 0 6px;
 	border-radius: 3px;
 	font-size: 11px;
 }
@@ -151,11 +179,23 @@
 .models-widget .models-table-container .monaco-table .monaco-list-row[data-parity=odd]:not(.focused):not(.selected):not(:hover) .monaco-table-tr,
 .models-widget .models-table-container .monaco-table .monaco-list:not(:focus) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr,
 .models-widget .models-table-container .monaco-table .monaco-list:not(.focused) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr {
-	background-color: var(--vscode-keybindingTable-rowsBackground);
+	background-color: var(--vscode-editor-background);
 }
 
 .models-widget .models-table-container .monaco-table-th {
 	background-color: var(--vscode-keybindingTable-headerBackground);
+}
+
+.models-widget .models-table-container .models-vendor-row {
+	background-color: var(--vscode-keybindingTable-headerBackground);
+}
+
+.models-widget .models-table-container .monaco-table-tr:hover .models-vendor-row {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.models-widget .models-table-container .vendor-row {
+	font-weight: bold;
 }
 
 .models-widget .models-table-container .monaco-table-th,
@@ -163,7 +203,7 @@
 	padding-left: 10px;
 }
 
-.models-widget .models-table-container .monaco-table-th[data-col-index="0"],
-.models-widget .models-table-container .monaco-table-td[data-col-index="0"] {
-	padding-left: 20px;
+.models-widget .models-table-container .monaco-table-th[data-col-index="1"],
+.models-widget .models-table-container .monaco-table-td[data-col-index="1"] {
+	padding-left: 8px;
 }
