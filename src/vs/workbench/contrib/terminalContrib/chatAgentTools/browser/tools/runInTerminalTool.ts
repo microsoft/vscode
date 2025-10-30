@@ -14,9 +14,6 @@ import { Disposable, DisposableStore } from '../../../../../../base/common/lifec
 import { basename } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count, escape } from '../../../../../../base/common/strings.js';
-import type { SingleOrMany } from '../../../../../../base/common/types.js';
-import { count } from '../../../../../../base/common/strings.js';
-import type { DeepImmutable } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -27,8 +24,7 @@ import { ITerminalLogService, ITerminalProfile } from '../../../../../../platfor
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
-import { ChatConfiguration, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES } from '../../../../chat/common/constants.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress, type IToolConfirmationMessages, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
+import { CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES } from '../../../../chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
@@ -41,8 +37,7 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { dedupeRules, generateAutoApproveActions, isFish, isPowerShell, isWindowsPowerShell, isZsh, sanitizeTerminalOutput } from '../runInTerminalHelpers.js';
-import { isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import { isFish, isPowerShell, isWindowsPowerShell, isZsh, sanitizeTerminalOutput } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
@@ -408,8 +403,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-
-		const toolSpecificData = invocation.toolSpecificData as DeepImmutable<IChatTerminalToolInvocationData> | undefined;
+		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}
