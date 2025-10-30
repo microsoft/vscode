@@ -354,13 +354,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 
 	private async _assessOutputForErrors(buffer: string, token: CancellationToken): Promise<string | undefined> {
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
-		if (!models.length) {
+		const model = await this._getLanguageModel();
+		if (!model) {
 			return 'No models available';
 		}
 
 		const response = await this._languageModelsService.sendChatRequest(
-			models[0],
+			model,
 			new ExtensionIdentifier('core'),
 			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors. If there are errors, return them. Otherwise, return undefined: ${buffer}.` }] }],
 			{},
@@ -380,8 +380,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (token.isCancellationRequested) {
 			return;
 		}
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
-		if (!models.length) {
+		const model = await this._getLanguageModel();
+		if (!model) {
 			return undefined;
 		}
 		const lastFiveLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-5).join('\n');
@@ -421,7 +421,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			${lastFiveLines}
 			`;
 
-		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }], {}, token);
+		const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('core'), [{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }], {}, token);
 		const responseText = await getTextResponseFromStream(response);
 		try {
 			const match = responseText.match(/\{[\s\S]*\}/);
@@ -674,6 +674,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return { promise, part };
 	}
 
+	private async _getLanguageModel(): Promise<string | undefined> {
+		let models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
+
+		// Fallback to gpt-4o-mini if copilot-fast is not available for backwards compatibility
+		if (!models.length) {
+			models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
+		}
+
+		return models.length ? models[0] : undefined;
+	}
 }
 
 function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] | undefined {

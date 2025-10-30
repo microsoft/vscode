@@ -8,8 +8,8 @@ import { Disposable, DisposableMap, IDisposable } from '../../../../../base/comm
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { TerminalChatContextKeys } from './terminalChat.js';
 
 /**
  * Used to manage chat tool invocations and the underlying terminal instances they create/use.
@@ -41,7 +41,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	) {
 		super();
 
-		this._hasToolTerminalContext = TerminalContextKeys.hasToolTerminal.bindTo(this._contextKeyService);
+		this._hasToolTerminalContext = TerminalChatContextKeys.hasChatTerminals.bindTo(this._contextKeyService);
 
 		this._restoreFromStorage();
 	}
@@ -82,7 +82,8 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	}
 
 	getToolSessionTerminalInstances(): readonly ITerminalInstance[] {
-		return Array.from(this._terminalInstancesByToolSessionId.values());
+		// Ensure unique instances in case multiple tool sessions map to the same terminal
+		return Array.from(new Set(this._terminalInstancesByToolSessionId.values()));
 	}
 
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean {
