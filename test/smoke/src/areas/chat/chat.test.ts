@@ -12,13 +12,22 @@ export function setup(logger: Logger) {
 		// Shared before/after handling
 		installAllHandlers(logger);
 
+		it('can run chat setup', async function () {
+			const app = this.app as Application;
+
+			await app.workbench.chat.sendMessage('Hello, world!');
+
+			await app.code.waitForElements('.monaco-dialog-box', true, elements => elements.length === 1);
+			await app.code.dispatchKeybinding('Escape', async () => { await app.code.waitForElements('.monaco-dialog-box', false, elements => elements.length === 0); });
+		});
+
 		it('can disable AI features', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.settingsEditor.addUserSetting('chat.disableAIFeatures', 'true');
 
 			// await for setting to apply in the UI
-			await app.code.waitForElements('.noauxiliarybar', true, elements => elements.length === 1);
+			await app.code.waitForElements('.noauxiliarybar', false, elements => elements.length === 1);
 
 			// assert that AI related commands are not present
 			const commands = await app.workbench.quickaccess.getVisibleCommandNames('chat');
