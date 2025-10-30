@@ -7,7 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { Range } from '../core/range.js';
 import { IModelDecoration } from '../model.js';
 
-export interface DecorationProvider {
+export interface DecorationProvider<T = void> {
 	/**
 	 * Gets all the decorations in a range as an array. Only `startLineNumber` and `endLineNumber` from `range` are used for filtering.
 	 * So for now it returns all the decorations on the same line as `range`.
@@ -25,5 +25,5 @@ export interface DecorationProvider {
 	 */
 	getAllDecorations(ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[];
 
-	onDidChange: Event<void>;
+	onDidChange: Event<T>;
 }

@@ -14,9 +14,23 @@ import { IFontOption } from '../../languages.js';
 import { IModelOptionsChangedEvent } from '../../textModelEvents.js';
 import { hash } from '../../../../base/common/hash.js';
 
-export class TokenizationFontDecorationProvider extends Disposable implements DecorationProvider {
+export class LineHeightChangingDecoration {
 
-	private readonly onDidChangeEmitter = new Emitter<void>();
+	public static toKey(obj: LineHeightChangingDecoration): string {
+		return `${obj.ownerId};${obj.decorationId};${obj.lineNumber}`;
+	}
+
+	constructor(
+		public readonly ownerId: number,
+		public readonly decorationId: string,
+		public readonly lineNumber: number,
+		public readonly lineHeight: number | null
+	) { }
+}
+
+export class TokenizationFontDecorationProvider extends Disposable implements DecorationProvider<Set<LineHeightChangingDecoration>> {
+
+	private readonly onDidChangeEmitter = new Emitter<Set<LineHeightChangingDecoration>>();
 	public readonly onDidChange = this.onDidChangeEmitter.event;
 
 	private readonly specialFontInfo = new Map<number, IFontOption[]>();
@@ -27,10 +41,18 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	) {
 		super();
 		this.tokenizationTextModelPart.onDidChangeFontInfo(fontChanges => {
+			const affectedLineHeights = new Set<LineHeightChangingDecoration>();
 			for (const fontChange of fontChanges) {
 				this.specialFontInfo.set(fontChange.lineNumber, fontChange.options);
+				for (const option of fontChange.options) {
+					if (option.lineHeight) {
+						const fontHash = hash(`${option.fontFamily}-${option.fontSize}-${option.lineHeight}`);
+						affectedLineHeights.add(new LineHeightChangingDecoration(0, `font-decoration-${fontHash}`, fontChange.lineNumber, option.lineHeight));
+						break;
+					}
+				}
 			}
-			this.onDidChangeEmitter.fire();
+			this.onDidChangeEmitter.fire(affectedLineHeights);
 		});
 	}
 

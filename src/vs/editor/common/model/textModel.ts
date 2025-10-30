@@ -50,7 +50,7 @@ import { TokenArray } from '../tokens/lineTokens.js';
 import { SetWithKey } from '../../../base/common/collections.js';
 import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { TextEdit } from '../core/edits/textEdit.js';
-import { TokenizationFontDecorationProvider } from './tokens/tokenizationFontDecorationsProvider.js';
+import { LineHeightChangingDecoration, TokenizationFontDecorationProvider } from './tokens/tokenizationFontDecorationsProvider.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -394,9 +394,12 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._onDidChangeDecorations.fire();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}));
-		this._register(this._fontDecorationProvider.onDidChange(() => {
+		this._register(this._fontDecorationProvider.onDidChange((affectedLineHeights) => {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._onDidChangeDecorations.fire();
+			const affectedLines = Array.from(affectedLineHeights);
+			const lineHeightChangeEvent = affectedLines.map(specialLineHeightChange => new ModelLineHeightChanged(specialLineHeightChange.ownerId, specialLineHeightChange.decorationId, specialLineHeightChange.lineNumber, specialLineHeightChange.lineHeight));
+			this._onDidChangeLineHeight.fire(new ModelLineHeightChangedEvent(lineHeightChangeEvent));
 			this._onDidChangeDecorations.endDeferredEmit();
 		}));
 
@@ -2507,19 +2510,6 @@ function _normalizeOptions(options: model.IModelDecorationOptions): ModelDecorat
 	return ModelDecorationOptions.createDynamic(options);
 }
 
-class LineHeightChangingDecoration {
-
-	public static toKey(obj: LineHeightChangingDecoration): string {
-		return `${obj.ownerId};${obj.decorationId};${obj.lineNumber}`;
-	}
-
-	constructor(
-		public readonly ownerId: number,
-		public readonly decorationId: string,
-		public readonly lineNumber: number,
-		public readonly lineHeight: number | null
-	) { }
-}
 
 class LineFontChangingDecoration {
 
