@@ -11,6 +11,7 @@ import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHist
 import { rot } from '../../../../base/common/numbers.js';
 import { svgElem } from '../../../../base/browser/dom.js';
 import { PANEL_BACKGROUND } from '../../../common/theme.js';
+import { findLastIdx } from '../../../../base/common/arraysFind.js';
 
 export const SWIMLANE_HEIGHT = 22;
 export const SWIMLANE_WIDTH = 11;
@@ -383,10 +384,8 @@ export function toISCMHistoryItemViewModelArray(
 		// Incoming changes node
 		if (addIncomingChanges && currentHistoryItemRemoteRef && currentHistoryItemRemoteRef.revision !== mergeBase) {
 			// Find the before/after indices
-			const beforeHistoryItemIndex = viewModels
-				.findLastIndex(vm => vm.outputSwimlanes.some(node => node.id === mergeBase));
-			const afterHistoryItemIndex = viewModels
-				.findIndex(vm => vm.historyItem.id === mergeBase);
+			const beforeHistoryItemIndex = findLastIdx(viewModels, vm => vm.outputSwimlanes.some(node => node.id === mergeBase));
+			const afterHistoryItemIndex = viewModels.findIndex(vm => vm.historyItem.id === mergeBase);
 
 			// Update the before node so that the incoming and outgoing swimlanes
 			// point to the `incoming-changes` node instead of the merge base
@@ -430,10 +429,8 @@ export function toISCMHistoryItemViewModelArray(
 		// Outgoing changes node
 		if (addOutgoingChanges && currentHistoryItemRef?.revision && currentHistoryItemRef.revision !== mergeBase) {
 			// Find the before/after indices
-			let beforeHistoryItemIndex = viewModels
-				.findLastIndex(vm => vm.outputSwimlanes.some(node => node.id === currentHistoryItemRef.revision));
-			const afterHistoryItemIndex = viewModels
-				.findIndex(vm => vm.historyItem.id === currentHistoryItemRef.revision);
+			let beforeHistoryItemIndex = findLastIdx(viewModels, vm => vm.outputSwimlanes.some(node => node.id === currentHistoryItemRef.revision));
+			const afterHistoryItemIndex = viewModels.findIndex(vm => vm.historyItem.id === currentHistoryItemRef.revision);
 			if (beforeHistoryItemIndex === -1 && afterHistoryItemIndex > 0) {
 				beforeHistoryItemIndex = afterHistoryItemIndex - 1;
 			}
