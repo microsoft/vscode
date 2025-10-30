@@ -99,6 +99,7 @@ function toLanguageAssociationItem(association: ILanguageAssociation, userConfig
 		userConfigured: userConfigured,
 		filenameLowercase: association.filename ? association.filename.toLowerCase() : undefined,
 		extensionLowercase: association.extension ? association.extension.toLowerCase() : undefined,
+		// TODO: review case sensitivity
 		filepatternLowercase: association.filepattern ? parse(association.filepattern.toLowerCase()) : undefined,
 		filepatternOnPath: association.filepattern ? association.filepattern.indexOf(posix.sep) >= 0 : false
 	};

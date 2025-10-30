@@ -62,6 +62,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			this._config += 0b100;
 		}
 
+		// TODO: review case sensitivity
 		const parsedPattern = parse(globPattern);
 
 		// 1.64.x behaviour change: given the new support to watch any folder

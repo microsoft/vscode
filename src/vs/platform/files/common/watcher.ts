@@ -369,6 +369,7 @@ export function parseWatcherPatterns(path: string, patterns: Array<string | IRel
 	const parsedPatterns: ParsedPattern[] = [];
 
 	for (const pattern of patterns) {
+		// TODO: review case sensitivity
 		parsedPatterns.push(parse(normalizeWatcherPattern(path, pattern)));
 	}
 

@@ -958,7 +958,6 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 			if (excludeFilenamePattern) {
 				if (glob.match(excludeFilenamePattern, basename(resource.fsPath), { ignoreCase: true })) {
 					// should exclude
-
 					return false;
 				}
 			}

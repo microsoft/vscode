@@ -651,7 +651,7 @@ export function isFilePatternMatch(candidate: IRawFileMatch, filePatternToUse: s
 	const pathToMatch = candidate.searchPath ? candidate.searchPath : candidate.relativePath;
 	return fuzzy ?
 		fuzzyContains(pathToMatch, filePatternToUse) :
-		// TODO: pass case option
+		// TODO: review case sensitivity
 		glob.match(filePatternToUse, pathToMatch);
 }
 

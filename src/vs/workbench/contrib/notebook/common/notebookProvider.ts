@@ -83,7 +83,6 @@ export class NotebookProviderInfo {
 			}
 		}
 
-
 		if (!isDocumentExcludePattern(selector)) {
 			return false;
 		}
@@ -93,7 +92,7 @@ export class NotebookProviderInfo {
 
 		if (glob.match(filenamePattern, basename(resource.fsPath), { ignoreCase: true })) {
 			if (excludeFilenamePattern) {
-				if (glob.match(excludeFilenamePattern, basename(resource.fsPath).toLowerCase())) {
+				if (glob.match(excludeFilenamePattern, basename(resource.fsPath), { ignoreCase: true })) {
 					return false;
 				}
 			}

@@ -585,13 +585,12 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 	}
 
 	private async getSearchResults(pattern: string, roots: ExplorerItem[], matchType: TreeFindMatchType, token: CancellationToken): Promise<{ explorerRoot: ExplorerItem; files: URI[]; directories: URI[]; hitMaxResults: boolean }[]> {
-		const patternLowercase = pattern.toLowerCase();
 		const isFuzzyMatch = matchType === TreeFindMatchType.Fuzzy;
-		return await Promise.all(roots.map((root, index) => this.searchInWorkspace(patternLowercase, root, index, isFuzzyMatch, token)));
+		return await Promise.all(roots.map((root, index) => this.searchInWorkspace(pattern, root, index, isFuzzyMatch, token)));
 	}
 
-	private async searchInWorkspace(patternLowercase: string, root: ExplorerItem, rootIndex: number, isFuzzyMatch: boolean, token: CancellationToken): Promise<{ explorerRoot: ExplorerItem; files: URI[]; directories: URI[]; hitMaxResults: boolean }> {
-		const segmentMatchPattern = caseInsensitiveGlobPattern(isFuzzyMatch ? fuzzyMatchingGlobPattern(patternLowercase) : continousMatchingGlobPattern(patternLowercase));
+	private async searchInWorkspace(pattern: string, root: ExplorerItem, rootIndex: number, isFuzzyMatch: boolean, token: CancellationToken): Promise<{ explorerRoot: ExplorerItem; files: URI[]; directories: URI[]; hitMaxResults: boolean }> {
+		const segmentMatchPattern = isFuzzyMatch ? fuzzyMatchingGlobPattern(pattern) : continuousMatchingGlobPattern(pattern);
 
 		const searchExcludePattern = getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: root.resource })) || {};
 		const searchOptions: IFileQuery = {
@@ -603,6 +602,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 			shouldGlobMatchFilePattern: true,
 			cacheKey: `explorerfindprovider:${root.name}:${rootIndex}:${this.sessionId}`,
 			excludePattern: searchExcludePattern,
+			ignoreGlobPatternCase: true
 		};
 
 		let fileResults: ISearchComplete | undefined;
@@ -652,7 +652,7 @@ function getMatchingDirectoriesFromFiles(resources: URI[], root: ExplorerItem, s
 	for (const dirResource of uniqueDirectories) {
 		const stats = dirResource.path.split('/');
 		const dirStat = stats[stats.length - 1];
-		if (!dirStat || !glob.match(segmentMatchPattern, dirStat)) {
+		if (!dirStat || !glob.match(segmentMatchPattern, dirStat, { ignoreCase: true })) {
 			continue;
 		}
 
@@ -691,24 +691,11 @@ function fuzzyMatchingGlobPattern(pattern: string): string {
 	return '*' + pattern.split('').join('*') + '*';
 }
 
-function continousMatchingGlobPattern(pattern: string): string {
+function continuousMatchingGlobPattern(pattern: string): string {
 	if (!pattern) {
 		return '*';
 	}
 	return '*' + pattern + '*';
-}
-
-function caseInsensitiveGlobPattern(pattern: string): string {
-	let caseInsensitiveFilePattern = '';
-	for (let i = 0; i < pattern.length; i++) {
-		const char = pattern[i];
-		if (/[a-zA-Z]/.test(char)) {
-			caseInsensitiveFilePattern += `[${char.toLowerCase()}${char.toUpperCase()}]`;
-		} else {
-			caseInsensitiveFilePattern += char;
-		}
-	}
-	return caseInsensitiveFilePattern;
 }
 
 export interface ICompressedNavigationController {
@@ -1317,29 +1304,33 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>({ resource: folder.uri });
 			const excludesConfig: glob.IExpression = configuration?.files?.exclude || Object.create(null);
 			const parseIgnoreFile: boolean = configuration.explorer.excludeGitIgnore;
+			const folderUri = folder.uri.toString();
 
 			// If we should be parsing ignoreFiles for this workspace and don't have an ignore tree initialize one
-			if (parseIgnoreFile && !this.ignoreTreesPerRoot.has(folder.uri.toString())) {
+			if (parseIgnoreFile && !this.ignoreTreesPerRoot.has(folderUri)) {
 				updatedGitIgnoreSetting = true;
-				this.ignoreFileResourcesPerRoot.set(folder.uri.toString(), new ResourceSet());
-				this.ignoreTreesPerRoot.set(folder.uri.toString(), TernarySearchTree.forUris((uri) => this.uriIdentityService.extUri.ignorePathCasing(uri)));
+				this.ignoreFileResourcesPerRoot.set(folderUri, new ResourceSet());
+				this.ignoreTreesPerRoot.set(folderUri, TernarySearchTree.forUris((uri) => this.uriIdentityService.extUri.ignorePathCasing(uri)));
 			}
 
 			// If we shouldn't be parsing ignore files but have an ignore tree, clear the ignore tree
-			if (!parseIgnoreFile && this.ignoreTreesPerRoot.has(folder.uri.toString())) {
+			if (!parseIgnoreFile && this.ignoreTreesPerRoot.has(folderUri)) {
 				updatedGitIgnoreSetting = true;
-				this.ignoreFileResourcesPerRoot.delete(folder.uri.toString());
-				this.ignoreTreesPerRoot.delete(folder.uri.toString());
+				this.ignoreFileResourcesPerRoot.delete(folderUri);
+				this.ignoreTreesPerRoot.delete(folderUri);
 			}
 
 			if (!shouldFire) {
-				const cached = this.hiddenExpressionPerRoot.get(folder.uri.toString());
+				const cached = this.hiddenExpressionPerRoot.get(folderUri);
 				shouldFire = !cached || !equals(cached.original, excludesConfig);
 			}
 
 			const excludesConfigCopy = deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
 
-			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) });
+			this.hiddenExpressionPerRoot.set(folderUri, {
+				original: excludesConfigCopy,
+				parsed: glob.parse(excludesConfigCopy, { ignoreCase: true })
+			});
 		});
 
 		if (shouldFire || updatedGitIgnoreSetting) {
