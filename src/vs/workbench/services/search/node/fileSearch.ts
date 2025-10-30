@@ -62,7 +62,7 @@ export class FileWalker {
 	private walkedPaths: { [path: string]: boolean };
 
 	constructor(config: IFileQuery) {
-		const globOptions = { ignoreCase: !!config.ignoreGlobPatternCase };
+		const globOptions = { ignoreCase: config.ignoreGlobPatternCase };
 		this.config = config;
 		this.filePattern = config.filePattern || '';
 		this.includePattern = config.includePattern && glob.parse(config.includePattern, globOptions);

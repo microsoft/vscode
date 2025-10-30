@@ -351,9 +351,10 @@ function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, path: string, e
 			return !!queryProps.folderQueries && queryProps.folderQueries.some(fq => {
 				const searchPath = fq.folder;
 				const uri = URI.file(path);
-				if (extUri.isEqualOrParent(uri, searchPath, globOptions.ignoreCase)) {
+				const folderGlobOptions = { ignoreCase: queryProps.ignoreGlobPatternCase || fq.ignoreGlobPatternCase };
+				if (extUri.isEqualOrParent(uri, searchPath, folderGlobOptions.ignoreCase)) {
 					const relPath = paths.relative(searchPath.path, uri.path);
-					return !fq.includePattern || !!glob.match(fq.includePattern, relPath, globOptions);
+					return !fq.includePattern || !!glob.match(fq.includePattern, relPath, folderGlobOptions);
 				} else {
 					return false;
 				}
