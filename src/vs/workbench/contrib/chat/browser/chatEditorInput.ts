@@ -39,7 +39,12 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	private readonly inputCount: number;
 	private readonly inputName: string;
 
-	public sessionId: string | undefined;
+	private _sessionId: string | undefined;
+	/**
+	 * @deprecated The session id is only useful for local session. In most cases you should check the resource instead.
+	 */
+	public get sessionId() { return this._sessionId; }
+
 	private hasCustomTitle: boolean = false;
 	private cachedIcon: ThemeIcon | URI | undefined;
 
@@ -83,13 +88,13 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			if (parsed.chatSessionType !== localChatSessionType) {
 				throw new Error('Chat session URI must be of local chat session type');
 			}
-			this.sessionId = parsed.sessionId;
+			this._sessionId = parsed.sessionId;
 		}
 
 		// Check if we already have a custom title for this session
-		const hasExistingCustomTitle = this.sessionId && (
-			this.chatService.getSession(this.sessionId)?.title ||
-			this.chatService.getPersistedSessionTitle(this.sessionId)?.trim()
+		const hasExistingCustomTitle = this._sessionId && (
+			this.chatService.getSession(this._sessionId)?.title ||
+			this.chatService.getPersistedSessionTitle(this._sessionId)?.trim()
 		);
 
 		this.hasCustomTitle = Boolean(hasExistingCustomTitle);
@@ -149,10 +154,27 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		}
 
 		if (this.resource.scheme === Schemas.vscodeChatEditor && otherInput.resource.scheme === Schemas.vscodeChatEditor) {
-			return this.sessionId === otherInput.sessionId;
+			return this._sessionId === otherInput._sessionId;
 		}
 
 		return isEqual(this.resource, otherInput.resource);
+	}
+
+	isForSession(sessionUri: URI): boolean {
+		// Special case where we are a chat editor that has been linked to a local session.
+		// In this case, check if our id matches.
+		if (this.resource.scheme === Schemas.vscodeChatEditor) {
+			if (sessionUri.scheme === Schemas.vscodeLocalChatSession) {
+				const parsed = LocalChatSessionUri.parse(sessionUri);
+				if (this._sessionId === parsed?.sessionId) {
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		return isEqual(this.resource, sessionUri);
 	}
 
 	override get typeId(): string {
@@ -167,15 +189,15 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		}
 
 		// If we have a sessionId but no resolved model, try to get the title from persisted sessions
-		if (this.sessionId) {
+		if (this._sessionId) {
 			// First try the active session registry
-			const existingSession = this.chatService.getSession(this.sessionId);
+			const existingSession = this.chatService.getSession(this._sessionId);
 			if (existingSession?.title) {
 				return existingSession.title;
 			}
 
 			// If not in active registry, try persisted session data
-			const persistedTitle = this.chatService.getPersistedSessionTitle(this.sessionId);
+			const persistedTitle = this.chatService.getPersistedSessionTitle(this._sessionId);
 			if (persistedTitle && persistedTitle.trim()) { // Only use non-empty persisted titles
 				return persistedTitle;
 			}
@@ -251,8 +273,8 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const inputType = chatSessionType ?? this.resource.authority;
 		if (this.resource.scheme !== Schemas.vscodeChatEditor && this.resource.scheme !== Schemas.vscodeLocalChatSession) {
 			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Chat, CancellationToken.None);
-		} else if (typeof this.sessionId === 'string') {
-			this.model = await this.chatService.getOrRestoreSession(this.sessionId)
+		} else if (typeof this._sessionId === 'string') {
+			this.model = await this.chatService.getOrRestoreSession(this._sessionId)
 				?? this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: false, inputType: inputType });
 		} else if (!this.options.target) {
 			this.model = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: !inputType, inputType: inputType });
@@ -264,7 +286,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			return null;
 		}
 
-		this.sessionId = this.model.sessionId;
+		this._sessionId = this.model.sessionId;
 		this._register(this.model.onDidChange((e) => {
 			// When a custom title is set, we no longer need the numeric count
 			if (e && e.kind === 'setCustomTitle' && !this.hasCustomTitle) {
@@ -302,8 +324,8 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	override dispose(): void {
 		super.dispose();
-		if (this.sessionId) {
-			this.chatService.clearSession(this.sessionId);
+		if (this._sessionId) {
+			this.chatService.clearSession(this._sessionId);
 		}
 	}
 }

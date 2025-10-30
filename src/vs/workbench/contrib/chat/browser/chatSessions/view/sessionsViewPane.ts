@@ -44,9 +44,8 @@ import { ChatConfiguration, ChatEditorTitleMaxLength } from '../../../common/con
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
-import { ChatViewPane } from '../../chatViewPane.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { ChatSessionItemWithProvider, findExistingChatEditorByUri, getSessionItemContextOverlay, isLocalChatSessionItem, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
+import { ChatSessionItemWithProvider, findExistingChatEditorByUri, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 
@@ -455,16 +454,11 @@ export class SessionsViewPane extends ViewPane {
 	}
 
 	private async openChatSession(session: ChatSessionItemWithProvider) {
-		if (!session || !session.id) {
-			return;
-		}
-
 		try {
 			// Check first if we already have an open editor for this session
-			const uri = session.resource;
-			const existingEditor = findExistingChatEditorByUri(uri, session.id, this.editorGroupsService);
+			const existingEditor = findExistingChatEditorByUri(session.resource, this.editorGroupsService);
 			if (existingEditor) {
-				await this.editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				await this.editorService.openEditor(existingEditor.editor, existingEditor.group);
 				return;
 			}
 			if (this.chatWidgetService.getWidgetBySessionId(session.id)) {
@@ -476,20 +470,8 @@ export class SessionsViewPane extends ViewPane {
 				return;
 			}
 
-			// Handle history items first
-			if (isLocalChatSessionItem(session)) {
-				const options: IChatEditorOptions = {
-					pinned: true,
-					ignoreInView: true,
-					preserveFocus: true,
-				};
-				await this.editorService.openEditor({ resource: session.resource, options });
-				return;
-			} else if (session.id === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
-				const chatViewPane = await this.viewsService.openView(ChatViewId) as ChatViewPane;
-				if (chatViewPane) {
-					await chatViewPane.loadSession(session.id);
-				}
+			if (session.id === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
+				await this.viewsService.openView(ChatViewId);
 				return;
 			}
 

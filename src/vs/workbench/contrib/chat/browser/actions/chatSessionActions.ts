@@ -31,7 +31,7 @@ import { IChatSessionsService, localChatSessionType } from '../../common/chatSes
 import { AGENT_SESSIONS_VIEWLET_ID, ChatConfiguration } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
-import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem } from '../chatSessions/common.js';
+import { ChatSessionItemWithProvider, findExistingChatEditorByUri } from '../chatSessions/common.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { ACTION_ID_OPEN_CHAT, CHAT_CATEGORY } from './chatActions.js';
 
@@ -184,22 +184,12 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 			const uri = context.session.resource;
 
 			// Check if this session is already open in another editor
-			const existingEditor = findExistingChatEditorByUri(uri, sessionId, editorGroupsService);
+			const existingEditor = findExistingChatEditorByUri(uri, editorGroupsService);
 			if (existingEditor) {
-				await editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				await editorService.openEditor(existingEditor.editor, existingEditor.group);
 				return;
 			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
 				return;
-			} else if (isLocalChatSessionItem(context.session)) {
-				const options: IChatEditorOptions = {
-					ignoreInView: true,
-				};
-				// For local sessions, create a new chat editor
-				await editorService.openEditor({
-					resource: context.session.resource,
-					options,
-				}, AUX_WINDOW_GROUP);
-
 			} else {
 				const options: IChatEditorOptions = {
 					ignoreInView: true,
@@ -240,22 +230,13 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 		if (context.session.provider?.chatSessionType) {
 			const uri = context.session.resource;
 			// Check if this session is already open in another editor
-			const existingEditor = findExistingChatEditorByUri(uri, sessionId, editorGroupsService);
+			const existingEditor = findExistingChatEditorByUri(uri, editorGroupsService);
 			if (existingEditor) {
-				await editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				await editorService.openEditor(existingEditor.editor, existingEditor.group);
 				return;
 			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
+				// Already opened in chat widget
 				return;
-			} else if (isLocalChatSessionItem(context.session)) {
-				const options: IChatEditorOptions = {
-					ignoreInView: true,
-				};
-				// For local sessions, create a new chat editor
-				await editorService.openEditor({
-					resource: context.session.resource,
-					options,
-				}, SIDE_GROUP);
-
 			} else {
 				const options: IChatEditorOptions = {
 					ignoreInView: true,
@@ -296,9 +277,9 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 		const sessionId = context.session.id;
 		if (context.session.provider?.chatSessionType) {
 			// Check if this session is already open in another editor
-			const existingEditor = findExistingChatEditorByUri(context.session.resource, sessionId, editorGroupsService);
+			const existingEditor = findExistingChatEditorByUri(context.session.resource, editorGroupsService);
 			if (existingEditor) {
-				await editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				await editorService.openEditor(existingEditor.editor, existingEditor.group);
 				return;
 			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
 				return;
@@ -309,11 +290,7 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 		const chatViewPane = await viewsService.openView(ChatViewId) as ChatViewPane;
 		if (chatViewPane) {
 			// Handle different session types
-			if (context.session && (isLocalChatSessionItem(context.session))) {
-				await chatViewPane.loadSession(sessionId);
-			} else {
-				await chatViewPane.loadSession(context.session.resource);
-			}
+			await chatViewPane.loadSession(context.session.resource);
 
 			// Focus the chat input
 			chatViewPane.focusInput();
