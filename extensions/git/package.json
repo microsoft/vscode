@@ -1018,6 +1018,12 @@
         "enablement": "!operationInProgress && git.currentHistoryItemIsAhead"
       },
       {
+        "command": "git.graph.compareWithRemote",
+        "title": "%command.graphCompareWithRemote%",
+        "category": "Git",
+        "enablement": "!operationInProgress && scmCurrentHistoryItemRefHasRemote"
+      },
+      {
         "command": "git.graph.compareWithMergeBase",
         "title": "%command.graphCompareWithMergeBase%",
         "category": "Git",
@@ -1640,6 +1646,10 @@
         },
         {
           "command": "git.graph.compareWithMergeBase",
+          "when": "false"
+        },
+        {
+          "command": "git.graph.compareWithRemote",
           "when": "false"
         },
         {
@@ -2294,14 +2304,19 @@
           "group": "4_modify@1"
         },
         {
-          "command": "git.graph.compareRef",
+          "command": "git.graph.compareWithRemote",
           "when": "scmProvider == git",
           "group": "5_compare@1"
         },
         {
           "command": "git.graph.compareWithMergeBase",
-          "when": "scmProvider == git && scmHistoryItemHasCurrentHistoryItemRef",
+          "when": "scmProvider == git",
           "group": "5_compare@2"
+        },
+        {
+          "command": "git.graph.compareRef",
+          "when": "scmProvider == git",
+          "group": "5_compare@3"
         },
         {
           "command": "git.copyCommitId",
