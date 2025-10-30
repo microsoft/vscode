@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 'Remove any usage of the any type in TypeScript files'
 ---
 

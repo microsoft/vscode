@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { autorun, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isCompositeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IValidEditOperation } from '../../../../editor/common/model.js';
@@ -20,8 +21,10 @@ import { createTextBufferFactoryFromSnapshot } from '../../../../editor/common/m
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -35,9 +38,10 @@ import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { ILanguageModelToolsService, ToolDataSource, IToolData } from '../../chat/common/languageModelToolsService.js';
 import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession.js';
-import { IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService.js';
+import { IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer, moveToPanelChat } from './inlineChatSessionService.js';
 
 
 type SessionData = {
@@ -76,8 +80,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
 
-	readonly hideOnRequest: IObservable<boolean>;
-
 	constructor(
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IModelService private readonly _modelService: IModelService,
@@ -91,13 +93,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@IChatService private readonly _chatService: IChatService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 
-		const v2 = observableConfigValue(InlineChatConfigKeys.EnableV2, false, this._configurationService);
-
-		this.hideOnRequest = observableConfigValue(InlineChatConfigKeys.HideOnRequest, false, this._configurationService)
-			.map((value, r) => v2.read(r) && value);
 	}
 
 	dispose() {
@@ -384,7 +381,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		const result: IInlineChatSession2 = {
 			uri,
-			initialPosition: editor.getPosition().delta(-1),
+			initialPosition: editor.getSelection().getStartPosition().delta(-1), /* one line above selection start */
 			chatModel,
 			editingSession,
 			dispose: store.dispose.bind(store)
@@ -394,20 +391,29 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		return result;
 	}
 
-	getSession2(uri: URI): IInlineChatSession2 | undefined {
-		let result = this._sessions2.get(uri);
-		if (!result) {
-			// no direct session, try to find an editing session which has a file entry for the uri
-			for (const [_, candidate] of this._sessions2) {
-				const entry = candidate.editingSession.getEntry(uri);
-				if (entry) {
-					result = candidate;
-					break;
+	getSession2(uriOrSessionId: URI | string): IInlineChatSession2 | undefined {
+		if (URI.isUri(uriOrSessionId)) {
+
+			let result = this._sessions2.get(uriOrSessionId);
+			if (!result) {
+				// no direct session, try to find an editing session which has a file entry for the uri
+				for (const [_, candidate] of this._sessions2) {
+					const entry = candidate.editingSession.getEntry(uriOrSessionId);
+					if (entry) {
+						result = candidate;
+						break;
+					}
+				}
+			}
+			return result;
+		} else {
+			for (const session of this._sessions2.values()) {
+				if (session.chatModel.sessionId === uriOrSessionId) {
+					return session;
 				}
 			}
 		}
-
-		return result;
+		return undefined;
 	}
 }
 
@@ -474,5 +480,76 @@ export class InlineChatEnabler {
 		this._ctxPossible.reset();
 		this._ctxHasProvider.reset();
 		this._store.dispose();
+	}
+}
+
+
+export class InlineChatEscapeToolContribution extends Disposable {
+
+	static readonly Id = 'inlineChat.escapeTool';
+
+	private static readonly _data: IToolData = {
+		id: 'inline_chat_exit',
+		source: ToolDataSource.Internal,
+		canBeReferencedInPrompt: false,
+		alwaysDisplayInputOutput: false,
+		displayName: localize('name', "Inline Chat to Panel Chat"),
+		modelDescription: 'Moves the inline chat session to the richer panel chat which supports edits across files, creating and deleting files, multi-turn conversations between the user and the assistant, and access to more IDE tools, like retrieve problems, interact with source control, run terminal commands etc.',
+	};
+
+	constructor(
+		@ILanguageModelToolsService lmTools: ILanguageModelToolsService,
+		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
+		@IDialogService dialogService: IDialogService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IChatService chatService: IChatService,
+		@ILogService logService: ILogService,
+		@IInstantiationService instaService: IInstantiationService,
+	) {
+
+		super();
+
+		this._store.add(lmTools.registerTool(InlineChatEscapeToolContribution._data, {
+			invoke: async (invocation, _tokenCountFn, _progress, _token) => {
+
+				const sessionId = invocation.context?.sessionId;
+
+				if (!sessionId) {
+					logService.warn('InlineChatEscapeToolContribution: no sessionId in tool invocation context');
+					return { content: [{ kind: 'text', value: 'Cancel' }] };
+				}
+
+				const session = inlineChatSessionService.getSession2(sessionId);
+
+				if (!session) {
+					logService.warn(`InlineChatEscapeToolContribution: no session found for id ${sessionId}`);
+					return { content: [{ kind: 'text', value: 'Cancel' }] };
+				}
+
+				const result = await dialogService.confirm({
+					type: 'question',
+					title: localize('confirm.title', "Continue in Panel Chat?"),
+					message: localize('confirm', "Do you want to continue in panel chat or rephrase your prompt?"),
+					detail: localize('confirm.detail', "This task is too complex for Inline Chat. You can rephrase your prompt or continue in the panel chat."),
+					primaryButton: localize('confirm.yes', "Rephrase"),
+					cancelButton: localize('confirm.no', "Continue in Chat"),
+				});
+
+
+				const editor = codeEditorService.getFocusedCodeEditor();
+
+				if (!result.confirmed || !editor) {
+					logService.trace('InlineChatEscapeToolContribution: moving session to panel chat');
+					await instaService.invokeFunction(moveToPanelChat, session.chatModel, true);
+					session.dispose();
+
+				} else {
+					logService.trace('InlineChatEscapeToolContribution: rephrase prompt');
+					chatService.removeRequest(session.chatModel.sessionId, session.chatModel.getRequests().at(-1)!.id);
+				}
+
+				return { content: [{ kind: 'text', value: 'Success' }] };
+			}
+		}));
 	}
 }

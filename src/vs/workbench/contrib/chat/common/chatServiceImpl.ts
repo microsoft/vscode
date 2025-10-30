@@ -13,6 +13,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { revive } from '../../../../base/common/marshalling.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { autorun, derived, IObservable, ObservableMap } from '../../../../base/common/observable.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { isDefined } from '../../../../base/common/types.js';
@@ -37,6 +38,7 @@ import { IChatSessionsService } from './chatSessionsService.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatTransferService } from './chatTransferService.js';
+import { LocalChatSessionUri } from './chatUri.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
@@ -72,7 +74,7 @@ export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
 	private readonly _sessionModels = new ObservableMap<string, ChatModel>();
-	private readonly _contentProviderSessionModels = new Map</* scheme */ string, ResourceMap<{ readonly model: IChatModel; readonly disposables: DisposableStore }>>();
+	private readonly _contentProviderSessionModels = new ResourceMap<{ readonly model: IChatModel; readonly disposables: DisposableStore }>();
 	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
 
@@ -296,7 +298,7 @@ export class ChatService extends Disposable implements IChatService {
 	 * Chat sessions that have already been loaded into the chat view are excluded from the result.
 	 * Imported chat sessions are also excluded from the result.
 	 */
-	async getHistory(): Promise<IChatDetail[]> {
+	async getLocalSessionHistory(): Promise<IChatDetail[]> {
 		const liveSessionItems = Array.from(this._sessionModels.values())
 			.filter(session => !session.isImported && !session.inputType)
 			.map(session => {
@@ -453,12 +455,21 @@ export class ChatService extends Disposable implements IChatService {
 	async loadSessionForResource(chatSessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined> {
 		// TODO: Move this into a new ChatModelService
 
-		const existing = this._contentProviderSessionModels.get(chatSessionResource.scheme)?.get(chatSessionResource);
+		if (chatSessionResource.scheme === Schemas.vscodeLocalChatSession) {
+			const parsed = LocalChatSessionUri.parse(chatSessionResource);
+			if (!parsed) {
+				throw new ErrorNoTelemetry('Invalid local chat session URI');
+			}
+
+			return this.getOrRestoreSession(parsed.sessionId);
+		}
+
+		const existing = this._contentProviderSessionModels.get(chatSessionResource);
 		if (existing) {
 			return existing.model;
 		}
 
-		const content = await this.chatSessionService.provideChatSessionContent(chatSessionResource, CancellationToken.None);
+		const providedSession = await this.chatSessionService.getOrCreateChatSession(chatSessionResource, CancellationToken.None);
 		const chatSessionType = chatSessionResource.scheme;
 
 		// Contributed sessions do not use UI tools
@@ -469,19 +480,17 @@ export class ChatService extends Disposable implements IChatService {
 			chatSessionResource,
 			isUntitled: chatSessionResource.path.startsWith('/untitled-')  //TODO(jospicer)
 		});
-		if (!this._contentProviderSessionModels.has(chatSessionType)) {
-			this._contentProviderSessionModels.set(chatSessionType, new ResourceMap());
-		}
+
 		const disposables = new DisposableStore();
-		this._contentProviderSessionModels.get(chatSessionType)!.set(chatSessionResource, { model, disposables });
+		this._contentProviderSessionModels.set(chatSessionResource, { model, disposables });
 
 		disposables.add(model.onDidDispose(() => {
-			this._contentProviderSessionModels?.get(chatSessionType)?.delete(chatSessionResource);
-			content.dispose();
+			this._contentProviderSessionModels.delete(chatSessionResource);
+			providedSession.dispose();
 		}));
 
 		let lastRequest: ChatRequestModel | undefined;
-		for (const message of content.history) {
+		for (const message of providedSession.history) {
 			if (message.type === 'request') {
 				if (lastRequest) {
 					model.completeResponse(lastRequest);
@@ -522,14 +531,14 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
-		if (content.progressObs && lastRequest && content.interruptActiveResponseCallback) {
+		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {
 			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
 			this._pendingRequests.set(model.sessionId, initialCancellationRequest);
 			const cancellationListener = new MutableDisposable();
 
 			const createCancellationListener = (token: CancellationToken) => {
 				return token.onCancellationRequested(() => {
-					content.interruptActiveResponseCallback?.().then(userConfirmedInterruption => {
+					providedSession.interruptActiveResponseCallback?.().then(userConfirmedInterruption => {
 						if (!userConfirmedInterruption) {
 							// User cancelled the interruption
 							const newCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
@@ -545,8 +554,8 @@ export class ChatService extends Disposable implements IChatService {
 
 			let lastProgressLength = 0;
 			disposables.add(autorun(reader => {
-				const progressArray = content.progressObs?.read(reader) ?? [];
-				const isComplete = content.isCompleteObs?.read(reader) ?? false;
+				const progressArray = providedSession.progressObs?.read(reader) ?? [];
+				const isComplete = providedSession.isCompleteObs?.read(reader) ?? false;
 
 				// Process only new progress items
 				if (progressArray.length > lastProgressLength) {

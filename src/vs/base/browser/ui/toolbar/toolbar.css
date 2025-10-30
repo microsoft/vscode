@@ -11,3 +11,10 @@
 	display: inline-block;
 	padding: 0;
 }
+
+.monaco-toolbar.responsive {
+	.monaco-action-bar > .actions-container > .action-item {
+		flex-shrink: 1;
+		min-width: 20px;
+	}
+}

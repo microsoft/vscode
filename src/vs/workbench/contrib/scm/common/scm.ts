@@ -227,6 +227,8 @@ export interface ISCMViewService {
 
 	readonly menus: ISCMMenus;
 	readonly selectionModeConfig: IObservable<ISCMRepositorySelectionMode>;
+	readonly graphShowIncomingChangesConfig: IObservable<boolean>;
+	readonly graphShowOutgoingChangesConfig: IObservable<boolean>;
 
 	repositories: ISCMRepository[];
 	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;

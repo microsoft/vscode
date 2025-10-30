@@ -35,6 +35,10 @@ import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileE
 import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
+interface IMultiDiffEntryDelegate {
+	collapse: (transaction: ITransaction | undefined) => void;
+}
+
 
 export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifiedFileEntry implements IModifiedFileEntry {
 
@@ -47,6 +51,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	override get changesCount() {
 		return this._textModelChangeService.diffInfo.map(diff => diff.changes.length);
+	}
+
+	get diffInfo() {
+		return this._textModelChangeService.diffInfo;
 	}
 
 	get linesAdded() {
@@ -73,7 +81,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
-		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
+		private readonly _multiDiffEntryDelegate: IMultiDiffEntryDelegate,
 		telemetryInfo: IModifiedEntryTelemetryInfo,
 		kind: ChatEditKind,
 		initialContent: string | undefined,
@@ -118,7 +126,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		);
 
 		this._textModelChangeService = this._register(instantiationService.createInstance(ChatEditingTextModelChangeService,
-			this.originalModel, this.modifiedModel, this._stateObs));
+			this.originalModel, this.modifiedModel, this._stateObs, () => this._isExternalEditInProgress));
 
 		this._register(this._textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
 			this._stateObs.set(action, undefined);
@@ -188,6 +196,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		};
 	}
 
+	public getCurrentContents() {
+		return this.modifiedModel.getValue();
+	}
+
 	public override hasModificationAt(location: Location): boolean {
 		return location.uri.toString() === this.modifiedModel.uri.toString() && this._textModelChangeService.hasHunkAt(location.range);
 	}
@@ -216,7 +228,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return new SingleModelEditStackElement(label, 'chat.edit', this.modifiedModel, null);
 	}
 
-	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<void> {
 
 		const result = await this._textModelChangeService.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
 
@@ -225,7 +237,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			this._stateObs.set(ModifiedFileEntryState.Modified, tx);
 
 			if (!isLastEdits) {
-				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 				this._rewriteRatioObs.set(result.rewriteRatio, tx);
 			} else {
 				this._resetEditsState(tx);
@@ -265,7 +276,9 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		if (this.createdInRequestId === this._telemetryInfo.requestId) {
 			if (isTextFileEditorModel(this._docFileEditorModel)) {
 				await this._docFileEditorModel.revert({ soft: true });
-				await this._fileService.del(this.modifiedURI);
+				await this._fileService.del(this.modifiedURI).catch(err => {
+					// don't block if file is already deleted
+				});
 			}
 			this._onDidDelete.fire();
 		} else {
@@ -290,5 +303,47 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	private _shouldAutoSave() {
 		return this.modifiedURI.scheme !== Schemas.untitled;
+	}
+
+	async computeEditsFromSnapshots(beforeSnapshot: string, afterSnapshot: string): Promise<(TextEdit | ICellEditOperation)[]> {
+		// Simple full-content replacement approach
+		// This is similar to how streaming edits work - we just replace the entire content
+		const endLine = beforeSnapshot.split(/\r?\n/).length;
+
+		return [{
+			range: {
+				startLineNumber: 1,
+				startColumn: 1,
+				endLineNumber: endLine,
+				endColumn: beforeSnapshot.split(/\r?\n/)[endLine - 1]?.length + 1 || 1
+			},
+			text: afterSnapshot
+		}];
+	}
+
+	async save(): Promise<void> {
+		if (this.modifiedModel.uri.scheme === Schemas.untitled) {
+			return;
+		}
+
+		// Save the current model state to disk if dirty
+		if (this._textFileService.isDirty(this.modifiedModel.uri)) {
+			await this._textFileService.save(this.modifiedModel.uri, {
+				reason: SaveReason.EXPLICIT,
+				skipSaveParticipants: true
+			});
+		}
+	}
+
+	async revertToDisk(): Promise<void> {
+		if (this.modifiedModel.uri.scheme === Schemas.untitled) {
+			return;
+		}
+
+		// Revert to reload from disk, ensuring in-memory model matches disk
+		const fileModel = this._textFileService.files.get(this.modifiedModel.uri);
+		if (fileModel && !fileModel.isDisposed()) {
+			await fileModel.revert({ soft: false });
+		}
 	}
 }

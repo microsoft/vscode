@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { Location, TextEdit } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
+import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorPane } from '../../../common/editor.js';
-import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatResponseModel } from './chatModel.js';
+import { IChatProgress } from './chatService.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
@@ -112,9 +115,18 @@ export interface IChatEditingSession extends IDisposable {
 	accept(...uris: URI[]): Promise<void>;
 	reject(...uris: URI[]): Promise<void>;
 	getEntry(uri: URI): IModifiedFileEntry | undefined;
-	readEntry(uri: URI, reader?: IReader): IModifiedFileEntry | undefined;
+	readEntry(uri: URI, reader: IReader): IModifiedFileEntry | undefined;
 
 	restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void>;
+
+	/**
+	 * Marks all edits to the given resources as agent edits until
+	 * {@link stopExternalEdits} is called with the same ID. This is used for
+	 * agents that make changes on-disk rather than streaming edits through the
+	 * chat session.
+	 */
+	startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[]): Promise<IChatProgress[]>;
+	stopExternalEdits(responseModel: IChatResponseModel, operationId: number): Promise<IChatProgress[]>;
 
 	/**
 	 * Gets the snapshot URI of a file at the request and _after_ changes made in the undo stop.
@@ -122,9 +134,8 @@ export interface IChatEditingSession extends IDisposable {
 	 */
 	getSnapshotUri(requestId: string, uri: URI, stopId: string | undefined): URI | undefined;
 
+	getSnapshotContents(requestId: string, uri: URI, stopId: string | undefined): Promise<VSBuffer | undefined>;
 	getSnapshotModel(requestId: string, undoStop: string | undefined, snapshotUri: URI): Promise<ITextModel | null>;
-
-	getSnapshot(requestId: string, undoStop: string | undefined, snapshotUri: URI): ISnapshotEntry | undefined;
 
 	/**
 	 * Will lead to this object getting disposed
@@ -166,6 +177,9 @@ export interface IEditSessionEntryDiff {
 	/** Diff state information: */
 	quitEarly: boolean;
 	identical: boolean;
+
+	/** True if nothing else will be added to this diff. */
+	isFinal: boolean;
 
 	/** Added data (e.g. line numbers) to show in the UI */
 	added: number;
@@ -243,7 +257,7 @@ export interface IModifiedFileEntry {
 	readonly lastModifyingRequestId: string;
 
 	readonly state: IObservable<ModifiedFileEntryState>;
-	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
+	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined>;
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
 
@@ -260,6 +274,11 @@ export interface IModifiedFileEntry {
 	 * Number of changes for this file
 	 */
 	readonly changesCount: IObservable<number>;
+
+	/**
+	 * Diff information for this entry
+	 */
+	readonly diffInfo?: IObservable<IDocumentDiff>;
 
 	/**
 	 * Number of lines added in this entry.

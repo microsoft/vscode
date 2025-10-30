@@ -99,7 +99,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		const label = new IconLabel(provider, { supportIcons: false });
 
 		const actions = append(provider, $('.actions'));
-		const toolBar = new WorkbenchToolBar(actions, { actionViewItemProvider: this.actionViewItemProvider, resetMenu: this.toolbarMenuId }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
+		const toolBar = new WorkbenchToolBar(actions, { actionViewItemProvider: this.actionViewItemProvider, resetMenu: this.toolbarMenuId, responsive: true }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		const countContainer = append(provider, $('.count'));
 		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
 		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => provider.classList.toggle('active', e));
@@ -116,13 +116,14 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			this.onDidChangeVisibleRepositoriesSignal.read(reader);
 
 			const isVisible = this.scmViewService.isVisible(repository);
-			templateData.label.element.classList.toggle('visible', isVisible);
-
 			const icon = ThemeIcon.isThemeIcon(repository.provider.iconPath)
 				? repository.provider.iconPath
 				: Codicon.repo;
 
-			templateData.icon.className = icon.id === Codicon.repo.id && isVisible
+			// Only show the selected icon if there are multiple repositories in the workspace
+			const showSelectedIcon = icon.id === Codicon.repo.id && isVisible && this.scmViewService.repositories.length > 1;
+
+			templateData.icon.className = showSelectedIcon
 				? `icon ${ThemeIcon.asClassName(Codicon.repoSelected)}`
 				: `icon ${ThemeIcon.asClassName(icon)}`;
 		}));

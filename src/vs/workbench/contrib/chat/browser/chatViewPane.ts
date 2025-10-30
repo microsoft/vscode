@@ -36,7 +36,7 @@ import { IChatSessionsExtensionPoint, IChatSessionsService } from '../common/cha
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
-import { ChatSessionUri } from '../common/chatUri.js';
+import { LocalChatSessionUri } from '../common/chatUri.js';
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
@@ -253,8 +253,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		// Handle locking for contributed chat sessions
-		if (URI.isUri(sessionId) && sessionId.scheme === Schemas.vscodeChatSession) {
-			const parsed = ChatSessionUri.parse(sessionId);
+		if (URI.isUri(sessionId) && sessionId.scheme === Schemas.vscodeLocalChatSession) {
+			const parsed = LocalChatSessionUri.parse(sessionId);
 			if (parsed?.chatSessionType) {
 				await this.chatSessionsService.canResolveChatSession(sessionId);
 				const contributions = this.chatSessionsService.getAllChatSessionContributions();

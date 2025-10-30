@@ -756,12 +756,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	max-width: 100%;
 }
 
-/* When suggest-next widget is present above input, remove top border-radius for connected appearance */
-.interactive-session .chat-suggest-next-widget ~ .interactive-input-part .chat-input-container {
-	border-top-left-radius: 0;
-	border-top-right-radius: 0;
-}
-
 .interactive-session .chat-editing-session {
 	margin-bottom: -4px; /* Counter the flex gap */
 	/* reset the 4px gap of the container for editing sessions */
@@ -1106,15 +1100,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand {
+	width: 100%;
+}
+
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand .monaco-button {
 	display: flex;
 	align-items: center;
 	gap: 4px;
 	cursor: pointer;
 	justify-content: space-between;
 	width: 100%;
+	background-color: transparent;
+	border-color: transparent;
+	color: var(--vscode-foreground);
+	padding: 0;
+	min-width: unset;
 }
 
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand:focus:not(:focus-visible) {
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand .monaco-button:focus:not(:focus-visible) {
 	outline: none;
 }
 
@@ -1122,9 +1125,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-left: 3px;
 	display: flex;
 	align-items: center;
-	gap: 4px;
 	flex: 1;
-	color: var(--vscode-foreground);
 	font-size: 11px;
 	white-space: nowrap;
 	overflow: hidden;
@@ -1178,12 +1179,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .expand-icon {
 	flex-shrink: 0;
+	margin-right: 3px;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-title {
 	font-weight: normal;
 	font-size: 11px;
-	color: var(--vscode-foreground);
 	display: flex;
 	align-items: center;
 	overflow: hidden;
@@ -1214,7 +1215,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-item {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 6px;
 	scroll-snap-align: start;
 	min-height: 22px;
 	font-size: var(--vscode-chat-font-size-body-m);
@@ -1239,7 +1240,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-content {
-	color: var(--vscode-foreground);
 	flex-grow: 1;
 	overflow: hidden;
 	white-space: nowrap;
@@ -1280,7 +1280,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
 .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-input-background);
+	background-color: var(--vscode-input-background) !important;
 }
 
 .interactive-session .interactive-input-part.editing .chat-input-container .chat-editor-container .monaco-editor,
@@ -2185,8 +2185,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
 		color: var(--vscode-icon-foreground) !important;
 
-		&.codicon-check {
-			color: var(--vscode-debugIcon-startForeground) !important;
+		&.codicon-error {
+			color: var(--vscode-editorError-foreground) !important;
 		}
 	}
 
