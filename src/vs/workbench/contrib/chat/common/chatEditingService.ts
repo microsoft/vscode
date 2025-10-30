@@ -19,6 +19,7 @@ import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatResponseModel } from './chatModel.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
@@ -263,6 +264,11 @@ export interface IModifiedFileEntry {
 	 * Number of changes for this file
 	 */
 	readonly changesCount: IObservable<number>;
+
+	/**
+	 * Diff information for this entry
+	 */
+	readonly diffInfo?: IObservable<IDocumentDiff>;
 
 	/**
 	 * Number of lines added in this entry.
