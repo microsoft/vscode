@@ -380,8 +380,8 @@ suite('migrateOptions', () => {
 		assert.deepStrictEqual(migrate({ quickSuggestions: { comments: 'on', strings: 'off' } }), { quickSuggestions: { comments: 'on', strings: 'off' } });
 	});
 	test('hover', () => {
-		assert.deepStrictEqual(migrate({ hover: true }), { hover: { enabled: true } });
-		assert.deepStrictEqual(migrate({ hover: false }), { hover: { enabled: false } });
+		assert.deepStrictEqual(migrate({ hover: true }), { hover: { enabled: 'on' } });
+		assert.deepStrictEqual(migrate({ hover: false }), { hover: { enabled: 'off' } });
 	});
 	test('parameterHints', () => {
 		assert.deepStrictEqual(migrate({ parameterHints: true }), { parameterHints: { enabled: true } });
