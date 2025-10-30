@@ -138,8 +138,6 @@
 	"command.graphDeleteBranch": "Delete Branch",
 	"command.graphDeleteTag": "Delete Tag",
 	"command.graphCompareRef": "Compare with...",
-	"command.graphOpenIncomingChanges": "Open Incoming Changes",
-	"command.graphOpenOutgoingChanges": "Open Outgoing Changes",
 	"command.graphCompareWithMergeBase": "Compare with Merge Base",
 	"command.graphCompareWithRemote": "Compare with Remote",
 	"command.blameToggleEditorDecoration": "Toggle Git Blame Editor Decoration",

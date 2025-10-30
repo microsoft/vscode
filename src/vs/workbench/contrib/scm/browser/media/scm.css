@@ -165,11 +165,15 @@
 	height: 22px;
 }
 
-.scm-view .monaco-list-row .history-item > .graph-container.current > .graph > circle:last-child {
+.scm-view .monaco-list-row .history-item > .graph-container.current > .graph > circle:last-child,
+.scm-view .monaco-list-row .history-item > .graph-container.incoming-changes > .graph > circle:last-child,
+.scm-view .monaco-list-row .history-item > .graph-container.outgoing-changes > .graph > circle:last-child {
 	fill: var(--vscode-sideBar-background);
 }
 
-.scm-view .monaco-list-row:hover .history-item > .graph-container.current > .graph > circle:last-child {
+.scm-view .monaco-list-row:hover .history-item > .graph-container.current > .graph > circle:last-child,
+.scm-view .monaco-list-row:hover .history-item > .graph-container.incoming-changes > .graph > circle:last-child,
+.scm-view .monaco-list-row:hover .history-item > .graph-container.outgoing-changes > .graph > circle:last-child {
 	fill: var(--vscode-list-hoverBackground);
 }
 
