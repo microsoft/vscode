@@ -387,6 +387,8 @@ export class FormatString extends Marker {
 			return !value ? '' : this._toPascalCase(value);
 		} else if (this.shorthandName === 'camelcase') {
 			return !value ? '' : this._toCamelCase(value);
+		} else if (this.shorthandName === 'snakecase') {
+			return !value ? '' : this._toSnakeCase(value);
 		} else if (Boolean(value) && typeof this.ifValue === 'string') {
 			return this.ifValue;
 		} else if (!Boolean(value) && typeof this.elseValue === 'string') {
@@ -419,6 +421,26 @@ export class FormatString extends Marker {
 			return word.charAt(0).toUpperCase() + word.substr(1);
 		})
 			.join('');
+	}
+
+	private _toSnakeCase(value: string): string {
+		const match = value.
+			replaceAll(/[A-Z]{2,}[a-z]/g, match => {
+				// Handles acronymes followed by a capitalized word
+				// Ex.: SECCaseID should return sec_case_id not secc_ase_id
+				const acronym = match.substring(0, match.length - 2).toLowerCase();
+				const remaining = match.substring(match.length - 2).toLowerCase();
+
+				return `_${acronym}_${remaining}`;
+			}).
+			match(/[A-Z]{2,}|[0-9]+|[A-Z][a-z]+|[a-z]+/g);
+
+		if (!match) {
+			return value;
+		}
+		return match
+			.map(word => word.toLowerCase())
+			.join('_');
 	}
 
 	toTextmateString(): string {
