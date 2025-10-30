@@ -38,6 +38,7 @@ import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/m
 import * as domSanitize from '../../../../../../base/browser/domSanitize.js';
 import { DomSanitizerConfig } from '../../../../../../base/browser/domSanitize.js';
 import { allowedMarkdownHtmlAttributes } from '../../../../../../base/browser/markdownRenderer.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
 
@@ -320,7 +321,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 
 		if (!this._terminalInstance) {
-			this._terminalInstance = this._terminalService.getInstanceFromResource(this._terminalData.terminalCommandUri);
+			const resource = this._getTerminalResource();
+			if (resource) {
+				this._terminalInstance = this._terminalService.getInstanceFromResource(resource);
+			}
 		}
 		const output = await this._collectOutput(this._terminalInstance);
 		const content = this._renderOutput(output);
@@ -433,6 +437,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 
 		return container;
+	}
+
+	private _getTerminalResource(): URI | undefined {
+		const commandUri = this._terminalData.terminalCommandUri;
+		if (!commandUri) {
+			return undefined;
+		}
+		return URI.isUri(commandUri) ? commandUri : URI.revive(commandUri);
 	}
 
 
