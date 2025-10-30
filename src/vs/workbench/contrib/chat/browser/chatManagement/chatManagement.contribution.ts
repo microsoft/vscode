@@ -6,6 +6,7 @@
 import { isObject, isString } from '../../../../../base/common/types.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ProductQualityContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -99,12 +100,9 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: MANAGE_CHAT_COMMAND_ID,
-			title: {
-				...localize2('openAiManagement', "Manage Copilot"),
-				mnemonicTitle: localize({ key: 'miManageCopilot', comment: ['&& denotes a mnemonic'] }, "Manage &&Copilot"),
-			},
-			shortTitle: localize2('manageCopilotShort', "Copilot"),
+			title: localize2('openAiManagement', "Manage Language Models"),
 			category: CHAT_CATEGORY,
+			precondition: ProductQualityContext.notEqualsTo('stable'),
 			f1: true,
 		});
 	}
