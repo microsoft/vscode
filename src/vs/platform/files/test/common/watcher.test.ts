@@ -180,6 +180,15 @@ suite('Watcher Events Normalizer', () => {
 				assert.ok(event.contains(addedFile, FileChangeType.ADDED));
 				assert.ok(event.contains(updatedFile, FileChangeType.UPDATED));
 
+				// Verify that deleted folder B has associated resources for its children
+				const deletedFolderBEvent = raw.find(e => isEqual(e.resource, deletedFolderB));
+				assert.ok(deletedFolderBEvent);
+				assert.ok(deletedFolderBEvent.associatedResources);
+				assert.strictEqual(deletedFolderBEvent.associatedResources.length, 3);
+				assert.ok(deletedFolderBEvent.associatedResources.some(r => isEqual(r, deletedFolderBF1)));
+				assert.ok(deletedFolderBEvent.associatedResources.some(r => isEqual(r, deletedFolderBF2)));
+				assert.ok(deletedFolderBEvent.associatedResources.some(r => isEqual(r, deletedFolderBF3)));
+
 				done();
 			}));
 
@@ -352,6 +361,156 @@ suite('Watcher Events Normalizer', () => {
 		assert.strictEqual(isFiltered({ resource, type: FileChangeType.UPDATED }, FileChangeFilter.UPDATED), false);
 		assert.strictEqual(isFiltered({ resource, type: FileChangeType.UPDATED }, FileChangeFilter.DELETED | FileChangeFilter.UPDATED), false);
 		assert.strictEqual(isFiltered({ resource, type: FileChangeType.UPDATED }, FileChangeFilter.ADDED | FileChangeFilter.DELETED | FileChangeFilter.UPDATED), false);
+	});
+
+	test('coalesceEvents preserves deleted children in associatedResources', () => {
+		const parent = URI.file('/users/data/src/folder');
+		const child1 = URI.file('/users/data/src/folder/file1.txt');
+		const child2 = URI.file('/users/data/src/folder/nested/file2.txt');
+		const child3 = URI.file('/users/data/src/folder/nested/deep/file3.txt');
+
+		const changes: IFileChange[] = [
+			{ resource: parent, type: FileChangeType.DELETED },
+			{ resource: child1, type: FileChangeType.DELETED },
+			{ resource: child2, type: FileChangeType.DELETED },
+			{ resource: child3, type: FileChangeType.DELETED }
+		];
+
+		const coalesced = coalesceEvents(changes);
+
+		// Should only have 1 delete event (the parent)
+		assert.strictEqual(coalesced.length, 1);
+		assert.strictEqual(coalesced[0].type, FileChangeType.DELETED);
+		assert.ok(isEqual(coalesced[0].resource, parent));
+
+		// All children should be in associatedResources
+		assert.ok(coalesced[0].associatedResources);
+		assert.strictEqual(coalesced[0].associatedResources!.length, 3);
+
+		const associatedPaths = coalesced[0].associatedResources!.map(r => r.fsPath).sort();
+		assert.deepStrictEqual(associatedPaths, [child1.fsPath, child2.fsPath, child3.fsPath].sort());
+	});
+
+	test('coalesceEvents preserves multiple parent deletes with their children', () => {
+		const parent1 = URI.file('/users/data/src/folder1');
+		const parent1Child1 = URI.file('/users/data/src/folder1/file1.txt');
+		const parent1Child2 = URI.file('/users/data/src/folder1/file2.txt');
+
+		const parent2 = URI.file('/users/data/src/folder2');
+		const parent2Child1 = URI.file('/users/data/src/folder2/fileA.txt');
+
+		const unrelatedFile = URI.file('/users/data/src/other.txt');
+
+		const changes: IFileChange[] = [
+			{ resource: parent1, type: FileChangeType.DELETED },
+			{ resource: parent1Child1, type: FileChangeType.DELETED },
+			{ resource: parent1Child2, type: FileChangeType.DELETED },
+			{ resource: parent2, type: FileChangeType.DELETED },
+			{ resource: parent2Child1, type: FileChangeType.DELETED },
+			{ resource: unrelatedFile, type: FileChangeType.DELETED }
+		];
+
+		const coalesced = coalesceEvents(changes);
+
+		// Should have 3 delete events (2 parents + 1 unrelated)
+		assert.strictEqual(coalesced.length, 3);
+
+		const parent1Event = coalesced.find(e => isEqual(e.resource, parent1));
+		const parent2Event = coalesced.find(e => isEqual(e.resource, parent2));
+		const unrelatedEvent = coalesced.find(e => isEqual(e.resource, unrelatedFile));
+
+		assert.ok(parent1Event);
+		assert.ok(parent2Event);
+		assert.ok(unrelatedEvent);
+
+		// parent1 should have 2 associated resources
+		assert.ok(parent1Event!.associatedResources);
+		assert.strictEqual(parent1Event!.associatedResources!.length, 2);
+		assert.ok(parent1Event!.associatedResources!.some(r => isEqual(r, parent1Child1)));
+		assert.ok(parent1Event!.associatedResources!.some(r => isEqual(r, parent1Child2)));
+
+		// parent2 should have 1 associated resource
+		assert.ok(parent2Event!.associatedResources);
+		assert.strictEqual(parent2Event!.associatedResources!.length, 1);
+		assert.ok(isEqual(parent2Event!.associatedResources![0], parent2Child1));
+
+		// unrelated file should have no associated resources
+		assert.ok(!unrelatedEvent!.associatedResources || unrelatedEvent!.associatedResources!.length === 0);
+	});
+
+	test('coalesceEvents works with mixed add/update/delete events', () => {
+		const deletedParent = URI.file('/users/data/src/deleted');
+		const deletedChild = URI.file('/users/data/src/deleted/child.txt');
+		const addedFile = URI.file('/users/data/src/added.txt');
+		const updatedFile = URI.file('/users/data/src/updated.txt');
+
+		const changes: IFileChange[] = [
+			{ resource: deletedParent, type: FileChangeType.DELETED },
+			{ resource: deletedChild, type: FileChangeType.DELETED },
+			{ resource: addedFile, type: FileChangeType.ADDED },
+			{ resource: updatedFile, type: FileChangeType.UPDATED }
+		];
+
+		const coalesced = coalesceEvents(changes);
+
+		assert.strictEqual(coalesced.length, 3);
+
+		const deleteEvent = coalesced.find(e => e.type === FileChangeType.DELETED);
+		const addEvent = coalesced.find(e => e.type === FileChangeType.ADDED);
+		const updateEvent = coalesced.find(e => e.type === FileChangeType.UPDATED);
+
+		assert.ok(deleteEvent);
+		assert.ok(addEvent);
+		assert.ok(updateEvent);
+
+		assert.ok(isEqual(deleteEvent!.resource, deletedParent));
+		assert.ok(deleteEvent!.associatedResources);
+		assert.strictEqual(deleteEvent!.associatedResources!.length, 1);
+		assert.ok(isEqual(deleteEvent!.associatedResources![0], deletedChild));
+
+		assert.ok(isEqual(addEvent!.resource, addedFile));
+		assert.ok(isEqual(updateEvent!.resource, updatedFile));
+	});
+
+	test('coalesceEvents handles deeply nested deletions', () => {
+		const root = URI.file('/users/data/src');
+		const level1 = URI.file('/users/data/src/level1');
+		const level2 = URI.file('/users/data/src/level1/level2');
+		const level3 = URI.file('/users/data/src/level1/level2/level3');
+		const level4 = URI.file('/users/data/src/level1/level2/level3/level4.txt');
+
+		const changes: IFileChange[] = [
+			{ resource: root, type: FileChangeType.DELETED },
+			{ resource: level1, type: FileChangeType.DELETED },
+			{ resource: level2, type: FileChangeType.DELETED },
+			{ resource: level3, type: FileChangeType.DELETED },
+			{ resource: level4, type: FileChangeType.DELETED }
+		];
+
+		const coalesced = coalesceEvents(changes);
+
+		// Should only have the root delete event
+		assert.strictEqual(coalesced.length, 1);
+		assert.ok(isEqual(coalesced[0].resource, root));
+
+		// All nested levels should be in associatedResources
+		assert.ok(coalesced[0].associatedResources);
+		assert.strictEqual(coalesced[0].associatedResources!.length, 4);
+	});
+
+	test('coalesceEvents handles file delete without children', () => {
+		const file = URI.file('/users/data/src/file.txt');
+
+		const changes: IFileChange[] = [
+			{ resource: file, type: FileChangeType.DELETED }
+		];
+
+		const coalesced = coalesceEvents(changes);
+
+		assert.strictEqual(coalesced.length, 1);
+		assert.ok(isEqual(coalesced[0].resource, file));
+		// No associatedResources for a simple file delete
+		assert.ok(!coalesced[0].associatedResources || coalesced[0].associatedResources!.length === 0);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
