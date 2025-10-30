@@ -22,6 +22,11 @@ export class MultiplexPolicyService extends AbstractPolicyService implements IPo
 			this.updatePolicies();
 			this._onDidChange.fire(names);
 		}));
+
+		this._register(Event.any(...this.policyServices.map(service => service.onDidParseErrors))(() => {
+			const errors = this.getPolicyErrors();
+			this._onDidParseErrors.fire(errors.length > 0 ? errors : undefined);
+		}));
 	}
 
 	override async updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>> {
@@ -57,5 +62,23 @@ export class MultiplexPolicyService extends AbstractPolicyService implements IPo
 			}
 			changed.add(key);
 		}
+	}
+
+	override getPolicyErrors() {
+		const errorMap = new Map<string, [string, string]>();
+		for (const service of this.policyServices) {
+			const errors = service.getPolicyErrors?.() ?? [];
+			for (const err of errors) {
+				const policyName = err[0];
+				if (!errorMap.has(policyName)) {
+					errorMap.set(policyName, err);
+				}
+			}
+		}
+		return Array.from(errorMap.values());
+	}
+
+	override async updatePolicyErrors(policyErrors: any) {
+		await Promise.all(this.policyServices.map(service => service.updatePolicyErrors(policyErrors)));
 	}
 }

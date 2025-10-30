@@ -165,6 +165,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
 		const excludedConfigurationProperties = this.configurationRegistry.getExcludedConfigurationProperties();
 		const changed: [string, any][] = [];
+		const errors: [policyName: string, error: string][] = [];
 		const wasEmpty = this._configurationModel.isEmpty();
 
 		for (const key of keys) {
@@ -176,6 +177,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 					try {
 						policyValue = this.parse(policyValue);
 					} catch (e) {
+						errors.push([policyName, getErrorMessage(e)]);
 						this.logService.error(`Error parsing policy value ${policyName}:`, getErrorMessage(e));
 						continue;
 					}
@@ -188,6 +190,11 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 					changed.push([key, undefined]);
 				}
 			}
+		}
+
+		if (errors.length) {
+			this.logService.error('PolicyConfiguration#errors', errors);
+			this.policyService.updatePolicyErrors(errors);
 		}
 
 		if (changed.length) {
