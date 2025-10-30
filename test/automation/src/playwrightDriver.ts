@@ -81,7 +81,7 @@ export class PlaywrightDriver {
 			// it failed, also trigger one explicitly. Tracing
 			// does not guarantee to give us a screenshot unless
 			// some driver action ran before.
-			if (persist && name) {
+			if (persist) {
 				await this.takeScreenshot(name);
 			}
 		} catch (error) {
