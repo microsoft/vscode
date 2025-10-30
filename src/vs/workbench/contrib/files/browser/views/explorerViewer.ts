@@ -1327,9 +1327,10 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 			const excludesConfigCopy = deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
 
+			const ignoreCase = configuration?.files?.ignoreGlobPatternCase;
 			this.hiddenExpressionPerRoot.set(folderUri, {
 				original: excludesConfigCopy,
-				parsed: glob.parse(excludesConfigCopy, { ignoreCase: true })
+				parsed: glob.parse(excludesConfigCopy, { ignoreCase })
 			});
 		});
 

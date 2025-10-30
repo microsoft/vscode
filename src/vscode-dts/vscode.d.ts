@@ -9838,9 +9838,13 @@ declare module 'vscode' {
 			 */
 			readonly recursive: boolean;
 			/**
-			 * A list of paths and pattern to exclude from watching.
+			 * A list of paths and patterns to exclude from watching.
 			 */
 			readonly excludes: readonly string[];
+			/**
+			 * When enabled, ignore case for glob patterns in `excludes`.
+			 */
+			readonly ignoreGlobPatternCase?: boolean;
 		}): Disposable;
 
 		/**
