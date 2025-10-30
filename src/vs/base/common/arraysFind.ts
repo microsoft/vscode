@@ -15,7 +15,7 @@ export function findLast<T>(array: readonly T[], predicate: (item: T) => unknown
 	return array[idx];
 }
 
-export function findLastIdx<T>(array: readonly T[], predicate: (item: T) => unknown, fromIndex = array.length - 1): number {
+function findLastIdx<T>(array: readonly T[], predicate: (item: T) => unknown, fromIndex = array.length - 1): number {
 	for (let i = fromIndex; i >= 0; i--) {
 		const element = array[i];
 
