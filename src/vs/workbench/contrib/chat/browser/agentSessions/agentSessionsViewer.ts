@@ -38,11 +38,13 @@ import { AGENT_SESSIONS_VIEW_ID } from './agentSessions.js';
 interface IAgentSessionItemTemplate {
 	readonly element: HTMLElement;
 
+	// Row 1
 	readonly title: IconLabel;
 	readonly icon: HTMLElement;
-
-	readonly description: HTMLElement;
 	readonly timestamp: HTMLElement;
+
+	// Row 2
+	readonly description: HTMLElement;
 	readonly diffAdded: HTMLElement;
 	readonly diffRemoved: HTMLElement;
 
@@ -73,20 +75,18 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		const elements = h(
 			'div.agent-session-item@item',
 			[
-				h('div.agent-session-icon-col', [
-					h('div.agent-session-icon@icon')
-				]),
 				h('div.agent-session-main-col', [
 					h('div.agent-session-title-row', [
 						h('div.agent-session-title@titleContainer'),
-						h('div.agent-session-diff', [
-							h('span.agent-session-diff-added@diffAdded'),
-							h('span.agent-session-diff-removed@diffRemoved')
-						])
+						h('div.agent-session-icon@icon'),
+						h('div.agent-session-timestamp@timestamp')
 					]),
 					h('div.agent-session-details-row', [
 						h('div.agent-session-description@description'),
-						h('div.agent-session-timestamp@timestamp')
+						h('div.agent-session-diff', [
+							h('span.agent-session-diff-added@diffAdded'),
+							h('span.agent-session-diff-removed@diffRemoved')
+						]),
 					])
 				])
 			]
@@ -110,7 +110,10 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	renderElement(session: ITreeNode<IAgentSessionViewModel, FuzzyScore>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
 		template.elementDisposable.clear();
 
-		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.statusToIcon(session.element.status))}`;
+		const icon = this.statusToIcon(session.element.status) ?? session.element.icon;
+		if (icon) {
+			template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(icon)}`;
+		}
 
 		template.title.setLabel(session.element.label, undefined, { matches: createMatches(session.filterData) });
 
@@ -163,7 +166,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		}
 	}
 
-	private statusToIcon(status?: ChatSessionStatus): ThemeIcon {
+	private statusToIcon(status?: ChatSessionStatus): ThemeIcon | undefined {
 		switch (status) {
 			case ChatSessionStatus.InProgress:
 				return ThemeIcon.modify(Codicon.loading, 'spin');
@@ -173,7 +176,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 				return Codicon.error;
 		}
 
-		return Codicon.circleOutline;
+		return undefined;
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAgentSessionViewModel>, FuzzyScore>, index: number, templateData: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
