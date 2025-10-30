@@ -19,6 +19,7 @@ import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { language } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
@@ -682,6 +683,22 @@ export function registerChatActions() {
 				uri?: URI;
 			}
 
+			function isChatPickerItem(item: IQuickPickItem): item is IChatPickerItem {
+				return hasKey(item, 'chat');
+			}
+
+			function isCodingAgentPickerItem(item: IQuickPickItem): item is ICodingAgentPickerItem {
+				return isChatPickerItem(item) && hasKey(item, 'id');
+			}
+
+			const showMorePick: IQuickPickItem = {
+				label: localize('chat.history.showMore', 'Show more...'),
+			};
+
+			const showMoreAgentsPick: IQuickPickItem = {
+				label: localize('chat.history.showMoreAgents', 'Show more...'),
+			};
+
 			const getPicks = async (showAllChats: boolean = false, showAllAgents: boolean = false) => {
 				// Fast picks: Get cached/immediate items first
 				const cachedItems = await chatService.getLocalSessionHistory();
@@ -705,7 +722,8 @@ export function registerChatActions() {
 				});
 
 				const fastPickItems = showAllChats ? allFastPickItems : allFastPickItems.slice(0, 5);
-				const fastPicks: (IQuickPickSeparator | IChatPickerItem)[] = [];
+
+				const fastPicks: Array<IQuickPickSeparator | IChatPickerItem | IQuickPickItem> = [];
 				if (fastPickItems.length > 0) {
 					fastPicks.push({
 						type: 'separator',
@@ -715,22 +733,13 @@ export function registerChatActions() {
 
 					// Add "Show more..." if there are more items and we're not showing all chats
 					if (!showAllChats && allFastPickItems.length > 5) {
-						fastPicks.push({
-							label: localize('chat.history.showMore', 'Show more...'),
-							description: '',
-							chat: {
-								sessionId: 'show-more-chats',
-								title: 'Show more...',
-								isActive: false,
-								lastMessageDate: 0,
-							},
-							buttons: []
-						});
+
+						fastPicks.push(showMorePick);
 					}
 				}
 
 				// Slow picks: Get coding agents asynchronously via AsyncIterable
-				const slowPicks = (async function* (): AsyncGenerator<(IQuickPickSeparator | ICodingAgentPickerItem)[]> {
+				const slowPicks = (async function* (): AsyncGenerator<Array<IQuickPickSeparator | ICodingAgentPickerItem | IQuickPickItem>> {
 					try {
 						const agentPicks: ICodingAgentPickerItem[] = [];
 
@@ -782,7 +791,7 @@ export function registerChatActions() {
 							}
 
 							// Create current picks with separator if we have agents
-							const currentPicks: (IQuickPickSeparator | ICodingAgentPickerItem)[] = [];
+							const currentPicks: Array<IQuickPickSeparator | ICodingAgentPickerItem | IQuickPickItem> = [];
 
 							if (agentPicks.length > 0) {
 								// Always add separator for coding agents section
@@ -794,18 +803,7 @@ export function registerChatActions() {
 
 								// Add "Show more..." if needed and not showing all agents
 								if (!showAllAgents && providerNSessions.length > 5) {
-									currentPicks.push({
-										label: localize('chat.history.showMoreAgents', 'Show more...'),
-										description: '',
-										chat: {
-											sessionId: 'show-more-agents',
-											title: 'Show more...',
-											isActive: false,
-											lastMessageDate: 0,
-										},
-										buttons: [],
-										uri: undefined,
-									});
+									currentPicks.push(showMoreAgentsPick);
 								}
 							}
 
@@ -830,7 +828,7 @@ export function registerChatActions() {
 			};
 
 			const store = new DisposableStore();
-			const picker = store.add(quickInputService.createQuickPick<IChatPickerItem | ICodingAgentPickerItem>({ useSeparators: true }));
+			const picker = store.add(quickInputService.createQuickPick<IChatPickerItem | IQuickPickItem>({ useSeparators: true }));
 			picker.title = (showAllChats || showAllAgents) ?
 				localize('interactiveSession.history.titleAll', "All Workspace Chat History") :
 				localize('interactiveSession.history.title', "Workspace Chat History");
@@ -866,6 +864,10 @@ export function registerChatActions() {
 				}
 			}));
 			store.add(picker.onDidTriggerItemButton(async context => {
+				if (!isChatPickerItem(context.item)) {
+					return;
+				}
+
 				if (context.button === openInEditorButton) {
 					const options: IChatEditorOptions = { pinned: true };
 					editorService.openEditor({
@@ -934,10 +936,9 @@ export function registerChatActions() {
 			store.add(picker.onDidAccept(async () => {
 				try {
 					const item = picker.selectedItems[0];
-					const sessionId = item.chat.sessionId;
 
 					// Handle "Show more..." options
-					if (sessionId === 'show-more-chats') {
+					if (item === showMorePick) {
 						picker.hide();
 						// Create a new picker with all chat items expanded
 						await this.showIntegratedPicker(
@@ -954,7 +955,7 @@ export function registerChatActions() {
 							showAllAgents
 						);
 						return;
-					} else if (sessionId === 'show-more-agents') {
+					} else if (item === showMoreAgentsPick) {
 						picker.hide();
 						// Create a new picker with all agent items expanded
 						await this.showIntegratedPicker(
@@ -971,15 +972,14 @@ export function registerChatActions() {
 							true
 						);
 						return;
-					} else if ((item as ICodingAgentPickerItem).id !== undefined) {
+					} else if (isCodingAgentPickerItem(item)) {
 						// TODO: This is a temporary change that will be replaced by opening a new chat instance
-						const codingAgentItem = item as ICodingAgentPickerItem;
-						if (codingAgentItem.session) {
-							await this.showChatSessionInEditor(codingAgentItem.session.providerType, codingAgentItem.session.session, editorService);
+						if (item.session) {
+							await this.showChatSessionInEditor(item.session.providerType, item.session.session, editorService);
 						}
+					} else if (isChatPickerItem(item)) {
+						await view.loadSession(item.chat.sessionId);
 					}
-
-					await view.loadSession(sessionId);
 				} finally {
 					picker.hide();
 				}
@@ -1131,7 +1131,7 @@ export function registerChatActions() {
 				options: {
 					pinned: true,
 					auxiliary: { compact: false }
-				} satisfies IChatEditorOptions
+				}
 			}, AUX_WINDOW_GROUP);
 		}
 	});
