@@ -64,7 +64,6 @@ export class RenameChatSessionAction extends Action2 {
 		}
 
 		// Handle marshalled context from menu actions
-		const sessionId = context.session.id.replace('history-', '');
 		const label = context.session.label;
 		const chatSessionsService = accessor.get(IChatSessionsService);
 		const logService = accessor.get(ILogService);
@@ -89,7 +88,7 @@ export class RenameChatSessionAction extends Action2 {
 					if (success && value && value.trim() !== label) {
 						try {
 							const newTitle = value.trim();
-							chatService.setChatSessionTitle(sessionId, newTitle);
+							chatService.setChatSessionTitle(context.session.resource, newTitle);
 							// Notify the local sessions provider that items have changed
 							chatSessionsService.notifySessionItemsChanged(localChatSessionType);
 						} catch (error) {
@@ -130,7 +129,6 @@ export class DeleteChatSessionAction extends Action2 {
 		}
 
 		// Handle marshalled context from menu actions
-		const sessionId = context.session.id;
 		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
 		const logService = accessor.get(ILogService);
@@ -146,7 +144,7 @@ export class DeleteChatSessionAction extends Action2 {
 			});
 
 			if (result.confirmed) {
-				await chatService.removeHistoryEntry(sessionId);
+				await chatService.removeHistoryEntry(context.session.resource);
 				// Notify the local sessions provider that items have changed
 				chatSessionsService.notifySessionItemsChanged(localChatSessionType);
 			}

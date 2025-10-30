@@ -13,7 +13,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
 
 //#region Interfaces, Types
 
@@ -192,7 +191,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 				// - can we support all properties including `startTime` properly
 				for (const history of await this.chatService.getLocalSessionHistory()) {
 					newSessions.push({
-						resource: LocalChatSessionUri.forSession(history.sessionId),
+						resource: history.sessionResource,
 						label: history.title,
 						provider: provider,
 						timing: {
