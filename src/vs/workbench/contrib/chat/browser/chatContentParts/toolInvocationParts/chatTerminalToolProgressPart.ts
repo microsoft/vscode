@@ -182,12 +182,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private async _addFocusAction(terminalInstance: ITerminalInstance, terminalToolSessionId: string) {
-		const isTerminalHidden = this._terminalChatService.isBackgroundTerminal(terminalToolSessionId);
-		const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, () => this._resolveCommand(terminalInstance), isTerminalHidden);
-		this._focusAction.value = focusAction;
 		if (!this._actionBar.value) {
 			return;
 		}
+		const isTerminalHidden = this._terminalChatService.isBackgroundTerminal(terminalToolSessionId);
+		const command = this._getResolvedCommand(terminalInstance);
+		const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, command, isTerminalHidden);
+		this._focusAction.value = focusAction;
 		this._actionBar.value.push(focusAction, { icon: true, label: false, index: 0 });
 		this._ensureShowOutputAction();
 	}
@@ -523,7 +524,7 @@ class ToggleChatTerminalOutputAction extends Action implements IAction {
 export class FocusChatInstanceAction extends Action implements IAction {
 	constructor(
 		private readonly _instance: ITerminalInstance,
-		private readonly _getCommand: () => ITerminalCommand | undefined,
+		private readonly _command: ITerminalCommand | undefined,
 		isTerminalHidden: boolean,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
@@ -547,14 +548,8 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		}
 		this._terminalService.setActiveInstance(this._instance);
 		await this._instance?.focusWhenReady(true);
-
-		let commandToReveal = this._getCommand();
-		if (!commandToReveal) {
-			const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
-			commandToReveal = capability?.commands?.[capability.commands.length - 1];
-		}
-		if (commandToReveal) {
-			this._instance.xterm?.markTracker.revealCommand(commandToReveal);
+		if (this._command) {
+			this._instance.xterm?.markTracker.revealCommand(this._command);
 		}
 	}
 }
