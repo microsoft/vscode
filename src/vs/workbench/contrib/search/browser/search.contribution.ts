@@ -272,6 +272,24 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: nls.localize('search.showLineNumbers', "Controls whether to show line numbers for search results."),
 		},
+		'search.resultsTruncation': {
+			type: 'string',
+			enum: ['start', 'end', 'both', 'off'],
+			default: 'start',
+			enumDescriptions: [
+				nls.localize('search.resultsTruncation.start', "Truncate at the beginning of the line and keep the match in view."),
+				nls.localize('search.resultsTruncation.end', "Truncate at the end of the line after the match."),
+				nls.localize('search.resultsTruncation.both', "Truncate at both ends with the match centered for context."),
+				nls.localize('search.resultsTruncation.off', "Do not truncate. Show the full line."),
+			],
+			markdownDescription: nls.localize('search.resultsTruncation', "Controls how long search result lines are truncated in the Search view and Quick Search."),
+		},
+		'search.allowedSizeBeforeTruncation': {
+			type: 'number',
+			default: 1000,
+			minimum: 1,
+			markdownDescription: nls.localize('search.allowedSizeBeforeTruncation', "Number of characters to include per line before truncation is applied for non-regex searches. Regex searches may include more to ensure correct replacements."),
+		},
 		'search.usePCRE2': {
 			type: 'boolean',
 			default: false,

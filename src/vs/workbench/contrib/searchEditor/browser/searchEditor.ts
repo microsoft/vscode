@@ -560,23 +560,28 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			isWordMatch: config.matchWholeWord,
 		};
 
-		const options: ITextQueryBuilderOptions = {
-			_reason: 'searchEditor',
-			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
-			maxResults: this.searchConfig.maxResults ?? undefined,
-			disregardIgnoreFiles: !config.useExcludeSettingsAndIgnoreFiles || undefined,
-			disregardExcludeSettings: !config.useExcludeSettingsAndIgnoreFiles || undefined,
-			excludePattern: [{ pattern: config.filesToExclude }],
-			includePattern: config.filesToInclude,
-			onlyOpenEditors: config.onlyOpenEditors,
-			previewOptions: {
-				matchLines: 1,
-				charsPerLine: 1000
-			},
-			surroundingContext: config.contextLines,
-			isSmartCase: this.searchConfig.smartCase,
-			expandPatterns: true,
-			notebookSearchConfig: {
+        const configuredChars = this.searchConfig.allowedSizeBeforeTruncation ?? 1000;
+        const charsPerLine = content.isRegExp ? Math.max(10000, configuredChars) : configuredChars;
+        const truncationMode = this.searchConfig.resultsTruncation ?? 'start';
+
+        const options: ITextQueryBuilderOptions = {
+            _reason: 'searchEditor',
+            extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
+            maxResults: this.searchConfig.maxResults ?? undefined,
+            disregardIgnoreFiles: !config.useExcludeSettingsAndIgnoreFiles || undefined,
+            disregardExcludeSettings: !config.useExcludeSettingsAndIgnoreFiles || undefined,
+            excludePattern: [{ pattern: config.filesToExclude }],
+            includePattern: config.filesToInclude,
+            onlyOpenEditors: config.onlyOpenEditors,
+            previewOptions: {
+                matchLines: 1,
+                charsPerLine,
+                truncationMode
+            },
+            surroundingContext: config.contextLines,
+            isSmartCase: this.searchConfig.smartCase,
+            expandPatterns: true,
+            notebookSearchConfig: {
 				includeMarkupInput: config.notebookSearchConfig.includeMarkupInput,
 				includeMarkupPreview: config.notebookSearchConfig.includeMarkupPreview,
 				includeCodeInput: config.notebookSearchConfig.includeCodeInput,
