@@ -2380,10 +2380,6 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			return this.defaultValue;
 		}
 		const input = _input as Unknown<IEditorHoverOptions>;
-		// Backward compatibility
-		if (typeof input.enabled === 'boolean') {
-			input.enabled = input.enabled ? 'on' : 'off';
-		}
 		return {
 			enabled: stringSet<'on' | 'off' | 'onKeyboardModifier'>(input.enabled, this.defaultValue.enabled, ['on', 'off', 'onKeyboardModifier']),
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
