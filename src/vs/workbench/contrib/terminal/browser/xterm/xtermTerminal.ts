@@ -433,7 +433,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			this._serializeAddon = new Addon();
 			this.raw.loadAddon(this._serializeAddon);
 		}
-
 		if (command) {
 			const length = command.getOutput()?.length;
 			const row = command.marker?.line;
@@ -442,7 +441,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			}
 			this.raw.select(0, row + 1, length - Math.floor(length / this.raw.cols));
 		}
-
 		const result = this._serializeAddon.serializeAsHTML({ onlySelection: true });
 		if (command) {
 			this.raw.clearSelection();
