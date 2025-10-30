@@ -29,7 +29,6 @@ class BaseSaveAsPromptFileAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, configUri?: string): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
-		//const fileService = accessor.get(IFileService);
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const textFileService = accessor.get(ITextFileService);
 		const fileService = accessor.get(IFileService);
