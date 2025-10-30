@@ -18,7 +18,6 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
-import { ManageModelsAction } from '../actions/manageModelsActions.js';
 import { IActionProvider } from '../../../../../base/browser/ui/dropdown/dropdown.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
@@ -87,8 +86,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					tooltip: localize('chat.manageModels.tooltip', "Manage language models"),
 					class: undefined,
 					run: () => {
-						const commandId = ManageModelsAction.ID;
-						commandService.executeCommand(commandId);
+						commandService.executeCommand('workbench.action.openAiManagement');
 					}
 				});
 			}
@@ -102,8 +100,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					tooltip: localize('chat.moreModels.tooltip', "Add premium models"),
 					class: undefined,
 					run: () => {
-						const commandId = chatEntitlementService.anonymous ? 'workbench.action.chat.triggerSetup' : 'workbench.action.chat.upgradePlan';
-						commandService.executeCommand(commandId);
+						commandService.executeCommand('workbench.action.openAiManagement');
 					}
 				});
 			}

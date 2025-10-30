@@ -1,0 +1,150 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.ai-management-editor {
+	height: 100%;
+	overflow: hidden;
+	max-width: 1200px;
+	margin: auto;
+}
+
+/* Header */
+.ai-management-editor .ai-management-header {
+	box-sizing: border-box;
+	margin: 20px 10px 0px 10px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--vscode-settings-headerBorder);
+	max-width: 1200px;
+}
+
+.ai-management-editor .ai-management-body {
+	position: relative;
+	margin: 0px 10px 0px 10px;
+	overflow-y: auto;
+	overflow-x: hidden;
+	max-width: 1200px;
+}
+
+.ai-management-editor .header-title-container {
+	display: flex;
+	align-items: end;
+	justify-content: space-between;
+	margin-bottom: 0;
+}
+
+.ai-management-editor .header-title-wrapper {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.ai-management-editor .ai-management-editor-title {
+	font-size: 26px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.ai-management-editor .plan-badge {
+	padding: 4px 12px;
+	border-radius: 12px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-weight: 500;
+	margin-left: 4px;
+}
+
+.ai-management-editor .header-upgrade-button-container {
+	margin-left: auto;
+}
+
+.ai-management-editor .header-upgrade-button {
+	white-space: nowrap;
+}
+
+/* Sections */
+.ai-management-editor .ai-section {
+	margin: 10px 10px 0px 10px;
+}
+
+.ai-management-editor .section-title-container {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	background-color: var(--vscode-sideBarSectionHeader-background);
+	border: 1px solid var(--vscode-sideBarSectionHeader-border);
+	padding: 4px;
+	border-radius: 4px;
+}
+
+.ai-management-editor .section-title-container.clickable {
+	cursor: pointer;
+}
+
+.ai-management-editor .section-title-container.clickable:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ai-management-editor .section-title-container.clickable:active {
+	background-color: var(--vscode-list-activeSelectionBackground);
+}
+
+.ai-management-editor .section-title {
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 24px;
+}
+
+.ai-management-editor .toggle-button-container {
+	display: flex;
+	align-items: center;
+	width: 24px;
+	height: 24px;
+	flex-shrink: 0;
+}
+
+.ai-management-editor .section-toggle-button {
+	padding: 0;
+	min-width: 24px;
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: none;
+	background: transparent;
+	cursor: pointer;
+	flex-shrink: 0;
+}
+
+.ai-management-editor .section-content {
+	margin: 16px 0px 0px 32px;
+}
+
+/* Action Section */
+.ai-management-editor .action-section {
+	text-align: center;
+	padding: 24px;
+}
+
+.ai-management-editor .action-button-container {
+	display: flex;
+	justify-content: center;
+	margin-bottom: 12px;
+}
+
+.ai-management-editor .action-button-container .monaco-button {
+	max-width: 200px;
+	width: 100%;
+}
+
+.ai-management-editor .action-description {
+	margin: 0;
+}
+
+.ai-management-editor .action-description .description {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	text-align: center;
+}

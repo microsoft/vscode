@@ -1,0 +1,169 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/** Search and button container styling **/
+
+.models-widget .models-search-and-button-container {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.models-widget .models-search-container {
+	flex: 1;
+	position: relative;
+}
+
+.models-widget .models-search-container .settings-header-widget {
+	width: 100%;
+}
+
+.models-widget .models-search-container .models-search-actions {
+	position: absolute;
+	top: 0;
+	right: 0;
+	height: 100%;
+	margin-right: 1px;
+	display: flex;
+	align-items: center;
+}
+
+.models-widget .models-search-container .models-search-actions .monaco-toolbar {
+	height: 100%;
+}
+
+.models-widget .models-search-container .models-search-actions .action-label {
+	padding: 3px;
+	margin-left: 0px;
+	box-sizing: content-box;
+}
+
+.models-widget .models-add-model-button {
+	white-space: nowrap;
+}
+
+/** Table styling **/
+
+.models-widget .models-table-container {
+	width: 100%;
+	border-spacing: 0;
+	border-collapse: separate;
+}
+
+.models-widget .models-table-container .monaco-table-tr {
+	cursor: default;
+}
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td {
+	align-items: center;
+	display: flex;
+	overflow: hidden;
+}
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
+	display: none;
+	flex: 1;
+}
+
+.models-widget .models-table-container .monaco-list-row.selected .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
+.models-widget .models-table-container .monaco-table.focused .monaco-list-row.focused .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
+.models-widget .models-table-container .monaco-list-row:hover .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
+	display: flex;
+}
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .monaco-action-bar .action-item > .icon {
+	width: 16px;
+	height: 16px;
+	cursor: pointer;
+	margin-top: 3px;
+}
+
+/** Model Name column styling **/
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-name-container {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	width: 100%;
+}
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-name-container .model-status-icon {
+	flex-shrink: 0;
+}
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-name-container .model-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/** Cost column styling **/
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-multiplier {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .visibility-column {
+	margin: auto;
+}
+
+/** Token Limits column styling **/
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-token-limits {
+	display: flex;
+	gap: 12px;
+	white-space: nowrap;
+}
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-token-limits .token-limit-item {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-token-limits .codicon {
+	font-size: 12px;
+}
+
+/** Capabilities column styling **/
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-metadata {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.models-widget .models-table-container .monaco-table-tr .monaco-table-td .model-badge {
+	border: 1px solid rgba(136, 136, 136, 0.45);
+	padding: 0px 6px;
+	border-radius: 3px;
+	font-size: 11px;
+}
+
+/** Row alternating colors **/
+
+.models-widget .models-table-container .monaco-table .monaco-list-row[data-parity=odd]:not(.focused):not(.selected):not(:hover) .monaco-table-tr,
+.models-widget .models-table-container .monaco-table .monaco-list:not(:focus) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr,
+.models-widget .models-table-container .monaco-table .monaco-list:not(.focused) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr {
+	background-color: var(--vscode-keybindingTable-rowsBackground);
+}
+
+.models-widget .models-table-container .monaco-table-th {
+	background-color: var(--vscode-keybindingTable-headerBackground);
+}
+
+.models-widget .models-table-container .monaco-table-th,
+.models-widget .models-table-container .monaco-table-td {
+	padding-left: 10px;
+}
+
+.models-widget .models-table-container .monaco-table-th[data-col-index="0"],
+.models-widget .models-table-container .monaco-table-td[data-col-index="0"] {
+	padding-left: 20px;
+}
