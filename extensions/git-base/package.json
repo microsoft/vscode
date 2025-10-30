@@ -80,7 +80,9 @@
         "extensions": [
           ".gitignore_global",
           ".gitignore",
-          ".git-blame-ignore-revs"
+          ".git-blame-ignore-revs",
+          ".ignore",
+          ".rgignore"
         ],
         "configuration": "./languages/ignore.language-configuration.json"
       }
