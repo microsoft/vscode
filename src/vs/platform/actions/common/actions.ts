@@ -246,7 +246,7 @@ export class MenuId {
 	static readonly ChatCompareBlock = new MenuId('ChatCompareBlock');
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
 	static readonly ChatHistory = new MenuId('ChatHistory');
-	static readonly ChatWelcomeHistoryContext = new MenuId('ChatWelcomeHistoryContext');
+	static readonly ChatWelcomeContext = new MenuId('ChatWelcomeContext');
 	static readonly ChatMessageFooter = new MenuId('ChatMessageFooter');
 	static readonly ChatExecute = new MenuId('ChatExecute');
 	static readonly ChatInput = new MenuId('ChatInput');
