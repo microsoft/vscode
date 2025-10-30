@@ -1261,10 +1261,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 				// Return early if the operation was cancelled by another operation
 				if (cancelled) {
-					// If the editor was newly added to the model but cancelled, close it to prevent leaks
-					if (context.isNew && this.model.contains(editor)) {
-						this.doCloseEditor(editor, true, { fromError: true });
-					}
 					return undefined;
 				}
 
@@ -1279,8 +1275,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				}
 
 				// Without an editor pane, recover by closing the active editor
-				// (if the input is still in the group)
-				if (!pane && this.model.contains(editor)) {
+				// (if the input is still the active one)
+				if (!pane && this.activeEditor === editor) {
 					this.doCloseEditor(editor, options?.preserveFocus, { fromError: true });
 				}
 
@@ -2003,23 +1999,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region replaceEditors()
 
-	private cleanupFailedReplacementEditor(editor: EditorInput, pane: IEditorPane | undefined): void {
-		// If the editor failed to open (cancelled, errored, etc.), clean it up to prevent leaks
-		if (!pane) {
-			const inModel = this.model.contains(editor);
-
-			// If it's in the model, close it first
-			if (inModel) {
-				this.doCloseEditor(editor, true, { context: EditorCloseContext.REPLACE });
-			}
-
-			// Always dispose the editor instance to prevent leaks, even if it never made it into the model
-			if (!editor.isDisposed()) {
-				editor.dispose();
-			}
-		}
-	}
-
 	async replaceEditors(editors: EditorReplacement[]): Promise<void> {
 
 		// Extract active vs. inactive replacements
@@ -2053,8 +2032,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		for (const { editor, replacement, forceReplaceDirty, options } of inactiveReplacements) {
 
 			// Open inactive editor
-			const pane = await this.doOpenEditor(replacement, options);
-			this.cleanupFailedReplacementEditor(replacement, pane);
+			await this.doOpenEditor(replacement, options);
 
 			// Close replaced inactive editor unless they match
 			if (!editor.matches(replacement)) {
@@ -2067,8 +2045,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				}
 
 				if (!closed) {
-					// User cancelled, clean up the replacement editor to prevent leaks
-					this.cleanupFailedReplacementEditor(replacement, undefined);
 					return; // canceled
 				}
 			}
@@ -2089,8 +2065,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				}
 			}
 
-			const pane = await openEditorResult;
-			this.cleanupFailedReplacementEditor(activeReplacement.replacement, pane);
+			await openEditorResult;
 		}
 	}
 

@@ -1292,14 +1292,13 @@ export function registerChatActions() {
 
 			// Clear all chat editors. Have to go this route because the chat editor may be in the background and
 			// not have a ChatEditorInput.
-			// Clear editors sequentially to avoid race conditions with session disposal
-			for (const group of editorGroupsService.groups) {
-				for (const editor of group.editors) {
+			editorGroupsService.groups.forEach(group => {
+				group.editors.forEach(editor => {
 					if (editor instanceof ChatEditorInput) {
-						await instantiationService.invokeFunction(clearChatEditor, editor);
+						instantiationService.invokeFunction(clearChatEditor, editor);
 					}
-				}
-			}
+				});
+			});
 		}
 	});
 
