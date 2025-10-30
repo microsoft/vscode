@@ -132,7 +132,13 @@ export class FileWalker {
 			}
 
 			// File: Check for match on file pattern and include pattern
-			this.matchFile(onResult, { relativePath: extraFilePath.fsPath /* no workspace relative path */, searchPath: undefined });
+			this.matchFile(
+				onResult,
+				{
+					relativePath: extraFilePath.fsPath /* no workspace relative path */,
+					searchPath: undefined
+				},
+				this.config.ignoreGlobPatternCase);
 		});
 
 		this.cmdSW = StopWatch.create(false);
@@ -255,7 +261,15 @@ export class FileWalker {
 
 			if (noSiblingsClauses) {
 				for (const relativePath of relativeFiles) {
-					this.matchFile(onResult, { base: rootFolder, relativePath, searchPath: this.getSearchPath(folderQuery, relativePath) });
+					this.matchFile(
+						onResult,
+						{
+							base: rootFolder,
+							relativePath,
+							searchPath: this.getSearchPath(folderQuery, relativePath)
+						},
+						folderQuery.ignoreGlobPatternCase || this.config.ignoreGlobPatternCase);
+
 					if (this.isLimitHit) {
 						killCmd();
 						break;
@@ -399,11 +413,14 @@ export class FileWalker {
 	private addDirectoryEntries(folderQuery: IFolderQuery, { pathToEntries }: IDirectoryTree, base: string, relativeFiles: string[], onResult: (result: IRawFileMatch) => void) {
 		// Support relative paths to files from a root resource (ignores excludes)
 		if (relativeFiles.indexOf(this.filePattern) !== -1) {
-			this.matchFile(onResult, {
-				base,
-				relativePath: this.filePattern,
-				searchPath: this.getSearchPath(folderQuery, this.filePattern)
-			});
+			this.matchFile(
+				onResult,
+				{
+					base,
+					relativePath: this.filePattern,
+					searchPath: this.getSearchPath(folderQuery, this.filePattern)
+				},
+				folderQuery.ignoreGlobPatternCase || this.config.ignoreGlobPatternCase);
 		}
 
 		const add = (relativePath: string) => {
@@ -453,7 +470,7 @@ export class FileWalker {
 						continue; // ignore file if its path matches with the file pattern because that is already matched above
 					}
 
-					self.matchFile(onResult, entry);
+					self.matchFile(onResult, entry, ignoreCase);
 				}
 
 				if (self.isLimitHit) {
@@ -552,11 +569,14 @@ export class FileWalker {
 							return clb(null, undefined); // ignore file if max file size is hit
 						}
 
-						this.matchFile(onResult, {
-							base: rootFolder.fsPath,
-							relativePath: currentRelativePath,
-							searchPath: this.getSearchPath(folderQuery, currentRelativePath),
-						});
+						this.matchFile(
+							onResult,
+							{
+								base: rootFolder.fsPath,
+								relativePath: currentRelativePath,
+								searchPath: this.getSearchPath(folderQuery, currentRelativePath),
+							},
+							ignoreCase);
 					}
 
 					// Unwind
@@ -569,8 +589,8 @@ export class FileWalker {
 		});
 	}
 
-	private matchFile(onResult: (result: IRawFileMatch) => void, candidate: IRawFileMatch): void {
-		if (this.isFileMatch(candidate) && (!this.includePattern || this.includePattern(candidate.relativePath, path.basename(candidate.relativePath)))) {
+	private matchFile(onResult: (result: IRawFileMatch) => void, candidate: IRawFileMatch, ignoreGlobCase?: boolean): void {
+		if (this.isFileMatch(candidate, ignoreGlobCase) && (!this.includePattern || this.includePattern(candidate.relativePath, path.basename(candidate.relativePath)))) {
 			this.resultCount++;
 
 			if (this.exists || (this.maxResults && this.resultCount > this.maxResults)) {
@@ -583,7 +603,7 @@ export class FileWalker {
 		}
 	}
 
-	private isFileMatch(candidate: IRawFileMatch): boolean {
+	private isFileMatch(candidate: IRawFileMatch, ignoreGlobCase?: boolean): boolean {
 		// Check for search pattern
 		if (this.filePattern) {
 			if (this.filePattern === '*') {
@@ -593,7 +613,7 @@ export class FileWalker {
 			if (this.normalizedFilePatternLowercase) {
 				return isFilePatternMatch(candidate, this.normalizedFilePatternLowercase);
 			} else if (this.filePattern) {
-				return isFilePatternMatch(candidate, this.filePattern, false);
+				return isFilePatternMatch(candidate, this.filePattern, false, ignoreGlobCase);
 			}
 		}
 
