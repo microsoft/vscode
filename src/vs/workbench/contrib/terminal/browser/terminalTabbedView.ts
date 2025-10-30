@@ -5,6 +5,7 @@
 
 import { LayoutPriority, Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Disposable, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -127,16 +128,14 @@ export class TerminalTabbedView extends Disposable {
 				}
 			}
 		}));
-		this._register(this._terminalGroupService.onDidChangeInstances(() => {
+		this._register(Event.any(this._terminalGroupService.onDidChangeInstances, this._terminalGroupService.onDidChangeGroups)(() => {
 			this._refreshShowTabs();
 			this._updateChatTerminalsEntry();
 		}));
-		this._register(this._terminalGroupService.onDidChangeGroups(() => {
-			this._refreshShowTabs();
+
+		this._register(Event.any(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession, this._terminalService.onDidDisposeInstance)(() => {
 			this._updateChatTerminalsEntry();
 		}));
-		this._register(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(() => this._updateChatTerminalsEntry()));
-		this._register(this._terminalService.onDidDisposeInstance(() => this._updateChatTerminalsEntry()));
 
 		this._attachEventListeners(parentElement, this._terminalContainer);
 
@@ -194,13 +193,13 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _createChatTerminalsEntry(container: HTMLElement): void {
-		this._chatTerminalsEntry = dom.append(container, $('.terminal-tabs-chat-entry.monaco-list-row'));
+		this._chatTerminalsEntry = dom.append(container, $('.terminal-tabs-chat-entry'));
 		this._chatTerminalsEntry.tabIndex = 0;
 		this._chatTerminalsEntry.setAttribute('role', 'button');
 
 		const entry = dom.append(this._chatTerminalsEntry, $('.terminal-tabs-entry'));
 		const icon = dom.append(entry, $('.terminal-tabs-chat-entry-icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.commentDiscussion));
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.commentDiscussionSparkle));
 		this._chatTerminalsLabel = dom.append(entry, $('.terminal-tabs-chat-entry-label'));
 
 		const runChatTerminalsCommand = () => {
@@ -225,7 +224,6 @@ export class TerminalTabbedView extends Disposable {
 		}
 
 		const chatTerminalCount = this._terminalChatService.getToolSessionTerminalInstances().length;
-		const hasText = this._tabContainer.classList.contains('has-text');
 		const hasChatTerminals = chatTerminalCount > 0;
 
 		if (!hasChatTerminals) {
@@ -241,7 +239,7 @@ export class TerminalTabbedView extends Disposable {
 		}
 
 		this._chatTerminalsEntry.style.display = '';
-
+		const hasText = this._tabContainer.classList.contains('has-text');
 		if (hasText) {
 			this._chatTerminalsLabel.textContent = chatTerminalCount === 1
 				? localize('terminal.tabs.chatEntryLabelSingle', "{0} Chat Terminal", chatTerminalCount)

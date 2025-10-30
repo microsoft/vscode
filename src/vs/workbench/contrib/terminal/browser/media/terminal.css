@@ -329,20 +329,11 @@
 	text-align: left;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-list-container {
-	display: flex;
-	flex-direction: column;
-	height: 100%;
-	min-height: 0;
-}
-
-.monaco-workbench .pane-body.integrated-terminal .tabs-list {
-	flex: 0 0 auto;
-	height: auto;
-	min-height: 0;
-}
-
-.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry.monaco-list-row {
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
 	height: 22px;
 	line-height: 22px;
 	display: flex;
@@ -351,16 +342,33 @@
 	cursor: pointer;
 	background-color: transparent;
 	color: inherit;
+	align-content: center;
+	align-self: center;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-entry {
 	display: flex;
 	align-items: center;
-	justify-content: center;
 	gap: 4px;
 	width: 100%;
 	height: 100%;
 	padding: 0;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .terminal-tabs-chat-entry .terminal-tabs-entry {
+	justify-content: center;
+	padding: 0 10px;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-chat-entry .terminal-tabs-entry {
+	justify-content: center;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-label:empty {
