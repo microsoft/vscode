@@ -71,6 +71,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 							options: {
 								description: 'FontOptionDecoration',
 								inlineClassName: `font-decoration-${hashFont}`,
+								affectsFont: true
 							},
 							ownerId: 0,
 							range: new Range(i, fontOption.startIndex + 1, i, fontOption.endIndex + 1)
