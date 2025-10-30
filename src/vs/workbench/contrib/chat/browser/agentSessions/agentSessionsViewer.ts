@@ -28,6 +28,12 @@ import { coalesce } from '../../../../../base/common/arrays.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { ChatSessionStatus } from '../../common/chatSessionsService.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { AGENT_SESSIONS_VIEW_ID } from './agentSessions.js';
 
 interface IAgentSessionItemTemplate {
 	readonly element: HTMLElement;
@@ -52,7 +58,10 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 	constructor(
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
@@ -124,6 +133,34 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		}
 
 		template.timestamp.textContent = fromNow(session.element.timing.startTime);
+
+		this.renderHover(session, template);
+	}
+
+	private renderHover(session: ITreeNode<IAgentSessionViewModel, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+		const tooltip = session.element.tooltip;
+		if (tooltip) {
+			template.elementDisposable.add(
+				this.hoverService.setupDelayedHover(template.element, () => ({
+					content: tooltip,
+					style: HoverStyle.Pointer,
+					position: {
+						hoverPosition: (() => {
+							const sideBarPosition = this.layoutService.getSideBarPosition();
+							const viewLocation = this.viewDescriptorService.getViewLocationById(AGENT_SESSIONS_VIEW_ID);
+							switch (viewLocation) {
+								case ViewContainerLocation.Sidebar:
+									return sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
+								case ViewContainerLocation.AuxiliaryBar:
+									return sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
+								default:
+									return HoverPosition.RIGHT;
+							}
+						})()
+					}
+				}))
+			);
+		}
 	}
 
 	private statusToIcon(status?: ChatSessionStatus): ThemeIcon {
@@ -195,7 +232,7 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 
 	getId(element: IAgentSessionsViewModel | IAgentSessionViewModel): string {
 		if (isAgentSession(element)) {
-			return element.id;
+			return element.resource.toString();
 		}
 
 		return 'agent-sessions-id';
