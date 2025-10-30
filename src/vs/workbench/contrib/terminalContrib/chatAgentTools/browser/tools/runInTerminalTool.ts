@@ -4,18 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { asArray } from '../../../../../../base/common/arrays.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { createCommandUri, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
-import type { DeepImmutable, SingleOrMany } from '../../../../../../base/common/types.js';
+import type { DeepImmutable } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -25,30 +24,28 @@ import { TerminalCapability } from '../../../../../../platform/terminal/common/c
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { openTerminalSettingsLinkCommandId } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
-import { ChatConfiguration } from '../../../../chat/common/constants.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress, type IToolConfirmationMessages, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
-import { ITerminalService, type ITerminalInstance, ITerminalChatService } from '../../../../terminal/browser/terminal.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress, type IToolConfirmationMessages } from '../../../../chat/common/languageModelToolsService.js';
+import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
-import { CommandLineAutoApprover, type IAutoApproveRule, type ICommandApprovalResult, type ICommandApprovalResultWithReason } from '../commandLineAutoApprover.js';
 import { CommandSimplifier } from '../commandSimplifier.js';
 import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
 import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { dedupeRules, generateAutoApproveActions, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import { isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
-import { OutputMonitor } from './monitoring/outputMonitor.js';
-import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
 import { type ICommandLineAnalyzer, type ICommandLineAnalyzerOptions } from './commandLineAnalyzer/commandLineAnalyzer.js';
+import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLineAutoApproveAnalyzer.js';
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
+import { OutputMonitor } from './monitoring/outputMonitor.js';
+import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
 
 // #region Tool data
 
@@ -247,16 +244,6 @@ const telemetryIgnoredSequences = [
 	'\x1b[O', // Focus out
 ];
 
-const promptInjectionWarningCommandsLower = [
-	'curl',
-	'wget',
-];
-const promptInjectionWarningCommandsLowerPwshOnly = [
-	'invoke-restmethod',
-	'invoke-webrequest',
-	'irm',
-	'iwr',
-];
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
 
@@ -265,7 +252,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _treeSitterCommandParser: TreeSitterCommandParser;
 	private readonly _telemetry: RunInTerminalToolTelemetry;
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
-	protected readonly _commandLineAutoApprover: CommandLineAutoApprover;
 	protected readonly _profileFetcher: TerminalProfileFetcher;
 	protected readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
 
@@ -301,9 +287,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._commandSimplifier = _instantiationService.createInstance(CommandSimplifier, this._osBackend, this._treeSitterCommandParser);
 		this._telemetry = _instantiationService.createInstance(RunInTerminalToolTelemetry);
 		this._commandLineAnalyzers = [
-			this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`CommandLineFileWriteAnalyzer: ${message}`, args)),
+			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
+			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
 		];
-		this._commandLineAutoApprover = this._register(_instantiationService.createInstance(CommandLineAutoApprover));
 		this._profileFetcher = _instantiationService.createInstance(TerminalProfileFetcher);
 
 		// Clear out warning accepted state if the setting is disabled
@@ -359,13 +345,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// commands that would be auto approved if it were enabled.
 			const actualCommand = toolEditedCommand ?? args.command;
 
-			let disclaimer: IMarkdownString | undefined;
-			let customActions: ToolConfirmationAction[] | undefined;
-
 			const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
 			const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
 			const isAutoApproveAllowed = isAutoApproveEnabled && isAutoApproveWarningAccepted;
-			let isAutoApproved = false;
 
 			let subCommands: string[] | undefined;
 			const treeSitterLanguage = isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash;
@@ -383,101 +365,27 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				os,
 				shell,
 				treeSitterLanguage,
+				terminalToolSessionId,
 			};
 			const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
 
-			if (subCommands) {
-				const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
-				const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(actualCommand);
-				const autoApproveReasons: string[] = [
-					...subCommandResults.map(e => e.reason),
-					commandLineResult.reason,
-				];
+			// TODO: Should this require auto approve and veto instead?
+			const isAutoApproved = commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
 
-				let isDenied = false;
-				let autoApproveReason: 'subCommand' | 'commandLine' | undefined;
-				let autoApproveDefault: boolean | undefined;
+			// Add disclaimers for various security concerns
+			const disclaimers: string[] = [];
+			disclaimers.push(...commandLineAnalyzerResults.map(e => e.disclaimers ?? []).flat());
 
-				const deniedSubCommandResult = subCommandResults.find(e => e.result === 'denied');
-				if (deniedSubCommandResult) {
-					this._logService.info('RunInTerminalTool: autoApprove: Sub-command DENIED auto approval');
-					isDenied = true;
-					autoApproveDefault = deniedSubCommandResult.rule?.isDefaultRule;
-					autoApproveReason = 'subCommand';
-				} else if (commandLineResult.result === 'denied') {
-					this._logService.info('RunInTerminalTool: autoApprove: Command line DENIED auto approval');
-					isDenied = true;
-					autoApproveDefault = commandLineResult.rule?.isDefaultRule;
-					autoApproveReason = 'commandLine';
-				} else {
-					if (subCommandResults.every(e => e.result === 'approved')) {
-						this._logService.info('RunInTerminalTool: autoApprove: All sub-commands auto-approved');
-						autoApproveReason = 'subCommand';
-						isAutoApproved = true;
-						autoApproveDefault = subCommandResults.every(e => e.rule?.isDefaultRule);
-					} else {
-						this._logService.info('RunInTerminalTool: autoApprove: All sub-commands NOT auto-approved');
-						if (commandLineResult.result === 'approved') {
-							this._logService.info('RunInTerminalTool: autoApprove: Command line auto-approved');
-							autoApproveReason = 'commandLine';
-							isAutoApproved = true;
-							autoApproveDefault = commandLineResult.rule?.isDefaultRule;
-						} else {
-							this._logService.info('RunInTerminalTool: autoApprove: Command line NOT auto-approved');
-						}
-					}
-				}
-
-				// Log detailed auto approval reasoning
-				for (const reason of autoApproveReasons) {
-					this._logService.info(`RunInTerminalTool: autoApprove: - ${reason}`);
-				}
-
-				// Apply auto approval or force it off depending on enablement/opt-in state
-				if (isAutoApproveEnabled && commandLineAnalyzerResults.every(r => r.isAutoApproveAllowed)) {
-					autoApproveInfo = this._createAutoApproveInfo(
-						isAutoApproved,
-						isDenied,
-						autoApproveReason,
-						subCommandResults,
-						commandLineResult,
-					);
-				} else {
-					isAutoApproved = false;
-				}
-
-				// Send telemetry about auto approval process
-				this._telemetry.logPrepare({
-					terminalToolSessionId,
-					subCommands,
-					autoApproveAllowed: !isAutoApproveEnabled ? 'off' : isAutoApproveWarningAccepted ? 'allowed' : 'needsOptIn',
-					autoApproveResult: isAutoApproved ? 'approved' : isDenied ? 'denied' : 'manual',
-					autoApproveReason,
-					autoApproveDefault
-				});
-
-				// Add disclaimers for various security concerns
-				const disclaimers: string[] = [];
-				disclaimers.push(...commandLineAnalyzerResults.map(e => e.disclaimers).flat());
-
-				// Prompt injection warning for common commands that return content from the web
-				const subCommandsLowerFirstWordOnly = subCommands.map(command => command.split(' ')[0].toLowerCase());
-				if (!isAutoApproved && (
-					subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLower.includes(command)) ||
-					(isPowerShell(shell, os) && subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLowerPwshOnly.includes(command)))
-				)) {
-					disclaimers.push(localize('runInTerminal.promptInjectionDisclaimer', 'Web content may contain malicious code or attempt prompt injection attacks.'));
-				}
-
-				// Combine disclaimers
-				if (disclaimers.length > 0) {
-					disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimers.join(' '), { supportThemeIcons: true });
-				}
-
-				if (!isAutoApproved && isAutoApproveEnabled) {
-					customActions = generateAutoApproveActions(actualCommand, subCommands, { subCommandResults, commandLineResult });
-				}
+			// Combine disclaimers
+			let disclaimer: IMarkdownString | undefined;
+			if (disclaimers.length > 0) {
+				disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimers.join(' '), { supportThemeIcons: true });
 			}
+
+			const customActions = commandLineAnalyzerResults.map(e => e.customActions ?? []).flat();
+
+			// TODO: This isn't great
+			autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
 
 			let shellType = basename(shell, '.exe');
 			if (shellType === 'powershell') {
@@ -925,73 +833,73 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	// #region Auto approve
 
-	private _createAutoApproveInfo(
-		isAutoApproved: boolean,
-		isDenied: boolean,
-		autoApproveReason: 'subCommand' | 'commandLine' | undefined,
-		subCommandResults: ICommandApprovalResultWithReason[],
-		commandLineResult: ICommandApprovalResultWithReason,
-	): MarkdownString | undefined {
-		const formatRuleLinks = (result: SingleOrMany<{ result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string }>): string => {
-			return asArray(result).map(e => {
-				const settingsUri = createCommandUri(openTerminalSettingsLinkCommandId, e.rule!.sourceTarget);
-				return `[\`${e.rule!.sourceText}\`](${settingsUri.toString()} "${localize('ruleTooltip', 'View rule in settings')}")`;
-			}).join(', ');
-		};
+	// private _createAutoApproveInfo(
+	// 	isAutoApproved: boolean,
+	// 	isDenied: boolean,
+	// 	autoApproveReason: 'subCommand' | 'commandLine' | undefined,
+	// 	subCommandResults: ICommandApprovalResultWithReason[],
+	// 	commandLineResult: ICommandApprovalResultWithReason,
+	// ): MarkdownString | undefined {
+	// 	const formatRuleLinks = (result: SingleOrMany<{ result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string }>): string => {
+	// 		return asArray(result).map(e => {
+	// 			const settingsUri = createCommandUri(openTerminalSettingsLinkCommandId, e.rule!.sourceTarget);
+	// 			return `[\`${e.rule!.sourceText}\`](${settingsUri.toString()} "${localize('ruleTooltip', 'View rule in settings')}")`;
+	// 		}).join(', ');
+	// 	};
 
-		const mdTrustSettings = {
-			isTrusted: {
-				enabledCommands: [openTerminalSettingsLinkCommandId]
-			}
-		};
+	// 	const mdTrustSettings = {
+	// 		isTrusted: {
+	// 			enabledCommands: [openTerminalSettingsLinkCommandId]
+	// 		}
+	// 	};
 
-		const config = this._configurationService.inspect<boolean | Record<string, boolean>>(ChatConfiguration.GlobalAutoApprove);
-		const isGlobalAutoApproved = config?.value ?? config.defaultValue;
-		if (isGlobalAutoApproved) {
-			const settingsUri = createCommandUri(openTerminalSettingsLinkCommandId, 'global');
-			return new MarkdownString(`${localize('autoApprove.global', 'Auto approved by setting {0}', `[\`${ChatConfiguration.GlobalAutoApprove}\`](${settingsUri.toString()} "${localize('ruleTooltip.global', 'View settings')}")`)}`, mdTrustSettings);
-		}
+	// 	const config = this._configurationService.inspect<boolean | Record<string, boolean>>(ChatConfiguration.GlobalAutoApprove);
+	// 	const isGlobalAutoApproved = config?.value ?? config.defaultValue;
+	// 	if (isGlobalAutoApproved) {
+	// 		const settingsUri = createCommandUri(openTerminalSettingsLinkCommandId, 'global');
+	// 		return new MarkdownString(`${localize('autoApprove.global', 'Auto approved by setting {0}', `[\`${ChatConfiguration.GlobalAutoApprove}\`](${settingsUri.toString()} "${localize('ruleTooltip.global', 'View settings')}")`)}`, mdTrustSettings);
+	// 	}
 
-		if (isAutoApproved) {
-			switch (autoApproveReason) {
-				case 'commandLine': {
-					if (commandLineResult.rule) {
-						return new MarkdownString(localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(commandLineResult)), mdTrustSettings);
-					}
-					break;
-				}
-				case 'subCommand': {
-					const uniqueRules = dedupeRules(subCommandResults);
-					if (uniqueRules.length === 1) {
-						return new MarkdownString(localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(uniqueRules)), mdTrustSettings);
-					} else if (uniqueRules.length > 1) {
-						return new MarkdownString(localize('autoApprove.rules', 'Auto approved by rules {0}', formatRuleLinks(uniqueRules)), mdTrustSettings);
-					}
-					break;
-				}
-			}
-		} else if (isDenied) {
-			switch (autoApproveReason) {
-				case 'commandLine': {
-					if (commandLineResult.rule) {
-						return new MarkdownString(localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(commandLineResult)), mdTrustSettings);
-					}
-					break;
-				}
-				case 'subCommand': {
-					const uniqueRules = dedupeRules(subCommandResults.filter(e => e.result === 'denied'));
-					if (uniqueRules.length === 1) {
-						return new MarkdownString(localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(uniqueRules)));
-					} else if (uniqueRules.length > 1) {
-						return new MarkdownString(localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', formatRuleLinks(uniqueRules)));
-					}
-					break;
-				}
-			}
-		}
+	// 	if (isAutoApproved) {
+	// 		switch (autoApproveReason) {
+	// 			case 'commandLine': {
+	// 				if (commandLineResult.rule) {
+	// 					return new MarkdownString(localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(commandLineResult)), mdTrustSettings);
+	// 				}
+	// 				break;
+	// 			}
+	// 			case 'subCommand': {
+	// 				const uniqueRules = dedupeRules(subCommandResults);
+	// 				if (uniqueRules.length === 1) {
+	// 					return new MarkdownString(localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(uniqueRules)), mdTrustSettings);
+	// 				} else if (uniqueRules.length > 1) {
+	// 					return new MarkdownString(localize('autoApprove.rules', 'Auto approved by rules {0}', formatRuleLinks(uniqueRules)), mdTrustSettings);
+	// 				}
+	// 				break;
+	// 			}
+	// 		}
+	// 	} else if (isDenied) {
+	// 		switch (autoApproveReason) {
+	// 			case 'commandLine': {
+	// 				if (commandLineResult.rule) {
+	// 					return new MarkdownString(localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(commandLineResult)), mdTrustSettings);
+	// 				}
+	// 				break;
+	// 			}
+	// 			case 'subCommand': {
+	// 				const uniqueRules = dedupeRules(subCommandResults.filter(e => e.result === 'denied'));
+	// 				if (uniqueRules.length === 1) {
+	// 					return new MarkdownString(localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(uniqueRules)));
+	// 				} else if (uniqueRules.length > 1) {
+	// 					return new MarkdownString(localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', formatRuleLinks(uniqueRules)));
+	// 				}
+	// 				break;
+	// 			}
+	// 		}
+	// 	}
 
-		return undefined;
-	}
+	// 	return undefined;
+	// }
 
 	// #endregion
 }

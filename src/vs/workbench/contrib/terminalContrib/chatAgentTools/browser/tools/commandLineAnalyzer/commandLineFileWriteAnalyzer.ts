@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -12,7 +13,7 @@ import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAge
 import type { TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
 import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
 
-export class CommandLineFileWriteAnalyzer implements ICommandLineAnalyzer {
+export class CommandLineFileWriteAnalyzer extends Disposable implements ICommandLineAnalyzer {
 	constructor(
 		private readonly _treeSitterCommandParser: TreeSitterCommandParser,
 		private readonly _log: (message: string, ...args: unknown[]) => void,
@@ -20,6 +21,7 @@ export class CommandLineFileWriteAnalyzer implements ICommandLineAnalyzer {
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
+		super();
 	}
 
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {

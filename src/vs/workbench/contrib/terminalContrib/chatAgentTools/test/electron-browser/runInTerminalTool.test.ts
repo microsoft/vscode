@@ -36,7 +36,7 @@ import { arch } from '../../../../../../base/common/process.js';
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
 
-	get commandLineAutoApprover() { return this._commandLineAutoApprover; }
+	// get commandLineAutoApprover() { return this._commandLineAutoApprover; }
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
 	get profileFetcher() { return this._profileFetcher; }
 
