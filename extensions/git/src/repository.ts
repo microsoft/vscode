@@ -25,6 +25,7 @@ import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
+import { GitArtifactProvider } from './artifactProvider';
 import { RepositoryCache } from './repositoryCache';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
@@ -873,6 +874,9 @@ export class Repository implements Disposable {
 		return this.repository.kind;
 	}
 
+	private _artifactProvider: GitArtifactProvider;
+	get artifactProvider(): GitArtifactProvider { return this._artifactProvider; }
+
 	private _historyProvider: GitHistoryProvider;
 	get historyProvider(): GitHistoryProvider { return this._historyProvider; }
 
@@ -951,6 +955,10 @@ export class Repository implements Disposable {
 
 		this._sourceControl.quickDiffProvider = this;
 		this._sourceControl.secondaryQuickDiffProvider = new StagedResourceQuickDiffProvider(this, logger);
+
+		this._artifactProvider = new GitArtifactProvider(this, logger);
+		this._sourceControl.artifactProvider = this._artifactProvider;
+		this.disposables.push(this._artifactProvider);
 
 		this._historyProvider = new GitHistoryProvider(historyItemDetailProviderRegistry, this, logger);
 		this._sourceControl.historyProvider = this._historyProvider;

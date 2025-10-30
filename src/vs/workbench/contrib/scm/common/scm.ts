@@ -16,6 +16,7 @@ import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { ISCMHistoryProvider } from './history.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { ISCMArtifactProvider } from './artifact.js';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
@@ -85,6 +86,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly contextValue: IObservable<string | undefined>;
 	readonly count: IObservable<number | undefined>;
 	readonly commitTemplate: IObservable<string>;
+	readonly artifactProvider: IObservable<ISCMArtifactProvider | undefined>;
 	readonly historyProvider: IObservable<ISCMHistoryProvider | undefined>;
 	readonly acceptInputCommand?: Command;
 	readonly actionButton: IObservable<ISCMActionButtonDescriptor | undefined>;
@@ -227,6 +229,7 @@ export interface ISCMViewService {
 
 	readonly menus: ISCMMenus;
 	readonly selectionModeConfig: IObservable<ISCMRepositorySelectionMode>;
+	readonly explorerEnabledConfig: IObservable<boolean>;
 	readonly graphShowIncomingChangesConfig: IObservable<boolean>;
 	readonly graphShowOutgoingChangesConfig: IObservable<boolean>;
 
