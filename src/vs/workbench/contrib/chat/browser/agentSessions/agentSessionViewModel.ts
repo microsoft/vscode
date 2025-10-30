@@ -13,7 +13,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { ChatSessionUri } from '../../common/chatUri.js';
 
 //#region Interfaces, Types
 
@@ -33,14 +32,14 @@ export interface IAgentSessionViewModel {
 
 	readonly provider: IChatSessionItemProvider;
 
-	readonly id: string;
 	readonly resource: URI;
 
 	readonly status?: ChatSessionStatus;
+	readonly tooltip?: string | IMarkdownString;
 
 	readonly label: string;
 	readonly description: string | IMarkdownString;
-	readonly icon?: ThemeIcon; // TODO@bpasero support
+	readonly icon?: ThemeIcon;
 
 	readonly timing: {
 		readonly startTime: number;
@@ -60,7 +59,7 @@ export function isLocalAgentSessionItem(session: IAgentSessionViewModel): boolea
 export function isAgentSession(obj: IAgentSessionsViewModel | IAgentSessionViewModel): obj is IAgentSessionViewModel {
 	const session = obj as IAgentSessionViewModel | undefined;
 
-	return typeof session?.id === 'string';
+	return URI.isUri(session?.resource);
 }
 
 export function isAgentSessionsViewModel(obj: IAgentSessionsViewModel | IAgentSessionViewModel): obj is IAgentSessionsViewModel {
@@ -73,6 +72,8 @@ export function isAgentSessionsViewModel(obj: IAgentSessionsViewModel | IAgentSe
 
 const INCLUDE_HISTORY = false;
 export class AgentSessionsViewModel extends Disposable implements IAgentSessionsViewModel {
+
+	private static NO_DESCRIPTION_LABEL = new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`);
 
 	readonly sessions: IAgentSessionViewModel[] = [];
 
@@ -149,13 +150,32 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 					continue; // TODO@bpasero this needs to be fixed at the provider level
 				}
 
+				let description;
+				if (session.description) {
+					description = session.description;
+				} else {
+					switch (session.status) {
+						case ChatSessionStatus.InProgress:
+							description = localize('chat.session.status.inProgress', 'Working...');
+							break;
+						case ChatSessionStatus.Failed:
+							description = localize('chat.session.status.error', 'Failed');
+							break;
+						case ChatSessionStatus.Completed:
+							description = localize('chat.session.status.completed', 'Finished');
+							break;
+						default:
+							description = AgentSessionsViewModel.NO_DESCRIPTION_LABEL;
+					}
+				}
+
 				newSessions.push({
 					provider,
-					id: session.id,
 					resource: session.resource,
 					label: session.label,
-					description: session.description || new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`),
+					description,
 					icon: session.iconPath,
+					tooltip: session.tooltip,
 					status: session.status,
 					timing: {
 						startTime: session.timing.startTime,
@@ -171,14 +191,13 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 				// - can we support all properties including `startTime` properly
 				for (const history of await this.chatService.getLocalSessionHistory()) {
 					newSessions.push({
-						id: history.sessionId,
-						resource: ChatSessionUri.forSession(localChatSessionType, history.sessionId),
+						resource: history.sessionResource,
 						label: history.title,
 						provider: provider,
 						timing: {
 							startTime: history.lastMessageDate ?? Date.now()
 						},
-						description: new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`),
+						description: AgentSessionsViewModel.NO_DESCRIPTION_LABEL,
 					});
 				}
 			}

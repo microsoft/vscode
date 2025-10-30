@@ -23,11 +23,12 @@ import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService.js';
+import { LocalChatSessionUri } from '../common/chatUri.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
-import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatInputPart } from './chatInputPart.js';
+import { findExistingChatEditorByUri } from './chatSessions/common.js';
 import { ChatViewPane } from './chatViewPane.js';
 import { ChatWidget, IChatViewState, IChatWidgetContrib } from './chatWidget.js';
 import { ICodeBlockActionContext } from './codeBlockPart.js';
@@ -55,12 +56,11 @@ export async function showChatWidgetInViewOrEditor(accessor: ServicesAccessor, w
 	if ('viewId' in widget.viewContext) {
 		await accessor.get(IViewsService).openView(widget.location);
 	} else {
-		for (const group of accessor.get(IEditorGroupsService).groups) {
-			for (const editor of group.editors) {
-				if (editor instanceof ChatEditorInput && editor.sessionId === widget.viewModel?.sessionId) {
-					group.openEditor(editor);
-					return;
-				}
+		const sessionId = widget.viewModel?.sessionId;
+		if (sessionId) {
+			const existing = findExistingChatEditorByUri(LocalChatSessionUri.forSession(sessionId), accessor.get(IEditorGroupsService));
+			if (existing) {
+				existing.group.openEditor(existing.editor);
 			}
 		}
 	}
@@ -256,7 +256,6 @@ export interface IChatWidget {
 	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
-	toggleHistoryVisibility(): void;
 }
 
 

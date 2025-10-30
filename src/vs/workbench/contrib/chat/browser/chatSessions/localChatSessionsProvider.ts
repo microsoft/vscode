@@ -204,7 +204,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		const status = chatWidget?.viewModel?.model ? this.modelToStatus(chatWidget.viewModel.model) : undefined;
 		const widgetSession: ChatSessionItemWithProvider = {
 			id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
-			resource: URI.parse(`${Schemas.vscodeChatSession}://widget`),
+			resource: URI.parse(`${Schemas.vscodeLocalChatSession}://widget`),
 			label: chatWidget?.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat").value,
 			description: nls.localize('chat.sessions.chatView.description', "Chat View"),
 			iconPath: Codicon.chatSparkle,
@@ -220,7 +220,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			if (editorInfo) {
 				// Determine status and timestamp for editor-based session
 				let status: ChatSessionStatus | undefined;
-				let timestamp: number | undefined;
+				let startTime: number | undefined;
 				if (editorInfo.editor instanceof ChatEditorInput && editorInfo.editor.sessionId) {
 					const model = this.chatService.getSession(editorInfo.editor.sessionId);
 					if (model) {
@@ -228,11 +228,10 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 						// Get the last interaction timestamp from the model
 						const requests = model.getRequests();
 						if (requests.length > 0) {
-							const lastRequest = requests[requests.length - 1];
-							timestamp = lastRequest.timestamp;
+							startTime = requests.at(0)?.timestamp;
 						} else {
 							// Fallback to current time if no requests yet
-							timestamp = Date.now();
+							startTime = Date.now();
 						}
 					}
 					const editorSession: ChatSessionItemWithProvider = {
@@ -243,7 +242,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 						status,
 						provider: this,
 						timing: {
-							startTime: timestamp ?? 0
+							startTime: startTime ?? 0
 						}
 					};
 					sessions.push(editorSession);
@@ -254,7 +253,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		// TODO: This should not be a session items
 		const historyNode: IChatSessionItem = {
 			id: LocalChatSessionsProvider.HISTORY_NODE_ID,
-			resource: URI.parse(`${Schemas.vscodeChatSession}://history`),
+			resource: URI.parse(`${Schemas.vscodeLocalChatSession}://history`),
 			label: nls.localize('chat.sessions.showHistory', "History"),
 			timing: { startTime: 0 }
 		};
