@@ -150,7 +150,8 @@ class ArtifactRenderer implements ITreeRenderer<SCMArtifactTreeElement, FuzzySco
 		const artifactGroupIcon = ThemeIcon.isThemeIcon(artifactGroup.icon)
 			? `$(${artifactGroup.icon.id}) ` : '';
 
-		templateData.label.setLabel(`${artifactGroupIcon}${artifact.name}`);
+		console.log(artifact.description);
+		templateData.label.setLabel(`${artifactGroupIcon}${artifact.name}`, artifact.description);
 
 		const actions = this._menuService.getMenuActions(
 			MenuId.SCMArtifactContext,

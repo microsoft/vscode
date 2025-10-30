@@ -360,7 +360,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.repositories.explorer': {
 			type: 'boolean',
-			description: localize('scm.repositories.explorer', "Controls whether to show repository artifacts in the Source Control Repositories view."),
+			markdownDescription: localize('scm.repositories.explorer', "Controls whether to show repository artifacts in the Source Control Repositories view. This feature is experimental and only works when {0} is set to {1}.", '\`#scm.repositories.selectionMode#\`', 'single'),
 			default: false,
 			tags: ['experimental']
 		},
