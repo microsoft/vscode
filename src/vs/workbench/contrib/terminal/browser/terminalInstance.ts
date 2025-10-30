@@ -946,9 +946,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			store.dispose();
 		}
 
-		// If a command ID was provided and we have command detection, set it before executing the command
+		// If a command ID was provided and we have command detection, set it as the next command ID
+		// so it will be used when the shell sends the command start sequence
 		if (commandId && commandDetection) {
-			commandDetection.handleCommandStart({ commandId });
+			commandDetection.setNextCommandId(commandId);
 		}
 
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always

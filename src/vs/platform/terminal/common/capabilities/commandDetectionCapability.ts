@@ -35,6 +35,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _handleCommandStartOptions?: IHandleCommandOptions;
 	private _hasRichCommandDetection: boolean = false;
 	get hasRichCommandDetection() { return this._hasRichCommandDetection; }
+	private _nextCommandId: string | undefined;
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
 	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
@@ -331,8 +332,13 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	handleCommandStart(options?: IHandleCommandOptions): void {
 		this._handleCommandStartOptions = options;
 		// If a custom command ID is provided, use it for the current command
+		// Otherwise, check if there's a pending next command ID
 		if (options?.commandId) {
 			this._currentCommand.id = options.commandId;
+			this._nextCommandId = undefined; // Clear the pending ID
+		} else if (this._nextCommandId) {
+			this._currentCommand.id = this._nextCommandId;
+			this._nextCommandId = undefined; // Clear after use
 		}
 		this._currentCommand.cwd = this._cwd;
 		// Only update the column if the line has already been set
@@ -344,6 +350,14 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			return;
 		}
 		this._ptyHeuristics.value.handleCommandStart(options);
+	}
+
+	/**
+	 * Sets the command ID to use for the next command that starts.
+	 * This is useful when you want to pre-assign an ID before the shell sends the command start sequence.
+	 */
+	setNextCommandId(commandId: string): void {
+		this._nextCommandId = commandId;
 	}
 
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
