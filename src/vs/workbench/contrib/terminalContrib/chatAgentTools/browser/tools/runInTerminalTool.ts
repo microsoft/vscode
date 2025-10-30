@@ -13,18 +13,18 @@ import { MarkdownString, type IMarkdownString } from '../../../../../../base/com
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
-import { count } from '../../../../../../base/common/strings.js';
-import type { DeepImmutable } from '../../../../../../base/common/types.js';
+import { count, escape } from '../../../../../../base/common/strings.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalCapability, type ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
+import { CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES } from '../../../../chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
@@ -37,7 +37,7 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import { isFish, isPowerShell, isWindowsPowerShell, isZsh, sanitizeTerminalOutput } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
@@ -403,8 +403,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-
-		const toolSpecificData = invocation.toolSpecificData as DeepImmutable<IChatTerminalToolInvocationData> | undefined;
+		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}
@@ -460,6 +459,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			throw new Error('Instance was disposed before xterm.js was ready');
 		}
 
+		const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
+
 		let inputUserChars = 0;
 		let inputUserSigint = false;
 		store.add(xterm.raw.onData(data => {
@@ -480,6 +481,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
 				await Event.toPromise(outputMonitor.onDidFinishCommand);
 				const pollingResult = outputMonitor.pollingResult;
+				await this._updateTerminalCommandMetadata(toolSpecificData, toolTerminal.instance, commandDetection, pollingResult?.output ? { text: pollingResult.output } : undefined);
 
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
@@ -515,6 +517,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
+				await this._updateTerminalCommandMetadata(
+					toolSpecificData,
+					toolTerminal.instance,
+					commandDetection,
+					pollingResult?.output ? { text: pollingResult.output } : undefined
+				);
 				store.dispose();
 				this._logService.debug(`RunInTerminalTool: Finished polling \`${pollingResult?.output.length}\` lines of output in \`${pollingResult?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
@@ -551,7 +559,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let exitCode: number | undefined;
 			try {
 				let strategy: ITerminalExecuteStrategy;
-				const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
 						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false);
@@ -600,6 +607,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
+				await this._updateTerminalCommandMetadata(
+					toolSpecificData,
+					toolTerminal.instance,
+					commandDetection,
+					terminalResult ? { text: terminalResult } : undefined
+				);
 				store.dispose();
 				const timingExecuteMs = Date.now() - timingStart;
 				this._telemetry.logInvoke(toolTerminal.instance, {
@@ -646,6 +659,58 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					kind: 'text',
 					value: resultText.join(''),
 				}]
+			};
+		}
+	}
+
+	private async _updateTerminalCommandMetadata(
+		toolSpecificData: IChatTerminalToolInvocationData,
+		instance: ITerminalInstance,
+		commandDetection: ICommandDetectionCapability | undefined,
+		fallbackOutput?: { text: string; truncated?: boolean }
+	): Promise<void> {
+		const command = commandDetection?.commands.at(-1);
+		if (command?.id && !toolSpecificData.terminalCommandUri) {
+			const params = new URLSearchParams(instance.resource.query);
+			params.set('command', command.id);
+			const commandUri = instance.resource.with({ query: params.toString() || undefined });
+			toolSpecificData.terminalCommandUri = commandUri;
+		}
+
+		if (toolSpecificData.output?.html) {
+			return;
+		}
+
+		let serializedHtml: string | undefined;
+		let truncated = fallbackOutput?.truncated ?? false;
+
+		if (command?.endMarker) {
+			try {
+				const xterm = await instance.xtermReadyPromise;
+				if (xterm) {
+					const html = await xterm.getCommandOutputAsHtml(command, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
+					if (html) {
+						serializedHtml = html;
+						truncated = false;
+					}
+				}
+			} catch (error) {
+				this._logService.debug('RunInTerminalTool: Failed to capture terminal HTML output for serialization', error);
+			}
+		}
+
+		if (!serializedHtml && fallbackOutput?.text) {
+			const sanitized = sanitizeTerminalOutput(fallbackOutput.text);
+			if (sanitized) {
+				serializedHtml = escape(sanitized);
+				truncated = fallbackOutput.truncated ?? truncated;
+			}
+		}
+
+		if (serializedHtml) {
+			toolSpecificData.output = {
+				html: serializedHtml,
+				truncated
 			};
 		}
 	}

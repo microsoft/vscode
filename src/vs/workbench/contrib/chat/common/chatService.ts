@@ -313,7 +313,12 @@ export interface IChatTerminalToolInvocationData {
 	alternativeRecommendation?: string;
 	language: string;
 	terminalToolSessionId?: string;
+	terminalCommandUri?: UriComponents;
 	autoApproveInfo?: IMarkdownString;
+	output?: {
+		html: string;
+		truncated?: boolean;
+	};
 }
 
 /**
