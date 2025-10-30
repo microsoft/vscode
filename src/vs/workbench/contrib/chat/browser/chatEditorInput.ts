@@ -295,7 +295,12 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	override dispose(): void {
 		super.dispose();
 		if (this.sessionId) {
-			this.chatService.clearSession(this.sessionId);
+			try {
+				this.chatService.clearSession(this.sessionId);
+			} catch (e) {
+				// Session may have already been cleared (e.g., by "Clear all workspace chats" command)
+				// This is expected and not an error
+			}
 		}
 	}
 }
