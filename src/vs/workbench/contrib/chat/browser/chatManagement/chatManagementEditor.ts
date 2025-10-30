@@ -303,7 +303,7 @@ export class ChatManagementEditor extends EditorPane {
 
 	selectSection(sectionId: string): void {
 		const index = this.sections.findIndex(s => s.id === sectionId);
-		if (index !== undefined && index >= 0) {
+		if (index >= 0) {
 			this.sectionsList?.setFocus([index]);
 			this.sectionsList?.setSelection([index]);
 		}
