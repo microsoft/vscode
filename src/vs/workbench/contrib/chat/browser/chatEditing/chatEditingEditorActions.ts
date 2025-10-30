@@ -170,7 +170,7 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 			tooltip: _keep
 				? localize2('accept3', 'Keep Chat Edits in this File')
 				: localize2('discard3', 'Undo Chat Edits in this File'),
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
+			precondition: ContextKeyExpr.and(ctxIsGlobalEditingSession, ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
 			icon: _keep
 				? Codicon.check
 				: Codicon.discard,
@@ -186,10 +186,7 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 				id: MenuId.ChatEditingEditorContent,
 				group: 'a_resolve',
 				order: _keep ? 0 : 1,
-				when: ContextKeyExpr.or(
-					ContextKeyExpr.and(ctxIsGlobalEditingSession.negate(), ctxIsCurrentlyBeingModified.negate()), // Inline chat
-					ContextKeyExpr.and(ctxIsGlobalEditingSession, !_keep ? ctxReviewModeEnabled : undefined), // Panel chat
-				)
+				when: !_keep ? ctxReviewModeEnabled : undefined
 			}
 		});
 	}

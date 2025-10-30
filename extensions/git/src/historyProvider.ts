@@ -192,7 +192,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		if (this._HEAD?.behind !== this.repository.HEAD?.behind) {
 			commands.executeCommand('setContext', 'git.currentHistoryItemIsBehind', (this.repository.HEAD?.behind ?? 0) > 0);
 		}
-		commands.executeCommand('setContext', 'git.currentHistoryItemHasMergeBase', this._currentHistoryItemBaseRef !== undefined);
 
 		this._HEAD = this.repository.HEAD;
 
@@ -339,7 +338,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 		const historyItemChangesUri: Uri[] = [];
 		const historyItemChanges: SourceControlHistoryItemChange[] = [];
-		const changes = await this.repository.diffTrees(historyItemParentId, historyItemId);
+		const changes = await this.repository.diffBetween2(historyItemParentId, historyItemId);
 
 		for (const change of changes) {
 			const historyItemUri = change.uri.with({

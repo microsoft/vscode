@@ -36,13 +36,11 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { findExistingChatEditorByUri, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
 import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
-import { ChatSessionUri } from '../../common/chatUri.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
 import { assertReturnsDefined, upcast } from '../../../../../base/common/types.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -133,7 +131,7 @@ export class AgentSessionsView extends ViewPane {
 			return;
 		}
 
-		if (session.resource.scheme !== ChatSessionUri.scheme) {
+		if (session.resource.scheme !== LocalChatSessionUri.scheme) {
 			await this.openerService.open(session.resource, {
 				editorOptions: upcast<IEditorOptions, IChatEditorOptions>({
 					...e.editorOptions,
@@ -143,27 +141,23 @@ export class AgentSessionsView extends ViewPane {
 			return;
 		}
 
-		const uri = ChatSessionUri.forSession(session.provider.chatSessionType, session.id);
-		const existingSessionEditor = findExistingChatEditorByUri(uri, session.id, this.editorGroupsService);
+		const existingSessionEditor = findExistingChatEditorByUri(session.resource, this.editorGroupsService);
 		if (existingSessionEditor) {
-			await this.editorGroupsService.getGroup(existingSessionEditor.groupId)?.openEditor(existingSessionEditor.editor, e.editorOptions);
+			await existingSessionEditor.group.openEditor(existingSessionEditor.editor, e.editorOptions);
 			return;
 		}
 
-		let sessionResource: URI;
 		let sessionOptions: IChatEditorOptions;
 		if (isLocalAgentSessionItem(session)) {
-			sessionResource = ChatEditorInput.getNewEditorUri();
-			sessionOptions = { target: { sessionId: session.id } };
+			sessionOptions = {};
 		} else {
-			sessionResource = ChatSessionUri.forSession(session.provider.chatSessionType, session.id);
 			sessionOptions = { title: { preferred: session.label } };
 		}
 
 		sessionOptions.ignoreInView = true;
 
 		await this.editorService.openEditor({
-			resource: sessionResource,
+			resource: session.resource,
 			options: upcast<IEditorOptions, IChatEditorOptions>({
 				...sessionOptions,
 				title: { preferred: session.label },

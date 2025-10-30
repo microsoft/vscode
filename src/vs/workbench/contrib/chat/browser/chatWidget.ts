@@ -94,6 +94,7 @@ import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewPane } from './chatViewPane.js';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { LocalChatSessionUri } from '../common/chatUri.js';
 
 const $ = dom.$;
 
@@ -146,7 +147,7 @@ export function isInlineChat(widget: IChatWidget): boolean {
 }
 
 interface IChatHistoryListItem {
-	readonly sessionId: string;
+	readonly sessionResource: URI;
 	readonly title: string;
 	readonly lastMessageDate: number;
 	readonly isActive: boolean;
@@ -609,7 +610,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('chat.renderRelatedFiles')) {
-				this.renderChatEditingSessionState();
+				this.input.renderChatRelatedFiles();
 			}
 
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests) || e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)) {
@@ -1188,7 +1189,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 				const renderer = this.instantiationService.createInstance(
 					ChatHistoryListRenderer,
-					async (item) => await this.openHistorySession(item.sessionId),
+					async (item) => await this.openHistorySession(item.sessionResource),
 					(timestamp, todayMs) => this.formatHistoryTimestamp(timestamp, todayMs),
 					todayMidnightMs
 				);
@@ -1256,8 +1257,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				.filter(i => !i.isActive)
 				.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0))
 				.slice(0, 3)
-				.map(item => ({
-					sessionId: item.sessionId,
+				.map((item): IChatHistoryListItem => ({
+					sessionResource: LocalChatSessionUri.forSession(item.sessionId),
 					title: item.title,
 					lastMessageDate: typeof item.lastMessageDate === 'number' ? item.lastMessageDate : Date.now(),
 					isActive: item.isActive
@@ -1291,11 +1292,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return fromNowByDay(last, true, true);
 	}
 
-	private async openHistorySession(sessionId: string): Promise<void> {
+	private async openHistorySession(sessionResource: URI): Promise<void> {
 		try {
 			const viewsService = this.instantiationService.invokeFunction(accessor => accessor.get(IViewsService));
 			const chatView = await viewsService.openView<ChatViewPane>(ChatViewId);
-			await chatView?.loadSession?.(sessionId);
+			await chatView?.loadSession(sessionResource);
 		} catch (e) {
 			this.logService.error('Failed to open chat session from history', e);
 		}
@@ -2234,12 +2235,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this._onDidChangeContentHeight.fire();
 		}));
-		this._register(this.input.attachmentModel.onDidChange(() => {
-			if (this._editingSession) {
-				// TODO still needed? Do this inside input part and fire onDidChangeHeight?
-				this.renderChatEditingSessionState();
-			}
-		}));
 		this._register(this.inputEditor.onDidChangeModelContent(() => {
 			this.parsedChatRequest = undefined;
 			this.updateChatInputContext();
@@ -2335,11 +2330,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (events?.some(e => e?.kind === 'addRequest') && this.visible) {
 				this.scrollToEnd();
 			}
-
-			if (this._editingSession) {
-				this.renderChatEditingSessionState();
-			}
 		})));
+		this.viewModelDisposables.add(autorun(reader => {
+			this._editingSession.read(reader); // re-render when the session changes
+			this.renderChatEditingSessionState();
+		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
 			this.input.saveState();

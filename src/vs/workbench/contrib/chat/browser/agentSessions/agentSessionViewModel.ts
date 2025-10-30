@@ -13,7 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { ChatSessionUri } from '../../common/chatUri.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 
 //#region Interfaces, Types
 
@@ -172,7 +172,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 				for (const history of await this.chatService.getLocalSessionHistory()) {
 					newSessions.push({
 						id: history.sessionId,
-						resource: ChatSessionUri.forSession(localChatSessionType, history.sessionId),
+						resource: LocalChatSessionUri.forSession(history.sessionId),
 						label: history.title,
 						provider: provider,
 						timing: {
