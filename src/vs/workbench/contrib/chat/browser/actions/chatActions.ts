@@ -684,11 +684,11 @@ export function registerChatActions() {
 			}
 
 			function isChatPickerItem(item: IQuickPickItem): item is IChatPickerItem {
-				return hasKey(item, 'chat');
+				return hasKey(item, { chat: true });
 			}
 
 			function isCodingAgentPickerItem(item: IQuickPickItem): item is ICodingAgentPickerItem {
-				return isChatPickerItem(item) && hasKey(item, 'id');
+				return isChatPickerItem(item) && hasKey(item, { id: true });
 			}
 
 			const showMorePick: IQuickPickItem = {
