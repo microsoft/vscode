@@ -69,6 +69,12 @@ jobs:
         sudo ln -s "/usr/bin/g++" "/usr/bin/musl-g++" || echo "link exists"
       displayName: Install musl build dependencies
 
+    - script: |
+        set -e
+        musl-gcc --version
+        musl-g++ --version
+      displayName: Print musl gcc versions
+
     - template: ../cli/install-rust-posix.yml@self
       parameters:
         targets:
