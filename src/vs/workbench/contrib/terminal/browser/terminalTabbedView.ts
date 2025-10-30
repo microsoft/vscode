@@ -230,7 +230,6 @@ export class TerminalTabbedView extends Disposable {
 			this._chatTerminalsEntry.style.display = 'none';
 			this._chatTerminalsLabel.textContent = '';
 			this._chatTerminalsEntry.removeAttribute('aria-label');
-			this._chatTerminalsEntry.style.marginTop = '0px';
 			const widthWhenHidden = this._tabListElement.clientWidth;
 			if (widthWhenHidden > 0) {
 				this._layoutTabList(widthWhenHidden);
