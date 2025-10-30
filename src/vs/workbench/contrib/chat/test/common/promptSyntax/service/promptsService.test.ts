@@ -34,8 +34,8 @@ import { TestContextService, TestUserDataProfileService } from '../../../../../.
 import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
-import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
+import { AGENT_FILE_EXTENSION, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { AGENT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
@@ -82,6 +82,10 @@ suite('PromptsService', () => {
 					return INSTRUCTIONS_LANGUAGE_ID;
 				}
 
+				if (uri.path.endsWith(AGENT_FILE_EXTENSION)) {
+					return AGENT_LANGUAGE_ID;
+				}
+
 				return 'plaintext';
 			}
 		});
@@ -97,7 +101,7 @@ suite('PromptsService', () => {
 	});
 
 	suite('parse', () => {
-		test('explicit', async function () {
+		test('explicit', async () => {
 			const rootFolderName = 'resolves-nested-file-references';
 			const rootFolder = `/${rootFolderName}`;
 
