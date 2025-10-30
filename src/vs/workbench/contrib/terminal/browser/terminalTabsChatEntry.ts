@@ -25,11 +25,9 @@ export class TerminalTabsChatEntry extends Disposable {
 
 	constructor(
 		container: HTMLElement,
-		private readonly _tabListElement: HTMLElement,
 		private readonly _tabContainer: HTMLElement,
 		private readonly _commandService: ICommandService,
 		private readonly _terminalChatService: ITerminalChatService,
-		private readonly _layoutTabList: (width: number) => void
 	) {
 		super();
 
@@ -70,10 +68,7 @@ export class TerminalTabsChatEntry extends Disposable {
 			this._entry.style.display = 'none';
 			this._label.textContent = '';
 			this._entry.removeAttribute('aria-label');
-			const widthWhenHidden = this._tabListElement.clientWidth;
-			if (widthWhenHidden > 0) {
-				this._layoutTabList(widthWhenHidden);
-			}
+
 			return;
 		}
 
@@ -91,9 +86,5 @@ export class TerminalTabsChatEntry extends Disposable {
 			? localize('terminal.tabs.chatEntryAriaLabelSingle', "Show 1 chat terminal")
 			: localize('terminal.tabs.chatEntryAriaLabelPlural', "Show {0} chat terminals", chatTerminalCount);
 		this._entry.setAttribute('aria-label', ariaLabel);
-		const width = this._tabListElement.clientWidth;
-		if (width > 0) {
-			this._layoutTabList(width);
-		}
 	}
 }

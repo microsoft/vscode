@@ -96,7 +96,7 @@ export class TerminalTabbedView extends Disposable {
 		this._tabsListEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
 
 		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement, this._register(new DisposableStore())));
-		this._chatEntry = this._register(new TerminalTabsChatEntry(tabListContainer, this._tabListElement, this._tabContainer, this._commandService, this._terminalChatService, width => this._layoutTabList(width)));
+		this._chatEntry = this._register(new TerminalTabsChatEntry(tabListContainer, this._tabContainer, this._commandService, this._terminalChatService));
 
 		const terminalOuterContainer = $('.terminal-outer-container');
 		this._terminalContainer = $('.terminal-groups-container');
@@ -289,7 +289,7 @@ export class TerminalTabbedView extends Disposable {
 	private _addTabTree() {
 		this._splitView.addView({
 			element: this._tabContainer,
-			layout: width => this._layoutTabList(width),
+			layout: width => this._tabList.layout(this._height || 0, width),
 			minimumSize: TerminalTabsListSizes.NarrowViewWidth,
 			maximumSize: TerminalTabsListSizes.MaximumWidth,
 			onDidChange: () => Disposable.None,
@@ -301,10 +301,6 @@ export class TerminalTabbedView extends Disposable {
 	rerenderTabs() {
 		this._updateHasText();
 		this._tabList.refresh();
-		const width = this._tabListElement.clientWidth;
-		if (width > 0) {
-			this._layoutTabList(width);
-		}
 	}
 
 	private _addSashListener() {
@@ -343,23 +339,6 @@ export class TerminalTabbedView extends Disposable {
 			this._splitView.resizeView(this._tabTreeIndex, this._getLastListWidth());
 		}
 		this._updateHasText();
-	}
-
-	private _layoutTabList(width: number): void {
-		if (!this._shouldShowTabs() || width <= 0) {
-			return;
-		}
-		const availableHeight = this._getAvailableTabListHeight();
-		const contentHeight = this._tabList.length * TerminalTabsListSizes.TabHeight;
-		const fallbackHeight = availableHeight || contentHeight || TerminalTabsListSizes.TabHeight;
-		const layoutHeight = contentHeight > 0 && availableHeight > 0 ? Math.min(contentHeight, availableHeight) : fallbackHeight;
-		this._tabList.layout(layoutHeight, width);
-	}
-
-	private _getAvailableTabListHeight(): number {
-		const totalHeight = this._height ?? 0;
-		const chatEntryHeight = this._chatEntry?.element.offsetHeight ?? TerminalTabsListSizes.TabHeight;
-		return Math.max(totalHeight - chatEntryHeight, 0);
 	}
 
 
