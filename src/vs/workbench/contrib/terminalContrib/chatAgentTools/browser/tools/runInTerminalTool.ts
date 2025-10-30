@@ -326,6 +326,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
 		const terminalToolSessionId = generateUuid();
+		// Generate a custom command ID to link the command between renderer and ptyHost
+		const terminalCommandId = `tool-${generateUuid()}`;
 
 		let toolEditedCommand: string | undefined = await this._commandSimplifier.rewriteIfNeeded(args, instance, shell);
 		if (toolEditedCommand === args.command) {
@@ -334,6 +336,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const toolSpecificData: IChatTerminalToolInvocationData = {
 			kind: 'terminal',
 			terminalToolSessionId,
+			terminalCommandId,
 			commandLine: {
 				original: args.command,
 				toolEdited: toolEditedCommand
@@ -475,7 +478,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId);
+				const commandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
+				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId, commandId);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
@@ -580,7 +584,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context, token, command));
 					}
 				}));
-				const executeResult = await strategy.execute(command, token);
+				const commandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
+				const executeResult = await strategy.execute(command, token, commandId);
 				// Reset user input state after command execution completes
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
@@ -888,12 +893,13 @@ class BackgroundTerminalExecution extends Disposable {
 		readonly instance: ITerminalInstance,
 		private readonly _xterm: XtermTerminal,
 		private readonly _commandLine: string,
-		readonly sessionId: string
+		readonly sessionId: string,
+		commandId?: string
 	) {
 		super();
 
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
-		this.instance.runCommand(this._commandLine, true);
+		this.instance.runCommand(this._commandLine, true, commandId);
 	}
 	getOutput(marker?: IXtermMarker): string {
 		return getOutput(this.instance, marker ?? this._startMarker);

@@ -330,6 +330,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	handleCommandStart(options?: IHandleCommandOptions): void {
 		this._handleCommandStartOptions = options;
+		// If a custom command ID is provided, use it for the current command
+		if (options?.commandId) {
+			this._currentCommand.id = options.commandId;
+		}
 		this._currentCommand.cwd = this._cwd;
 		// Only update the column if the line has already been set
 		this._currentCommand.commandStartMarker = options?.marker || this._currentCommand.commandStartMarker;
@@ -392,7 +396,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
 		}
-		this._currentCommand = new PartialTerminalCommand(this._terminal);
+		// Create new command for next execution, preserving command ID if one was specified
+		const nextCommandId = this._handleCommandStartOptions?.commandId;
+		this._currentCommand = new PartialTerminalCommand(this._terminal, nextCommandId);
 		this._handleCommandStartOptions = undefined;
 	}
 

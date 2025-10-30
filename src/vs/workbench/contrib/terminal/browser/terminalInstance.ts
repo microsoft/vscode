@@ -915,7 +915,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return xterm;
 	}
 
-	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
+	async runCommand(commandLine: string, shouldExecute: boolean, commandId?: string): Promise<void> {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
 		const timeoutMs = getShellIntegrationTimeout(
@@ -944,6 +944,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				timeout(timeoutMs)
 			]);
 			store.dispose();
+		}
+
+		// If a command ID was provided and we have command detection, set it before executing the command
+		if (commandId && commandDetection) {
+			commandDetection.handleCommandStart({ commandId });
 		}
 
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always

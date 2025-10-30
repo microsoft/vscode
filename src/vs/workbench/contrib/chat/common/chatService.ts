@@ -313,6 +313,8 @@ export interface IChatTerminalToolInvocationData {
 	alternativeRecommendation?: string;
 	language: string;
 	terminalToolSessionId?: string;
+	/** The predefined command ID that will be used for this terminal command */
+	terminalCommandId?: string;
 	terminalCommandUri?: UriComponents;
 	autoApproveInfo?: IMarkdownString;
 	output?: {
