@@ -1618,12 +1618,17 @@ Update \`.github/copilot-instructions.md\` for the user, then ask for feedback o
 				category: CHAT_CATEGORY,
 				f1: true,
 				precondition: ChatContextKeys.enabled,
-				menu: {
+				menu: [{
 					id: CHAT_CONFIG_MENU_ID,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 					order: 15,
 					group: '3_configure'
-				}
+				},
+				{
+					id: MenuId.ChatWelcomeContext,
+					group: '2_settings',
+					order: 1
+				}]
 			});
 		}
 
@@ -2034,67 +2039,25 @@ registerAction2(class EditToolApproval extends Action2 {
 });
 
 // Register actions for chat welcome history context menu
-MenuRegistry.appendMenuItem(MenuId.ChatWelcomeHistoryContext, {
-	command: {
-		id: 'workbench.action.chat.toggleChatHistoryVisibility',
-		title: localize('chat.showChatHistory.label', "✓ Chat History")
-	},
-	group: '1_modify',
-	order: 1,
-	when: ContextKeyExpr.equals('chatHistoryVisible', true)
-});
-
-MenuRegistry.appendMenuItem(MenuId.ChatWelcomeHistoryContext, {
-	command: {
-		id: 'workbench.action.chat.toggleChatHistoryVisibility',
-		title: localize('chat.hideChatHistory.label', "Chat History")
-	},
-	group: '1_modify',
-	order: 1,
-	when: ContextKeyExpr.equals('chatHistoryVisible', false)
-});
-
 registerAction2(class ToggleChatHistoryVisibilityAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.toggleChatHistoryVisibility',
 			title: localize2('chat.toggleChatHistoryVisibility.label', "Chat History"),
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.enabled
+			precondition: ChatContextKeys.enabled,
+			toggled: ContextKeyExpr.equals('config.chat.emptyState.history.enabled', true),
+			menu: {
+				id: MenuId.ChatWelcomeContext,
+				group: '1_modify',
+				order: 1
+			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widgets = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat);
-		const widget = widgets?.[0];
-		if (widget) {
-			widget.toggleHistoryVisibility();
-		}
-	}
-});
-
-registerAction2(class OpenChatEmptyStateSettingsAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.openChatEmptyStateSettings',
-			title: localize2('chat.openChatEmptyStateSettings.label', "Configure Empty State"),
-			menu: [
-				{
-					id: MenuId.ChatWelcomeHistoryContext,
-					group: '2_settings',
-					order: 1
-				}
-			],
-			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.enabled
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const preferencesService = accessor.get(IPreferencesService);
-		await preferencesService.openUserSettings({
-			query: 'chat.emptyState chat.promptFilesRecommendations'
-		});
+		const configurationService = accessor.get(IConfigurationService);
+		const current = configurationService.getValue<boolean>('chat.emptyState.history.enabled');
+		await configurationService.updateValue('chat.emptyState.history.enabled', !current);
 	}
 });
