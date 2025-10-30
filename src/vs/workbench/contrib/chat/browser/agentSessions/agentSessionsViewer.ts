@@ -11,9 +11,9 @@ import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/
 import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
-import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter } from '../../../../../base/browser/ui/tree/tree.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { AgentSessionStatus, IAgentSessionViewModel, IAgentSessionsViewModel, isAgentSession, isAgentSessionsViewModel } from './agentSessionViewModel.js';
+import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IAgentSessionViewModel, IAgentSessionsViewModel, isAgentSession, isAgentSessionsViewModel } from './agentSessionViewModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -22,6 +22,12 @@ import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
+import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
+import { coalesce } from '../../../../../base/common/arrays.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { fillEditorsDragData } from '../../../../browser/dnd.js';
+import { ChatSessionStatus } from '../../common/chatSessionsService.js';
 
 interface IAgentSessionItemTemplate {
 	readonly element: HTMLElement;
@@ -120,13 +126,13 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		template.timestamp.textContent = fromNow(session.element.timing.startTime);
 	}
 
-	private statusToIcon(status?: AgentSessionStatus): ThemeIcon {
+	private statusToIcon(status?: ChatSessionStatus): ThemeIcon {
 		switch (status) {
-			case AgentSessionStatus.InProgress:
+			case ChatSessionStatus.InProgress:
 				return ThemeIcon.modify(Codicon.loading, 'spin');
-			case AgentSessionStatus.Completed:
+			case ChatSessionStatus.Completed:
 				return Codicon.pass;
-			case AgentSessionStatus.Failed:
+			case ChatSessionStatus.Failed:
 				return Codicon.error;
 		}
 
@@ -230,4 +236,37 @@ export class AgentSessionsKeyboardNavigationLabelProvider implements ICompressib
 	getCompressedNodeKeyboardNavigationLabel(elements: IAgentSessionViewModel[]): { toString(): string | undefined } | undefined {
 		return undefined; // not enabled
 	}
+}
+
+export class AgentSessionsDragAndDrop extends Disposable implements ITreeDragAndDrop<IAgentSessionViewModel> {
+
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+	) {
+		super();
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		const elements = data.getData() as IAgentSessionViewModel[];
+		const uris = coalesce(elements.map(e => e.resource));
+		this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, uris, originalEvent));
+	}
+
+	getDragURI(element: IAgentSessionViewModel): string | null {
+		return element.resource.toString();
+	}
+
+	getDragLabel?(elements: IAgentSessionViewModel[], originalEvent: DragEvent): string | undefined {
+		if (elements.length === 1) {
+			return elements[0].label;
+		}
+
+		return localize('agentSessions.dragLabel', "{0} agent sessions", elements.length);
+	}
+
+	onDragOver(data: IDragAndDropData, targetElement: IAgentSessionViewModel | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+		return false;
+	}
+
+	drop(data: IDragAndDropData, targetElement: IAgentSessionViewModel | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void { }
 }

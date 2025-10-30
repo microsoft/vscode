@@ -23,7 +23,7 @@ import { LayoutableEditor } from './simpleCommentEditor.js';
 export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends Disposable {
 	private _commentsElement!: HTMLElement;
 	private _commentElements: CommentNode<T>[] = [];
-	private _resizeObserver: any;
+	private _resizeObserver: MutationObserver | null = null;
 	private _focusedComment: number | undefined = undefined;
 	private _onDidResize = new Emitter<dom.Dimension>();
 	onDidResize = this._onDidResize.event;

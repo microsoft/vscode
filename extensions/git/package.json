@@ -998,6 +998,30 @@
         "command": "git.blame.toggleStatusBarItem",
         "title": "%command.blameToggleStatusBarItem%",
         "category": "Git"
+      },
+      {
+        "command": "git.graph.compareRef",
+        "title": "%command.graphCompareRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.graph.openIncomingChanges",
+        "title": "%command.graphOpenIncomingChanges%",
+        "category": "Git",
+        "enablement": "!operationInProgress && git.currentHistoryItemIsBehind"
+      },
+      {
+        "command": "git.graph.openOutgoingChanges",
+        "title": "%command.graphOpenOutgoingChanges%",
+        "category": "Git",
+        "enablement": "!operationInProgress && git.currentHistoryItemIsAhead"
+      },
+      {
+        "command": "git.graph.compareWithMergeBase",
+        "title": "%command.graphCompareWithMergeBase%",
+        "category": "Git",
+        "enablement": "!operationInProgress && scmCurrentHistoryItemRefHasBase"
       }
     ],
     "continueEditSession": [
@@ -1595,11 +1619,27 @@
           "when": "false"
         },
         {
+          "command": "git.graph.compareRef",
+          "when": "false"
+        },
+        {
           "command": "git.graph.deleteTag",
           "when": "false"
         },
         {
           "command": "git.graph.cherryPick",
+          "when": "false"
+        },
+        {
+          "command": "git.graph.openIncomingChanges",
+          "when": "false"
+        },
+        {
+          "command": "git.graph.openOutgoingChanges",
+          "when": "false"
+        },
+        {
+          "command": "git.graph.compareWithMergeBase",
           "when": "false"
         },
         {
@@ -2220,6 +2260,16 @@
           "command": "git.publish",
           "when": "scmProvider == git && !scmCurrentHistoryItemRefHasRemote",
           "group": "navigation@903"
+        },
+        {
+          "command": "git.graph.openIncomingChanges",
+          "when": "scmProvider == git",
+          "group": "1_changes@1"
+        },
+        {
+          "command": "git.graph.openOutgoingChanges",
+          "when": "scmProvider == git",
+          "group": "1_changes@2"
         }
       ],
       "scm/historyItem/context": [
@@ -2242,6 +2292,16 @@
           "command": "git.graph.cherryPick",
           "when": "scmProvider == git",
           "group": "4_modify@1"
+        },
+        {
+          "command": "git.graph.compareRef",
+          "when": "scmProvider == git",
+          "group": "5_compare@1"
+        },
+        {
+          "command": "git.graph.compareWithMergeBase",
+          "when": "scmProvider == git && scmHistoryItemHasCurrentHistoryItemRef",
+          "group": "5_compare@2"
         },
         {
           "command": "git.copyCommitId",

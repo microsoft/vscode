@@ -313,6 +313,10 @@ export class SequencerByKey<TKey> {
 		return newPromise;
 	}
 
+	peek(key: TKey): Promise<unknown> | undefined {
+		return this.promiseMap.get(key) || undefined;
+	}
+
 	keys(): IterableIterator<TKey> {
 		return this.promiseMap.keys();
 	}
