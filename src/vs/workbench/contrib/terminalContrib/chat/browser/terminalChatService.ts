@@ -13,15 +13,16 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 
+const enum StorageKeys {
+	ToolSessionMappings = 'terminalChat.toolSessionMappings',
+	CommandIdMappings = 'terminalChat.commandIdMappings'
+}
+
 /**
  * Used to manage chat tool invocations and the underlying terminal instances they create/use.
  */
 export class TerminalChatService extends Disposable implements ITerminalChatService {
 	declare _serviceBrand: undefined;
-
-
-	private static readonly _toolSessionInstancesKey = 'terminalChat.toolSessionMappings';
-	private static readonly _commandIdByToolSessionIdKey = 'terminalChat.commandIdMappings';
 
 	private readonly _terminalInstancesByToolSessionId = new Map<string, ITerminalInstance>();
 	private readonly _commandIdByToolSessionId = new Map<string, string>();
@@ -129,7 +130,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	private _restoreFromStorage(): void {
 		try {
-			const raw = this._storageService.get(TerminalChatService._toolSessionInstancesKey, StorageScope.WORKSPACE);
+			const raw = this._storageService.get(StorageKeys.ToolSessionMappings, StorageScope.WORKSPACE);
 			if (!raw) {
 				return;
 			}
@@ -139,7 +140,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 					this._pendingRestoredMappings.set(toolSessionId, persistentProcessId);
 				}
 			}
-			const rawCommandIds = this._storageService.get(TerminalChatService._commandIdByToolSessionIdKey, StorageScope.WORKSPACE);
+			const rawCommandIds = this._storageService.get(StorageKeys.CommandIdMappings, StorageScope.WORKSPACE);
 			if (rawCommandIds) {
 				const parsedCommandIds: [string, string][] = JSON.parse(rawCommandIds);
 				for (const [toolSessionId, commandId] of parsedCommandIds) {
@@ -186,18 +187,18 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				}
 			}
 			if (entries.length > 0) {
-				this._storageService.store(TerminalChatService._toolSessionInstancesKey, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				this._storageService.store(StorageKeys.ToolSessionMappings, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			} else {
-				this._storageService.remove(TerminalChatService._toolSessionInstancesKey, StorageScope.WORKSPACE);
+				this._storageService.remove(StorageKeys.ToolSessionMappings, StorageScope.WORKSPACE);
 			}
 			const commandEntries: [string, string][] = [];
 			for (const [toolSessionId, commandId] of this._commandIdByToolSessionId.entries()) {
 				commandEntries.push([toolSessionId, commandId]);
 			}
 			if (commandEntries.length > 0) {
-				this._storageService.store(TerminalChatService._commandIdByToolSessionIdKey, JSON.stringify(commandEntries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				this._storageService.store(StorageKeys.CommandIdMappings, JSON.stringify(commandEntries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			} else {
-				this._storageService.remove(TerminalChatService._commandIdByToolSessionIdKey, StorageScope.WORKSPACE);
+				this._storageService.remove(StorageKeys.CommandIdMappings, StorageScope.WORKSPACE);
 			}
 		} catch (err) {
 			this._logService.warn('Failed to persist terminal chat tool session mappings', err);
