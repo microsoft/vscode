@@ -14,5 +14,11 @@
 */
 .monaco-editor .margin-view-overlays .cldr {
 	position: absolute;
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-editor .margin-view-overlays .line-decor-container {
+	position: absolute;
 	height: 100%;
 }
