@@ -95,7 +95,6 @@ import { ChatViewPane } from './chatViewPane.js';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { LocalChatSessionUri } from '../common/chatUri.js';
 
 const $ = dom.$;
 
@@ -624,7 +623,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const viewModel = viewModelObs.read(r);
 			const sessions = chatEditingService.editingSessionsObs.read(r);
 
-			const session = sessions.find(candidate => candidate.chatSessionId === viewModel?.sessionId);
+			const session = sessions.find(candidate => isEqual(candidate.chatSessionResource, viewModel?.sessionResource));
 			this._editingSession.set(undefined, undefined);
 			this.renderChatEditingSessionState(); // this is necessary to make sure we dispose previous buttons, etc.
 
@@ -714,9 +713,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.onDidChangeParsedInput(() => this.updateChatInputContext()));
 
-		this._register(this.chatTodoListService.onDidUpdateTodos((sessionId) => {
-			if (this.viewModel?.sessionId === sessionId) {
-				this.inputPart.renderChatTodoListWidget(sessionId);
+		this._register(this.chatTodoListService.onDidUpdateTodos((sessionResource) => {
+			if (isEqual(this.viewModel?.sessionResource, sessionResource)) {
+				this.inputPart.renderChatTodoListWidget(sessionResource);
 			}
 		}));
 	}
@@ -971,7 +970,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.unlockFromCodingAgent();
 		}
 
-		this.inputPart.clearTodoListWidget(this.viewModel?.sessionId, true);
+		this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
 		// Cancel any pending widget render and hide the widget BEFORE firing onDidClear
 		// This prevents the widget from being re-shown by any handlers triggered by the clear event
 		this._chatSuggestNextScheduler.cancel();
@@ -1751,8 +1750,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// is this used anymore?
 			this.acceptInput(item.message);
 		}));
-		this._register(this.renderer.onDidClickRerunWithAgentOrCommandDetection(item => {
-			const request = this.chatService.getSession(LocalChatSessionUri.forSession(item.sessionId))?.getRequests().find(candidate => candidate.id === item.requestId);
+		this._register(this.renderer.onDidClickRerunWithAgentOrCommandDetection(e => {
+			const request = this.chatService.getSession(e.sessionResource)?.getRequests().find(candidate => candidate.id === e.requestId);
 			if (request) {
 				const options: IChatSendRequestOptions = {
 					noCommandDetection: true,
@@ -2307,11 +2306,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._updateAgentCapabilitiesContextKeys(e.agent);
 			}
 			if (e.kind === 'addRequest') {
-				this.inputPart.clearTodoListWidget(this.viewModel?.sessionId, false);
+				this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, false);
 			}
 			// Hide widget on request removal
 			if (e.kind === 'removeRequest') {
-				this.inputPart.clearTodoListWidget(this.viewModel?.sessionId, true);
+				this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
 				this.chatSuggestNextWidget.hide();
 			}
 			// Show next steps widget when response completes (not when request starts)
@@ -2328,7 +2327,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.renderer.updateViewModel(this.viewModel);
 		this.updateChatInputContext();
-		this.input.renderChatTodoListWidget(this.viewModel.sessionId);
+		this.input.renderChatTodoListWidget(this.viewModel.sessionResource);
 	}
 
 	getFocus(): ChatTreeItem | undefined {

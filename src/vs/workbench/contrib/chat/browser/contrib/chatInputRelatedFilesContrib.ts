@@ -49,7 +49,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 			return;
 		}
 
-		this._currentRelatedFilesRetrievalOperation = this.chatEditingService.getRelatedFiles(currentEditingSession.chatSessionId, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None)
+		this._currentRelatedFilesRetrievalOperation = this.chatEditingService.getRelatedFiles(currentEditingSession.chatSessionResource, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None)
 			.then((files) => {
 				if (!files?.length || !widget.viewModel?.sessionId || !widget.input.relatedFiles) {
 					return;

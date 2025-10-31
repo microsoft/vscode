@@ -905,7 +905,7 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
-	readonly onDidSubmitRequest: Event<{ readonly chatSessionId: string }>;
+	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;

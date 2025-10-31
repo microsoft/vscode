@@ -18,6 +18,8 @@ import { WorkbenchList } from '../../../../../platform/list/browser/listService.
 import { IChatTodoListService, IChatTodo } from '../../common/chatTodoListService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { TodoListToolDescriptionFieldSettingId } from '../../common/tools/manageTodoListTool.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 
 class TodoListDelegate implements IListVirtualDelegate<IChatTodo> {
 	getHeight(element: IChatTodo): number {
@@ -131,7 +133,7 @@ export class ChatTodoListWidget extends Disposable {
 	private todoListContainer!: HTMLElement;
 	private clearButtonContainer!: HTMLElement;
 	private clearButton!: Button;
-	private _currentSessionId: string | undefined;
+	private _currentSessionResource: URI | undefined;
 	private _todoList: WorkbenchList<IChatTodo> | undefined;
 
 	constructor(
@@ -217,27 +219,27 @@ export class ChatTodoListWidget extends Disposable {
 		}));
 	}
 
-	public render(sessionId: string | undefined): void {
-		if (!sessionId) {
+	public render(sessionResource: URI | undefined): void {
+		if (!sessionResource) {
 			this.domNode.style.display = 'none';
 			this._onDidChangeHeight.fire();
 			return;
 		}
 
-		if (this._currentSessionId !== sessionId) {
+		if (!isEqual(this._currentSessionResource, sessionResource)) {
 			this._userManuallyExpanded = false;
-			this._currentSessionId = sessionId;
+			this._currentSessionResource = sessionResource;
 		}
 
 		this.updateTodoDisplay();
 	}
 
-	public clear(sessionId: string | undefined, force: boolean = false): void {
-		if (!sessionId || this.domNode.style.display === 'none') {
+	public clear(sessionResource: URI | undefined, force: boolean = false): void {
+		if (!sessionResource || this.domNode.style.display === 'none') {
 			return;
 		}
 
-		const currentTodos = this.chatTodoListService.getTodos(sessionId);
+		const currentTodos = this.chatTodoListService.getTodos(sessionResource);
 		const shouldClear = force || !currentTodos.some(todo => todo.status !== 'completed');
 		if (shouldClear) {
 			this.clearAllTodos();
@@ -245,11 +247,11 @@ export class ChatTodoListWidget extends Disposable {
 	}
 
 	private updateTodoDisplay(): void {
-		if (!this._currentSessionId) {
+		if (!this._currentSessionResource) {
 			return;
 		}
 
-		const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
+		const todoList = this.chatTodoListService.getTodos(this._currentSessionResource);
 		const shouldShow = todoList.length > 2;
 
 		if (!shouldShow) {
@@ -341,8 +343,8 @@ export class ChatTodoListWidget extends Disposable {
 
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
 
-		if (this._currentSessionId) {
-			const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
+		if (this._currentSessionResource) {
+			const todoList = this.chatTodoListService.getTodos(this._currentSessionResource);
 			const titleElement = this.expandoButton.element.querySelector('.todo-list-title') as HTMLElement;
 			if (titleElement) {
 				this.updateTitleElement(titleElement, todoList);
@@ -353,21 +355,21 @@ export class ChatTodoListWidget extends Disposable {
 	}
 
 	private clearAllTodos(): void {
-		if (!this._currentSessionId) {
+		if (!this._currentSessionResource) {
 			return;
 		}
 
-		this.chatTodoListService.setTodos(this._currentSessionId, []);
+		this.chatTodoListService.setTodos(this._currentSessionResource, []);
 		this.domNode.style.display = 'none';
 		this._onDidChangeHeight.fire();
 	}
 
 	private updateClearButtonState(): void {
-		if (!this._currentSessionId) {
+		if (!this._currentSessionResource) {
 			return;
 		}
 
-		const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
+		const todoList = this.chatTodoListService.getTodos(this._currentSessionResource);
 		const hasInProgressTask = todoList.some(todo => todo.status === 'in-progress');
 		const isRequestInProgress = ChatContextKeys.requestInProgress.getValue(this.contextKeyService) ?? false;
 		const shouldDisable = isRequestInProgress && hasInProgressTask;
