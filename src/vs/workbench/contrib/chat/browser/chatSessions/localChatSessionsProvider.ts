@@ -19,7 +19,7 @@ import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSes
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './common.js';
+import { ChatSessionItemWithProvider, isChatSession } from './common.js';
 
 export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.localChatSessionsProvider';
@@ -158,8 +158,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			return false;
 		}
 
-		const sessionType = getChatSessionType(editor);
-		return sessionType === localChatSessionType;
+		return editor.getSessionType() === localChatSessionType;
 	}
 
 	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
@@ -220,19 +219,18 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			if (editorInfo) {
 				// Determine status and timestamp for editor-based session
 				let status: ChatSessionStatus | undefined;
-				let timestamp: number | undefined;
-				if (editorInfo.editor instanceof ChatEditorInput && editorInfo.editor.sessionId) {
-					const model = this.chatService.getSession(editorInfo.editor.sessionId);
+				let startTime: number | undefined;
+				if (editorInfo.editor instanceof ChatEditorInput && editorInfo.editor.sessionResource && editorInfo.editor.sessionId) {
+					const model = this.chatService.getSession(editorInfo.editor.sessionResource);
 					if (model) {
 						status = this.modelToStatus(model);
 						// Get the last interaction timestamp from the model
 						const requests = model.getRequests();
 						if (requests.length > 0) {
-							const lastRequest = requests[requests.length - 1];
-							timestamp = lastRequest.timestamp;
+							startTime = requests.at(0)?.timestamp;
 						} else {
 							// Fallback to current time if no requests yet
-							timestamp = Date.now();
+							startTime = Date.now();
 						}
 					}
 					const editorSession: ChatSessionItemWithProvider = {
@@ -243,7 +241,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 						status,
 						provider: this,
 						timing: {
-							startTime: timestamp ?? 0
+							startTime: startTime ?? 0
 						}
 					};
 					sessions.push(editorSession);

@@ -94,12 +94,12 @@ export function registerNewChatActions() {
 						group: '1_open',
 						order: 1,
 					},
-					...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
-						id,
+					{
+						id: MenuId.CompactWindowEditorTitle,
 						group: 'navigation',
 						when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.lockedToCodingAgent.negate()),
 						order: 1
-					}))
+					}
 				],
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib + 1,

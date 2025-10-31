@@ -6,7 +6,8 @@
 import * as vscode from 'vscode';
 import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 import { MediaPreview, reopenAsText } from './mediaPreview';
-import { escapeAttribute, getNonce } from './util/dom';
+import { escapeAttribute } from './util/dom';
+import { generateUuid } from './util/uuid';
 
 
 class VideoPreviewProvider implements vscode.CustomReadonlyEditorProvider {
@@ -61,7 +62,7 @@ class VideoPreview extends MediaPreview {
 			loop: configurations.get('loop'),
 		};
 
-		const nonce = getNonce();
+		const nonce = generateUuid();
 
 		const cspSource = this._webviewEditor.webview.cspSource;
 		return /* html */`<!DOCTYPE html>

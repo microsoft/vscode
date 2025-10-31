@@ -164,7 +164,7 @@ export interface IEditorResolverService {
 	): IDisposable;
 
 	/**
-	 * Given an editor resolves it to the suitable ResolvedEitor based on user extensions, settings, and built-in editors
+	 * Given an editor resolves it to the suitable ResolvedEditor based on user extensions, settings, and built-in editors
 	 * @param editor The editor to resolve
 	 * @param preferredGroup The group you want to open the editor in
 	 * @returns An EditorInputWithOptionsAndGroup if there is an available editor or a status of how to proceed

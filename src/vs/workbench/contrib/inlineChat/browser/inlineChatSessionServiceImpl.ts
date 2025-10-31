@@ -130,7 +130,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			const doesOtherSessionUseChatModel = [...this._sessions.values()].some(data => data.session !== session && data.session.chatModel === chatModel);
 
 			if (!doesOtherSessionUseChatModel) {
-				this._chatService.clearSession(chatModel.sessionId);
+				this._chatService.clearSession(chatModel.sessionResource);
 				chatModel.dispose();
 			}
 		}));
@@ -348,12 +348,12 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const chatModel = this._chatService.startSession(ChatAgentLocation.Chat, token, false);
 
 		const editingSession = await chatModel.editingSessionObs?.promise!;
-		const widget = this._chatWidgetService.getWidgetBySessionId(chatModel.sessionId);
+		const widget = this._chatWidgetService.getWidgetBySessionResource(chatModel.sessionResource);
 		await widget?.attachmentModel.addFile(uri);
 
 		const store = new DisposableStore();
 		store.add(toDisposable(() => {
-			this._chatService.cancelCurrentRequestForSession(chatModel.sessionId);
+			this._chatService.cancelCurrentRequestForSession(chatModel.sessionResource);
 			editingSession.reject();
 			this._sessions2.delete(uri);
 			this._onDidChangeSessions.fire(this);
@@ -545,7 +545,7 @@ export class InlineChatEscapeToolContribution extends Disposable {
 
 				} else {
 					logService.trace('InlineChatEscapeToolContribution: rephrase prompt');
-					chatService.removeRequest(session.chatModel.sessionId, session.chatModel.getRequests().at(-1)!.id);
+					chatService.removeRequest(session.chatModel.sessionResource, session.chatModel.getRequests().at(-1)!.id);
 				}
 
 				return { content: [{ kind: 'text', value: 'Success' }] };

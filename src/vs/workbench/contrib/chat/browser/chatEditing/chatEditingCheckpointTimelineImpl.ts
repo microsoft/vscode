@@ -279,12 +279,11 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 
 		// The content URI doesn't preserve the original scheme or authority. Look through
 		// to find the operation that touched that path to get its actual URI
-		const fileURI = this._operations.get().find(o => o.uri.path === contentURI.path)?.uri;
+		const fileURI = this._getTimelineCanonicalUriForPath(contentURI);
 
 		if (!toEpoch || !fileURI) {
 			return '';
 		}
-
 
 		const baseline = await this._findBestBaselineForFile(fileURI, toEpoch, requestId);
 		if (!baseline) {
@@ -294,6 +293,18 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		const operations = this._getFileOperationsInRange(fileURI, baseline.epoch, toEpoch);
 		const replayed = await this._replayOperations(baseline, operations);
 		return replayed.exists ? replayed.content : undefined;
+	}
+
+	private _getTimelineCanonicalUriForPath(contentURI: URI) {
+		for (const it of [this._fileBaselines.values(), this._operations.get()]) {
+			for (const thing of it) {
+				if (thing.uri.path === contentURI.path) {
+					return thing.uri;
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	/**

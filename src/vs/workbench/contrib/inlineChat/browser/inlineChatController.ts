@@ -688,7 +688,7 @@ export class InlineChatController1 implements IEditorContribution {
 		let next: State.WAIT_FOR_INPUT | State.SHOW_REQUEST | State.CANCEL | State.PAUSE | State.ACCEPT = State.WAIT_FOR_INPUT;
 		store.add(Event.once(this._messages.event)(message => {
 			this._log('state=_makeRequest) message received', message);
-			this._chatService.cancelCurrentRequestForSession(chatModel.sessionId);
+			this._chatService.cancelCurrentRequestForSession(chatModel.sessionResource);
 			if (message & Message.CANCEL_SESSION) {
 				next = State.CANCEL;
 			} else if (message & Message.PAUSE_SESSION) {
@@ -755,7 +755,7 @@ export class InlineChatController1 implements IEditorContribution {
 
 		// cancel the request when the user types
 		store.add(this._ui.value.widget.chatWidget.inputEditor.onDidChangeModelContent(() => {
-			this._chatService.cancelCurrentRequestForSession(chatModel.sessionId);
+			this._chatService.cancelCurrentRequestForSession(chatModel.sessionResource);
 		}));
 
 		let lastLength = 0;
@@ -1141,7 +1141,7 @@ export class InlineChatController1 implements IEditorContribution {
 		const response = this._session?.chatModel.getRequests().at(-1)?.response;
 		if (response) {
 			this._chatService.notifyUserAction({
-				sessionId: response.session.sessionId,
+				sessionResource: response.session.sessionResource,
 				requestId: response.requestId,
 				agentId: response.agent?.id,
 				command: response.slashCommand?.name,
@@ -1176,7 +1176,7 @@ export class InlineChatController1 implements IEditorContribution {
 		const response = this._session?.chatModel.lastRequest?.response;
 		if (response) {
 			this._chatService.notifyUserAction({
-				sessionId: response.session.sessionId,
+				sessionResource: response.session.sessionResource,
 				requestId: response.requestId,
 				agentId: response.agent?.id,
 				command: response.slashCommand?.name,
@@ -1196,7 +1196,7 @@ export class InlineChatController1 implements IEditorContribution {
 		const response = this._session?.chatModel.lastRequest?.response;
 		if (response) {
 			this._chatService.notifyUserAction({
-				sessionId: response.session.sessionId,
+				sessionResource: response.session.sessionResource,
 				requestId: response.requestId,
 				agentId: response.agent?.id,
 				command: response.slashCommand?.name,

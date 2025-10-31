@@ -115,7 +115,7 @@ class ContextKeyGroup {
 
 			const { session, entry } = tuple;
 
-			const chatModel = chatService.getSession(session.chatSessionId);
+			const chatModel = chatService.getSession(session.chatSessionResource);
 
 			this._ctxHasEditorModification.set(entry?.state.read(r) === ModifiedFileEntryState.Modified);
 			this._ctxIsGlobalEditingSession.set(session.isGlobalEditingSession);

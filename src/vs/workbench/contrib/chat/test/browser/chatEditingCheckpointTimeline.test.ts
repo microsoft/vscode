@@ -979,39 +979,6 @@ suite('ChatEditingCheckpointTimeline', function () {
 		assert.strictEqual(content, 'req2 modified');
 	});
 
-	// @connor4312 - this test breaks mangling
-	// Element implicitly has an 'any' type because expression of type '"_willUndoToCheckpoint"' can't be used to index type '$$ic'
-	// test('undoing entire request when no operations between start and checkpoint', async function () {
-	// 	const uri = URI.parse('file:///test.txt');
-
-	// 	timeline.recordFileBaseline(upcastPartial({
-	// 		uri,
-	// 		requestId: 'req1',
-	// 		content: 'initial',
-	// 		epoch: timeline.incrementEpoch(),
-	// 		telemetryInfo: DEFAULT_TELEMETRY_INFO
-	// 	}));
-
-	// 	// Create start checkpoint
-	// 	timeline.createCheckpoint('req1', undefined, 'Start of Request');
-
-	// 	// Create end checkpoint without any operations in between
-	// 	timeline.createCheckpoint('req1', 'stop1', 'End of Request');
-
-	// 	// At this point, we're past both checkpoints. _willUndoToCheckpoint finds
-	// 	// the previous checkpoint before the current epoch. Since there are no operations
-	// 	// between the start and stop1, undoing should target the start.
-	// 	const undoTarget = timeline['_willUndoToCheckpoint'].get();
-
-	// 	// The logic checks if there are operations between start and the previous checkpoint.
-	// 	// If not, it returns the start checkpoint. However, if currentEpoch is beyond
-	// 	// the last checkpoint and there are no operations, undoTarget might be undefined
-	// 	// or it might be the start checkpoint. Let's just verify the behavior.
-	// 	if (undoTarget) {
-	// 		assert.strictEqual(undoTarget.undoStopId, undefined); // Should target the start checkpoint
-	// 	}
-	// });
-
 	test('getContentAtStop with file that does not exist in operations', async function () {
 		const uri = URI.parse('file:///test.txt');
 
