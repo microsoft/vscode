@@ -184,11 +184,23 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const isTerminalHidden = this._terminalChatService.isBackgroundTerminal(terminalToolSessionId);
 		const command = this._getResolvedCommand(terminalInstance);
 		if (command) {
-			const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, command, isTerminalHidden);
-			this._focusAction.value = focusAction;
-			this._actionBar.value.push(focusAction, { icon: true, label: false, index: 0 });
+			this._ensureFocusAction(terminalInstance, command, isTerminalHidden);
 			this._ensureShowOutputAction();
 		}
+	}
+
+	private _ensureFocusAction(terminalInstance: ITerminalInstance, command: ITerminalCommand, isTerminalHidden: boolean): void {
+		if (!this._actionBar.value) {
+			return;
+		}
+		let focusAction = this._focusAction.value;
+		if (!focusAction) {
+			focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, command, isTerminalHidden);
+			this._focusAction.value = focusAction;
+			this._actionBar.value.push(focusAction, { icon: true, label: false, index: 0 });
+			return;
+		}
+		focusAction.updateTarget(terminalInstance, command, isTerminalHidden);
 	}
 
 	private _ensureShowOutputAction(): void {
@@ -515,9 +527,12 @@ class ToggleChatTerminalOutputAction extends Action implements IAction {
 }
 
 export class FocusChatInstanceAction extends Action implements IAction {
+	private _instance: ITerminalInstance;
+	private _command: ITerminalCommand;
+
 	constructor(
-		private readonly _instance: ITerminalInstance,
-		private readonly _command: ITerminalCommand,
+		instance: ITerminalInstance,
+		command: ITerminalCommand,
 		isTerminalHidden: boolean,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
@@ -529,6 +544,14 @@ export class FocusChatInstanceAction extends Action implements IAction {
 			ThemeIcon.asClassName(Codicon.openInProduct),
 			true,
 		);
+		this._instance = instance;
+		this._command = command;
+	}
+
+	public updateTarget(instance: ITerminalInstance, command: ITerminalCommand, isTerminalHidden: boolean): void {
+		this._instance = instance;
+		this._command = command;
+		this.label = isTerminalHidden ? localize('showTerminal', 'Show Terminal') : localize('focusTerminal', 'Focus Terminal');
 	}
 
 	public override async run() {
