@@ -261,7 +261,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		attachCommandDetection(terminalInstance.capabilities.get(TerminalCapability.CommandDetection));
 		this._register(terminalInstance.capabilities.onDidAddCommandDetectionCapability(cd => attachCommandDetection(cd)));
 
-		this._register(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(async instance => {
+		this._register(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(async () => {
 			const resolvedCommand = this._resolveCommand(terminalInstance);
 			if (resolvedCommand?.endMarker) {
 				await this._addActions(terminalInstance, this._terminalData.terminalToolSessionId!);
