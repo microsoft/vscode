@@ -100,7 +100,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					id: 'moreModels',
 					label: isNewOrAnonymousUser ? localize('chat.moreModels', "Add Language Models") : localize('chat.morePremiumModels', "Add Premium Models"),
 					enabled: true,
-					tooltip: isNewOrAnonymousUser ? localize('chat.moreModels.tooltip', "Add language models") : localize('chat.morePremiumModels.tooltip', "Add premium models"),
+					tooltip: isNewOrAnonymousUser ? localize('chat.moreModels.tooltip', "Add Language Models") : localize('chat.morePremiumModels.tooltip', "Add Premium Models"),
 					class: undefined,
 					run: () => {
 						const commandId = isNewOrAnonymousUser ? 'workbench.action.chat.triggerSetup' : 'workbench.action.chat.upgradePlan';
