@@ -170,6 +170,11 @@ declare module 'vscode' {
 		// TODO: Should we introduce our own type for `ChatRequestHandler` since not all field apply to chat sessions?
 		// TODO: Revisit this to align with code.
 		readonly requestHandler: ChatRequestHandler | undefined;
+
+		/**
+		 * Implement to handle when the Chat Session is closed.
+		 */
+		close?(): void;
 	}
 
 	/**
