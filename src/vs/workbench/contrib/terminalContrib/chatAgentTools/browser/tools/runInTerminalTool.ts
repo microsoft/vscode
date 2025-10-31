@@ -13,7 +13,7 @@ import { MarkdownString, type IMarkdownString } from '../../../../../../base/com
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
-import { count, escape } from '../../../../../../base/common/strings.js';
+import { count } from '../../../../../../base/common/strings.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -37,7 +37,7 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { isFish, isPowerShell, isWindowsPowerShell, isZsh, sanitizeTerminalOutput } from '../runInTerminalHelpers.js';
+import { isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
@@ -485,7 +485,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
 				await Event.toPromise(outputMonitor.onDidFinishCommand);
 				const pollingResult = outputMonitor.pollingResult;
-				await this._updateTerminalCommandMetadata(toolSpecificData, toolTerminal.instance, commandDetection, pollingResult?.output ? { text: pollingResult.output } : undefined);
+				await this._updateTerminalCommandMetadata(toolSpecificData, toolTerminal.instance, commandDetection);
 
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
@@ -524,8 +524,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				await this._updateTerminalCommandMetadata(
 					toolSpecificData,
 					toolTerminal.instance,
-					commandDetection,
-					pollingResult?.output ? { text: pollingResult.output } : undefined
+					commandDetection
 				);
 				store.dispose();
 				this._logService.debug(`RunInTerminalTool: Finished polling \`${pollingResult?.output.length}\` lines of output in \`${pollingResult?.pollDurationMs}\``);
@@ -615,8 +614,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				await this._updateTerminalCommandMetadata(
 					toolSpecificData,
 					toolTerminal.instance,
-					commandDetection,
-					terminalResult ? { text: terminalResult } : undefined
+					commandDetection
 				);
 				store.dispose();
 				const timingExecuteMs = Date.now() - timingStart;
@@ -671,10 +669,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private async _updateTerminalCommandMetadata(
 		toolSpecificData: IChatTerminalToolInvocationData,
 		instance: ITerminalInstance,
-		commandDetection: ICommandDetectionCapability | undefined,
-		fallbackOutput?: { text: string; truncated?: boolean }
+		commandDetection: ICommandDetectionCapability | undefined
 	): Promise<void> {
-		const command = commandDetection?.commands.at(-1);
+		// Find the command by the terminalCommandId we set earlier
+		const command = toolSpecificData.terminalCommandId
+			? commandDetection?.commands.find(cmd => cmd.id === toolSpecificData.terminalCommandId)
+			: commandDetection?.commands.at(-1);
+
 		if (command?.id && !toolSpecificData.terminalCommandUri) {
 			const params = new URLSearchParams(instance.resource.query);
 			params.set('command', command.id);
@@ -686,37 +687,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return;
 		}
 
-		let serializedHtml: string | undefined;
-		let truncated = fallbackOutput?.truncated ?? false;
-
+		// Use the command to get output directly
 		if (command?.endMarker) {
 			try {
 				const xterm = await instance.xtermReadyPromise;
 				if (xterm) {
 					const html = await xterm.getCommandOutputAsHtml(command, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
 					if (html) {
-						serializedHtml = html;
-						truncated = false;
+						toolSpecificData.output = {
+							html,
+							truncated: false
+						};
 					}
 				}
 			} catch (error) {
 				this._logService.debug('RunInTerminalTool: Failed to capture terminal HTML output for serialization', error);
 			}
-		}
-
-		if (!serializedHtml && fallbackOutput?.text) {
-			const sanitized = sanitizeTerminalOutput(fallbackOutput.text);
-			if (sanitized) {
-				serializedHtml = escape(sanitized);
-				truncated = fallbackOutput.truncated ?? truncated;
-			}
-		}
-
-		if (serializedHtml) {
-			toolSpecificData.output = {
-				html: serializedHtml,
-				truncated
-			};
 		}
 	}
 
