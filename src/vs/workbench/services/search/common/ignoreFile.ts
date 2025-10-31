@@ -115,7 +115,7 @@ export class IgnoreFile {
 		const isDirIncluded = this.gitignoreLinesToExpression(dirIncludeLines, dirPath, false);
 
 		const isPathIgnored = (path: string, isDir: boolean) => {
-			if (this.ignoreCase ? !startsWithIgnoreCase(path, dirPath) : !path.startsWith(dirPath)) { return false; }
+			if (!(this.ignoreCase ? startsWithIgnoreCase(path, dirPath) : path.startsWith(dirPath))) { return false; }
 			if (isDir && isDirIgnored(path) && !isDirIncluded(path)) { return true; }
 			if (isFileIgnored(path) && !isFileIncluded(path)) { return true; }
 
