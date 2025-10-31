@@ -630,17 +630,15 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			const innerScopes = this._editor.getOption(EditorOption.stickyScroll).scopePreference === 'innerScopes';
 			let stickyWidgetHeight = 0;
 			for (const range of candidateRanges) {
-				const start = range.startLineNumber;
-				const end = range.endLineNumber;
-				const topOfBeginningLine = this._editor.getTopForLineNumber(start) - scrollTop;
-				const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
+				const bottomOfEndLine = this._editor.getBottomForLineNumber(range.endLineNumber + (innerScopes ? 1 : 0)) - scrollTop;
+				const shouldAppendStickyLine = this._shouldAppendStickyLine(range, startLineNumbers, innerScopes, maxNumberStickyLines, scrollTop, stickyWidgetHeight);
 
-				if (topOfBeginningLine < stickyWidgetHeight && bottomOfEndLine >= stickyWidgetHeight) {
-					startLineNumbers.push(start);
-					endLineNumbers.push(end + 1);
+				if (shouldAppendStickyLine) {
+					startLineNumbers.push(range.startLineNumber);
+					endLineNumbers.push(range.endLineNumber + (innerScopes ? 1 : 0));
 					stickyWidgetHeight += range.height;
 					if (stickyWidgetHeight > bottomOfEndLine) {
-						lastLineRelativePosition = bottomOfEndLine - stickyWidgetHeight;
+						lastLineRelativePosition = innerScopes ? 0 : bottomOfEndLine - stickyWidgetHeight;
 					}
 
 					if (innerScopes && startLineNumbers.length > maxNumberStickyLines) {
@@ -651,6 +649,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				}
 				if (startLineNumbers.length === maxNumberStickyLines && !innerScopes) {
 					break;
+				}
+			}
+
+			// Edge case to smoothly scroll out the outermost scopes
+			if (innerScopes && endLineNumbers.length > 0) {
+				const bottomOfEndLine = this._editor.getBottomForLineNumber(endLineNumbers[endLineNumbers.length - 1]) - scrollTop;
+				if (stickyWidgetHeight > bottomOfEndLine) {
+					lastLineRelativePosition = bottomOfEndLine - stickyWidgetHeight;
 				}
 			}
 		}
