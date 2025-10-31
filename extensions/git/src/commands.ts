@@ -14,7 +14,7 @@ import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, fromNow, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
+import { DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -124,6 +124,7 @@ class RefItem implements QuickPickItem {
 	get refName(): string | undefined { return this.ref.name; }
 	get refRemote(): string | undefined { return this.ref.remote; }
 	get shortCommit(): string { return (this.ref.commit || '').substring(0, this.shortCommitLength); }
+	get commitMessage(): string | undefined { return this.ref.commitDetails?.message; }
 
 	private _buttons?: QuickInputButton[];
 	get buttons(): QuickInputButton[] | undefined { return this._buttons; }
@@ -3115,10 +3116,13 @@ export class CommandCenter {
 			return;
 		}
 
+		const title = `${repository.historyProvider.currentHistoryItemRemoteRef.name} ↔ ${getHistoryItemDisplayName(historyItem)}`;
+
 		await this._openChangesBetweenRefs(
 			repository,
-			repository.historyProvider.currentHistoryItemRemoteRef.name,
-			historyItem);
+			repository.historyProvider.currentHistoryItemRemoteRef.revision,
+			historyItem.id,
+			title);
 	}
 
 	@command('git.graph.compareWithMergeBase', { repository: true })
@@ -3127,14 +3131,17 @@ export class CommandCenter {
 			return;
 		}
 
+		const title = `${repository.historyProvider.currentHistoryItemBaseRef.name} ↔ ${getHistoryItemDisplayName(historyItem)}`;
+
 		await this._openChangesBetweenRefs(
 			repository,
 			repository.historyProvider.currentHistoryItemBaseRef.name,
-			historyItem);
+			historyItem.id,
+			title);
 	}
 
 	@command('git.graph.compareRef', { repository: true })
-	async compareBranch(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+	async compareRef(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
 		if (!repository || !historyItem) {
 			return;
 		}
@@ -3161,39 +3168,30 @@ export class CommandCenter {
 			return;
 		}
 
+		const title = `${sourceRef.ref.name} ↔ ${getHistoryItemDisplayName(historyItem)}`;
+
 		await this._openChangesBetweenRefs(
 			repository,
-			sourceRef.ref.name,
-			historyItem);
+			sourceRef.ref.commit,
+			historyItem.id,
+			title);
 	}
 
-	private async _openChangesBetweenRefs(repository: Repository, ref: string | undefined, historyItem: SourceControlHistoryItem | undefined): Promise<void> {
-		if (!repository || !ref || !historyItem) {
+	private async _openChangesBetweenRefs(repository: Repository, ref1: string | undefined, ref2: string | undefined, title: string): Promise<void> {
+		if (!repository || !ref1 || !ref2) {
 			return;
 		}
 
-		const ref2 = historyItem.references?.length
-			? historyItem.references[0].name
-			: historyItem.id;
-
 		try {
-			const changes = await repository.diffBetween2(ref, historyItem.id);
+			const changes = await repository.diffBetween2(ref1, ref2);
 
 			if (changes.length === 0) {
-				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref, ref2));
+				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref1, ref2));
 				return;
 			}
 
-			const refDisplayName = historyItem.references?.length
-				? historyItem.references[0].name
-				: `${historyItem.displayId || historyItem.id} - ${historyItem.subject}`;
-
-			const resources = changes.map(change => toMultiFileDiffEditorUris(change, ref, ref2));
-			const title = `${ref} ↔ ${refDisplayName}`;
-			const multiDiffSourceUri = Uri.from({
-				scheme: 'git-ref-compare',
-				path: `${repository.root}/${ref}..${ref2}`
-			});
+			const multiDiffSourceUri = Uri.from({ scheme: 'git-ref-compare', path: `${repository.root}/${ref1}..${ref2}` });
+			const resources = changes.map(change => toMultiFileDiffEditorUris(change, ref1, ref2));
 
 			await commands.executeCommand('_workbench.openMultiDiffEditor', {
 				multiDiffSourceUri,
@@ -3201,7 +3199,7 @@ export class CommandCenter {
 				resources
 			});
 		} catch (err) {
-			window.showErrorMessage(l10n.t('Failed to open changes between "{0}" and "{1}": {2}', ref, ref2, err.message));
+			window.showErrorMessage(l10n.t('Failed to open changes between "{0}" and "{1}": {2}', ref1, ref2, err.message));
 		}
 	}
 
@@ -5189,6 +5187,50 @@ export class CommandCenter {
 		}
 
 		await this._checkout(repository, { treeish: artifact.name });
+	}
+
+	@command('git.repositories.checkoutDetached', { repository: true })
+	async artifactCheckoutDetached(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		await this._checkout(repository, { treeish: artifact.name, detached: true });
+	}
+
+	@command('git.repositories.compareRef', { repository: true })
+	async artifactCompareWith(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
+		const getRefPicks = async () => {
+			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
+			const processors = [
+				new RefProcessor(RefType.Head, BranchItem),
+				new RefProcessor(RefType.RemoteHead, BranchItem),
+				new RefProcessor(RefType.Tag, BranchItem)
+			];
+
+			const itemsProcessor = new RefItemsProcessor(repository, processors);
+			return itemsProcessor.processRefs(refs);
+		};
+
+		const placeHolder = l10n.t('Select a reference to compare with');
+		const sourceRef = await this.pickRef(getRefPicks(), placeHolder);
+
+		if (!(sourceRef instanceof BranchItem) || !sourceRef.ref.commit) {
+			return;
+		}
+
+		await this._openChangesBetweenRefs(
+			repository,
+			sourceRef.ref.commit,
+			artifact.id,
+			`${sourceRef.ref.name} ↔ ${artifact.name}`);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

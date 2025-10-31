@@ -12,7 +12,7 @@ import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/code
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { InlineChatController, InlineChatController1, InlineChatController2, InlineChatRunOptions } from './inlineChatController.js';
 import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, ACTION_DISCARD_CHANGES, CTX_INLINE_CHAT_POSSIBLE, ACTION_START, MENU_INLINE_CHAT_SIDE, CTX_INLINE_CHAT_V2_ENABLED, CTX_INLINE_CHAT_V1_ENABLED } from '../common/inlineChat.js';
-import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession, ctxRequestCount } from '../../chat/browser/chatEditing/chatEditingEditorContextKeys.js';
+import { ctxHasEditorModification, ctxHasRequestInProgress, ctxRequestCount } from '../../chat/browser/chatEditing/chatEditingEditorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IAction2Options, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -382,7 +382,7 @@ export class RerunAction extends AbstractInline1ChatAction {
 
 		const lastRequest = model.getRequests().at(-1);
 		if (lastRequest) {
-			const widget = chatWidgetService.getWidgetBySessionId(model.sessionId);
+			const widget = chatWidgetService.getWidgetBySessionResource(model.sessionResource);
 			await chatService.resendRequest(lastRequest, {
 				noCommandDetection: false,
 				attempt: lastRequest.attempt + 1,
@@ -655,7 +655,7 @@ export class KeepSessionAction2 extends KeepOrUndoSessionAction {
 				ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditorInline)
 			),
 			keybinding: [{
-				when: ChatContextKeys.inputHasFocus,
+				when: ContextKeyExpr.and(ChatContextKeys.inputHasFocus, ChatContextKeys.inputHasText.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.Enter
 			}, {
@@ -687,7 +687,10 @@ export class UndoAndCloseSessionAction2 extends KeepOrUndoSessionAction {
 			icon: Codicon.close,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			keybinding: [{
-				when: ChatContextKeys.inputHasFocus,
+				when: ContextKeyExpr.or(
+					ContextKeyExpr.and(EditorContextKeys.focus, ctxHasEditorModification.negate()),
+					ChatContextKeys.inputHasFocus,
+				),
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				primary: KeyCode.Escape,
 			}, {
@@ -701,70 +704,5 @@ export class UndoAndCloseSessionAction2 extends KeepOrUndoSessionAction {
 				order: 100
 			}]
 		});
-	}
-}
-
-// TODO@jrieken REMOVE this
-export class RevealWidget extends AbstractInline2ChatAction {
-	constructor() {
-		super({
-			id: 'inlineChat2.reveal',
-			title: localize2('reveal', "Toggle Inline Chat"),
-			f1: true,
-			icon: Codicon.chatSparkle,
-			precondition: ContextKeyExpr.and(ctxIsGlobalEditingSession.negate(), ContextKeyExpr.greaterEquals(ctxRequestCount.key, 1)),
-			toggled: {
-				condition: CTX_INLINE_CHAT_VISIBLE,
-			},
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KeyI
-			},
-			menu: {
-				id: MenuId.ChatEditingEditorContent,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.greaterEquals(ctxRequestCount.key, 1),
-					ctxIsGlobalEditingSession.negate(),
-				),
-				group: 'navigate',
-				order: 4,
-			}
-		});
-	}
-
-	runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController2, _editor: ICodeEditor): void {
-		ctrl.toggleWidgetUntilNextRequest();
-		ctrl.markActiveController();
-	}
-}
-
-// TODO@jrieken REMOVE this
-export class CancelRequestAction extends AbstractInline2ChatAction {
-	constructor() {
-		super({
-			id: 'inlineChat2.cancelRequest',
-			title: localize2('cancel', "Cancel Request"),
-			f1: true,
-			icon: Codicon.stopCircle,
-			precondition: ContextKeyExpr.and(ctxIsGlobalEditingSession.negate(), ctxHasRequestInProgress),
-			toggled: CTX_INLINE_CHAT_VISIBLE,
-			menu: {
-				id: MenuId.ChatEditingEditorContent,
-				when: ContextKeyExpr.and(ctxIsGlobalEditingSession.negate(), ctxHasRequestInProgress),
-				group: 'a_request',
-				order: 1,
-			}
-		});
-	}
-
-	runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController2, _editor: ICodeEditor): void {
-		const chatService = accessor.get(IChatService);
-
-		const { viewModel } = ctrl.widget.chatWidget;
-		if (viewModel) {
-			ctrl.toggleWidgetUntilNextRequest();
-			ctrl.markActiveController();
-			chatService.cancelCurrentRequestForSession(viewModel.sessionId);
-		}
 	}
 }

@@ -23,7 +23,6 @@ import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService.js';
-import { LocalChatSessionUri } from '../common/chatUri.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
@@ -48,7 +47,11 @@ export interface IChatWidgetService {
 
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
+
+	/** @deprecated Use {@link getWidgetBySessionResource} instead */
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
+	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined;
+
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
 }
 
@@ -56,9 +59,9 @@ export async function showChatWidgetInViewOrEditor(accessor: ServicesAccessor, w
 	if ('viewId' in widget.viewContext) {
 		await accessor.get(IViewsService).openView(widget.location);
 	} else {
-		const sessionId = widget.viewModel?.sessionId;
-		if (sessionId) {
-			const existing = findExistingChatEditorByUri(LocalChatSessionUri.forSession(sessionId), accessor.get(IEditorGroupsService));
+		const sessionResource = widget.viewModel?.sessionResource;
+		if (sessionResource) {
+			const existing = findExistingChatEditorByUri(sessionResource, accessor.get(IEditorGroupsService));
 			if (existing) {
 				existing.group.openEditor(existing.editor);
 			}
@@ -151,6 +154,7 @@ export interface IChatWidgetViewOptions {
 	renderInputOnTop?: boolean;
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
+	renderInputToolbarBelowInput?: boolean;
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	rendererOptions?: IChatListItemRendererOptions;

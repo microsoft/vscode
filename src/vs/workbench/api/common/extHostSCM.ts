@@ -687,8 +687,10 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { hasArtifactProvider: !!artifactProvider });
 
 		if (artifactProvider) {
-			this._artifactProviderDisposable.value.add(artifactProvider.onDidChangeArtifacts((group: string) => {
-				this.#proxy.$onDidChangeArtifacts(this.handle, group);
+			this._artifactProviderDisposable.value.add(artifactProvider.onDidChangeArtifacts((groups: string[]) => {
+				if (groups.length !== 0) {
+					this.#proxy.$onDidChangeArtifacts(this.handle, groups);
+				}
 			}));
 		}
 	}

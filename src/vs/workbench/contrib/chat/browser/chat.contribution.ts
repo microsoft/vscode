@@ -304,15 +304,6 @@ configurationRegistry.registerConfiguration({
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
 		},
-		'chat.emptyChatState.enabled': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.emptyChatState', "Shows a modified empty chat state with hints in the input placeholder text."),
-			tags: ['experimental'],
-			experiment: {
-				mode: 'startup'
-			}
-		},
 		[ChatConfiguration.EmptyStateHistoryEnabled]: {
 			type: 'boolean',
 			default: product.quality === 'insiders',

@@ -929,13 +929,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return contribution?.capabilities;
 	}
 
-	/**
-	 * Get the welcome tips for a specific session type
-	 */
-	public getWelcomeTipsForSessionType(chatSessionType: string): string | undefined {
-		return this._sessionTypeWelcomeTips.get(chatSessionType);
-	}
-
 	public getContentProviderSchemes(): string[] {
 		return Array.from(this._contentProviders.keys());
 	}

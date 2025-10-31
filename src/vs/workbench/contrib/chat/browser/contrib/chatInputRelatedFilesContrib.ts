@@ -30,7 +30,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 		this._register(autorun((reader) => {
 			const sessions = this.chatEditingService.editingSessionsObs.read(reader);
 			sessions.forEach(session => {
-				const widget = this.chatWidgetService.getWidgetBySessionId(session.chatSessionId);
+				const widget = this.chatWidgetService.getWidgetBySessionResource(session.chatSessionResource);
 				if (widget && !this.chatEditingSessionDisposables.has(session.chatSessionId)) {
 					this._handleNewEditingSession(session, widget);
 				}
@@ -49,13 +49,13 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 			return;
 		}
 
-		this._currentRelatedFilesRetrievalOperation = this.chatEditingService.getRelatedFiles(currentEditingSession.chatSessionId, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None)
+		this._currentRelatedFilesRetrievalOperation = this.chatEditingService.getRelatedFiles(currentEditingSession.chatSessionResource, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None)
 			.then((files) => {
 				if (!files?.length || !widget.viewModel?.sessionId || !widget.input.relatedFiles) {
 					return;
 				}
 
-				const currentEditingSession = this.chatEditingService.getEditingSession(widget.viewModel.sessionId);
+				const currentEditingSession = this.chatEditingService.getEditingSession(widget.viewModel.sessionResource);
 				if (!currentEditingSession || currentEditingSession.entries.get().length) {
 					return; // Might have disposed while we were calculating
 				}

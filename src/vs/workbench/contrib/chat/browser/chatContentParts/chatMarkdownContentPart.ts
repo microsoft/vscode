@@ -158,7 +158,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					}
 					const globalIndex = globalCodeBlockIndexStart++;
 					const thisPartIndex = thisPartCodeBlockIndexStart++;
-					let textModel: Promise<ITextModel>;
+					let textModel: Promise<ITextModel> | undefined;
 					let range: Range | undefined;
 					let vulns: readonly IMarkdownVulnerability[] | undefined;
 					let codeblockEntry: CodeBlockEntry | undefined;
@@ -171,12 +171,15 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							return $('div');
 						}
 					} else {
-						const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
-						const modelEntry = this.codeBlockModelCollection.getOrCreate(sessionId, element, globalIndex);
-						const fastUpdateModelEntry = this.codeBlockModelCollection.updateSync(sessionId, element, globalIndex, { text, languageId, isComplete: isCodeBlockComplete });
-						vulns = modelEntry.vulns;
-						codeblockEntry = fastUpdateModelEntry;
-						textModel = modelEntry.model;
+						if (isResponseVM(element) || isRequestVM(element)) {
+							const modelEntry = this.codeBlockModelCollection.getOrCreate(element.sessionResource, element, globalIndex);
+							const fastUpdateModelEntry = this.codeBlockModelCollection.updateSync(element.sessionResource, element, globalIndex, { text, languageId, isComplete: isCodeBlockComplete });
+							vulns = modelEntry.vulns;
+							codeblockEntry = fastUpdateModelEntry;
+							textModel = modelEntry.model;
+						} else {
+							textModel = undefined;
+						}
 					}
 
 					const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
@@ -210,7 +213,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 								// async and the uri might be undefined when it's read immediately
 								return ref.object.uri;
 							}
-							readonly uriPromise = textModel.then(model => model.uri);
+							readonly uriPromise = textModel?.then(model => model.uri) ?? Promise.resolve(undefined);
 							focus() {
 								ref.object.focus();
 							}
@@ -220,10 +223,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						return ref.object.element;
 					} else {
 						const requestId = isRequestVM(element) ? element.id : element.requestId;
-						const ref = this.renderCodeBlockPill(element.sessionId, requestId, inUndoStop, codeBlockInfo.codemapperUri);
+						const ref = this.renderCodeBlockPill(element.sessionId, element.sessionResource, requestId, inUndoStop, codeBlockInfo.codemapperUri);
 						if (isResponseVM(codeBlockInfo.element)) {
 							// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
-							this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId, isComplete: isCodeBlockComplete }).then((e) => {
+							this.codeBlockModelCollection.update(codeBlockInfo.element.sessionResource, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId, isComplete: isCodeBlockComplete }).then((e) => {
 								// Update the existing object's codemapperUri
 								this.codeblocks[codeBlockInfo.codeBlockPartIndex].codemapperUri = e.codemapperUri;
 								this._onDidChangeHeight.fire();
@@ -322,8 +325,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		}
 	}
 
-	private renderCodeBlockPill(sessionId: string, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined): IDisposableReference<CollapsedCodeBlock> {
-		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionId, requestId, inUndoStop);
+	private renderCodeBlockPill(sessionId: string, sessionResource: URI, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined): IDisposableReference<CollapsedCodeBlock> {
+		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionId, sessionResource, requestId, inUndoStop);
 		if (codemapperUri) {
 			codeBlock.render(codemapperUri);
 		}
@@ -338,7 +341,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		const ref = this.editorPool.get();
 		const editorInfo = ref.object;
 		if (isResponseVM(data.element)) {
-			this.codeBlockModelCollection.update(data.element.sessionId, data.element, data.codeBlockIndex, { text, languageId: data.languageId, isComplete }).then((e) => {
+			this.codeBlockModelCollection.update(data.element.sessionResource, data.element, data.codeBlockIndex, { text, languageId: data.languageId, isComplete }).then((e) => {
 				// Update the existing object's codemapperUri
 				this.codeblocks[data.codeBlockPartIndex].codemapperUri = e.codemapperUri;
 				this._onDidChangeHeight.fire();
@@ -432,6 +435,7 @@ export class CollapsedCodeBlock extends Disposable {
 
 	constructor(
 		private readonly sessionId: string,
+		private readonly sessionResource: URI,
 		private readonly requestId: string,
 		private readonly inUndoStop: string | undefined,
 		@ILabelService private readonly labelService: ILabelService,
@@ -501,7 +505,7 @@ export class CollapsedCodeBlock extends Disposable {
 
 		this._uri = uri;
 
-		const session = this.chatService.getSession(this.sessionId);
+		const session = this.chatService.getSession(this.sessionResource);
 		const iconText = this.labelService.getUriBasenameLabel(uri);
 
 		const iconEl = dom.$('span.icon');

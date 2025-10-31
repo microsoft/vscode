@@ -132,7 +132,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 				}
 			}
 
-			this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.focusInput();
+			this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
 		}));
 
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));

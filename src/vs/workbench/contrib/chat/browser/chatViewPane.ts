@@ -84,7 +84,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const lastEditsState = editsMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			if (lastEditsState.sessionId) {
 				this.logService.trace(`ChatViewPane: last edits session was ${lastEditsState.sessionId}`);
-				if (!this.chatService.isPersistedSessionEmpty(lastEditsState.sessionId)) {
+				if (!this.chatService.isPersistedSessionEmpty(LocalChatSessionUri.forSession(lastEditsState.sessionId))) {
 					this.logService.info(`ChatViewPane: migrating ${lastEditsState.sessionId} to unified view`);
 					this.viewState.sessionId = lastEditsState.sessionId;
 					this.viewState.inputValue = lastEditsState.inputValue;
@@ -102,7 +102,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				if (!this._widget?.viewModel && !this._restoringSession) {
 					const info = this.getTransferredOrPersistedSessionInfo();
 					this._restoringSession =
-						(info.sessionId ? this.chatService.getOrRestoreSession(info.sessionId) : Promise.resolve(undefined)).then(async model => {
+						(info.sessionId ? this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(info.sessionId)) : Promise.resolve(undefined)).then(async model => {
 							if (!this._widget) {
 								// renderBody has not been called yet
 								return;
@@ -141,7 +141,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.modelDisposables.clear();
 
 		model = model ?? (this.chatService.transferredSessionData?.sessionId && this.chatService.transferredSessionData?.location === this.chatOptions.location
-			? await this.chatService.getOrRestoreSession(this.chatService.transferredSessionData.sessionId)
+			? await this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(this.chatService.transferredSessionData.sessionId))
 			: this.chatService.startSession(this.chatOptions.location, CancellationToken.None));
 		if (!model) {
 			throw new Error('Could not start chat session');
@@ -225,7 +225,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._widget.render(parent);
 
 		const info = this.getTransferredOrPersistedSessionInfo();
-		const model = info.sessionId ? await this.chatService.getOrRestoreSession(info.sessionId) : undefined;
+		const model = info.sessionId ? await this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(info.sessionId)) : undefined;
 
 		await this.updateModel(model, info.inputValue || info.mode ? { inputState: { chatMode: info.mode }, inputValue: info.inputValue } : undefined);
 	}
@@ -236,7 +236,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private async clear(): Promise<void> {
 		if (this.widget.viewModel) {
-			await this.chatService.clearSession(this.widget.viewModel.sessionId);
+			await this.chatService.clearSession(this.widget.viewModel.sessionResource);
 		}
 
 		// Grab the widget's latest view state because it will be loaded back into the widget
@@ -247,13 +247,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.updateActions();
 	}
 
-	async loadSession(sessionId: string | URI, viewState?: IChatViewState): Promise<void> {
+	async loadSession(sessionId: URI, viewState?: IChatViewState): Promise<void> {
 		if (this.widget.viewModel) {
-			await this.chatService.clearSession(this.widget.viewModel.sessionId);
+			await this.chatService.clearSession(this.widget.viewModel.sessionResource);
 		}
 
 		// Handle locking for contributed chat sessions
-		if (URI.isUri(sessionId) && sessionId.scheme === Schemas.vscodeLocalChatSession) {
+		if (sessionId.scheme === Schemas.vscodeLocalChatSession) {
 			const parsed = LocalChatSessionUri.parse(sessionId);
 			if (parsed?.chatSessionType) {
 				await this.chatSessionsService.canResolveChatSession(sessionId);
@@ -265,7 +265,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		}
 
-		const newModel = await (URI.isUri(sessionId) ? this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Chat, CancellationToken.None) : this.chatService.getOrRestoreSession(sessionId));
+		const newModel = await this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Chat, CancellationToken.None);
 		await this.updateModel(newModel, viewState);
 	}
 

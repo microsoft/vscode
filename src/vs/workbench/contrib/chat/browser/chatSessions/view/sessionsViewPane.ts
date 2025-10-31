@@ -461,7 +461,7 @@ export class SessionsViewPane extends ViewPane {
 				await this.editorService.openEditor(existingEditor.editor, existingEditor.group);
 				return;
 			}
-			if (this.chatWidgetService.getWidgetBySessionId(session.id)) {
+			if (this.chatWidgetService.getWidgetBySessionResource(session.resource)) {
 				return;
 			}
 

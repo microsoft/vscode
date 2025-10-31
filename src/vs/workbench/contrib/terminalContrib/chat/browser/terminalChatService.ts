@@ -12,6 +12,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
+import { LocalChatSessionUri } from '../../../chat/common/chatUri.js';
 
 const enum StorageKeys {
 	ToolSessionMappings = 'terminalChat.toolSessionMappings',
@@ -84,7 +85,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		}
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			if (e.sessionId === terminalToolSessionId) {
+			if (LocalChatSessionUri.parseLocalSessionId(e.sessionResource) === terminalToolSessionId) {
 				this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 				this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
 				this._commandIdByToolSessionId.delete(terminalToolSessionId);
@@ -116,7 +117,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			return undefined;
 		}
 		if (this._pendingRestoredMappings.has(terminalToolSessionId)) {
-			const instance = this._terminalService.instances.find(i => i.shellLaunchConfig?.attachPersistentProcess?.id === this._pendingRestoredMappings.get(terminalToolSessionId));
+			const instance = this._terminalService.instances.find(i => i.shellLaunchConfig.attachPersistentProcess?.id === this._pendingRestoredMappings.get(terminalToolSessionId));
 			if (instance) {
 				this._tryAdoptRestoredMapping(instance);
 				return instance;
@@ -175,7 +176,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			return;
 		}
 		for (const [toolSessionId, persistentProcessId] of this._pendingRestoredMappings) {
-			if (persistentProcessId === instance.persistentProcessId) {
+			if (persistentProcessId === instance.shellLaunchConfig.attachPersistentProcess?.id) {
 				this._terminalInstancesByToolSessionId.set(toolSessionId, instance);
 				this._onDidRegisterTerminalInstanceForToolSession.fire(instance);
 				this._terminalInstanceListenersByToolSessionId.set(toolSessionId, instance.onDisposed(() => {
