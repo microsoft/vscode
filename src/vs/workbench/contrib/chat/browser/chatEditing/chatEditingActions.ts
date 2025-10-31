@@ -325,7 +325,7 @@ async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item:
 		const itemIndex = chatRequests.findIndex(request => request.id === requestId) - 1;
 		const editsToUndo = chatRequests.length - itemIndex;
 
-		const requestsToRemove = chatRequests.slice(itemIndex);
+		const requestsToRemove = itemIndex < 0 ? chatRequests : chatRequests.slice(itemIndex);
 		const requestIdsToRemove = new Set(requestsToRemove.map(request => request.id));
 		const entriesModifiedInRequestsToRemove = session.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
 		const shouldPrompt = entriesModifiedInRequestsToRemove.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
@@ -367,7 +367,7 @@ async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item:
 		}
 
 		// Restore the snapshot to what it was before the request(s) that we deleted
-		if (itemIndex < 0 && widget?.viewModel?.sessionResource) {
+		if (itemIndex < 0 && widget?.viewModel) {
 			const snapshotRequestId = chatRequests[0].id;
 			chatService.removeRequest(widget.viewModel.sessionResource, snapshotRequestId);
 		} else {
