@@ -129,6 +129,8 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			}
 
 			// Also add if we have a 100% command ID match
+			// Note: The exact match is added here, and hasExactIdMatch (checked upfront)
+			// prevents TF-IDF scoring for all commands when any exact match exists
 			else if (filter === commandPick.commandId) {
 				filteredCommandPicks.push(commandPick);
 			}
