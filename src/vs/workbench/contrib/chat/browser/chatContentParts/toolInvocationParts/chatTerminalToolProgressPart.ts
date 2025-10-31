@@ -38,7 +38,6 @@ import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/m
 import * as domSanitize from '../../../../../../base/browser/domSanitize.js';
 import { DomSanitizerConfig } from '../../../../../../base/browser/domSanitize.js';
 import { allowedMarkdownHtmlAttributes } from '../../../../../../base/browser/markdownRenderer.js';
-import { URI } from '../../../../../../base/common/uri.js';
 
 const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
 
@@ -164,10 +163,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 			this._terminalInstance = instance;
 			this._registerInstanceListener(instance);
-			await this._addFocusAction(instance, terminalToolSessionId);
-			if (this._terminalData?.output?.html) {
-				this._ensureShowOutputAction();
-			}
 		};
 
 		await attachInstance(await this._terminalChatService.getTerminalInstanceByToolSessionId(terminalToolSessionId));
@@ -182,25 +177,26 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._register(listener);
 	}
 
-	private async _addFocusAction(terminalInstance: ITerminalInstance, terminalToolSessionId: string) {
+	private async _addActions(terminalInstance: ITerminalInstance, terminalToolSessionId: string) {
 		if (!this._actionBar.value) {
 			return;
 		}
 		const isTerminalHidden = this._terminalChatService.isBackgroundTerminal(terminalToolSessionId);
 		const command = this._getResolvedCommand(terminalInstance);
-		const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, command, isTerminalHidden);
-		this._focusAction.value = focusAction;
-		this._actionBar.value.push(focusAction, { icon: true, label: false, index: 0 });
-		this._ensureShowOutputAction();
+		if (command) {
+			const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, command, isTerminalHidden);
+			this._focusAction.value = focusAction;
+			this._actionBar.value.push(focusAction, { icon: true, label: false, index: 0 });
+			this._ensureShowOutputAction();
+		}
 	}
 
 	private _ensureShowOutputAction(): void {
 		if (!this._actionBar.value) {
 			return;
 		}
-		const hasSerializedOutput = !!this._terminalData.output?.html;
-		const commandFinished = !!this._getResolvedCommand()?.endMarker;
-		if (!hasSerializedOutput && !commandFinished) {
+		const command = this._getResolvedCommand();
+		if (!command) {
 			return;
 		}
 		let showOutputAction = this._showOutputAction.value;
@@ -238,33 +234,39 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private _registerInstanceListener(terminalInstance: ITerminalInstance) {
 		const commandDetectionListener = this._register(new MutableDisposable<IDisposable>());
-		const tryResolveCommand = (): ITerminalCommand | undefined => {
+		const tryResolveCommand = async (): Promise<ITerminalCommand | undefined> => {
 			const resolvedCommand = this._resolveCommand(terminalInstance);
 			if (resolvedCommand?.endMarker) {
-				this._ensureShowOutputAction();
+				await this._addActions(terminalInstance, this._terminalData.terminalToolSessionId!);
 			}
 			return resolvedCommand;
 		};
 
-		const attachCommandDetection = (commandDetection: ICommandDetectionCapability | undefined) => {
+		const attachCommandDetection = async (commandDetection: ICommandDetectionCapability | undefined) => {
 			commandDetectionListener.clear();
 			if (!commandDetection) {
 				return;
 			}
 
-			const resolvedImmediately = tryResolveCommand();
+			commandDetectionListener.value = commandDetection.onCommandFinished(() => {
+				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId!);
+				commandDetectionListener.clear();
+			});
+			const resolvedImmediately = await tryResolveCommand();
 			if (resolvedImmediately?.endMarker) {
 				return;
 			}
-
-			commandDetectionListener.value = commandDetection.onCommandFinished(() => {
-				this._ensureShowOutputAction();
-				commandDetectionListener.clear();
-			});
 		};
 
 		attachCommandDetection(terminalInstance.capabilities.get(TerminalCapability.CommandDetection));
 		this._register(terminalInstance.capabilities.onDidAddCommandDetectionCapability(cd => attachCommandDetection(cd)));
+
+		this._register(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(async () => {
+			const resolvedCommand = this._resolveCommand(terminalInstance);
+			if (resolvedCommand?.endMarker) {
+				await this._addActions(terminalInstance, this._terminalData.terminalToolSessionId!);
+			}
+		}));
 
 		const instanceListener = this._register(terminalInstance.onDisposed(() => {
 			if (this._terminalInstance === terminalInstance) {
@@ -273,11 +275,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			commandDetectionListener.clear();
 			this._actionBar.clear();
 			this._focusAction.clear();
-			const keepOutputAction = !!this._terminalData.output?.html;
 			this._showOutputActionAdded = false;
-			if (!keepOutputAction) {
-				this._showOutputAction.clear();
-			}
+			this._showOutputAction.clear();
 			this._ensureShowOutputAction();
 			instanceListener.dispose();
 		}));
@@ -320,13 +319,17 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return false;
 		}
 
+		if (!this._terminalData.terminalToolSessionId) {
+			return false;
+		}
+
 		if (!this._terminalInstance) {
-			const resource = this._getTerminalResource();
-			if (resource) {
-				this._terminalInstance = this._terminalService.getInstanceFromResource(resource);
-			}
+			this._terminalInstance = await this._terminalChatService.getTerminalInstanceByToolSessionId(this._terminalData.terminalToolSessionId);
 		}
 		const output = await this._collectOutput(this._terminalInstance);
+		if (!output) {
+			return false;
+		}
 		const content = this._renderOutput(output);
 		const theme = this._terminalInstance?.xterm?.getXtermTheme();
 		if (theme) {
@@ -396,28 +399,19 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}));
 	}
 
-	private async _collectOutput(terminalInstance: ITerminalInstance | undefined): Promise<{ text: string; truncated: boolean }> {
-		const storedOutput = this._terminalData.output;
-		if (storedOutput?.html) {
-			return { text: storedOutput.html, truncated: storedOutput.truncated ?? false };
+	private async _collectOutput(terminalInstance: ITerminalInstance | undefined): Promise<{ text: string; truncated: boolean } | undefined> {
+		const commandDetection = terminalInstance?.capabilities.get(TerminalCapability.CommandDetection);
+		const commands = commandDetection?.commands;
+		const xterm = await terminalInstance?.xtermReadyPromise;
+		if (!commands || commands.length === 0 || !terminalInstance || !xterm) {
+			return;
 		}
-		if (!terminalInstance) {
-			return { text: '', truncated: false };
-		}
-		const xterm = await terminalInstance.xtermReadyPromise;
-		if (!xterm) {
-			return { text: '', truncated: false };
-		}
-		const command = this._resolveCommand(terminalInstance);
+		const command = commands.find(c => c.id === this._terminalData.terminalCommandId);
 		if (!command?.endMarker) {
-			return { text: '', truncated: false };
+			return;
 		}
-		const text = await xterm.getCommandOutputAsHtml(command, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
-		if (!text) {
-			return { text: '', truncated: false };
-		}
-
-		return { text, truncated: false };
+		const result = await xterm.getCommandOutputAsHtml(command, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
+		return { text: result.text, truncated: result.truncated ?? false };
 	}
 
 	private _renderOutput(result: { text: string; truncated: boolean }): HTMLElement {
@@ -439,15 +433,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		return container;
 	}
 
-	private _getTerminalResource(): URI | undefined {
-		const commandUri = this._terminalData.terminalCommandUri;
-		if (!commandUri) {
-			return undefined;
-		}
-		return URI.isUri(commandUri) ? commandUri : URI.revive(commandUri);
-	}
-
-
 	private _resolveCommand(instance: ITerminalInstance): ITerminalCommand | undefined {
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 		const commands = commandDetection?.commands;
@@ -455,11 +440,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return undefined;
 		}
 
-		const commandId = this._terminalChatService.getTerminalCommandIdByToolSessionId(this._terminalData.terminalToolSessionId);
-		if (commandId) {
-			return commands.find(c => c.id === commandId);
-		}
-		return;
+		return commands.find(c => c.id === this._terminalData.terminalCommandId);
 	}
 }
 
@@ -536,7 +517,7 @@ class ToggleChatTerminalOutputAction extends Action implements IAction {
 export class FocusChatInstanceAction extends Action implements IAction {
 	constructor(
 		private readonly _instance: ITerminalInstance,
-		private readonly _command: ITerminalCommand | undefined,
+		private readonly _command: ITerminalCommand,
 		isTerminalHidden: boolean,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
@@ -560,8 +541,6 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		}
 		this._terminalService.setActiveInstance(this._instance);
 		await this._instance?.focusWhenReady(true);
-		if (this._command) {
-			this._instance.xterm?.markTracker.revealCommand(this._command);
-		}
+		this._instance.xterm?.markTracker.revealCommand(this._command);
 	}
 }

@@ -368,7 +368,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		return this._serializeAddon.serializeAsHTML();
 	}
 
-	async getCommandOutputAsHtml(command: ITerminalCommand, maxLines: number): Promise<string> {
+	async getCommandOutputAsHtml(command: ITerminalCommand, maxLines: number): Promise<{ text: string; truncated?: boolean }> {
 		if (!this._serializeAddon) {
 			const Addon = await this._xtermAddonLoader.importAddon('serialize');
 			this._serializeAddon = new Addon();
@@ -386,7 +386,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		let endLine = command.endMarker?.line !== undefined ? command.endMarker.line - 1 : this.raw.buffer.active.length - 1;
 		if (endLine < startLine) {
-			return '';
+			return { text: '', truncated: false };
 		}
 		// Trim empty lines from the end
 		let emptyLinesFromEnd = 0;
@@ -424,7 +424,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		const range = { startLine, endLine, startCol };
 		const result = this._serializeAddon.serializeAsHTML({ range });
-		return result;
+		return { text: result, truncated: (endLine - startLine) >= maxLines };
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {

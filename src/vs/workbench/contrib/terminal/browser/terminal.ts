@@ -127,11 +127,6 @@ export interface ITerminalChatService {
 	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): Promise<ITerminalInstance | undefined>;
 
 	/**
-	 * Get the terminal command ID associated with a tool session ID, if any.
-	 */
-	getTerminalCommandIdByToolSessionId(terminalToolSessionId: string | undefined): string | undefined;
-
-	/**
 	 * Returns the list of terminal instances that have been registered with a tool session id.
 	 * This is used for surfacing tool-driven/background terminals in UI (eg. quick picks).
 	 */
@@ -1034,7 +1029,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 */
 	sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void>;
 
-	runCommand(command: string, shouldExecute?: boolean): Promise<void>;
+	runCommand(command: string, shouldExecute?: boolean, commandId?: string): Promise<void>;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
