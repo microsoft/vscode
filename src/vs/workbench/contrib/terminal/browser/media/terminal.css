@@ -344,6 +344,10 @@
 	color: inherit;
 }
 
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry.has-scroll-separator {
+	border-top: 1px solid var(--vscode-terminal-border);
+}
+
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-entry {
 	display: flex;
 	align-items: center;

@@ -17,6 +17,7 @@ export class TerminalTabsChatEntry extends Disposable {
 
 	private readonly _entry: HTMLElement;
 	private readonly _label: HTMLElement;
+	private _tabsListContainer: HTMLElement | undefined;
 
 	override dispose(): void {
 		this._entry.remove();
@@ -61,6 +62,10 @@ export class TerminalTabsChatEntry extends Disposable {
 		return this._entry;
 	}
 
+	setTabsListContainer(container: HTMLElement): void {
+		this._tabsListContainer = container;
+	}
+
 	update(): void {
 		const chatTerminalCount = this._terminalChatService.getToolSessionTerminalInstances().length;
 
@@ -86,5 +91,15 @@ export class TerminalTabsChatEntry extends Disposable {
 			? localize('terminal.tabs.chatEntryAriaLabelSingle', "Show 1 chat terminal")
 			: localize('terminal.tabs.chatEntryAriaLabelPlural', "Show {0} chat terminals", chatTerminalCount);
 		this._entry.setAttribute('aria-label', ariaLabel);
+
+		// Add top border separator when list has overflow (scrollbar is visible)
+		if (this._tabsListContainer) {
+			// Find the monaco-scrollable-element inside the container
+			const scrollableElement = this._tabsListContainer.querySelector('.monaco-scrollable-element') as HTMLElement;
+			if (scrollableElement) {
+				const hasOverflow = scrollableElement.scrollHeight > scrollableElement.clientHeight;
+				this._entry.classList.toggle('has-scroll-separator', hasOverflow);
+			}
+		}
 	}
 }
