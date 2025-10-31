@@ -36,6 +36,7 @@ import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/cont
 import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
 import { preferencesClearInputIcon } from '../../../preferences/browser/preferencesIcons.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
 
 const $ = DOM.$;
 
@@ -673,9 +674,10 @@ export class ChatModelsWidget extends Disposable {
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IExtensionService extensionService: IExtensionService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 	) {
 		super();
 
@@ -684,10 +686,14 @@ export class ChatModelsWidget extends Disposable {
 		this.element = DOM.$('.models-widget');
 		this.create(this.element);
 
-		extensionService.whenInstalledExtensionsRegistered().then(async () => {
+		const loadingPromise = this.extensionService.whenInstalledExtensionsRegistered().then(async () => {
 			await this.viewModel.resolve();
 			this.refreshTable();
 		});
+		
+		// Show progress indicator while loading models
+		this.editorProgressService.showWhile(loadingPromise, 300);
+		
 		this._register(this.viewModel.onDidChangeModelEntries(() => this.refreshTable()));
 	}
 
@@ -966,7 +972,9 @@ export class ChatModelsWidget extends Disposable {
 	}
 
 	public async refresh(): Promise<void> {
-		await this.viewModel.resolve();
-		this.refreshTable();
+		const refreshPromise = this.viewModel.resolve().then(() => {
+			this.refreshTable();
+		});
+		await this.editorProgressService.showWhile(refreshPromise, 300);
 	}
 }
