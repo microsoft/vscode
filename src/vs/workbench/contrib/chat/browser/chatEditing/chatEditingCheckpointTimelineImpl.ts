@@ -203,7 +203,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			throw new Error(`Checkpoint ${checkpointId} not found`);
 		}
 
-		return this._navigateToEpoch(targetCheckpoint.epoch + 1);
+		return this._navigateToEpoch(targetCheckpoint.epoch);
 	}
 
 	public getContentURIAtStop(requestId: string, fileURI: URI, stopId: string | undefined): URI {
