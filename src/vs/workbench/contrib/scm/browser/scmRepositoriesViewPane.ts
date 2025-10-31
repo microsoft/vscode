@@ -332,14 +332,10 @@ class RepositoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
 class RepositoriesTreeCompressionDelegate implements ITreeCompressionDelegate<TreeElement> {
 	isIncompressible(element: TreeElement): boolean {
 		if (ResourceTree.isResourceNode(element)) {
-			return element.childrenCount === 0 || !element.parent || !element.parent.parent;
-		} else if (isSCMArtifactTreeElement(element)) {
-			// Artifacts are never incompressible as this allows us to
-			// compress an artifact that is on its own in the folder
-			return false;
+			return element.childrenCount > 1;
+		} else {
+			return true;
 		}
-
-		return true;
 	}
 }
 
@@ -470,14 +466,9 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					}
 
 					// Explorer mode
-					if (isSCMRepository(e)) {
-						return true;
-					} else if (isSCMArtifactGroupTreeElement(e)) {
-						return true;
-					} else if (isSCMArtifactTreeElement(e)) {
-						return false;
-					} else if (isSCMArtifactNode(e)) {
-						return e.childrenCount !== 1;
+					if (isSCMArtifactNode(e)) {
+						// Only expand artifact folders as they are compressed by default
+						return !(e.childrenCount === 1 && Iterable.first(e.children)?.element === undefined);
 					} else {
 						return true;
 					}
