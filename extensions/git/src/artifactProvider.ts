@@ -23,6 +23,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag') }
 		];
 
+		this._disposables.push(this._onDidChangeArtifacts);
 		this._disposables.push(repository.historyProvider.onDidChangeHistoryItemRefs(e => {
 			const groups = new Set<string>();
 			for (const ref of e.added.concat(e.modified).concat(e.removed)) {
