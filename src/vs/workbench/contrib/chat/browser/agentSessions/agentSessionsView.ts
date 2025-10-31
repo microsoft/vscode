@@ -36,7 +36,6 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { findExistingChatEditorByUri, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
 import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { assertReturnsDefined, upcast } from '../../../../../base/common/types.js';
@@ -129,16 +128,6 @@ export class AgentSessionsView extends ViewPane {
 	private async openAgentSession(e: IOpenEvent<IAgentSessionViewModel | undefined>) {
 		const session = e.element;
 		if (!session) {
-			return;
-		}
-
-		if (session.resource.scheme !== LocalChatSessionUri.scheme) {
-			await this.openerService.open(session.resource, {
-				editorOptions: upcast<IEditorOptions, IChatEditorOptions>({
-					...e.editorOptions,
-					title: { preferred: session.label }
-				})
-			});
 			return;
 		}
 

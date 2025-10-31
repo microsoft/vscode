@@ -16,7 +16,6 @@ import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../serv
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
@@ -134,9 +133,8 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	widget.clear();
 	await widget.waitForReady();
 
-	const resource = LocalChatSessionUri.forSession(sessionId);
 	const options: IChatEditorOptions = { pinned: true, viewState, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } };
-	await editorService.openEditor({ resource, options }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+	await editorService.openEditor({ resource: widget.viewModel.sessionResource, options }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 }
 
 async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
@@ -147,10 +145,10 @@ async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 	const chatEditor = editorService.activeEditorPane;
 	const chatEditorInput = chatEditor?.input;
 	let view: ChatViewPane;
-	if (chatEditor instanceof ChatEditor && chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId) {
+	if (chatEditor instanceof ChatEditor && chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionResource) {
 		await editorService.closeEditor({ editor: chatEditor.input, groupId: editorGroupService.activeGroup.id });
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;
-		await view.loadSession(chatEditorInput.sessionId, chatEditor.getViewState());
+		await view.loadSession(chatEditorInput.sessionResource, chatEditor.getViewState());
 	} else {
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;
 	}

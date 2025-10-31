@@ -306,7 +306,7 @@ export class ChatService extends Disposable implements IChatService {
 				const title = session.title || localize('newChat', "New Chat");
 				return {
 					sessionId: session.sessionId,
-					sessionResource: LocalChatSessionUri.forSession(session.sessionId),
+					sessionResource: session.sessionResource,
 					title,
 					lastMessageDate: session.lastMessageDate,
 					isActive: true,
@@ -337,7 +337,7 @@ export class ChatService extends Disposable implements IChatService {
 		return this._startSession(undefined, location, isGlobalEditingSession, token, options);
 	}
 
-	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken, options?: { canUseTools?: boolean; inputType?: string }): ChatModel {
+	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken, options?: { sessionResource?: URI; canUseTools?: boolean; inputType?: string }): ChatModel {
 		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, { initialLocation: location, canUseTools: options?.canUseTools ?? true, inputType: options?.inputType });
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(isGlobalEditingSession);
@@ -476,7 +476,7 @@ export class ChatService extends Disposable implements IChatService {
 		const chatSessionType = chatSessionResource.scheme;
 
 		// Contributed sessions do not use UI tools
-		const model = this._startSession(undefined, location, true, CancellationToken.None, { canUseTools: false, inputType: chatSessionType });
+		const model = this._startSession(undefined, location, true, CancellationToken.None, { sessionResource: chatSessionResource, canUseTools: false, inputType: chatSessionType });
 		model.setContributedChatSession({
 			chatSessionType: chatSessionType,
 			chatSessionId: chatSessionResource.toString(),
