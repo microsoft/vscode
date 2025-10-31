@@ -87,7 +87,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		codeBlockModelCollection: CodeBlockModelCollection,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super(toolInvocation);
 
