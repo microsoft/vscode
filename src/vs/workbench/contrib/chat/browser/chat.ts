@@ -23,11 +23,12 @@ import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService.js';
+import { LocalChatSessionUri } from '../common/chatUri.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
-import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatInputPart } from './chatInputPart.js';
+import { findExistingChatEditorByUri } from './chatSessions/common.js';
 import { ChatViewPane } from './chatViewPane.js';
 import { ChatWidget, IChatViewState, IChatWidgetContrib } from './chatWidget.js';
 import { ICodeBlockActionContext } from './codeBlockPart.js';
@@ -48,6 +49,7 @@ export interface IChatWidgetService {
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
+	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined;
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
 }
 
@@ -55,30 +57,24 @@ export async function showChatWidgetInViewOrEditor(accessor: ServicesAccessor, w
 	if ('viewId' in widget.viewContext) {
 		await accessor.get(IViewsService).openView(widget.location);
 	} else {
-		for (const group of accessor.get(IEditorGroupsService).groups) {
-			for (const editor of group.editors) {
-				if (editor instanceof ChatEditorInput && editor.sessionId === widget.viewModel?.sessionId) {
-					group.openEditor(editor);
-					return;
-				}
+		const sessionId = widget.viewModel?.sessionId;
+		if (sessionId) {
+			const existing = findExistingChatEditorByUri(LocalChatSessionUri.forSession(sessionId), accessor.get(IEditorGroupsService));
+			if (existing) {
+				existing.group.openEditor(existing.editor);
 			}
 		}
 	}
 }
 
-
-export async function showChatView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
-	return (await viewsService.openView<ChatViewPane>(ChatViewId))?.widget;
-}
-
-export function showCopilotView(viewsService: IViewsService, layoutService: IWorkbenchLayoutService): Promise<IChatWidget | undefined> {
+export async function showChatView(viewsService: IViewsService, layoutService: IWorkbenchLayoutService): Promise<IChatWidget | undefined> {
 
 	// Ensure main window is in front
 	if (layoutService.activeContainer !== layoutService.mainContainer) {
 		layoutService.mainContainer.focus();
 	}
 
-	return showChatView(viewsService);
+	return (await viewsService.openView<ChatViewPane>(ChatViewId))?.widget;
 }
 
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
@@ -124,7 +120,6 @@ export interface IChatCodeBlockInfo {
 	readonly uri: URI | undefined;
 	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
-	readonly isStreaming: boolean;
 	readonly chatSessionId: string;
 	focus(): void;
 	readonly languageId?: string | undefined;
@@ -262,7 +257,6 @@ export interface IChatWidget {
 	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
-	toggleHistoryVisibility(): void;
 }
 
 

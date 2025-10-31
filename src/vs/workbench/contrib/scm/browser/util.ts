@@ -20,6 +20,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { SCMArtifactGroupTreeElement, SCMArtifactTreeElement } from '../common/artifact.js';
 
 export function isSCMViewService(element: unknown): element is ISCMViewService {
 	return Array.isArray((element as ISCMViewService).repositories) && Array.isArray((element as ISCMViewService).visibleRepositories);
@@ -65,6 +66,14 @@ export function isSCMHistoryItemChangeNode(element: unknown): element is IResour
 	return ResourceTree.isResourceNode(element) && isSCMHistoryItemViewModelTreeElement(element.context);
 }
 
+export function isSCMArtifactGroupTreeElement(element: unknown): element is SCMArtifactGroupTreeElement {
+	return (element as SCMArtifactGroupTreeElement).type === 'artifactGroup';
+}
+
+export function isSCMArtifactTreeElement(element: unknown): element is SCMArtifactTreeElement {
+	return (element as SCMArtifactTreeElement).type === 'artifact';
+}
+
 const compareActions = (a: IAction, b: IAction) => {
 	if (a instanceof MenuItemAction && b instanceof MenuItemAction) {
 		return a.id === b.id && a.enabled === b.enabled && a.hideActions?.isHidden === b.hideActions?.isHidden;
@@ -100,12 +109,15 @@ export function collectContextMenuActions(menu: IMenu): IAction[] {
 }
 
 export class StatusBarAction extends Action {
+	readonly commandTitle: string | undefined;
 
 	constructor(
 		private command: Command,
 		private commandService: ICommandService
 	) {
-		super(`statusbaraction{${command.id}}`, command.title, '', true);
+		super(`statusbaraction{${command.id}}`, getStatusBarCommandGenericName(command), '', true);
+
+		this.commandTitle = command.title;
 		this.tooltip = command.tooltip || '';
 	}
 
@@ -115,14 +127,33 @@ export class StatusBarAction extends Action {
 }
 
 class StatusBarActionViewItem extends ActionViewItem {
+	private readonly _commandTitle: string | undefined;
 
 	constructor(action: StatusBarAction, options: IBaseActionViewItemOptions) {
 		super(null, action, { ...options, icon: false, label: true });
+		this._commandTitle = action.commandTitle;
+	}
+
+	override render(container: HTMLElement): void {
+		container.classList.add('scm-status-bar-action');
+		super.render(container);
 	}
 
 	protected override updateLabel(): void {
 		if (this.options.label && this.label) {
-			reset(this.label, ...renderLabelWithIcons(this.action.label));
+			// Convert text nodes to span elements to enable
+			// text overflow on the left hand side of the label
+			const elements = renderLabelWithIcons(this._commandTitle ?? this.action.label)
+				.map(element => {
+					if (typeof element === 'string') {
+						const span = document.createElement('span');
+						span.textContent = element;
+						return span;
+					}
+					return element;
+				});
+
+			reset(this.label, ...elements);
 		}
 	}
 }
@@ -166,4 +197,31 @@ export function getSCMRepositoryIcon(
 	}
 
 	return repository.provider.iconPath;
+}
+
+export function getStatusBarCommandGenericName(command: Command): string | undefined {
+	let genericName: string | undefined = undefined;
+
+	// Get a generic name for the status bar action, derive this from the first
+	// command argument which is in the form of "<extension>.<command>/<number>"
+	if (typeof command.arguments?.[0] === 'string') {
+		const lastIndex = command.arguments[0].lastIndexOf('/');
+
+		genericName = lastIndex !== -1
+			? command.arguments[0].substring(0, lastIndex)
+			: command.arguments[0];
+
+		genericName = genericName
+			.replace(/^(?:git\.|remoteHub\.)/, '')
+			.trim();
+
+		if (genericName.length === 0) {
+			return undefined;
+		}
+
+		// Capitalize first letter
+		genericName = genericName[0].toLocaleUpperCase() + genericName.slice(1);
+	}
+
+	return genericName;
 }

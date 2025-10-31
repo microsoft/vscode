@@ -27,6 +27,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { ChatToolInvocation } from '../../common/chatProgressTypes/chatToolInvocation.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -80,6 +81,7 @@ function stubGetSession(chatService: MockChatService, sessionId: string, options
 	const capture = options?.capture;
 	const fakeModel = {
 		sessionId,
+		sessionResource: LocalChatSessionUri.forSession(sessionId),
 		getRequests: () => [{ id: requestId, modelId: 'test-model' }],
 		acceptResponseProgress: (_req: any, progress: any) => { if (capture) { capture.invocation = progress; } },
 	} as IChatModel;
@@ -1200,49 +1202,6 @@ suite('LanguageModelToolsService', () => {
 
 		IChatToolInvocation.confirmWith(published3, { type: ToolConfirmKind.UserAction });
 		await promise3;
-	});
-
-	test('setToolAutoConfirmation and getToolAutoConfirmation', () => {
-		const toolId = 'testAutoConfirmTool';
-
-		// Initially should be 'never'
-		assert.strictEqual(service.getToolAutoConfirmation(toolId), 'never');
-
-		// Set to workspace scope
-		service.setToolAutoConfirmation(toolId, 'workspace');
-		assert.strictEqual(service.getToolAutoConfirmation(toolId), 'workspace');
-
-		// Set to profile scope
-		service.setToolAutoConfirmation(toolId, 'profile');
-		assert.strictEqual(service.getToolAutoConfirmation(toolId), 'profile');
-
-		// Set to session scope
-		service.setToolAutoConfirmation(toolId, 'session');
-		assert.strictEqual(service.getToolAutoConfirmation(toolId), 'session');
-
-		// Set back to never
-		service.setToolAutoConfirmation(toolId, 'never');
-		assert.strictEqual(service.getToolAutoConfirmation(toolId), 'never');
-	});
-
-	test('resetToolAutoConfirmation', () => {
-		const toolId1 = 'testTool1';
-		const toolId2 = 'testTool2';
-
-		// Set different auto-confirmations
-		service.setToolAutoConfirmation(toolId1, 'workspace');
-		service.setToolAutoConfirmation(toolId2, 'session');
-
-		// Verify they're set
-		assert.strictEqual(service.getToolAutoConfirmation(toolId1), 'workspace');
-		assert.strictEqual(service.getToolAutoConfirmation(toolId2), 'session');
-
-		// Reset all
-		service.resetToolAutoConfirmation();
-
-		// Should all be back to 'never'
-		assert.strictEqual(service.getToolAutoConfirmation(toolId1), 'never');
-		assert.strictEqual(service.getToolAutoConfirmation(toolId2), 'never');
 	});
 
 	test('createToolSet and getToolSet', () => {

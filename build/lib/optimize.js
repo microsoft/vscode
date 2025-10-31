@@ -1,4 +1,8 @@
 "use strict";
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -38,10 +42,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.bundleTask = bundleTask;
 exports.minifyTask = minifyTask;
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 const event_stream_1 = __importDefault(require("event-stream"));
 const gulp_1 = __importDefault(require("gulp"));
 const gulp_filter_1 = __importDefault(require("gulp-filter"));
@@ -54,6 +54,7 @@ const esbuild_1 = __importDefault(require("esbuild"));
 const gulp_sourcemaps_1 = __importDefault(require("gulp-sourcemaps"));
 const fancy_log_1 = __importDefault(require("fancy-log"));
 const ansi_colors_1 = __importDefault(require("ansi-colors"));
+const tsconfigUtils_1 = require("./tsconfigUtils");
 const REPO_ROOT_PATH = path_1.default.join(__dirname, '../..');
 const DEFAULT_FILE_HEADER = [
     '/*!--------------------------------------------------------',
@@ -63,6 +64,7 @@ const DEFAULT_FILE_HEADER = [
 function bundleESMTask(opts) {
     const resourcesStream = event_stream_1.default.through(); // this stream will contain the resources
     const bundlesStream = event_stream_1.default.through(); // this stream will contain the bundled files
+    const target = getBuildTarget();
     const entryPoints = opts.entryPoints.map(entryPoint => {
         if (typeof entryPoint === 'string') {
             return { name: path_1.default.parse(entryPoint).name };
@@ -125,7 +127,7 @@ function bundleESMTask(opts) {
                 format: 'esm',
                 sourcemap: 'external',
                 plugins: [contentsMapper, externalOverride],
-                target: ['es2022'],
+                target: [target],
                 loader: {
                     '.ttf': 'file',
                     '.svg': 'file',
@@ -185,6 +187,7 @@ function bundleTask(opts) {
 }
 function minifyTask(src, sourceMapBaseUrl) {
     const sourceMappingURL = sourceMapBaseUrl ? ((f) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
+    const target = getBuildTarget();
     return cb => {
         const svgmin = require('gulp-svgmin');
         const esbuildFilter = (0, gulp_filter_1.default)('**/*.{js,css}', { restore: true });
@@ -197,7 +200,7 @@ function minifyTask(src, sourceMapBaseUrl) {
                 outdir: '.',
                 packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
                 platform: 'neutral', // makes esm
-                target: ['es2022'],
+                target: [target],
                 write: false,
             }).then(res => {
                 const jsOrCSSFile = res.outputFiles.find(f => /\.(js|css)$/.test(f.path));
@@ -220,5 +223,9 @@ function minifyTask(src, sourceMapBaseUrl) {
             addComment: true
         }), gulp_1.default.dest(src + '-min'), (err) => cb(err));
     };
+}
+function getBuildTarget() {
+    const tsconfigPath = path_1.default.join(REPO_ROOT_PATH, 'src', 'tsconfig.base.json');
+    return (0, tsconfigUtils_1.getTargetStringFromTsConfig)(tsconfigPath);
 }
 //# sourceMappingURL=optimize.js.map

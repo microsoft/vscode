@@ -45,6 +45,7 @@ export class CommandLineAutoApprover extends Disposable {
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AutoApprove) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules) ||
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible)
 			) {
 				this.updateConfiguration();
@@ -180,7 +181,9 @@ export class CommandLineAutoApprover extends Disposable {
 		const allowListCommandLineRules: IAutoApproveRule[] = [];
 		const denyListCommandLineRules: IAutoApproveRule[] = [];
 
-		Object.entries(config).forEach(([key, value]) => {
+		const ignoreDefaults = this._configurationService.getValue(TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules) === true;
+
+		for (const [key, value] of Object.entries(config)) {
 			const defaultValue = configInspectValue?.default?.value;
 			const isDefaultRule = !!(
 				isObject(defaultValue) &&
@@ -203,6 +206,12 @@ export class CommandLineAutoApprover extends Disposable {
 									: checkTarget(configInspectValue.applicationValue) ? ConfigurationTarget.APPLICATION
 										: ConfigurationTarget.DEFAULT
 			);
+
+			// If default rules are disabled, ignore entries that come from the default config
+			if (ignoreDefaults && isDefaultRule && sourceTarget === ConfigurationTarget.DEFAULT) {
+				continue;
+			}
+
 			if (typeof value === 'boolean') {
 				const { regex, regexCaseInsensitive } = this._convertAutoApproveEntryToRegex(key);
 				// IMPORTANT: Only true and false are used, null entries need to be ignored
@@ -231,7 +240,7 @@ export class CommandLineAutoApprover extends Disposable {
 					}
 				}
 			}
-		});
+		}
 
 		return {
 			denyListRules,

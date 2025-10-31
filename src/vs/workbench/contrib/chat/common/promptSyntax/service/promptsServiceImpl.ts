@@ -28,7 +28,7 @@ import { IUserDataProfileService } from '../../../../../services/userDataProfile
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
 import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
-import { getPromptsTypeForLanguageId, AGENT_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, PROMPT_LANGUAGE_ID, PromptsType, getLanguageIdForPromptsType } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, PromptsStorage } from './promptsService.js';
@@ -49,7 +49,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	private cachedCustomAgents: Promise<readonly ICustomAgent[]> | undefined;
 
-
+	/**
+	 * Cache for parsed prompt files keyed by URI.
+	 * The number in the returned tuple is textModel.getVersionId(), which is an internal VS Code counter that increments every time the text model's content changes.
+	 */
 	private parsedPromptFileCache = new ResourceMap<[number, ParsedPromptFile]>();
 
 	/**
@@ -90,13 +93,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		this.fileLocator = this._register(this.instantiationService.createInstance(PromptFilesLocator));
 
-		const promptUpdateTracker = this._register(new PromptUpdateTracker(this.fileLocator, this.modelService));
-		this._register(promptUpdateTracker.onDiDPromptChange((event) => {
+		const promptUpdateTracker = this._register(new UpdateTracker(this.fileLocator, PromptsType.prompt, this.modelService));
+		this._register(promptUpdateTracker.onDidPromptChange((event) => {
 			if (event.kind === 'fileSystem') {
 				this.promptFileByCommandCache.clear();
 			}
 			else {
-				// Clear cache for prompt files that match the changed URI\
+				// Clear cache for prompt files that match the changed URI
 				const pendingDeletes: string[] = [];
 				for (const [key, value] of this.promptFileByCommandCache) {
 					if (isEqual(value.value?.uri, event.uri)) {
@@ -124,7 +127,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (!this.onDidChangeCustomAgentsEmitter) {
 			const emitter = this.onDidChangeCustomAgentsEmitter = this._register(new Emitter<void>());
 			const updateTracker = this._register(new UpdateTracker(this.fileLocator, PromptsType.agent, this.modelService));
-			this._register(updateTracker.onDidChangeContent(() => {
+			this._register(updateTracker.onDidPromptChange((event) => {
 				this.cachedCustomAgents = undefined; // reset cached custom agents
 				emitter.fire();
 			}));
@@ -155,10 +158,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
-		if (!PromptsConfig.enabled(this.configurationService)) {
-			return [];
-		}
-
 		const prompts = await Promise.all([
 			this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath))),
 			this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath))),
@@ -169,10 +168,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
-		if (!PromptsConfig.enabled(this.configurationService)) {
-			return [];
-		}
-
 		switch (storage) {
 			case PromptsStorage.extension:
 				return this.getExtensionContributions(type);
@@ -190,10 +185,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public getSourceFolders(type: PromptsType): readonly IPromptPath[] {
-		if (!PromptsConfig.enabled(this.configurationService)) {
-			return [];
-		}
-
 		const result: IPromptPath[] = [];
 
 		if (type === PromptsType.agent) {
@@ -269,11 +260,21 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return value;
 	}
 
+	private async getPromptDetails(promptPath: IPromptPath): Promise<{ name: string; description?: string }> {
+		const parsedPromptFile = await this.parseNew(promptPath.uri, CancellationToken.None).catch(() => undefined);
+		return {
+			name: parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri),
+			description: parsedPromptFile?.header?.description ?? promptPath.description
+		};
+	}
+
 	private async getPromptPath(command: string): Promise<URI | undefined> {
 		const promptPaths = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		const result = promptPaths.find(promptPath => getCommandNameFromPromptPath(promptPath) === command);
-		if (result) {
-			return result.uri;
+		for (const promptPath of promptPaths) {
+			const details = await this.getPromptDetails(promptPath);
+			if (details.name === command) {
+				return promptPath.uri;
+			}
 		}
 		const textModel = this.modelService.getModels().find(model => model.getLanguageId() === PROMPT_LANGUAGE_ID && getCommandNameFromURI(model.uri) === command);
 		if (textModel) {
@@ -284,23 +285,24 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	public async getPromptCommandName(uri: URI): Promise<string> {
 		const promptPaths = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		const promptPath = promptPaths.find(promptPath => isEqual(promptPath.uri, uri));
+		let promptPath = promptPaths.find(promptPath => isEqual(promptPath.uri, uri));
 		if (!promptPath) {
-			return getCommandNameFromURI(uri);
+			promptPath = { uri, storage: PromptsStorage.local, type: PromptsType.prompt }; // make up a prompt path
 		}
-		return getCommandNameFromPromptPath(promptPath);
+		const { name } = await this.getPromptDetails(promptPath);
+		return name;
 	}
 
 	public async findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
 		const promptFiles = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		return promptFiles.map(promptPath => {
-			const command = getCommandNameFromPromptPath(promptPath);
+		return Promise.all(promptFiles.map(async promptPath => {
+			const { name } = await this.getPromptDetails(promptPath);
 			return {
-				command,
+				command: name,
 				detail: localize('prompt.file.detail', 'Prompt file: {0}', this.labelService.getUriLabel(promptPath.uri, { relative: true })),
 				promptPath
 			};
-		});
+		}));
 	}
 
 	public async getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]> {
@@ -319,7 +321,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		const customAgents = await Promise.all(
 			agentFiles.map(async (promptPath): Promise<ICustomAgent> => {
-				const { uri, name: agentName } = promptPath;
+				const uri = promptPath.uri;
 				const ast = await this.parseNew(uri, token);
 
 				let metadata: any | undefined;
@@ -351,15 +353,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 					metadata,
 				} satisfies IAgentInstructions;
 
-				const name = agentName ?? getCleanPromptName(uri);
+				const name = ast.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
 
 				const source: IAgentSource = IAgentSource.fromPromptPath(promptPath);
 				if (!ast.header) {
 					return { uri, name, agentInstructions, source };
 				}
-				const { description, model, tools, handOffs } = ast.header;
-				return { uri, name, description, model, tools, handOffs, agentInstructions, source };
-
+				const { description, model, tools, handOffs, argumentHint, target } = ast.header;
+				return { uri, name, description, model, tools, handOffs, argumentHint, target, agentInstructions, source };
 			})
 		);
 		return customAgents;
@@ -450,102 +451,48 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 }
 
-function getCommandNameFromPromptPath(promptPath: IPromptPath): string {
-	return promptPath.name ?? getCommandNameFromURI(promptPath.uri);
-}
-
 function getCommandNameFromURI(uri: URI): string {
 	return basename(uri.fsPath, PROMPT_FILE_EXTENSION);
 }
 
-export class UpdateTracker extends Disposable {
+export type UpdateKind = 'fileSystem' | 'textModel';
 
-	private static readonly CHAT_AGENT_UPDATE_DELAY_MS = 200;
-
-	private readonly listeners = new ResourceMap<IDisposable>();
-	private readonly onDidChangeContentEmitter: Emitter<void>;
-
-	public get onDidChangeContent(): Event<void> {
-		return this.onDidChangeContentEmitter.event;
-	}
-
-	constructor(
-		fileLocator: PromptFilesLocator,
-		promptTypes: PromptsType,
-		@IModelService modelService: IModelService,
-	) {
-		super();
-		this.onDidChangeContentEmitter = this._register(new Emitter<void>());
-		const delayer = this._register(new Delayer<void>(UpdateTracker.CHAT_AGENT_UPDATE_DELAY_MS));
-		const trigger = () => delayer.trigger(() => this.onDidChangeContentEmitter.fire());
-
-		const filesUpdatedEventRegistration = this._register(fileLocator.createFilesUpdatedEvent(promptTypes));
-		this._register(filesUpdatedEventRegistration.event(() => trigger()));
-
-		const onAdd = (model: ITextModel) => {
-			if (model.getLanguageId() === AGENT_LANGUAGE_ID) {
-				this.listeners.set(model.uri, model.onDidChangeContent(() => trigger()));
-			}
-		};
-		const onRemove = (languageId: string, uri: URI) => {
-			if (languageId === AGENT_LANGUAGE_ID) {
-				this.listeners.get(uri)?.dispose();
-				this.listeners.delete(uri);
-				trigger();
-			}
-		};
-		this._register(modelService.onModelAdded(model => onAdd(model)));
-		this._register(modelService.onModelLanguageChanged(e => {
-			onRemove(e.oldLanguageId, e.model.uri);
-			onAdd(e.model);
-		}));
-		this._register(modelService.onModelRemoved(model => onRemove(model.getLanguageId(), model.uri)));
-	}
-
-	public override dispose(): void {
-		super.dispose();
-		this.listeners.forEach(listener => listener.dispose());
-		this.listeners.clear();
-	}
-}
-
-export type PromptUpdateKind = 'fileSystem' | 'textModel';
-
-export interface IPromptUpdateEvent {
-	kind: PromptUpdateKind;
+export interface IUpdateEvent {
+	kind: UpdateKind;
 	uri?: URI;
 }
 
-export class PromptUpdateTracker extends Disposable {
+export class UpdateTracker extends Disposable {
 
 	private static readonly PROMPT_UPDATE_DELAY_MS = 200;
 
 	private readonly listeners = new ResourceMap<IDisposable>();
-	private readonly onDidPromptModelChange: Emitter<IPromptUpdateEvent>;
+	private readonly onDidPromptModelChange: Emitter<IUpdateEvent>;
 
-	public get onDiDPromptChange(): Event<IPromptUpdateEvent> {
+	public get onDidPromptChange(): Event<IUpdateEvent> {
 		return this.onDidPromptModelChange.event;
 	}
 
 	constructor(
 		fileLocator: PromptFilesLocator,
+		promptType: PromptsType,
 		@IModelService modelService: IModelService,
 	) {
 		super();
-		this.onDidPromptModelChange = this._register(new Emitter<IPromptUpdateEvent>());
-		const delayer = this._register(new Delayer<void>(PromptUpdateTracker.PROMPT_UPDATE_DELAY_MS));
-		const trigger = (event: IPromptUpdateEvent) => delayer.trigger(() => this.onDidPromptModelChange.fire(event));
+		this.onDidPromptModelChange = this._register(new Emitter<IUpdateEvent>());
+		const delayer = this._register(new Delayer<void>(UpdateTracker.PROMPT_UPDATE_DELAY_MS));
+		const trigger = (event: IUpdateEvent) => delayer.trigger(() => this.onDidPromptModelChange.fire(event));
 
-		const filesUpdatedEventRegistration = this._register(fileLocator.createFilesUpdatedEvent(PromptsType.prompt));
+		const filesUpdatedEventRegistration = this._register(fileLocator.createFilesUpdatedEvent(promptType));
 		this._register(filesUpdatedEventRegistration.event(() => trigger({ kind: 'fileSystem' })));
 
 		const onAdd = (model: ITextModel) => {
-			if (model.getLanguageId() === PROMPT_LANGUAGE_ID) {
+			if (model.getLanguageId() === getLanguageIdForPromptsType(promptType)) {
 				this.listeners.set(model.uri, model.onDidChangeContent(() => trigger({ kind: 'textModel', uri: model.uri })));
 			}
 		};
 		const onRemove = (languageId: string, uri: URI) => {
-			if (languageId === PROMPT_LANGUAGE_ID) {
+			if (languageId === getLanguageIdForPromptsType(promptType)) {
 				this.listeners.get(uri)?.dispose();
 				this.listeners.delete(uri);
 				trigger({ kind: 'textModel', uri });

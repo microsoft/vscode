@@ -1,12 +1,12 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
 const assert_1 = __importDefault(require("assert"));
 const fs_1 = require("fs");
 const path_1 = __importDefault(require("path"));
@@ -450,6 +450,16 @@ suite('Policy E2E conversion', () => {
         assert_1.default.ok(frFrAdml, 'fr-fr ADML should exist');
         // Compare the rendered ADML with the fixture
         assert_1.default.strictEqual(frFrAdml.contents, expectedContent, 'Windows fr-fr ADML should match the fixture');
+    });
+    test('should render Linux policy JSON from policies list', async () => {
+        const parsedPolicies = parsePolicies(policies);
+        const result = (0, render_1.renderJsonPolicies)(parsedPolicies);
+        // Load the expected fixture file
+        const fixturePath = path_1.default.join(__dirname, 'fixtures', 'policies', 'linux', 'policy.json');
+        const expectedContent = await fs_1.promises.readFile(fixturePath, 'utf-8');
+        const expectedJson = JSON.parse(expectedContent);
+        // Compare the rendered JSON with the fixture
+        assert_1.default.deepStrictEqual(result, expectedJson, 'Linux policy JSON should match the fixture');
     });
 });
 //# sourceMappingURL=policyConversion.test.js.map

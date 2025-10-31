@@ -293,3 +293,11 @@ export function renderGP(product: ProductJson, policies: Policy[], translations:
 		]
 	};
 }
+
+export function renderJsonPolicies(policies: Policy[]) {
+	const policyObject: { [key: string]: string | number | boolean | object | null } = {};
+	for (const policy of policies) {
+		policyObject[policy.name] = policy.renderJsonValue();
+	}
+	return policyObject;
+}

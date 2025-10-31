@@ -1,12 +1,12 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
 const assert_1 = __importDefault(require("assert"));
 const stringEnumPolicy_js_1 = require("../policies/stringEnumPolicy.js");
 const types_js_1 = require("../policies/types.js");
@@ -94,6 +94,12 @@ suite('StringEnumPolicy', () => {
         assert_1.default.ok(policy);
         const presentation = policy.renderADMLPresentation();
         assert_1.default.strictEqual(presentation, '<presentation id="TestStringEnumPolicy"><dropdownList refId="TestStringEnumPolicy" /></presentation>');
+    });
+    test('should render JSON value correctly', () => {
+        const policy = stringEnumPolicy_js_1.StringEnumPolicy.from(mockCategory, mockPolicy);
+        assert_1.default.ok(policy);
+        const jsonValue = policy.renderJsonValue();
+        assert_1.default.strictEqual(jsonValue, 'auto');
     });
     test('should render profile value correctly', () => {
         const policy = stringEnumPolicy_js_1.StringEnumPolicy.from(mockCategory, mockPolicy);

@@ -16,6 +16,7 @@ import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { ISCMHistoryProvider } from './history.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { ISCMArtifactProvider } from './artifact.js';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
@@ -85,6 +86,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly contextValue: IObservable<string | undefined>;
 	readonly count: IObservable<number | undefined>;
 	readonly commitTemplate: IObservable<string>;
+	readonly artifactProvider: IObservable<ISCMArtifactProvider | undefined>;
 	readonly historyProvider: IObservable<ISCMHistoryProvider | undefined>;
 	readonly acceptInputCommand?: Command;
 	readonly actionButton: IObservable<ISCMActionButtonDescriptor | undefined>;
@@ -210,6 +212,11 @@ export const enum ISCMRepositorySortKey {
 	Path = 'path'
 }
 
+export const enum ISCMRepositorySelectionMode {
+	Single = 'single',
+	Multiple = 'multiple'
+}
+
 export const ISCMViewService = createDecorator<ISCMViewService>('scmView');
 
 export interface ISCMViewVisibleRepositoryChangeEvent {
@@ -221,7 +228,10 @@ export interface ISCMViewService {
 	readonly _serviceBrand: undefined;
 
 	readonly menus: ISCMMenus;
-	readonly selectionModeConfig: IObservable<'multiple' | 'single'>;
+	readonly selectionModeConfig: IObservable<ISCMRepositorySelectionMode>;
+	readonly explorerEnabledConfig: IObservable<boolean>;
+	readonly graphShowIncomingChangesConfig: IObservable<boolean>;
+	readonly graphShowOutgoingChangesConfig: IObservable<boolean>;
 
 	repositories: ISCMRepository[];
 	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
@@ -233,6 +243,7 @@ export interface ISCMViewService {
 	toggleVisibility(repository: ISCMRepository, visible?: boolean): void;
 
 	toggleSortKey(sortKey: ISCMRepositorySortKey): void;
+	toggleSelectionMode(selectionMode: ISCMRepositorySelectionMode): void;
 
 	readonly focusedRepository: ISCMRepository | undefined;
 	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;

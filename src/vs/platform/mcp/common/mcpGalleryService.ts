@@ -66,6 +66,7 @@ interface IRawGalleryMcpServer {
 	readonly name: string;
 	readonly description: string;
 	readonly version: string;
+	readonly id?: string;
 	readonly title?: string;
 	readonly repository?: {
 		readonly source: string;
@@ -383,6 +384,7 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 			const gitHubInfo: RawGitHubInfo | undefined = from._meta['io.modelcontextprotocol.registry/publisher-provided']?.github as RawGitHubInfo | undefined;
 
 			return {
+				id: registryInfo.id,
 				name: from.name,
 				description: from.description,
 				repository: from.repository ? {
@@ -751,15 +753,15 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		};
 	}
 
-	async getMcpServersFromGallery(names: string[]): Promise<IGalleryMcpServer[]> {
+	async getMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<IGalleryMcpServer[]> {
 		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
 		if (!mcpGalleryManifest) {
 			return [];
 		}
 
 		const mcpServers: IGalleryMcpServer[] = [];
-		await Promise.allSettled(names.map(async name => {
-			const mcpServer = await this.getMcpServerByName(name, mcpGalleryManifest);
+		await Promise.allSettled(infos.map(async info => {
+			const mcpServer = await this.getMcpServerByName(info, mcpGalleryManifest);
 			if (mcpServer) {
 				mcpServers.push(mcpServer);
 			}
@@ -768,7 +770,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return mcpServers;
 	}
 
-	private async getMcpServerByName(name: string, mcpGalleryManifest: IMcpGalleryManifest): Promise<IGalleryMcpServer | undefined> {
+	private async getMcpServerByName({ name, id }: { name: string; id?: string }, mcpGalleryManifest: IMcpGalleryManifest): Promise<IGalleryMcpServer | undefined> {
 		const mcpServerUrl = this.getLatestServerVersionUrl(name, mcpGalleryManifest);
 		if (mcpServerUrl) {
 			const mcpServer = await this.getMcpServer(mcpServerUrl);
@@ -779,7 +781,18 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 
 		const byNameUrl = this.getNamedServerUrl(name, mcpGalleryManifest);
 		if (byNameUrl) {
-			return this.getMcpServer(byNameUrl);
+			const mcpServer = await this.getMcpServer(byNameUrl);
+			if (mcpServer) {
+				return mcpServer;
+			}
+		}
+
+		const byIdUrl = id ? this.getServerIdUrl(id, mcpGalleryManifest) : undefined;
+		if (byIdUrl) {
+			const mcpServer = await this.getMcpServer(byIdUrl);
+			if (mcpServer) {
+				return mcpServer;
+			}
 		}
 
 		return undefined;
@@ -880,6 +893,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		const publisherUrl = manifest ? this.getPublisherUrl(publisher, manifest) : undefined;
 
 		return {
+			id: server.id,
 			name: server.name,
 			displayName,
 			galleryUrl: manifest?.url,
@@ -1006,6 +1020,14 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			return undefined;
 		}
 		return format2(namedResourceUriTemplate, { name });
+	}
+
+	private getServerIdUrl(id: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
+		const resourceUriTemplate = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServerIdUri);
+		if (!resourceUriTemplate) {
+			return undefined;
+		}
+		return format2(resourceUriTemplate, { id });
 	}
 
 	private getLatestServerVersionUrl(name: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {

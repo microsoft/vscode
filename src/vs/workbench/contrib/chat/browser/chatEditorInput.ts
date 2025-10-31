@@ -16,13 +16,13 @@ import * as nls from '../../../../nls.js';
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
-import { IChatSessionsService } from '../common/chatSessionsService.js';
-import { ChatSessionUri } from '../common/chatUri.js';
+import { IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
+import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
@@ -39,7 +39,20 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	private readonly inputCount: number;
 	private readonly inputName: string;
 
-	public sessionId: string | undefined;
+	private _sessionInfo: { readonly sessionId: string | undefined; readonly resource: URI } | undefined;
+
+	/**
+	 * Get the uri of the session this editor input is associated with.
+	 *
+	 * This should be preferred over using `resource` directly, as it handles cases where a chat editor becomes a session
+	 */
+	public get sessionResource(): URI | undefined { return this._sessionInfo?.resource; }
+
+	/**
+	 * @deprecated Use {@link sessionResource} instead.
+	 */
+	public get sessionId(): string | undefined { return this._sessionInfo?.sessionId; }
+
 	private hasCustomTitle: boolean = false;
 	private cachedIcon: ThemeIcon | URI | undefined;
 
@@ -47,7 +60,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	static getNewEditorUri(): URI {
 		const handle = Math.floor(Math.random() * 1e9);
-		return ChatEditorUri.generate(handle);
+		return ChatEditorUri.forHandle(handle);
 	}
 
 	static getNextCount(inputName: string): number {
@@ -73,18 +86,23 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			if (!parsed || typeof parsed !== 'number') {
 				throw new Error('Invalid chat URI');
 			}
-		} else if (resource.scheme !== Schemas.vscodeChatSession) {
-			throw new Error('Invalid chat URI');
+		} else if (resource.scheme === Schemas.vscodeLocalChatSession) {
+			const parsed = LocalChatSessionUri.parse(resource);
+			if (!parsed?.sessionId) {
+				throw new Error('Invalid chat session URI');
+			}
+			if (parsed.chatSessionType !== localChatSessionType) {
+				throw new Error('Chat session URI must be of local chat session type');
+			}
+			this._sessionInfo = { resource, sessionId: parsed.sessionId };
+		} else {
+			this._sessionInfo = { resource, sessionId: undefined };
 		}
 
-		this.sessionId = (options.target && 'sessionId' in options.target) ?
-			options.target.sessionId :
-			undefined;
-
 		// Check if we already have a custom title for this session
-		const hasExistingCustomTitle = this.sessionId && (
-			this.chatService.getSession(this.sessionId)?.title ||
-			this.chatService.getPersistedSessionTitle(this.sessionId)?.trim()
+		const hasExistingCustomTitle = this._sessionInfo?.sessionId && (
+			this.chatService.getSession(this._sessionInfo?.resource)?.title ||
+			this.chatService.getPersistedSessionTitle(this._sessionInfo?.resource)?.trim()
 		);
 
 		this.hasCustomTitle = Boolean(hasExistingCustomTitle);
@@ -143,15 +161,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			return false;
 		}
 
-		if (this.resource.scheme === Schemas.vscodeChatSession) {
-			return isEqual(this.resource, otherInput.resource);
-		}
-
-		if (this.resource.scheme === Schemas.vscodeChatEditor && otherInput.resource.scheme === Schemas.vscodeChatEditor) {
-			return this.sessionId === otherInput.sessionId;
-		}
-
-		return false;
+		return isEqual(this.sessionResource, otherInput.sessionResource);
 	}
 
 	override get typeId(): string {
@@ -166,15 +176,15 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		}
 
 		// If we have a sessionId but no resolved model, try to get the title from persisted sessions
-		if (this.sessionId) {
+		if (this._sessionInfo?.sessionId) {
 			// First try the active session registry
-			const existingSession = this.chatService.getSession(this.sessionId);
+			const existingSession = this.chatService.getSession(this._sessionInfo?.resource);
 			if (existingSession?.title) {
 				return existingSession.title;
 			}
 
 			// If not in active registry, try persisted session data
-			const persistedTitle = this.chatService.getPersistedSessionTitle(this.sessionId);
+			const persistedTitle = this.chatService.getPersistedSessionTitle(this._sessionInfo?.resource);
 			if (persistedTitle && persistedTitle.trim()) { // Only use non-empty persisted titles
 				return persistedTitle;
 			}
@@ -191,17 +201,32 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return defaultName + inputCountSuffix;
 	}
 
-	override getIcon(): ThemeIcon | undefined {
-		// Return cached icon if available
-		if (this.cachedIcon) {
-			return ThemeIcon.isThemeIcon(this.cachedIcon) ? this.cachedIcon : undefined;
+	override getTitle(verbosity?: Verbosity): string {
+		const name = this.getName();
+		if (verbosity === Verbosity.LONG) { // Verbosity LONG is used for tooltips
+			const sessionTypeDisplayName = this.getSessionTypeDisplayName();
+			if (sessionTypeDisplayName) {
+				return `${name} | ${sessionTypeDisplayName}`;
+			}
 		}
+		return name;
+	}
 
-		// Try to resolve icon and cache it
+	private getSessionTypeDisplayName(): string | undefined {
+		const sessionType = this.getSessionType();
+		if (sessionType === localChatSessionType) {
+			return;
+		}
+		const contributions = this.chatSessionsService.getAllChatSessionContributions();
+		const contribution = contributions.find(c => c.type === sessionType);
+		return contribution?.displayName;
+	}
+
+	override getIcon(): ThemeIcon | URI | undefined {
 		const resolvedIcon = this.resolveIcon();
 		if (resolvedIcon) {
 			this.cachedIcon = resolvedIcon;
-			return ThemeIcon.isThemeIcon(resolvedIcon) ? resolvedIcon : undefined;
+			return resolvedIcon;
 		}
 
 		// Fall back to default icon
@@ -211,7 +236,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	private resolveIcon(): ThemeIcon | URI | undefined {
 		// TODO@osortega,@rebornix double check: Chat Session Item icon is reserved for chat session list and deprecated for chat session status. thus here we use session type icon. We may want to show status for the Editor Title.
 		const sessionType = this.getSessionType();
-		if (sessionType !== 'local') {
+		if (sessionType !== localChatSessionType) {
 			const typeIcon = this.chatSessionsService.getIconForSessionType(sessionType);
 			if (typeIcon) {
 				return typeIcon;
@@ -221,40 +246,29 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return undefined;
 	}
 
-	private getSessionType(): string {
-		if (!this.resource) {
-			return 'local';
+	/**
+	 * Returns chat session type from a URI, or {@linkcode localChatSessionType} if not specified or cannot be determined.
+	 */
+	public getSessionType(): string {
+		if (this.resource.scheme === Schemas.vscodeChatEditor || this.resource.scheme === Schemas.vscodeLocalChatSession) {
+			return localChatSessionType;
 		}
 
-		const { scheme, query } = this.resource;
-
-		if (scheme === Schemas.vscodeChatSession) {
-			const parsed = ChatSessionUri.parse(this.resource);
-			if (parsed) {
-				return parsed.chatSessionType;
-			}
-		}
-
-		const sessionTypeFromQuery = new URLSearchParams(query).get('chatSessionType');
-		if (sessionTypeFromQuery) {
-			return sessionTypeFromQuery;
-		}
-
-		// Default to 'local' for vscode-chat-editor scheme or when type cannot be determined
-		return 'local';
+		return this.resource.scheme;
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
 		const searchParams = new URLSearchParams(this.resource.query);
 		const chatSessionType = searchParams.get('chatSessionType');
 		const inputType = chatSessionType ?? this.resource.authority;
-		if (this.resource.scheme === Schemas.vscodeChatSession) {
+
+		if (this.resource.scheme !== Schemas.vscodeChatEditor) {
 			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Chat, CancellationToken.None);
-		} else if (typeof this.sessionId === 'string') {
-			this.model = await this.chatService.getOrRestoreSession(this.sessionId)
-				?? this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: false, inputType: inputType });
+		} else if (this._sessionInfo?.sessionId) {
+			this.model = await this.chatService.getOrRestoreSession(this._sessionInfo.resource)
+				?? this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: false });
 		} else if (!this.options.target) {
-			this.model = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: !inputType, inputType: inputType });
+			this.model = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: !inputType });
 		} else if ('data' in this.options.target) {
 			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
@@ -263,7 +277,10 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			return null;
 		}
 
-		this.sessionId = this.model.sessionId;
+		this._sessionInfo = {
+			sessionId: this.model.sessionId,
+			resource: this.model.sessionResource,
+		};
 		this._register(this.model.onDidChange((e) => {
 			// When a custom title is set, we no longer need the numeric count
 			if (e && e.kind === 'setCustomTitle' && !this.hasCustomTitle) {
@@ -282,8 +299,9 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const newIcon = this.resolveIcon();
 		if (newIcon && (!this.cachedIcon || !this.iconsEqual(this.cachedIcon, newIcon))) {
 			this.cachedIcon = newIcon;
-			this._onDidChangeLabel.fire();
 		}
+
+		this._onDidChangeLabel.fire();
 
 		return this._register(new ChatEditorModel(this.model));
 	}
@@ -300,8 +318,9 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	override dispose(): void {
 		super.dispose();
-		if (this.sessionId) {
-			this.chatService.clearSession(this.sessionId);
+
+		if (this._sessionInfo) {
+			this.chatService.clearSession(this._sessionInfo.resource);
 		}
 	}
 }
@@ -334,7 +353,7 @@ export namespace ChatEditorUri {
 
 	export const scheme = Schemas.vscodeChatEditor;
 
-	export function generate(handle: number): URI {
+	export function forHandle(handle: number): URI {
 		return URI.from({ scheme, path: `chat-${handle}` });
 	}
 
@@ -359,14 +378,14 @@ export namespace ChatEditorUri {
 }
 
 interface ISerializedChatEditorInput {
-	options: IChatEditorOptions;
-	sessionId: string;
-	resource: URI;
+	readonly options: IChatEditorOptions;
+	readonly sessionId: string;
+	readonly resource: URI;
 }
 
 export class ChatEditorInputSerializer implements IEditorSerializer {
 	canSerialize(input: EditorInput): input is ChatEditorInput & { readonly sessionId: string } {
-		return input instanceof ChatEditorInput && typeof input.sessionId === 'string';
+		return input instanceof ChatEditorInput && !!input.sessionId;
 	}
 
 	serialize(input: EditorInput): string | undefined {
@@ -385,8 +404,14 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
 		try {
 			const parsed: ISerializedChatEditorInput = JSON.parse(serializedEditor);
-			const resource = URI.revive(parsed.resource);
-			return instantiationService.createInstance(ChatEditorInput, resource, { ...parsed.options, target: { sessionId: parsed.sessionId } });
+
+			let resource = URI.revive(parsed.resource);
+			if (resource.scheme === Schemas.vscodeChatEditor) {
+				// We don't have a sessionId in the URI, so we need to create a new one
+				resource = LocalChatSessionUri.forSession(parsed.sessionId);
+			}
+
+			return instantiationService.createInstance(ChatEditorInput, resource, { ...parsed.options });
 		} catch (err) {
 			return undefined;
 		}

@@ -147,11 +147,17 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 			),
 			this.createToggleAction(
 				'policySettingsSearch',
-				localize('policySettingsSearch', "Policy services"),
-				localize('policySettingsSearchTooltip', "Show settings for policy services"),
+				localize('policySettingsSearch', "Organization policies"),
+				localize('policySettingsSearchTooltip', "Show organization policy settings"),
 				`@${POLICY_SETTING_TAG}`
 			),
 			new Separator(),
+			this.createToggleAction(
+				'stableSettingsSearch',
+				localize('stableSettings', "Stable"),
+				localize('stableSettingsSearchTooltip', "Show stable settings"),
+				`@stable`,
+			),
 			this.createToggleAction(
 				'previewSettingsSearch',
 				localize('previewSettings', "Preview"),
@@ -164,6 +170,7 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 				localize('experimentalSettingsSearchTooltip', "Show experimental settings"),
 				`@tag:experimental`,
 			),
+			new Separator(),
 			this.createToggleAction(
 				'advancedSettingsSearch',
 				localize('advancedSettingsSearch', "Advanced"),

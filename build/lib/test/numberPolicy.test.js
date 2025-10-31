@@ -1,12 +1,12 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
 const assert_1 = __importDefault(require("assert"));
 const numberPolicy_js_1 = require("../policies/numberPolicy.js");
 const types_js_1 = require("../policies/types.js");
@@ -77,6 +77,12 @@ suite('NumberPolicy', () => {
         assert_1.default.ok(policy);
         const presentation = policy.renderADMLPresentation();
         assert_1.default.strictEqual(presentation, '<presentation id="TestNumberPolicy"><decimalTextBox refId="TestNumberPolicy" defaultValue="42">TestNumberPolicy</decimalTextBox></presentation>');
+    });
+    test('should render JSON value correctly', () => {
+        const policy = numberPolicy_js_1.NumberPolicy.from(mockCategory, mockPolicy);
+        assert_1.default.ok(policy);
+        const jsonValue = policy.renderJsonValue();
+        assert_1.default.strictEqual(jsonValue, 42);
     });
     test('should render profile value correctly', () => {
         const policy = numberPolicy_js_1.NumberPolicy.from(mockCategory, mockPolicy);

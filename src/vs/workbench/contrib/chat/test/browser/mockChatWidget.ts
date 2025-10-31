@@ -26,6 +26,10 @@ export class MockChatWidgetService implements IChatWidgetService {
 		return undefined;
 	}
 
+	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined {
+		return undefined;
+	}
+
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
 		return [];
 	}
