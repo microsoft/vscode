@@ -599,11 +599,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		scrollTop: number,
 		stickyWidgetHeight: number
 	): boolean {
-		const start = line.startLineNumber;
-		const end = line.endLineNumber + (innerScopes ? 1 : 0);
-		const topOfBeginningLine = this._editor.getTopForLineNumber(start) - scrollTop;
-		const bottomOfBeginningLine = this._editor.getBottomForLineNumber(start) - scrollTop;
-		const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
+		const topOfBeginningLine = this._editor.getTopForLineNumber(line.startLineNumber) - scrollTop;
+		const bottomOfEndLine = this._editor.getBottomForLineNumber(line.endLineNumber + (innerScopes ? 1 : 0)) - scrollTop;
 
 		if (!innerScopes) {
 			return topOfBeginningLine < stickyWidgetHeight && bottomOfEndLine >= stickyWidgetHeight;
@@ -612,6 +609,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const isAtMaxLines = startLineNumbers.length === maxNumberStickyLines;
 
 		if (isAtMaxLines) {
+			const bottomOfBeginningLine = this._editor.getBottomForLineNumber(line.startLineNumber) - scrollTop;
 			return (bottomOfBeginningLine) < stickyWidgetHeight
 				&& (bottomOfEndLine) >= stickyWidgetHeight;
 		}
