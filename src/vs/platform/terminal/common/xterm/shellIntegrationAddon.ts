@@ -490,7 +490,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				const arg1 = args[1];
 				let commandLine: string;
 				if (arg0 !== undefined) {
-					commandLine = deserializeMessage(arg0);
+					commandLine = deserializeVSCodeOscMessage(arg0);
 				} else {
 					commandLine = '';
 				}
@@ -510,7 +510,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				const arg1 = args[1];
 				if (arg0 !== undefined) {
 					try {
-						const env = JSON.parse(deserializeMessage(arg0));
+						const env = JSON.parse(deserializeVSCodeOscMessage(arg0));
 						this._createOrGetShellEnvDetection().setEnvironment(env, arg1 === this._nonce);
 					} catch (e) {
 						this._logService.warn('Failed to parse environment from shell integration sequence', arg0);
@@ -528,7 +528,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				const arg1 = args[1];
 				const arg2 = args[2];
 				if (arg0 !== undefined && arg1 !== undefined) {
-					const env = deserializeMessage(arg1);
+					const env = deserializeVSCodeOscMessage(arg1);
 					this._createOrGetShellEnvDetection().deleteEnvironmentSingleVar(arg0, env, arg2 === this._nonce);
 				}
 				return true;
@@ -538,7 +538,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				const arg1 = args[1];
 				const arg2 = args[2];
 				if (arg0 !== undefined && arg1 !== undefined) {
-					const env = deserializeMessage(arg1);
+					const env = deserializeVSCodeOscMessage(arg1);
 					this._createOrGetShellEnvDetection().setEnvironmentSingleVar(arg0, env, arg2 === this._nonce);
 				}
 				return true;
@@ -557,7 +557,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			case VSCodeOscPt.Property: {
 				const arg0 = args[0];
-				const deserialized = arg0 !== undefined ? deserializeMessage(arg0) : '';
+				const deserialized = arg0 !== undefined ? deserializeVSCodeOscMessage(arg0) : '';
 				const { key, value } = parseKeyValueAssignment(deserialized);
 				if (value === undefined) {
 					return true;
@@ -787,13 +787,29 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	}
 }
 
-export function deserializeMessage(message: string): string {
+export function deserializeVSCodeOscMessage(message: string): string {
 	return message.replaceAll(
 		// Backslash ('\') followed by an escape operator: either another '\', or 'x' and two hex chars.
 		/\\(\\|x([0-9a-f]{2}))/gi,
 		// If it's a hex value, parse it to a character.
 		// Otherwise the operator is '\', which we return literally, now unescaped.
 		(_match: string, op: string, hex?: string) => hex ? String.fromCharCode(parseInt(hex, 16)) : op);
+}
+
+export function serializeVSCodeOscMessage(message: string): string {
+	return message.replace(
+		// Match backslash ('\'), semicolon (';'), or characters 0x20 and below
+		/[\\;\x00-\x20]/g,
+		(char: string) => {
+			// Escape backslash as '\\'
+			if (char === '\\') {
+				return '\\\\';
+			}
+			// Escape other characters as '\xAB' where AB is the hex representation
+			const charCode = char.charCodeAt(0);
+			return `\\x${charCode.toString(16).padStart(2, '0')}`;
+		}
+	);
 }
 
 export function parseKeyValueAssignment(message: string): { key: string; value: string | undefined } {

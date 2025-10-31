@@ -174,7 +174,7 @@ suite('ChatEditingService', function () {
 		assert.ok(isEqual(entry.modifiedURI, uri));
 
 		await waitForState(entry.isCurrentlyBeingModifiedBy.map(value => value === chatRequest.response));
-		assert.ok(entry.isCurrentlyBeingModifiedBy.get() === chatRequest.response);
+		assert.ok(entry.isCurrentlyBeingModifiedBy.get()?.responseModel === chatRequest.response);
 
 		const unset = waitForState(entry.isCurrentlyBeingModifiedBy.map(res => res === undefined));
 

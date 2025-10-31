@@ -39,6 +39,26 @@ export class TreeSitterCommandParser {
 		return captures;
 	}
 
+	async getFileWrites(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
+		let query: string;
+		switch (languageId) {
+			case TreeSitterCommandParserLanguage.Bash:
+				query = [
+					'(file_redirect',
+					'  destination: [(word) (string (string_content)) (raw_string) (concatenation)] @file)',
+				].join('\n');
+				break;
+			case TreeSitterCommandParserLanguage.PowerShell:
+				query = [
+					'(redirection',
+					'  (redirected_file_name) @file)',
+				].join('\n');
+				break;
+		}
+		const captures = await this._queryTree(languageId, commandLine, query);
+		return captures.map(e => e.node.text.trim());
+	}
+
 	private async _queryTree(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<QueryCapture[]> {
 		const { tree, query } = await this._doQuery(languageId, commandLine, querySource);
 		return query.captures(tree.rootNode);

@@ -25,7 +25,7 @@ import { Extensions, IViewContainersRegistry, IViewDescriptor, IViewDescriptorSe
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { ChatContextKeyExprs } from '../../../common/chatContextKeys.js';
-import { IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { AGENT_SESSIONS_VIEWLET_ID } from '../../../common/constants.js';
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
@@ -119,9 +119,9 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 			const viewDescriptorsToRegister: IViewDescriptor[] = [];
 
 			// Separate providers by type and prepare display names with order
-			const localProvider = providers.find(p => p.chatSessionType === 'local');
+			const localProvider = providers.find(p => p.chatSessionType === localChatSessionType);
 			const historyProvider = providers.find(p => p.chatSessionType === 'history');
-			const otherProviders = providers.filter(p => p.chatSessionType !== 'local' && p.chatSessionType !== 'history');
+			const otherProviders = providers.filter(p => p.chatSessionType !== localChatSessionType && p.chatSessionType !== 'history');
 
 			// Sort other providers by order, then alphabetically by display name
 			const providersWithDisplayNames = otherProviders.map(provider => {
@@ -194,7 +194,7 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 					viewDescriptorsToRegister.push(viewDescriptor);
 					this.registeredViewDescriptors.set(provider.chatSessionType, viewDescriptor);
 
-					if (provider.chatSessionType === 'local') {
+					if (provider.chatSessionType === localChatSessionType) {
 						const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 						this._register(viewsRegistry.registerViewWelcomeContent(viewDescriptor.id, {
 							content: nls.localize('chatSessions.noResults', "No local chat agent sessions\n[Start an Agent Session](command:{0})", ACTION_ID_OPEN_CHAT),

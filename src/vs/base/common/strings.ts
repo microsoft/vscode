@@ -438,13 +438,19 @@ export function equalsIgnoreCase(a: string, b: string): boolean {
 	return a.length === b.length && compareSubstringIgnoreCase(a, b) === 0;
 }
 
-export function startsWithIgnoreCase(str: string, candidate: string): boolean {
-	const candidateLength = candidate.length;
-	if (candidate.length > str.length) {
-		return false;
-	}
+export function equals(a: string | undefined, b: string | undefined, ignoreCase?: boolean): boolean {
+	return a === b || (!!ignoreCase && a !== undefined && b !== undefined && equalsIgnoreCase(a, b));
+}
 
-	return compareSubstringIgnoreCase(str, candidate, 0, candidateLength) === 0;
+export function startsWithIgnoreCase(str: string, candidate: string): boolean {
+	const len = candidate.length;
+	return len <= str.length && compareSubstringIgnoreCase(str, candidate, 0, len) === 0;
+}
+
+export function endsWithIgnoreCase(str: string, candidate: string): boolean {
+	const len = str.length;
+	const start = len - candidate.length;
+	return start >= 0 && compareSubstringIgnoreCase(str, candidate, start, len) === 0;
 }
 
 /**

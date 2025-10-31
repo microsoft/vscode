@@ -13,6 +13,7 @@ const typescript_1 = __importDefault(require("typescript"));
 const node_worker_threads_1 = __importDefault(require("node:worker_threads"));
 const vinyl_1 = __importDefault(require("vinyl"));
 const node_os_1 = require("node:os");
+const tsconfigUtils_1 = require("../tsconfigUtils");
 function transpile(tsSrc, options) {
     const isAmd = /\n(import|export)/m.test(tsSrc);
     if (!isAmd && options.compilerOptions?.module === typescript_1.default.ModuleKind.AMD) {
@@ -240,8 +241,9 @@ class ESBuildTranspiler {
         _logFn('Transpile', `will use ESBuild to transpile source files`);
         this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
         const isExtension = configFilePath.includes('extensions');
+        const target = (0, tsconfigUtils_1.getTargetStringFromTsConfig)(configFilePath);
         this._transformOpts = {
-            target: ['es2022'],
+            target: [target],
             format: isExtension ? 'cjs' : 'esm',
             platform: isExtension ? 'node' : undefined,
             loader: 'ts',

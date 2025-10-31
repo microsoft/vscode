@@ -351,6 +351,30 @@ export class SettingsEditor2 extends EditorPane {
 		});
 	}
 
+	private canShowAdvancedSettings(): boolean {
+		return this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG) ?? false;
+	}
+
+	/**
+	 * Determines whether a setting should be shown even when advanced settings are filtered out.
+	 * Returns true if:
+	 * - The setting is not tagged as advanced, OR
+	 * - The setting matches an ID filter (@id:settingKey), OR
+	 * - The setting key appears in the search query
+	 */
+	private shouldShowSetting(setting: ISetting): boolean {
+		if (!setting.tags?.includes(ADVANCED_SETTING_TAG)) {
+			return true;
+		}
+		if (this.viewState.idFilters?.has(setting.key)) {
+			return true;
+		}
+		if (this.viewState.query?.includes(setting.key)) {
+			return true;
+		}
+		return false;
+	}
+
 	private disableAiSearchToggle(): void {
 		if (this.showAiResultsAction) {
 			this.showAiResultsAction.checked = false;
@@ -1406,7 +1430,7 @@ export class SettingsEditor2 extends EditorPane {
 				coreSettingsGroups.push(group);
 			}
 		}
-		const filter = this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG) ? undefined : { exclude: { tags: [ADVANCED_SETTING_TAG] } };
+		const filter = this.canShowAdvancedSettings() ? undefined : { exclude: { tags: [ADVANCED_SETTING_TAG] } };
 
 		const settingsResult = resolveSettingsTree(tocData, coreSettingsGroups, filter, this.logService);
 		const resolvedSettingsRoot = settingsResult.tree;
@@ -1798,9 +1822,13 @@ export class SettingsEditor2 extends EditorPane {
 			filterMatches: [],
 			exactMatch: false,
 		};
+		const shouldShowAdvanced = this.canShowAdvancedSettings();
 		for (const g of this.defaultSettingsEditorModel.settingsGroups.slice(1)) {
 			for (const sect of g.sections) {
 				for (const setting of sect.settings) {
+					if (!shouldShowAdvanced && !this.shouldShowSetting(setting)) {
+						continue;
+					}
 					fullResult.filterMatches.push({
 						setting,
 						matches: [],
@@ -1956,6 +1984,11 @@ export class SettingsEditor2 extends EditorPane {
 		if (token.isCancellationRequested) {
 			// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
 			return null;
+		}
+
+		// Filter out advanced settings unless the advanced tag is explicitly set or setting matches an ID filter
+		if (result && !this.canShowAdvancedSettings()) {
+			result.filterMatches = result.filterMatches.filter(match => this.shouldShowSetting(match.setting));
 		}
 
 		// Only log the elapsed time if there are actual results.

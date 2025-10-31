@@ -21,7 +21,7 @@ import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_I
 import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { askForPromptFileName } from './askForPromptName.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { UILabelProvider } from '../../../../../../base/common/keybindingLabels.js';
 import { OS } from '../../../../../../base/common/platform.js';
 import { askForPromptSourceFolder } from './askForPromptSourceFolder.js';
@@ -207,11 +207,14 @@ export class PromptFilePickers {
 	 * the resource pre-selected in the prompts list.
 	 */
 	async selectPromptFile(options: ISelectOptions): Promise<ISelectPromptResult | undefined> {
+
+		const cts = new CancellationTokenSource();
 		const quickPick: IPromptQuickPick = this._quickInputService.createQuickPick<IPromptPickerQuickPickItem>({ useSeparators: true });
 		quickPick.busy = true;
 		quickPick.placeholder = localize('searching', 'Searching file system...');
+
 		try {
-			const fileOptions = await this._createPromptPickItems(options);
+			const fileOptions = await this._createPromptPickItems(options, cts.token);
 			const activeItem = options.resource && fileOptions.find(f => f.type === 'item' && extUri.isEqual(f.value, options.resource)) as IPromptPickerQuickPickItem | undefined;
 			if (activeItem) {
 				quickPick.activeItems = [activeItem];
@@ -234,6 +237,7 @@ export class PromptFilePickers {
 			disposables.add({
 				dispose() {
 					quickPick.dispose();
+					cts.dispose(true);
 					if (!isResolved) {
 						resolve(undefined);
 						isResolved = true;
@@ -270,6 +274,7 @@ export class PromptFilePickers {
 
 			// when the dialog is hidden, dispose everything
 			disposables.add(quickPick.onDidHide(
+
 				disposables.dispose.bind(disposables),
 			));
 
@@ -279,7 +284,7 @@ export class PromptFilePickers {
 	}
 
 
-	private async _createPromptPickItems(options: ISelectOptions): Promise<(IPromptPickerQuickPickItem | IQuickPickSeparator)[]> {
+	private async _createPromptPickItems(options: ISelectOptions, token: CancellationToken): Promise<(IPromptPickerQuickPickItem | IQuickPickSeparator)[]> {
 		const buttons: IQuickInputButton[] = [];
 		if (options.optionEdit !== false) {
 			buttons.push(EDIT_BUTTON);
@@ -298,11 +303,11 @@ export class PromptFilePickers {
 		if (newItems.length > 0) {
 			result.push(...newItems);
 		}
-		const locals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.local, CancellationToken.None);
+		const locals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.local, token);
 		if (locals.length) {
 			// Note: No need to localize the label ".github/instructions', since it's the same in all languages.
 			result.push({ type: 'separator', label: '.github/instructions' });
-			result.push(...locals.map(l => this._createPromptPickItem(l, buttons)));
+			result.push(...await Promise.all(locals.map(l => this._createPromptPickItem(l, buttons, token))));
 		}
 
 		// Agent instruction files (copilot-instructions.md and AGENTS.md) are added here and not included in the output of
@@ -311,8 +316,8 @@ export class PromptFilePickers {
 		if (options.type === PromptsType.instructions) {
 			const useNestedAgentMD = this._configurationService.getValue(PromptsConfig.USE_NESTED_AGENT_MD);
 			const agentInstructionUris = [
-				...await this._promptsService.listCopilotInstructionsMDs(CancellationToken.None),
-				...await this._promptsService.listAgentMDs(CancellationToken.None, !!useNestedAgentMD)
+				...await this._promptsService.listCopilotInstructionsMDs(token),
+				...await this._promptsService.listAgentMDs(token, !!useNestedAgentMD)
 			];
 			agentInstructionFiles = agentInstructionUris.map(uri => {
 				const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
@@ -328,18 +333,18 @@ export class PromptFilePickers {
 		}
 		if (agentInstructionFiles.length) {
 			result.push({ type: 'separator', label: localize('separator.workspace-agent-instructions', "Agent Instructions") });
-			result.push(...agentInstructionFiles.map(l => this._createPromptPickItem(l, buttons)));
+			result.push(...await Promise.all(agentInstructionFiles.map(l => this._createPromptPickItem(l, buttons, token))));
 		}
 
-		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, CancellationToken.None);
+		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, token);
 		if (exts.length) {
 			result.push({ type: 'separator', label: localize('separator.extensions', "Extensions") });
-			result.push(...exts.map(e => this._createPromptPickItem(e, undefined)));
+			result.push(...await Promise.all(exts.map(e => this._createPromptPickItem(e, undefined, token))));
 		}
-		const users = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.user, CancellationToken.None);
+		const users = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.user, token);
 		if (users.length) {
 			result.push({ type: 'separator', label: localize('separator.user', "User Data") });
-			result.push(...users.map(u => this._createPromptPickItem(u, buttons)));
+			result.push(...await Promise.all(users.map(u => this._createPromptPickItem(u, buttons, token))));
 		}
 		return result;
 	}
@@ -357,8 +362,10 @@ export class PromptFilePickers {
 		}
 	}
 
-	private _createPromptPickItem(promptFile: IPromptPath, buttons: IQuickInputButton[] | undefined): IPromptPickerQuickPickItem {
-		const promptName = promptFile.name ?? getCleanPromptName(promptFile.uri);
+	private async _createPromptPickItem(promptFile: IPromptPath, buttons: IQuickInputButton[] | undefined, token: CancellationToken): Promise<IPromptPickerQuickPickItem> {
+		const parsedPromptFile = await this._promptsService.parseNew(promptFile.uri, token).catch(() => undefined);
+		const promptName = parsedPromptFile?.header?.name ?? promptFile.name ?? getCleanPromptName(promptFile.uri);
+		const promptDescription = parsedPromptFile?.header?.description ?? promptFile.description;
 
 		let tooltip: string | undefined;
 
@@ -377,7 +384,7 @@ export class PromptFilePickers {
 			id: promptFile.uri.toString(),
 			type: 'item',
 			label: promptName,
-			description: promptFile.description,
+			description: promptDescription,
 			tooltip,
 			value: promptFile.uri,
 			buttons: buttons
@@ -476,7 +483,7 @@ export class PromptFilePickers {
 				// prompt deletion was confirmed so delete the prompt file
 				await this._fileService.del(value);
 
-				const newEntries = this._createPromptPickItems(options);
+				const newEntries = this._createPromptPickItems(options, CancellationToken.None);
 				quickPick.items = await newEntries;
 
 			});

@@ -900,7 +900,7 @@ suite('InlineChatController', function () {
 		assert.strictEqual(model.getValue(), 'HelloWorld'); // first word has been streamed
 
 		const p2 = ctrl.awaitStates([State.WAIT_FOR_INPUT]);
-		chatService.cancelCurrentRequestForSession(ctrl.chatWidget.viewModel!.model.sessionId);
+		chatService.cancelCurrentRequestForSession(ctrl.chatWidget.viewModel!.model.sessionResource);
 		assert.strictEqual(await p2, undefined);
 
 		assert.strictEqual(model.getValue(), 'HelloWorld'); // CANCEL just stops the request and progressive typing but doesn't undo
@@ -914,7 +914,7 @@ suite('InlineChatController', function () {
 		const newSession = await inlineChatSessionService.createSession(editor, {}, CancellationToken.None);
 		assertType(newSession);
 
-		await (await chatService.sendRequest(newSession.chatModel.sessionId, 'Existing', { location: ChatAgentLocation.EditorInline }))?.responseCreatedPromise;
+		await (await chatService.sendRequest(newSession.chatModel.sessionResource, 'Existing', { location: ChatAgentLocation.EditorInline }))?.responseCreatedPromise;
 
 		assert.strictEqual(newSession.chatModel.requestInProgress, true);
 
@@ -1021,7 +1021,7 @@ suite('InlineChatController', function () {
 		assert.strictEqual(await p, undefined);
 
 		const p2 = ctrl.awaitStates([State.WAIT_FOR_INPUT]);
-		chatService.cancelCurrentRequestForSession(ctrl.chatWidget.viewModel!.model.sessionId);
+		chatService.cancelCurrentRequestForSession(ctrl.chatWidget.viewModel!.model.sessionResource);
 		assert.strictEqual(await p2, undefined);
 
 

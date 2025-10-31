@@ -153,6 +153,12 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 			),
 			new Separator(),
 			this.createToggleAction(
+				'stableSettingsSearch',
+				localize('stableSettings', "Stable"),
+				localize('stableSettingsSearchTooltip', "Show stable settings"),
+				`@stable`,
+			),
+			this.createToggleAction(
 				'previewSettingsSearch',
 				localize('previewSettings', "Preview"),
 				localize('previewSettingsSearchTooltip', "Show preview settings"),
@@ -164,6 +170,7 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 				localize('experimentalSettingsSearchTooltip', "Show experimental settings"),
 				`@tag:experimental`,
 			),
+			new Separator(),
 			this.createToggleAction(
 				'advancedSettingsSearch',
 				localize('advancedSettingsSearch', "Advanced"),

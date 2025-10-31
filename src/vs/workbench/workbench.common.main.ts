@@ -311,6 +311,9 @@ import './contrib/emmet/browser/emmet.contribution.js';
 // CodeEditor Contributions
 import './contrib/codeEditor/browser/codeEditor.contribution.js';
 
+// Markdown
+import './contrib/markdown/browser/markdown.contribution.js';
+
 // Keybindings Contributions
 import './contrib/keybindings/browser/keybindings.contribution.js';
 

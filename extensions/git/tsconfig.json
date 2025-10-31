@@ -16,6 +16,7 @@
 		"../../src/vscode-dts/vscode.proposed.quickInputButtonLocation.d.ts",
 		"../../src/vscode-dts/vscode.proposed.quickPickSortByLabel.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmActionButton.d.ts",
+		"../../src/vscode-dts/vscode.proposed.scmArtifactProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmHistoryProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmProviderOptions.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmSelectedProvider.d.ts",

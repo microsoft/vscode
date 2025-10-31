@@ -9,11 +9,6 @@ import { TSESTree } from '@typescript-eslint/utils';
 export = new class NoDangerousTypeAssertions implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		// Disable in tests for now
-		if (context.getFilename().includes('.test')) {
-			return {};
-		}
-
 		return {
 			// Disallow type assertions on object literals: <T>{ ... } or {} as T
 			['TSTypeAssertion > ObjectExpression, TSAsExpression > ObjectExpression']: (node: any) => {

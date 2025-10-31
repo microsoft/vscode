@@ -16,6 +16,8 @@
     "contribMergeEditorMenus",
     "contribMultiDiffEditorMenus",
     "contribDiffEditorGutterToolBarMenus",
+    "contribSourceControlArtifactGroupMenu",
+    "contribSourceControlArtifactMenu",
     "contribSourceControlHistoryItemMenu",
     "contribSourceControlHistoryTitleMenu",
     "contribSourceControlInputBoxMenu",
@@ -26,6 +28,7 @@
     "quickInputButtonLocation",
     "quickPickSortByLabel",
     "scmActionButton",
+    "scmArtifactProvider",
     "scmHistoryProvider",
     "scmMultiDiffEditor",
     "scmProviderOptions",
@@ -1016,6 +1019,25 @@
         "title": "%command.graphCompareRef%",
         "category": "Git",
         "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.graph.compareWithRemote",
+        "title": "%command.graphCompareWithRemote%",
+        "category": "Git",
+        "enablement": "!operationInProgress && scmCurrentHistoryItemRefHasRemote"
+      },
+      {
+        "command": "git.graph.compareWithMergeBase",
+        "title": "%command.graphCompareWithMergeBase%",
+        "category": "Git",
+        "enablement": "!operationInProgress && scmCurrentHistoryItemRefHasBase"
+      },
+      {
+        "command": "git.repositories.checkout",
+        "title": "%command.graphCheckout%",
+        "icon": "$(target)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
       }
     ],
     "continueEditSession": [
@@ -1625,12 +1647,24 @@
           "when": "false"
         },
         {
+          "command": "git.graph.compareWithMergeBase",
+          "when": "false"
+        },
+        {
+          "command": "git.graph.compareWithRemote",
+          "when": "false"
+        },
+        {
           "command": "git.diff.stageHunk",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
         },
         {
           "command": "git.diff.stageSelection",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
+        },
+        {
+          "command": "git.repositories.checkout",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1819,6 +1853,13 @@
           "command": "git.deleteWorktree",
           "group": "2_worktree@1",
           "when": "scmProvider == git && scmProviderContext == worktree"
+        }
+      ],
+      "scm/artifact/context": [
+        {
+          "command": "git.repositories.checkout",
+          "group": "inline@1",
+          "when": "scmProvider == git"
         }
       ],
       "scm/resourceGroup/context": [
@@ -2276,9 +2317,19 @@
           "group": "4_modify@3"
         },
         {
-          "command": "git.graph.compareRef",
+          "command": "git.graph.compareWithRemote",
           "when": "scmProvider == git",
           "group": "5_compare@1"
+        },
+        {
+          "command": "git.graph.compareWithMergeBase",
+          "when": "scmProvider == git",
+          "group": "5_compare@2"
+        },
+        {
+          "command": "git.graph.compareRef",
+          "when": "scmProvider == git",
+          "group": "5_compare@3"
         },
         {
           "command": "git.copyCommitId",

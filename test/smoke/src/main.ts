@@ -26,6 +26,7 @@ import { setup as setupLocalizationTests } from './areas/workbench/localization.
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupTaskTests } from './areas/task/task.test';
+import { setup as setupChatTests } from './areas/chat/chat.test';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 
@@ -403,4 +404,5 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupMultirootTests(logger);
 	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
+	if (!opts.web) { setupChatTests(logger); }
 });

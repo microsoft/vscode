@@ -6,24 +6,25 @@
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { hashAsync } from '../../../../../base/common/hash.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { revive } from '../../../../../base/common/marshalling.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
-import { WorkingSetDisplayMetadata, ModifiedFileEntryState, ISnapshotEntry } from '../../common/chatEditingService.js';
+import { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
+import { ISnapshotEntry, ModifiedFileEntryState, WorkingSetDisplayMetadata } from '../../common/chatEditingService.js';
+import { IChatEditingTimelineState } from './chatEditingOperations.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
 
 export interface StoredSessionState {
 	readonly initialFileContents: ResourceMap<string>;
-	readonly pendingSnapshot?: IChatEditingSessionStop;
 	readonly recentSnapshot: IChatEditingSessionStop;
-	readonly linearHistoryIndex: number;
-	readonly linearHistory: readonly IChatEditingSessionSnapshot[];
+	readonly timeline: IChatEditingTimelineState | undefined;
 }
 
 export class ChatEditingSessionStorage {
@@ -63,16 +64,6 @@ export class ChatEditingSessionStorage {
 			const entries = await deserializeSnapshotEntriesDTO(stopDTO.entries);
 			return { stopId: 'stopId' in stopDTO ? stopDTO.stopId : undefined, entries };
 		};
-		const normalizeSnapshotDtos = (snapshot: IChatEditingSessionSnapshotDTO | IChatEditingSessionSnapshotDTO2): IChatEditingSessionSnapshotDTO2 => {
-			if ('stops' in snapshot) {
-				return snapshot;
-			}
-			return { requestId: snapshot.requestId, stops: [{ stopId: undefined, entries: snapshot.entries }] };
-		};
-		const deserializeChatEditingSessionSnapshot = async (startIndex: number, snapshot: IChatEditingSessionSnapshotDTO2): Promise<IChatEditingSessionSnapshot> => {
-			const stops = await Promise.all(snapshot.stops.map(deserializeChatEditingStopDTO));
-			return { startIndex, requestId: snapshot.requestId, stops };
-		};
 		const deserializeSnapshotEntry = async (entry: ISnapshotEntryDTO) => {
 			return {
 				resource: URI.parse(entry.resource),
@@ -107,27 +98,16 @@ export class ChatEditingSessionStorage {
 				return undefined;
 			}
 
-			let linearHistoryIndex = 0;
-			const linearHistory = await Promise.all(data.linearHistory.map(snapshot => {
-				const norm = normalizeSnapshotDtos(snapshot);
-				const result = deserializeChatEditingSessionSnapshot(linearHistoryIndex, norm);
-				linearHistoryIndex += norm.stops.length;
-				return result;
-			}));
-
 			const initialFileContents = new ResourceMap<string>();
 			for (const fileContentDTO of data.initialFileContents) {
 				initialFileContents.set(URI.parse(fileContentDTO[0]), await getFileContent(fileContentDTO[1]));
 			}
-			const pendingSnapshot = data.pendingSnapshot ? await deserializeChatEditingStopDTO(data.pendingSnapshot) : undefined;
 			const recentSnapshot = await deserializeChatEditingStopDTO(data.recentSnapshot);
 
 			return {
 				initialFileContents,
-				pendingSnapshot,
 				recentSnapshot,
-				linearHistoryIndex: data.linearHistoryIndex,
-				linearHistory
+				timeline: revive(data.timeline),
 			};
 		} catch (e) {
 			this._logService.error(`Error restoring chat editing session from ${storageLocation.toString()}`, e);
@@ -187,12 +167,6 @@ export class ChatEditingSessionStorage {
 				entries: await Promise.all(Array.from(stop.entries.values()).map(serializeSnapshotEntry))
 			};
 		};
-		const serializeChatEditingSessionSnapshot = async (snapshot: IChatEditingSessionSnapshot): Promise<IChatEditingSessionSnapshotDTO2> => {
-			return {
-				requestId: snapshot.requestId,
-				stops: await Promise.all(snapshot.stops.map(serializeChatEditingSessionStop)),
-			};
-		};
 		const serializeSnapshotEntry = async (entry: ISnapshotEntry): Promise<ISnapshotEntryDTO> => {
 			return {
 				resource: entry.resource.toString(),
@@ -209,10 +183,8 @@ export class ChatEditingSessionStorage {
 			const data: IChatEditingSessionDTO = {
 				version: STORAGE_VERSION,
 				sessionId: this.chatSessionId,
-				linearHistory: await Promise.all(state.linearHistory.map(serializeChatEditingSessionSnapshot)),
-				linearHistoryIndex: state.linearHistoryIndex,
 				initialFileContents: await serializeResourceMap(state.initialFileContents, value => addFileContent(value)),
-				pendingSnapshot: state.pendingSnapshot ? await serializeChatEditingSessionStop(state.pendingSnapshot) : undefined,
+				timeline: state.timeline,
 				recentSnapshot: await serializeChatEditingSessionStop(state.recentSnapshot),
 			};
 
@@ -273,11 +245,6 @@ interface IChatEditingSessionSnapshotDTO {
 	readonly entries: ISnapshotEntryDTO[];
 }
 
-interface IChatEditingSessionSnapshotDTO2 {
-	readonly requestId: string | undefined;
-	readonly stops: IChatEditingSessionStopDTO[];
-}
-
 interface ISnapshotEntryDTO {
 	readonly resource: string;
 	readonly languageId: string;
@@ -309,8 +276,6 @@ interface IChatEditingSessionDTO {
 	readonly version: number;
 	readonly sessionId: string;
 	readonly recentSnapshot: (IChatEditingSessionStopDTO | IChatEditingSessionSnapshotDTO);
-	readonly linearHistory: (IChatEditingSessionSnapshotDTO2 | IChatEditingSessionSnapshotDTO)[];
-	readonly linearHistoryIndex: number;
-	readonly pendingSnapshot: (IChatEditingSessionStopDTO | IChatEditingSessionSnapshotDTO) | undefined;
+	readonly timeline: Dto<IChatEditingTimelineState> | undefined;
 	readonly initialFileContents: ResourceMapDTO<string>;
 }

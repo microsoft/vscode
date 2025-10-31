@@ -425,10 +425,10 @@ export class TerminalChatWidget extends Disposable {
 		this._activeRequestCts?.cancel();
 		this._requestActiveContextKey.set(false);
 		const model = this._inlineChatWidget.getChatModel();
-		if (!model?.sessionId) {
+		if (!model?.sessionResource) {
 			return;
 		}
-		this._chatService.cancelCurrentRequestForSession(model?.sessionId);
+		this._chatService.cancelCurrentRequestForSession(model?.sessionResource);
 	}
 
 	async viewInChat(): Promise<void> {
@@ -469,7 +469,7 @@ export class TerminalChatWidget extends Disposable {
 			}
 		}
 
-		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
+		this._chatService.addCompleteRequest(widget!.viewModel!.sessionResource,
 			`@${this._terminalAgentName} ${currentRequest.message.text}`,
 			currentRequest.variableData,
 			currentRequest.attempt,

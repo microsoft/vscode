@@ -210,7 +210,7 @@ class CodeCompareModelService implements ICodeCompareModelService {
 		}
 
 		// apply edits to the "modified" model
-		const chatModel = this.chatService.getSession(element.sessionId)!;
+		const chatModel = this.chatService.getSession(element.sessionResource)!;
 		const editGroups: ISingleEditOperation[][] = [];
 		for (const request of chatModel.getRequests()) {
 			if (!request.response) {

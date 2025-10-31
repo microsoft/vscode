@@ -24,6 +24,7 @@ export async function getServer(appService: ApplicationService): Promise<Server>
 		},
 		async ({ recordVideo }) => {
 			const app = await appService.getOrCreateApplication({ recordVideo });
+			await app.startTracing();
 			return {
 				content: [{
 					type: 'text' as const,

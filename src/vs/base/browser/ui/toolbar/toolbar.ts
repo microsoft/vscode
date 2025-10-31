@@ -17,7 +17,6 @@ import './toolbar.css';
 import * as nls from '../../../../nls.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
-import { BaseActionViewItem } from '../actionbar/actionViewItems.js';
 
 const ACTION_MIN_WIDTH = 24; /* 20px codicon + 4px left padding*/
 
@@ -242,9 +241,6 @@ export class ToolBar extends Disposable {
 			// Reset hidden actions
 			this.hiddenActions.length = 0;
 
-			// Set `responsive` class
-			this.setToolbarResponsiveAction();
-
 			// Update toolbar to fit with container width
 			this.setToolbarMaxWidth(this.element.getBoundingClientRect().width);
 		}
@@ -261,19 +257,10 @@ export class ToolBar extends Disposable {
 	}
 
 	private getItemsWidthResponsive(): number {
-		let itemsWidth = 0;
-		for (let index = 0; index < this.actionBar.length(); index++) {
-			// If the last visible primary action is wider than 24px, it means that it has a label. We
-			// need to return the minimum width (24px) for this action so that we allow it to shrink to
-			// the minimum width.
-			const width = index === this.originalPrimaryActions.length - this.hiddenActions.length - 1
-				? Math.min(ACTION_MIN_WIDTH, this.actionBar.getWidth(index))
-				: this.actionBar.getWidth(index);
-
-			itemsWidth += width;
-		}
-
-		return itemsWidth;
+		// Each action is assumed to have a minimum width so that actions with a label
+		// can shrink to the action's minimum width. We do this so that action visibility
+		// takes precedence over the action label.
+		return this.actionBar.length() * ACTION_MIN_WIDTH;
 	}
 
 	private setToolbarMaxWidth(maxWidth: number) {
@@ -338,24 +325,11 @@ export class ToolBar extends Disposable {
 			}
 		}
 
-		// Update `responsive` class
-		this.setToolbarResponsiveAction();
-
 		// Update overflow menu
 		const hiddenActions = this.hiddenActions.map(entry => entry.action);
 		if (this.originalSecondaryActions.length > 0 || hiddenActions.length > 0) {
 			const secondaryActions = this.originalSecondaryActions.slice(0);
 			this.toggleMenuAction.menuActions = Separator.join(hiddenActions, secondaryActions);
-		}
-	}
-
-	private setToolbarResponsiveAction(): void {
-		// Set the `responsive` class on the last visible primary action
-		for (let index = 0; index < this.actionBar.viewItems.length; index++) {
-			if (this.actionBar.viewItems[index] instanceof BaseActionViewItem) {
-				const isLastVisiblePrimaryAction = index === this.originalPrimaryActions.length - this.hiddenActions.length - 1;
-				(this.actionBar.viewItems[index] as BaseActionViewItem).element?.classList.toggle('responsive', isLastVisiblePrimaryAction);
-			}
 		}
 	}
 
