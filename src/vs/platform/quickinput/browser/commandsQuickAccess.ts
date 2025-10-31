@@ -87,6 +87,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		}
 
 		// Check if the filter is an exact command ID match (use Set for O(1) lookup)
+		// This is checked upfront to avoid expensive TF-IDF calculations when user enters exact ID
 		const commandIds = new Set(allCommandPicks.map(commandPick => commandPick.commandId));
 		const hasExactIdMatch = commandIds.has(filter);
 
