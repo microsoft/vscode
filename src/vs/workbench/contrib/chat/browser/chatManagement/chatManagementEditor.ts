@@ -121,7 +121,7 @@ export class ChatManagementEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService commandService: ICommandService,
-		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService
 	) {
 		super(ChatManagementEditor.ID, group, telemetryService, themeService, storageService);
 		this.commandService = commandService;
