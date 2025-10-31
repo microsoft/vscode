@@ -38,7 +38,6 @@ import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/m
 import * as domSanitize from '../../../../../../base/browser/domSanitize.js';
 import { DomSanitizerConfig } from '../../../../../../base/browser/domSanitize.js';
 import { allowedMarkdownHtmlAttributes } from '../../../../../../base/browser/markdownRenderer.js';
-import { URI } from '../../../../../../base/common/uri.js';
 
 const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
 
@@ -320,6 +319,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return false;
 		}
 
+		if (!this._terminalData.terminalToolSessionId) {
+			return false;
+		}
+
 		if (!this._terminalInstance) {
 			this._terminalInstance = await this._terminalChatService.getTerminalInstanceByToolSessionId(this._terminalData.terminalToolSessionId);
 		}
@@ -394,9 +397,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private async _collectOutput(terminalInstance: ITerminalInstance | undefined): Promise<{ text: string; truncated: boolean }> {
-		const storedOutput = this._terminalData.output;
-		if (storedOutput?.html) {
-			return { text: storedOutput.html, truncated: storedOutput.truncated ?? false };
+		const commandDetection = terminalInstance?.capabilities.get(TerminalCapability.CommandDetection);
+		const commands = commandDetection?.commands;
+		if (!commands || commands.length === 0) {
+			return { text: '', truncated: false };
 		}
 		if (!terminalInstance) {
 			return { text: '', truncated: false };
@@ -405,7 +409,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (!xterm) {
 			return { text: '', truncated: false };
 		}
-		const command = this._resolveCommand(terminalInstance);
+		const command = commands.find(c => c.id === this._terminalData.terminalCommandId);
 		if (!command?.endMarker) {
 			return { text: '', truncated: false };
 		}

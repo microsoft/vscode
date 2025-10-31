@@ -949,7 +949,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// If a command ID was provided and we have command detection, set it as the next command ID
 		// so it will be used when the shell sends the command start sequence
 		if (commandId && commandDetection) {
-			commandDetection.setNextCommandId(commandId);
+			this.xterm?.shellIntegration.setNextCommandId(commandLine, commandId);
 		}
 
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always

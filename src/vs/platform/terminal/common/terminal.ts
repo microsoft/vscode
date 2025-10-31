@@ -976,6 +976,8 @@ export interface IShellIntegration {
 	readonly onDidChangeSeenSequences: Event<ReadonlySet<string>>;
 
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+
+	setNextCommandId(command: string, commandId: string): void;
 }
 
 export interface IDecorationAddon {

@@ -256,7 +256,7 @@ export interface ICommandDetectionCapability {
 	 * This allows pre-assigning an ID before the shell sends the command start sequence,
 	 * which is useful for linking commands across renderer and ptyHost.
 	 */
-	setNextCommandId(commandId: string): void;
+	setNextCommandId(command: string, commandId: string): void;
 	serialize(): ISerializedCommandDetectionCapability;
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
 }
@@ -303,7 +303,7 @@ interface IBaseTerminalCommand {
 	isTrusted: boolean;
 	timestamp: number;
 	duration: number;
-	id: string;
+	id: string | undefined;
 
 	// Optional serializable
 	cwd: string | undefined;

@@ -75,9 +75,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			this._persistToStorage();
 		} else {
 			const listener = this._register(instance.capabilities.get(TerminalCapability.CommandDetection)!.onCommandFinished(e => {
-				this._commandIdByToolSessionId.set(terminalToolSessionId, e.id);
-				this._persistToStorage();
-				listener.dispose();
+				if (e.id) {
+					this._commandIdByToolSessionId.set(terminalToolSessionId, e.id);
+					this._persistToStorage();
+					listener.dispose();
+				}
 			}));
 		}
 
