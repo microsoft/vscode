@@ -369,7 +369,12 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		if (options?.commandId) {
 			this._currentCommand.id = options.commandId;
 			this._nextCommandId = undefined; // Clear the pending ID
-		} else if (this._nextCommandId && this.currentCommand.command === this._nextCommandId.command) {
+		} else if (
+			this._nextCommandId &&
+			typeof this.currentCommand.command === 'string' &&
+			typeof this._nextCommandId.command === 'string' &&
+			this.currentCommand.command.trim() === this._nextCommandId.command.trim()
+		) {
 			this._currentCommand.id = this._nextCommandId.commandId;
 			this._nextCommandId = undefined; // Clear after use
 		}
