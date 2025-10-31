@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { append, $ } from '../../../../base/browser/dom.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
-import { IAsyncDataSource, ITreeEvent, ITreeContextMenuEvent, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
+import { IAsyncDataSource, ITreeEvent, ITreeContextMenuEvent, ITreeNode, ITreeRenderer, ITreeElementRenderDetails } from '../../../../base/browser/ui/tree/tree.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -21,7 +21,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer.js';
-import { collectContextMenuActions, getActionViewItemProvider, isSCMArtifactGroupTreeElement, isSCMArtifactTreeElement, isSCMRepository } from './util.js';
+import { collectContextMenuActions, connectPrimaryMenu, getActionViewItemProvider, isSCMArtifactGroupTreeElement, isSCMArtifactTreeElement, isSCMRepository } from './util.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
@@ -37,7 +37,6 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 
 type TreeElement = ISCMRepository | SCMArtifactGroupTreeElement | SCMArtifactTreeElement;
 
@@ -63,6 +62,7 @@ class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 interface ArtifactGroupTemplate {
 	readonly label: IconLabel;
 	readonly actionBar: WorkbenchToolBar;
+	readonly elementDisposables: DisposableStore;
 	readonly templateDisposable: IDisposable;
 }
 
@@ -77,6 +77,7 @@ class ArtifactGroupRenderer implements ITreeRenderer<SCMArtifactGroupTreeElement
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@ISCMViewService private readonly _scmViewService: ISCMViewService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) { }
 
@@ -87,7 +88,7 @@ class ArtifactGroupRenderer implements ITreeRenderer<SCMArtifactGroupTreeElement
 		const actionsContainer = append(element, $('.actions'));
 		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
 
-		return { label, actionBar, templateDisposable: combinedDisposable(label, actionBar) };
+		return { label, actionBar, elementDisposables: new DisposableStore(), templateDisposable: combinedDisposable(label, actionBar) };
 	}
 
 	renderElement(node: ITreeNode<SCMArtifactGroupTreeElement, FuzzyScore>, index: number, templateData: ArtifactGroupTemplate): void {
@@ -98,13 +99,15 @@ class ArtifactGroupRenderer implements ITreeRenderer<SCMArtifactGroupTreeElement
 
 		templateData.label.setLabel(`${artifactGroupIcon}${artifactGroup.name}`);
 
-		const actions = this._menuService.getMenuActions(
-			MenuId.SCMArtifactGroupContext,
-			this._contextKeyService.createOverlay([['scmArtifactGroup', artifactGroup.id]]),
-			{ arg: provider, shouldForwardArgs: true });
+		const repositoryMenus = this._scmViewService.menus.getRepositoryMenus(provider);
+		templateData.elementDisposables.add(connectPrimaryMenu(repositoryMenus.getArtifactGroupMenu(artifactGroup), primary => {
+			templateData.actionBar.setActions(primary);
+		}, 'inline', provider));
+		templateData.actionBar.context = artifactGroup;
+	}
 
-		templateData.actionBar.context = node.element.artifactGroup;
-		templateData.actionBar.setActions(getActionBarActions(actions, 'inline').primary);
+	disposeElement(element: ITreeNode<SCMArtifactGroupTreeElement, FuzzyScore>, index: number, templateData: ArtifactGroupTemplate, details?: ITreeElementRenderDetails): void {
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: ArtifactGroupTemplate): void {
@@ -115,6 +118,7 @@ class ArtifactGroupRenderer implements ITreeRenderer<SCMArtifactGroupTreeElement
 interface ArtifactTemplate {
 	readonly label: IconLabel;
 	readonly actionBar: WorkbenchToolBar;
+	readonly elementDisposables: DisposableStore;
 	readonly templateDisposable: IDisposable;
 }
 
@@ -129,6 +133,7 @@ class ArtifactRenderer implements ITreeRenderer<SCMArtifactTreeElement, FuzzySco
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@ISCMViewService private readonly _scmViewService: ISCMViewService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) { }
 
@@ -139,7 +144,7 @@ class ArtifactRenderer implements ITreeRenderer<SCMArtifactTreeElement, FuzzySco
 		const actionsContainer = append(element, $('.actions'));
 		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
 
-		return { label, actionBar, templateDisposable: combinedDisposable(label, actionBar) };
+		return { label, actionBar, elementDisposables: new DisposableStore(), templateDisposable: combinedDisposable(label, actionBar) };
 	}
 
 	renderElement(node: ITreeNode<SCMArtifactTreeElement, FuzzyScore>, index: number, templateData: ArtifactTemplate): void {
@@ -152,13 +157,15 @@ class ArtifactRenderer implements ITreeRenderer<SCMArtifactTreeElement, FuzzySco
 
 		templateData.label.setLabel(`${artifactGroupIcon}${artifact.name}`, artifact.description);
 
-		const actions = this._menuService.getMenuActions(
-			MenuId.SCMArtifactContext,
-			this._contextKeyService.createOverlay([['scmArtifactGroup', artifactGroup.id]]),
-			{ arg: provider, shouldForwardArgs: true });
+		const repositoryMenus = this._scmViewService.menus.getRepositoryMenus(provider);
+		templateData.elementDisposables.add(connectPrimaryMenu(repositoryMenus.getArtifactMenu(artifactGroup), primary => {
+			templateData.actionBar.setActions(primary);
+		}, 'inline', provider));
+		templateData.actionBar.context = artifact;
+	}
 
-		templateData.actionBar.context = node.element.artifact;
-		templateData.actionBar.setActions(getActionBarActions(actions, 'inline').primary);
+	disposeElement(element: ITreeNode<SCMArtifactTreeElement, FuzzyScore>, index: number, templateData: ArtifactTemplate, details?: ITreeElementRenderDetails): void {
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: ArtifactTemplate): void {
@@ -387,7 +394,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				compressionEnabled: compressionEnabled.get(),
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				multipleSelectionSupport: this.scmViewService.selectionModeConfig.get() === 'multiple',
-				expandOnDoubleClick: false,
+				expandOnDoubleClick: true,
 				expandOnlyOnTwistieClick: true,
 				accessibilityProvider: {
 					getAriaLabel(element: TreeElement): string {
