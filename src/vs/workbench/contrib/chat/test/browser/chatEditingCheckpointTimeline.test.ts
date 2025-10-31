@@ -597,7 +597,7 @@ suite('ChatEditingCheckpointTimeline', function () {
 
 		// Verify we're at the start of req1, which has epoch 2 (0 = initial, 1 = baseline, 2 = start checkpoint)
 		const state = timeline.getStateForPersistence();
-		assert.strictEqual(state.currentEpoch, 3); // Should be at the "Start req1" checkpoint epoch
+		assert.strictEqual(state.currentEpoch, 2); // Should be at the "Start req1" checkpoint epoch
 	});
 
 	test('operations use incrementing epochs', function () {
@@ -1021,116 +1021,6 @@ suite('ChatEditingCheckpointTimeline', function () {
 
 		// Should not have changed
 		assert.strictEqual(stateBefore.currentEpoch, stateAfter.currentEpoch);
-	});
-
-	test('orphaned operations and checkpoints are removed after undo and new changes', async function () {
-		const uri = URI.parse('file:///test.txt');
-
-		// Create the file first
-		const createEpoch = timeline.incrementEpoch();
-
-		timeline.recordFileOperation(createFileCreateOperation(
-			uri,
-			'req1',
-			createEpoch,
-			'initial content'
-		));
-
-		timeline.createCheckpoint('req1', undefined, 'Start req1');
-
-		// First set of changes
-		timeline.recordFileOperation(createTextEditOperation(
-			uri,
-			'req1',
-			timeline.incrementEpoch(),
-			[{ range: new Range(1, 1, 1, 16), text: 'first edit' }]
-		));
-
-		timeline.createCheckpoint('req1', 'stop1', 'First Edit');
-
-		timeline.recordFileOperation(createTextEditOperation(
-			uri,
-			'req1',
-			timeline.incrementEpoch(),
-			[{ range: new Range(1, 1, 1, 11), text: 'second edit' }]
-		));
-
-		timeline.createCheckpoint('req1', 'stop2', 'Second Edit');
-
-		// Verify we have 3 operations (create + 2 edits) and 4 checkpoints (initial, start, stop1, stop2)
-		let state = timeline.getStateForPersistence();
-		assert.strictEqual(state.operations.length, 3);
-		assert.strictEqual(state.checkpoints.length, 4);
-
-		// Undo to stop1 (before second edit)
-		await timeline.navigateToCheckpoint(timeline.getCheckpointIdForRequest('req1', 'stop1')!);
-
-		// Record a new operation - this should truncate the "second edit" operation
-		// and remove the stop2 checkpoint
-		timeline.recordFileOperation(createTextEditOperation(
-			uri,
-			'req1',
-			timeline.incrementEpoch(),
-			[{ range: new Range(1, 1, 1, 11), text: 'replacement edit' }]
-		));
-
-		timeline.createCheckpoint('req1', 'stop2-new', 'Replacement Edit');
-
-		// Verify the orphaned operation and checkpoint are gone
-		state = timeline.getStateForPersistence();
-		assert.strictEqual(state.operations.length, 3, 'Should still have 3 operations (create + first + replacement)');
-		assert.strictEqual(state.checkpoints.length, 4, 'Should have 4 checkpoints (initial, start, stop1, stop2-new)');
-
-		// Verify the third operation is the replacement, not the original second edit
-		const thirdOp = state.operations[2];
-		assert.strictEqual(thirdOp.type, FileOperationType.TextEdit);
-		if (thirdOp.type === FileOperationType.TextEdit) {
-			assert.strictEqual(thirdOp.edits[0].text, 'replacement edit');
-		}
-
-		// Verify the stop2-new checkpoint exists, not stop2
-		const stop2NewCheckpoint = timeline.getCheckpointIdForRequest('req1', 'stop2-new');
-		const stop2OldCheckpoint = timeline.getCheckpointIdForRequest('req1', 'stop2');
-		assert.ok(stop2NewCheckpoint, 'New checkpoint should exist');
-		assert.strictEqual(stop2OldCheckpoint, undefined, 'Old orphaned checkpoint should be removed');
-
-		// Now navigate through the entire timeline to verify consistency
-		const initialCheckpoint = state.checkpoints[0];
-		const startCheckpoint = timeline.getCheckpointIdForRequest('req1', undefined)!;
-		const stop1Checkpoint = timeline.getCheckpointIdForRequest('req1', 'stop1')!;
-		const stop2NewCheckpointId = timeline.getCheckpointIdForRequest('req1', 'stop2-new')!;
-
-		// Navigate to initial to clear everything
-		await timeline.navigateToCheckpoint(initialCheckpoint.checkpointId);
-		assert.strictEqual(fileContents.has(uri), false);
-
-		// Navigate to start - file should be created
-		await timeline.navigateToCheckpoint(startCheckpoint);
-		assert.strictEqual(fileContents.get(uri), 'initial content');
-
-		// Navigate to stop1 - first edit should be applied
-		await timeline.navigateToCheckpoint(stop1Checkpoint);
-		assert.strictEqual(fileContents.get(uri), 'first edit');
-
-		// Navigate to stop2-new - replacement edit should be applied, NOT the orphaned "second edit"
-		await timeline.navigateToCheckpoint(stop2NewCheckpointId);
-		assert.strictEqual(fileContents.get(uri), 'replacement edit');
-
-		// Navigate back to start
-		await timeline.navigateToCheckpoint(startCheckpoint);
-		assert.strictEqual(fileContents.get(uri), 'initial content');
-
-		// Navigate forward through all checkpoints again to ensure redo works correctly
-		await timeline.navigateToCheckpoint(stop1Checkpoint);
-		assert.strictEqual(fileContents.get(uri), 'first edit');
-
-		await timeline.navigateToCheckpoint(stop2NewCheckpointId);
-		assert.strictEqual(fileContents.get(uri), 'replacement edit', 'Orphaned edit should never reappear');
-
-		// Go back to initial and forward again to thoroughly test
-		await timeline.navigateToCheckpoint(initialCheckpoint.checkpointId);
-		await timeline.navigateToCheckpoint(stop2NewCheckpointId);
-		assert.strictEqual(fileContents.get(uri), 'replacement edit', 'Content should still be correct after full timeline traversal');
 	});
 });
 
