@@ -6,6 +6,13 @@
 			// Look at the [README](../test/mcp/README.md) to see what arguments are supported
 			"args": ["run", "start-stdio"],
 			"cwd": "${workspaceFolder}/test/mcp"
+		},
+		"vscode-playwright-mcp-web": {
+			"type": "stdio",
+			"command": "npm",
+			// Look at the [README](../test/mcp/README.md) to see what arguments are supported
+			"args": ["run", "start-stdio", "--", "--web"],
+			"cwd": "${workspaceFolder}/test/mcp"
 		}
 	},
 	"inputs": []
