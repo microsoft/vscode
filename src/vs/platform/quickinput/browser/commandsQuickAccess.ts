@@ -86,6 +86,9 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			return [];
 		}
 
+		// Check if the filter is an exact command ID match
+		const hasExactIdMatch = allCommandPicks.some(commandPick => filter === commandPick.commandId);
+
 		const runTfidf = createSingleCallFunction(() => {
 			const tfidf = new TfIdfCalculator();
 			tfidf.updateDocuments(allCommandPicks.map(commandPick => ({
@@ -129,7 +132,8 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			}
 
 			// Handle tf-idf scoring for the rest if there's a filter
-			else if (filter.length >= 3) {
+			// Skip tf-idf if we have an exact command ID match
+			else if (filter.length >= 3 && !hasExactIdMatch) {
 				const tfidf = runTfidf();
 				if (token.isCancellationRequested) {
 					return [];
@@ -253,7 +257,8 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			commandPicks.push(this.toCommandPick(commandPick, runOptions));
 		}
 
-		if (!this.hasAdditionalCommandPicks(filter, token)) {
+		// Skip additional picks (AI-related suggestions) if we have an exact command ID match
+		if (hasExactIdMatch || !this.hasAdditionalCommandPicks(filter, token)) {
 			return commandPicks;
 		}
 
