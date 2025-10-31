@@ -7,6 +7,7 @@ import { MainContext, ExtHostThemingShape, ExtHostContext, MainThreadThemingShap
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { Color } from '../../../base/common/color.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTheming)
 export class MainThreadTheming implements MainThreadThemingShape {
@@ -26,6 +27,12 @@ export class MainThreadTheming implements MainThreadThemingShape {
 			this._proxy.$onColorThemeChange(this._themeService.getColorTheme().type);
 		});
 		this._proxy.$onColorThemeChange(this._themeService.getColorTheme().type);
+	}
+
+	async $getColorAsHex(colorId: string): Promise<string | undefined> {
+		const theme = this._themeService.getColorTheme();
+		const color = theme.getColor(colorId);
+		return color ? Color.Format.CSS.formatHex(color) : undefined;
 	}
 
 	dispose(): void {
