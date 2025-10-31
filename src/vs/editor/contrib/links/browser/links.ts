@@ -76,7 +76,7 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 			this.cleanUpActiveLinkDecoration();
 		}));
 		this._register(editor.onDidChangeConfiguration((e) => {
-			if (!e.hasChanged(EditorOption.links)) {
+			if (!e.hasChanged(EditorOption.links) && !e.hasChanged(EditorOption.linkUnderline)) {
 				return;
 			}
 			// Remove any links (for the getting disabled case)
@@ -150,6 +150,7 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 
 	private updateDecorations(links: Link[]): void {
 		const useMetaKey = (this.editor.getOption(EditorOption.multiCursorModifier) === 'altKey');
+		const linkUnderline = this.editor.getOption(EditorOption.linkUnderline);
 		const oldDecorations: string[] = [];
 		const keys = Object.keys(this.currentOccurrences);
 		for (const decorationId of keys) {
@@ -161,7 +162,7 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 		if (links) {
 			// Not sure why this is sometimes null
 			for (const link of links) {
-				newDecorations.push(LinkOccurrence.decoration(link, useMetaKey));
+				newDecorations.push(LinkOccurrence.decoration(link, useMetaKey, linkUnderline));
 			}
 		}
 
@@ -179,12 +180,13 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 
 	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent, withKey: ClickLinkKeyboardEvent | null): void {
 		const useMetaKey = (this.editor.getOption(EditorOption.multiCursorModifier) === 'altKey');
+		const linkUnderline = this.editor.getOption(EditorOption.linkUnderline);
 		if (this.isEnabled(mouseEvent, withKey)) {
 			this.cleanUpActiveLinkDecoration(); // always remove previous link decoration as their can only be one
 			const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
 			if (occurrence) {
 				this.editor.changeDecorations((changeAccessor) => {
-					occurrence.activate(changeAccessor, useMetaKey);
+					occurrence.activate(changeAccessor, useMetaKey, linkUnderline);
 					this.activeLinkDecorationId = occurrence.decorationId;
 				});
 			}
@@ -195,11 +197,12 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 
 	private cleanUpActiveLinkDecoration(): void {
 		const useMetaKey = (this.editor.getOption(EditorOption.multiCursorModifier) === 'altKey');
+		const linkUnderline = this.editor.getOption(EditorOption.linkUnderline);
 		if (this.activeLinkDecorationId) {
 			const occurrence = this.currentOccurrences[this.activeLinkDecorationId];
 			if (occurrence) {
 				this.editor.changeDecorations((changeAccessor) => {
-					occurrence.deactivate(changeAccessor, useMetaKey);
+					occurrence.deactivate(changeAccessor, useMetaKey, linkUnderline);
 				});
 			}
 
@@ -319,25 +322,43 @@ const decoration = {
 		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link'
 	}),
+	generalUnderline: ModelDecorationOptions.register({
+		description: 'detected-link-underline',
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
+		inlineClassName: 'detected-link detected-link-underline'
+	}),
 	active: ModelDecorationOptions.register({
 		description: 'detected-link-active',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active'
+	}),
+	activeUnderline: ModelDecorationOptions.register({
+		description: 'detected-link-active-underline',
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
+		inlineClassName: 'detected-link-active detected-link-active-underline'
 	})
 };
 
 class LinkOccurrence {
 
-	public static decoration(link: Link, useMetaKey: boolean): IModelDeltaDecoration {
+	public static decoration(link: Link, useMetaKey: boolean, linkUnderline: boolean): IModelDeltaDecoration {
 		return {
 			range: link.range,
-			options: LinkOccurrence._getOptions(link, useMetaKey, false)
+			options: LinkOccurrence._getOptions(link, useMetaKey, false, linkUnderline)
 		};
 	}
 
-	private static _getOptions(link: Link, useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
-		const options = { ... (isActive ? decoration.active : decoration.general) };
+	private static _getOptions(link: Link, useMetaKey: boolean, isActive: boolean, linkUnderline: boolean): ModelDecorationOptions {
+		let baseDecoration;
+		if (isActive) {
+			baseDecoration = linkUnderline ? decoration.activeUnderline : decoration.active;
+		} else {
+			baseDecoration = linkUnderline ? decoration.generalUnderline : decoration.general;
+		}
+		const options = { ...baseDecoration };
 		options.hoverMessage = getHoverMessage(link, useMetaKey);
 		return options;
 	}
@@ -350,12 +371,12 @@ class LinkOccurrence {
 		this.decorationId = decorationId;
 	}
 
-	public activate(changeAccessor: IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
-		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, true));
+	public activate(changeAccessor: IModelDecorationsChangeAccessor, useMetaKey: boolean, linkUnderline: boolean): void {
+		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, true, linkUnderline));
 	}
 
-	public deactivate(changeAccessor: IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
-		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, false));
+	public deactivate(changeAccessor: IModelDecorationsChangeAccessor, useMetaKey: boolean, linkUnderline: boolean): void {
+		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, false, linkUnderline));
 	}
 }
 
