@@ -9,7 +9,7 @@ import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { EditorOption, RenderLineNumbersType, ConfigurationChangedEvent } from '../../../common/config/editorOptions.js';
 import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget.js';
-import { IStickyLineCandidateProvider, StickyLineCandidateProvider } from './stickyScrollProvider.js';
+import { IStickyLineCandidateProvider, StickyLineCandidate, StickyLineCandidateProvider } from './stickyScrollProvider.js';
 import { IModelTokensChangedEvent } from '../../../common/textModelEvents.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -589,6 +589,34 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._widgetState = StickyScrollWidgetState.Empty;
 		this._stickyScrollVisibleContextKey.set(false);
 		this._stickyScrollWidget.setState(undefined, undefined);
+	}
+
+	private _shouldAppendStickyLine(
+		line: StickyLineCandidate,
+		startLineNumbers: number[],
+		innerScopes: boolean,
+		maxNumberStickyLines: number,
+		scrollTop: number,
+		stickyWidgetHeight: number
+	): boolean {
+		const start = line.startLineNumber;
+		const end = line.endLineNumber + (innerScopes ? 1 : 0);
+		const topOfBeginningLine = this._editor.getTopForLineNumber(start) - scrollTop;
+		const bottomOfBeginningLine = this._editor.getBottomForLineNumber(start) - scrollTop;
+		const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
+
+		if (!innerScopes) {
+			return topOfBeginningLine < stickyWidgetHeight && bottomOfEndLine >= stickyWidgetHeight;
+		}
+
+		const isAtMaxLines = startLineNumbers.length === maxNumberStickyLines;
+
+		if (isAtMaxLines) {
+			return (bottomOfBeginningLine) < stickyWidgetHeight
+				&& (bottomOfEndLine) >= stickyWidgetHeight;
+		}
+
+		return topOfBeginningLine < stickyWidgetHeight && bottomOfEndLine >= stickyWidgetHeight;
 	}
 
 	findScrollWidgetState(): StickyScrollWidgetState {
