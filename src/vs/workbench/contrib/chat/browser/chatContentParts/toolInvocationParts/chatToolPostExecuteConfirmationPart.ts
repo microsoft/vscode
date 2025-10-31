@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { Separator } from '../../../../../../base/common/actions.js';
 import { getExtensionForMimeType } from '../../../../../../base/common/mime.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
@@ -12,7 +13,8 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ChatResponseResource } from '../../../common/chatModel.js';
-import { IChatToolInvocation } from '../../../common/chatService.js';
+import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
+import { ILanguageModelToolsConfirmationService } from '../../../common/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService, IToolResultDataPart, IToolResultPromptTsxPart, IToolResultTextPart, stringifyPromptTsxPart } from '../../../common/languageModelToolsService.js';
 import { AcceptToolPostConfirmationActionId, SkipToolPostConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
@@ -20,7 +22,7 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { EditorPool } from '../chatMarkdownContentPart.js';
 import { ChatCollapsibleIOPart } from '../chatToolInputOutputContentPart.js';
 import { ChatToolOutputContentSubPart } from '../chatToolOutputContentSubPart.js';
-import { AbstractToolConfirmationSubPart, ConfirmationOutcome } from './abstractToolConfirmationSubPart.js';
+import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
 
 export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmationSubPart {
 	private _codeblocks: IChatCodeBlockInfo[] = [];
@@ -40,6 +42,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
+		@ILanguageModelToolsConfirmationService private readonly confirmationService: ILanguageModelToolsConfirmationService,
 	) {
 		super(toolInvocation, context, instantiationService, keybindingService, contextKeyService, chatWidgetService, languageModelToolsService);
 		const subtitle = toolInvocation.pastTenseMessage || toolInvocation.invocationMessage;
@@ -71,11 +74,29 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 
 	protected override additionalPrimaryActions() {
 		const actions = super.additionalPrimaryActions();
-		actions.push(
-			{ label: localize('allowSession', 'Allow Without Review in this Session'), data: ConfirmationOutcome.AllowSession, tooltip: localize('allowSessionTooltip', 'Allow results from this tool to be sent without confirmation in this session.') },
-			{ label: localize('allowWorkspace', 'Allow Without Review in this Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow results from this tool to be sent without confirmation in this workspace.') },
-			{ label: localize('allowGlobally', 'Always Allow Without Review'), data: ConfirmationOutcome.AllowGlobally, tooltip: localize('allowGloballyTooltip', 'Always allow results from this tool to be sent without confirmation.') },
-		);
+
+		// Get actions from confirmation service
+		const confirmActions = this.confirmationService.getPostConfirmActions({
+			toolId: this.toolInvocation.toolId,
+			source: this.toolInvocation.source,
+			parameters: this.toolInvocation.parameters
+		});
+
+		for (const action of confirmActions) {
+			if (action.divider) {
+				actions.push(new Separator());
+			}
+			actions.push({
+				label: action.label,
+				tooltip: action.detail,
+				data: async () => {
+					const shouldConfirm = await action.select();
+					if (shouldConfirm) {
+						this.confirmWith(this.toolInvocation, { type: ToolConfirmKind.UserAction });
+					}
+				}
+			});
+		}
 
 		return actions;
 	}

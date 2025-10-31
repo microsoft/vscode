@@ -24,6 +24,7 @@ import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../p
 import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService } from '../../../common/languageModelToolsService.js';
+import { ILanguageModelToolsConfirmationService } from '../../../common/languageModelToolsConfirmationService.js';
 import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { renderFileWidgets } from '../../chatInlineAnchorWidget.js';
@@ -31,7 +32,7 @@ import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
-import { AbstractToolConfirmationSubPart, ConfirmationOutcome } from './abstractToolConfirmationSubPart.js';
+import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
 
 const SHOW_MORE_MESSAGE_HEIGHT_TRIGGER = 45;
 
@@ -59,6 +60,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		@IMarkerService private readonly markerService: IMarkerService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@ILanguageModelToolsConfirmationService private readonly confirmationService: ILanguageModelToolsConfirmationService,
 	) {
 		if (!toolInvocation.confirmationMessages?.title) {
 			throw new Error('Confirmation messages are missing');
@@ -84,11 +86,28 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 	protected override additionalPrimaryActions() {
 		const actions = super.additionalPrimaryActions();
 		if (this.toolInvocation.confirmationMessages?.allowAutoConfirm !== false) {
-			actions.push(
-				{ label: localize('allowSession', 'Allow in this Session'), data: ConfirmationOutcome.AllowSession, tooltip: localize('allowSesssionTooltip', 'Allow this tool to run in this session without confirmation.') },
-				{ label: localize('allowWorkspace', 'Allow in this Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow this tool to run in this workspace without confirmation.') },
-				{ label: localize('allowGlobally', 'Always Allow'), data: ConfirmationOutcome.AllowGlobally, tooltip: localize('allowGloballTooltip', 'Always allow this tool to run without confirmation.') },
-			);
+			// Get actions from confirmation service
+			const confirmActions = this.confirmationService.getPreConfirmActions({
+				toolId: this.toolInvocation.toolId,
+				source: this.toolInvocation.source,
+				parameters: this.toolInvocation.parameters
+			});
+
+			for (const action of confirmActions) {
+				if (action.divider) {
+					actions.push(new Separator());
+				}
+				actions.push({
+					label: action.label,
+					tooltip: action.detail,
+					data: async () => {
+						const shouldConfirm = await action.select();
+						if (shouldConfirm) {
+							this.confirmWith(this.toolInvocation, { type: ToolConfirmKind.UserAction });
+						}
+					}
+				});
+			}
 		}
 		if (this.toolInvocation.confirmationMessages?.confirmResults) {
 			actions.unshift(
