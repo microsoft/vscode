@@ -123,7 +123,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		});
 		let pastTenseMessage: string | undefined;
 		if (toolInvocation.pastTenseMessage) {
-			pastTenseMessage = typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value;
+			pastTenseMessage = `${typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value}`;
 		}
 		const markdownContent = new MarkdownString(pastTenseMessage, {
 			supportThemeIcons: true,
