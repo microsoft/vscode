@@ -752,6 +752,11 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 			next = next === this.value ? this.getNextValue() : next;
 		}
 
+		if (next) {
+			// Promote the selected item to most recent if MRU is supported
+			this.history.promoteToMostRecent(next);
+		}
+
 		this.value = next ?? '';
 		aria.status(this.value ? this.value : nls.localize('clearedInput', "Cleared Input"));
 	}
@@ -767,6 +772,8 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		}
 
 		if (previous) {
+			// Promote the selected item to most recent if MRU is supported
+			this.history.promoteToMostRecent(previous);
 			this.value = previous;
 			aria.status(this.value);
 		}
