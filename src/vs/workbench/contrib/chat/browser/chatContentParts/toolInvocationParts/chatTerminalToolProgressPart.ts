@@ -248,19 +248,25 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				return;
 			}
 
+			commandDetectionListener.value = commandDetection.onCommandFinished(() => {
+				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId!);
+				commandDetectionListener.clear();
+			});
 			const resolvedImmediately = await tryResolveCommand();
 			if (resolvedImmediately?.endMarker) {
 				return;
 			}
-
-			commandDetectionListener.value = commandDetection.onCommandFinished(() => {
-				this._ensureShowOutputAction();
-				commandDetectionListener.clear();
-			});
 		};
 
 		attachCommandDetection(terminalInstance.capabilities.get(TerminalCapability.CommandDetection));
 		this._register(terminalInstance.capabilities.onDidAddCommandDetectionCapability(cd => attachCommandDetection(cd)));
+
+		this._register(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(async instance => {
+			const resolvedCommand = this._resolveCommand(terminalInstance);
+			if (resolvedCommand?.endMarker) {
+				await this._addActions(terminalInstance, this._terminalData.terminalToolSessionId!);
+			}
+		}));
 
 		const instanceListener = this._register(terminalInstance.onDisposed(() => {
 			if (this._terminalInstance === terminalInstance) {

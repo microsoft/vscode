@@ -194,9 +194,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		if (this._pendingRestoredMappings.size === 0) {
 			return;
 		}
-		if (typeof instance.shellLaunchConfig.attachPersistentProcess?.id !== 'number') {
-			return;
-		}
+
 		for (const [toolSessionId, persistentProcessId] of this._pendingRestoredMappings) {
 			if (persistentProcessId === instance.shellLaunchConfig.attachPersistentProcess?.id) {
 				this._terminalInstancesByToolSessionId.set(toolSessionId, instance);
