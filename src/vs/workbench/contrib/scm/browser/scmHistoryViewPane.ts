@@ -2033,6 +2033,11 @@ export class SCMHistoryViewPane extends ViewPane {
 
 		if (isSCMHistoryItemViewModelTreeElement(element)) {
 			// HistoryItem
+			if (element.historyItemViewModel.kind === 'incoming-changes' || element.historyItemViewModel.kind === 'outgoing-changes') {
+				// Incoming/Outgoing changes node does not support any context menu actions
+				return;
+			}
+
 			this._contextMenuDisposables.value = new DisposableStore();
 
 			const historyProvider = element.repository.provider.historyProvider.get();
