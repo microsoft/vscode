@@ -70,6 +70,10 @@ export function isSCMArtifactGroupTreeElement(element: unknown): element is SCMA
 	return (element as SCMArtifactGroupTreeElement).type === 'artifactGroup';
 }
 
+export function isSCMArtifactNode(element: unknown): element is IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement> {
+	return ResourceTree.isResourceNode(element) && isSCMArtifactGroupTreeElement(element.context);
+}
+
 export function isSCMArtifactTreeElement(element: unknown): element is SCMArtifactTreeElement {
 	return (element as SCMArtifactTreeElement).type === 'artifact';
 }
@@ -104,8 +108,8 @@ export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], s
 	return menu.onDidChange(updateActions);
 }
 
-export function collectContextMenuActions(menu: IMenu): IAction[] {
-	return getContextMenuActions(menu.getActions({ shouldForwardArgs: true }), 'inline').secondary;
+export function collectContextMenuActions(menu: IMenu, arg?: unknown): IAction[] {
+	return getContextMenuActions(menu.getActions({ arg, shouldForwardArgs: true }), 'inline').secondary;
 }
 
 export class StatusBarAction extends Action {
