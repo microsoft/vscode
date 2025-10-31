@@ -252,7 +252,10 @@ abstract class ModelsTableColumnRenderer<T extends IModelTableColumnTemplateData
 	renderElement(element: TableEntry, index: number, templateData: T): void {
 		templateData.elementDisposables.clear();
 		const isVendor = isVendorEntry(element);
+		templateData.container.classList.add('models-table-column');
 		templateData.container.parentElement!.classList.toggle('models-vendor-row', isVendor);
+		templateData.container.parentElement!.classList.toggle('models-model-row', !isVendor);
+		templateData.container.parentElement!.classList.toggle('model-hidden', !isVendor && !element.modelEntry.metadata.isUserSelectable);
 		if (isVendor) {
 			this.renderVendorElement(element, index, templateData);
 		} else {
@@ -275,19 +278,29 @@ interface IToggleCollapseColumnTemplateData extends IModelTableColumnTemplateDat
 	readonly actionBar: ActionBar;
 }
 
-class ToggleCollapseColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColumnTemplateData> {
+class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColumnTemplateData> {
 
-	static readonly TEMPLATE_ID = 'toggleCollapse';
+	static readonly TEMPLATE_ID = 'gutter';
 
-	readonly templateId: string = ToggleCollapseColumnRenderer.TEMPLATE_ID;
+	readonly templateId: string = GutterColumnRenderer.TEMPLATE_ID;
 
 	private readonly _onDidToggleCollapse = new Emitter<string>();
 	readonly onDidToggleCollapse = this._onDidToggleCollapse.event;
 
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange = this._onDidChange.event;
+
+	constructor(
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService
+	) {
+		super();
+	}
+
 	renderTemplate(container: HTMLElement): IToggleCollapseColumnTemplateData {
 		const disposables = new DisposableStore();
 		const elementDisposables = new DisposableStore();
-		const actionBar = disposables.add(new ActionBar(DOM.append(container, $('.collapse-actions-column'))));
+		container.classList.add('models-gutter-column');
+		const actionBar = disposables.add(new ActionBar(container));
 		return {
 			rowContainer: container.parentElement,
 			container,
@@ -326,12 +339,28 @@ class ToggleCollapseColumnRenderer extends ModelsTableColumnRenderer<IToggleColl
 	}
 
 	override renderModelElement(entry: IModelItemEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
+		const { modelEntry } = entry;
+		const isVisible = modelEntry.metadata.isUserSelectable ?? false;
+		const toggleVisibilityAction = toAction({
+			id: 'toggleVisibility',
+			label: isVisible ? localize('models.hide', 'Hide') : localize('models.show', 'Show'),
+			class: `model-visibility-toggle ${isVisible ? `${ThemeIcon.asClassName(Codicon.eyeClosed)} model-visible` : `${ThemeIcon.asClassName(Codicon.eye)} model-hidden`}`,
+			tooltip: isVisible ? localize('models.visible', 'Hide in the chat model picker') : localize('models.hidden', 'Show in the chat model picker'),
+			checked: !isVisible,
+			run: async () => {
+				const newVisibility = !isVisible;
+				this.languageModelsService.updateModelPickerPreference(modelEntry.identifier, newVisibility);
+				this._onDidChange.fire();
+			}
+		});
+		templateData.actionBar.push(toggleVisibilityAction, { icon: true, label: false });
 	}
 }
 
 interface IModelNameColumnTemplateData extends IModelTableColumnTemplateData {
 	readonly statusIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
+	readonly actionBar: ActionBar;
 }
 
 class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumnTemplateData> {
@@ -351,10 +380,12 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		const nameContainer = DOM.append(container, $('.model-name-container'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameContainer, $('.model-name'))));
 		const statusIcon = DOM.append(nameContainer, $('.model-status-icon'));
+		const actionBar = disposables.add(new ActionBar(DOM.append(nameContainer, $('.model-name-actions'))));
 		return {
 			container,
 			statusIcon,
 			nameLabel,
+			actionBar,
 			disposables,
 			elementDisposables
 		};
@@ -362,6 +393,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 
 	override renderElement(entry: TableEntry, index: number, templateData: IModelNameColumnTemplateData): void {
 		DOM.clearNode(templateData.statusIcon);
+		templateData.actionBar.clear();
 		super.renderElement(entry, index, templateData);
 	}
 
@@ -397,6 +429,10 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 			}
 			markdown.appendMarkdown(`${entry.modelEntry.metadata.tooltip}`);
 			markdown.appendText(`\n`);
+		}
+
+		if (!entry.modelEntry.metadata.isUserSelectable) {
+			markdown.appendMarkdown(`\n\n${localize('models.userSelectable', 'This model is hidden in the chat model picker')}`);
 		}
 
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container!, () => ({
@@ -590,8 +626,7 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
-		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		@ICommandService private readonly commandService: ICommandService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 	}
@@ -633,20 +668,7 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 	}
 
 	override renderModelElement(entry: IModelItemEntry, index: number, templateData: IActionsColumnTemplateData): void {
-		const { modelEntry } = entry;
-		const isVisible = modelEntry.metadata.isUserSelectable ?? false;
-		const toggleVisibilityAction = toAction({
-			id: 'toggleVisibility',
-			label: isVisible ? localize('models.hide', 'Hide') : localize('models.show', 'Show'),
-			class: isVisible ? `${ThemeIcon.asClassName(Codicon.eye)} model-visible` : `${ThemeIcon.asClassName(Codicon.eyeClosed)} model-hidden`,
-			tooltip: isVisible ? localize('models.visible', 'Visible') : localize('models.hidden', 'Hidden'),
-			run: async () => {
-				const newVisibility = !isVisible;
-				this.languageModelsService.updateModelPickerPreference(modelEntry.identifier, newVisibility);
-				this._onDidChange.fire();
-			}
-		});
-		templateData.actionBar.push(toggleVisibilityAction, { icon: true, label: false });
+		// Visibility action moved to name column
 	}
 }
 
@@ -681,6 +703,7 @@ export class ChatModelsWidget extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -803,15 +826,21 @@ export class ChatModelsWidget extends Disposable {
 		this.tableContainer = DOM.append(container, $('.models-table-container'));
 
 		// Create table
-		const twistieColumnRenderer = new ToggleCollapseColumnRenderer();
+		const gutterColumnRenderer = this.instantiationService.createInstance(GutterColumnRenderer);
 		const modelNameColumnRenderer = this.instantiationService.createInstance(ModelNameColumnRenderer);
 		const costColumnRenderer = this.instantiationService.createInstance(MultiplierColumnRenderer);
 		const tokenLimitsColumnRenderer = this.instantiationService.createInstance(TokenLimitsColumnRenderer);
 		const capabilitiesColumnRenderer = this.instantiationService.createInstance(CapabilitiesColumnRenderer);
 		const actionsColumnRenderer = this.instantiationService.createInstance(ActionsColumnRenderer);
 
-		this._register(twistieColumnRenderer.onDidToggleCollapse(vendorId => {
+		this._register(gutterColumnRenderer.onDidToggleCollapse(vendorId => {
 			this.viewModel.toggleVendorCollapsed(vendorId);
+		}));
+
+		this._register(gutterColumnRenderer.onDidChange(e => {
+			this.viewModel.resolve().then(() => {
+				this.refreshTable();
+			});
 		}));
 
 		this._register(actionsColumnRenderer.onDidChange(e => {
@@ -837,16 +866,16 @@ export class ChatModelsWidget extends Disposable {
 				{
 					label: '',
 					tooltip: '',
-					weight: 0.12,
+					weight: 0.05,
 					minimumWidth: 40,
 					maximumWidth: 40,
-					templateId: ToggleCollapseColumnRenderer.TEMPLATE_ID,
+					templateId: GutterColumnRenderer.TEMPLATE_ID,
 					project(row: TableEntry): TableEntry { return row; }
 				},
 				{
 					label: localize('modelName', 'Name'),
 					tooltip: '',
-					weight: 0.28,
+					weight: 0.40,
 					minimumWidth: 200,
 					templateId: ModelNameColumnRenderer.TEMPLATE_ID,
 					project(row: TableEntry): TableEntry { return row; }
@@ -854,7 +883,7 @@ export class ChatModelsWidget extends Disposable {
 				{
 					label: localize('capabilities', 'Capabilities'),
 					tooltip: '',
-					weight: 0.24,
+					weight: 0.30,
 					minimumWidth: 180,
 					templateId: CapabilitiesColumnRenderer.TEMPLATE_ID,
 					project(row: TableEntry): TableEntry { return row; }
@@ -862,7 +891,7 @@ export class ChatModelsWidget extends Disposable {
 				{
 					label: localize('tokenLimits', 'Context Size'),
 					tooltip: '',
-					weight: 0.16,
+					weight: 0.1,
 					minimumWidth: 140,
 					templateId: TokenLimitsColumnRenderer.TEMPLATE_ID,
 					project(row: TableEntry): TableEntry { return row; }
@@ -878,7 +907,7 @@ export class ChatModelsWidget extends Disposable {
 				{
 					label: '',
 					tooltip: '',
-					weight: 0.1,
+					weight: 0.05,
 					minimumWidth: 64,
 					maximumWidth: 64,
 					templateId: ActionsColumnRenderer.TEMPLATE_ID,
@@ -886,7 +915,7 @@ export class ChatModelsWidget extends Disposable {
 				},
 			],
 			[
-				twistieColumnRenderer,
+				gutterColumnRenderer,
 				modelNameColumnRenderer,
 				costColumnRenderer,
 				tokenLimitsColumnRenderer,
@@ -911,6 +940,30 @@ export class ChatModelsWidget extends Disposable {
 				alwaysConsumeMouseWheel: false,
 			}
 		)) as WorkbenchTable<TableEntry>;
+
+		this._register(this.table.onContextMenu(e => {
+			if (!e.element) {
+				return;
+			}
+			const entry = e.element;
+			if (isVendorEntry(entry) && entry.vendorEntry.managementCommand) {
+				const actions: IAction[] = [
+					toAction({
+						id: 'manageVendor',
+						label: localize('models.manageProvider', 'Manage {0}...', entry.vendorEntry.vendorDisplayName),
+						run: async () => {
+							await this.commandService.executeCommand(entry.vendorEntry.managementCommand!, entry.vendorEntry.vendor);
+							await this.viewModel.resolve();
+							this.refreshTable();
+						}
+					})
+				];
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => e.anchor,
+					getActions: () => actions
+				});
+			}
+		}));
 
 	}
 
