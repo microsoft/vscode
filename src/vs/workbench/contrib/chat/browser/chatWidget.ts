@@ -95,6 +95,7 @@ import { ChatViewPane } from './chatViewPane.js';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { LocalChatSessionUri } from '../common/chatUri.js';
 
 const $ = dom.$;
 
@@ -459,7 +460,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser)
-				.parseChatRequest(this.viewModel!.sessionId, this.getInput(), this.location, {
+				.parseChatRequest(this.viewModel!.sessionResource, this.getInput(), this.location, {
 					selectedAgent: this._lastSelectedAgent,
 					mode: this.input.currentModeKind,
 					forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined
@@ -929,7 +930,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.viewModel) {
 			return;
 		}
-		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind });
+		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel.sessionResource, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind });
 		this._onDidChangeParsedInput.fire();
 	}
 
@@ -1788,7 +1789,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.acceptInput(item.message);
 		}));
 		this._register(this.renderer.onDidClickRerunWithAgentOrCommandDetection(item => {
-			const request = this.chatService.getSession(item.sessionId)?.getRequests().find(candidate => candidate.id === item.requestId);
+			const request = this.chatService.getSession(LocalChatSessionUri.forSession(item.sessionId))?.getRequests().find(candidate => candidate.id === item.requestId);
 			if (request) {
 				const options: IChatSendRequestOptions = {
 					noCommandDetection: true,
@@ -1877,6 +1878,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private clickedRequest(item: IChatListItemTemplate) {
+
 		const currentElement = item.currentElement;
 		if (isRequestVM(currentElement) && !this.viewModel?.editing) {
 
@@ -2193,7 +2195,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.chatService.notifyUserAction({
-				sessionId: this.viewModel.sessionId,
+				sessionResource: this.viewModel.sessionResource,
 				requestId: e.response.requestId,
 				agentId: e.response.agent?.id,
 				command: e.response.slashCommand?.name,
@@ -2462,8 +2464,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		const sessionId = this.viewModel.sessionId;
-		const lastRequest = this.chatService.getSession(sessionId)?.getRequests().at(-1);
+		const sessionResource = this.viewModel.sessionResource;
+		const lastRequest = this.chatService.getSession(sessionResource)?.getRequests().at(-1);
 		if (!lastRequest) {
 			return;
 		}
@@ -2603,7 +2605,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: uniqueWorkingSetEntries.size, actualSize: uniqueWorkingSetEntries.size });
 			}
 
-			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionId);
+			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource);
 			if (this.currentRequest) {
 				// We have to wait the current request to be properly cancelled so that it has a chance to update the model with its result metadata.
 				// This is awkward, it's basically a limitation of the chat provider-based agent.
@@ -2617,12 +2619,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				for (let i = requests.length - 1; i >= 0; i -= 1) {
 					const request = requests[i];
 					if (request.shouldBeBlocked) {
-						this.chatService.removeRequest(this.viewModel.sessionId, request.id);
+						this.chatService.removeRequest(this.viewModel.sessionResource, request.id);
 					}
 				}
 			}
 
-			const result = await this.chatService.sendRequest(this.viewModel.sessionId, requestInputs.input, {
+			const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 				userSelectedModelId: this.input.currentLanguageModel,
 				location: this.location,
 				locationData: this._location.resolveData?.(),
@@ -2976,6 +2978,10 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 
 	getWidgetBySessionId(sessionId: string): ChatWidget | undefined {
 		return this._widgets.find(w => w.viewModel?.sessionId === sessionId);
+	}
+
+	getWidgetBySessionResource(sessionResource: URI): ChatWidget | undefined {
+		return this._widgets.find(w => isEqual(w.viewModel?.sessionResource, sessionResource));
 	}
 
 	private setLastFocusedWidget(widget: ChatWidget | undefined): void {

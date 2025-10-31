@@ -70,12 +70,74 @@ class CancellableRequest implements IDisposable {
 	}
 }
 
+class ChatModelStore {
+	private readonly _models = new ObservableMap<string, ChatModel>();
+
+	public get observable() {
+		return this._models.observable;
+	}
+
+	public values(): Iterable<ChatModel> {
+		return this._models.values();
+	}
+
+	public get(uri: URI): ChatModel | undefined {
+		return this._models.get(this.toKey(uri));
+	}
+
+	public has(uri: URI): boolean {
+		return this._models.has(this.toKey(uri));
+	}
+
+	public set(uri: URI, value: ChatModel): void {
+		this._models.set(this.toKey(uri), value);
+	}
+
+	public delete(uri: URI): boolean {
+		return this._models.delete(this.toKey(uri));
+	}
+
+	private toKey(uri: URI): string {
+		return uri.toString();
+	}
+}
+
+class DisposableResourceMap<T extends IDisposable> extends Disposable {
+
+	private readonly _map = this._register(new DisposableMap<string, T>());
+
+	get(sessionResource: URI) {
+		return this._map.get(this.toKey(sessionResource));
+	}
+
+	set(sessionResource: URI, value: T) {
+		this._map.set(this.toKey(sessionResource), value);
+	}
+
+	has(sessionResource: URI) {
+		return this._map.has(this.toKey(sessionResource));
+	}
+
+	deleteAndLeak(sessionResource: URI) {
+		return this._map.deleteAndLeak(this.toKey(sessionResource));
+	}
+
+	deleteAndDispose(sessionResource: URI) {
+		this._map.deleteAndDispose(this.toKey(sessionResource));
+	}
+
+	private toKey(uri: URI): string {
+		return uri.toString();
+	}
+}
+
+
 export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
-	private readonly _sessionModels = new ObservableMap<string, ChatModel>();
+	private readonly _sessionModels = new ChatModelStore();
 	private readonly _contentProviderSessionModels = new ResourceMap<{ readonly model: IChatModel; readonly disposables: DisposableStore }>();
-	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellableRequest>());
+	private readonly _pendingRequests = this._register(new DisposableResourceMap<CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
 
 	private _transferredSessionData: IChatTransferredSessionData | undefined;
@@ -89,10 +151,10 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
-	private readonly _onDidDisposeSession = this._register(new Emitter<{ sessionId: string; reason: 'cleared' }>());
+	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResource: URI; reason: 'cleared' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
-	private readonly _sessionFollowupCancelTokens = this._register(new DisposableMap<string, CancellationTokenSource>());
+	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
 
@@ -173,8 +235,12 @@ export class ChatService extends Disposable implements IChatService {
 
 	private saveState(): void {
 		const liveChats = Array.from(this._sessionModels.values())
-			.filter(session =>
-				!session.inputType && (session.initialLocation === ChatAgentLocation.Chat || session.initialLocation === ChatAgentLocation.EditorInline));
+			.filter(session => {
+				if (!LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
+					return false;
+				}
+				return session.initialLocation === ChatAgentLocation.Chat || session.initialLocation === ChatAgentLocation.EditorInline;
+			});
 
 		this._chatSessionStore.storeSessions(liveChats);
 	}
@@ -183,7 +249,7 @@ export class ChatService extends Disposable implements IChatService {
 		this._chatServiceTelemetry.notifyUserAction(action);
 		this._onDidPerformUserAction.fire(action);
 		if (action.action.kind === 'chatEditingSessionAction') {
-			const model = this._sessionModels.get(action.sessionId);
+			const model = this._sessionModels.get(action.sessionResource);
 			if (model) {
 				model.notifyEditingAction(action.action);
 			}
@@ -192,7 +258,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	async setChatSessionTitle(sessionResource: URI, title: string): Promise<void> {
 		const sessionId = this.toLocalSessionId(sessionResource);
-		const model = this._sessionModels.get(sessionId);
+		const model = this._sessionModels.get(sessionResource);
 		if (model) {
 			model.setCustomTitle(title);
 		}
@@ -301,7 +367,7 @@ export class ChatService extends Disposable implements IChatService {
 	 */
 	async getLocalSessionHistory(): Promise<IChatDetail[]> {
 		const liveSessionItems = Array.from(this._sessionModels.values())
-			.filter(session => !session.isImported && !session.inputType)
+			.filter(session => !session.isImported && LocalChatSessionUri.parseLocalSessionId(session.sessionResource))
 			.map((session): IChatDetail => {
 				const title = session.title || localize('newChat', "New Chat");
 				return {
@@ -315,12 +381,15 @@ export class ChatService extends Disposable implements IChatService {
 
 		const index = await this._chatSessionStore.getIndex();
 		const entries = Object.values(index)
-			.filter(entry => !this._sessionModels.has(entry.sessionId) && !entry.isImported && !entry.isEmpty)
-			.map((entry): IChatDetail => ({
-				...entry,
-				sessionResource: LocalChatSessionUri.forSession(entry.sessionId),
-				isActive: this._sessionModels.has(entry.sessionId),
-			}));
+			.filter(entry => !this._sessionModels.has(LocalChatSessionUri.forSession(entry.sessionId)) && !entry.isImported && !entry.isEmpty)
+			.map((entry): IChatDetail => {
+				const sessionResource = LocalChatSessionUri.forSession(entry.sessionId);
+				return ({
+					...entry,
+					sessionResource,
+					isActive: this._sessionModels.has(sessionResource),
+				});
+			});
 		return [...liveSessionItems, ...entries];
 	}
 
@@ -332,18 +401,18 @@ export class ChatService extends Disposable implements IChatService {
 		await this._chatSessionStore.clearAllSessions();
 	}
 
-	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession: boolean = true, options?: { canUseTools?: boolean; inputType?: string }): ChatModel {
+	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession: boolean = true, options?: { canUseTools?: boolean }): ChatModel {
 		this.trace('startSession');
 		return this._startSession(undefined, location, isGlobalEditingSession, token, options);
 	}
 
-	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken, options?: { sessionResource?: URI; canUseTools?: boolean; inputType?: string }): ChatModel {
-		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, { initialLocation: location, canUseTools: options?.canUseTools ?? true, inputType: options?.inputType });
+	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken, options?: { sessionResource?: URI; canUseTools?: boolean }): ChatModel {
+		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, { initialLocation: location, canUseTools: options?.canUseTools ?? true });
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(isGlobalEditingSession);
 		}
 
-		this._sessionModels.set(model.sessionId, model);
+		this._sessionModels.set(model.sessionResource, model);
 		this.initializeSession(model, token);
 		return model;
 	}
@@ -382,15 +451,20 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
-	getSession(sessionId: string): IChatModel | undefined {
-		return this._sessionModels.get(sessionId);
+	getSession(sessionResource: URI): IChatModel | undefined {
+		return this._sessionModels.get(sessionResource);
 	}
 
-	async getOrRestoreSession(sessionId: string): Promise<ChatModel | undefined> {
-		this.trace('getOrRestoreSession', `sessionId: ${sessionId}`);
-		const model = this._sessionModels.get(sessionId);
+	async getOrRestoreSession(sessionResource: URI): Promise<ChatModel | undefined> {
+		this.trace('getOrRestoreSession', `${sessionResource}`);
+		const model = this._sessionModels.get(sessionResource);
 		if (model) {
 			return model;
+		}
+
+		const sessionId = LocalChatSessionUri.parse(sessionResource)?.sessionId;
+		if (!sessionId) {
+			throw new Error(`Cannot restore non-local session ${sessionResource}`);
 		}
 
 		let sessionData: ISerializableChatData | undefined;
@@ -417,7 +491,12 @@ export class ChatService extends Disposable implements IChatService {
 	/**
 	 * This is really just for migrating data from the edit session location to the panel.
 	 */
-	isPersistedSessionEmpty(sessionId: string): boolean {
+	isPersistedSessionEmpty(sessionResource: URI): boolean {
+		const sessionId = LocalChatSessionUri.parse(sessionResource)?.sessionId;
+		if (!sessionId) {
+			throw new Error(`Cannot restore non-local session ${sessionResource}`);
+		}
+
 		const session = this._persistedSessions[sessionId];
 		if (session) {
 			return session.requests.length === 0;
@@ -426,7 +505,12 @@ export class ChatService extends Disposable implements IChatService {
 		return this._chatSessionStore.isSessionEmpty(sessionId);
 	}
 
-	getPersistedSessionTitle(sessionId: string): string | undefined {
+	getPersistedSessionTitle(sessionResource: URI): string | undefined {
+		const sessionId = LocalChatSessionUri.parse(sessionResource)?.sessionId;
+		if (!sessionId) {
+			throw new Error(`Cannot restore non-local session ${sessionResource}`);
+		}
+
 		// First check the memory cache (_persistedSessions)
 		const session = this._persistedSessions[sessionId];
 		if (session) {
@@ -459,12 +543,7 @@ export class ChatService extends Disposable implements IChatService {
 		// TODO: Move this into a new ChatModelService
 
 		if (chatSessionResource.scheme === Schemas.vscodeLocalChatSession) {
-			const parsed = LocalChatSessionUri.parse(chatSessionResource);
-			if (!parsed) {
-				throw new ErrorNoTelemetry('Invalid local chat session URI');
-			}
-
-			return this.getOrRestoreSession(parsed.sessionId);
+			return this.getOrRestoreSession(chatSessionResource);
 		}
 
 		const existing = this._contentProviderSessionModels.get(chatSessionResource);
@@ -476,11 +555,10 @@ export class ChatService extends Disposable implements IChatService {
 		const chatSessionType = chatSessionResource.scheme;
 
 		// Contributed sessions do not use UI tools
-		const model = this._startSession(undefined, location, true, CancellationToken.None, { sessionResource: chatSessionResource, canUseTools: false, inputType: chatSessionType });
+		const model = this._startSession(undefined, location, true, CancellationToken.None, { sessionResource: chatSessionResource, canUseTools: false });
 		model.setContributedChatSession({
-			chatSessionType: chatSessionType,
-			chatSessionId: chatSessionResource.toString(),
 			chatSessionResource,
+			chatSessionType,
 			isUntitled: chatSessionResource.path.startsWith('/untitled-')  //TODO(jospicer)
 		});
 
@@ -536,7 +614,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {
 			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
-			this._pendingRequests.set(model.sessionId, initialCancellationRequest);
+			this._pendingRequests.set(model.sessionResource, initialCancellationRequest);
 			const cancellationListener = new MutableDisposable();
 
 			const createCancellationListener = (token: CancellationToken) => {
@@ -545,7 +623,7 @@ export class ChatService extends Disposable implements IChatService {
 						if (!userConfirmedInterruption) {
 							// User cancelled the interruption
 							const newCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
-							this._pendingRequests.set(model.sessionId, newCancellationRequest);
+							this._pendingRequests.set(model.sessionResource, newCancellationRequest);
 							cancellationListener.value = createCancellationListener(newCancellationRequest.cancellationTokenSource.token);
 						}
 					});
@@ -584,8 +662,8 @@ export class ChatService extends Disposable implements IChatService {
 		return model;
 	}
 
-	getChatSessionFromInternalId(modelSessionId: string): IChatSessionContext | undefined {
-		const model = this._sessionModels.get(modelSessionId);
+	getChatSessionFromInternalUri(sessionResource: URI): IChatSessionContext | undefined {
+		const model = this._sessionModels.get(sessionResource);
 		if (!model) {
 			return;
 		}
@@ -594,14 +672,14 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {
-		const model = this._sessionModels.get(request.session.sessionId);
+		const model = this._sessionModels.get(request.session.sessionResource);
 		if (!model && model !== request.session) {
-			throw new Error(`Unknown session: ${request.session.sessionId}`);
+			throw new Error(`Unknown session: ${request.session.sessionResource}`);
 		}
 
-		const cts = this._pendingRequests.get(request.session.sessionId);
+		const cts = this._pendingRequests.get(request.session.sessionResource);
 		if (cts) {
-			this.trace('resendRequest', `Session ${request.session.sessionId} already has a pending request, cancelling...`);
+			this.trace('resendRequest', `Session ${request.session.sessionResource} already has a pending request, cancelling...`);
 			cts.cancel();
 		}
 
@@ -617,11 +695,11 @@ export class ChatService extends Disposable implements IChatService {
 			locationData: request.locationData,
 			attachedContext: request.attachedContext,
 		};
-		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions).responseCompletePromise;
+		await this._sendRequestAsync(model, model.sessionResource, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions).responseCompletePromise;
 	}
 
-	async sendRequest(sessionId: string, request: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined> {
-		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
+	async sendRequest(sessionResource: URI, request: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined> {
+		this.trace('sendRequest', `sessionResource: ${sessionResource.toString()}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
 
 		if (!request.trim() && !options?.slashCommand && !options?.agentId && !options?.agentIdSilent) {
@@ -629,13 +707,13 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		const model = this._sessionModels.get(sessionId);
+		const model = this._sessionModels.get(sessionResource);
 		if (!model) {
-			throw new Error(`Unknown session: ${sessionId}`);
+			throw new Error(`Unknown session: ${sessionResource}`);
 		}
 
-		if (this._pendingRequests.has(sessionId)) {
-			this.trace('sendRequest', `Session ${sessionId} already has a pending request`);
+		if (this._pendingRequests.has(sessionResource)) {
+			this.trace('sendRequest', `Session ${sessionResource} already has a pending request`);
 			return;
 		}
 
@@ -646,7 +724,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (request.shouldBeRemovedOnSend.afterUndoStop) {
 					request.response?.finalizeUndoState();
 				} else {
-					await this.removeRequest(sessionId, request.id);
+					await this.removeRequest(sessionResource, request.id);
 				}
 			}
 		}
@@ -655,20 +733,20 @@ export class ChatService extends Disposable implements IChatService {
 		const attempt = options?.attempt ?? 0;
 		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind)!;
 
-		const parsedRequest = this.parseChatRequest(sessionId, request, location, options);
+		const parsedRequest = this.parseChatRequest(sessionResource, request, location, options);
 		const silentAgent = options?.agentIdSilent ? this.chatAgentService.getAgent(options.agentIdSilent) : undefined;
 		const agent = silentAgent ?? parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
 		return {
-			...this._sendRequestAsync(model, sessionId, parsedRequest, attempt, !options?.noCommandDetection, silentAgent ?? defaultAgent, location, options),
+			...this._sendRequestAsync(model, sessionResource, parsedRequest, attempt, !options?.noCommandDetection, silentAgent ?? defaultAgent, location, options),
 			agent,
 			slashCommand: agentSlashCommandPart?.command,
 		};
 	}
 
-	private parseChatRequest(sessionId: string, request: string, location: ChatAgentLocation, options: IChatSendRequestOptions | undefined): IParsedChatRequest {
+	private parseChatRequest(sessionResource: URI, request: string, location: ChatAgentLocation, options: IChatSendRequestOptions | undefined): IParsedChatRequest {
 		let parserContext = options?.parserContext;
 		if (options?.agentId) {
 			const agent = this.chatAgentService.getAgent(options.agentId);
@@ -680,20 +758,20 @@ export class ChatService extends Disposable implements IChatService {
 			request = `${chatAgentLeader}${agent.name}${commandPart} ${request}`;
 		}
 
-		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, request, location, parserContext);
+		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionResource, request, location, parserContext);
 		return parsedRequest;
 	}
 
-	private refreshFollowupsCancellationToken(sessionId: string): CancellationToken {
-		this._sessionFollowupCancelTokens.get(sessionId)?.cancel();
+	private refreshFollowupsCancellationToken(sessionResource: URI): CancellationToken {
+		this._sessionFollowupCancelTokens.get(sessionResource)?.cancel();
 		const newTokenSource = new CancellationTokenSource();
-		this._sessionFollowupCancelTokens.set(sessionId, newTokenSource);
+		this._sessionFollowupCancelTokens.set(sessionResource, newTokenSource);
 
 		return newTokenSource.token;
 	}
 
-	private _sendRequestAsync(model: ChatModel, sessionId: string, parsedRequest: IParsedChatRequest, attempt: number, enableCommandDetection: boolean, defaultAgent: IChatAgentData, location: ChatAgentLocation, options?: IChatSendRequestOptions): IChatSendRequestResponseState {
-		const followupsCancelToken = this.refreshFollowupsCancellationToken(sessionId);
+	private _sendRequestAsync(model: ChatModel, sessionResource: URI, parsedRequest: IParsedChatRequest, attempt: number, enableCommandDetection: boolean, defaultAgent: IChatAgentData, location: ChatAgentLocation, options?: IChatSendRequestOptions): IChatSendRequestResponseState {
+		const followupsCancelToken = this.refreshFollowupsCancellationToken(sessionResource);
 		let request: ChatRequestModel;
 		const agentPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
 		const agentSlashCommandPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
@@ -809,7 +887,7 @@ export class ChatService extends Disposable implements IChatService {
 						}));
 
 						return {
-							sessionId,
+							sessionId: model.sessionId,
 							requestId: request.id,
 							agentId: agent.id,
 							message,
@@ -864,7 +942,7 @@ export class ChatService extends Disposable implements IChatService {
 					// Recompute history in case the agent or command changed
 					const history = this.getHistoryEntriesFromModel(requests, model.sessionId, location, agent.id);
 					const requestProps = prepareChatAgentRequest(agent, command, enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */, !!detectedAgent);
-					const pendingRequest = this._pendingRequests.get(sessionId);
+					const pendingRequest = this._pendingRequests.get(sessionResource);
 					if (pendingRequest && !pendingRequest.requestId) {
 						pendingRequest.requestId = requestProps.requestId;
 					}
@@ -987,9 +1065,9 @@ export class ChatService extends Disposable implements IChatService {
 		};
 		const rawResponsePromise = sendRequestInternal();
 		// Note- requestId is not known at this point, assigned later
-		this._pendingRequests.set(model.sessionId, this.instantiationService.createInstance(CancellableRequest, source, undefined));
+		this._pendingRequests.set(model.sessionResource, this.instantiationService.createInstance(CancellableRequest, source, undefined));
 		rawResponsePromise.finally(() => {
-			this._pendingRequests.deleteAndDispose(model.sessionId);
+			this._pendingRequests.deleteAndDispose(model.sessionResource);
 		});
 		this._onDidSubmitRequest.fire({ chatSessionId: model.sessionId });
 		return {
@@ -1050,52 +1128,52 @@ export class ChatService extends Disposable implements IChatService {
 		return history;
 	}
 
-	async removeRequest(sessionId: string, requestId: string): Promise<void> {
-		const model = this._sessionModels.get(sessionId);
+	async removeRequest(sessionResource: URI, requestId: string): Promise<void> {
+		const model = this._sessionModels.get(sessionResource);
 		if (!model) {
-			throw new Error(`Unknown session: ${sessionId}`);
+			throw new Error(`Unknown session: ${sessionResource}`);
 		}
 
-		const pendingRequest = this._pendingRequests.get(sessionId);
+		const pendingRequest = this._pendingRequests.get(sessionResource);
 		if (pendingRequest?.requestId === requestId) {
 			pendingRequest.cancel();
-			this._pendingRequests.deleteAndDispose(sessionId);
+			this._pendingRequests.deleteAndDispose(sessionResource);
 		}
 
 		model.removeRequest(requestId);
 	}
 
-	async adoptRequest(sessionId: string, request: IChatRequestModel) {
+	async adoptRequest(sessionResource: URI, request: IChatRequestModel) {
 		if (!(request instanceof ChatRequestModel)) {
 			throw new TypeError('Can only adopt requests of type ChatRequestModel');
 		}
-		const target = this._sessionModels.get(sessionId);
+		const target = this._sessionModels.get(sessionResource);
 		if (!target) {
-			throw new Error(`Unknown session: ${sessionId}`);
+			throw new Error(`Unknown session: ${sessionResource}`);
 		}
 
 		const oldOwner = request.session;
 		target.adoptRequest(request);
 
 		if (request.response && !request.response.isComplete) {
-			const cts = this._pendingRequests.deleteAndLeak(oldOwner.sessionId);
+			const cts = this._pendingRequests.deleteAndLeak(oldOwner.sessionResource);
 			if (cts) {
 				cts.requestId = request.id;
-				this._pendingRequests.set(target.sessionId, cts);
+				this._pendingRequests.set(target.sessionResource, cts);
 			}
 		}
 	}
 
-	async addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): Promise<void> {
+	async addCompleteRequest(sessionResource: URI, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): Promise<void> {
 		this.trace('addCompleteRequest', `message: ${message}`);
 
-		const model = this._sessionModels.get(sessionId);
+		const model = this._sessionModels.get(sessionResource);
 		if (!model) {
-			throw new Error(`Unknown session: ${sessionId}`);
+			throw new Error(`Unknown session: ${sessionResource}`);
 		}
 
 		const parsedRequest = typeof message === 'string' ?
-			this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message) :
+			this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionResource, message) :
 			message;
 		const request = model.addRequest(parsedRequest, variableData || { variables: [] }, attempt ?? 0, undefined, undefined, undefined, undefined, undefined, undefined, true);
 		if (typeof response.message === 'string') {
@@ -1113,33 +1191,34 @@ export class ChatService extends Disposable implements IChatService {
 		model.completeResponse(request);
 	}
 
-	cancelCurrentRequestForSession(sessionId: string): void {
-		this.trace('cancelCurrentRequestForSession', `sessionId: ${sessionId}`);
-		this._pendingRequests.get(sessionId)?.cancel();
-		this._pendingRequests.deleteAndDispose(sessionId);
+	cancelCurrentRequestForSession(sessionResource: URI): void {
+		this.trace('cancelCurrentRequestForSession', `session: ${sessionResource}`);
+		this._pendingRequests.get(sessionResource)?.cancel();
+		this._pendingRequests.deleteAndDispose(sessionResource);
 	}
 
-	async clearSession(sessionId: string): Promise<void> {
-		this.trace('clearSession', `sessionId: ${sessionId}`);
-		const model = this._sessionModels.get(sessionId);
+	async clearSession(sessionResource: URI): Promise<void> {
+		this.trace('clearSession', `session: ${sessionResource}`);
+		const model = this._sessionModels.get(sessionResource);
 		if (!model) {
-			throw new Error(`Unknown session: ${sessionId}`);
+			throw new Error(`Unknown session: ${sessionResource}`);
 		}
-		this.trace(`Model input type: ${model.inputType}`);
-		if (!model.inputType && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.EditorInline)) {
+
+		const localSession = LocalChatSessionUri.parse(sessionResource);
+		if (localSession && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.EditorInline)) {
 			// Always preserve sessions that have custom titles, even if empty
 			if (model.getRequests().length === 0 && !model.customTitle) {
-				await this._chatSessionStore.deleteSession(sessionId);
+				await this._chatSessionStore.deleteSession(localSession.sessionId);
 			} else {
 				await this._chatSessionStore.storeSessions([model]);
 			}
 		}
 
-		this._sessionModels.delete(sessionId);
+		this._sessionModels.delete(sessionResource);
 		model.dispose();
-		this._pendingRequests.get(sessionId)?.cancel();
-		this._pendingRequests.deleteAndDispose(sessionId);
-		this._onDidDisposeSession.fire({ sessionId, reason: 'cleared' });
+		this._pendingRequests.get(sessionResource)?.cancel();
+		this._pendingRequests.deleteAndDispose(sessionResource);
+		this._onDidDisposeSession.fire({ sessionResource, reason: 'cleared' });
 	}
 
 	public hasSessions(): boolean {

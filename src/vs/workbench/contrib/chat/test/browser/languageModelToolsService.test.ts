@@ -27,6 +27,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { ChatToolInvocation } from '../../common/chatProgressTypes/chatToolInvocation.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -80,6 +81,7 @@ function stubGetSession(chatService: MockChatService, sessionId: string, options
 	const capture = options?.capture;
 	const fakeModel = {
 		sessionId,
+		sessionResource: LocalChatSessionUri.forSession(sessionId),
 		getRequests: () => [{ id: requestId, modelId: 'test-model' }],
 		acceptResponseProgress: (_req: any, progress: any) => { if (capture) { capture.invocation = progress; } },
 	} as IChatModel;

@@ -12,6 +12,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
+import { LocalChatSessionUri } from '../../../chat/common/chatUri.js';
 
 const enum StorageKeys {
 	ToolSessionMappings = 'terminalChat.toolSessionMappings',
@@ -73,7 +74,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			listener.dispose();
 		}));
 		this._register(this._chatService.onDidDisposeSession(e => {
-			if (e.sessionId === terminalToolSessionId) {
+			if (LocalChatSessionUri.parseLocalSessionId(e.sessionResource) === terminalToolSessionId) {
 				this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 				this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
 				this._commandIdByToolSessionId.delete(terminalToolSessionId);

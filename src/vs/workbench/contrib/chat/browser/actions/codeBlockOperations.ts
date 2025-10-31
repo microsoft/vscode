@@ -432,7 +432,7 @@ function notifyUserAction(chatService: IChatService, context: ICodeBlockActionCo
 		chatService.notifyUserAction({
 			agentId: context.element.agent?.id,
 			command: context.element.slashCommand?.name,
-			sessionId: context.element.sessionId,
+			sessionResource: context.element.sessionResource,
 			requestId: context.element.requestId,
 			result: context.element.result,
 			action

@@ -764,7 +764,7 @@ export class CancelRequestAction extends AbstractInline2ChatAction {
 		if (viewModel) {
 			ctrl.toggleWidgetUntilNextRequest();
 			ctrl.markActiveController();
-			chatService.cancelCurrentRequestForSession(viewModel.sessionId);
+			chatService.cancelCurrentRequestForSession(viewModel.sessionResource);
 		}
 	}
 }
