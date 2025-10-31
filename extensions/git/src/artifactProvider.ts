@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri } from 'vscode';
-import { IDisposable } from './util';
+import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable } from 'vscode';
+import { dispose, IDisposable } from './util';
 import { Repository } from './repository';
 
 export class GitArtifactProvider implements SourceControlArtifactProvider, IDisposable {
@@ -12,6 +12,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 	readonly onDidChangeArtifacts: Event<string[]> = this._onDidChangeArtifacts.event;
 
 	private readonly _groups: SourceControlArtifactGroup[];
+	private _disposables: Disposable[] = [];
 
 	constructor(
 		private readonly repository: Repository,
@@ -22,7 +23,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag') }
 		];
 
-		repository.historyProvider.onDidChangeHistoryItemRefs(e => {
+		this._disposables.push(repository.historyProvider.onDidChangeHistoryItemRefs(e => {
 			const groups = new Set<string>();
 			for (const ref of e.added.concat(e.modified).concat(e.removed)) {
 				if (ref.id.startsWith('refs/heads/')) {
@@ -33,7 +34,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 			}
 
 			this._onDidChangeArtifacts.fire(Array.from(groups));
-		});
+		}));
 	}
 
 	provideArtifactGroups(): SourceControlArtifactGroup[] {
@@ -72,5 +73,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 		return [];
 	}
 
-	dispose(): void { }
+	dispose(): void {
+		dispose(this._disposables);
+	}
 }
