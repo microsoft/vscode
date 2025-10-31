@@ -99,6 +99,9 @@ export class TerminalTabsChatEntry extends Disposable {
 			if (scrollableElement) {
 				const hasOverflow = scrollableElement.scrollHeight > scrollableElement.clientHeight;
 				this._entry.classList.toggle('has-scroll-separator', hasOverflow);
+			} else {
+				// If scrollable element doesn't exist yet, ensure separator is not shown
+				this._entry.classList.remove('has-scroll-separator');
 			}
 		}
 	}
