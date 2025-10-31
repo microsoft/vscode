@@ -687,7 +687,10 @@ export class UndoAndCloseSessionAction2 extends KeepOrUndoSessionAction {
 			icon: Codicon.close,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			keybinding: [{
-				when: ChatContextKeys.inputHasFocus,
+				when: ContextKeyExpr.or(
+					ContextKeyExpr.and(EditorContextKeys.focus, ctxHasEditorModification.negate()),
+					ChatContextKeys.inputHasFocus,
+				),
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				primary: KeyCode.Escape,
 			}, {
