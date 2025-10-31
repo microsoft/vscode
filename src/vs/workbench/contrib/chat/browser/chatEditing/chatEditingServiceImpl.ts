@@ -19,7 +19,6 @@ import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -292,24 +291,21 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				}
 
 				const isFirst = entry.seen === 0;
-				const newEdits = part.edits.slice(entry.seen).flat();
+				const newEdits = part.edits.slice(entry.seen);
 				entry.seen = part.edits.length;
 
 				if (newEdits.length > 0 || isFirst) {
-					if (part.kind === 'notebookEditGroup') {
-						newEdits.forEach((edit, idx) => {
-							const done = part.done ? idx === newEdits.length - 1 : false;
-							if (TextEdit.isTextEdit(edit)) {
-								// Not possible, as Notebooks would have a different type.
-								return;
-							} else if (isCellTextEditOperation(edit)) {
-								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit], done);
-							} else {
-								entry.streaming.pushNotebook([edit], done);
-							}
-						});
-					} else if (part.kind === 'textEditGroup') {
-						entry.streaming.pushText(newEdits as TextEdit[], part.done ?? false);
+					for (let i = 0; i < newEdits.length; i++) {
+						const edit = newEdits[i];
+						const done = part.done ? i === newEdits.length - 1 : false;
+
+						if (Array.isArray(edit)) {
+							entry.streaming.pushText(edit, done);
+						} else if (isCellTextEditOperation(edit)) {
+							entry.streaming.pushNotebookCellText(edit.uri, [edit.edit], done);
+						} else {
+							entry.streaming.pushNotebook([edit], done);
+						}
 					}
 				}
 
