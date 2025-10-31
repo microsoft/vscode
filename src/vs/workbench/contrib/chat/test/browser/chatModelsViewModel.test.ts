@@ -531,17 +531,17 @@ suite('ChatModelsViewModel', () => {
 		}
 	});
 
-	test('should not show vendor header when only one vendor exists', async () => {
-		// Create a new view model with only one vendor
-		const singleVendorLanguageModelsService = new MockLanguageModelsService();
-		singleVendorLanguageModelsService.addVendor({
+	// Helper function to create a single vendor test environment
+	function createSingleVendorViewModel(store: DisposableStore, chatEntitlementService: IChatEntitlementService, includeSecondModel: boolean = true): { service: MockLanguageModelsService; viewModel: ChatModelsViewModel } {
+		const service = new MockLanguageModelsService();
+		service.addVendor({
 			vendor: 'copilot',
 			displayName: 'GitHub Copilot',
 			managementCommand: undefined,
 			when: undefined
 		});
 
-		singleVendorLanguageModelsService.addModel('copilot', 'copilot-gpt-4', {
+		service.addModel('copilot', 'copilot-gpt-4', {
 			extension: new ExtensionIdentifier('github.copilot'),
 			id: 'gpt-4',
 			name: 'GPT-4',
@@ -559,28 +559,32 @@ suite('ChatModelsViewModel', () => {
 			}
 		});
 
-		singleVendorLanguageModelsService.addModel('copilot', 'copilot-gpt-4o', {
-			extension: new ExtensionIdentifier('github.copilot'),
-			id: 'gpt-4o',
-			name: 'GPT-4o',
-			family: 'gpt-4',
-			version: '1.0',
-			vendor: 'copilot',
-			maxInputTokens: 8192,
-			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Copilot', order: 1 },
-			isUserSelectable: true,
-			capabilities: {
-				toolCalling: true,
-				vision: true,
-				agentMode: true
-			}
-		});
+		if (includeSecondModel) {
+			service.addModel('copilot', 'copilot-gpt-4o', {
+				extension: new ExtensionIdentifier('github.copilot'),
+				id: 'gpt-4o',
+				name: 'GPT-4o',
+				family: 'gpt-4',
+				version: '1.0',
+				vendor: 'copilot',
+				maxInputTokens: 8192,
+				maxOutputTokens: 4096,
+				modelPickerCategory: { label: 'Copilot', order: 1 },
+				isUserSelectable: true,
+				capabilities: {
+					toolCalling: true,
+					vision: true,
+					agentMode: true
+				}
+			});
+		}
 
-		const singleVendorViewModel = store.add(new ChatModelsViewModel(
-			singleVendorLanguageModelsService,
-			chatEntitlementService
-		));
+		const viewModel = store.add(new ChatModelsViewModel(service, chatEntitlementService));
+		return { service, viewModel };
+	}
+
+	test('should not show vendor header when only one vendor exists', async () => {
+		const { viewModel: singleVendorViewModel } = createSingleVendorViewModel(store, chatEntitlementService);
 		await singleVendorViewModel.resolve();
 
 		const results = singleVendorViewModel.fetch('');
@@ -607,37 +611,7 @@ suite('ChatModelsViewModel', () => {
 	});
 
 	test('should show models even when single vendor is collapsed', async () => {
-		// Create a new view model with only one vendor
-		const singleVendorLanguageModelsService = new MockLanguageModelsService();
-		singleVendorLanguageModelsService.addVendor({
-			vendor: 'copilot',
-			displayName: 'GitHub Copilot',
-			managementCommand: undefined,
-			when: undefined
-		});
-
-		singleVendorLanguageModelsService.addModel('copilot', 'copilot-gpt-4', {
-			extension: new ExtensionIdentifier('github.copilot'),
-			id: 'gpt-4',
-			name: 'GPT-4',
-			family: 'gpt-4',
-			version: '1.0',
-			vendor: 'copilot',
-			maxInputTokens: 8192,
-			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Copilot', order: 1 },
-			isUserSelectable: true,
-			capabilities: {
-				toolCalling: true,
-				vision: true,
-				agentMode: false
-			}
-		});
-
-		const singleVendorViewModel = store.add(new ChatModelsViewModel(
-			singleVendorLanguageModelsService,
-			chatEntitlementService
-		));
+		const { viewModel: singleVendorViewModel } = createSingleVendorViewModel(store, chatEntitlementService, false);
 		await singleVendorViewModel.resolve();
 
 		// Try to collapse the single vendor
@@ -655,55 +629,7 @@ suite('ChatModelsViewModel', () => {
 	});
 
 	test('should filter single vendor models by capability', async () => {
-		// Create a new view model with only one vendor
-		const singleVendorLanguageModelsService = new MockLanguageModelsService();
-		singleVendorLanguageModelsService.addVendor({
-			vendor: 'copilot',
-			displayName: 'GitHub Copilot',
-			managementCommand: undefined,
-			when: undefined
-		});
-
-		singleVendorLanguageModelsService.addModel('copilot', 'copilot-gpt-4', {
-			extension: new ExtensionIdentifier('github.copilot'),
-			id: 'gpt-4',
-			name: 'GPT-4',
-			family: 'gpt-4',
-			version: '1.0',
-			vendor: 'copilot',
-			maxInputTokens: 8192,
-			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Copilot', order: 1 },
-			isUserSelectable: true,
-			capabilities: {
-				toolCalling: true,
-				vision: true,
-				agentMode: false
-			}
-		});
-
-		singleVendorLanguageModelsService.addModel('copilot', 'copilot-gpt-4o', {
-			extension: new ExtensionIdentifier('github.copilot'),
-			id: 'gpt-4o',
-			name: 'GPT-4o',
-			family: 'gpt-4',
-			version: '1.0',
-			vendor: 'copilot',
-			maxInputTokens: 8192,
-			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Copilot', order: 1 },
-			isUserSelectable: true,
-			capabilities: {
-				toolCalling: true,
-				vision: true,
-				agentMode: true
-			}
-		});
-
-		const singleVendorViewModel = store.add(new ChatModelsViewModel(
-			singleVendorLanguageModelsService,
-			chatEntitlementService
-		));
+		const { viewModel: singleVendorViewModel } = createSingleVendorViewModel(store, chatEntitlementService);
 		await singleVendorViewModel.resolve();
 
 		const results = singleVendorViewModel.fetch('@capability:agent');
