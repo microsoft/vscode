@@ -73,7 +73,7 @@ export interface IChatMarkdownContentPartOptions {
 		 * Message to announce to screen readers as a status update if VerboseChatProgressUpdates is enabled.
 		 * Will also be used as the aria-label for the container.
 		 * */
-		statusMessage: string;
+		statusMessage?: string;
 	};
 }
 
@@ -127,7 +127,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 		this.domNode = $('div.chat-markdown-part');
 
-		if (this.rendererOptions.accessibilityOptions) {
+		if (this.rendererOptions.accessibilityOptions?.statusMessage) {
 			this.domNode.ariaLabel = this.rendererOptions.accessibilityOptions.statusMessage;
 			if (configurationService.getValue<boolean>(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
 				status(this.rendererOptions.accessibilityOptions.statusMessage);
