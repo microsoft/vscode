@@ -1324,7 +1324,6 @@ export class InlineChatController2 implements IEditorContribution {
 					enableWorkingSet: 'implicit',
 					enableImplicitContext: false,
 					renderInputOnTop: false,
-					renderStyle: 'compact',
 					renderInputToolbarBelowInput: true,
 					filter: _item => false, // filter ALL items
 					menus: {

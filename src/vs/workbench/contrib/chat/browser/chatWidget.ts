@@ -2709,7 +2709,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	layout(height: number, width: number): void {
-		width = Math.min(width, 950);
+		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950); // no min width of inline chat
 		const heightUpdated = this.bodyDimension && this.bodyDimension.height !== height;
 		this.bodyDimension = new dom.Dimension(width, height);
 
