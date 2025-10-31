@@ -255,10 +255,11 @@ export interface IAuthenticationService {
 	removeSession(providerId: string, sessionId: string): Promise<void>;
 
 	/**
-	 * Gets a provider id for a specified authorization server
+	 * Gets a provider id for a specified authorization server and optional resource
 	 * @param authorizationServer The authorization server url that this provider is responsible for
+	 * @param resource Optional resource URL to match against when multiple resources share the same auth server
 	 */
-	getOrActivateProviderIdForServer(authorizationServer: URI): Promise<string | undefined>;
+	getOrActivateProviderIdForServer(authorizationServer: URI, resource?: URI): Promise<string | undefined>;
 
 	/**
 	 * Allows the ability register a delegate that will be used to start authentication providers
