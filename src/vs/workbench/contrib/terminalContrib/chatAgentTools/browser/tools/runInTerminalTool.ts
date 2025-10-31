@@ -329,7 +329,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
 		const terminalToolSessionId = generateUuid();
-		// Generate a custom command ID to link the command between renderer and ptyHost
+		// Generate a custom command ID to link the command between renderer and pty host
 		const terminalCommandId = `tool-${generateUuid()}`;
 
 		let toolEditedCommand: string | undefined = await this._commandSimplifier.rewriteIfNeeded(args, instance, shell);
