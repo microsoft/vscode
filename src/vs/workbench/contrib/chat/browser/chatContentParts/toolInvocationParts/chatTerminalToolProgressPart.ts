@@ -152,8 +152,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
 		this.domNode = progressPart.domNode;
-		this.domNode.tabIndex = 0;
-		this.domNode.role = 'region';
 
 		if (pastTenseMessage) {
 			const sanitizedMessage = stripIcons(pastTenseMessage);
