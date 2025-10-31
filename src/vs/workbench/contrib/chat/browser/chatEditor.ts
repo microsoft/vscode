@@ -30,7 +30,6 @@ import { IChatSessionsService, localChatSessionType } from '../common/chatSessio
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { clearChatEditor } from './actions/chatClear.js';
 import { ChatEditorInput } from './chatEditorInput.js';
-import { getChatSessionType } from './chatSessions/common.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
@@ -182,7 +181,7 @@ export class ChatEditor extends EditorPane {
 	override async setInput(input: ChatEditorInput, options: IChatEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		// Show loading indicator early for non-local sessions to prevent layout shifts
 		let isContributedChatSession = false;
-		const chatSessionType = getChatSessionType(input);
+		const chatSessionType = input.getSessionType();
 		if (chatSessionType !== localChatSessionType) {
 			const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading...");
 			this.showLoadingInChatWidget(loadingMessage);
@@ -221,7 +220,7 @@ export class ChatEditor extends EditorPane {
 			const editorModel = await raceCancellationError(input.resolve(), token);
 
 			if (!editorModel) {
-				throw new Error(`Failed to get model for chat editor. id: ${input.sessionId}`);
+				throw new Error(`Failed to get model for chat editor. resource: ${input.sessionResource}`);
 			}
 
 			// Hide loading state before updating model

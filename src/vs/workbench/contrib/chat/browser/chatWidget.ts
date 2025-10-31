@@ -2265,7 +2265,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			throw new Error('Call render() before setModel()');
 		}
 
-		if (model.sessionId === this.viewModel?.sessionId) {
+		if (isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
 			return;
 		}
 

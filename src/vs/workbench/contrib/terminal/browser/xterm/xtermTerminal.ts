@@ -368,6 +368,65 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		return this._serializeAddon.serializeAsHTML();
 	}
 
+	async getCommandOutputAsHtml(command: ITerminalCommand, maxLines: number): Promise<string> {
+		if (!this._serializeAddon) {
+			const Addon = await this._xtermAddonLoader.importAddon('serialize');
+			this._serializeAddon = new Addon();
+			this.raw.loadAddon(this._serializeAddon);
+		}
+		let startLine: number;
+		let startCol: number;
+		if (command.executedMarker && command.executedMarker.line >= 0) {
+			startLine = command.executedMarker.line;
+			startCol = Math.max(command.executedX ?? 0, 0);
+		} else {
+			startLine = command.marker?.line !== undefined ? command.marker.line + 1 : 1;
+			startCol = Math.max(command.startX ?? 0, 0);
+		}
+
+		let endLine = command.endMarker?.line !== undefined ? command.endMarker.line - 1 : this.raw.buffer.active.length - 1;
+		if (endLine < startLine) {
+			return '';
+		}
+		// Trim empty lines from the end
+		let emptyLinesFromEnd = 0;
+		for (let i = endLine; i >= startLine; i--) {
+			const line = this.raw.buffer.active.getLine(i);
+			if (line && line.translateToString(true).trim() === '') {
+				emptyLinesFromEnd++;
+			} else {
+				break;
+			}
+		}
+		endLine = endLine - emptyLinesFromEnd;
+
+		// Trim empty lines from the start
+		let emptyLinesFromStart = 0;
+		for (let i = startLine; i <= endLine; i++) {
+			const line = this.raw.buffer.active.getLine(i);
+			if (line && line.translateToString(true).trim() === '') {
+				emptyLinesFromStart++;
+			} else {
+				break;
+			}
+		}
+		startLine = startLine + emptyLinesFromStart;
+
+		if (maxLines && endLine - startLine > maxLines) {
+			startLine = endLine - maxLines;
+			startCol = 0;
+		}
+
+		const bufferLine = this.raw.buffer.active.getLine(startLine);
+		if (bufferLine) {
+			startCol = Math.min(startCol, bufferLine.length);
+		}
+
+		const range = { startLine, endLine, startCol };
+		const result = this._serializeAddon.serializeAsHTML({ range });
+		return result;
+	}
+
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
 		if (!this._serializeAddon) {
 			const Addon = await this._xtermAddonLoader.importAddon('serialize');

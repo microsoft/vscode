@@ -9,7 +9,15 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { IChatService } from '../../../chat/common/chatService.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
+
+const enum StorageKeys {
+	ToolSessionMappings = 'terminalChat.toolSessionMappings',
+	CommandIdMappings = 'terminalChat.commandIdMappings'
+}
+
 
 /**
  * Used to manage chat tool invocations and the underlying terminal instances they create/use.
@@ -17,9 +25,8 @@ import { TerminalChatContextKeys } from './terminalChat.js';
 export class TerminalChatService extends Disposable implements ITerminalChatService {
 	declare _serviceBrand: undefined;
 
-	private static readonly _storageKey = 'terminalChat.toolSessionMappings';
-
 	private readonly _terminalInstancesByToolSessionId = new Map<string, ITerminalInstance>();
+	private readonly _commandIdByToolSessionId = new Map<string, string>();
 	private readonly _terminalInstanceListenersByToolSessionId = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _onDidRegisterTerminalInstanceForToolSession = new Emitter<ITerminalInstance>();
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance> = this._onDidRegisterTerminalInstanceForToolSession.event;
@@ -37,7 +44,8 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
 
@@ -59,6 +67,20 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			this._persistToStorage();
 			this._updateHasToolTerminalContextKey();
 		}));
+		const listener = this._register(instance.capabilities.get(TerminalCapability.CommandDetection)!.onCommandFinished(e => {
+			this._commandIdByToolSessionId.set(terminalToolSessionId, e.id);
+			this._persistToStorage();
+			listener.dispose();
+		}));
+		this._register(this._chatService.onDidDisposeSession(e => {
+			if (e.sessionId === terminalToolSessionId) {
+				this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
+				this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
+				this._commandIdByToolSessionId.delete(terminalToolSessionId);
+				this._persistToStorage();
+				this._updateHasToolTerminalContextKey();
+			}
+		}));
 
 		if (typeof instance.persistentProcessId === 'number') {
 			this._persistToStorage();
@@ -67,7 +89,18 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._updateHasToolTerminalContextKey();
 	}
 
-	getTerminalInstanceByToolSessionId(terminalToolSessionId: string | undefined): ITerminalInstance | undefined {
+	getTerminalCommandIdByToolSessionId(terminalToolSessionId: string | undefined): string | undefined {
+		if (!terminalToolSessionId) {
+			return undefined;
+		}
+		if (this._commandIdByToolSessionId.size === 0) {
+			this._restoreFromStorage();
+		}
+		return this._commandIdByToolSessionId.get(terminalToolSessionId);
+	}
+
+	async getTerminalInstanceByToolSessionId(terminalToolSessionId: string | undefined): Promise<ITerminalInstance | undefined> {
+		await this._terminalService.whenConnected;
 		if (!terminalToolSessionId) {
 			return undefined;
 		}
@@ -99,7 +132,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	private _restoreFromStorage(): void {
 		try {
-			const raw = this._storageService.get(TerminalChatService._storageKey, StorageScope.WORKSPACE);
+			const raw = this._storageService.get(StorageKeys.ToolSessionMappings, StorageScope.WORKSPACE);
 			if (!raw) {
 				return;
 			}
@@ -107,6 +140,15 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			for (const [toolSessionId, persistentProcessId] of parsed) {
 				if (typeof toolSessionId === 'string' && typeof persistentProcessId === 'number') {
 					this._pendingRestoredMappings.set(toolSessionId, persistentProcessId);
+				}
+			}
+			const rawCommandIds = this._storageService.get(StorageKeys.CommandIdMappings, StorageScope.WORKSPACE);
+			if (rawCommandIds) {
+				const parsedCommandIds: [string, string][] = JSON.parse(rawCommandIds);
+				for (const [toolSessionId, commandId] of parsedCommandIds) {
+					if (typeof toolSessionId === 'string' && typeof commandId === 'string') {
+						this._commandIdByToolSessionId.set(toolSessionId, commandId);
+					}
 				}
 			}
 		} catch (err) {
@@ -147,9 +189,18 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				}
 			}
 			if (entries.length > 0) {
-				this._storageService.store(TerminalChatService._storageKey, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				this._storageService.store(StorageKeys.ToolSessionMappings, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			} else {
-				this._storageService.remove(TerminalChatService._storageKey, StorageScope.WORKSPACE);
+				this._storageService.remove(StorageKeys.ToolSessionMappings, StorageScope.WORKSPACE);
+			}
+			const commandEntries: [string, string][] = [];
+			for (const [toolSessionId, commandId] of this._commandIdByToolSessionId.entries()) {
+				commandEntries.push([toolSessionId, commandId]);
+			}
+			if (commandEntries.length > 0) {
+				this._storageService.store(StorageKeys.CommandIdMappings, JSON.stringify(commandEntries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			} else {
+				this._storageService.remove(StorageKeys.CommandIdMappings, StorageScope.WORKSPACE);
 			}
 		} catch (err) {
 			this._logService.warn('Failed to persist terminal chat tool session mappings', err);
