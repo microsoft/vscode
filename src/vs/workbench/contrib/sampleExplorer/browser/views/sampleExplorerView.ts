@@ -14,10 +14,11 @@ import { IViewDescriptorService } from '../../../../common/views.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { VIEW_ID } from '../../common/sampleExplorer.js';
 
 export class SampleExplorerView extends ViewPane {
 
-	static readonly ID: string = 'workbench.sampleExplorer.view';
+	static readonly ID = VIEW_ID;
 	static readonly NAME = localize('sampleExplorer', "Sample Explorer");
 
 	constructor(

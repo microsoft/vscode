@@ -6,12 +6,14 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SampleExplorerView } from '../../browser/views/sampleExplorerView.js';
+import { VIEW_ID } from '../../common/sampleExplorer.js';
 
 suite('Sample Explorer - View', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('SampleExplorerView has correct ID and NAME', function () {
+		assert.strictEqual(SampleExplorerView.ID, VIEW_ID);
 		assert.strictEqual(SampleExplorerView.ID, 'workbench.sampleExplorer.view');
 		assert.strictEqual(SampleExplorerView.NAME, 'Sample Explorer');
 	});

@@ -46,7 +46,7 @@ export class SampleExplorerViewsContribution extends Disposable implements IWork
 	private createSampleExplorerViewDescriptor(): IViewDescriptor {
 		return {
 			id: VIEW_ID,
-			name: localize2('sampleExplorer', "Sample Explorer"),
+			name: localize2('sampleExplorerViewName', "Sample Explorer"),
 			containerIcon: sampleExplorerViewIcon,
 			ctorDescriptor: new SyncDescriptor(SampleExplorerView),
 			order: 1,
