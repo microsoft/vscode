@@ -104,7 +104,7 @@
 		},
 		{
 			"name": "support.type.object.hlsl",
-			"match": "\\b(AppendStructuredBuffer|Buffer|ByteAddressBuffer|ConstantBuffer|ConsumeStructuredBuffer|InputPatch|OutputPatch)\\b"
+			"match": "\\b(AppendStructuredBuffer|Buffer|ByteAddressBuffer|StructuredBuffer|ConstantBuffer|ConsumeStructuredBuffer|InputPatch|OutputPatch)\\b"
 		},
 		{
 			"name": "support.type.object.rasterizerordered.hlsl",
