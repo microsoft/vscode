@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { match, splitGlobAware } from '../../../../../base/common/glob.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -19,9 +19,9 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind } from '../chatVariableEntries.js';
 import { IToolData } from '../languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
+import { isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
-import { ParsedPromptFile } from './service/newPromptsParser.js';
+import { ParsedPromptFile } from './promptFileParser.js';
 import { IPromptPath, IPromptsService } from './service/promptsService.js';
 
 export type InstructionsCollectionEvent = {
@@ -104,54 +104,6 @@ export class ComputeAutomaticInstructions {
 		this.sendTelemetry(telemetryEvent);
 	}
 
-	public async collectAgentInstructionsOnly(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
-		const telemetryEvent: InstructionsCollectionEvent = newInstructionsCollectionEvent();
-		await this._addAgentInstructions(variables, telemetryEvent, token);
-		this.sendTelemetry(telemetryEvent);
-	}
-
-	/**
-	 * Checks if any agent instruction files (.github/copilot-instructions.md or agents.md) exist in the workspace.
-	 * Used to determine whether to show the "Generate Agent Instructions" hint.
-	 *
-	 * @returns true if instruction files exist OR if instruction features are disabled (to hide the hint)
-	 */
-	public async hasAgentInstructions(token: CancellationToken): Promise<boolean> {
-		const useCopilotInstructionsFiles = this._configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
-		const useAgentMd = this._configurationService.getValue(PromptsConfig.USE_AGENT_MD);
-
-		// If both settings are disabled, return true to hide the hint (since the features aren't enabled)
-		if (!useCopilotInstructionsFiles && !useAgentMd) {
-			return true;
-		}
-		const { folders } = this._workspaceService.getWorkspace();
-
-		// Check for copilot-instructions.md files
-		if (useCopilotInstructionsFiles) {
-			for (const folder of folders) {
-				const file = joinPath(folder.uri, `.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
-				if (await this._fileService.exists(file)) {
-					return true;
-				}
-			}
-		}
-
-		// Check for agents.md files
-		if (useAgentMd) {
-			const resolvedRoots = await this._fileService.resolveAll(folders.map(f => ({ resource: f.uri })));
-			for (const root of resolvedRoots) {
-				if (root.success && root.stat?.children) {
-					const agentMd = root.stat.children.find(c => c.isFile && c.name.toLowerCase() === 'agents.md');
-					if (agentMd) {
-						return true;
-					}
-				}
-			}
-		}
-
-		return false;
-	}
-
 	private sendTelemetry(telemetryEvent: InstructionsCollectionEvent): void {
 		// Emit telemetry
 		telemetryEvent.totalInstructionsCount = telemetryEvent.agentInstructionsCount + telemetryEvent.referencedInstructionsCount + telemetryEvent.applyingInstructionsCount + telemetryEvent.listedInstructionsCount;
@@ -221,33 +173,23 @@ export class ComputeAutomaticInstructions {
 			this._logService.trace(`[InstructionsContextComputer] No agent instructions files added (settings disabled).`);
 			return;
 		}
-		const instructionFiles: string[] = [];
-		instructionFiles.push(`.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
 
-		const { folders } = this._workspaceService.getWorkspace();
 		const entries: ChatRequestVariableSet = new ChatRequestVariableSet();
 		if (useCopilotInstructionsFiles) {
-			for (const folder of folders) {
-				const file = joinPath(folder.uri, `.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
-				if (await this._fileService.exists(file)) {
-					entries.add(toPromptFileVariableEntry(file, PromptFileVariableKind.Instruction, localize('instruction.file.reason.copilot', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_COPILOT_INSTRUCTION_FILES), true));
-					telemetryEvent.agentInstructionsCount++;
-					this._logService.trace(`[InstructionsContextComputer] copilot-instruction.md files added: ${file.toString()}`);
-				}
+			const files: URI[] = await this._promptsService.listCopilotInstructionsMDs(token);
+			for (const file of files) {
+				entries.add(toPromptFileVariableEntry(file, PromptFileVariableKind.Instruction, localize('instruction.file.reason.copilot', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_COPILOT_INSTRUCTION_FILES), true));
+				telemetryEvent.agentInstructionsCount++;
+				this._logService.trace(`[InstructionsContextComputer] copilot-instruction.md files added: ${file.toString()}`);
 			}
 			await this._addReferencedInstructions(entries, telemetryEvent, token);
 		}
 		if (useAgentMd) {
-			const resolvedRoots = await this._fileService.resolveAll(folders.map(f => ({ resource: f.uri })));
-			for (const root of resolvedRoots) {
-				if (root.success && root.stat?.children) {
-					const agentMd = root.stat.children.find(c => c.isFile && c.name.toLowerCase() === 'agents.md');
-					if (agentMd) {
-						entries.add(toPromptFileVariableEntry(agentMd.resource, PromptFileVariableKind.Instruction, localize('instruction.file.reason.agentsmd', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_AGENT_MD), true));
-						telemetryEvent.agentInstructionsCount++;
-						this._logService.trace(`[InstructionsContextComputer] AGENTS.md files added: ${agentMd.resource.toString()}`);
-					}
-				}
+			const files = await this._promptsService.listAgentMDs(token, false);
+			for (const file of files) {
+				entries.add(toPromptFileVariableEntry(file, PromptFileVariableKind.Instruction, localize('instruction.file.reason.agentsmd', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_AGENT_MD), true));
+				telemetryEvent.agentInstructionsCount++;
+				this._logService.trace(`[InstructionsContextComputer] AGENTS.md files added: ${file.toString()}`);
 			}
 		}
 		for (const entry of entries.asArray()) {
@@ -277,7 +219,7 @@ export class ComputeAutomaticInstructions {
 			// add the instructions file if its rule matches the file
 			for (const file of files) {
 				// if the file is not a valid URI, skip it
-				if (match(pattern, file.path)) {
+				if (match(pattern, file.path, { ignoreCase: true })) {
 					return { pattern, file }; // return the matched pattern and file URI
 				}
 			}
@@ -367,7 +309,7 @@ export class ComputeAutomaticInstructions {
 						const uri = refsToCheck[i].resource;
 						if (stat.success && stat.stat?.isFile) {
 							if (isPromptOrInstructionsFile(uri)) {
-								// only recursivly parse instruction files
+								// only recursively parse instruction files
 								todo.push(uri);
 							}
 							const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(next));

@@ -184,7 +184,7 @@ export class ChatMarkdownDecorationsRenderer {
 					return;
 				}
 
-				this.chatService.sendRequest(widget.viewModel!.sessionId, agent.metadata.sampleRequest ?? '',
+				this.chatService.sendRequest(widget.viewModel!.sessionResource, agent.metadata.sampleRequest ?? '',
 					{
 						location: widget.location,
 						agentId: agent.id,
@@ -221,7 +221,7 @@ export class ChatMarkdownDecorationsRenderer {
 			}
 
 			const command = agent.slashCommands.find(c => c.name === args.command);
-			this.chatService.sendRequest(widget.viewModel!.sessionId, command?.sampleRequest ?? '', {
+			this.chatService.sendRequest(widget.viewModel!.sessionResource, command?.sampleRequest ?? '', {
 				location: widget.location,
 				agentId: agent.id,
 				slashCommand: args.command,

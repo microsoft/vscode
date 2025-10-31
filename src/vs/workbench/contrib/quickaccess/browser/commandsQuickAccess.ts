@@ -260,6 +260,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				commandAlias,
 				label: stripIcons(label),
 				commandDescription,
+				commandCategory: category,
 			});
 		}
 

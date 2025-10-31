@@ -107,11 +107,11 @@ export namespace ToolDataSource {
 		if (source.type === 'internal') {
 			return { ordinal: 1, label: localize('builtin', 'Built-In') };
 		} else if (source.type === 'mcp') {
-			return { ordinal: 2, label: localize('mcp', 'MCP Server: {0}', source.label) };
+			return { ordinal: 2, label: source.label };
 		} else if (source.type === 'user') {
 			return { ordinal: 0, label: localize('user', 'User Defined') };
 		} else {
-			return { ordinal: 3, label: localize('ext', 'Extension: {0}', source.label) };
+			return { ordinal: 3, label: source.label };
 		}
 	}
 }
@@ -191,6 +191,8 @@ export interface IToolResult {
 	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails;
 	toolResultError?: string;
 	toolMetadata?: unknown;
+	/** Whether to ask the user to confirm these tool results. Overrides {@link IToolConfirmationMessages.confirmResults}. */
+	confirmResults?: boolean;
 }
 
 export function toolResultHasBuffers(result: IToolResult): boolean {
@@ -222,11 +224,15 @@ export interface IToolResultDataPart {
 }
 
 export interface IToolConfirmationMessages {
-	title: string | IMarkdownString;
-	message: string | IMarkdownString;
+	/** Title for the confirmation. If set, the user will be asked to confirm execution of the tool */
+	title?: string | IMarkdownString;
+	/** MUST be set if `title` is also set */
+	message?: string | IMarkdownString;
 	disclaimer?: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
 	terminalCustomActions?: ToolConfirmationAction[];
+	/** If true, confirmation will be requested after the tool executes and before results are sent to the model */
+	confirmResults?: boolean;
 }
 
 export interface IToolConfirmationAction {
@@ -317,6 +323,7 @@ export type CountTokensCallback = (input: string, token: CancellationToken) => P
 export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	readonly onDidChangeTools: Event<void>;
+	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ readonly sessionId: string; readonly toolData: IToolData }>;
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
@@ -327,6 +334,7 @@ export interface ILanguageModelToolsService {
 	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'session' | 'never'): void;
 	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never';
 	resetToolAutoConfirmation(): void;
+	getToolPostExecutionAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never';
 	cancelToolCallsForRequest(requestId: string): void;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;

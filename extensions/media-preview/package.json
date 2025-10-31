@@ -163,6 +163,9 @@
     "@vscode/extension-telemetry": "^0.9.8",
     "vscode-uri": "^3.0.6"
   },
+  "devDependencies": {
+    "@types/node": "22.x"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"

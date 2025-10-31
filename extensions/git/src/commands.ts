@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
@@ -14,11 +14,12 @@ import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, fromNow, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
+import { DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
 import { RemoteSourceAction } from './typings/git-base';
+import { CloneManager } from './cloneManager';
 
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
@@ -115,7 +116,7 @@ class RefItem implements QuickPickItem {
 			case RefType.Head:
 				return `refs/heads/${this.ref.name}`;
 			case RefType.RemoteHead:
-				return `refs/remotes/${this.ref.remote}/${this.ref.name}`;
+				return `refs/remotes/${this.ref.name}`;
 			case RefType.Tag:
 				return `refs/tags/${this.ref.name}`;
 		}
@@ -123,6 +124,7 @@ class RefItem implements QuickPickItem {
 	get refName(): string | undefined { return this.ref.name; }
 	get refRemote(): string | undefined { return this.ref.remote; }
 	get shortCommit(): string { return (this.ref.commit || '').substring(0, this.shortCommitLength); }
+	get commitMessage(): string | undefined { return this.ref.commitDetails?.message; }
 
 	private _buttons?: QuickInputButton[];
 	get buttons(): QuickInputButton[] | undefined { return this._buttons; }
@@ -681,10 +683,11 @@ class CommandErrorOutputTextDocumentContentProvider implements TextDocumentConte
 	}
 }
 
-async function evaluateDiagnosticsCommitHook(repository: Repository, options: CommitOptions): Promise<boolean> {
+async function evaluateDiagnosticsCommitHook(repository: Repository, options: CommitOptions, logger: LogOutputChannel): Promise<boolean> {
 	const config = workspace.getConfiguration('git', Uri.file(repository.root));
 	const enabled = config.get<boolean>('diagnosticsCommitHook.enabled', false) === true;
 	const sourceSeverity = config.get<Record<string, DiagnosticSeverityConfig>>('diagnosticsCommitHook.sources', { '*': 'error' });
+	logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Diagnostics Commit Hook: enabled=${enabled}, sources=${JSON.stringify(sourceSeverity)}`);
 
 	if (!enabled) {
 		return true;
@@ -710,23 +713,27 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	for (const resource of resources) {
 		const unresolvedDiagnostics = languages.getDiagnostics(resource)
 			.filter(d => {
+				logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Evaluating diagnostic for ${resource.fsPath}: source='${d.source}', severity='${d.severity}'`);
+
 				// No source or ignored source
 				if (!d.source || (Object.keys(sourceSeverity).includes(d.source) && sourceSeverity[d.source] === 'none')) {
+					logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Ignoring diagnostic for ${resource.fsPath}: source='${d.source}', severity='${d.severity}'`);
 					return false;
 				}
 
 				// Source severity
-				if (Object.keys(sourceSeverity).includes(d.source) &&
-					d.severity <= toDiagnosticSeverity(sourceSeverity[d.source])) {
+				if (Object.keys(sourceSeverity).includes(d.source) && d.severity <= toDiagnosticSeverity(sourceSeverity[d.source])) {
+					logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Found unresolved diagnostic for ${resource.fsPath}: source='${d.source}', severity='${d.severity}'`);
 					return true;
 				}
 
 				// Wildcard severity
-				if (Object.keys(sourceSeverity).includes('*') &&
-					d.severity <= toDiagnosticSeverity(sourceSeverity['*'])) {
+				if (Object.keys(sourceSeverity).includes('*') && d.severity <= toDiagnosticSeverity(sourceSeverity['*'])) {
+					logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Found unresolved diagnostic for ${resource.fsPath}: source='${d.source}', severity='${d.severity}'`);
 					return true;
 				}
 
+				logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Ignoring diagnostic for ${resource.fsPath}: source='${d.source}', severity='${d.severity}'`);
 				return false;
 			});
 
@@ -774,7 +781,8 @@ export class CommandCenter {
 		private model: Model,
 		private globalState: Memento,
 		private logger: LogOutputChannel,
-		private telemetryReporter: TelemetryReporter
+		private telemetryReporter: TelemetryReporter,
+		private cloneManager: CloneManager
 	) {
 		this.disposables = Commands.map(({ commandId, key, method, options }) => {
 			const command = this.createCommand(commandId, key, method, options);
@@ -944,144 +952,6 @@ export class CommandCenter {
 		}
 	}
 
-	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string } = {}): Promise<void> {
-		if (!url || typeof url !== 'string') {
-			url = await pickRemoteSource({
-				providerLabel: provider => l10n.t('Clone from {0}', provider.name),
-				urlLabel: l10n.t('Clone from URL')
-			});
-		}
-
-		if (!url) {
-			/* __GDPR__
-				"clone" : {
-					"owner": "lszomoru",
-					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
-				}
-			*/
-			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
-			return;
-		}
-
-		url = url.trim().replace(/^git\s+clone\s+/, '');
-
-		if (!parentPath) {
-			const config = workspace.getConfiguration('git');
-			let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
-			defaultCloneDirectory = defaultCloneDirectory.replace(/^~/, os.homedir());
-
-			const uris = await window.showOpenDialog({
-				canSelectFiles: false,
-				canSelectFolders: true,
-				canSelectMany: false,
-				defaultUri: Uri.file(defaultCloneDirectory),
-				title: l10n.t('Choose a folder to clone {0} into', url),
-				openLabel: l10n.t('Select as Repository Destination')
-			});
-
-			if (!uris || uris.length === 0) {
-				/* __GDPR__
-					"clone" : {
-						"owner": "lszomoru",
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
-					}
-				*/
-				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
-				return;
-			}
-
-			const uri = uris[0];
-			parentPath = uri.fsPath;
-		}
-
-		try {
-			const opts = {
-				location: ProgressLocation.Notification,
-				title: l10n.t('Cloning git repository "{0}"...', url),
-				cancellable: true
-			};
-
-			const repositoryPath = await window.withProgress(
-				opts,
-				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive, ref: options.ref }, token)
-			);
-
-			const config = workspace.getConfiguration('git');
-			const openAfterClone = config.get<'always' | 'alwaysNewWindow' | 'whenNoFolderOpen' | 'prompt'>('openAfterClone');
-
-			enum PostCloneAction { Open, OpenNewWindow, AddToWorkspace }
-			let action: PostCloneAction | undefined = undefined;
-
-			if (openAfterClone === 'always') {
-				action = PostCloneAction.Open;
-			} else if (openAfterClone === 'alwaysNewWindow') {
-				action = PostCloneAction.OpenNewWindow;
-			} else if (openAfterClone === 'whenNoFolderOpen' && !workspace.workspaceFolders) {
-				action = PostCloneAction.Open;
-			}
-
-			if (action === undefined) {
-				let message = l10n.t('Would you like to open the cloned repository?');
-				const open = l10n.t('Open');
-				const openNewWindow = l10n.t('Open in New Window');
-				const choices = [open, openNewWindow];
-
-				const addToWorkspace = l10n.t('Add to Workspace');
-				if (workspace.workspaceFolders) {
-					message = l10n.t('Would you like to open the cloned repository, or add it to the current workspace?');
-					choices.push(addToWorkspace);
-				}
-
-				const result = await window.showInformationMessage(message, { modal: true }, ...choices);
-
-				action = result === open ? PostCloneAction.Open
-					: result === openNewWindow ? PostCloneAction.OpenNewWindow
-						: result === addToWorkspace ? PostCloneAction.AddToWorkspace : undefined;
-			}
-
-			/* __GDPR__
-				"clone" : {
-					"owner": "lszomoru",
-					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" },
-					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Indicates whether the folder is opened following the clone operation" }
-				}
-			*/
-			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: action === PostCloneAction.Open || action === PostCloneAction.OpenNewWindow ? 1 : 0 });
-
-			const uri = Uri.file(repositoryPath);
-
-			if (action === PostCloneAction.Open) {
-				commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
-			} else if (action === PostCloneAction.AddToWorkspace) {
-				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
-			} else if (action === PostCloneAction.OpenNewWindow) {
-				commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
-			}
-		} catch (err) {
-			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
-				/* __GDPR__
-					"clone" : {
-						"owner": "lszomoru",
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
-					}
-				*/
-				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
-			} else if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
-				return;
-			} else {
-				/* __GDPR__
-					"clone" : {
-						"owner": "lszomoru",
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
-					}
-				*/
-				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
-			}
-
-			throw err;
-		}
-	}
-
 	private getRepositoriesWithRemote(repositories: Repository[]) {
 		return repositories.reduce<(QuickPickItem & { repository: Repository })[]>((items, repository) => {
 			const remote = repository.remotes.find((r) => r.name === repository.HEAD?.upstream?.remote);
@@ -1154,12 +1024,12 @@ export class CommandCenter {
 
 	@command('git.clone')
 	async clone(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
-		await this.cloneRepository(url, parentPath, options);
+		await this.cloneManager.clone(url, { parentPath, ...options });
 	}
 
 	@command('git.cloneRecursive')
 	async cloneRecursive(url?: string, parentPath?: string): Promise<void> {
-		await this.cloneRepository(url, parentPath, { recursive: true });
+		await this.cloneManager.clone(url, { parentPath, recursive: true });
 	}
 
 	@command('git.init')
@@ -2548,7 +2418,7 @@ export class CommandCenter {
 		}
 
 		// Diagnostics commit hook
-		const diagnosticsResult = await evaluateDiagnosticsCommitHook(repository, opts);
+		const diagnosticsResult = await evaluateDiagnosticsCommitHook(repository, opts, this.logger);
 		if (!diagnosticsResult) {
 			return;
 		}
@@ -3240,6 +3110,99 @@ export class CommandCenter {
 		await this._deleteBranch(repository, remoteName, refName, { remote: true });
 	}
 
+	@command('git.graph.compareWithRemote', { repository: true })
+	async compareWithRemote(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+		if (!historyItem || !repository.historyProvider.currentHistoryItemRemoteRef) {
+			return;
+		}
+
+		const title = `${repository.historyProvider.currentHistoryItemRemoteRef.name} ↔ ${getHistoryItemDisplayName(historyItem)}`;
+
+		await this._openChangesBetweenRefs(
+			repository,
+			repository.historyProvider.currentHistoryItemRemoteRef.revision,
+			historyItem.id,
+			title);
+	}
+
+	@command('git.graph.compareWithMergeBase', { repository: true })
+	async compareWithMergeBase(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+		if (!historyItem || !repository.historyProvider.currentHistoryItemBaseRef) {
+			return;
+		}
+
+		const title = `${repository.historyProvider.currentHistoryItemBaseRef.name} ↔ ${getHistoryItemDisplayName(historyItem)}`;
+
+		await this._openChangesBetweenRefs(
+			repository,
+			repository.historyProvider.currentHistoryItemBaseRef.name,
+			historyItem.id,
+			title);
+	}
+
+	@command('git.graph.compareRef', { repository: true })
+	async compareRef(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+		if (!repository || !historyItem) {
+			return;
+		}
+
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
+		const getRefPicks = async () => {
+			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
+			const processors = [
+				new RefProcessor(RefType.Head, BranchItem),
+				new RefProcessor(RefType.RemoteHead, BranchItem),
+				new RefProcessor(RefType.Tag, BranchItem)
+			];
+
+			const itemsProcessor = new RefItemsProcessor(repository, processors);
+			return itemsProcessor.processRefs(refs);
+		};
+
+		const placeHolder = l10n.t('Select a reference to compare with');
+		const sourceRef = await this.pickRef(getRefPicks(), placeHolder);
+
+		if (!(sourceRef instanceof BranchItem) || !sourceRef.ref.commit) {
+			return;
+		}
+
+		const title = `${sourceRef.ref.name} ↔ ${getHistoryItemDisplayName(historyItem)}`;
+
+		await this._openChangesBetweenRefs(
+			repository,
+			sourceRef.ref.commit,
+			historyItem.id,
+			title);
+	}
+
+	private async _openChangesBetweenRefs(repository: Repository, ref1: string | undefined, ref2: string | undefined, title: string): Promise<void> {
+		if (!repository || !ref1 || !ref2) {
+			return;
+		}
+
+		try {
+			const changes = await repository.diffBetween2(ref1, ref2);
+
+			if (changes.length === 0) {
+				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref1, ref2));
+				return;
+			}
+
+			const multiDiffSourceUri = Uri.from({ scheme: 'git-ref-compare', path: `${repository.root}/${ref1}..${ref2}` });
+			const resources = changes.map(change => toMultiFileDiffEditorUris(change, ref1, ref2));
+
+			await commands.executeCommand('_workbench.openMultiDiffEditor', {
+				multiDiffSourceUri,
+				title,
+				resources
+			});
+		} catch (err) {
+			window.showErrorMessage(l10n.t('Failed to open changes between "{0}" and "{1}": {2}', ref1, ref2, err.message));
+		}
+	}
+
 	@command('git.deleteRemoteBranch', { repository: true })
 	async deleteRemoteBranch(repository: Repository): Promise<void> {
 		await this._deleteBranch(repository, undefined, undefined, { remote: true });
@@ -3542,6 +3505,85 @@ export class CommandCenter {
 			input2: incoming,
 			output: uri
 		});
+	}
+
+	@command('git.createWorktreeWithDefaults', { repository: true, repositoryFilter: ['repository'] })
+	async createWorktreeWithDefaults(
+		repository: Repository,
+		commitish: string = 'HEAD'
+	): Promise<string | undefined> {
+		const config = workspace.getConfiguration('git');
+		const branchPrefix = config.get<string>('branchPrefix', '');
+
+		// Generate branch name if not provided
+		let branch = await this.generateRandomBranchName(repository, '-');
+		if (!branch) {
+			// Fallback to timestamp-based name if random generation fails
+			const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+			branch = `${branchPrefix}worktree-${timestamp}`;
+		}
+
+		// Ensure branch name starts with prefix if configured
+		if (branchPrefix && !branch.startsWith(branchPrefix)) {
+			branch = branchPrefix + branch;
+		}
+
+		// Create worktree name from branch name
+		const worktreeName = branch.startsWith(branchPrefix)
+			? branch.substring(branchPrefix.length).replace(/\//g, '-')
+			: branch.replace(/\//g, '-');
+
+		// Determine default worktree path
+		const defaultWorktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
+		const defaultWorktreePath = defaultWorktreeRoot
+			? path.join(defaultWorktreeRoot, worktreeName)
+			: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
+
+		// Check if worktree already exists at this path
+		const existingWorktree = repository.worktrees.find(worktree =>
+			pathEquals(path.normalize(worktree.path), path.normalize(defaultWorktreePath))
+		);
+
+		if (existingWorktree) {
+			// Generate unique path by appending a number
+			let counter = 1;
+			let uniquePath = `${defaultWorktreePath}-${counter}`;
+			while (repository.worktrees.some(wt => pathEquals(path.normalize(wt.path), path.normalize(uniquePath)))) {
+				counter++;
+				uniquePath = `${defaultWorktreePath}-${counter}`;
+			}
+			const finalWorktreePath = uniquePath;
+
+			try {
+				await repository.addWorktree({ path: finalWorktreePath, branch, commitish });
+
+				// Update worktree root in global state
+				const worktreeRoot = path.dirname(finalWorktreePath);
+				if (worktreeRoot !== defaultWorktreeRoot) {
+					this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
+				}
+
+				return finalWorktreePath;
+			} catch (err) {
+				// Return undefined on failure
+				return undefined;
+			}
+		}
+
+		try {
+			await repository.addWorktree({ path: defaultWorktreePath, branch, commitish });
+
+			// Update worktree root in global state
+			const worktreeRoot = path.dirname(defaultWorktreePath);
+			if (worktreeRoot !== defaultWorktreeRoot) {
+				this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
+			}
+
+			return defaultWorktreePath;
+		} catch (err) {
+			// Return undefined on failure
+			return undefined;
+		}
 	}
 
 	@command('git.createWorktree')
@@ -4910,7 +4952,7 @@ export class CommandCenter {
 
 		const commit = await repository.getCommit(item.ref);
 		const commitParentId = commit.parents.length > 0 ? commit.parents[0] : await repository.getEmptyTree();
-		const changes = await repository.diffTrees(commitParentId, commit.hash);
+		const changes = await repository.diffBetween2(commitParentId, commit.hash);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, commitParentId, commit.hash));
 
 		const title = `${item.shortRef} - ${subject(commit.message)}`;
@@ -5184,7 +5226,7 @@ export class CommandCenter {
 
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });
 
-		const changes = await repository.diffTrees(historyItemParentId, historyItemId);
+		const changes = await repository.diffBetween2(historyItemParentId, historyItemId);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
 		const reveal = revealUri ? { modifiedUri: toGitUri(revealUri, historyItemId) } : undefined;
 
@@ -5215,6 +5257,59 @@ export class CommandCenter {
 		const enabled = config.get<boolean>(setting) === true;
 
 		config.update(setting, !enabled, true);
+	}
+
+	@command('git.repositories.checkout', { repository: true })
+	async artifactCheckout(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		await this._checkout(repository, { treeish: artifact.name });
+	}
+
+	@command('git.repositories.checkoutDetached', { repository: true })
+	async artifactCheckoutDetached(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		await this._checkout(repository, { treeish: artifact.name, detached: true });
+	}
+
+	@command('git.repositories.compareRef', { repository: true })
+	async artifactCompareWith(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
+		const getRefPicks = async () => {
+			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
+			const processors = [
+				new RefProcessor(RefType.Head, BranchItem),
+				new RefProcessor(RefType.RemoteHead, BranchItem),
+				new RefProcessor(RefType.Tag, BranchItem)
+			];
+
+			const itemsProcessor = new RefItemsProcessor(repository, processors);
+			return itemsProcessor.processRefs(refs);
+		};
+
+		const placeHolder = l10n.t('Select a reference to compare with');
+		const sourceRef = await this.pickRef(getRefPicks(), placeHolder);
+
+		if (!(sourceRef instanceof BranchItem) || !sourceRef.ref.commit) {
+			return;
+		}
+
+		await this._openChangesBetweenRefs(
+			repository,
+			sourceRef.ref.commit,
+			artifact.id,
+			`${sourceRef.ref.name} ↔ ${artifact.name}`);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

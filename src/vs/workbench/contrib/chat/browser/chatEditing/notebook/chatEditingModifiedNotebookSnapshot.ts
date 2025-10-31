@@ -10,7 +10,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { SnapshotContext } from '../../../../../services/workingCopy/common/fileWorkingCopy.js';
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
-import { CellEditType, ICellDto2, ICellEditOperation, IOutputItemDto, NotebookData, NotebookSetting, TransientOptions } from '../../../../notebook/common/notebookCommon.js';
+import { CellEditType, ICellDto2, ICellEditOperation, INotebookTextModel, IOutputItemDto, NotebookData, NotebookSetting, TransientOptions } from '../../../../notebook/common/notebookCommon.js';
 
 const BufferMarker = 'ArrayBuffer-4f56482b-5a03-49ba-8356-210d3b0c1c3d';
 
@@ -30,12 +30,12 @@ export function parseNotebookSnapshotFileURI(resource: URI): ChatEditingSnapshot
 	return { sessionId: data.sessionId ?? '', requestId: data.requestId ?? '', undoStop: data.undoStop ?? '', viewType: data.viewType };
 }
 
-export function createSnapshot(notebook: NotebookTextModel, transientOptions: TransientOptions | undefined, outputSizeConfig: IConfigurationService | number): string {
+export function createSnapshot(notebook: INotebookTextModel, transientOptions: TransientOptions | undefined, outputSizeConfig: IConfigurationService | number): string {
 	const outputSizeLimit = (typeof outputSizeConfig === 'number' ? outputSizeConfig : outputSizeConfig.getValue<number>(NotebookSetting.outputBackupSizeLimit)) * 1024;
 	return serializeSnapshot(notebook.createSnapshot({ context: SnapshotContext.Backup, outputSizeLimit, transientOptions }), transientOptions);
 }
 
-export function restoreSnapshot(notebook: NotebookTextModel, snapshot: string): void {
+export function restoreSnapshot(notebook: INotebookTextModel, snapshot: string): void {
 	try {
 		const { transientOptions, data } = deserializeSnapshot(snapshot);
 		notebook.restoreSnapshot(data, transientOptions);

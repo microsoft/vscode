@@ -169,6 +169,7 @@ export interface IQuickAccessProviderDescriptor {
 	/**
 	 * The actual provider that will be instantiated as needed.
 	 */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	readonly ctor: { new(...services: any /* TS BrandedService but no clue how to type this properly */[]): IQuickAccessProvider };
 
 	/**

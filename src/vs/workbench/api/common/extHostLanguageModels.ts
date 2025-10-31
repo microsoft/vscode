@@ -173,7 +173,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (!data) {
 			return [];
 		}
-		this._clearModelCache(vendor);
 		const modelInformation: vscode.LanguageModelChatInformation[] = await data.provider.provideLanguageModelChatInformation(options, token) ?? [];
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map((m): ILanguageModelChatMetadataAndIdentifier => {
 			let auth;
@@ -215,8 +214,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			};
 		});
 
+		this._clearModelCache(vendor);
 		for (let i = 0; i < modelMetadataAndIdentifier.length; i++) {
-
 			this._localModels.set(modelMetadataAndIdentifier[i].identifier, {
 				metadata: modelMetadataAndIdentifier[i].metadata,
 				info: modelInformation[i]

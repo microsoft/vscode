@@ -1,14 +1,14 @@
 "use strict";
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.toStringShakeLevel = toStringShakeLevel;
 exports.shake = shake;
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const typeScriptLanguageServiceHost_1 = require("./typeScriptLanguageServiceHost");
@@ -71,16 +71,16 @@ function createTypeScriptLanguageService(ts, options) {
     // Add entrypoints
     options.entryPoints.forEach(entryPoint => {
         const filePath = path_1.default.join(options.sourcesRoot, entryPoint);
-        FILES.set(filePath, fs_1.default.readFileSync(filePath).toString());
+        FILES.set(path_1.default.normalize(filePath), fs_1.default.readFileSync(filePath).toString());
     });
     // Add fake usage files
     options.inlineEntryPoints.forEach((inlineEntryPoint, index) => {
-        FILES.set(path_1.default.join(options.sourcesRoot, `inlineEntryPoint.${index}.ts`), inlineEntryPoint);
+        FILES.set(path_1.default.normalize(path_1.default.join(options.sourcesRoot, `inlineEntryPoint.${index}.ts`)), inlineEntryPoint);
     });
     // Add additional typings
     options.typings.forEach((typing) => {
         const filePath = path_1.default.join(options.sourcesRoot, typing);
-        FILES.set(filePath, fs_1.default.readFileSync(filePath).toString());
+        FILES.set(path_1.default.normalize(filePath), fs_1.default.readFileSync(filePath).toString());
     });
     const basePath = path_1.default.join(options.sourcesRoot, '..');
     const compilerOptions = ts.convertCompilerOptionsFromJson(options.compilerOptions, basePath).options;

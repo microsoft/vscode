@@ -358,7 +358,8 @@ export class RenameAction extends EditorAction {
 			contextMenuOpts: {
 				group: '1_modification',
 				order: 1.1
-			}
+			},
+			canTriggerInlineEdits: true,
 		});
 	}
 

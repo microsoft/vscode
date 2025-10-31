@@ -2,7 +2,7 @@
 	"extends": "../../src/tsconfig.base.json",
 	"compilerOptions": {
 		"lib": [
-			"ES2022",
+			"ES2024",
 			"WebWorker",
 			"Webworker.Iterable",
 			"WebWorker.AsyncIterable"
