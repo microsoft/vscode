@@ -142,6 +142,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._instantiationService = this._register(this._parentInstantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this._contextKeyService])
 		));
+
+		this._contextKeyService.createKey(EditorContextKeys.inMultiDiffEditor.key, true);
+
 		this._lastDocStates = {};
 
 		this._register(autorunWithStore((reader, store) => {
@@ -226,19 +229,22 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				return;
 			}
 
-			const items = viewModel.items.read(reader);
-			if (items.length === 0) {
-				return;
-			}
+			// Only initialize when loading is complete
+			if (!viewModel.isLoading.read(reader)) {
+				const items = viewModel.items.read(reader);
+				if (items.length === 0) {
+					return;
+				}
 
-			// Only initialize if there's no active item yet
-			const activeDiffItem = viewModel.activeDiffItem.read(reader);
-			if (activeDiffItem) {
-				return;
-			}
+				// Only initialize if there's no active item yet
+				const activeDiffItem = viewModel.activeDiffItem.read(reader);
+				if (activeDiffItem) {
+					return;
+				}
 
-			// Navigate to the first change using the existing navigation logic
-			this.goToNextChange();
+				// Navigate to the first change using the existing navigation logic
+				this.goToNextChange();
+			}
 		}));
 
 		this._register(this._register(autorun(reader => {
@@ -349,124 +355,58 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			return;
 		}
 
-		// Get the currently active diff item
 		const activeViewModel = this._viewModel.get()?.activeDiffItem.get();
-		if (!activeViewModel) {
-			// No active item, go to first change in first file
-			const firstItem = viewItems[0];
-			if (firstItem.viewModel.collapsed.get()) {
-				firstItem.viewModel.collapsed.set(false, undefined);
+		const currentIndex = activeViewModel ? viewItems.findIndex(v => v.viewModel === activeViewModel) : -1;
+
+		// Start with first file if no active item
+		if (currentIndex === -1) {
+			this._goToFile(0, 'first');
+			return;
+		}
+
+		// Try current file first - expand if collapsed
+		const currentItem = viewItems[currentIndex];
+		if (currentItem.viewModel.collapsed.get()) {
+			currentItem.viewModel.collapsed.set(false, undefined);
+		}
+
+		const editor = currentItem.template.get()?.editor;
+		if (editor?.getDiffComputationResult()?.changes2?.length) {
+			const pos = editor.getModifiedEditor().getPosition()?.lineNumber || 1;
+			const changes = editor.getDiffComputationResult()!.changes2!;
+			const hasNext = direction === 'next' ? changes.some(c => c.modified.startLineNumber > pos) : changes.some(c => c.modified.endLineNumberExclusive <= pos);
+
+			if (hasNext) {
+				editor.goToDiff(direction);
+				return;
 			}
-			this._viewModel.get()?.activeDiffItem.setCache(firstItem.viewModel, undefined);
-			const template = firstItem.template.get();
-			if (template) {
-				template.editor.revealFirstDiff();
-			}
-			return;
 		}
 
-		// Find the active view item and its index
-		const activeViewItemIndex = viewItems.findIndex(v => v.viewModel === activeViewModel);
-		if (activeViewItemIndex === -1) {
-			return;
-		}
-
-		const activeViewItem = viewItems[activeViewItemIndex];
-
-		// Ensure the current file is expanded before navigating
-		if (activeViewItem.viewModel.collapsed.get()) {
-			activeViewItem.viewModel.collapsed.set(false, undefined);
-		}
-
-		const template = activeViewItem.template.get();
-		if (!template) {
-			return;
-		}
-
-		const diffEditor = template.editor;
-		const diffModel = diffEditor.getDiffComputationResult();
-
-		if (!diffModel || !diffModel.changes2 || diffModel.changes2.length === 0) {
-			// No changes in current file, move to next/previous file
-			this.moveToAdjacentFile(direction, activeViewItemIndex, viewItems);
-			return;
-		}
-
-		// Check if we're at a boundary (first/last change in the file)
-		const modifiedEditor = diffEditor.getModifiedEditor();
-		const currentLineNumber = modifiedEditor.getPosition()?.lineNumber ?? 1;
-		const changes = diffModel.changes2;
-
-		// Find which change we're currently at or near
-		let isAtBoundary = false;
-
-		if (direction === 'next') {
-			// Check if we're at or past the last change
-			const lastChange = changes[changes.length - 1];
-			const lastChangeStartLine = lastChange.modified.startLineNumber;
-			// If we're at or past the start of the last change, we're at the boundary
-			isAtBoundary = currentLineNumber >= lastChangeStartLine;
-		} else {
-			// Check if we're at or before the first change
-			const firstChange = changes[0];
-			const firstChangeStartLine = firstChange.modified.startLineNumber;
-			isAtBoundary = currentLineNumber <= firstChangeStartLine;
-		}
-
-		if (isAtBoundary) {
-			// We're at the boundary, move to next/previous file
-			this.moveToAdjacentFile(direction, activeViewItemIndex, viewItems);
-		} else {
-			// Navigate within the current file
-			diffEditor.goToDiff(direction);
-		}
+		// Move to next/previous file
+		const nextIndex = (currentIndex + (direction === 'next' ? 1 : -1) + viewItems.length) % viewItems.length;
+		this._goToFile(nextIndex, direction === 'next' ? 'first' : 'last');
 	}
 
-	private moveToAdjacentFile(direction: 'next' | 'previous', currentIndex: number, viewItems: readonly VirtualizedViewItem[]): void {
-		const nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
-
-		// Wrap around if needed
-		const targetIndex = (nextIndex + viewItems.length) % viewItems.length;
-
-		const targetViewItem = viewItems[targetIndex];
-
-		// Expand if collapsed
-		if (targetViewItem.viewModel.collapsed.get()) {
-			targetViewItem.viewModel.collapsed.set(false, undefined);
+	private _goToFile(index: number, position: 'first' | 'last'): void {
+		const item = this._viewItems.get()[index];
+		if (item.viewModel.collapsed.get()) {
+			item.viewModel.collapsed.set(false, undefined);
 		}
 
-		// Set as active
-		this._viewModel.get()?.activeDiffItem.setCache(targetViewItem.viewModel, undefined);
+		this.reveal({ original: item.viewModel.originalUri, modified: item.viewModel.modifiedUri });
 
-		// Scroll the multi-diff viewport to bring the target file into view
-		let scrollTop = 0;
-		for (let i = 0; i < targetIndex; i++) {
-			scrollTop += viewItems[i].contentHeight.get() + this._spaceBetweenPx;
-		}
-		this._scrollableElement.setScrollPosition({ scrollTop });
-
-		// Reveal and go to first/last change in the new file
-		const template = targetViewItem.template.get();
-		if (template) {
-			const diffEditor = template.editor;
-			const diffModel = diffEditor.getDiffComputationResult();
-
-			if (diffModel && diffModel.changes2 && diffModel.changes2.length > 0) {
-				if (direction === 'next') {
-					diffEditor.revealFirstDiff();
-					diffEditor.focus();
-				} else {
-					// For 'previous', position at the last change directly
-					const changes = diffModel.changes2;
-					const lastChange = changes[changes.length - 1];
-					const modifiedEditor = diffEditor.getModifiedEditor();
-					const startLine = lastChange.modified.startLineNumber;
-					modifiedEditor.setPosition({ lineNumber: startLine, column: 1 });
-					modifiedEditor.revealLineInCenter(startLine);
-					modifiedEditor.focus();
-				}
+		const editor = item.template.get()?.editor;
+		if (editor?.getDiffComputationResult()?.changes2?.length) {
+			if (position === 'first') {
+				editor.revealFirstDiff();
+			} else {
+				const lastChange = editor.getDiffComputationResult()!.changes2!.at(-1)!;
+				const modifiedEditor = editor.getModifiedEditor();
+				modifiedEditor.setPosition({ lineNumber: lastChange.modified.startLineNumber, column: 1 });
+				modifiedEditor.revealLineInCenter(lastChange.modified.startLineNumber);
 			}
 		}
+		editor?.focus();
 	}
 
 	private render(reader: IReader | undefined) {

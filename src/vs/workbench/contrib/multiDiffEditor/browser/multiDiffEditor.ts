@@ -26,18 +26,15 @@ import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/mult
 import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
-import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
-import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'multiDiffEditor';
 
 	private _multiDiffEditorWidget: MultiDiffEditorWidget | undefined = undefined;
 	private _viewModel: MultiDiffEditorViewModel | undefined;
-	private readonly _inMultiDiffEditorContextKey: IContextKey<boolean>;
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
@@ -53,7 +50,6 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorProgressService private editorProgressService: IEditorProgressService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(
 			MultiDiffEditor.ID,
@@ -67,7 +63,6 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 			editorService,
 			editorGroupService
 		);
-		this._inMultiDiffEditorContextKey = EditorContextKeys.inMultiDiffEditor.bindTo(contextKeyService);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -80,8 +75,6 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
 			this._onDidChangeControl.fire();
 		}));
-
-		this._inMultiDiffEditorContextKey.set(true);
 	}
 
 	override async setInput(input: MultiDiffEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -167,11 +160,6 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	public async showWhile(promise: Promise<unknown>): Promise<void> {
 		return this.editorProgressService.showWhile(promise);
-	}
-
-	override dispose(): void {
-		this._inMultiDiffEditorContextKey.reset();
-		super.dispose();
 	}
 }
 
