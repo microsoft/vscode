@@ -382,7 +382,7 @@ export class RerunAction extends AbstractInline1ChatAction {
 
 		const lastRequest = model.getRequests().at(-1);
 		if (lastRequest) {
-			const widget = chatWidgetService.getWidgetBySessionId(model.sessionId);
+			const widget = chatWidgetService.getWidgetBySessionResource(model.sessionResource);
 			await chatService.resendRequest(lastRequest, {
 				noCommandDetection: false,
 				attempt: lastRequest.attempt + 1,
