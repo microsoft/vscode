@@ -401,7 +401,7 @@ export class ChatService extends Disposable implements IChatService {
 		await this._chatSessionStore.clearAllSessions();
 	}
 
-	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession: boolean = true, options?: { canUseTools?: boolean; inputType?: string }): ChatModel {
+	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession: boolean = true, options?: { canUseTools?: boolean }): ChatModel {
 		this.trace('startSession');
 		return this._startSession(undefined, location, isGlobalEditingSession, token, options);
 	}
