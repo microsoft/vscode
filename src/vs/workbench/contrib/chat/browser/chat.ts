@@ -122,7 +122,7 @@ export interface IChatCodeBlockInfo {
 	readonly uri: URI | undefined;
 	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
-	readonly chatSessionId: string;
+	readonly chatSessionResource: URI | undefined;
 	focus(): void;
 	readonly languageId?: string | undefined;
 	readonly editDeltaInfo?: EditDeltaInfo | undefined;

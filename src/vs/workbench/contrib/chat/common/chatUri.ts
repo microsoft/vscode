@@ -8,7 +8,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localChatSessionType } from './chatSessionsService.js';
 
-export type ChatSessionIdentifier = {
+type ChatSessionIdentifier = {
 	readonly chatSessionType: string;
 	readonly sessionId: string;
 };
@@ -22,6 +22,11 @@ export namespace LocalChatSessionUri {
 		return forChatSessionTypeAndId(localChatSessionType, sessionId);
 	}
 
+	export function parseLocalSessionId(resource: URI): string | undefined {
+		const parsed = parse(resource);
+		return parsed?.chatSessionType === localChatSessionType ? parsed.sessionId : undefined;
+	}
+
 	/**
 	 * @deprecated Does not support non-local sessions
 	 */
@@ -31,11 +36,9 @@ export namespace LocalChatSessionUri {
 		return URI.from({ scheme, authority: chatSessionType, path: '/' + encodedId });
 	}
 
-	export function parseLocalSessionId(resource: URI): string | undefined {
-		const parsed = parse(resource);
-		return parsed?.chatSessionType === localChatSessionType ? parsed.sessionId : undefined;
-	}
-
+	/**
+	 * @deprecated Legacy parser that supports non-local sessions.
+	 */
 	export function parse(resource: URI): ChatSessionIdentifier | undefined {
 		if (resource.scheme !== scheme) {
 			return undefined;

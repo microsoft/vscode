@@ -132,7 +132,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	override getActionsContext(): IChatViewTitleActionContext | undefined {
 		return this.widget?.viewModel ? {
-			sessionId: this.widget.viewModel.sessionId,
+			sessionResource: this.widget.viewModel.sessionResource,
 			$mid: MarshalledId.ChatViewContext
 		} : undefined;
 	}
