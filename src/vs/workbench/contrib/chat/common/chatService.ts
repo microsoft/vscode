@@ -316,10 +316,6 @@ export interface IChatTerminalToolInvocationData {
 	/** The predefined command ID that will be used for this terminal command */
 	terminalCommandId?: string;
 	autoApproveInfo?: IMarkdownString;
-	output?: {
-		html: string;
-		truncated?: boolean;
-	};
 }
 
 /**
