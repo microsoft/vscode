@@ -62,7 +62,7 @@ class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
 		const { todoElement, statusIcon, iconLabel } = templateData;
 
 		// Update status icon
-		statusIcon.className = `todo-status-icon codicon ${this.getStatusIconClass(todo.status)}`;
+		statusIcon.className = `todo-status-icon codicon ${this.getStatusIconClass(todo.status).join(' ')}`;
 		statusIcon.style.color = this.getStatusIconColor(todo.status);
 
 		// Update title with tooltip if description exists and description field is enabled
@@ -94,15 +94,15 @@ class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
 		}
 	}
 
-	private getStatusIconClass(status: string): string {
+	private getStatusIconClass(status: string): string[] {
 		switch (status) {
 			case 'completed':
-				return 'codicon-pass';
+				return ['codicon-pass'];
 			case 'in-progress':
-				return 'codicon-record';
+				return ['codicon-loading', 'codicon-modifier-spin'];
 			case 'not-started':
 			default:
-				return 'codicon-circle-outline';
+				return ['codicon-circle-outline'];
 		}
 	}
 
@@ -409,18 +409,6 @@ export class ChatTodoListWidget extends Disposable {
 			// Show first in-progress todo, or if none, the first not-started todo
 			const todoToShow = firstInProgressTodo || firstNotStartedTodo;
 			if (todoToShow) {
-				const icon = dom.$('.codicon');
-				if (todoToShow === firstInProgressTodo) {
-					icon.classList.add('codicon-record');
-					icon.style.color = 'var(--vscode-charts-blue)';
-				} else {
-					icon.classList.add('codicon-circle-outline');
-					icon.style.color = 'var(--vscode-foreground)';
-				}
-				icon.style.marginRight = '4px';
-				icon.style.verticalAlign = 'middle';
-				titleElement.appendChild(icon);
-
 				const todoText = dom.$('span');
 				todoText.textContent = localize('chat.todoList.currentTask', '{0} ({1}/{2})', todoToShow.title, currentTaskNumber, totalCount);
 				todoText.style.verticalAlign = 'middle';
@@ -433,7 +421,7 @@ export class ChatTodoListWidget extends Disposable {
 			// Show "Done" when all tasks are completed
 			else if (completedCount > 0 && completedCount === totalCount) {
 				const doneText = dom.$('span');
-				doneText.textContent = localize('chat.todoList.allDone', 'Done');
+				doneText.textContent = localize('chat.todoList.allDone', 'Done ({0}/{0})', totalCount);
 				doneText.style.verticalAlign = 'middle';
 				titleElement.appendChild(doneText);
 			}
