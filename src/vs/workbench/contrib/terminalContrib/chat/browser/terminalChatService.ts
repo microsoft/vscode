@@ -40,6 +40,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private readonly _pendingRestoredMappings = new Map<string, number>();
 
 	private readonly _hasToolTerminalContext: IContextKey<boolean>;
+	private readonly _hasHiddenToolTerminalContext: IContextKey<boolean>;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -51,6 +52,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		super();
 
 		this._hasToolTerminalContext = TerminalChatContextKeys.hasChatTerminals.bindTo(this._contextKeyService);
+		this._hasHiddenToolTerminalContext = TerminalChatContextKeys.hasHiddenChatTerminals.bindTo(this._contextKeyService);
 
 		this._restoreFromStorage();
 	}
@@ -66,28 +68,47 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 			this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
 			this._persistToStorage();
-			this._updateHasToolTerminalContextKey();
+			this._updateHasToolTerminalContextKeys();
 		}));
-		const listener = this._register(instance.capabilities.get(TerminalCapability.CommandDetection)!.onCommandFinished(e => {
-			this._commandIdByToolSessionId.set(terminalToolSessionId, e.id);
-			this._persistToStorage();
-			listener.dispose();
-		}));
+		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
+		if (commandDetection) {
+			const listener = this._register(commandDetection.onCommandFinished(e => {
+				this._commandIdByToolSessionId.set(terminalToolSessionId, e.id);
+				this._persistToStorage();
+				listener.dispose();
+			}));
+		} else {
+			this._register(instance.capabilities.onDidAddCapability(capability => {
+				if (capability.id === TerminalCapability.CommandDetection) {
+					const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
+					if (commandDetection) {
+						const listener = this._register(commandDetection.onCommandFinished(e => {
+							this._commandIdByToolSessionId.set(terminalToolSessionId, e.id);
+							this._persistToStorage();
+							listener.dispose();
+						}));
+					}
+				}
+			}));
+		}
 		this._register(this._chatService.onDidDisposeSession(e => {
 			if (LocalChatSessionUri.parseLocalSessionId(e.sessionResource) === terminalToolSessionId) {
 				this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 				this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
 				this._commandIdByToolSessionId.delete(terminalToolSessionId);
 				this._persistToStorage();
-				this._updateHasToolTerminalContextKey();
+				this._updateHasToolTerminalContextKeys();
 			}
 		}));
+
+		// Update context keys when terminal instances change (including when terminals are created, disposed, revealed, or hidden)
+		this._register(this._terminalService.onDidChangeInstances(() => this._updateHasToolTerminalContextKeys()));
 
 		if (typeof instance.persistentProcessId === 'number') {
 			this._persistToStorage();
 		}
 
-		this._updateHasToolTerminalContextKey();
+		this._updateHasToolTerminalContextKeys();
 	}
 
 	getTerminalCommandIdByToolSessionId(terminalToolSessionId: string | undefined): string | undefined {
@@ -181,7 +202,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	}
 
 	private _persistToStorage(): void {
-		this._updateHasToolTerminalContextKey();
+		this._updateHasToolTerminalContextKeys();
 		try {
 			const entries: [string, number][] = [];
 			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId.entries()) {
@@ -208,8 +229,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		}
 	}
 
-	private _updateHasToolTerminalContextKey(): void {
+	private _updateHasToolTerminalContextKeys(): void {
 		const toolCount = this._terminalInstancesByToolSessionId.size;
 		this._hasToolTerminalContext.set(toolCount > 0);
+		const foregroundInstances = new Set(this._terminalService.foregroundInstances.map(i => i.instanceId));
+		const hiddenToolCount = Array.from(this._terminalInstancesByToolSessionId.values()).filter(instance => !foregroundInstances.has(instance.instanceId)).length;
+		this._hasHiddenToolTerminalContext.set(hiddenToolCount > 0);
 	}
 }

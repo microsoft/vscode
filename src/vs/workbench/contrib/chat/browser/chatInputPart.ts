@@ -184,15 +184,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	readonly selectedToolsModel: ChatSelectedTools;
 
-	public getAttachedContext(sessionId: string) {
+	public getAttachedContext(sessionResource: URI) {
 		const contextArr = new ChatRequestVariableSet();
 		contextArr.add(...this.attachmentModel.attachments);
 		return contextArr;
 	}
 
-	public getAttachedAndImplicitContext(sessionId: string): ChatRequestVariableSet {
+	public getAttachedAndImplicitContext(sessionResource: URI): ChatRequestVariableSet {
 
-		const contextArr = this.getAttachedContext(sessionId);
+		const contextArr = this.getAttachedContext(sessionResource);
 
 		if ((this.implicitContext?.enabled && this.implicitContext?.value) || (isLocation(this.implicitContext?.value) && this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext'))) {
 			const implicitChatVariables = this.implicitContext.toBaseEntries();
@@ -1785,7 +1785,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	async renderChatTodoListWidget(chatSessionId: string) {
+	async renderChatTodoListWidget(chatSessionResource: URI) {
 
 		const isTodoWidgetEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.TodosShowWidget) !== false;
 		if (!isTodoWidgetEnabled) {
@@ -1806,11 +1806,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
-		this._chatInputTodoListWidget.value.render(chatSessionId);
+		this._chatInputTodoListWidget.value.render(chatSessionResource);
 	}
 
-	clearTodoListWidget(sessionId: string | undefined, force: boolean): void {
-		this._chatInputTodoListWidget.value?.clear(sessionId, force);
+	clearTodoListWidget(sessionResource: URI | undefined, force: boolean): void {
+		this._chatInputTodoListWidget.value?.clear(sessionResource, force);
 	}
 
 	renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {

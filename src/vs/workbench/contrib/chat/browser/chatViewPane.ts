@@ -132,7 +132,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	override getActionsContext(): IChatViewTitleActionContext | undefined {
 		return this.widget?.viewModel ? {
-			sessionId: this.widget.viewModel.sessionId,
+			sessionResource: this.widget.viewModel.sessionResource,
 			$mid: MarshalledId.ChatViewContext
 		} : undefined;
 	}
@@ -247,13 +247,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.updateActions();
 	}
 
-	async loadSession(sessionId: string | URI, viewState?: IChatViewState): Promise<void> {
+	async loadSession(sessionId: URI, viewState?: IChatViewState): Promise<void> {
 		if (this.widget.viewModel) {
 			await this.chatService.clearSession(this.widget.viewModel.sessionResource);
 		}
 
 		// Handle locking for contributed chat sessions
-		if (URI.isUri(sessionId) && sessionId.scheme === Schemas.vscodeLocalChatSession) {
+		if (sessionId.scheme === Schemas.vscodeLocalChatSession) {
 			const parsed = LocalChatSessionUri.parse(sessionId);
 			if (parsed?.chatSessionType) {
 				await this.chatSessionsService.canResolveChatSession(sessionId);
@@ -265,7 +265,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		}
 
-		const newModel = await (URI.isUri(sessionId) ? this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Chat, CancellationToken.None) : this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(sessionId)));
+		const newModel = await this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Chat, CancellationToken.None);
 		await this.updateModel(newModel, viewState);
 	}
 

@@ -1093,7 +1093,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget {
-	padding: 4px 3px 4px 3px;
+	padding: 6px 3px 6px 3px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-editor-background);
@@ -1149,6 +1149,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-right: 2px;
 	display: flex;
 	align-items: center;
+	height: 18px;
 	opacity: 1;
 }
 
@@ -1165,7 +1166,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	justify-content: center;
 	min-width: unset;
 	width: 14px;
-	margin-right: 2px;
+	margin-right: 1px;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container .monaco-button:hover {

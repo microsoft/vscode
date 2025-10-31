@@ -11,6 +11,7 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ITerminalChatService } from './terminal.js';
 import * as dom from '../../../../base/browser/dom.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 export class TerminalTabsChatEntry extends Disposable {
 
@@ -28,6 +29,7 @@ export class TerminalTabsChatEntry extends Disposable {
 		private readonly _tabContainer: HTMLElement,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -61,9 +63,8 @@ export class TerminalTabsChatEntry extends Disposable {
 
 	update(): void {
 		const chatTerminalCount = this._terminalChatService.getToolSessionTerminalInstances().length;
-		const hasChatTerminals = chatTerminalCount > 0;
 
-		if (!hasChatTerminals) {
+		if (!this._contextKeyService.getContextKeyValue<boolean>('hasHiddenChatTerminals')) {
 			this._entry.style.display = 'none';
 			this._label.textContent = '';
 			this._entry.removeAttribute('aria-label');

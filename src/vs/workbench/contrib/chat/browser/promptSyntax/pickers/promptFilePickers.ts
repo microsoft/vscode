@@ -305,8 +305,7 @@ export class PromptFilePickers {
 		}
 		const locals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.local, token);
 		if (locals.length) {
-			// Note: No need to localize the label ".github/instructions', since it's the same in all languages.
-			result.push({ type: 'separator', label: '.github/instructions' });
+			result.push({ type: 'separator', label: localize('separator.workspace', "Workspace") });
 			result.push(...await Promise.all(locals.map(l => this._createPromptPickItem(l, buttons, token))));
 		}
 
