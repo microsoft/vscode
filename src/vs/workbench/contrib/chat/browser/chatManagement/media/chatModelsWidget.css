@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.models-widget {
+	padding-right: 24px;
+}
+
 /** Search and button container styling **/
 
 .models-widget .models-search-and-button-container {
@@ -15,10 +19,6 @@
 .models-widget .models-search-container {
 	flex: 1;
 	position: relative;
-}
-
-.models-widget .models-search-container .settings-header-widget {
-	width: 100%;
 }
 
 .models-widget .models-search-container .models-search-actions {
@@ -39,6 +39,10 @@
 	padding: 3px;
 	margin-left: 0;
 	box-sizing: content-box;
+}
+
+.models-widget .models-search-and-button-container .section-title-actions .models-add-model-button {
+	white-space: nowrap;
 }
 
 /** Table styling **/
@@ -161,6 +165,7 @@
 }
 
 .models-widget .models-table-container .monaco-table-td .model-capability {
+	width: fit-content;
 	padding: 0 6px;
 	border-radius: 3px;
 	font-size: 11px;
@@ -170,15 +175,26 @@
 }
 
 .models-widget .models-table-container .monaco-table-td .model-capability.active {
+	border-color: var(--vscode-radio-activeBorder, transparent);
+}
+
+/** Visibility styling **/
+
+.models-widget .models-table-container .monaco-table-td .model-visible {
 	color: var(--vscode-radio-activeForeground);
 	background-color: var(--vscode-radio-activeBackground);
-	border-color: var(--vscode-radio-activeBorder, transparent);
+	border: 1px solid var(--vscode-radio-activeBorder, transparent);
+}
+
+.models-widget .models-table-container .monaco-table-td .model-visible:hover {
+	background-color: var(--vscode-radio-activeBackground) !important;
 }
 
 /** Vendor row styling **/
 
 .models-widget .models-table-container .models-vendor-row {
 	background-color: var(--vscode-keybindingTable-headerBackground);
+	cursor: pointer;
 }
 
 .models-widget .models-table-container .monaco-table-tr:hover .models-vendor-row {

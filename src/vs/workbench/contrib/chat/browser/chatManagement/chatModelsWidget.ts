@@ -135,7 +135,7 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		action: IAction,
 		options: IActionViewItemOptions,
 		private readonly searchWidget: SuggestEnabledInput,
-		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		private readonly viewModel: ChatModelsViewModel,
 		@IContextMenuService contextMenuService: IContextMenuService
 	) {
 		super(action,
@@ -207,25 +207,26 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 	}
 
 	private getActions(): IAction[] {
-		const vendors = this.languageModelsService.getVendors();
 		const actions: IAction[] = [];
 
+		// Visibility filters
 		actions.push(this.createVisibleAction(true, localize('filter.visible', 'Visible')));
+		actions.push(this.createVisibleAction(false, localize('filter.hidden', 'Hidden')));
 
-		if (vendors.length > 0) {
-			actions.push(new Separator());
-			actions.push(...vendors.map(vendor => this.createProviderAction(vendor.vendor, vendor.displayName)));
-		}
-
-		if (actions.length > 1) {
-			actions.push(new Separator());
-		}
-
+		// Capability filters
+		actions.push(new Separator());
 		actions.push(
 			this.createCapabilityAction('tools', localize('capability.tools', 'Tools')),
 			this.createCapabilityAction('vision', localize('capability.vision', 'Vision')),
 			this.createCapabilityAction('agent', localize('capability.agent', 'Agent Mode'))
 		);
+
+		// Provider filters - only show providers with configured models
+		const configuredVendors = this.viewModel.getConfiguredVendors();
+		if (configuredVendors.length > 1) {
+			actions.push(new Separator());
+			actions.push(...configuredVendors.map(vendor => this.createProviderAction(vendor.vendorEntry.vendor, vendor.vendorEntry.vendorDisplayName)));
+		}
 
 		return actions;
 	}
@@ -269,6 +270,7 @@ abstract class ModelsTableColumnRenderer<T extends IModelTableColumnTemplateData
 }
 
 interface IToggleCollapseColumnTemplateData extends IModelTableColumnTemplateData {
+	readonly rowContainer: HTMLElement | null;
 	readonly container: HTMLElement;
 	readonly actionBar: ActionBar;
 }
@@ -287,6 +289,7 @@ class ToggleCollapseColumnRenderer extends ModelsTableColumnRenderer<IToggleColl
 		const elementDisposables = new DisposableStore();
 		const actionBar = disposables.add(new ActionBar(DOM.append(container, $('.collapse-actions-column'))));
 		return {
+			rowContainer: container.parentElement,
 			container,
 			actionBar,
 			disposables,
@@ -301,6 +304,11 @@ class ToggleCollapseColumnRenderer extends ModelsTableColumnRenderer<IToggleColl
 
 	override renderVendorElement(entry: IVendorItemEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
 		templateData.actionBar.push(this.createToggleCollapseAction(entry), { icon: true, label: false });
+
+		if (templateData.rowContainer) {
+			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.rowContainer, DOM.EventType.CLICK, () =>
+				this._onDidToggleCollapse.fire(entry.vendorEntry.vendor)));
+		}
 	}
 
 	private createToggleCollapseAction(entry: IVendorItemEntry): IAction {
@@ -630,7 +638,7 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 		const toggleVisibilityAction = toAction({
 			id: 'toggleVisibility',
 			label: isVisible ? localize('models.hide', 'Hide') : localize('models.show', 'Show'),
-			class: ThemeIcon.asClassName(isVisible ? Codicon.eye : Codicon.eyeClosed),
+			class: isVisible ? `${ThemeIcon.asClassName(Codicon.eye)} model-visible` : `${ThemeIcon.asClassName(Codicon.eyeClosed)} model-hidden`,
 			tooltip: isVisible ? localize('models.visible', 'Visible') : localize('models.hidden', 'Hidden'),
 			run: async () => {
 				const newVisibility = !isVisible;
@@ -652,6 +660,8 @@ function formatTokenCount(count: number): string {
 }
 
 export class ChatModelsWidget extends Disposable {
+
+	private static NUM_INSTANCES: number = 0;
 
 	readonly element: HTMLElement;
 	private searchWidget!: SuggestEnabledInput;
@@ -705,7 +715,7 @@ export class ChatModelsWidget extends Disposable {
 					const queryParts = query.split(/\s/g);
 					const lastPart = queryParts[queryParts.length - 1];
 					if (lastPart.startsWith('@provider:')) {
-						const vendors = this.languageModelsService.getVendors();
+						const vendors = this.viewModel.getVendors();
 						return vendors.map(v => `@provider:"${v.displayName}"`);
 					} else if (lastPart.startsWith('@capability:')) {
 						return SEARCH_SUGGESTIONS.CAPABILITIES;
@@ -718,7 +728,7 @@ export class ChatModelsWidget extends Disposable {
 				}
 			},
 			placeholder,
-			'chatModelsWidget:searchinput',
+			`chatModelsWidget:searchinput:${ChatModelsWidget.NUM_INSTANCES++}`,
 			{
 				placeholderText: placeholder,
 				styleOverrides: {
@@ -728,14 +738,7 @@ export class ChatModelsWidget extends Disposable {
 		));
 		this._register(this.searchWidget.onInputDidChange(() => this.filterModels()));
 
-		const filterAction = new ModelsFilterAction();
-		const refreshAction = this._register(new Action(
-			'workbench.models.refresh',
-			localize('refresh', "Refresh"),
-			ThemeIcon.asClassName(Codicon.refresh),
-			true,
-			() => this.refresh()
-		));
+		const filterAction = this._register(new ModelsFilterAction());
 		const clearSearchAction = this._register(new Action(
 			'workbench.models.clearSearch',
 			localize('clearSearch', "Clear Search"),
@@ -763,11 +766,11 @@ export class ChatModelsWidget extends Disposable {
 		}));
 
 		this.searchActionsContainer = DOM.append(searchContainer, $('.models-search-actions'));
-		const actions = [clearSearchAction, refreshAction, filterAction];
+		const actions = [clearSearchAction, filterAction];
 		const toolBar = this._register(new ToolBar(this.searchActionsContainer, this.contextMenuService, {
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action.id === filterAction.id) {
-					return this.instantiationService.createInstance(ModelsSearchFilterDropdownMenuActionViewItem, action, options, this.searchWidget);
+					return this.instantiationService.createInstance(ModelsSearchFilterDropdownMenuActionViewItem, action, options, this.searchWidget, this.viewModel);
 				}
 				return undefined;
 			},
@@ -834,7 +837,7 @@ export class ChatModelsWidget extends Disposable {
 				{
 					label: '',
 					tooltip: '',
-					weight: 0,
+					weight: 0.12,
 					minimumWidth: 40,
 					maximumWidth: 40,
 					templateId: ToggleCollapseColumnRenderer.TEMPLATE_ID,
@@ -905,7 +908,7 @@ export class ChatModelsWidget extends Disposable {
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
 				openOnSingleClick: false,
-				alwaysConsumeMouseWheel: false
+				alwaysConsumeMouseWheel: false,
 			}
 		)) as WorkbenchTable<TableEntry>;
 
@@ -919,7 +922,7 @@ export class ChatModelsWidget extends Disposable {
 		const searchValue = this.searchWidget.getValue();
 		const modelItems = this.viewModel.fetch(searchValue);
 
-		const vendors = this.languageModelsService.getVendors();
+		const vendors = this.viewModel.getVendors();
 		const vendorsWithModels = new Set(modelItems
 			.filter((item): item is IModelItemEntry => !isVendorEntry(item))
 			.map(item => item.modelEntry.vendor)
@@ -947,8 +950,11 @@ export class ChatModelsWidget extends Disposable {
 	}
 
 	public layout(height: number, width: number): void {
+		width = width - 24;
 		this.searchWidget.layout(new DOM.Dimension(width - this.searchActionsContainer.clientWidth - this.addButtonContainer.clientWidth - 8, 22));
-		this.table.layout(height - 40, width);
+		const tableHeight = height - 40;
+		this.tableContainer.style.height = `${tableHeight}px`;
+		this.table.layout(tableHeight, width);
 	}
 
 	public focusSearch(): void {

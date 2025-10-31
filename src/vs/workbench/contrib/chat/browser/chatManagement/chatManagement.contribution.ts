@@ -102,7 +102,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: MANAGE_CHAT_COMMAND_ID,
-			title: localize2('openAiManagement', "Manage Language Models (Preview)"),
+			title: localize2('openAiManagement', "Manage Language Models"),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), ChatContextKeys.enabled, ContextKeyExpr.or(
 				ChatContextKeys.Entitlement.planFree,

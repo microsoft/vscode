@@ -7,7 +7,7 @@ import { distinct, coalesce } from '../../../../../base/common/arrays.js';
 import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from '../../../../../base/common/filters.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { EditorModel } from '../../../../common/editor/editorModel.js';
-import { ILanguageModelsService, ILanguageModelChatMetadata } from '../../../chat/common/languageModels.js';
+import { ILanguageModelsService, ILanguageModelChatMetadata, IUserFriendlyLanguageModel } from '../../../chat/common/languageModels.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 export const MODEL_ENTRY_TEMPLATE_ID = 'model.entry.template';
@@ -136,7 +136,7 @@ export class ChatModelsViewModel extends EditorModel {
 
 		searchValue = searchValue.trim();
 		if (!searchValue) {
-			return this.groupByVendor(modelEntries, capabilityMatchesMap);
+			return this.toEntries(modelEntries, capabilityMatchesMap);
 		}
 
 		return this.filterByText(modelEntries, searchValue, capabilityMatchesMap);
@@ -255,12 +255,18 @@ export class ChatModelsViewModel extends EditorModel {
 		return result;
 	}
 
+	getVendors(): IUserFriendlyLanguageModel[] {
+		return [...this.languageModelsService.getVendors()].sort((a, b) => {
+			if (a.vendor === 'copilot') { return -1; }
+			if (b.vendor === 'copilot') { return 1; }
+			return a.displayName.localeCompare(b.displayName);
+		});
+	}
+
 	override async resolve(): Promise<void> {
 		this.modelEntries = [];
 
-		const vendors = this.languageModelsService.getVendors();
-
-		for (const vendor of vendors) {
+		for (const vendor of this.getVendors()) {
 			const modelIdentifiers = await this.languageModelsService.selectLanguageModels({ vendor: vendor.vendor }, vendor.vendor === 'copilot');
 			const models = coalesce(modelIdentifiers.map(identifier => {
 				const metadata = this.languageModelsService.lookupLanguageModel(identifier);
@@ -299,7 +305,11 @@ export class ChatModelsViewModel extends EditorModel {
 		this._onDidChangeModelEntries.fire();
 	}
 
-	private groupByVendor(modelEntries: IModelEntry[], capabilityMatchesMap: Map<string, string[]>): (IVendorItemEntry | IModelItemEntry)[] {
+	getConfiguredVendors(): IVendorItemEntry[] {
+		return this.toEntries(this.modelEntries, new Map(), true) as IVendorItemEntry[];
+	}
+
+	private toEntries(modelEntries: IModelEntry[], capabilityMatchesMap: Map<string, string[]>, excludeModels?: boolean): (IVendorItemEntry | IModelItemEntry)[] {
 		const result: (IVendorItemEntry | IModelItemEntry)[] = [];
 		const vendorMap = new Map<string, IModelEntry[]>();
 
@@ -330,7 +340,7 @@ export class ChatModelsViewModel extends EditorModel {
 				});
 			}
 
-			if (!isCollapsed || !showVendorHeaders) {
+			if (!excludeModels && (!isCollapsed || !showVendorHeaders)) {
 				for (const modelEntry of models) {
 					const modelId = ChatModelsViewModel.getId(modelEntry);
 					result.push({
