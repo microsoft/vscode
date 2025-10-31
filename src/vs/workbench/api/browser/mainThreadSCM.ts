@@ -558,27 +558,30 @@ class MainThreadSCMProvider implements ISCMProvider {
 	}
 
 	$onDidChangeHistoryProviderCurrentHistoryItemRefs(historyItemRef?: SCMHistoryItemRefDto, historyItemRemoteRef?: SCMHistoryItemRefDto, historyItemBaseRef?: SCMHistoryItemRefDto): void {
-		if (!this.historyProvider.get()) {
+		const provider = this.historyProvider.get();
+		if (!provider) {
 			return;
 		}
 
-		this._historyProvider.get()?.$onDidChangeCurrentHistoryItemRefs(historyItemRef, historyItemRemoteRef, historyItemBaseRef);
+		provider.$onDidChangeCurrentHistoryItemRefs(historyItemRef, historyItemRemoteRef, historyItemBaseRef);
 	}
 
 	$onDidChangeHistoryProviderHistoryItemRefs(historyItemRefs: SCMHistoryItemRefsChangeEventDto): void {
-		if (!this.historyProvider.get()) {
+		const provider = this.historyProvider.get();
+		if (!provider) {
 			return;
 		}
 
-		this._historyProvider.get()?.$onDidChangeHistoryItemRefs(historyItemRefs);
+		provider.$onDidChangeHistoryItemRefs(historyItemRefs);
 	}
 
 	$onDidChangeArtifacts(groups: string[]): void {
-		if (!this.artifactProvider.get()) {
+		const provider = this.artifactProvider.get();
+		if (!provider) {
 			return;
 		}
 
-		this._artifactProvider.get()?.$onDidChangeArtifacts(groups);
+		provider.$onDidChangeArtifacts(groups);
 	}
 
 	toJSON() {

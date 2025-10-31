@@ -12,7 +12,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 	readonly onDidChangeArtifacts: Event<string[]> = this._onDidChangeArtifacts.event;
 
 	private readonly _groups: SourceControlArtifactGroup[];
-	private _disposables: Disposable[] = [];
+	private readonly _disposables: Disposable[] = [];
 
 	constructor(
 		private readonly repository: Repository,

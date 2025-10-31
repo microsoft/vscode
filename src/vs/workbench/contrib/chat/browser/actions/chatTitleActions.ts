@@ -22,6 +22,7 @@ import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookCont
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, isChatEditingActionContext } from '../../common/chatEditingService.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IChatWidgetService } from '../chat.js';
@@ -64,7 +65,7 @@ export function registerChatTitleActions() {
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
 				command: item.slashCommand?.name,
-				sessionId: item.sessionId,
+				sessionResource: item.session.sessionResource,
 				requestId: item.requestId,
 				result: item.result,
 				action: {
@@ -119,7 +120,7 @@ export function registerChatTitleActions() {
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
 				command: item.slashCommand?.name,
-				sessionId: item.sessionId,
+				sessionResource: item.session.sessionResource,
 				requestId: item.requestId,
 				result: item.result,
 				action: {
@@ -163,7 +164,7 @@ export function registerChatTitleActions() {
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
 				command: item.slashCommand?.name,
-				sessionId: item.sessionId,
+				sessionResource: item.session.sessionResource,
 				requestId: item.requestId,
 				result: item.result,
 				action: {
@@ -212,13 +213,13 @@ export function registerChatTitleActions() {
 			}
 
 			const chatService = accessor.get(IChatService);
-			const chatModel = chatService.getSession(item.sessionId);
+			const chatModel = chatService.getSession(LocalChatSessionUri.forSession(item.sessionId));
 			const chatRequests = chatModel?.getRequests();
 			if (!chatRequests) {
 				return;
 			}
 			const itemIndex = chatRequests?.findIndex(request => request.id === item.requestId);
-			const widget = chatWidgetService.getWidgetBySessionId(item.sessionId);
+			const widget = chatWidgetService.getWidgetBySessionResource(item.sessionResource);
 			const mode = widget?.input.currentModeKind;
 			if (chatModel && (mode === ChatModeKind.Edit || mode === ChatModeKind.Agent)) {
 				const configurationService = accessor.get(IConfigurationService);

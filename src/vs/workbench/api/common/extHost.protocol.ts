@@ -1389,8 +1389,6 @@ export type IChatAgentHistoryEntryDto = {
 };
 
 export interface IChatSessionContextDto {
-	readonly chatSessionType: string;
-	readonly chatSessionId: string;
 	readonly chatSessionResource: UriComponents;
 	readonly isUntitled: boolean;
 }

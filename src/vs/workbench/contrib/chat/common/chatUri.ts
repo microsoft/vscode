@@ -31,6 +31,11 @@ export namespace LocalChatSessionUri {
 		return URI.from({ scheme, authority: chatSessionType, path: '/' + encodedId });
 	}
 
+	export function parseLocalSessionId(resource: URI): string | undefined {
+		const parsed = parse(resource);
+		return parsed?.chatSessionType === localChatSessionType ? parsed.sessionId : undefined;
+	}
+
 	export function parse(resource: URI): ChatSessionIdentifier | undefined {
 		if (resource.scheme !== scheme) {
 			return undefined;
