@@ -76,7 +76,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		const operations = this._operations.read(reader);
 		const checkpoints = this._checkpoints.read(reader);
 
-		const previousOperationEpoch = findLast(operations, op => op.epoch < currentEpoch)?.epoch || 0;
+		const previousOperationEpoch = operations.findLast(op => op.epoch <= currentEpoch)?.epoch || 0;
 		const previousCheckpointIdx = findLastIdx(checkpoints, cp => cp.epoch < previousOperationEpoch);
 		if (previousCheckpointIdx === -1) {
 			return undefined;
@@ -158,11 +158,10 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		this.createCheckpoint(undefined, undefined, 'Initial State', 'Starting point before any edits');
 	}
 
-	public createCheckpoint(requestId: string | undefined, undoStopId: string | undefined, label: string, description?: string): string {
+	public createCheckpoint(requestId: string | undefined, undoStopId: string | undefined, label: string, description?: string): void {
 		const existingCheckpoints = this._checkpoints.get();
-		const existing = existingCheckpoints.find(c => c.undoStopId === undoStopId && c.requestId === requestId);
-		if (existing) {
-			return existing.checkpointId;
+		if (existingCheckpoints.some(c => c.undoStopId === undoStopId && c.requestId === requestId)) {
+			return;
 		}
 
 		const checkpointId = generateUuid();
@@ -179,8 +178,6 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			this._checkpoints.set([...existingCheckpoints, checkpoint], tx);
 			this._currentEpoch.set(checkpoint.epoch + 1, tx);
 		});
-
-		return checkpointId;
 	}
 
 	public async undoToLastCheckpoint(): Promise<void> {
@@ -193,7 +190,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 	public async redoToNextCheckpoint(): Promise<void> {
 		const targetEpoch = this._willRedoToEpoch.get();
 		if (targetEpoch) {
-			await this._navigateToEpoch(targetEpoch + 1);
+			return this._navigateToEpoch(targetEpoch);
 		}
 	}
 
@@ -203,7 +200,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			throw new Error(`Checkpoint ${checkpointId} not found`);
 		}
 
-		return this._navigateToEpoch(targetCheckpoint.epoch + 1);
+		return this._navigateToEpoch(targetCheckpoint.epoch);
 	}
 
 	public getContentURIAtStop(requestId: string, fileURI: URI, stopId: string | undefined): URI {
@@ -238,13 +235,13 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		const currentCheckpoints = this._checkpoints.get();
 
 		const operations = this._operations.get();
-		const insertAt = findLastIdx(operations, op => op.epoch < currentEpoch);
+		const insertAt = operations.findLastIndex(op => op.epoch <= currentEpoch);
 		operations[insertAt + 1] = operation;
 		operations.length = insertAt + 2; // Truncate any operations beyond this point
 
 		// If we undid some operations and are dropping them out of history, also remove
 		// any associated checkpoints.
-		const newCheckpoints = currentCheckpoints.filter(c => c.epoch < currentEpoch);
+		const newCheckpoints = currentCheckpoints.filter(c => c.epoch <= currentEpoch || c.epoch >= operation.epoch);
 		transaction(tx => {
 			if (newCheckpoints.length !== currentCheckpoints.length) {
 				this._checkpoints.set(newCheckpoints, tx);
