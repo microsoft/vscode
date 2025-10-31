@@ -440,11 +440,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return undefined;
 		}
 
-		const commandId = this._terminalChatService.getTerminalCommandIdByToolSessionId(this._terminalData.terminalToolSessionId);
-		if (commandId) {
-			return commands.find(c => c.id === commandId);
-		}
-		return;
+		return commands.find(c => c.id === this._terminalData.terminalCommandId);
 	}
 }
 

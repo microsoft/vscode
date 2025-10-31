@@ -116,9 +116,8 @@ export interface ITerminalChatService {
 	/**
 	 * Associate a tool session id with a terminal instance. The association is automatically
 	 * cleared when the instance is disposed.
-	 * @param terminalCommandId Optional pre-assigned command ID to associate with this tool session
 	 */
-	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance, terminalCommandId?: string): void;
+	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void;
 
 	/**
 	 * Resolve a terminal instance by its tool session id.
@@ -126,11 +125,6 @@ export interface ITerminalChatService {
 	 * If no tool session ID is provided, we do nothing.
 	 */
 	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): Promise<ITerminalInstance | undefined>;
-
-	/**
-	 * Get the terminal command ID associated with a tool session ID, if any.
-	 */
-	getTerminalCommandIdByToolSessionId(terminalToolSessionId: string | undefined): string | undefined;
 
 	/**
 	 * Returns the list of terminal instances that have been registered with a tool session id.

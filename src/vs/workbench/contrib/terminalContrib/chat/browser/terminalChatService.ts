@@ -9,7 +9,6 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
 import { LocalChatSessionUri } from '../../../chat/common/chatUri.js';
@@ -27,7 +26,6 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	declare _serviceBrand: undefined;
 
 	private readonly _terminalInstancesByToolSessionId = new Map<string, ITerminalInstance>();
-	private readonly _commandIdByToolSessionId = new Map<string, string>();
 	private readonly _terminalInstanceListenersByToolSessionId = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _onDidRegisterTerminalInstanceForToolSession = new Emitter<ITerminalInstance>();
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance> = this._onDidRegisterTerminalInstanceForToolSession.event;
@@ -57,7 +55,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._restoreFromStorage();
 	}
 
-	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance, terminalCommandId?: string): void {
+	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void {
 		if (!terminalToolSessionId) {
 			this._logService.warn('Attempted to register a terminal instance with an undefined tool session ID');
 			return;
@@ -71,43 +69,10 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			this._updateHasToolTerminalContextKeys();
 		}));
 
-		// If a pre-assigned command ID is provided, store it immediately
-		// Otherwise, wait for the first command to finish and store its ID
-		if (terminalCommandId) {
-			this._commandIdByToolSessionId.set(terminalToolSessionId, terminalCommandId);
-			this._persistToStorage();
-		} else {
-			const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
-			if (commandDetection) {
-				const listener = this._register(commandDetection.onCommandFinished(e => {
-					if (e.id) {
-						this._commandIdByToolSessionId.set(terminalToolSessionId, e.id);
-						this._persistToStorage();
-						listener.dispose();
-					}
-				}));
-			} else {
-				this._register(instance.capabilities.onDidAddCapability(capability => {
-					if (capability.id === TerminalCapability.CommandDetection) {
-						const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
-						if (commandDetection) {
-							const listener = this._register(commandDetection.onCommandFinished(e => {
-								if (e.id) {
-									this._commandIdByToolSessionId.set(terminalToolSessionId, e.id);
-									this._persistToStorage();
-									listener.dispose();
-								}
-							}));
-						}
-					}
-				}));
-			}
-		}
 		this._register(this._chatService.onDidDisposeSession(e => {
 			if (LocalChatSessionUri.parseLocalSessionId(e.sessionResource) === terminalToolSessionId) {
 				this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 				this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
-				this._commandIdByToolSessionId.delete(terminalToolSessionId);
 				this._persistToStorage();
 				this._updateHasToolTerminalContextKeys();
 			}
@@ -121,16 +86,6 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		}
 
 		this._updateHasToolTerminalContextKeys();
-	}
-
-	getTerminalCommandIdByToolSessionId(terminalToolSessionId: string | undefined): string | undefined {
-		if (!terminalToolSessionId) {
-			return undefined;
-		}
-		if (this._commandIdByToolSessionId.size === 0) {
-			this._restoreFromStorage();
-		}
-		return this._commandIdByToolSessionId.get(terminalToolSessionId);
 	}
 
 	async getTerminalInstanceByToolSessionId(terminalToolSessionId: string | undefined): Promise<ITerminalInstance | undefined> {
@@ -176,15 +131,6 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 					this._pendingRestoredMappings.set(toolSessionId, persistentProcessId);
 				}
 			}
-			const rawCommandIds = this._storageService.get(StorageKeys.CommandIdMappings, StorageScope.WORKSPACE);
-			if (rawCommandIds) {
-				const parsedCommandIds: [string, string][] = JSON.parse(rawCommandIds);
-				for (const [toolSessionId, commandId] of parsedCommandIds) {
-					if (typeof toolSessionId === 'string' && typeof commandId === 'string') {
-						this._commandIdByToolSessionId.set(toolSessionId, commandId);
-					}
-				}
-			}
 		} catch (err) {
 			this._logService.warn('Failed to restore terminal chat tool session mappings', err);
 		}
@@ -224,15 +170,6 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				this._storageService.store(StorageKeys.ToolSessionMappings, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			} else {
 				this._storageService.remove(StorageKeys.ToolSessionMappings, StorageScope.WORKSPACE);
-			}
-			const commandEntries: [string, string][] = [];
-			for (const [toolSessionId, commandId] of this._commandIdByToolSessionId.entries()) {
-				commandEntries.push([toolSessionId, commandId]);
-			}
-			if (commandEntries.length > 0) {
-				this._storageService.store(StorageKeys.CommandIdMappings, JSON.stringify(commandEntries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			} else {
-				this._storageService.remove(StorageKeys.CommandIdMappings, StorageScope.WORKSPACE);
 			}
 		} catch (err) {
 			this._logService.warn('Failed to persist terminal chat tool session mappings', err);
