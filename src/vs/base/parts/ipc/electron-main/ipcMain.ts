@@ -120,6 +120,10 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 			return true;
 		}
 
+		if (process.env.DEV_WINDOW_SRC) {
+			return true;
+		}
+
 		let host = 'unknown';
 		try {
 			host = new URL(url).host;
