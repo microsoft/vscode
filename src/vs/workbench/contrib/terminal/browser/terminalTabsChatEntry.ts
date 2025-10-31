@@ -18,6 +18,7 @@ export class TerminalTabsChatEntry extends Disposable {
 	private readonly _entry: HTMLElement;
 	private readonly _label: HTMLElement;
 	private _tabsListContainer: HTMLElement | undefined;
+	private _scrollableElement: HTMLElement | undefined;
 
 	override dispose(): void {
 		this._entry.remove();
@@ -94,10 +95,13 @@ export class TerminalTabsChatEntry extends Disposable {
 
 		// Add top border separator when list has overflow (scrollbar is visible)
 		if (this._tabsListContainer) {
-			// Find the monaco-scrollable-element inside the container
-			const scrollableElement = this._tabsListContainer.querySelector('.monaco-scrollable-element') as HTMLElement;
-			if (scrollableElement) {
-				const hasOverflow = scrollableElement.scrollHeight > scrollableElement.clientHeight;
+			// Cache the scrollable element reference after first successful query
+			if (!this._scrollableElement) {
+				this._scrollableElement = this._tabsListContainer.querySelector('.monaco-scrollable-element') as HTMLElement | undefined;
+			}
+
+			if (this._scrollableElement) {
+				const hasOverflow = this._scrollableElement.scrollHeight > this._scrollableElement.clientHeight;
 				this._entry.classList.toggle('has-scroll-separator', hasOverflow);
 			} else {
 				// If scrollable element doesn't exist yet, ensure separator is not shown
