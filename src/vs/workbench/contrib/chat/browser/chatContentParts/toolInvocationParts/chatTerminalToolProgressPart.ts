@@ -143,7 +143,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const markdownOptions: IChatMarkdownContentPartOptions = {
 			codeBlockRenderOptions,
 			accessibilityOptions: pastTenseMessage ? {
-				statusMessage: localize('terminalToolCommand', "{0} command: {1} - {2}", toolInvocation.toolId, command, stripIcons(pastTenseMessage))
+				statusMessage: localize('terminalToolCommand', '{0}', stripIcons(pastTenseMessage))
 			} : undefined
 		};
 
