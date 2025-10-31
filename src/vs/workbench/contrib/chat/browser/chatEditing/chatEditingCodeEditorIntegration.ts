@@ -656,7 +656,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 	}
 }
 
-class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
+export class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 
 	private static _idPool = 0;
 	private readonly _id: string = `diff-change-widget-${DiffHunkWidget._idPool++}`;
@@ -747,6 +747,10 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 
 	getStartLineNumber(): number | undefined {
 		return this._lastStartLineNumber;
+	}
+
+	getChangeRange(): Range | undefined {
+		return this._change.modified.toInclusiveRange() ?? undefined;
 	}
 
 	// ---
