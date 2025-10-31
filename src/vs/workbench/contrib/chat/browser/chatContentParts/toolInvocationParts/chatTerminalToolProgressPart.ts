@@ -321,10 +321,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 
 		if (!this._terminalInstance) {
-			const resource = this._getTerminalResource();
-			if (resource) {
-				this._terminalInstance = this._terminalService.getInstanceFromResource(resource);
-			}
+			this._terminalInstance = await this._terminalChatService.getTerminalInstanceByToolSessionId(this._terminalData.terminalToolSessionId);
 		}
 		const output = await this._collectOutput(this._terminalInstance);
 		const content = this._renderOutput(output);
@@ -438,15 +435,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		return container;
 	}
-
-	private _getTerminalResource(): URI | undefined {
-		const commandUri = this._terminalData.terminalCommandUri;
-		if (!commandUri) {
-			return undefined;
-		}
-		return URI.isUri(commandUri) ? commandUri : URI.revive(commandUri);
-	}
-
 
 	private _resolveCommand(instance: ITerminalInstance): ITerminalCommand | undefined {
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);

@@ -485,7 +485,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
 				await Event.toPromise(outputMonitor.onDidFinishCommand);
 				const pollingResult = outputMonitor.pollingResult;
-				await this._updateTerminalCommandMetadata(toolSpecificData, toolTerminal.instance, commandDetection);
 
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
@@ -521,11 +520,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
-				await this._updateTerminalCommandMetadata(
-					toolSpecificData,
-					toolTerminal.instance,
-					commandDetection
-				);
 				store.dispose();
 				this._logService.debug(`RunInTerminalTool: Finished polling \`${pollingResult?.output.length}\` lines of output in \`${pollingResult?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
@@ -611,11 +605,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
-				await this._updateTerminalCommandMetadata(
-					toolSpecificData,
-					toolTerminal.instance,
-					commandDetection
-				);
 				store.dispose();
 				const timingExecuteMs = Date.now() - timingStart;
 				this._telemetry.logInvoke(toolTerminal.instance, {
@@ -663,46 +652,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					value: resultText.join(''),
 				}]
 			};
-		}
-	}
-
-	private async _updateTerminalCommandMetadata(
-		toolSpecificData: IChatTerminalToolInvocationData,
-		instance: ITerminalInstance,
-		commandDetection: ICommandDetectionCapability | undefined
-	): Promise<void> {
-		// Find the command by the terminalCommandId we set earlier
-		const command = toolSpecificData.terminalCommandId
-			? commandDetection?.commands.find(cmd => cmd.id === toolSpecificData.terminalCommandId)
-			: commandDetection?.commands.at(-1);
-
-		if (command?.id && !toolSpecificData.terminalCommandUri) {
-			const params = new URLSearchParams(instance.resource.query);
-			params.set('command', command.id);
-			const commandUri = instance.resource.with({ query: params.toString() || undefined });
-			toolSpecificData.terminalCommandUri = commandUri;
-		}
-
-		if (toolSpecificData.output?.html) {
-			return;
-		}
-
-		// Use the command to get output directly
-		if (command?.endMarker) {
-			try {
-				const xterm = await instance.xtermReadyPromise;
-				if (xterm) {
-					const html = await xterm.getCommandOutputAsHtml(command, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
-					if (html) {
-						toolSpecificData.output = {
-							html,
-							truncated: false
-						};
-					}
-				}
-			} catch (error) {
-				this._logService.debug('RunInTerminalTool: Failed to capture terminal HTML output for serialization', error);
-			}
 		}
 	}
 
