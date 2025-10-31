@@ -16,7 +16,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -27,7 +27,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { autorun, IObservable, observableFromEvent, observableSignalFromEvent, runOnChange } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableSignalFromEvent, runOnChange } from '../../../../base/common/observable.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { SCMArtifactGroupTreeElement, SCMArtifactTreeElement } from '../common/artifact.js';
 import { FuzzyScore } from '../../../../base/common/fuzzyScorer.js';
@@ -262,6 +262,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	private readonly providerCountBadgeObs: IObservable<'hidden' | 'auto' | 'visible'>;
 
 	private readonly visibilityDisposables = new DisposableStore();
+	private readonly repositoryDisposables = new DisposableMap<ISCMRepository>();
 
 	constructor(
 		options: IViewPaneOptions,
@@ -319,31 +320,6 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					this.updateBodySize(this.tree.contentHeight);
 				}));
 
-				// Update tree (add/remove repositories)
-				const addedRepositoryObs = observableFromEvent(
-					this, this.scmService.onDidAddRepository, e => e);
-
-				const removedRepositoryObs = observableFromEvent(
-					this, this.scmService.onDidRemoveRepository, e => e);
-
-				this.visibilityDisposables.add(autorun(async reader => {
-					const addedRepository = addedRepositoryObs.read(reader);
-					const removedRepository = removedRepositoryObs.read(reader);
-
-					if (addedRepository === undefined && removedRepository === undefined) {
-						await this.updateChildren();
-						return;
-					}
-
-					if (addedRepository) {
-						await this.updateRepository(addedRepository);
-					}
-
-					if (removedRepository) {
-						await this.updateRepository(removedRepository);
-					}
-				}));
-
 				// Update tree selection
 				const onDidChangeVisibleRepositoriesSignal = observableSignalFromEvent(
 					this, this.scmViewService.onDidChangeVisibleRepositories);
@@ -352,6 +328,13 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					onDidChangeVisibleRepositoriesSignal.read(reader);
 					await this.treeOperationSequencer.queue(() => this.updateTreeSelection());
 				}));
+
+				// Add/Remove event handlers
+				this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.visibilityDisposables);
+				this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.visibilityDisposables);
+				for (const repository of this.scmService.repositories) {
+					this.onDidAddRepository(repository);
+				}
 			});
 		}, this, this._store);
 	}
@@ -436,6 +419,29 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this._register(this.tree.onDidFocus(this.onDidTreeFocus, this));
 		this._register(this.tree.onContextMenu(this.onTreeContextMenu, this));
 		this._register(this.tree.onDidChangeContentHeight(this.onTreeContentHeightChange, this));
+	}
+
+	private async onDidAddRepository(repository: ISCMRepository): Promise<void> {
+		const disposables = new DisposableStore();
+
+		disposables.add(autorun(async reader => {
+			const artifactsProvider = repository.provider.artifactProvider.read(reader);
+			if (!artifactsProvider) {
+				return;
+			}
+
+			reader.store.add(artifactsProvider.onDidChangeArtifacts(async groups => {
+				await this.updateRepository(repository);
+			}));
+		}));
+
+		await this.updateRepository(repository);
+		this.repositoryDisposables.set(repository, disposables);
+	}
+
+	private async onDidRemoveRepository(repository: ISCMRepository): Promise<void> {
+		await this.updateRepository(repository);
+		this.repositoryDisposables.deleteAndDispose(repository);
 	}
 
 	private onTreeContextMenu(e: ITreeContextMenuEvent<TreeElement>): void {

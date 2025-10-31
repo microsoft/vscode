@@ -956,13 +956,13 @@ export class Repository implements Disposable {
 		this._sourceControl.quickDiffProvider = this;
 		this._sourceControl.secondaryQuickDiffProvider = new StagedResourceQuickDiffProvider(this, logger);
 
-		this._artifactProvider = new GitArtifactProvider(this, logger);
-		this._sourceControl.artifactProvider = this._artifactProvider;
-		this.disposables.push(this._artifactProvider);
-
 		this._historyProvider = new GitHistoryProvider(historyItemDetailProviderRegistry, this, logger);
 		this._sourceControl.historyProvider = this._historyProvider;
 		this.disposables.push(this._historyProvider);
+
+		this._artifactProvider = new GitArtifactProvider(this, logger);
+		this._sourceControl.artifactProvider = this._artifactProvider;
+		this.disposables.push(this._artifactProvider);
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
