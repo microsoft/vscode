@@ -187,12 +187,29 @@ class ArtifactRenderer implements ICompressibleTreeRenderer<SCMArtifactTreeEleme
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>>, FuzzyScore>, index: number, templateData: ArtifactTemplate, details?: ITreeElementRenderDetails): void {
-		const compressed = node.element as ICompressedTreeNode<IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>>;
-		const folder = compressed.elements[compressed.elements.length - 1];
-		templateData.label.setLabel(`$(folder) ${folder.uri.fsPath.substring(1)}`);
+		const compressed = node.element;
+		const artifactOrFolder = compressed.elements[compressed.elements.length - 1];
 
-		templateData.actionBar.setActions([]);
-		templateData.actionBar.context = undefined;
+		if (isSCMArtifactTreeElement(artifactOrFolder)) {
+			const artifact = artifactOrFolder.artifact;
+			const artifactIcon = ThemeIcon.isThemeIcon(artifactOrFolder.group.icon)
+				? `$(${artifactOrFolder.group.icon.id}) `
+				: '';
+
+			templateData.label.setLabel(`${artifactIcon}${artifact.name}`, artifact.description);
+
+			const provider = artifactOrFolder.repository.provider;
+			const repositoryMenus = this._scmViewService.menus.getRepositoryMenus(provider);
+			templateData.elementDisposables.add(connectPrimaryMenu(repositoryMenus.getArtifactMenu(artifactOrFolder.group), primary => {
+				templateData.actionBar.setActions(primary);
+			}, 'inline', provider));
+			templateData.actionBar.context = artifact;
+		} else if (ResourceTree.isResourceNode(artifactOrFolder)) {
+			templateData.label.setLabel(`$(folder) ${artifactOrFolder.uri.fsPath.substring(1)}`);
+
+			templateData.actionBar.setActions([]);
+			templateData.actionBar.context = undefined;
+		}
 	}
 
 	disposeElement(element: ITreeNode<SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>, FuzzyScore>, index: number, templateData: ArtifactTemplate, details?: ITreeElementRenderDetails): void {
@@ -307,6 +324,10 @@ class RepositoriesTreeCompressionDelegate implements ITreeCompressionDelegate<Tr
 	isIncompressible(element: TreeElement): boolean {
 		if (ResourceTree.isResourceNode(element)) {
 			return element.childrenCount === 0 || !element.parent || !element.parent.parent;
+		} else if (isSCMArtifactTreeElement(element)) {
+			// Artifacts are never incompressible as this allows us to
+			// compress an artifact that is on its own in the folder
+			return false;
 		}
 
 		return true;
@@ -440,18 +461,17 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					}
 
 					// Explorer mode
-					// Expand artifact folders with one child only
-					if (isSCMArtifactNode(e)) {
-						if (e.childrenCount !== 1) {
-							return true;
-						}
-
-						// Check if the only child is a leaf node
-						const firstChild = Iterable.first(e.children);
-						return firstChild?.element !== undefined;
+					if (isSCMRepository(e)) {
+						return true;
+					} else if (isSCMArtifactGroupTreeElement(e)) {
+						return true;
+					} else if (isSCMArtifactTreeElement(e)) {
+						return false;
+					} else if (isSCMArtifactNode(e)) {
+						return e.childrenCount !== 1;
+					} else {
+						return true;
 					}
-
-					return true;
 				},
 				compressionEnabled: true,
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
