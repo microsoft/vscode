@@ -445,13 +445,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const timingStart = Date.now();
 		const termId = generateUuid();
 		const terminalToolSessionId = (toolSpecificData as IChatTerminalToolInvocationData).terminalToolSessionId;
+		const terminalCommandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
 
 		const store = new DisposableStore();
 
 		this._logService.debug(`RunInTerminalTool: Creating ${args.isBackground ? 'background' : 'foreground'} terminal. termId=${termId}, chatSessionId=${chatSessionId}`);
 		const toolTerminal = await (args.isBackground
-			? this._initBackgroundTerminal(chatSessionId, termId, terminalToolSessionId, token)
-			: this._initForegroundTerminal(chatSessionId, termId, terminalToolSessionId, token));
+			? this._initBackgroundTerminal(chatSessionId, termId, terminalToolSessionId, terminalCommandId, token)
+			: this._initForegroundTerminal(chatSessionId, termId, terminalToolSessionId, terminalCommandId, token));
 
 		this._handleTerminalVisibility(toolTerminal);
 
@@ -664,11 +665,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	// #region Terminal init
 
-	private async _initBackgroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
+	private async _initBackgroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string | undefined, terminalCommandId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
 		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
 		const profile = await this._profileFetcher.getCopilotProfile();
 		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
-		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
+		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance, terminalCommandId);
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
@@ -679,17 +680,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return toolTerminal;
 	}
 
-	private async _initForegroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
+	private async _initForegroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string | undefined, terminalCommandId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
 		const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionId);
 		if (cachedTerminal) {
 			this._logService.debug(`RunInTerminalTool: Using cached foreground terminal with session ID \`${chatSessionId}\``);
 			this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
-			this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance);
+			this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance, terminalCommandId);
 			return cachedTerminal;
 		}
 		const profile = await this._profileFetcher.getCopilotProfile();
 		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
-		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
+		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance, terminalCommandId);
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {

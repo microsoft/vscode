@@ -54,7 +54,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._restoreFromStorage();
 	}
 
-	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void {
+	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance, terminalCommandId?: string): void {
 		if (!terminalToolSessionId) {
 			this._logService.warn('Attempted to register a terminal instance with an undefined tool session ID');
 			return;
@@ -67,11 +67,20 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			this._persistToStorage();
 			this._updateHasToolTerminalContextKey();
 		}));
-		const listener = this._register(instance.capabilities.get(TerminalCapability.CommandDetection)!.onCommandFinished(e => {
-			this._commandIdByToolSessionId.set(terminalToolSessionId, e.id);
+
+		// If a pre-assigned command ID is provided, store it immediately
+		// Otherwise, wait for the first command to finish and store its ID
+		if (terminalCommandId) {
+			this._commandIdByToolSessionId.set(terminalToolSessionId, terminalCommandId);
 			this._persistToStorage();
-			listener.dispose();
-		}));
+		} else {
+			const listener = this._register(instance.capabilities.get(TerminalCapability.CommandDetection)!.onCommandFinished(e => {
+				this._commandIdByToolSessionId.set(terminalToolSessionId, e.id);
+				this._persistToStorage();
+				listener.dispose();
+			}));
+		}
+
 		this._register(this._chatService.onDidDisposeSession(e => {
 			if (e.sessionId === terminalToolSessionId) {
 				this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
