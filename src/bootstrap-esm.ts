@@ -5,34 +5,74 @@
 
 import * as fs from 'node:fs';
 import { register } from 'node:module';
+import { sep } from 'node:path';
 import { product, pkg } from './bootstrap-meta.js';
 import './bootstrap-node.js';
 import * as performance from './vs/base/common/performance.js';
 import { INLSConfiguration } from './vs/nls.js';
 
-// Install a hook to module resolution to map 'fs' to 'original-fs'
-if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
+// Prepare globals that are needed for running
+globalThis._VSCODE_PRODUCT_JSON = { ...product };
+globalThis._VSCODE_PACKAGE_JSON = { ...pkg };
+globalThis._VSCODE_FILE_ROOT = import.meta.dirname;
+
+// Install a hook to module resolution to map dependencies into the asar archive
+function enableASARSupport() {
+	if (!process.env['ELECTRON_RUN_AS_NODE'] && !process.versions['electron']) {
+		return;
+	}
+
+	if (process.env['VSCODE_DEV']) {
+		return;
+	}
+
 	const jsCode = `
+	import { pathToFileURL, fileURLToPath } from 'node:url';
+	function isRelativeSpecifier(specifier) {
+		if (specifier[0] === '.') {
+			if (specifier.length === 1 || specifier[1] === '/') { return true; }
+			if (specifier[1] === '.') {
+				if (specifier.length === 2 || specifier[2] === '/') { return true; }
+			}
+		}
+		return false;
+	}
+	function normalizeDriveLetter(path) {
+		if (process.platform === 'win32'
+			&& path.length >= 2
+			&& (path.charCodeAt(0) >= 65 && path.charCodeAt(0) <= 90 || path.charCodeAt(0) >= 97 && path.charCodeAt(0) <= 122)
+			&& path.charCodeAt(1) === 58) {
+			return path[0].toLowerCase() + path.slice(1);
+		}
+		return path;
+	}
+	export async function initialize({ resourcesPath, asarPath }) {
+		globalThis.__resourcesPath = normalizeDriveLetter(resourcesPath);
+		globalThis.__asarPath = asarPath;
+	}
 	export async function resolve(specifier, context, nextResolve) {
-		if (specifier === 'fs') {
-			return {
-				format: 'builtin',
-				shortCircuit: true,
-				url: 'node:original-fs'
-			};
+		if (!isRelativeSpecifier(specifier) && context.parentURL) {
+			const currentPath = fileURLToPath(context.parentURL);
+			const normalizedCurrentPath = normalizeDriveLetter(currentPath);
+			if (normalizedCurrentPath.startsWith(globalThis.__resourcesPath)) {
+				const asarPath = normalizedCurrentPath.replace(globalThis.__resourcesPath, globalThis.__asarPath);
+				context.parentURL = pathToFileURL(asarPath);
+			}
 		}
 
 		// Defer to the next hook in the chain, which would be the
 		// Node.js default resolve if this is the last user-specified loader.
 		return nextResolve(specifier, context);
 	}`;
-	register(`data:text/javascript;base64,${Buffer.from(jsCode).toString('base64')}`, import.meta.url);
+	register(`data:text/javascript;base64,${Buffer.from(jsCode).toString('base64')}`, import.meta.url, {
+		data: {
+			resourcesPath: `${process.resourcesPath}${sep}app`,
+			asarPath: `${process.resourcesPath}${sep}app${sep}node_modules.asar`,
+		}
+	});
 }
 
-// Prepare globals that are needed for running
-globalThis._VSCODE_PRODUCT_JSON = { ...product };
-globalThis._VSCODE_PACKAGE_JSON = { ...pkg };
-globalThis._VSCODE_FILE_ROOT = import.meta.dirname;
+enableASARSupport();
 
 //#region NLS helpers
 

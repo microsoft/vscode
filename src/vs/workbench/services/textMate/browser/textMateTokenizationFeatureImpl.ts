@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { canASAR, importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
+import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
 import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { equals as equalArray } from '../../../../base/common/arrays.js';
 import { Color } from '../../../../base/common/color.js';
@@ -390,7 +390,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			// We therefore use the non-streaming compiler :(.
 			return await response.arrayBuffer();
 		} else {
-			const response = await fetch(canASAR && this._environmentService.isBuilt
+			const response = await fetch(this._environmentService.isBuilt
 				? FileAccess.asBrowserUri(`${nodeModulesAsarUnpackedPath}/vscode-oniguruma/release/onig.wasm`).toString(true)
 				: FileAccess.asBrowserUri(`${nodeModulesPath}/vscode-oniguruma/release/onig.wasm`).toString(true));
 			return response;

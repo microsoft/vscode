@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { canASAR } from '../../../../../amdX.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from '../../../../../base/common/network.js';
 import { IObservable } from '../../../../../base/common/observable.js';
@@ -129,7 +128,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 		const onigurumaModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-oniguruma`;
 		const onigurumaModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-oniguruma`;
 
-		const useAsar = canASAR && this._environmentService.isBuilt && !isWeb;
+		const useAsar = this._environmentService.isBuilt && !isWeb;
 		const onigurumaLocation: AppResourcePath = useAsar ? onigurumaModuleLocationAsar : onigurumaModuleLocation;
 		const onigurumaWASM: AppResourcePath = `${onigurumaLocation}/release/onig.wasm`;
 
