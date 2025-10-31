@@ -538,15 +538,16 @@
 .scm-repositories-view .scm-artifact-group,
 .scm-repositories-view .scm-artifact {
 	display: flex;
+	align-items: center;
+
+	.icon {
+		margin-right: 2px;
+	}
 }
 
 .scm-repositories-view .scm-artifact-group .monaco-icon-label,
 .scm-repositories-view .scm-artifact .monaco-icon-label {
 	flex-grow: 1;
-}
-
-.scm-repositories-view .scm-artifact .monaco-icon-label-container {
-	display: flex;
 }
 
 .scm-repositories-view .scm-artifact-group .monaco-highlighted-label,

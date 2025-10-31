@@ -496,7 +496,6 @@
       {
         "command": "git.branch",
         "title": "%command.branch%",
-        "icon": "$(plus)",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1044,6 +1043,20 @@
       {
         "command": "git.repositories.compareRef",
         "title": "%command.graphCompareRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.createBranch",
+        "title": "%command.branch%",
+        "icon": "$(plus)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.createTag",
+        "title": "%command.createTag%",
+        "icon": "$(plus)",
         "category": "Git",
         "enablement": "!operationInProgress"
       }
@@ -1681,6 +1694,14 @@
         {
           "command": "git.repositories.compareRef",
           "when": "false"
+        },
+        {
+          "command": "git.repositories.createBranch",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.createTag",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1873,12 +1894,12 @@
       ],
       "scm/artifactGroup/context": [
         {
-          "command": "git.branch",
+          "command": "git.repositories.createBranch",
           "group": "inline@1",
           "when": "scmProvider == git && scmArtifactGroup == branches"
         },
         {
-          "command": "git.createTag",
+          "command": "git.repositories.createTag",
           "group": "inline@1",
           "when": "scmProvider == git && scmArtifactGroup == tags"
         }

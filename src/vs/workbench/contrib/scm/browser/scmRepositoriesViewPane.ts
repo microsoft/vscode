@@ -43,6 +43,7 @@ import { basename } from '../../../../base/common/resources.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ITreeCompressionDelegate } from '../../../../base/browser/ui/tree/asyncDataTree.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 type TreeElement = ISCMRepository | SCMArtifactGroupTreeElement | SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>;
 
@@ -66,6 +67,7 @@ class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 }
 
 interface ArtifactGroupTemplate {
+	readonly icon: HTMLElement;
 	readonly label: IconLabel;
 	readonly actionBar: WorkbenchToolBar;
 	readonly elementDisposables: DisposableStore;
@@ -89,21 +91,23 @@ class ArtifactGroupRenderer implements ICompressibleTreeRenderer<SCMArtifactGrou
 
 	renderTemplate(container: HTMLElement): ArtifactGroupTemplate {
 		const element = append(container, $('.scm-artifact-group'));
-		const label = new IconLabel(element, { supportIcons: true });
+		const icon = append(element, $('.icon'));
+		const label = new IconLabel(element, { supportIcons: false });
 
 		const actionsContainer = append(element, $('.actions'));
 		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
 
-		return { label, actionBar, elementDisposables: new DisposableStore(), templateDisposable: combinedDisposable(label, actionBar) };
+		return { icon, label, actionBar, elementDisposables: new DisposableStore(), templateDisposable: combinedDisposable(label, actionBar) };
 	}
 
 	renderElement(node: ITreeNode<SCMArtifactGroupTreeElement, FuzzyScore>, index: number, templateData: ArtifactGroupTemplate): void {
 		const provider = node.element.repository.provider;
 		const artifactGroup = node.element.artifactGroup;
-		const artifactGroupIcon = ThemeIcon.isThemeIcon(artifactGroup.icon)
-			? `$(${artifactGroup.icon.id}) ` : '';
 
-		templateData.label.setLabel(`${artifactGroupIcon}${artifactGroup.name}`);
+		templateData.icon.className = ThemeIcon.isThemeIcon(artifactGroup.icon)
+			? `icon ${ThemeIcon.asClassName(artifactGroup.icon)}`
+			: '';
+		templateData.label.setLabel(artifactGroup.name);
 
 		const repositoryMenus = this._scmViewService.menus.getRepositoryMenus(provider);
 		templateData.elementDisposables.add(connectPrimaryMenu(repositoryMenus.getArtifactGroupMenu(artifactGroup), primary => {
@@ -127,6 +131,7 @@ class ArtifactGroupRenderer implements ICompressibleTreeRenderer<SCMArtifactGrou
 }
 
 interface ArtifactTemplate {
+	readonly icon: HTMLElement;
 	readonly label: IconLabel;
 	readonly actionBar: WorkbenchToolBar;
 	readonly elementDisposables: DisposableStore;
@@ -150,12 +155,13 @@ class ArtifactRenderer implements ICompressibleTreeRenderer<SCMArtifactTreeEleme
 
 	renderTemplate(container: HTMLElement): ArtifactTemplate {
 		const element = append(container, $('.scm-artifact'));
-		const label = new IconLabel(element, { supportIcons: true });
+		const icon = append(element, $('.icon'));
+		const label = new IconLabel(element, { supportIcons: false });
 
 		const actionsContainer = append(element, $('.actions'));
 		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
 
-		return { label, actionBar, elementDisposables: new DisposableStore(), templateDisposable: combinedDisposable(label, actionBar) };
+		return { icon, label, actionBar, elementDisposables: new DisposableStore(), templateDisposable: combinedDisposable(label, actionBar) };
 	}
 
 	renderElement(nodeOrElement: ITreeNode<SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>, FuzzyScore>, index: number, templateData: ArtifactTemplate): void {
@@ -163,19 +169,21 @@ class ArtifactRenderer implements ICompressibleTreeRenderer<SCMArtifactTreeEleme
 
 		if (isSCMArtifactNode(artifactOrFolder)) {
 			// Folder
-			templateData.label.setLabel(`$(folder) ${basename(artifactOrFolder.uri)}`);
+			templateData.icon.className = `icon ${ThemeIcon.asClassName(Codicon.folder)}`;
+			templateData.label.setLabel(basename(artifactOrFolder.uri));
 
 			templateData.actionBar.setActions([]);
 			templateData.actionBar.context = undefined;
 		} else {
 			// Artifact
 			const artifact = artifactOrFolder.artifact;
-			const artifactIcon = ThemeIcon.isThemeIcon(artifactOrFolder.group.icon)
-				? `$(${artifactOrFolder.group.icon.id}) `
+
+			templateData.icon.className = ThemeIcon.isThemeIcon(artifactOrFolder.group.icon)
+				? `icon ${ThemeIcon.asClassName(artifactOrFolder.group.icon)}`
 				: '';
 
 			const artifactLabel = artifact.name.split('/').pop() ?? artifact.name;
-			templateData.label.setLabel(`${artifactIcon}${artifactLabel}`, artifact.description);
+			templateData.label.setLabel(artifactLabel, artifact.description);
 
 			const provider = artifactOrFolder.repository.provider;
 			const repositoryMenus = this._scmViewService.menus.getRepositoryMenus(provider);
@@ -187,12 +195,30 @@ class ArtifactRenderer implements ICompressibleTreeRenderer<SCMArtifactTreeEleme
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>>, FuzzyScore>, index: number, templateData: ArtifactTemplate, details?: ITreeElementRenderDetails): void {
-		const compressed = node.element as ICompressedTreeNode<IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>>;
-		const folder = compressed.elements[compressed.elements.length - 1];
-		templateData.label.setLabel(`$(folder) ${folder.uri.fsPath.substring(1)}`);
+		const compressed = node.element;
+		const artifactOrFolder = compressed.elements[compressed.elements.length - 1];
 
-		templateData.actionBar.setActions([]);
-		templateData.actionBar.context = undefined;
+		if (isSCMArtifactTreeElement(artifactOrFolder)) {
+			const artifact = artifactOrFolder.artifact;
+
+			templateData.icon.className = ThemeIcon.isThemeIcon(artifactOrFolder.group.icon)
+				? `icon ${ThemeIcon.asClassName(artifactOrFolder.group.icon)}`
+				: '';
+			templateData.label.setLabel(artifact.name, artifact.description);
+
+			const provider = artifactOrFolder.repository.provider;
+			const repositoryMenus = this._scmViewService.menus.getRepositoryMenus(provider);
+			templateData.elementDisposables.add(connectPrimaryMenu(repositoryMenus.getArtifactMenu(artifactOrFolder.group), primary => {
+				templateData.actionBar.setActions(primary);
+			}, 'inline', provider));
+			templateData.actionBar.context = artifact;
+		} else if (ResourceTree.isResourceNode(artifactOrFolder)) {
+			templateData.icon.className = `icon ${ThemeIcon.asClassName(Codicon.folder)}`;
+			templateData.label.setLabel(artifactOrFolder.uri.fsPath.substring(1));
+
+			templateData.actionBar.setActions([]);
+			templateData.actionBar.context = undefined;
+		}
 	}
 
 	disposeElement(element: ITreeNode<SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>, FuzzyScore>, index: number, templateData: ArtifactTemplate, details?: ITreeElementRenderDetails): void {
@@ -306,10 +332,10 @@ class RepositoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
 class RepositoriesTreeCompressionDelegate implements ITreeCompressionDelegate<TreeElement> {
 	isIncompressible(element: TreeElement): boolean {
 		if (ResourceTree.isResourceNode(element)) {
-			return element.childrenCount === 0 || !element.parent || !element.parent.parent;
+			return element.childrenCount > 1;
+		} else {
+			return true;
 		}
-
-		return true;
 	}
 }
 
@@ -440,18 +466,12 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					}
 
 					// Explorer mode
-					// Expand artifact folders with one child only
 					if (isSCMArtifactNode(e)) {
-						if (e.childrenCount !== 1) {
-							return true;
-						}
-
-						// Check if the only child is a leaf node
-						const firstChild = Iterable.first(e.children);
-						return firstChild?.element !== undefined;
+						// Only expand artifact folders as they are compressed by default
+						return !(e.childrenCount === 1 && Iterable.first(e.children)?.element === undefined);
+					} else {
+						return true;
 					}
-
-					return true;
 				},
 				compressionEnabled: true,
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
