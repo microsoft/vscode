@@ -518,29 +518,42 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			return;
 		}
 
-		if (!isSCMRepository(e.element)) {
-			return;
+		if (isSCMRepository(e.element)) {
+			// Repository
+			const provider = e.element.provider;
+			const menus = this.scmViewService.menus.getRepositoryMenus(provider);
+			const menu = menus.getRepositoryContextMenu(e.element);
+			const actions = collectContextMenuActions(menu);
+
+			const disposables = new DisposableStore();
+			const actionRunner = new RepositoryActionRunner(() => {
+				return this.getTreeSelection();
+			});
+			disposables.add(actionRunner);
+			disposables.add(actionRunner.onWillRun(() => this.tree.domFocus()));
+
+			this.contextMenuService.showContextMenu({
+				actionRunner,
+				getAnchor: () => e.anchor,
+				getActions: () => actions,
+				getActionsContext: () => provider,
+				onHide: () => disposables.dispose()
+			});
+		} else if (isSCMArtifactTreeElement(e.element)) {
+			// Artifact
+			const provider = e.element.repository.provider;
+			const artifact = e.element.artifact;
+
+			const menus = this.scmViewService.menus.getRepositoryMenus(provider);
+			const menu = menus.getArtifactMenu(e.element.group);
+			const actions = collectContextMenuActions(menu, provider);
+
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => actions,
+				getActionsContext: () => artifact
+			});
 		}
-
-		const provider = e.element.provider;
-		const menus = this.scmViewService.menus.getRepositoryMenus(provider);
-		const menu = menus.getRepositoryContextMenu(e.element);
-		const actions = collectContextMenuActions(menu);
-
-		const disposables = new DisposableStore();
-		const actionRunner = new RepositoryActionRunner(() => {
-			return this.getTreeSelection();
-		});
-		disposables.add(actionRunner);
-		disposables.add(actionRunner.onWillRun(() => this.tree.domFocus()));
-
-		this.contextMenuService.showContextMenu({
-			actionRunner,
-			getAnchor: () => e.anchor,
-			getActions: () => actions,
-			getActionsContext: () => provider,
-			onHide: () => disposables.dispose()
-		});
 	}
 
 	private onTreeSelectionChange(e: ITreeEvent<TreeElement>): void {
