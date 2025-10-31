@@ -8,8 +8,8 @@ import { IDisposable } from './util';
 import { Repository } from './repository';
 
 export class GitArtifactProvider implements SourceControlArtifactProvider, IDisposable {
-	private readonly _onDidChangeArtifacts = new EventEmitter<string>();
-	readonly onDidChangeArtifacts: Event<string> = this._onDidChangeArtifacts.event;
+	private readonly _onDidChangeArtifacts = new EventEmitter<string[]>();
+	readonly onDidChangeArtifacts: Event<string[]> = this._onDidChangeArtifacts.event;
 
 	private readonly _groups: SourceControlArtifactGroup[];
 
@@ -21,7 +21,21 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 			{ id: 'branches', name: l10n.t('Branches'), icon: new ThemeIcon('git-branch') },
 			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag') }
 		];
+
+		repository.historyProvider.onDidChangeHistoryItemRefs(e => {
+			const groups = new Set<string>();
+			for (const ref of e.added.concat(e.modified).concat(e.removed)) {
+				if (ref.id.startsWith('refs/heads/')) {
+					groups.add('branches');
+				} else if (ref.id.startsWith('refs/tags/')) {
+					groups.add('tags');
+				}
+			}
+
+			this._onDidChangeArtifacts.fire(Array.from(groups));
+		});
 	}
+
 	provideArtifactGroups(): SourceControlArtifactGroup[] {
 		return this._groups;
 	}
