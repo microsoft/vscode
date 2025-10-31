@@ -94,7 +94,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			}
 		}));
 
-		if (typeof instance.shellLaunchConfig?.attachPersistentProcess?.id === 'number') {
+		if (typeof instance.shellLaunchConfig?.attachPersistentProcess?.id === 'number' || typeof instance.persistentProcessId === 'number') {
 			this._persistToStorage();
 		}
 
