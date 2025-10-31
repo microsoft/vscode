@@ -10,6 +10,7 @@ import { IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/ac
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../../base/common/arrays.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
@@ -74,6 +75,7 @@ export class SessionsViewPane extends ViewPane {
 	private treeContainer: HTMLElement | undefined;
 	private messageElement?: HTMLElement;
 	private _isEmpty: boolean = true;
+	private readonly _dropdownDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
@@ -137,6 +139,9 @@ export class SessionsViewPane extends ViewPane {
 	}
 
 	private getChatSessionDropdown(defaultAction: IAction, options: IBaseActionViewItemOptions) {
+		// Clear previous disposables to avoid leaks when action view items are recreated
+		this._dropdownDisposables.clear();
+
 		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
 			id: defaultAction.id,
 			title: defaultAction.label,
@@ -144,6 +149,7 @@ export class SessionsViewPane extends ViewPane {
 		}, undefined, undefined, undefined, undefined);
 
 		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.scopedContextKeyService);
+		this._dropdownDisposables.add(menu);
 
 		const actions = menu.getActions({ shouldForwardArgs: true });
 		const primaryActions = getActionBarActions(
@@ -171,6 +177,7 @@ export class SessionsViewPane extends ViewPane {
 			'codicon-chevron-down',
 			true
 		);
+		this._dropdownDisposables.add(dropdownAction);
 
 		const dropdownActions: IAction[] = [];
 
