@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env } from 'vscode';
+import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env, SourceControlHistoryItem } from 'vscode';
 import { dirname, normalize, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
@@ -14,6 +14,10 @@ export const isWindows = process.platform === 'win32';
 export const isRemote = env.remoteName !== undefined;
 export const isLinux = process.platform === 'linux';
 export const isLinuxSnap = isLinux && !!process.env['SNAP'] && !!process.env['SNAP_REVISION'];
+
+export type Mutable<T> = {
+	-readonly [P in keyof T]: T[P]
+};
 
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
@@ -37,10 +41,6 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 }
 
 export const EmptyDisposable = toDisposable(() => null);
-
-export function fireEvent<T>(event: Event<T>): Event<T> {
-	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => event(_ => (listener as any).call(thisArgs), null, disposables);
-}
 
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
 	return (listener: (e: O) => any, thisArgs?: any, disposables?: Disposable[]) => event(i => listener.call(thisArgs, map(i)), null, disposables);
@@ -110,7 +110,8 @@ export function once(fn: (...args: any[]) => any): (...args: any[]) => any {
 
 export function assign<T>(destination: T, ...sources: any[]): T {
 	for (const source of sources) {
-		Object.keys(source).forEach(key => (destination as any)[key] = source[key]);
+		Object.keys(source).forEach(key =>
+			(destination as Record<string, unknown>)[key] = source[key]);
 	}
 
 	return destination;
@@ -236,7 +237,7 @@ export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 			bytesRead += bytesToRead;
 
 			if (bytesRead === bytes) {
-				(stream as any).destroy(); // Will trigger the close event eventually
+				stream.destroy(); // Will trigger the close event eventually
 			}
 		});
 
@@ -295,6 +296,11 @@ export function truncate(value: string, maxLength = 20, ellipsis = true): string
 	return value.length <= maxLength ? value : `${value.substring(0, maxLength)}${ellipsis ? '\u2026' : ''}`;
 }
 
+export function subject(value: string): string {
+	const index = value.indexOf('\n');
+	return index === -1 ? value : truncate(value, index, false);
+}
+
 function normalizePath(path: string): string {
 	// Windows & Mac are currently being handled
 	// as case insensitive file systems in VS Code.
@@ -302,8 +308,9 @@ function normalizePath(path: string): string {
 		path = path.toLowerCase();
 	}
 
-	// Remove trailing separator
-	if (path.charAt(path.length - 1) === sep) {
+	// Trailing separator
+	if (/[/\\]$/.test(path)) {
+		// Remove trailing separator
 		path = path.substring(0, path.length - 1);
 	}
 
@@ -788,6 +795,12 @@ export function getCommitShortHash(scope: Uri, hash: string): string {
 	const config = workspace.getConfiguration('git', scope);
 	const shortHashLength = config.get<number>('commitShortHashLength', 7);
 	return hash.substring(0, shortHashLength);
+}
+
+export function getHistoryItemDisplayName(historyItem: SourceControlHistoryItem): string {
+	return historyItem.references?.length
+		? historyItem.references[0].name
+		: historyItem.displayId ?? historyItem.id;
 }
 
 export type DiagnosticSeverityConfig = 'error' | 'warning' | 'information' | 'hint' | 'none';

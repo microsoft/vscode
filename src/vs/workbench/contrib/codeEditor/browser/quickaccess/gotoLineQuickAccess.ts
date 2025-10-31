@@ -23,6 +23,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
+	private static zeroBasedOffsetSetting = 'workbench.quickOpen.useZeroBasedOffset';
 	protected readonly onDidActiveTextEditorControlChange: Event<void>;
 
 	constructor(
@@ -30,7 +31,14 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super();
+		super({
+			get value() {
+				return configurationService.getValue<boolean>(GotoLineQuickAccessProvider.zeroBasedOffsetSetting);
+			},
+			set value(value: boolean) {
+				configurationService.updateValue(GotoLineQuickAccessProvider.zeroBasedOffsetSetting, value);
+			}
+		});
 		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 	}
 
@@ -96,6 +104,6 @@ registerAction2(GotoLineAction);
 Registry.as<IQuickAccessRegistry>(QuickaccesExtensions.Quickaccess).registerQuickAccessProvider({
 	ctor: GotoLineQuickAccessProvider,
 	prefix: AbstractGotoLineQuickAccessProvider.PREFIX,
-	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. 42:5 for line 42 and column 5)."),
+	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. :42:5 for line 42, column 5). Type :: to go to a character offset (e.g. ::1024 for character 1024 from the start of the file). Use negative values to navigate backwards."),
 	helpEntries: [{ description: localize('gotoLineQuickAccess', "Go to Line/Column"), commandId: GotoLineAction.ID }]
 });

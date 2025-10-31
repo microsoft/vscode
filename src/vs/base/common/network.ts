@@ -87,8 +87,8 @@ export namespace Schemas {
 	/** Scheme used for the chat input part */
 	export const vscodeChatInput = 'chatSessionInput';
 
-	/** Scheme for chat session content */
-	export const vscodeChatSession = 'vscode-chat-session';
+	/** Scheme used for local chat session content */
+	export const vscodeLocalChatSession = 'vscode-chat-session';
 
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
@@ -413,6 +413,7 @@ export namespace COI {
 	 * isn't enabled the current context
 	 */
 	export function addSearchParam(urlOrSearch: URLSearchParams | Record<string, string>, coop: boolean, coep: boolean): void {
+		// eslint-disable-next-line local/code-no-any-casts
 		if (!(<any>globalThis).crossOriginIsolated) {
 			// depends on the current context being COI
 			return;

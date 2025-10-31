@@ -1,13 +1,13 @@
 "use strict";
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createReporter = createReporter;
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 const event_stream_1 = __importDefault(require("event-stream"));
 const fancy_log_1 = __importDefault(require("fancy-log"));
 const ansi_colors_1 = __importDefault(require("ansi-colors"));
@@ -75,6 +75,9 @@ try {
 catch (err) {
     // ignore
 }
+class ReporterError extends Error {
+    __reporter__ = true;
+}
 function createReporter(id) {
     const errorLog = getErrorLog(id);
     const errors = [];
@@ -91,8 +94,7 @@ function createReporter(id) {
                     errorLog.log();
                 }
                 errors.__logged__ = true;
-                const err = new Error(`Found ${errors.length} errors`);
-                err.__reporter__ = true;
+                const err = new ReporterError(`Found ${errors.length} errors`);
                 this.emit('error', err);
             }
             else {

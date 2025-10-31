@@ -57,7 +57,7 @@ export function registerChatExportActions() {
 				outputPath = result;
 			}
 
-			const model = chatService.getSession(widget.viewModel.sessionId);
+			const model = chatService.getSession(widget.viewModel.sessionResource);
 			if (!model) {
 				return;
 			}
@@ -78,7 +78,7 @@ export function registerChatExportActions() {
 				f1: true,
 			});
 		}
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const fileDialogService = accessor.get(IFileDialogService);
 			const fileService = accessor.get(IFileService);
 			const editorService = accessor.get(IEditorService);

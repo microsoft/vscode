@@ -36,18 +36,18 @@ const ROOT_2 = fixPath(root2);
 class MockTerminalProfileResolverService extends TestTerminalProfileResolverService {
 	override async getDefaultProfile(): Promise<ITerminalProfile> {
 		return {
-			profileName: "my-sh",
-			path: "/usr/bin/zsh",
+			profileName: 'my-sh',
+			path: '/usr/bin/zsh',
 			env: {
-				TEST: "TEST",
+				TEST: 'TEST',
 			},
 			isDefault: true,
 			isUnsafePath: false,
 			isFromPath: true,
 			icon: {
-				id: "terminal-linux",
+				id: 'terminal-linux',
 			},
-			color: "terminal.ansiYellow",
+			color: 'terminal.ansiYellow',
 		};
 	}
 }
@@ -70,9 +70,9 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 		throw new Error('Method not implemented.');
 	}
 
-	onProcessOverrideDimensions?: Event<any> | undefined;
-	onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
-	onDidChangeHasChildProcesses?: Event<any> | undefined;
+	readonly onProcessOverrideDimensions?: Event<any> | undefined;
+	readonly onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
+	readonly onDidChangeHasChildProcesses?: Event<any> | undefined;
 
 	onDidChangeProperty = Event.None;
 	onProcessData = Event.None;
@@ -96,6 +96,7 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 
 class TestTerminalInstanceService extends Disposable implements Partial<ITerminalInstanceService> {
 	getBackend() {
+		// eslint-disable-next-line local/code-no-any-casts
 		return {
 			onPtyHostExit: Event.None,
 			onPtyHostUnresponsive: Event.None,
@@ -151,7 +152,7 @@ suite('Workbench - TerminalInstance', () => {
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
 		});
 
-		test('should preserve title for task terminals when preserveTaskName is enabled', async () => {
+		test('should preserve title for task terminals', async () => {
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({
 					files: {},
@@ -174,67 +175,21 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
 			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
 
-			// Create a task terminal with type 'Task' and preserveTaskName enabled
 			const taskTerminal = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {
 				type: 'Task',
-				name: 'Test Task Name',
-				preserveTaskName: true
+				name: 'Test Task Name'
 			}));
 
-			// Wait for initialization
-			await new Promise(resolve => setTimeout(resolve, 100));
 
 			// Simulate setting the title via API (as the task system would do)
 			await taskTerminal.rename('Test Task Name');
 			strictEqual(taskTerminal.title, 'Test Task Name');
 
 			// Simulate a process title change (which happens when task completes)
-			(taskTerminal as any)._setTitle('some-process-name', TitleEventSource.Process);
+			await taskTerminal.rename('some-process-name', TitleEventSource.Process);
 
 			// Verify that the task name is preserved
-			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title when preserveTaskName is enabled');
-		});
-
-		test('should allow process title changes for non-task terminals', async () => {
-			const instantiationService = workbenchInstantiationService({
-				configurationService: () => new TestConfigurationService({
-					files: {},
-					terminal: {
-						integrated: {
-							fontFamily: 'monospace',
-							scrollback: 1000,
-							fastScrollSensitivity: 2,
-							mouseWheelScrollSensitivity: 1,
-							unicodeVersion: '6',
-							shellIntegration: {
-								enabled: true
-							}
-						}
-					},
-				})
-			}, store);
-			instantiationService.set(ITerminalProfileResolverService, new MockTerminalProfileResolverService());
-			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
-			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
-			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
-
-			// Create a regular terminal (not a task terminal)
-			const regularTerminal = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {
-				name: 'Regular Terminal'
-			}));
-
-			// Wait for initialization
-			await new Promise(resolve => setTimeout(resolve, 100));
-
-			// Simulate setting the title via API
-			await regularTerminal.rename('Regular Terminal');
-			strictEqual(regularTerminal.title, 'Regular Terminal');
-
-			// Simulate a process title change
-			(regularTerminal as any)._setTitle('bash', TitleEventSource.Process);
-
-			// Verify that the title was changed (regular terminals should allow process title changes)
-			strictEqual(regularTerminal.title, 'bash', 'Regular terminal should allow process title changes to override API-set title');
+			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title');
 		});
 	});
 	suite('parseExitResult', () => {
@@ -487,6 +442,7 @@ suite('Workbench - TerminalInstance', () => {
 				const mockCwdDetection = {
 					getCwd: () => options.cwd
 				};
+				// eslint-disable-next-line local/code-no-any-casts
 				capabilities.add(TerminalCapability.CwdDetection, mockCwdDetection as any);
 			}
 

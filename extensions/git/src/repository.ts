@@ -25,6 +25,8 @@ import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
+import { GitArtifactProvider } from './artifactProvider';
+import { RepositoryCache } from './repositoryCache';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -872,6 +874,9 @@ export class Repository implements Disposable {
 		return this.repository.kind;
 	}
 
+	private _artifactProvider: GitArtifactProvider;
+	get artifactProvider(): GitArtifactProvider { return this._artifactProvider; }
+
 	private _historyProvider: GitHistoryProvider;
 	get historyProvider(): GitHistoryProvider { return this._historyProvider; }
 
@@ -895,7 +900,8 @@ export class Repository implements Disposable {
 		historyItemDetailProviderRegistry: ISourceControlHistoryItemDetailsProviderRegistry,
 		globalState: Memento,
 		private readonly logger: LogOutputChannel,
-		private telemetryReporter: TelemetryReporter
+		private telemetryReporter: TelemetryReporter,
+		private readonly repositoryCache: RepositoryCache
 	) {
 		this._operations = new OperationManager(this.logger);
 
@@ -953,6 +959,10 @@ export class Repository implements Disposable {
 		this._historyProvider = new GitHistoryProvider(historyItemDetailProviderRegistry, this, logger);
 		this._sourceControl.historyProvider = this._historyProvider;
 		this.disposables.push(this._historyProvider);
+
+		this._artifactProvider = new GitArtifactProvider(this, logger);
+		this._sourceControl.artifactProvider = this._artifactProvider;
+		this.disposables.push(this._artifactProvider);
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
@@ -1229,8 +1239,17 @@ export class Repository implements Disposable {
 		return this.run(Operation.Diff, () => this.repository.diffBetween(ref1, ref2, path));
 	}
 
-	diffBetweenShortStat(ref1: string, ref2: string): Promise<{ files: number; insertions: number; deletions: number }> {
-		return this.run(Operation.Diff, () => this.repository.diffBetweenShortStat(ref1, ref2));
+	diffBetween2(ref1: string, ref2: string): Promise<Change[]> {
+		if (ref1 === this._EMPTY_TREE) {
+			// Use git diff-tree to get the
+			// changes in the first commit
+			return this.diffTrees(ref1, ref2);
+		}
+
+		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.root));
+		const similarityThreshold = scopedConfig.get<number>('similarityThreshold', 50);
+
+		return this.run(Operation.Diff, () => this.repository.diffBetween2(ref1, ref2, { similarityThreshold }));
 	}
 
 	diffTrees(treeish1: string, treeish2?: string): Promise<Change[]> {
@@ -1847,11 +1866,23 @@ export class Repository implements Disposable {
 	}
 
 	async addRemote(name: string, url: string): Promise<void> {
-		await this.run(Operation.Remote, () => this.repository.addRemote(name, url));
+		await this.run(Operation.Remote, async () => {
+			const result = await this.repository.addRemote(name, url);
+			this.repositoryCache.update(this.remotes, [], this.root);
+			return result;
+		});
 	}
 
 	async removeRemote(name: string): Promise<void> {
-		await this.run(Operation.Remote, () => this.repository.removeRemote(name));
+		await this.run(Operation.Remote, async () => {
+			const result = this.repository.removeRemote(name);
+			const remote = this.remotes.find(remote => remote.name === name);
+			if (remote) {
+				this.repositoryCache.update([], [remote], this.root);
+			}
+			return result;
+		});
+
 	}
 
 	async renameRemote(name: string, newName: string): Promise<void> {

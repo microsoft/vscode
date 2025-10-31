@@ -494,4 +494,43 @@ suite('TokensStore', () => {
 			18, createTMMetadata(1, FontStyle.None, 53)
 		]);
 	});
+
+	test('piece with startLineNumber 0 and endLineNumber -1 after encompassing deletion', () => {
+		const codec = new LanguageIdCodec();
+		const store = new SparseTokensStore(codec);
+
+		// Set initial tokens on lines 5-10
+		const piece = SparseMultilineTokens.create(5, new Uint32Array([
+			0, 0, 5, 1,  // line 5, chars 0-5
+			5, 0, 5, 2,  // line 10, chars 0-5
+		]));
+
+		store.set([piece], false);
+
+		// Verify initial state
+		assert.strictEqual(piece.startLineNumber, 5);
+		assert.strictEqual(piece.endLineNumber, 10);
+		assert.strictEqual(piece.isEmpty(), false);
+
+		// Perform an edit that completely encompasses the token range
+		// Delete from line 1 to line 20 (encompasses lines 5-10)
+		// This triggers the case in _acceptDeleteRange where:
+		// if (firstLineIndex < 0 && lastLineIndex >= tokenMaxDeltaLine + 1)
+		// Which sets this._startLineNumber = 0 and calls this._tokens.clear()
+		store.acceptEdit(
+			{ startLineNumber: 1, startColumn: 1, endLineNumber: 20, endColumn: 1 },
+			0, // eolCount - no new lines inserted
+			0, // firstLineLength
+			0, // lastLineLength
+			0  // firstCharCode
+		);
+
+		// After an encompassing deletion, the piece should be empty
+		assert.strictEqual(piece.isEmpty(), true, 'Piece should be empty after encompassing deletion');
+
+		// EXPECTED BEHAVIOR: The store should be empty (no pieces with invalid line numbers)
+		// Currently fails because the piece remains with startLineNumber=0, endLineNumber=-1
+		assert.strictEqual(store.isEmpty(), true, 'Store should be empty after all tokens are deleted by encompassing edit');
+	});
 });
+

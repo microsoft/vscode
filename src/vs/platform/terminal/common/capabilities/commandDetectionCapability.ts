@@ -35,8 +35,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _handleCommandStartOptions?: IHandleCommandOptions;
 	private _hasRichCommandDetection: boolean = false;
 	get hasRichCommandDetection() { return this._hasRichCommandDetection; }
-	private _promptType: string | undefined;
-	get promptType(): string | undefined { return this._promptType; }
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
 	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
@@ -75,8 +73,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 	private readonly _onCurrentCommandInvalidated = this._register(new Emitter<ICommandInvalidationRequest>());
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
-	private readonly _onPromptTypeChanged = this._register(new Emitter<string | undefined>());
-	readonly onPromptTypeChanged = this._onPromptTypeChanged.event;
 	private readonly _onSetRichCommandDetection = this._register(new Emitter<boolean>());
 	readonly onSetRichCommandDetection = this._onSetRichCommandDetection.event;
 
@@ -236,11 +232,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._onSetRichCommandDetection.fire(value);
 	}
 
-	setPromptType(value: string): void {
-		this._promptType = value;
-		this._onPromptTypeChanged.fire(value);
-	}
-
 	setIsCommandStorageDisabled(): void {
 		this.__isCommandStorageDisabled = true;
 	}
@@ -290,15 +281,19 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	handlePromptStart(options?: IHandleCommandOptions): void {
 		// Adjust the last command's finished marker when needed. The standard position for the
 		// finished marker `D` to appear is at the same position as the following prompt started
-		// `A`.
+		// `A`. Only do this when it would not extend past the current cursor position.
 		const lastCommand = this.commands.at(-1);
-		if (lastCommand?.endMarker && lastCommand?.executedMarker && lastCommand.endMarker.line === lastCommand.executedMarker.line) {
+		if (
+			lastCommand?.endMarker &&
+			lastCommand?.executedMarker &&
+			lastCommand.endMarker.line === lastCommand.executedMarker.line &&
+			lastCommand.executedMarker.line < this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY
+		) {
 			this._logService.debug('CommandDetectionCapability#handlePromptStart adjusted commandFinished', `${lastCommand.endMarker.line} -> ${lastCommand.executedMarker.line + 1}`);
 			lastCommand.endMarker = cloneMarker(this._terminal, lastCommand.executedMarker, 1);
 		}
 
 		this._currentCommand.promptStartMarker = options?.marker || (lastCommand?.endMarker ? cloneMarker(this._terminal, lastCommand.endMarker) : this._terminal.registerMarker(0));
-
 		this._logService.debug('CommandDetectionCapability#handlePromptStart', this._terminal.buffer.active.cursorX, this._currentCommand.promptStartMarker?.line);
 	}
 
@@ -637,7 +632,20 @@ class WindowsPtyHeuristics extends Disposable {
 					// function an embedder could easily do damage with. Additionally, this
 					// can't really be upstreamed since the event relies on shell integration to
 					// verify the shifting is necessary.
-					(this._terminal as any)._core._bufferService.buffer.lines.onDeleteEmitter.fire({
+					interface IXtermWithCore extends Terminal {
+						_core: {
+							_bufferService: {
+								buffer: {
+									lines: {
+										onDeleteEmitter: {
+											fire(data: { index: number; amount: number }): void;
+										};
+									};
+								};
+							};
+						};
+					}
+					(this._terminal as IXtermWithCore)._core._bufferService.buffer.lines.onDeleteEmitter.fire({
 						index: this._terminal.buffer.active.baseY,
 						amount: potentialShiftedLineCount
 					});
@@ -960,7 +968,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 
 		// Dynamic prompt detection
-		if (this._capability.promptTerminator && lineText.trim().endsWith(this._capability.promptTerminator)) {
+		if (this._capability.promptTerminator && (lineText === this._capability.promptTerminator || lineText.trim().endsWith(this._capability.promptTerminator))) {
 			const adjustedPrompt = this._adjustPrompt(lineText, lineText, this._capability.promptTerminator);
 			if (adjustedPrompt) {
 				return adjustedPrompt;

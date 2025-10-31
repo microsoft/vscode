@@ -6,16 +6,16 @@
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatMarkdownRenderer } from '../../browser/chatMarkdownRenderer.js';
+import { ChatContentMarkdownRenderer } from '../../browser/chatContentMarkdownRenderer.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('ChatMarkdownRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let testRenderer: ChatMarkdownRenderer;
+	let testRenderer: ChatContentMarkdownRenderer;
 	setup(() => {
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
-		testRenderer = instantiationService.createInstance(ChatMarkdownRenderer, {});
+		testRenderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
 	});
 
 	test('simple', async () => {

@@ -13,6 +13,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { IChatToolInvocation } from '../common/chatService.js';
 import { isResponseVM } from '../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
 
@@ -38,7 +39,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 			return;
 		}
 
-		return new ChatResponseAccessibleProvider(verifiedWidget, focusedItem);
+		return new ChatResponseAccessibleProvider(verifiedWidget, focusedItem, chatInputFocused);
 	}
 }
 
@@ -46,7 +47,8 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 	private _focusedItem: ChatTreeItem;
 	constructor(
 		private readonly _widget: IChatWidget,
-		item: ChatTreeItem
+		item: ChatTreeItem,
+		private readonly _wasOpenedFromInput: boolean
 	) {
 		super();
 		this._focusedItem = item;
@@ -82,9 +84,9 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			});
 			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
 			for (const toolInvocation of toolInvocations) {
-				if (toolInvocation.confirmationMessages) {
+				if (toolInvocation.confirmationMessages?.title && toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 					const title = typeof toolInvocation.confirmationMessages.title === 'string' ? toolInvocation.confirmationMessages.title : toolInvocation.confirmationMessages.title.value;
-					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderAsPlaintext(toolInvocation.confirmationMessages.message));
+					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderAsPlaintext(toolInvocation.confirmationMessages.message!));
 					let input = '';
 					if (toolInvocation.toolSpecificData) {
 						if (toolInvocation.toolSpecificData?.kind === 'terminal') {
@@ -105,9 +107,12 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 						responseContent += `: ${input}`;
 					}
 					responseContent += `\n${message}\n`;
-				} else if (toolInvocation.isComplete && toolInvocation.resultDetails && 'input' in toolInvocation.resultDetails) {
-					responseContent += '\n' + toolInvocation.resultDetails.isError ? 'Errored ' : 'Completed ';
-					responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderAsPlaintext(toolInvocation.invocationMessage))} with input: ${toolInvocation.resultDetails.input}`}\n`;
+				} else {
+					const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
+					if (resultDetails && 'input' in resultDetails) {
+						responseContent += '\n' + (resultDetails.isError ? 'Errored ' : 'Completed ');
+						responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderAsPlaintext(toolInvocation.invocationMessage))} with input: ${resultDetails.input}`}\n`;
+					}
 				}
 			}
 
@@ -125,7 +130,11 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 
 	onClose(): void {
 		this._widget.reveal(this._focusedItem);
-		this._widget.focus(this._focusedItem);
+		if (this._wasOpenedFromInput) {
+			this._widget.focusInput();
+		} else {
+			this._widget.focus(this._focusedItem);
+		}
 	}
 
 	provideNextContent(): string | undefined {

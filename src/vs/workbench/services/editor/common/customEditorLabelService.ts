@@ -90,7 +90,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 			}
 
 			const isAbsolutePath = isAbsolute(pattern);
-			const parsedPattern = parseGlob(pattern);
+			const parsedPattern = parseGlob(pattern, { ignoreCase: true });
 
 			this.patterns.push({ pattern, template, isAbsolutePath, parsedPattern });
 		}
@@ -159,10 +159,10 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	private readonly _filenameCaptureExpression = /(?<filename>^\.*[^.]*)/;
 	private applyTemplate(template: string, resource: URI, relevantPath: string): string {
 		let parsedPath: undefined | ParsedPath;
-		return template.replace(this._parsedTemplateExpression, (match: string, variable: string, ...args: any[]) => {
+		return template.replace(this._parsedTemplateExpression, (match: string, variable: string, ...args: unknown[]) => {
 			parsedPath = parsedPath ?? parsePath(resource.path);
 			// named group matches
-			const { dirnameN = '0', extnameN = '0' }: { dirnameN?: string; extnameN?: string } = args.pop();
+			const { dirnameN = '0', extnameN = '0' } = args.pop() as { dirnameN?: string; extnameN?: string };
 
 			if (variable === 'filename') {
 				const { filename } = this._filenameCaptureExpression.exec(parsedPath.base)?.groups ?? {};

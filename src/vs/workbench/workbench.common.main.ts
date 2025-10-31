@@ -116,7 +116,7 @@ import './services/authentication/browser/authenticationMcpService.js';
 import './services/authentication/browser/dynamicAuthenticationProviderStorageService.js';
 import './services/authentication/browser/authenticationQueryService.js';
 import './services/accounts/common/defaultAccount.js';
-import '../editor/browser/services/hoverService/hoverService.js';
+import '../platform/hover/browser/hoverService.js';
 import './services/assignment/common/assignmentService.js';
 import './services/outline/browser/outlineService.js';
 import './services/languageDetection/browser/languageDetectionWorkerServiceImpl.js';
@@ -194,9 +194,6 @@ import './contrib/preferences/browser/preferencesSearch.js';
 
 // Performance
 import './contrib/performance/browser/performance.contribution.js';
-
-// Context Menus
-import './contrib/contextmenu/browser/contextmenu.contribution.js';
 
 // Notebook
 import './contrib/notebook/browser/notebook.contribution.js';
@@ -314,6 +311,9 @@ import './contrib/emmet/browser/emmet.contribution.js';
 // CodeEditor Contributions
 import './contrib/codeEditor/browser/codeEditor.contribution.js';
 
+// Markdown
+import './contrib/markdown/browser/markdown.contribution.js';
+
 // Keybindings Contributions
 import './contrib/keybindings/browser/keybindings.contribution.js';
 
@@ -424,5 +424,7 @@ import './contrib/dropOrPasteInto/browser/dropOrPasteInto.contribution.js';
 // Edit Telemetry
 import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 
+// Opener
+import './contrib/opener/browser/opener.contribution.js';
 
 //#endregion
