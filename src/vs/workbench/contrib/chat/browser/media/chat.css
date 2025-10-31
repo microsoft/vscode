@@ -756,6 +756,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	max-width: 100%;
 }
 
+.interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
+.interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container {
+	/* Remove top border radius when editing session or todo list is present (TODO@bpasero rewrite chat input widget and then do this properly without :has() */
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
+}
+
 .interactive-session .chat-editing-session {
 	margin-bottom: -4px; /* Counter the flex gap */
 	/* reset the 4px gap of the container for editing sessions */
@@ -1020,7 +1027,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-color: transparent;
 	color: var(--vscode-foreground);
 	cursor: pointer;
-	height: 16px;
 	padding: 0px;
 	border-radius: 2px;
 	display: inline-flex;
