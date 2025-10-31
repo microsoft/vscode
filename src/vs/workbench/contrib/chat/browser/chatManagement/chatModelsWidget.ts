@@ -18,7 +18,6 @@ import { WorkbenchTable } from '../../../../../platform/list/browser/listService
 import { ITableVirtualDelegate, ITableRenderer } from '../../../../../base/browser/ui/table/table.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IAction, toAction, Action, Separator } from '../../../../../base/common/actions.js';
@@ -391,14 +390,11 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 			markdown.appendText(`\n`);
 		}
 
-		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container!, () => ({
+		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container!, () => ({
 			content: markdown,
 			appearance: {
-				showPointer: true,
+				compact: true,
 				skipFadeInAnimation: true,
-			},
-			position: {
-				hoverPosition: HoverPosition.BELOW
 			}
 		})));
 	}
@@ -496,14 +492,11 @@ class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsCo
 			}
 		}
 
-		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => ({
+		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
 			content: markdown,
 			appearance: {
-				showPointer: true,
+				compact: true,
 				skipFadeInAnimation: true,
-			},
-			position: {
-				hoverPosition: HoverPosition.BELOW
 			}
 		})));
 	}
