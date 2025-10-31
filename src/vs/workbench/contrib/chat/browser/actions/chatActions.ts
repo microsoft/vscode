@@ -542,7 +542,8 @@ export function registerChatActions() {
 			quickInputService: IQuickInputService,
 			commandService: ICommandService,
 			editorService: IEditorService,
-			view: ChatViewPane
+			view: ChatViewPane | undefined,
+			isChatInEditor: boolean = false
 		) => {
 			const clearChatHistoryButton: IQuickInputButton = {
 				iconClass: ThemeIcon.asClassName(Codicon.clearAll),
@@ -630,7 +631,16 @@ export function registerChatActions() {
 			store.add(picker.onDidAccept(async () => {
 				try {
 					const item = picker.selectedItems[0];
-					await view.loadSession(item.chat.sessionResource);
+					if (isChatInEditor) {
+						// If chat is in editor, open the session in editor
+						await editorService.openEditor({
+							resource: item.chat.sessionResource,
+							options: { pinned: true } satisfies IChatEditorOptions
+						});
+					} else if (view) {
+						// If chat is in sidebar, load session in view
+						await view.loadSession(item.chat.sessionResource);
+					}
 				} finally {
 					picker.hide();
 				}
@@ -646,12 +656,13 @@ export function registerChatActions() {
 			commandService: ICommandService,
 			editorService: IEditorService,
 			chatWidgetService: IChatWidgetService,
-			view: ChatViewPane,
+			view: ChatViewPane | undefined,
 			chatSessionsService: IChatSessionsService,
 			contextKeyService: IContextKeyService,
 			menuService: IMenuService,
 			showAllChats: boolean = false,
-			showAllAgents: boolean = false
+			showAllAgents: boolean = false,
+			isChatInEditor: boolean = false
 		) {
 			const clearChatHistoryButton: IQuickInputButton = {
 				iconClass: ThemeIcon.asClassName(Codicon.clearAll),
@@ -976,7 +987,16 @@ export function registerChatActions() {
 							await this.showChatSessionInEditor(item.session.providerType, item.session.session, editorService);
 						}
 					} else if (isChatPickerItem(item)) {
-						await view.loadSession(item.chat.sessionResource);
+						if (isChatInEditor) {
+							// If chat is in editor, open the session in editor
+							await editorService.openEditor({
+								resource: item.chat.sessionResource,
+								options: { pinned: true } satisfies IChatEditorOptions
+							});
+						} else if (view) {
+							// If chat is in sidebar, load session in view
+							await view.loadSession(item.chat.sessionResource);
+						}
 					}
 				} finally {
 					picker.hide();
@@ -999,17 +1019,37 @@ export function registerChatActions() {
 			const contextKeyService = accessor.get(IContextKeyService);
 			const menuService = accessor.get(IMenuService);
 
-			const view = await viewsService.openView<ChatViewPane>(ChatViewId);
-			if (!view) {
-				return;
+			// Detect if chat is currently open in editor vs sidebar
+			const chatEditor = editorService.activeEditorPane;
+			const chatEditorInput = chatEditor?.input;
+			const isChatInEditor = !!(chatEditorInput instanceof ChatEditorInput &&
+				chatEditorInput.sessionResource &&
+				chatEditor?.getId() === ChatEditorInput.EditorID);
+
+			let view: ChatViewPane | undefined;
+			let chatSessionId: string | undefined;
+			let editingSession: IChatEditingSession | undefined;
+
+			if (isChatInEditor) {
+				// Chat is in editor - get session info from editor input and widget service
+				chatSessionId = (chatEditorInput as ChatEditorInput).sessionId;
+				const widget = chatWidgetService.getWidgetBySessionId(chatSessionId!);
+				editingSession = widget?.viewModel?.model.editingSession;
+			} else {
+				// Chat is not in editor - open in sidebar and get session info from view
+				const openedView = await viewsService.openView<ChatViewPane>(ChatViewId);
+				if (!openedView) {
+					return;
+				}
+				view = openedView;
+				chatSessionId = view.widget.viewModel?.model.sessionId;
+				editingSession = view.widget.viewModel?.model.editingSession;
 			}
 
-			const chatSessionId = view.widget.viewModel?.model.sessionId;
 			if (!chatSessionId) {
 				return;
 			}
 
-			const editingSession = view.widget.viewModel?.model.editingSession;
 			if (editingSession) {
 				const phrase = localize('switchChat.confirmPhrase', "Switching chats will end your current edit session.");
 				if (!await handleCurrentEditingSession(editingSession, phrase, dialogService)) {
@@ -1031,10 +1071,21 @@ export function registerChatActions() {
 					view,
 					chatSessionsService,
 					contextKeyService,
-					menuService
+					menuService,
+					false,
+					false,
+					isChatInEditor
 				);
 			} else {
-				await this.showLegacyPicker(chatService, quickInputService, commandService, editorService, view);
+				// For legacy picker, only create view if chat is NOT in editor
+				if (!view && !isChatInEditor) {
+					const openedView = await viewsService.openView<ChatViewPane>(ChatViewId);
+					if (!openedView) {
+						return;
+					}
+					view = openedView;
+				}
+				await this.showLegacyPicker(chatService, quickInputService, commandService, editorService, view, isChatInEditor);
 			}
 		}
 
