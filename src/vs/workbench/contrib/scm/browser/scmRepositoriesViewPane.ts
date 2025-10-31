@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { append, $ } from '../../../../base/browser/dom.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
-import { IAsyncDataSource, ITreeEvent, ITreeContextMenuEvent, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
+import { IAsyncDataSource, ITreeEvent, ITreeContextMenuEvent, ITreeNode, ITreeElementRenderDetails } from '../../../../base/browser/ui/tree/tree.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -21,7 +21,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer.js';
-import { collectContextMenuActions, getActionViewItemProvider, isSCMArtifactGroupTreeElement, isSCMArtifactTreeElement, isSCMRepository } from './util.js';
+import { collectContextMenuActions, connectPrimaryMenu, getActionViewItemProvider, isSCMArtifactGroupTreeElement, isSCMArtifactNode, isSCMArtifactTreeElement, isSCMRepository } from './util.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
@@ -37,9 +37,14 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
+import { URI } from '../../../../base/common/uri.js';
+import { basename } from '../../../../base/common/resources.js';
+import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
+import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
+import { ITreeCompressionDelegate } from '../../../../base/browser/ui/tree/asyncDataTree.js';
 
-type TreeElement = ISCMRepository | SCMArtifactGroupTreeElement | SCMArtifactTreeElement;
+type TreeElement = ISCMRepository | SCMArtifactGroupTreeElement | SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>;
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -52,7 +57,7 @@ class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 			return RepositoryRenderer.TEMPLATE_ID;
 		} else if (isSCMArtifactGroupTreeElement(element)) {
 			return ArtifactGroupRenderer.TEMPLATE_ID;
-		} else if (isSCMArtifactTreeElement(element)) {
+		} else if (isSCMArtifactTreeElement(element) || isSCMArtifactNode(element)) {
 			return ArtifactRenderer.TEMPLATE_ID;
 		} else {
 			throw new Error('Invalid tree element');
@@ -63,10 +68,11 @@ class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 interface ArtifactGroupTemplate {
 	readonly label: IconLabel;
 	readonly actionBar: WorkbenchToolBar;
+	readonly elementDisposables: DisposableStore;
 	readonly templateDisposable: IDisposable;
 }
 
-class ArtifactGroupRenderer implements ITreeRenderer<SCMArtifactGroupTreeElement, FuzzyScore, ArtifactGroupTemplate> {
+class ArtifactGroupRenderer implements ICompressibleTreeRenderer<SCMArtifactGroupTreeElement, FuzzyScore, ArtifactGroupTemplate> {
 
 	static readonly TEMPLATE_ID = 'artifactGroup';
 	get templateId(): string { return ArtifactGroupRenderer.TEMPLATE_ID; }
@@ -77,6 +83,7 @@ class ArtifactGroupRenderer implements ITreeRenderer<SCMArtifactGroupTreeElement
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@ISCMViewService private readonly _scmViewService: ISCMViewService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) { }
 
@@ -87,7 +94,7 @@ class ArtifactGroupRenderer implements ITreeRenderer<SCMArtifactGroupTreeElement
 		const actionsContainer = append(element, $('.actions'));
 		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
 
-		return { label, actionBar, templateDisposable: combinedDisposable(label, actionBar) };
+		return { label, actionBar, elementDisposables: new DisposableStore(), templateDisposable: combinedDisposable(label, actionBar) };
 	}
 
 	renderElement(node: ITreeNode<SCMArtifactGroupTreeElement, FuzzyScore>, index: number, templateData: ArtifactGroupTemplate): void {
@@ -98,16 +105,23 @@ class ArtifactGroupRenderer implements ITreeRenderer<SCMArtifactGroupTreeElement
 
 		templateData.label.setLabel(`${artifactGroupIcon}${artifactGroup.name}`);
 
-		const actions = this._menuService.getMenuActions(
-			MenuId.SCMArtifactGroupContext,
-			this._contextKeyService.createOverlay([['scmArtifactGroup', artifactGroup.id]]),
-			{ arg: provider, shouldForwardArgs: true });
+		const repositoryMenus = this._scmViewService.menus.getRepositoryMenus(provider);
+		templateData.elementDisposables.add(connectPrimaryMenu(repositoryMenus.getArtifactGroupMenu(artifactGroup), primary => {
+			templateData.actionBar.setActions(primary);
+		}, 'inline', provider));
+		templateData.actionBar.context = artifactGroup;
+	}
 
-		templateData.actionBar.context = node.element.artifactGroup;
-		templateData.actionBar.setActions(getActionBarActions(actions, 'inline').primary);
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMArtifactGroupTreeElement>, FuzzyScore>, index: number, templateData: ArtifactGroupTemplate, details?: ITreeElementRenderDetails): void {
+		throw new Error('Should never happen since node is incompressible');
+	}
+
+	disposeElement(element: ITreeNode<SCMArtifactGroupTreeElement, FuzzyScore>, index: number, templateData: ArtifactGroupTemplate, details?: ITreeElementRenderDetails): void {
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: ArtifactGroupTemplate): void {
+		templateData.elementDisposables.dispose();
 		templateData.templateDisposable.dispose();
 	}
 }
@@ -115,10 +129,11 @@ class ArtifactGroupRenderer implements ITreeRenderer<SCMArtifactGroupTreeElement
 interface ArtifactTemplate {
 	readonly label: IconLabel;
 	readonly actionBar: WorkbenchToolBar;
+	readonly elementDisposables: DisposableStore;
 	readonly templateDisposable: IDisposable;
 }
 
-class ArtifactRenderer implements ITreeRenderer<SCMArtifactTreeElement, FuzzyScore, ArtifactTemplate> {
+class ArtifactRenderer implements ICompressibleTreeRenderer<SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>, FuzzyScore, ArtifactTemplate> {
 
 	static readonly TEMPLATE_ID = 'artifact';
 	get templateId(): string { return ArtifactRenderer.TEMPLATE_ID; }
@@ -129,6 +144,7 @@ class ArtifactRenderer implements ITreeRenderer<SCMArtifactTreeElement, FuzzySco
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@ISCMViewService private readonly _scmViewService: ISCMViewService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) { }
 
@@ -139,29 +155,52 @@ class ArtifactRenderer implements ITreeRenderer<SCMArtifactTreeElement, FuzzySco
 		const actionsContainer = append(element, $('.actions'));
 		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
 
-		return { label, actionBar, templateDisposable: combinedDisposable(label, actionBar) };
+		return { label, actionBar, elementDisposables: new DisposableStore(), templateDisposable: combinedDisposable(label, actionBar) };
 	}
 
-	renderElement(node: ITreeNode<SCMArtifactTreeElement, FuzzyScore>, index: number, templateData: ArtifactTemplate): void {
-		const provider = node.element.repository.provider;
-		const artifact = node.element.artifact;
+	renderElement(nodeOrElement: ITreeNode<SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>, FuzzyScore>, index: number, templateData: ArtifactTemplate): void {
+		const artifactOrFolder = nodeOrElement.element;
 
-		const artifactGroup = node.element.group;
-		const artifactGroupIcon = ThemeIcon.isThemeIcon(artifactGroup.icon)
-			? `$(${artifactGroup.icon.id}) ` : '';
+		if (isSCMArtifactNode(artifactOrFolder)) {
+			// Folder
+			templateData.label.setLabel(`$(folder) ${basename(artifactOrFolder.uri)}`);
 
-		templateData.label.setLabel(`${artifactGroupIcon}${artifact.name}`, artifact.description);
+			templateData.actionBar.setActions([]);
+			templateData.actionBar.context = undefined;
+		} else {
+			// Artifact
+			const artifact = artifactOrFolder.artifact;
+			const artifactIcon = ThemeIcon.isThemeIcon(artifactOrFolder.group.icon)
+				? `$(${artifactOrFolder.group.icon.id}) `
+				: '';
 
-		const actions = this._menuService.getMenuActions(
-			MenuId.SCMArtifactContext,
-			this._contextKeyService.createOverlay([['scmArtifactGroup', artifactGroup.id]]),
-			{ arg: provider, shouldForwardArgs: true });
+			const artifactLabel = artifact.name.split('/').pop() ?? artifact.name;
+			templateData.label.setLabel(`${artifactIcon}${artifactLabel}`, artifact.description);
 
-		templateData.actionBar.context = node.element.artifact;
-		templateData.actionBar.setActions(getActionBarActions(actions, 'inline').primary);
+			const provider = artifactOrFolder.repository.provider;
+			const repositoryMenus = this._scmViewService.menus.getRepositoryMenus(provider);
+			templateData.elementDisposables.add(connectPrimaryMenu(repositoryMenus.getArtifactMenu(artifactOrFolder.group), primary => {
+				templateData.actionBar.setActions(primary);
+			}, 'inline', provider));
+			templateData.actionBar.context = artifact;
+		}
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>>, FuzzyScore>, index: number, templateData: ArtifactTemplate, details?: ITreeElementRenderDetails): void {
+		const compressed = node.element as ICompressedTreeNode<IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>>;
+		const folder = compressed.elements[compressed.elements.length - 1];
+		templateData.label.setLabel(`$(folder) ${folder.uri.fsPath.substring(1)}`);
+
+		templateData.actionBar.setActions([]);
+		templateData.actionBar.context = undefined;
+	}
+
+	disposeElement(element: ITreeNode<SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>, FuzzyScore>, index: number, templateData: ArtifactTemplate, details?: ITreeElementRenderDetails): void {
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: ArtifactTemplate): void {
+		templateData.elementDisposables.dispose();
 		templateData.templateDisposable.dispose();
 	}
 }
@@ -197,17 +236,26 @@ class RepositoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 			const repository = inputOrElement.repository;
 			const artifacts = await repository.provider.artifactProvider.get()?.provideArtifacts(inputOrElement.artifactGroup.id) ?? [];
 
-			return artifacts.map(artifact => ({
-				repository,
-				group: inputOrElement.artifactGroup,
-				artifact,
-				type: 'artifact'
-			}));
-		} else if (isSCMArtifactTreeElement(inputOrElement)) {
-			return [];
-		} else {
-			return [];
-		}
+			// Create resource tree for artifacts
+			const artifactsTree = new ResourceTree<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>(inputOrElement);
+			for (const artifact of artifacts) {
+				artifactsTree.add(URI.from({
+					scheme: 'scm-artifact', path: artifact.name
+				}), {
+					repository,
+					group: inputOrElement.artifactGroup,
+					artifact,
+					type: 'artifact'
+				});
+			}
+
+			return Iterable.map(artifactsTree.root.children, node => node.element ?? node);
+		} else if (isSCMArtifactNode(inputOrElement)) {
+			return Iterable.map(inputOrElement.children,
+				node => node.element && node.childrenCount === 0 ? node.element : node);
+		} else if (isSCMArtifactTreeElement(inputOrElement)) { }
+
+		return [];
 	}
 
 	hasChildren(inputOrElement: ISCMViewService | TreeElement): boolean {
@@ -231,6 +279,8 @@ class RepositoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 			return true;
 		} else if (isSCMArtifactTreeElement(inputOrElement)) {
 			return false;
+		} else if (isSCMArtifactNode(inputOrElement)) {
+			return inputOrElement.childrenCount > 0;
 		} else {
 			return false;
 		}
@@ -245,9 +295,21 @@ class RepositoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
 			return `artifactGroup:${element.repository.provider.id}/${element.artifactGroup.id}`;
 		} else if (isSCMArtifactTreeElement(element)) {
 			return `artifact:${element.repository.provider.id}/${element.group.id}/${element.artifact.id}`;
+		} else if (isSCMArtifactNode(element)) {
+			return `artifactFolder:${element.context.repository.provider.id}/${element.context.artifactGroup.id}/${element.uri.fsPath}`;
 		} else {
 			throw new Error('Invalid tree element');
 		}
+	}
+}
+
+class RepositoriesTreeCompressionDelegate implements ITreeCompressionDelegate<TreeElement> {
+	isIncompressible(element: TreeElement): boolean {
+		if (ResourceTree.isResourceNode(element)) {
+			return element.childrenCount === 0 || !element.parent || !element.parent.parent;
+		}
+
+		return true;
 	}
 }
 
@@ -354,16 +416,12 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this.treeDataSource = this.instantiationService.createInstance(RepositoryTreeDataSource);
 		this._register(this.treeDataSource);
 
-		const compressionEnabled = observableConfigValue('scm.compactFolders', true, this.configurationService);
-
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
 			'SCM Repositories',
 			container,
 			new ListDelegate(),
-			{
-				isIncompressible: () => true
-			},
+			new RepositoriesTreeCompressionDelegate(),
 			[
 				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMSourceControlInline, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ArtifactGroupRenderer),
@@ -382,12 +440,23 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					}
 
 					// Explorer mode
+					// Expand artifact folders with one child only
+					if (isSCMArtifactNode(e)) {
+						if (e.childrenCount !== 1) {
+							return true;
+						}
+
+						// Check if the only child is a leaf node
+						const firstChild = Iterable.first(e.children);
+						return firstChild?.element !== undefined;
+					}
+
 					return true;
 				},
-				compressionEnabled: compressionEnabled.get(),
+				compressionEnabled: true,
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				multipleSelectionSupport: this.scmViewService.selectionModeConfig.get() === 'multiple',
-				expandOnDoubleClick: false,
+				expandOnDoubleClick: true,
 				expandOnlyOnTwistieClick: true,
 				accessibilityProvider: {
 					getAriaLabel(element: TreeElement): string {
@@ -449,29 +518,42 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			return;
 		}
 
-		if (!isSCMRepository(e.element)) {
-			return;
+		if (isSCMRepository(e.element)) {
+			// Repository
+			const provider = e.element.provider;
+			const menus = this.scmViewService.menus.getRepositoryMenus(provider);
+			const menu = menus.getRepositoryContextMenu(e.element);
+			const actions = collectContextMenuActions(menu);
+
+			const disposables = new DisposableStore();
+			const actionRunner = new RepositoryActionRunner(() => {
+				return this.getTreeSelection();
+			});
+			disposables.add(actionRunner);
+			disposables.add(actionRunner.onWillRun(() => this.tree.domFocus()));
+
+			this.contextMenuService.showContextMenu({
+				actionRunner,
+				getAnchor: () => e.anchor,
+				getActions: () => actions,
+				getActionsContext: () => provider,
+				onHide: () => disposables.dispose()
+			});
+		} else if (isSCMArtifactTreeElement(e.element)) {
+			// Artifact
+			const provider = e.element.repository.provider;
+			const artifact = e.element.artifact;
+
+			const menus = this.scmViewService.menus.getRepositoryMenus(provider);
+			const menu = menus.getArtifactMenu(e.element.group);
+			const actions = collectContextMenuActions(menu, provider);
+
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => actions,
+				getActionsContext: () => artifact
+			});
 		}
-
-		const provider = e.element.provider;
-		const menus = this.scmViewService.menus.getRepositoryMenus(provider);
-		const menu = menus.getRepositoryContextMenu(e.element);
-		const actions = collectContextMenuActions(menu);
-
-		const disposables = new DisposableStore();
-		const actionRunner = new RepositoryActionRunner(() => {
-			return this.getTreeSelection();
-		});
-		disposables.add(actionRunner);
-		disposables.add(actionRunner.onWillRun(() => this.tree.domFocus()));
-
-		this.contextMenuService.showContextMenu({
-			actionRunner,
-			getAnchor: () => e.anchor,
-			getActions: () => actions,
-			getActionsContext: () => provider,
-			onHide: () => disposables.dispose()
-		});
 	}
 
 	private onTreeSelectionChange(e: ITreeEvent<TreeElement>): void {
@@ -608,6 +690,8 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					return e;
 				} else if (isSCMArtifactGroupTreeElement(e) || isSCMArtifactTreeElement(e)) {
 					return e.repository;
+				} else if (isSCMArtifactNode(e)) {
+					return e.context.repository;
 				} else {
 					throw new Error('Invalid tree element');
 				}

@@ -4,8 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable } from 'vscode';
-import { dispose, IDisposable } from './util';
+import { dispose, fromNow, IDisposable } from './util';
 import { Repository } from './repository';
+import { Ref } from './api/git';
+
+function getArtifactDescription(ref: Ref, shortCommitLength: number): string {
+	const segments: string[] = [];
+	if (ref.commitDetails?.commitDate) {
+		segments.push(fromNow(ref.commitDetails.commitDate));
+	}
+	if (ref.commit) {
+		segments.push(ref.commit.substring(0, shortCommitLength));
+	}
+	if (ref.commitDetails?.message) {
+		segments.push(ref.commitDetails.message.split('\n')[0]);
+	}
+
+	return segments.join(' • ');
+}
 
 export class GitArtifactProvider implements SourceControlArtifactProvider, IDisposable {
 	private readonly _onDidChangeArtifacts = new EventEmitter<string[]>();
@@ -54,7 +70,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				return refs.map(r => ({
 					id: `refs/heads/${r.name}`,
 					name: r.name ?? r.commit ?? '',
-					description: `${r.commit?.substring(0, shortCommitLength)}`
+					description: getArtifactDescription(r, shortCommitLength)
 				}));
 			} else if (group === 'tags') {
 				const refs = await this.repository
@@ -63,7 +79,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				return refs.map(r => ({
 					id: `refs/tags/${r.name}`,
 					name: r.name ?? r.commit ?? '',
-					description: r.commitDetails?.message ?? r.commit?.substring(0, shortCommitLength)
+					description: getArtifactDescription(r, shortCommitLength)
 				}));
 			}
 		} catch (err) {

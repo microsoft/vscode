@@ -69,7 +69,7 @@ export class ModelsManagementEditor extends EditorPane {
 	override layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		if (this.bodyContainer) {
-			this.modelsWidget?.layout(dimension.height - 30, this.bodyContainer!.clientWidth - 30);
+			this.modelsWidget?.layout(dimension.height - 15, this.bodyContainer!.clientWidth - 24);
 		}
 	}
 

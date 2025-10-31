@@ -800,6 +800,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderInputOnTop = this.viewOptions.renderInputOnTop ?? false;
 		const renderFollowups = this.viewOptions.renderFollowups ?? !renderInputOnTop;
 		const renderStyle = this.viewOptions.renderStyle;
+		const renderInputToolbarBelowInput = this.viewOptions.renderInputToolbarBelowInput ?? false;
 
 		this.container = dom.append(parent, $('.interactive-session'));
 		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view-container', { style: 'display: none' }));
@@ -815,12 +816,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		if (renderInputOnTop) {
-			this.createInput(this.container, { renderFollowups, renderStyle });
+			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 		} else {
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 			dom.append(this.container, this.chatSuggestNextWidget.domNode);
-			this.createInput(this.container, { renderFollowups, renderStyle });
+			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
 		}
 
 		this._welcomeRenderScheduler.schedule();
@@ -1067,9 +1068,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const numItems = this.viewModel?.getItems().length ?? 0;
 		if (!numItems) {
-			const expEmptyState = this.configurationService.getValue<boolean>('chat.emptyChatState.enabled');
-
-			let welcomeContent: IChatViewWelcomeContent;
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 			let additionalMessage: string | IMarkdownString | undefined;
 			if (this.chatEntitlementService.anonymous && !this.chatEntitlementService.sentiment.installed) {
@@ -1080,19 +1078,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (!additionalMessage && !this._lockedAgent) {
 				additionalMessage = this._getGenerateInstructionsMessage();
 			}
-			if (expEmptyState) {
-				welcomeContent = this.getWelcomeViewContent(additionalMessage, expEmptyState);
-			} else {
-				const defaultTips = this.input.currentModeKind === ChatModeKind.Ask
-					? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
-					: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
-				const contributedTips = this._lockedAgent?.id ? this.chatSessionsService.getWelcomeTipsForSessionType(this._lockedAgent.id) : undefined;
-				const tips = contributedTips
-					? new MarkdownString(contributedTips, { supportThemeIcons: true })
-					: (!this._lockedAgent ? defaultTips : undefined);
-				welcomeContent = this.getWelcomeViewContent(additionalMessage);
-				welcomeContent.tips = tips;
-			}
+			const welcomeContent = this.getWelcomeViewContent(additionalMessage);
 			if (!this.welcomePart.value || this.welcomePart.value.needsRerender(welcomeContent)) {
 				this.historyViewStore.clear();
 				dom.clearNode(this.welcomeMessageContainer);
@@ -1355,13 +1341,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined, expEmptyState?: boolean): IChatViewWelcomeContent {
-		const disclaimerMessage = expEmptyState
-			? this.chatDisclaimer
-			: localize('chatMessage', "Chat is powered by AI, so mistakes are possible. Review output carefully before use.");
-		const icon = Codicon.chatSparkle;
-
-
+	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
 		if (this.isLockedToCodingAgent) {
 			// Check for provider-specific customizations from chat sessions service
 			const providerIcon = this._lockedAgent ? this.chatSessionsService.getIconForSessionType(this._lockedAgent.id) : undefined;
@@ -1384,39 +1364,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			};
 		}
 
-		const suggestedPrompts = this.getPromptFileSuggestions();
-
+		let title: string;
 		if (this.input.currentModeKind === ChatModeKind.Ask) {
-			return {
-				title: localize('chatDescription', "Ask about your code"),
-				message: new MarkdownString(disclaimerMessage),
-				icon,
-				additionalMessage,
-				suggestedPrompts
-			};
+			title = localize('chatDescription', "Ask about your code");
 		} else if (this.input.currentModeKind === ChatModeKind.Edit) {
-			const editsHelpMessage = localize('editsHelp', "Start your editing session by defining a set of files that you want to work with. Then ask for the changes you want to make.");
-			const message = expEmptyState ? disclaimerMessage : `${editsHelpMessage}\n\n${disclaimerMessage}`;
-
-			return {
-				title: localize('editsTitle', "Edit in context"),
-				message: new MarkdownString(message),
-				icon,
-				additionalMessage,
-				suggestedPrompts
-			};
+			title = localize('editsTitle', "Edit in context");
 		} else {
-			const agentHelpMessage = localize('agentMessage', "Ask to edit your files using [Agent]({0}). Agent will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent');
-			const message = expEmptyState ? disclaimerMessage : `${agentHelpMessage}\n\n${disclaimerMessage}`;
-
-			return {
-				title: localize('agentTitle', "Build with Agent"),
-				message: new MarkdownString(message),
-				icon,
-				additionalMessage,
-				suggestedPrompts
-			};
+			title = localize('agentTitle', "Build with Agent");
 		}
+
+		return {
+			title,
+			message: new MarkdownString(this.chatDisclaimer),
+			icon: Codicon.chatSparkle,
+			additionalMessage,
+			suggestedPrompts: this.getPromptFileSuggestions()
+		};
 	}
 
 	private getPromptFileSuggestions(): IChatSuggestedPrompts[] {
@@ -2114,10 +2077,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'compact' | 'minimal' }): void {
+	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'compact' | 'minimal'; renderInputToolbarBelowInput?: boolean }): void {
 		const commonConfig: IChatInputPartOptions = {
 			renderFollowups: options?.renderFollowups ?? true,
 			renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
+			renderInputToolbarBelowInput: options?.renderInputToolbarBelowInput ?? false,
 			menus: {
 				executeToolbar: MenuId.ChatExecute,
 				telemetrySource: 'chatWidget',
@@ -2707,7 +2671,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	layout(height: number, width: number): void {
-		width = Math.min(width, 950);
+		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950); // no min width of inline chat
 		const heightUpdated = this.bodyDimension && this.bodyDimension.height !== height;
 		this.bodyDimension = new dom.Dimension(width, height);
 

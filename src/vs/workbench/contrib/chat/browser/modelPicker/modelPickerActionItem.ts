@@ -21,6 +21,8 @@ import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPic
 import { ManageModelsAction } from '../actions/manageModelsActions.js';
 import { IActionProvider } from '../../../../../base/browser/ui/dropdown/dropdown.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -69,7 +71,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 	};
 }
 
-function getModelPickerActionBarActionProvider(commandService: ICommandService, chatEntitlementService: IChatEntitlementService): IActionProvider {
+function getModelPickerActionBarActionProvider(commandService: ICommandService, chatEntitlementService: IChatEntitlementService, productService: IProductService): IActionProvider {
 
 	const actionProvider: IActionProvider = {
 		getActions: () => {
@@ -88,7 +90,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					class: undefined,
 					run: () => {
 						const commandId = ManageModelsAction.ID;
-						commandService.executeCommand(commandId);
+						commandService.executeCommand(productService.quality === 'stable' ? commandId : MANAGE_CHAT_COMMAND_ID);
 					}
 				});
 			}
@@ -130,6 +132,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IProductService productService: IProductService,
 	) {
 		// Modify the original action with a different label and make it show the current model
 		const actionWithLabel: IAction = {
@@ -141,7 +144,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService),
-			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService)
+			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService)
 		};
 
 		super(actionWithLabel, widgetOptions ?? modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);

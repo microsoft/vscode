@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { equalsIgnoreCase, isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { isString } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -136,7 +136,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}));
 
 		this._registerEnvContributedAuthenticationProviders();
-		this._registerAuthenticationExtentionPointHandler();
+		this._registerAuthenticationExtensionPointHandler();
 	}
 
 	private _declaredProviders: AuthenticationProviderInformation[] = [];
@@ -154,7 +154,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	private _registerAuthenticationExtentionPointHandler(): void {
+	private _registerAuthenticationExtensionPointHandler(): void {
 		this._register(authenticationExtPoint.setHandler((_extensions, { added, removed }) => {
 			this._logService.debug(`Found authentication providers. added: ${added.length}, removed: ${removed.length}`);
 			added.forEach(point => {
@@ -401,7 +401,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			const authServerStr = authorizationServer.toString(true);
 			for (const server of provider.authorizationServers) {
 				const str = server.toString(true);
-				if (str === authServerStr || match(str, authServerStr, { ignoreCase: true })) {
+				if (equalsIgnoreCase(str, authServerStr) || match(str, authServerStr, { ignoreCase: true })) {
 					return true;
 				}
 			}

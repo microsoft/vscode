@@ -3377,8 +3377,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						const globGroupTasks = await this._findWorkspaceTasks((task) => {
 							const currentTaskGroup = task.configurationProperties.group;
 							if (currentTaskGroup && typeof currentTaskGroup !== 'string' && typeof currentTaskGroup.isDefault === 'string') {
-								// TODO: review case sensitivity
-								return (currentTaskGroup._id === taskGroupId && glob.match(currentTaskGroup.isDefault, relativePath));
+								return (currentTaskGroup._id === taskGroupId && glob.match(currentTaskGroup.isDefault, relativePath, { ignoreCase: true }));
 							}
 
 							globTasksDetected = false;
