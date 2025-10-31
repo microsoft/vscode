@@ -496,6 +496,7 @@
       {
         "command": "git.branch",
         "title": "%command.branch%",
+        "icon": "$(plus)",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -550,6 +551,7 @@
       {
         "command": "git.createTag",
         "title": "%command.createTag%",
+        "icon": "$(plus)",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1024,6 +1026,18 @@
         "command": "git.repositories.checkout",
         "title": "%command.graphCheckout%",
         "icon": "$(target)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.checkoutDetached",
+        "title": "%command.graphCheckoutDetached%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.compareRef",
+        "title": "%command.graphCompareRef%",
         "category": "Git",
         "enablement": "!operationInProgress"
       }
@@ -1653,6 +1667,14 @@
         {
           "command": "git.repositories.checkout",
           "when": "false"
+        },
+        {
+          "command": "git.repositories.checkoutDetached",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.compareRef",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1843,10 +1865,37 @@
           "when": "scmProvider == git && scmProviderContext == worktree"
         }
       ],
+      "scm/artifactGroup/context": [
+        {
+          "command": "git.branch",
+          "group": "inline@1",
+          "when": "scmProvider == git && scmArtifactGroup == branches"
+        },
+        {
+          "command": "git.createTag",
+          "group": "inline@1",
+          "when": "scmProvider == git && scmArtifactGroup == tags"
+        }
+      ],
       "scm/artifact/context": [
         {
           "command": "git.repositories.checkout",
           "group": "inline@1",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.repositories.checkout",
+          "group": "1_checkout@1",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.repositories.checkoutDetached",
+          "group": "1_checkout@2",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.repositories.compareRef",
+          "group": "2_compare@1",
           "when": "scmProvider == git"
         }
       ],

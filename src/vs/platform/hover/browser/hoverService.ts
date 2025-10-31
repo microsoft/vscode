@@ -444,7 +444,7 @@ export class HoverService extends Disposable implements IHoverService {
 				// track the mouse position
 				const onMouseMove = (e: MouseEvent) => {
 					target.x = e.x + 10;
-					if ((isHTMLElement(e.target)) && getHoverTargetElement(e.target, targetElement) !== targetElement) {
+					if (!eventIsRelatedToTarget(e, targetElement)) {
 						hideHover(true, true);
 					}
 				};
@@ -453,17 +453,21 @@ export class HoverService extends Disposable implements IHoverService {
 
 			hoverPreparation = mouseOverStore;
 
-			if ((isHTMLElement(e.target)) && getHoverTargetElement(e.target as HTMLElement, targetElement) !== targetElement) {
+			if (!eventIsRelatedToTarget(e, targetElement)) {
 				return; // Do not show hover when the mouse is over another hover target
 			}
 
 			mouseOverStore.add(triggerShowHover(typeof hoverDelegate.delay === 'function' ? hoverDelegate.delay(content) : hoverDelegate.delay, false, target));
 		}, true));
 
-		const onFocus = () => {
+		const onFocus = (e: FocusEvent) => {
 			if (isMouseDown || hoverPreparation) {
 				return;
 			}
+			if (!eventIsRelatedToTarget(e, targetElement)) {
+				return; // Do not show hover when the focus is on another hover target
+			}
+
 			const target: IHoverDelegateTarget = {
 				targetElements: [targetElement],
 				dispose: () => { }
@@ -595,6 +599,10 @@ class HoverContextViewDelegate implements IDelegate {
 	layout() {
 		this._hover.layout();
 	}
+}
+
+function eventIsRelatedToTarget(event: UIEvent, target: HTMLElement): boolean {
+	return isHTMLElement(event.target) && getHoverTargetElement(event.target as HTMLElement, target) === target;
 }
 
 function getHoverTargetElement(element: HTMLElement, stopElement?: HTMLElement): HTMLElement {

@@ -555,6 +555,13 @@
 	align-items: center;
 }
 
+.scm-repositories-view .scm-artifact .monaco-icon-description-container {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 /* History item hover */
 
 .monaco-hover.history-item-hover p:first-child {

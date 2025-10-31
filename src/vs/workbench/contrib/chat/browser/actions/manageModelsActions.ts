@@ -11,6 +11,7 @@ import { localize2 } from '../../../../../nls.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ProductQualityContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -35,7 +36,7 @@ export class ManageModelsAction extends Action2 {
 			id: ManageModelsAction.ID,
 			title: localize2('manageLanguageModels', 'Manage Language Models...'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(
+			precondition: ContextKeyExpr.and(ProductQualityContext.isEqualTo('stable'), ChatContextKeys.enabled, ContextKeyExpr.or(
 				ChatContextKeys.Entitlement.planFree,
 				ChatContextKeys.Entitlement.planPro,
 				ChatContextKeys.Entitlement.planProPlus,
