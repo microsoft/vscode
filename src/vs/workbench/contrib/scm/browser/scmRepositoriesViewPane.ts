@@ -42,6 +42,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
+import { ITreeCompressionDelegate } from '../../../../base/browser/ui/tree/asyncDataTree.js';
 
 type TreeElement = ISCMRepository | SCMArtifactGroupTreeElement | SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>;
 
@@ -186,8 +187,9 @@ class ArtifactRenderer implements ICompressibleTreeRenderer<SCMArtifactTreeEleme
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>>, FuzzyScore>, index: number, templateData: ArtifactTemplate, details?: ITreeElementRenderDetails): void {
-		const compressed = node.element as ICompressedTreeNode<SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>>;
-		templateData.label.setLabel(`$(folder) ${compressed.elements.join('/')}`);
+		const compressed = node.element as ICompressedTreeNode<IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>>;
+		const folder = compressed.elements[compressed.elements.length - 1];
+		templateData.label.setLabel(`$(folder) ${folder.uri.fsPath.substring(1)}`);
 
 		templateData.actionBar.setActions([]);
 		templateData.actionBar.context = undefined;
@@ -301,6 +303,16 @@ class RepositoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
 	}
 }
 
+class RepositoriesTreeCompressionDelegate implements ITreeCompressionDelegate<TreeElement> {
+	isIncompressible(element: TreeElement): boolean {
+		if (ResourceTree.isResourceNode(element)) {
+			return element.childrenCount === 0 || !element.parent || !element.parent.parent;
+		}
+
+		return true;
+	}
+}
+
 export class SCMRepositoriesViewPane extends ViewPane {
 
 	private tree!: WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement>;
@@ -409,9 +421,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			'SCM Repositories',
 			container,
 			new ListDelegate(),
-			{
-				isIncompressible: () => true
-			},
+			new RepositoriesTreeCompressionDelegate(),
 			[
 				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMSourceControlInline, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ArtifactGroupRenderer),
@@ -430,6 +440,17 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					}
 
 					// Explorer mode
+					// Expand artifact folders with one child only
+					if (isSCMArtifactNode(e)) {
+						if (e.childrenCount !== 1) {
+							return true;
+						}
+
+						// Check if the only child is a leaf node
+						const firstChild = Iterable.first(e.children);
+						return firstChild?.element !== undefined;
+					}
+
 					return true;
 				},
 				compressionEnabled: true,
