@@ -70,6 +70,10 @@ export function isSCMArtifactGroupTreeElement(element: unknown): element is SCMA
 	return (element as SCMArtifactGroupTreeElement).type === 'artifactGroup';
 }
 
+export function isSCMArtifactNode(element: unknown): element is IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement> {
+	return ResourceTree.isResourceNode(element) && isSCMArtifactGroupTreeElement(element.context);
+}
+
 export function isSCMArtifactTreeElement(element: unknown): element is SCMArtifactTreeElement {
 	return (element as SCMArtifactTreeElement).type === 'artifact';
 }
