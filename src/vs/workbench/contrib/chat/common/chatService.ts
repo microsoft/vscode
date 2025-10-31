@@ -813,8 +813,6 @@ export interface IChatCompleteResponse {
 }
 
 export interface IChatDetail {
-	/** @deprecated Use {@link sessionResource} instead */
-	sessionId: string;
 	sessionResource: URI;
 	title: string;
 	lastMessageDate: number;
@@ -848,7 +846,7 @@ export interface IChatEditorLocationData {
 	selection: ISelection;
 	wholeRange: IRange;
 	close: () => void;
-	delegateSessionId: string | undefined;
+	delegateSessionResource: URI | undefined;
 }
 
 export interface IChatNotebookLocationData {

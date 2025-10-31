@@ -313,9 +313,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Listen for chat session disposal to clean up associated terminals
 		this._register(this._chatService.onDidDisposeSession(e => {
-			const localSession = LocalChatSessionUri.parse(e.sessionResource);
-			if (localSession) {
-				this._cleanupSessionTerminals(localSession.sessionId);
+			const localSessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
+			if (localSessionId) {
+				this._cleanupSessionTerminals(localSessionId);
 			}
 		}));
 	}

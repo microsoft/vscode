@@ -2527,7 +2527,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const requestId = this.chatAccessibilityService.acceptRequest();
 			const requestInputs: IChatRequestInputOptions = {
 				input: !query ? editorValue : query.query,
-				attachedContext: options?.enableImplicitContext === false ? this.input.getAttachedContext(this.viewModel.sessionId) : this.input.getAttachedAndImplicitContext(this.viewModel.sessionId),
+				attachedContext: options?.enableImplicitContext === false ? this.input.getAttachedContext(this.viewModel.sessionResource) : this.input.getAttachedAndImplicitContext(this.viewModel.sessionResource),
 			};
 
 			const isUserQuery = !query;

@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -48,7 +49,7 @@ export function registerMoveActions() {
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const context = args[0];
-			executeMoveToAction(accessor, MoveToNewLocation.Editor, isChatViewTitleActionContext(context) ? context.sessionId : undefined);
+			executeMoveToAction(accessor, MoveToNewLocation.Editor, isChatViewTitleActionContext(context) ? context.sessionResource : undefined);
 		}
 	});
 
@@ -71,7 +72,7 @@ export function registerMoveActions() {
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const context = args[0];
-			executeMoveToAction(accessor, MoveToNewLocation.Window, isChatViewTitleActionContext(context) ? context.sessionId : undefined);
+			executeMoveToAction(accessor, MoveToNewLocation.Window, isChatViewTitleActionContext(context) ? context.sessionResource : undefined);
 		}
 	});
 
@@ -110,11 +111,11 @@ export function registerMoveActions() {
 	});
 }
 
-async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNewLocation, _sessionId?: string) {
+async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNewLocation, sessionResource?: URI) {
 	const widgetService = accessor.get(IChatWidgetService);
 	const editorService = accessor.get(IEditorService);
 
-	const widget = (_sessionId ? widgetService.getWidgetBySessionId(_sessionId) : undefined)
+	const widget = (sessionResource ? widgetService.getWidgetBySessionResource(sessionResource) : undefined)
 		?? widgetService.lastFocusedWidget;
 	if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Chat) {
 		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);

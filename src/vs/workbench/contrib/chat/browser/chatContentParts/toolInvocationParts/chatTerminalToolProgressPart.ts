@@ -269,11 +269,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			commandDetectionListener.clear();
 			this._actionBar.clear();
 			this._focusAction.clear();
-			const keepOutputAction = !!this._terminalData.output?.html;
 			this._showOutputActionAdded = false;
-			if (!keepOutputAction) {
-				this._showOutputAction.clear();
-			}
+			this._showOutputAction.clear();
 			this._ensureShowOutputAction();
 			instanceListener.dispose();
 		}));
