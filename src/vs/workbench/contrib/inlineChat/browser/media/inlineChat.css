@@ -98,6 +98,11 @@
 	.interactive-session .chat-input-container:focus-within {
 		border-color: var(--vscode-input-border);
 	}
+
+	.chat-attachments-container > .chat-input-toolbar {
+		margin-left: auto;
+		margin-right: 16px;
+	}
 }
 
 
