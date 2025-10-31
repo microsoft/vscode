@@ -63,6 +63,7 @@ export interface IChatSetCheckpointEvent {
 
 export interface IChatViewModel {
 	readonly model: IChatModel;
+	/** @deprecated Use {@link sessionResource} instead */
 	readonly sessionId: string;
 	readonly sessionResource: URI;
 	readonly onDidDisposeModel: Event<void>;
@@ -263,6 +264,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._onDidChange.fire({ kind: 'changePlaceholder' });
 	}
 
+	/** @deprecated Use {@link sessionResource} instead */
 	get sessionId() {
 		return this._model.sessionId;
 	}
@@ -392,6 +394,7 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this.id + `_${hash(this.variables)}_${hash(this.isComplete)}`;
 	}
 
+	/** @deprecated */
 	get sessionId() {
 		return this._model.session.sessionId;
 	}
@@ -487,6 +490,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			(this.isLast ? '_last' : '');
 	}
 
+	/** @deprecated */
 	get sessionId() {
 		return this._model.session.sessionId;
 	}

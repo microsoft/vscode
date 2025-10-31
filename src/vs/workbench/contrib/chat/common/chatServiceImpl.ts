@@ -145,7 +145,7 @@ export class ChatService extends Disposable implements IChatService {
 		return this._transferredSessionData;
 	}
 
-	private readonly _onDidSubmitRequest = this._register(new Emitter<{ readonly chatSessionId: string }>());
+	private readonly _onDidSubmitRequest = this._register(new Emitter<{ readonly chatSessionResource: URI }>());
 	public readonly onDidSubmitRequest = this._onDidSubmitRequest.event;
 
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
@@ -1069,7 +1069,7 @@ export class ChatService extends Disposable implements IChatService {
 		rawResponsePromise.finally(() => {
 			this._pendingRequests.deleteAndDispose(model.sessionResource);
 		});
-		this._onDidSubmitRequest.fire({ chatSessionId: model.sessionId });
+		this._onDidSubmitRequest.fire({ chatSessionResource: model.sessionResource });
 		return {
 			responseCreatedPromise: responseCreated.p,
 			responseCompletePromise: rawResponsePromise,

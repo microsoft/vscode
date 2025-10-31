@@ -55,3 +55,18 @@ export namespace LocalChatSessionUri {
 		return { chatSessionType, sessionId: new TextDecoder().decode(decodedSessionId.buffer) };
 	}
 }
+
+/**
+ * Converts a chat session resource URI to a string ID.
+ *
+ * This exists mainly for backwards compatibility with existing code that uses string IDs in telemetry and storage.
+ */
+export function chatSessionResourceToId(resource: URI): string {
+	// If we have a local session, prefer using just the id part
+	const localId = LocalChatSessionUri.parseLocalSessionId(resource);
+	if (localId) {
+		return localId;
+	}
+
+	return resource.toString();
+}

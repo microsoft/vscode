@@ -83,6 +83,7 @@ import { IInlineChatSessionService } from '../../browser/inlineChatSessionServic
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestWorkerService } from './testWorkerService.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 suite('InlineChatController', function () {
 
@@ -225,8 +226,8 @@ suite('InlineChatController', function () {
 			[IChatLayoutService, new SyncDescriptor(ChatLayoutService)],
 			[IChatTodoListService, new class extends mock<IChatTodoListService>() {
 				override onDidUpdateTodos = Event.None;
-				override getTodos(sessionId: string): IChatTodo[] { return []; }
-				override setTodos(sessionId: string, todos: IChatTodo[]): void { }
+				override getTodos(sessionResource: URI): IChatTodo[] { return []; }
+				override setTodos(sessionResource: URI, todos: IChatTodo[]): void { }
 			}],
 			[IChatEntitlementService, new SyncDescriptor(TestChatEntitlementService)],
 		);

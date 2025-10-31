@@ -26,6 +26,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IChatWidgetService, showChatWidgetInViewOrEditor } from '../chat.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 export interface IChatConfirmationButton<T> {
 	label: string;
@@ -118,13 +119,13 @@ class ChatConfirmationNotifier extends Disposable {
 		super();
 	}
 
-	async notify(targetWindow: Window, sessionId: string): Promise<void> {
+	async notify(targetWindow: Window, sessionResource: URI): Promise<void> {
 
 		// Focus Window
 		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 
 		// Notify
-		const widget = this._chatWidgetService.getWidgetBySessionId(sessionId);
+		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
 		const title = widget?.viewModel?.model.title ? localize('chatTitle', "Chat: {0}", widget.viewModel.model.title) : localize('chat.untitledChat', "Untitled Chat");
 		const notification = await dom.triggerNotification(title,
 			{
@@ -285,7 +286,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation') && !this.silent) {
 			const targetWindow = dom.getWindow(listContainer);
 			if (!targetWindow.document.hasFocus()) {
-				this.notificationManager.notify(targetWindow, this.context.element.sessionId);
+				this.notificationManager.notify(targetWindow, this.context.element.sessionResource);
 			}
 		}
 	}
@@ -481,7 +482,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
 			const targetWindow = dom.getWindow(listContainer);
 			if (!targetWindow.document.hasFocus()) {
-				this.notificationManager.notify(targetWindow, this._context.element.sessionId);
+				this.notificationManager.notify(targetWindow, this._context.element.sessionResource);
 			}
 		}
 	}
