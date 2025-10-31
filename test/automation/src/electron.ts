@@ -30,6 +30,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		'--disable-experiments',
 		'--no-cached-data',
 		'--disable-updates',
+		'--disable-extension=vscode.vscode-api-tests',
 		`--crash-reporter-directory=${crashesPath}`,
 		'--disable-workspace-trust',
 		`--logsPath=${logsPath}`

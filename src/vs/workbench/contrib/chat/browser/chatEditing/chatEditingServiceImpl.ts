@@ -90,7 +90,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		this._register(this._chatService.onDidDisposeSession((e) => {
 			if (e.reason === 'cleared') {
-				this.getEditingSession(e.sessionId)?.stop();
+				this.getEditingSession(e.sessionResource)?.stop();
 			}
 		}));
 
@@ -143,7 +143,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			await this._restoringEditingSession;
 		}
 
-		const session = this.getEditingSession(chatModel.sessionId);
+		const session = this.getEditingSession(chatModel.sessionResource);
 		if (session) {
 			return session;
 		}
@@ -164,16 +164,16 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return undefined;
 	}
 
-	getEditingSession(chatSessionId: string): IChatEditingSession | undefined {
+	getEditingSession(chatSessionResource: URI): IChatEditingSession | undefined {
 		return this.editingSessionsObs.get()
-			.find(candidate => candidate.chatSessionId === chatSessionId);
+			.find(candidate => isEqual(candidate.chatSessionResource, chatSessionResource));
 	}
 
 	async createEditingSession(chatModel: ChatModel, global: boolean = false): Promise<IChatEditingSession> {
 
-		assertType(this.getEditingSession(chatModel.sessionId) === undefined, 'CANNOT have more than one editing session per chat session');
+		assertType(this.getEditingSession(chatModel.sessionResource) === undefined, 'CANNOT have more than one editing session per chat session');
 
-		const session = this._instantiationService.createInstance(ChatEditingSession, chatModel.sessionId, global, this._lookupEntry.bind(this));
+		const session = this._instantiationService.createInstance(ChatEditingSession, chatModel.sessionId, chatModel.sessionResource, global, this._lookupEntry.bind(this));
 		await session.init();
 
 		const list = this._sessionsObs.get();
@@ -227,27 +227,24 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const editorListener = Event.once(this._editorService.onDidActiveEditorChange)(() => {
 			editorDidChange = true;
 		});
+		const editorOpenPromises = new ResourceMap<Promise<void>>();
+		const openChatEditedFiles = this._configurationService.getValue('accessibility.openChatEditedFiles');
 
-		const editedFilesExist = new ResourceMap<Promise<void>>();
 		const ensureEditorOpen = (partUri: URI) => {
 			const uri = CellUri.parse(partUri)?.notebook ?? partUri;
-			if (editedFilesExist.has(uri)) {
+			if (editorOpenPromises.has(uri)) {
 				return;
 			}
+			editorOpenPromises.set(uri, (async () => {
+				if (this.notebookService.getNotebookTextModel(uri) || uri.scheme === Schemas.untitled || await this._fileService.exists(uri).catch(() => false)) {
+					const activeUri = this._editorService.activeEditorPane?.input.resource;
+					const inactive = editorDidChange
+						|| this._editorService.activeEditorPane?.input instanceof ChatEditorInput && this._editorService.activeEditorPane.input.sessionId === session.chatSessionId
+						|| Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
 
-			const fileExists = this.notebookService.getNotebookTextModel(uri) ? Promise.resolve(true) : this._fileService.exists(uri);
-			editedFilesExist.set(uri, fileExists.then((e) => {
-				if (!e) {
-					return;
-				}
-				const activeUri = this._editorService.activeEditorPane?.input.resource;
-				const inactive = editorDidChange
-					|| this._editorService.activeEditorPane?.input instanceof ChatEditorInput && this._editorService.activeEditorPane.input.sessionId === session.chatSessionId
-					|| Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
-				if (this._configurationService.getValue('accessibility.openChatEditedFiles')) {
 					this._editorService.openEditor({ resource: uri, options: { inactive, preserveFocus: true, pinned: true } });
 				}
-			}));
+			})());
 		};
 
 		const onResponseComplete = () => {
@@ -256,7 +253,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			}
 
 			editsSeen.length = 0;
-			editedFilesExist.clear();
+			editorOpenPromises.clear();
 			editorListener.dispose();
 		};
 
@@ -278,7 +275,14 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					continue;
 				}
 
-				ensureEditorOpen(part.uri);
+				// Skip external edits - they're already applied on disk
+				if (part.isExternalEdit) {
+					continue;
+				}
+
+				if (openChatEditedFiles) {
+					ensureEditorOpen(part.uri);
+				}
 
 				// get new edits and start editing session
 				let entry = editsSeen[i];

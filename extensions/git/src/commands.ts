@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
@@ -116,7 +116,7 @@ class RefItem implements QuickPickItem {
 			case RefType.Head:
 				return `refs/heads/${this.ref.name}`;
 			case RefType.RemoteHead:
-				return `refs/remotes/${this.ref.remote}/${this.ref.name}`;
+				return `refs/remotes/${this.ref.name}`;
 			case RefType.Tag:
 				return `refs/tags/${this.ref.name}`;
 		}
@@ -682,10 +682,11 @@ class CommandErrorOutputTextDocumentContentProvider implements TextDocumentConte
 	}
 }
 
-async function evaluateDiagnosticsCommitHook(repository: Repository, options: CommitOptions): Promise<boolean> {
+async function evaluateDiagnosticsCommitHook(repository: Repository, options: CommitOptions, logger: LogOutputChannel): Promise<boolean> {
 	const config = workspace.getConfiguration('git', Uri.file(repository.root));
 	const enabled = config.get<boolean>('diagnosticsCommitHook.enabled', false) === true;
 	const sourceSeverity = config.get<Record<string, DiagnosticSeverityConfig>>('diagnosticsCommitHook.sources', { '*': 'error' });
+	logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Diagnostics Commit Hook: enabled=${enabled}, sources=${JSON.stringify(sourceSeverity)}`);
 
 	if (!enabled) {
 		return true;
@@ -711,23 +712,27 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	for (const resource of resources) {
 		const unresolvedDiagnostics = languages.getDiagnostics(resource)
 			.filter(d => {
+				logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Evaluating diagnostic for ${resource.fsPath}: source='${d.source}', severity='${d.severity}'`);
+
 				// No source or ignored source
 				if (!d.source || (Object.keys(sourceSeverity).includes(d.source) && sourceSeverity[d.source] === 'none')) {
+					logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Ignoring diagnostic for ${resource.fsPath}: source='${d.source}', severity='${d.severity}'`);
 					return false;
 				}
 
 				// Source severity
-				if (Object.keys(sourceSeverity).includes(d.source) &&
-					d.severity <= toDiagnosticSeverity(sourceSeverity[d.source])) {
+				if (Object.keys(sourceSeverity).includes(d.source) && d.severity <= toDiagnosticSeverity(sourceSeverity[d.source])) {
+					logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Found unresolved diagnostic for ${resource.fsPath}: source='${d.source}', severity='${d.severity}'`);
 					return true;
 				}
 
 				// Wildcard severity
-				if (Object.keys(sourceSeverity).includes('*') &&
-					d.severity <= toDiagnosticSeverity(sourceSeverity['*'])) {
+				if (Object.keys(sourceSeverity).includes('*') && d.severity <= toDiagnosticSeverity(sourceSeverity['*'])) {
+					logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Found unresolved diagnostic for ${resource.fsPath}: source='${d.source}', severity='${d.severity}'`);
 					return true;
 				}
 
+				logger.trace(`[CommandCenter][evaluateDiagnosticsCommitHook] Ignoring diagnostic for ${resource.fsPath}: source='${d.source}', severity='${d.severity}'`);
 				return false;
 			});
 
@@ -2412,7 +2417,7 @@ export class CommandCenter {
 		}
 
 		// Diagnostics commit hook
-		const diagnosticsResult = await evaluateDiagnosticsCommitHook(repository, opts);
+		const diagnosticsResult = await evaluateDiagnosticsCommitHook(repository, opts, this.logger);
 		if (!diagnosticsResult) {
 			return;
 		}
@@ -3102,6 +3107,102 @@ export class CommandCenter {
 		const refName = historyItemRef.name.substring(index + 1);
 
 		await this._deleteBranch(repository, remoteName, refName, { remote: true });
+	}
+
+	@command('git.graph.compareWithRemote', { repository: true })
+	async compareWithRemote(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+		if (!historyItem || !repository.historyProvider.currentHistoryItemRemoteRef) {
+			return;
+		}
+
+		await this._openChangesBetweenRefs(
+			repository,
+			repository.historyProvider.currentHistoryItemRemoteRef.name,
+			historyItem);
+	}
+
+	@command('git.graph.compareWithMergeBase', { repository: true })
+	async compareWithMergeBase(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+		if (!historyItem || !repository.historyProvider.currentHistoryItemBaseRef) {
+			return;
+		}
+
+		await this._openChangesBetweenRefs(
+			repository,
+			repository.historyProvider.currentHistoryItemBaseRef.name,
+			historyItem);
+	}
+
+	@command('git.graph.compareRef', { repository: true })
+	async compareBranch(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+		if (!repository || !historyItem) {
+			return;
+		}
+
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
+		const getRefPicks = async () => {
+			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
+			const processors = [
+				new RefProcessor(RefType.Head, BranchItem),
+				new RefProcessor(RefType.RemoteHead, BranchItem),
+				new RefProcessor(RefType.Tag, BranchItem)
+			];
+
+			const itemsProcessor = new RefItemsProcessor(repository, processors);
+			return itemsProcessor.processRefs(refs);
+		};
+
+		const placeHolder = l10n.t('Select a reference to compare with');
+		const sourceRef = await this.pickRef(getRefPicks(), placeHolder);
+
+		if (!(sourceRef instanceof BranchItem) || !sourceRef.ref.commit) {
+			return;
+		}
+
+		await this._openChangesBetweenRefs(
+			repository,
+			sourceRef.ref.name,
+			historyItem);
+	}
+
+	private async _openChangesBetweenRefs(repository: Repository, ref: string | undefined, historyItem: SourceControlHistoryItem | undefined): Promise<void> {
+		if (!repository || !ref || !historyItem) {
+			return;
+		}
+
+		const ref2 = historyItem.references?.length
+			? historyItem.references[0].name
+			: historyItem.id;
+
+		try {
+			const changes = await repository.diffBetween2(ref, historyItem.id);
+
+			if (changes.length === 0) {
+				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref, ref2));
+				return;
+			}
+
+			const refDisplayName = historyItem.references?.length
+				? historyItem.references[0].name
+				: `${historyItem.displayId || historyItem.id} - ${historyItem.subject}`;
+
+			const resources = changes.map(change => toMultiFileDiffEditorUris(change, ref, ref2));
+			const title = `${ref} ↔ ${refDisplayName}`;
+			const multiDiffSourceUri = Uri.from({
+				scheme: 'git-ref-compare',
+				path: `${repository.root}/${ref}..${ref2}`
+			});
+
+			await commands.executeCommand('_workbench.openMultiDiffEditor', {
+				multiDiffSourceUri,
+				title,
+				resources
+			});
+		} catch (err) {
+			window.showErrorMessage(l10n.t('Failed to open changes between "{0}" and "{1}": {2}', ref, ref2, err.message));
+		}
 	}
 
 	@command('git.deleteRemoteBranch', { repository: true })
@@ -4774,7 +4875,7 @@ export class CommandCenter {
 
 		const commit = await repository.getCommit(item.ref);
 		const commitParentId = commit.parents.length > 0 ? commit.parents[0] : await repository.getEmptyTree();
-		const changes = await repository.diffTrees(commitParentId, commit.hash);
+		const changes = await repository.diffBetween2(commitParentId, commit.hash);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, commitParentId, commit.hash));
 
 		const title = `${item.shortRef} - ${subject(commit.message)}`;
@@ -5048,7 +5149,7 @@ export class CommandCenter {
 
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });
 
-		const changes = await repository.diffTrees(historyItemParentId, historyItemId);
+		const changes = await repository.diffBetween2(historyItemParentId, historyItemId);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
 		const reveal = revealUri ? { modifiedUri: toGitUri(revealUri, historyItemId) } : undefined;
 
@@ -5079,6 +5180,15 @@ export class CommandCenter {
 		const enabled = config.get<boolean>(setting) === true;
 
 		config.update(setting, !enabled, true);
+	}
+
+	@command('git.repositories.checkout', { repository: true })
+	async artifactCheckout(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		await this._checkout(repository, { treeish: artifact.name });
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

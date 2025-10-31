@@ -50,9 +50,9 @@ suite('PromptHoverProvider', () => {
 		const toolService = disposables.add(instaService.createInstance(LanguageModelToolsService));
 
 		const testTool1 = { id: 'testTool1', displayName: 'tool1', canBeReferencedInPrompt: true, modelDescription: 'Test Tool 1', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
-		const testTool2 = { id: 'testTool2', displayName: 'tool2', canBeReferencedInPrompt: true, toolReferenceName: 'tool2', modelDescription: 'Test Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
-
 		disposables.add(toolService.registerToolData(testTool1));
+
+		const testTool2 = { id: 'testTool2', displayName: 'tool2', canBeReferencedInPrompt: true, toolReferenceName: 'tool2', modelDescription: 'Test Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(testTool2));
 
 		instaService.set(ILanguageModelToolsService, toolService);
@@ -241,6 +241,18 @@ suite('PromptHoverProvider', () => {
 			const hover = await getHover(content, 3, 1, PromptsType.agent);
 			assert.strictEqual(hover, 'The argument-hint describes what inputs the custom agent expects or supports.');
 		});
+
+		test('hover on name attribute', async () => {
+			const content = [
+				'---',
+				'name: "My Agent"',
+				'description: "Test agent"',
+				'target: vscode',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 2, 1, PromptsType.agent);
+			assert.strictEqual(hover, 'The name of the agent as shown in the UI.');
+		});
 	});
 
 	suite('prompt hovers', () => {
@@ -294,6 +306,17 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			assert.strictEqual(hover, expected);
 		});
+
+		test('hover on name attribute', async () => {
+			const content = [
+				'---',
+				'name: "My Prompt"',
+				'description: "Test prompt"',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 2, 1, PromptsType.prompt);
+			assert.strictEqual(hover, 'The name of the prompt. This is also the name of the slash command that will run this prompt.');
+		});
 	});
 
 	suite('instructions hovers', () => {
@@ -321,6 +344,18 @@ suite('PromptHoverProvider', () => {
 				'Example: `**/*.ts`, `**/*.js`, `client/**`'
 			].join('\n');
 			assert.strictEqual(hover, expected);
+		});
+
+		test('hover on name attribute', async () => {
+			const content = [
+				'---',
+				'name: "My Instructions"',
+				'description: "Test instruction"',
+				'applyTo: "**/*.ts"',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 2, 1, PromptsType.instructions);
+			assert.strictEqual(hover, 'The name of the instruction file as shown in the UI. If not set, the name is derived from the file name.');
 		});
 	});
 });

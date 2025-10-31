@@ -33,6 +33,16 @@ export interface ITreeSitterLibraryService {
 	getLanguage(languageId: string, ignoreSupportsCheck: boolean, reader: IReader | undefined): Language | undefined;
 
 	/**
+	 * Gets the language as a promise, as opposed to via observables. This ignores the automatic
+	 * supportsLanguage check.
+	 *
+	 * Warning: This approach is generally not recommended as it's not reactive, but it's the only
+	 * way to catch and handle import errors when the grammar fails to load.
+	 * @param languageId The language identifier to retrieve.
+	 */
+	getLanguagePromise(languageId: string): Promise<Language | undefined>;
+
+	/**
 	 * Gets the injection queries for a language. A return value of `null`
 	 * indicates that there are no highlights queries for this language.
 	 * @param languageId The language identifier to retrieve queries for.

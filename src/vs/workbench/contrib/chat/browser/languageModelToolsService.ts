@@ -5,7 +5,7 @@
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { assertNever } from '../../../../base/common/assert.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64 } from '../../../../base/common/buffer.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -43,6 +43,7 @@ import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEn
 import { ChatConfiguration } from '../common/constants.js';
 import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
+import { LocalChatSessionUri } from '../common/chatUri.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -78,8 +79,10 @@ export const globalAutoApproveDescription = localize2(
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
 
-	private _onDidChangeTools = new Emitter<void>();
+	private _onDidChangeTools = this._register(new Emitter<void>());
 	readonly onDidChangeTools = this._onDidChangeTools.event;
+	private _onDidPrepareToolCallBecomeUnresponsive = this._register(new Emitter<{ sessionId: string; toolData: IToolData }>());
+	readonly onDidPrepareToolCallBecomeUnresponsive = this._onDidPrepareToolCallBecomeUnresponsive.event;
 
 	/** Throttle tools updates because it sends all tools and runs on context key updates */
 	private _onDidChangeToolsScheduler = new RunOnceScheduler(() => this._onDidChangeTools.fire(), 750);
@@ -282,7 +285,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		try {
 			if (dto.context) {
 				store = new DisposableStore();
-				const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel | undefined;
+				const model = this._chatService.getSession(LocalChatSessionUri.forSession(dto.context.sessionId)) as ChatModel | undefined;
 				if (!model) {
 					throw new Error(`Tool called for unknown chat session`);
 				}
@@ -444,14 +447,28 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private async prepareToolInvocation(tool: IToolEntry, dto: IToolInvocation, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		const prepared = tool.impl!.prepareToolInvocation ?
-			await tool.impl!.prepareToolInvocation({
+		let prepared: IPreparedToolInvocation | undefined;
+		if (tool.impl!.prepareToolInvocation) {
+			const preparePromise = tool.impl!.prepareToolInvocation({
 				parameters: dto.parameters,
 				chatRequestId: dto.chatRequestId,
 				chatSessionId: dto.context?.sessionId,
 				chatInteractionId: dto.chatInteractionId
-			}, token)
-			: undefined;
+			}, token);
+
+			const raceResult = await Promise.race([
+				timeout(3000, token).then(() => 'timeout'),
+				preparePromise
+			]);
+			if (raceResult === 'timeout') {
+				this._onDidPrepareToolCallBecomeUnresponsive.fire({
+					sessionId: dto.context?.sessionId ?? '',
+					toolData: tool.data
+				});
+			}
+
+			prepared = await preparePromise;
+		}
 
 		if (prepared?.confirmationMessages?.title) {
 			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
@@ -541,6 +558,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined): Promise<ConfirmedReason | undefined> {
+		if (this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove) && await this._checkGlobalAutoApprove()) {
+			return { type: ToolConfirmKind.Setting, id: ChatConfiguration.GlobalAutoApprove };
+		}
+
 		return this._postExecutionConfirmStore.checkAutoConfirmation(toolId);
 	}
 

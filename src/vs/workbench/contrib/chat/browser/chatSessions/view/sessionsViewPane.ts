@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../../base/browser/dom.js';
-import { append, $ } from '../../../../../../base/browser/dom.js';
+import { $, append } from '../../../../../../base/browser/dom.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
@@ -33,31 +33,26 @@ import { IProgressService } from '../../../../../../platform/progress/common/pro
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../../browser/dnd.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
-import { ViewPane, IViewPaneOptions } from '../../../../../browser/parts/views/viewPane.js';
+import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatService } from '../../../common/chatService.js';
-import { IChatSessionItemProvider } from '../../../common/chatSessionsService.js';
-import { ChatSessionUri } from '../../../common/chatUri.js';
+import { IChatSessionItemProvider, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration, ChatEditorTitleMaxLength } from '../../../common/constants.js';
-import { IChatWidgetService, ChatViewId } from '../../chat.js';
-import { IChatEditorOptions } from '../../chatEditor.js';
-import { ChatEditorInput } from '../../chatEditorInput.js';
-import { ChatViewPane } from '../../chatViewPane.js';
-import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
-import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
+import { ChatViewId, IChatWidgetService } from '../../chat.js';
+import { IChatEditorOptions } from '../../chatEditor.js';
+import { ChatSessionTracker } from '../chatSessionTracker.js';
+import { ChatSessionItemWithProvider, findExistingChatEditorByUri, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
-import { upcast } from '../../../../../../base/common/types.js';
-import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 
 // Identity provider for session items
 class SessionsIdentityProvider {
 	getId(element: ChatSessionItemWithProvider): string {
-		return element.id;
+		return element.resource.toString();
 	}
 }
 
@@ -68,7 +63,7 @@ class SessionsAccessibilityProvider {
 	}
 
 	getAriaLabel(element: ChatSessionItemWithProvider): string | null {
-		return element.label || element.id;
+		return element.label;
 	}
 }
 
@@ -381,7 +376,7 @@ export class SessionsViewPane extends ViewPane {
 		this._register(this.tree.onMouseDblClick(e => {
 			const scrollingByPage = this.configurationService.getValue<boolean>('workbench.list.scrollByPage');
 			if (e.element === null && !scrollingByPage) {
-				if (this.provider?.chatSessionType && this.provider.chatSessionType !== 'local') {
+				if (this.provider?.chatSessionType && this.provider.chatSessionType !== localChatSessionType) {
 					this.commandService.executeCommand(`workbench.action.chat.openNewSessionEditor.${this.provider?.chatSessionType}`);
 				} else {
 					this.commandService.executeCommand(ACTION_ID_OPEN_CHAT);
@@ -459,27 +454,11 @@ export class SessionsViewPane extends ViewPane {
 	}
 
 	private async openChatSession(session: ChatSessionItemWithProvider) {
-		if (!session || !session.id) {
-			return;
-		}
-
-		if (session.resource.scheme !== ChatSessionUri.scheme) {
-			await this.openerService.open(session.resource, {
-				editorOptions: upcast<IEditorOptions, IChatEditorOptions>({
-					title: {
-						preferred: session.label
-					}
-				})
-			});
-			return;
-		}
-
 		try {
 			// Check first if we already have an open editor for this session
-			const uri = ChatSessionUri.forSession(session.provider.chatSessionType, session.id);
-			const existingEditor = findExistingChatEditorByUri(uri, session.id, this.editorGroupsService);
+			const existingEditor = findExistingChatEditorByUri(session.resource, this.editorGroupsService);
 			if (existingEditor) {
-				await this.editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				await this.editorService.openEditor(existingEditor.editor, existingEditor.group);
 				return;
 			}
 			if (this.chatWidgetService.getWidgetBySessionId(session.id)) {
@@ -491,21 +470,8 @@ export class SessionsViewPane extends ViewPane {
 				return;
 			}
 
-			// Handle history items first
-			if (isLocalChatSessionItem(session)) {
-				const options: IChatEditorOptions = {
-					target: { sessionId: session.id },
-					pinned: true,
-					ignoreInView: true,
-					preserveFocus: true,
-				};
-				await this.editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options });
-				return;
-			} else if (session.id === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
-				const chatViewPane = await this.viewsService.openView(ChatViewId) as ChatViewPane;
-				if (chatViewPane) {
-					await chatViewPane.loadSession(session.id);
-				}
+			if (session.id === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
+				await this.viewsService.openView(ChatViewId);
 				return;
 			}
 
@@ -518,7 +484,7 @@ export class SessionsViewPane extends ViewPane {
 				preserveFocus: true,
 			};
 			await this.editorService.openEditor({
-				resource: ChatSessionUri.forSession(session.provider.chatSessionType, session.id),
+				resource: session.resource,
 				options,
 			});
 

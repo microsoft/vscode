@@ -165,7 +165,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			codemapperUri: undefined,
 			elementId: this.context.element.id,
 			focus: () => editor.object.focus(),
-			isStreaming: false,
 			ownerMarkdownPartId: this.codeblocksPartId,
 			uri: model.uri,
 			uriPromise: Promise.resolve(model.uri),
@@ -190,7 +189,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		}));
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,
-			this.context.container,
+			this.context,
 			{
 				title,
 				icon: Codicon.terminal,

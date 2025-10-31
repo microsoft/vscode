@@ -82,10 +82,13 @@ class SimpleBrowserOverlayWidget {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'element-selection-message';
 
+		const mainContent = document.createElement('div');
+		mainContent.className = 'element-selection-main-content';
+
 		const message = document.createElement('span');
 		const startSelectionMessage = localize('elementSelectionMessage', 'Add element to chat');
 		message.textContent = startSelectionMessage;
-		this._domNode.appendChild(message);
+		mainContent.appendChild(message);
 
 		let cts: CancellationTokenSource;
 		const actions: IAction[] = [];
@@ -124,7 +127,7 @@ class SimpleBrowserOverlayWidget {
 				}
 			}));
 
-		const startButton = this._showStore.add(new ButtonWithDropdown(this._domNode, {
+		const startButton = this._showStore.add(new ButtonWithDropdown(mainContent, {
 			actions: actions,
 			addPrimaryActionToDropdown: false,
 			contextMenuProvider: this.contextMenuService,
@@ -137,28 +140,29 @@ class SimpleBrowserOverlayWidget {
 		startButton.primaryButton.label = localize('startSelection', 'Start');
 		startButton.element.classList.add('element-selection-start');
 
-		const cancelButton = this._showStore.add(new Button(this._domNode, { ...defaultButtonStyles, supportIcons: true, title: localize('cancelSelection', 'Click to cancel selection.') }));
+		const cancelButton = this._showStore.add(new Button(mainContent, { ...defaultButtonStyles, supportIcons: true, title: localize('cancelSelection', 'Click to cancel selection.') }));
 		cancelButton.element.className = 'element-selection-cancel hidden';
 		const cancelButtonLabel = localize('cancelSelectionLabel', 'Cancel');
 		cancelButton.label = cancelButtonLabel;
 
-		const configure = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.configureElements', "Configure Attachments Sent") }));
+		const configure = this._showStore.add(new Button(mainContent, { supportIcons: true, title: localize('chat.configureElements', "Configure Attachments Sent") }));
 		configure.icon = Codicon.gear;
 
-		const collapseOverlay = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.hideOverlay', "Collapse Overlay") }));
+		const collapseOverlay = this._showStore.add(new Button(mainContent, { supportIcons: true, title: localize('chat.hideOverlay', "Collapse Overlay") }));
 		collapseOverlay.icon = Codicon.chevronRight;
 
-		const nextSelection = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.nextSelection', "Select Again") }));
+		const nextSelection = this._showStore.add(new Button(mainContent, { supportIcons: true, title: localize('chat.nextSelection', "Select Again") }));
 		nextSelection.icon = Codicon.close;
 		nextSelection.element.classList.add('hidden');
 
 		// shown if the overlay is collapsed
-		const expandOverlay = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.expandOverlay', "Expand Overlay") }));
-		expandOverlay.icon = Codicon.layout;
 		const expandContainer = document.createElement('div');
 		expandContainer.className = 'element-expand-container hidden';
-		expandContainer.appendChild(expandOverlay.element);
-		this._container.appendChild(expandContainer);
+		const expandOverlay = this._showStore.add(new Button(expandContainer, { supportIcons: true, title: localize('chat.expandOverlay', "Expand Overlay") }));
+		expandOverlay.icon = Codicon.layout;
+
+		this._domNode.appendChild(mainContent);
+		this._domNode.appendChild(expandContainer);
 
 		const resetButtons = () => {
 			this.hideElement(nextSelection.element);
@@ -206,12 +210,12 @@ class SimpleBrowserOverlayWidget {
 		}));
 
 		this._showStore.add(addDisposableListener(collapseOverlay.element, 'click', () => {
-			this.hideElement(this._domNode);
+			this.hideElement(mainContent);
 			this.showElement(expandContainer);
 		}));
 
 		this._showStore.add(addDisposableListener(expandOverlay.element, 'click', () => {
-			this.showElement(this._domNode);
+			this.showElement(mainContent);
 			this.hideElement(expandContainer);
 		}));
 
