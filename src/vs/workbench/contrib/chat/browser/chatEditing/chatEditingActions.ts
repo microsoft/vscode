@@ -322,7 +322,7 @@ async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item:
 
 	if (requestId) {
 		const chatRequests = chatModel.getRequests();
-		const itemIndex = chatRequests.findIndex(request => request.id === requestId);
+		const itemIndex = chatRequests.findIndex(request => request.id === requestId) - 1;
 		const editsToUndo = chatRequests.length - itemIndex;
 
 		const requestsToRemove = chatRequests.slice(itemIndex);
@@ -367,8 +367,13 @@ async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item:
 		}
 
 		// Restore the snapshot to what it was before the request(s) that we deleted
-		const snapshotRequestId = chatRequests[itemIndex].id;
-		await session.restoreSnapshot(snapshotRequestId, undefined);
+		if (itemIndex < 0 && widget?.viewModel?.sessionResource) {
+			const snapshotRequestId = chatRequests[0].id;
+			chatService.removeRequest(widget.viewModel.sessionResource, snapshotRequestId);
+		} else {
+			const snapshotRequestId = chatRequests[itemIndex].id;
+			await session.restoreSnapshot(snapshotRequestId, undefined);
+		}
 	}
 }
 
