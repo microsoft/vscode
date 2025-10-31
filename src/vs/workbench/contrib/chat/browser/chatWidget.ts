@@ -1341,9 +1341,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
-		const icon = Codicon.chatSparkle;
-
-
 		if (this.isLockedToCodingAgent) {
 			// Check for provider-specific customizations from chat sessions service
 			const providerIcon = this._lockedAgent ? this.chatSessionsService.getIconForSessionType(this._lockedAgent.id) : undefined;
@@ -1366,8 +1363,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			};
 		}
 
-		const suggestedPrompts = this.getPromptFileSuggestions();
-
 		let title: string;
 		if (this.input.currentModeKind === ChatModeKind.Ask) {
 			title = localize('chatDescription', "Ask about your code");
@@ -1380,9 +1375,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return {
 			title,
 			message: new MarkdownString(this.chatDisclaimer),
-			icon,
+			icon: Codicon.chatSparkle,
 			additionalMessage,
-			suggestedPrompts
+			suggestedPrompts: this.getPromptFileSuggestions()
 		};
 	}
 
