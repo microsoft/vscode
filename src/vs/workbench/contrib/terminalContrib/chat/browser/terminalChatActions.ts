@@ -265,7 +265,7 @@ registerActiveXtermAction({
 
 		const lastRequest = model.getRequests().at(-1);
 		if (lastRequest) {
-			const widget = chatWidgetService.getWidgetBySessionId(model.sessionId);
+			const widget = chatWidgetService.getWidgetBySessionResource(model.sessionResource);
 			await chatService.resendRequest(lastRequest, {
 				noCommandDetection: false,
 				attempt: lastRequest.attempt + 1,
@@ -312,7 +312,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			precondition: ChatContextKeys.enabled,
 			menu: [{
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(TerminalContextKeys.hasToolTerminal, ContextKeyExpr.equals('view', ChatViewId)),
+				when: ContextKeyExpr.and(TerminalChatContextKeys.hasChatTerminals, ContextKeyExpr.equals('view', ChatViewId)),
 				group: 'terminal',
 				order: 0,
 				isHiddenByDefault: true
@@ -329,9 +329,9 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 
 		const visible = new Set<ITerminalInstance>([...groupService.instances, ...editorService.instances]);
-		const toolInstances = new Set(terminalChatService.getToolSessionTerminalInstances());
+		const toolInstances = terminalChatService.getToolSessionTerminalInstances();
 
-		if (toolInstances.size === 0) {
+		if (toolInstances.length === 0) {
 			return;
 		}
 

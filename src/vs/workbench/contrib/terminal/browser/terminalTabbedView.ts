@@ -5,16 +5,17 @@
 
 import { LayoutPriority, Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Disposable, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from './terminal.js';
+import { ITerminalChatService, ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from './terminal.js';
 import { TerminalTabsListSizes, TerminalTabList } from './terminalTabsList.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { IMenu, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
 import { openContextMenu } from './terminalContextMenu.js';
@@ -22,6 +23,7 @@ import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { getInstanceHoverInfo } from './terminalTooltip.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { TerminalTabsChatEntry } from './terminalTabsChatEntry.js';
 
 const $ = dom.$;
 
@@ -46,6 +48,7 @@ export class TerminalTabbedView extends Disposable {
 	private _sashDisposables: IDisposable[] | undefined;
 
 	private _plusButton: HTMLElement | undefined;
+	private _chatEntry: TerminalTabsChatEntry | undefined;
 
 	private _tabTreeIndex: number;
 	private _terminalContainerIndex: number;
@@ -67,6 +70,7 @@ export class TerminalTabbedView extends Disposable {
 	constructor(
 		parentElement: HTMLElement,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -85,11 +89,18 @@ export class TerminalTabbedView extends Disposable {
 		tabListContainer.appendChild(this._tabListElement);
 		this._tabContainer.appendChild(tabListContainer);
 
+		this._register(dom.addDisposableListener(this._tabContainer, dom.EventType.DBLCLICK, async () => {
+			const instance = await this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+			this._terminalGroupService.setActiveInstance(instance);
+			await instance.focusWhenReady();
+		}));
+
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
 		this._tabsListMenu = this._register(menuService.createMenu(MenuId.TerminalTabContext, contextKeyService));
 		this._tabsListEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
 
 		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement, this._register(new DisposableStore())));
+		this._chatEntry = this._register(this._instantiationService.createInstance(TerminalTabsChatEntry, tabListContainer, this._tabContainer));
 
 		const terminalOuterContainer = $('.terminal-outer-container');
 		this._terminalContainer = $('.terminal-groups-container');
@@ -119,8 +130,15 @@ export class TerminalTabbedView extends Disposable {
 				}
 			}
 		}));
-		this._register(this._terminalGroupService.onDidChangeInstances(() => this._refreshShowTabs()));
-		this._register(this._terminalGroupService.onDidChangeGroups(() => this._refreshShowTabs()));
+		this._register(Event.any(this._terminalGroupService.onDidChangeInstances, this._terminalGroupService.onDidChangeGroups)(() => {
+			this._refreshShowTabs();
+			this._updateChatTerminalsEntry();
+		}));
+
+		this._register(Event.any(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession, this._terminalService.onDidDisposeInstance)(() => {
+			this._refreshShowTabs();
+			this._updateChatTerminalsEntry();
+		}));
 
 		this._attachEventListeners(parentElement, this._terminalContainer);
 
@@ -135,16 +153,22 @@ export class TerminalTabbedView extends Disposable {
 
 		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL, proportionalLayout: false });
 		this._setupSplitView(terminalOuterContainer);
+		this._updateChatTerminalsEntry();
 	}
 
 	private _shouldShowTabs(): boolean {
 		const enabled = this._terminalConfigurationService.config.tabs.enabled;
 		const hide = this._terminalConfigurationService.config.tabs.hideCondition;
+		const hasChatTerminals = this._terminalChatService.getToolSessionTerminalInstances().length > 0;
 		if (!enabled) {
 			return false;
 		}
 
 		if (hide === 'never') {
+			return true;
+		}
+
+		if (this._terminalGroupService.instances.length && hasChatTerminals) {
 			return true;
 		}
 
@@ -174,6 +198,10 @@ export class TerminalTabbedView extends Disposable {
 				this._removeSashListener();
 			}
 		}
+	}
+
+	private _updateChatTerminalsEntry(): void {
+		this._chatEntry?.update();
 	}
 
 	private _getLastListWidth(): number {
@@ -265,7 +293,7 @@ export class TerminalTabbedView extends Disposable {
 	private _addTabTree() {
 		this._splitView.addView({
 			element: this._tabContainer,
-			layout: width => this._tabList.layout(this._height || 0, width),
+			layout: width => this._tabList.layout(width),
 			minimumSize: TerminalTabsListSizes.NarrowViewWidth,
 			maximumSize: TerminalTabsListSizes.MaximumWidth,
 			onDidChange: () => Disposable.None,
@@ -304,6 +332,7 @@ export class TerminalTabbedView extends Disposable {
 		const hasText = this._tabListElement.clientWidth > TerminalTabsListSizes.MidpointViewWidth;
 		this._tabContainer.classList.toggle('has-text', hasText);
 		this._terminalIsTabsNarrowContextKey.set(!hasText);
+		this._updateChatTerminalsEntry();
 	}
 
 	layout(width: number, height: number): void {
@@ -315,6 +344,7 @@ export class TerminalTabbedView extends Disposable {
 		}
 		this._updateHasText();
 	}
+
 
 	private _attachEventListeners(parentDomElement: HTMLElement, terminalContainer: HTMLElement): void {
 		this._register(dom.addDisposableListener(this._tabContainer, 'mouseleave', async (event: MouseEvent) => {

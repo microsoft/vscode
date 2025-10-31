@@ -36,7 +36,6 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { findExistingChatEditorByUri, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
 import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { assertReturnsDefined, upcast } from '../../../../../base/common/types.js';
@@ -50,6 +49,7 @@ import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatWidgetService } from '../chat.js';
+import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID } from './agentSessions.js';
 
 export class AgentSessionsView extends ViewPane {
 
@@ -131,16 +131,6 @@ export class AgentSessionsView extends ViewPane {
 			return;
 		}
 
-		if (session.resource.scheme !== LocalChatSessionUri.scheme) {
-			await this.openerService.open(session.resource, {
-				editorOptions: upcast<IEditorOptions, IChatEditorOptions>({
-					...e.editorOptions,
-					title: { preferred: session.label }
-				})
-			});
-			return;
-		}
-
 		const existingSessionEditor = findExistingChatEditorByUri(session.resource, this.editorGroupsService);
 		if (existingSessionEditor) {
 			await existingSessionEditor.group.openEditor(existingSessionEditor.editor, e.editorOptions);
@@ -172,7 +162,10 @@ export class AgentSessionsView extends ViewPane {
 		}
 
 		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService.createOverlay(getSessionItemContextOverlay(
-			session,
+			{
+				id: session.resource.toString(),
+				...session
+			},
 			session.provider,
 			this.chatWidgetService,
 			this.chatService,
@@ -381,8 +374,6 @@ export class AgentSessionsView extends ViewPane {
 
 const chatAgentsIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View');
 
-const AGENT_SESSIONS_VIEW_CONTAINER_ID = 'workbench.viewContainer.agentSessions';
-const AGENT_SESSIONS_VIEW_ID = 'workbench.view.agentSessions';
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Agent Sessions");
 
 const agentSessionsViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({

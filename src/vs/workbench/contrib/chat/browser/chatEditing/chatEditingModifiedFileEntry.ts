@@ -26,6 +26,7 @@ import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatUserAction, IChatService } from '../../common/chatService.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 
 class AutoAcceptControl {
 	constructor(
@@ -296,7 +297,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			modelId: this._telemetryInfo.modelId,
 			modeId: this._telemetryInfo.modeId,
 			command: this._telemetryInfo.command,
-			sessionId: this._telemetryInfo.sessionId,
+			sessionResource: LocalChatSessionUri.forSession(this._telemetryInfo.sessionId),
 			requestId: this._telemetryInfo.requestId,
 			result: this._telemetryInfo.result
 		});

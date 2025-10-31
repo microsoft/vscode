@@ -30,7 +30,7 @@ export interface IChatEditingService {
 
 	startOrContinueGlobalEditingSession(chatModel: ChatModel): Promise<IChatEditingSession>;
 
-	getEditingSession(chatSessionId: string): IChatEditingSession | undefined;
+	getEditingSession(chatSessionResource: URI): IChatEditingSession | undefined;
 
 	/**
 	 * All editing sessions, sorted by recency, e.g the last created session comes first.
@@ -107,7 +107,9 @@ export interface ISnapshotEntry {
 
 export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
+	/** @deprecated */
 	readonly chatSessionId: string;
+	readonly chatSessionResource: URI;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;

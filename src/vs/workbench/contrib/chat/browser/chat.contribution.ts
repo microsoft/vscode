@@ -10,7 +10,6 @@ import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js'
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
-import { assertDefined } from '../../../../base/common/types.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -124,9 +123,9 @@ import { LanguageModelToolsService, globalAutoApproveDescription } from './langu
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
-import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
+import './chatManagement/chatManagement.contribution.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -736,7 +735,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.extensionUnification.enabled': {
 			type: 'boolean',
-			description: nls.localize('chat.extensionUnification.enabled', "Enables unification of GitHub Copilot extensions. When enabled, only the GitHub Copilot Chat extension will be active and all functionality will be served by it. When disabled, GitHub Copilot Chat and GitHub Copilot extensions will operate independently."),
+			description: nls.localize('chat.extensionUnification.enabled', "Enables the unification of GitHub Copilot extensions. When enabled, all GitHub Copilot functionality is served from the GitHub Copilot Chat extension. When disabled, the GitHub Copilot and GitHub Copilot Chat extensions operate independently."),
 			default: false,
 			tags: ['experimental'],
 			experiment: {
@@ -897,22 +896,6 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			locations: [ChatAgentLocation.Chat]
 		}, async () => {
 			commandService.executeCommand(ACTION_ID_NEW_CHAT);
-		}));
-		this._store.add(slashCommandService.registerSlashCommand({
-			command: SAVE_TO_PROMPT_SLASH_COMMAND_NAME,
-			detail: nls.localize('save-chat-to-prompt-file', "Save chat to a prompt file"),
-			sortText: `z3_${SAVE_TO_PROMPT_SLASH_COMMAND_NAME}`,
-			executeImmediately: true,
-			silent: true,
-			locations: [ChatAgentLocation.Chat]
-		}, async () => {
-			const { lastFocusedWidget } = chatWidgetService;
-			assertDefined(
-				lastFocusedWidget,
-				'No currently active chat widget found.',
-			);
-			const options = { chat: lastFocusedWidget };
-			return commandService.executeCommand(SAVE_TO_PROMPT_ACTION_ID, options,);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',

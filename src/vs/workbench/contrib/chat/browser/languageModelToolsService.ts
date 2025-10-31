@@ -43,6 +43,7 @@ import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEn
 import { ChatConfiguration } from '../common/constants.js';
 import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
+import { LocalChatSessionUri } from '../common/chatUri.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -284,7 +285,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		try {
 			if (dto.context) {
 				store = new DisposableStore();
-				const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel | undefined;
+				const model = this._chatService.getSession(LocalChatSessionUri.forSession(dto.context.sessionId)) as ChatModel | undefined;
 				if (!model) {
 					throw new Error(`Tool called for unknown chat session`);
 				}
