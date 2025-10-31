@@ -14,7 +14,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -29,7 +28,7 @@ import { ExtensionsRegistry } from '../../../services/extensions/common/extensio
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
 import { AGENT_SESSIONS_VIEWLET_ID, ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
@@ -269,7 +268,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
@@ -283,10 +281,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					continue;
 				}
 				for (const contribution of ext.value) {
-					if (contribution.type === 'openai-codex' && !this._configurationService.getValue<boolean>('chat.experimental.codex.enabled')) {
-						continue;
-					}
-
 					this._register(this.registerContribution(contribution, ext.description));
 				}
 			}
@@ -307,7 +301,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public reportInProgress(chatSessionType: string, count: number): void {
 		let displayName: string | undefined;
 
-		if (chatSessionType === 'local') {
+		if (chatSessionType === localChatSessionType) {
 			displayName = 'Local Chat Agent';
 		} else {
 			displayName = this._contributions.get(chatSessionType)?.contribution.displayName;
@@ -832,7 +826,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			this._editableSessions.set(sessionResource, data);
 		}
 		// Trigger refresh of the session views that might need to update their rendering
-		this._onDidChangeSessionItems.fire('local');
+		this._onDidChangeSessionItems.fire(localChatSessionType);
 	}
 
 	public getEditableData(sessionResource: URI): IEditableData | undefined {
@@ -933,13 +927,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined {
 		const contribution = this._contributions.get(chatSessionType)?.contribution;
 		return contribution?.capabilities;
-	}
-
-	/**
-	 * Get the welcome tips for a specific session type
-	 */
-	public getWelcomeTipsForSessionType(chatSessionType: string): string | undefined {
-		return this._sessionTypeWelcomeTips.get(chatSessionType);
 	}
 
 	public getContentProviderSchemes(): string[] {

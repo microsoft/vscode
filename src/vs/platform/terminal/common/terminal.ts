@@ -339,6 +339,7 @@ export interface IPtyService {
 	getInitialCwd(id: number): Promise<string>;
 	getCwd(id: number): Promise<string>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
+	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void>;
 	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void>;
 	processBinary(id: number, data: string): Promise<void>;
 	/** Confirm the process is _not_ an orphan. */
@@ -817,6 +818,12 @@ export interface ITerminalChildProcess {
 	acknowledgeDataEvent(charCount: number): void;
 
 	/**
+	 * Pre-assigns the command identifier that should be associated with the next command detected by
+	 * shell integration. This keeps the pty host and renderer command stores aligned.
+	 */
+	setNextCommandId(commandLine: string, commandId: string): Promise<void>;
+
+	/**
 	 * Sets the unicode version for the process, this drives the size of some characters in the
 	 * xterm-headless instance.
 	 */
@@ -976,6 +983,8 @@ export interface IShellIntegration {
 	readonly onDidChangeSeenSequences: Event<ReadonlySet<string>>;
 
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+
+	setNextCommandId(command: string, commandId: string): void;
 }
 
 export interface IDecorationAddon {

@@ -58,7 +58,8 @@ export interface IChatSessionsExtensionPoint {
 	readonly commands?: IChatSessionCommandContribution[];
 }
 export interface IChatSessionItem {
-	id: string; // TODO: remove
+	/** @deprecated Use {@link resource} instead */
+	id: string;
 	resource: URI;
 	label: string;
 	iconPath?: ThemeIcon;
@@ -87,6 +88,11 @@ export type IChatSessionHistoryItem = {
 	parts: IChatProgress[];
 	participant: string;
 };
+
+/**
+ * The session type used for local agent chat sessions.
+ */
+export const localChatSessionType = 'local';
 
 export interface IChatSession extends IDisposable {
 	readonly onWillDispose: Event<void>;
@@ -151,7 +157,6 @@ export interface IChatSessionsService {
 	getWelcomeTitleForSessionType(chatSessionType: string): string | undefined;
 	getWelcomeMessageForSessionType(chatSessionType: string): string | undefined;
 	getInputPlaceholderForSessionType(chatSessionType: string): string | undefined;
-	getWelcomeTipsForSessionType(chatSessionType: string): string | undefined;
 
 	/**
 	 * Get the list of chat session items grouped by session type.

@@ -16,6 +16,8 @@
     "contribMergeEditorMenus",
     "contribMultiDiffEditorMenus",
     "contribDiffEditorGutterToolBarMenus",
+    "contribSourceControlArtifactGroupMenu",
+    "contribSourceControlArtifactMenu",
     "contribSourceControlHistoryItemMenu",
     "contribSourceControlHistoryTitleMenu",
     "contribSourceControlInputBoxMenu",
@@ -26,6 +28,7 @@
     "quickInputButtonLocation",
     "quickPickSortByLabel",
     "scmActionButton",
+    "scmArtifactProvider",
     "scmHistoryProvider",
     "scmMultiDiffEditor",
     "scmProviderOptions",
@@ -547,6 +550,7 @@
       {
         "command": "git.createTag",
         "title": "%command.createTag%",
+        "icon": "$(plus)",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -565,6 +569,12 @@
       {
         "command": "git.createWorktree",
         "title": "%command.createWorktree%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.createWorktreeWithDefaults",
+        "title": "Create Worktree With Defaults",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1002,6 +1012,51 @@
       {
         "command": "git.graph.compareRef",
         "title": "%command.graphCompareRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.graph.compareWithRemote",
+        "title": "%command.graphCompareWithRemote%",
+        "category": "Git",
+        "enablement": "!operationInProgress && scmCurrentHistoryItemRefHasRemote"
+      },
+      {
+        "command": "git.graph.compareWithMergeBase",
+        "title": "%command.graphCompareWithMergeBase%",
+        "category": "Git",
+        "enablement": "!operationInProgress && scmCurrentHistoryItemRefHasBase"
+      },
+      {
+        "command": "git.repositories.checkout",
+        "title": "%command.graphCheckout%",
+        "icon": "$(target)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.checkoutDetached",
+        "title": "%command.graphCheckoutDetached%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.compareRef",
+        "title": "%command.graphCompareRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.createBranch",
+        "title": "%command.branch%",
+        "icon": "$(plus)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.createTag",
+        "title": "%command.createTag%",
+        "icon": "$(plus)",
         "category": "Git",
         "enablement": "!operationInProgress"
       }
@@ -1613,12 +1668,40 @@
           "when": "false"
         },
         {
+          "command": "git.graph.compareWithMergeBase",
+          "when": "false"
+        },
+        {
+          "command": "git.graph.compareWithRemote",
+          "when": "false"
+        },
+        {
           "command": "git.diff.stageHunk",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
         },
         {
           "command": "git.diff.stageSelection",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
+        },
+        {
+          "command": "git.repositories.checkout",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.checkoutDetached",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.compareRef",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.createBranch",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.createTag",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1807,6 +1890,40 @@
           "command": "git.deleteWorktree",
           "group": "2_worktree@1",
           "when": "scmProvider == git && scmProviderContext == worktree"
+        }
+      ],
+      "scm/artifactGroup/context": [
+        {
+          "command": "git.repositories.createBranch",
+          "group": "inline@1",
+          "when": "scmProvider == git && scmArtifactGroup == branches"
+        },
+        {
+          "command": "git.repositories.createTag",
+          "group": "inline@1",
+          "when": "scmProvider == git && scmArtifactGroup == tags"
+        }
+      ],
+      "scm/artifact/context": [
+        {
+          "command": "git.repositories.checkout",
+          "group": "inline@1",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.repositories.checkout",
+          "group": "1_checkout@1",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.repositories.checkoutDetached",
+          "group": "1_checkout@2",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.repositories.compareRef",
+          "group": "2_compare@1",
+          "when": "scmProvider == git"
         }
       ],
       "scm/resourceGroup/context": [
@@ -2254,9 +2371,19 @@
           "group": "4_modify@1"
         },
         {
-          "command": "git.graph.compareRef",
+          "command": "git.graph.compareWithRemote",
           "when": "scmProvider == git",
           "group": "5_compare@1"
+        },
+        {
+          "command": "git.graph.compareWithMergeBase",
+          "when": "scmProvider == git",
+          "group": "5_compare@2"
+        },
+        {
+          "command": "git.graph.compareRef",
+          "when": "scmProvider == git",
+          "group": "5_compare@3"
         },
         {
           "command": "git.copyCommitId",

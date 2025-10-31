@@ -26,6 +26,7 @@ import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatUserAction, IChatService } from '../../common/chatService.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 
 class AutoAcceptControl {
 	constructor(
@@ -59,6 +60,12 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined>(this, undefined);
 	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined> = this._isCurrentlyBeingModifiedByObs;
+
+	/**
+	 * Flag to track if we're currently in an external edit operation.
+	 * When true, file system changes should be treated as agent edits, not user edits.
+	 */
+	protected _isExternalEditInProgress = false;
 
 	protected readonly _lastModifyingResponseObs = observableValueOpts<IChatResponseModel | undefined>({ equalsFn: (a, b) => a?.requestId === b?.requestId }, undefined);
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined> = this._lastModifyingResponseObs;
@@ -210,34 +217,51 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	}
 
 	async accept(): Promise<void> {
+		const callback = await this.acceptDeferred();
+		if (callback) {
+			transaction(callback);
+		}
+	}
+
+	/** Accepts and returns a function used to transition the state. This MUST be called by the consumer. */
+	async acceptDeferred(): Promise<((tx: ITransaction) => void) | undefined> {
 		if (this._stateObs.get() !== ModifiedFileEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}
 
 		await this._doAccept();
-		transaction(tx => {
+
+		return (tx: ITransaction) => {
 			this._stateObs.set(ModifiedFileEntryState.Accepted, tx);
 			this._autoAcceptCtrl.set(undefined, tx);
-		});
-
-		this._notifySessionAction('accepted');
+			this._notifySessionAction('accepted');
+		};
 	}
 
 	protected abstract _doAccept(): Promise<void>;
 
 	async reject(): Promise<void> {
+		const callback = await this.rejectDeferred();
+		if (callback) {
+			transaction(callback);
+		}
+	}
+
+	/** Rejects and returns a function used to transition the state. This MUST be called by the consumer. */
+	async rejectDeferred(): Promise<((tx: ITransaction) => void) | undefined> {
 		if (this._stateObs.get() !== ModifiedFileEntryState.Modified) {
 			// already accepted or rejected
-			return;
+			return undefined;
 		}
 
 		this._notifySessionAction('rejected');
 		await this._doReject();
-		transaction(tx => {
+
+		return (tx: ITransaction) => {
 			this._stateObs.set(ModifiedFileEntryState.Rejected, tx);
 			this._autoAcceptCtrl.set(undefined, tx);
-		});
+		};
 	}
 
 	protected abstract _doReject(): Promise<void>;
@@ -273,7 +297,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			modelId: this._telemetryInfo.modelId,
 			modeId: this._telemetryInfo.modeId,
 			command: this._telemetryInfo.command,
-			sessionId: this._telemetryInfo.sessionId,
+			sessionResource: LocalChatSessionUri.forSession(this._telemetryInfo.sessionId),
 			requestId: this._telemetryInfo.requestId,
 			result: this._telemetryInfo.result
 		});
@@ -346,4 +370,37 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	abstract resetToInitialContent(): Promise<void>;
 
 	abstract initialContent: string;
+
+	/**
+	 * Computes the edits between two snapshots of the file content.
+	 * @param beforeSnapshot The content before the changes
+	 * @param afterSnapshot The content after the changes
+	 * @returns Array of text edits or cell edit operations
+	 */
+	abstract computeEditsFromSnapshots(beforeSnapshot: string, afterSnapshot: string): Promise<(TextEdit | ICellEditOperation)[]>;
+
+	/**
+	 * Marks the start of an external edit operation.
+	 * File system changes will be treated as agent edits until stopExternalEdit is called.
+	 */
+	startExternalEdit(): void {
+		this._isExternalEditInProgress = true;
+	}
+
+	/**
+	 * Marks the end of an external edit operation.
+	 */
+	stopExternalEdit(): void {
+		this._isExternalEditInProgress = false;
+	}
+
+	/**
+	 * Saves the current model state to disk.
+	 */
+	abstract save(): Promise<void>;
+
+	/**
+	 * Reloads the model from disk to ensure it's in sync with file system changes.
+	 */
+	abstract revertToDisk(): Promise<void>;
 }

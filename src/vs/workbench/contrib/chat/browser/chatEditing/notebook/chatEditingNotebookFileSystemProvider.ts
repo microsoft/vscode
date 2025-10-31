@@ -14,6 +14,7 @@ import { FileSystemProviderCapabilities, FileType, IFileChange, IFileDeleteOptio
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IChatEditingService } from '../../../common/chatEditingService.js';
+import { LocalChatSessionUri } from '../../../common/chatUri.js';
 import { ChatEditingNotebookSnapshotScheme } from './chatEditingModifiedNotebookSnapshot.js';
 
 
@@ -85,7 +86,7 @@ export class ChatEditingNotebookFileSystemProvider implements IFileSystemProvide
 		if (!queryData.viewType) {
 			throw new Error('File not found, viewType not found');
 		}
-		const session = this._chatEditingService.getEditingSession(queryData.sessionId);
+		const session = this._chatEditingService.getEditingSession(LocalChatSessionUri.forSession(queryData.sessionId));
 		if (!session || !queryData.requestId) {
 			throw new Error('File not found, session not found');
 		}

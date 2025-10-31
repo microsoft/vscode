@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent, MarkdownString, Command } from 'vscode';
+import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent, MarkdownString, Command, commands } from 'vscode';
 import { Repository, Resource } from './repository';
 import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, fromNow, getCommitShortHash, subject, truncate } from './util';
 import { toMultiFileDiffEditorUris } from './uri';
@@ -185,6 +185,14 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			}
 		}
 
+		// Update context keys for HEAD
+		if (this._HEAD?.ahead !== this.repository.HEAD?.ahead) {
+			commands.executeCommand('setContext', 'git.currentHistoryItemIsAhead', (this.repository.HEAD?.ahead ?? 0) > 0);
+		}
+		if (this._HEAD?.behind !== this.repository.HEAD?.behind) {
+			commands.executeCommand('setContext', 'git.currentHistoryItemIsBehind', (this.repository.HEAD?.behind ?? 0) > 0);
+		}
+
 		this._HEAD = this.repository.HEAD;
 
 		this._currentHistoryItemRef = {
@@ -330,7 +338,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 		const historyItemChangesUri: Uri[] = [];
 		const historyItemChanges: SourceControlHistoryItemChange[] = [];
-		const changes = await this.repository.diffTrees(historyItemParentId, historyItemId);
+		const changes = await this.repository.diffBetween2(historyItemParentId, historyItemId);
 
 		for (const change of changes) {
 			const historyItemUri = change.uri.with({
@@ -630,28 +638,47 @@ export function getHistoryItemHover(authorAvatar: string | undefined, authorName
 		enabledCommands: commands?.flat().map(c => c.command) ?? []
 	};
 
+	// Author
 	if (authorName) {
-		const avatar = authorAvatar ? `![${authorName}](${authorAvatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})` : '$(account)';
-
-		if (authorEmail) {
-			const emailTitle = l10n.t('Email');
-			markdownString.appendMarkdown(`${avatar} [**${authorName}**](mailto:${authorEmail} "${emailTitle} ${authorName}")`);
+		// Avatar
+		if (authorAvatar) {
+			markdownString.appendMarkdown('![');
+			markdownString.appendText(authorName);
+			markdownString.appendMarkdown('](');
+			markdownString.appendText(authorAvatar);
+			markdownString.appendMarkdown(`|width=${AVATAR_SIZE},height=${AVATAR_SIZE})`);
 		} else {
-			markdownString.appendMarkdown(`${avatar} **${authorName}**`);
+			markdownString.appendMarkdown('$(account)');
 		}
 
-		if (authorDate) {
+		// Email
+		if (authorEmail) {
+			markdownString.appendMarkdown(' [**');
+			markdownString.appendText(authorName);
+			markdownString.appendMarkdown('**](mailto:');
+			markdownString.appendText(authorEmail);
+			markdownString.appendMarkdown(')');
+		} else {
+			markdownString.appendMarkdown(' **');
+			markdownString.appendText(authorName);
+			markdownString.appendMarkdown('**');
+		}
+
+		// Date
+		if (authorDate && !isNaN(new Date(authorDate).getTime())) {
 			const dateString = new Date(authorDate).toLocaleString(undefined, {
 				year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric'
 			});
-			markdownString.appendMarkdown(`, $(history) ${fromNow(authorDate, true, true)} (${dateString})`);
+
+			markdownString.appendMarkdown(', $(history)');
+			markdownString.appendText(` ${fromNow(authorDate, true, true)} (${dateString})`);
 		}
 
 		markdownString.appendMarkdown('\n\n');
 	}
 
-	// Subject | Message
-	markdownString.appendMarkdown(`${emojify(message.replace(/\r\n|\r|\n/g, '\n\n'))}\n\n`);
+	// Subject | Message (escape image syntax)
+	markdownString.appendMarkdown(`${emojify(message.replace(/!\[/g, '&#33;&#91;').replace(/\r\n|\r|\n/g, '\n\n'))}\n\n`);
 	markdownString.appendMarkdown(`---\n\n`);
 
 	// Short stats

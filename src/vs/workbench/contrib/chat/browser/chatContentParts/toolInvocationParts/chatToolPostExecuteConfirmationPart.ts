@@ -118,7 +118,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 						focus: () => { },
 						ownerMarkdownPartId: this.codeblocksPartId,
 						uri: model.uri,
-						chatSessionId: this.context.element.sessionId,
+						chatSessionResource: this.context.element.sessionResource,
 						uriPromise: Promise.resolve(model.uri)
 					}
 				});
@@ -150,7 +150,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 						focus: () => { },
 						ownerMarkdownPartId: this.codeblocksPartId,
 						uri: model.uri,
-						chatSessionId: this.context.element.sessionId,
+						chatSessionResource: this.context.element.sessionResource,
 						uriPromise: Promise.resolve(model.uri)
 					}
 				});
@@ -194,7 +194,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 								focus: () => { },
 								ownerMarkdownPartId: this.codeblocksPartId,
 								uri: model.uri,
-								chatSessionId: this.context.element.sessionId,
+								chatSessionResource: this.context.element.sessionResource,
 								uriPromise: Promise.resolve(model.uri)
 							}
 						});
@@ -226,7 +226,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 								focus: () => { },
 								ownerMarkdownPartId: this.codeblocksPartId,
 								uri: model.uri,
-								chatSessionId: this.context.element.sessionId,
+								chatSessionResource: this.context.element.sessionResource,
 								uriPromise: Promise.resolve(model.uri)
 							}
 						});
