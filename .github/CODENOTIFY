@@ -70,6 +70,7 @@ src/vs/workbench/services/chat/** @bpasero
 src/vs/workbench/services/contextmenu/** @bpasero
 src/vs/workbench/services/dialogs/** @alexr00 @bpasero
 src/vs/workbench/services/editor/** @bpasero
+src/vs/workbench/services/editor/common/customEditorLabelService.ts @benibenj
 src/vs/workbench/services/environment/** @bpasero
 src/vs/workbench/services/files/** @bpasero
 src/vs/workbench/services/filesConfiguration/** @bpasero
