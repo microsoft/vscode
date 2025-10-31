@@ -80,7 +80,7 @@ export interface ICodeBlockData {
 	readonly codeBlockPartIndex: number;
 	readonly element: unknown;
 
-	readonly textModel: Promise<ITextModel>;
+	readonly textModel: Promise<ITextModel> | undefined;
 	readonly languageId: string;
 
 	readonly codemapperUri?: URI;
@@ -459,7 +459,7 @@ export class CodeBlockPart extends Disposable {
 
 	private async updateEditor(data: ICodeBlockData): Promise<boolean> {
 		const textModel = await data.textModel;
-		if (this.isDisposed || this.currentCodeBlockData !== data || textModel.isDisposed()) {
+		if (this.isDisposed || this.currentCodeBlockData !== data || !textModel || textModel.isDisposed()) {
 			return false;
 		}
 
