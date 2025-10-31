@@ -327,17 +327,6 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					this.onDidAddRepository(repository);
 				}
 
-
-				// Update tree (add/remove repositories)
-				// this.visibilityDisposables.add(this.scmService.onDidAddRepository(async repository => {
-				// 	console.log('onDidAddRepository:', repository.provider.id);
-				// 	const disposables = new DisposableStore();
-
-
-				// 	await this.updateRepository(repository);
-				// 	this.repositoryDisposables.set(repository, disposables);
-				// }));
-
 				// Update tree selection
 				const onDidChangeVisibleRepositoriesSignal = observableSignalFromEvent(
 					this, this.scmViewService.onDidChangeVisibleRepositories);
