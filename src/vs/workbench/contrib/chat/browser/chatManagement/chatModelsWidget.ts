@@ -690,10 +690,10 @@ export class ChatModelsWidget extends Disposable {
 			await this.viewModel.resolve();
 			this.refreshTable();
 		});
-		
+
 		// Show progress indicator while loading models
 		this.editorProgressService.showWhile(loadingPromise, 300);
-		
+
 		this._register(this.viewModel.onDidChangeModelEntries(() => this.refreshTable()));
 	}
 
@@ -972,9 +972,7 @@ export class ChatModelsWidget extends Disposable {
 	}
 
 	public async refresh(): Promise<void> {
-		const refreshPromise = this.viewModel.resolve().then(() => {
-			this.refreshTable();
-		});
+		const refreshPromise = this.viewModel.resolve().then(() => this.refreshTable());
 		await this.editorProgressService.showWhile(refreshPromise, 300);
 	}
 }

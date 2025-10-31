@@ -30,7 +30,6 @@ import { Dimension } from '../../../../../base/browser/dom.js';
 import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
 import { PANEL_BORDER } from '../../../../common/theme.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
 
 const $ = DOM.$;
 
@@ -49,7 +48,6 @@ export class ModelsManagementEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 	) {
 		super(ModelsManagementEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -57,7 +55,7 @@ export class ModelsManagementEditor extends EditorPane {
 	protected override createEditor(parent: HTMLElement): void {
 		this.editorDisposables.clear();
 		this.bodyContainer = DOM.append(parent, $('.ai-models-management-editor'));
-		this.modelsWidget = this.editorDisposables.add(this.instantiationService.createInstance(ChatModelsWidget, this.editorProgressService));
+		this.modelsWidget = this.editorDisposables.add(this.instantiationService.createInstance(ChatModelsWidget));
 		this.bodyContainer.appendChild(this.modelsWidget.element);
 	}
 
@@ -124,7 +122,6 @@ export class ChatManagementEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService commandService: ICommandService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
-		@IEditorProgressService private readonly editorProgressService: IEditorProgressService
 	) {
 		super(ChatManagementEditor.ID, group, telemetryService, themeService, storageService);
 		this.commandService = commandService;
@@ -266,7 +263,7 @@ export class ChatManagementEditor extends EditorPane {
 
 		// Create widgets
 		this.chatUsageWidget = this._register(this.instantiationService.createInstance(ChatUsageWidget));
-		this.modelsWidget = this._register(this.instantiationService.createInstance(ChatModelsWidget, this.editorProgressService));
+		this.modelsWidget = this._register(this.instantiationService.createInstance(ChatModelsWidget));
 
 		// Append widgets to body
 		bodyContainer.appendChild(this.chatUsageWidget.element);
