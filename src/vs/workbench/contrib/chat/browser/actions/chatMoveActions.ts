@@ -121,8 +121,7 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 		return;
 	}
 
-	const sessionId = widget.viewModel.sessionId;
-	const existingWidget = widgetService.getWidgetBySessionId(sessionId);
+	const existingWidget = widgetService.getWidgetBySessionResource(widget.viewModel.sessionResource);
 	if (!existingWidget) {
 		// Do NOT attempt to open a session that isn't already open since we cannot guarantee its state.
 		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);

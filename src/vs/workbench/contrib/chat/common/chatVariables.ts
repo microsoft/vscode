@@ -46,8 +46,8 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
-	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>;
-	getSelectedToolAndToolSets(sessionId: string): IToolAndToolSetEnablementMap;
+	getDynamicVariables(sessionResource: URI): ReadonlyArray<IDynamicVariable>;
+	getSelectedToolAndToolSets(sessionResource: URI): IToolAndToolSetEnablementMap;
 }
 
 export interface IDynamicVariable {

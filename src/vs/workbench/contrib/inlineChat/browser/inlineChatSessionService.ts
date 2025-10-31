@@ -83,7 +83,7 @@ export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatMo
 	if (widget && widget.viewModel && model) {
 		let lastRequest: IChatRequestModel | undefined;
 		for (const request of model.getRequests().slice()) {
-			await chatService.adoptRequest(widget.viewModel.model.sessionId, request);
+			await chatService.adoptRequest(widget.viewModel.model.sessionResource, request);
 			lastRequest = request;
 		}
 

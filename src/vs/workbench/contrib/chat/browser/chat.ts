@@ -48,7 +48,11 @@ export interface IChatWidgetService {
 
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
+
+	/** @deprecated Use {@link getWidgetBySessionResource} instead */
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
+	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined;
+
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
 }
 
@@ -151,6 +155,7 @@ export interface IChatWidgetViewOptions {
 	renderInputOnTop?: boolean;
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
+	renderInputToolbarBelowInput?: boolean;
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	rendererOptions?: IChatListItemRendererOptions;

@@ -11,7 +11,7 @@ declare module 'vscode' {
 	}
 
 	export interface SourceControlArtifactProvider {
-		readonly onDidChangeArtifacts: Event<string>;
+		readonly onDidChangeArtifacts: Event<string[]>;
 
 		provideArtifactGroups(token: CancellationToken): ProviderResult<SourceControlArtifactGroup[]>;
 		provideArtifacts(group: string, token: CancellationToken): ProviderResult<SourceControlArtifact[]>;
