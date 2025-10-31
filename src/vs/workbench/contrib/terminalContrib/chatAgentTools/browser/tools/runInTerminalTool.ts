@@ -46,6 +46,7 @@ import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLin
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
+import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
 
 // #region Tool data
 
@@ -313,7 +314,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Listen for chat session disposal to clean up associated terminals
 		this._register(this._chatService.onDidDisposeSession(e => {
-			this._cleanupSessionTerminals(e.sessionId);
+			const localSession = LocalChatSessionUri.parse(e.sessionResource);
+			if (localSession) {
+				this._cleanupSessionTerminals(localSession.sessionId);
+			}
 		}));
 	}
 

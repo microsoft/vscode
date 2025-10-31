@@ -21,6 +21,7 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ctxHasEditorModification, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 
@@ -422,7 +423,7 @@ abstract class MultiDiffAcceptDiscardAction extends Action2 {
 			return;
 		}
 
-		const session = chatEditingService.getEditingSession(editor.resource.authority);
+		const session = chatEditingService.getEditingSession(LocalChatSessionUri.forSession(editor.resource.authority));
 		if (this.accept) {
 			await session?.accept();
 		} else {

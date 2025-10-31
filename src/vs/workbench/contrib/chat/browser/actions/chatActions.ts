@@ -236,7 +236,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
 			for (const { request, response } of opts.previousRequests) {
-				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
+				chatService.addCompleteRequest(chatWidget.viewModel.sessionResource, request, undefined, 0, { message: response });
 			}
 		}
 		if (opts?.attachScreenshot) {

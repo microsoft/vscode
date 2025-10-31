@@ -65,7 +65,7 @@ abstract class SubmitAction extends Action2 {
 			const configurationService = accessor.get(IConfigurationService);
 			const dialogService = accessor.get(IDialogService);
 			const chatService = accessor.get(IChatService);
-			const chatModel = chatService.getSession(widget.viewModel.sessionId);
+			const chatModel = chatService.getSession(widget.viewModel.sessionResource);
 			if (!chatModel) {
 				return;
 			}
@@ -679,7 +679,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		chatSessionsService: IChatSessionsService,
 		chatService: IChatService,
 		quickPickService: IQuickInputService,
-		sessionId: string,
+		sessionResource: URI,
 		attachedContext: ChatRequestVariableSet,
 		userPrompt: string,
 		chatSummary?: {
@@ -687,7 +687,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			history?: string;
 		}
 	) {
-		await chatService.sendRequest(sessionId, userPrompt, {
+		await chatService.sendRequest(sessionResource, userPrompt, {
 			agentIdSilent: targetAgentId,
 			attachedContext: attachedContext.asArray(),
 			chatSummary,
@@ -802,6 +802,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				return;
 			}
 
+			const sessionResource = widget.viewModel.sessionResource;
 			const chatRequests = chatModel.getRequests();
 			let userPrompt = widget.getInput();
 			if (!userPrompt) {
@@ -880,7 +881,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const { type } = agent;
 
 			// Add the request to the model first
-			const parsedRequest = requestParser.parseChatRequest(sessionId, userPrompt, ChatAgentLocation.Chat);
+			const parsedRequest = requestParser.parseChatRequest(sessionResource, userPrompt, ChatAgentLocation.Chat);
 			const addedRequest = chatModel.addRequest(
 				parsedRequest,
 				{ variables: attachedContext.asArray() },
@@ -955,13 +956,13 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 			const isChatSessionsExperimentEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseCloudButtonV2);
 			if (isChatSessionsExperimentEnabled) {
-				await chatService.removeRequest(sessionId, addedRequest.id);
+				await chatService.removeRequest(sessionResource, addedRequest.id);
 				return await this.createWithChatSessions(
 					type,
 					chatSessionsService,
 					chatService,
 					quickPickService,
-					sessionId,
+					sessionResource,
 					attachedContext,
 					userPrompt,
 					{
@@ -1181,7 +1182,7 @@ export class CancelAction extends Action2 {
 
 		const chatService = accessor.get(IChatService);
 		if (widget.viewModel) {
-			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionId);
+			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource);
 		}
 	}
 }

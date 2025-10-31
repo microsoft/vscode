@@ -78,7 +78,9 @@ export interface IChatViewModel {
 
 export interface IChatRequestViewModel {
 	readonly id: string;
+	/** @deprecated */
 	readonly sessionId: string;
+	readonly sessionResource: URI;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	readonly username: string;
@@ -194,7 +196,9 @@ export interface IChatResponseViewModel {
 	readonly model: IChatResponseModel;
 	readonly id: string;
 	readonly session: IChatViewModel;
+	/** @deprecated */
 	readonly sessionId: string;
+	readonly sessionResource: URI;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	/** The ID of the associated IChatRequestViewModel */
@@ -392,6 +396,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.session.sessionId;
 	}
 
+	get sessionResource() {
+		return this._model.session.sessionResource;
+	}
+
 	get username() {
 		return this._model.username;
 	}
@@ -481,6 +489,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get sessionId() {
 		return this._model.session.sessionId;
+	}
+
+	get sessionResource(): URI {
+		return this._model.session.sessionResource;
 	}
 
 	get username() {
