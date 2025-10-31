@@ -643,4 +643,109 @@ suite('ChatModelsViewModel', () => {
 		assert.strictEqual(models.length, 1);
 		assert.strictEqual(models[0].modelEntry.metadata.id, 'gpt-4o');
 	});
+
+	test('should always place copilot vendor at the top', () => {
+		const results = viewModel.fetch('');
+
+		const vendors = results.filter(isVendorEntry) as IVendorItemEntry[];
+		assert.ok(vendors.length >= 2);
+
+		// First vendor should always be copilot
+		assert.strictEqual(vendors[0].vendorEntry.vendor, 'copilot');
+	});
+
+	test('should maintain copilot at top with multiple vendors', async () => {
+		// Add more vendors to ensure sorting works correctly
+		languageModelsService.addVendor({
+			vendor: 'anthropic',
+			displayName: 'Anthropic',
+			managementCommand: undefined,
+			when: undefined
+		});
+
+		languageModelsService.addModel('anthropic', 'anthropic-claude', {
+			extension: new ExtensionIdentifier('anthropic.api'),
+			id: 'claude-3',
+			name: 'Claude 3',
+			family: 'claude',
+			version: '1.0',
+			vendor: 'anthropic',
+			maxInputTokens: 100000,
+			maxOutputTokens: 4096,
+			modelPickerCategory: { label: 'Anthropic', order: 3 },
+			isUserSelectable: true,
+			capabilities: {
+				toolCalling: true,
+				vision: false,
+				agentMode: false
+			}
+		});
+
+		languageModelsService.addVendor({
+			vendor: 'azure',
+			displayName: 'Azure OpenAI',
+			managementCommand: undefined,
+			when: undefined
+		});
+
+		languageModelsService.addModel('azure', 'azure-gpt-4', {
+			extension: new ExtensionIdentifier('microsoft.azure'),
+			id: 'azure-gpt-4',
+			name: 'Azure GPT-4',
+			family: 'gpt-4',
+			version: '1.0',
+			vendor: 'azure',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			modelPickerCategory: { label: 'Azure', order: 4 },
+			isUserSelectable: true,
+			capabilities: {
+				toolCalling: true,
+				vision: false,
+				agentMode: false
+			}
+		});
+
+		await viewModel.resolve();
+
+		const results = viewModel.fetch('');
+		const vendors = results.filter(isVendorEntry) as IVendorItemEntry[];
+
+		// Should have 4 vendors: copilot, openai, anthropic, azure
+		assert.strictEqual(vendors.length, 4);
+
+		// First vendor should always be copilot
+		assert.strictEqual(vendors[0].vendorEntry.vendor, 'copilot');
+
+		// Other vendors should be alphabetically sorted: anthropic, azure, openai
+		assert.strictEqual(vendors[1].vendorEntry.vendor, 'anthropic');
+		assert.strictEqual(vendors[2].vendorEntry.vendor, 'azure');
+		assert.strictEqual(vendors[3].vendorEntry.vendor, 'openai');
+	});
+
+	test('should keep copilot at top even with text search', () => {
+		// Even when searching, if results include multiple vendors, copilot should be first
+		const results = viewModel.fetch('GPT');
+
+		const vendors = results.filter(isVendorEntry) as IVendorItemEntry[];
+
+		if (vendors.length > 1) {
+			// If multiple vendors match, copilot should be first
+			const copilotVendor = vendors.find(v => v.vendorEntry.vendor === 'copilot');
+			if (copilotVendor) {
+				assert.strictEqual(vendors[0].vendorEntry.vendor, 'copilot');
+			}
+		}
+	});
+
+	test('should keep copilot at top when filtering by capability', () => {
+		const results = viewModel.fetch('@capability:tools');
+
+		const vendors = results.filter(isVendorEntry) as IVendorItemEntry[];
+
+		// Both copilot and openai have models with tools capability
+		if (vendors.length > 1) {
+			assert.strictEqual(vendors[0].vendorEntry.vendor, 'copilot');
+		}
+	});
 });
