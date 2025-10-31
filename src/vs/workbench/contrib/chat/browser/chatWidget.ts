@@ -1877,12 +1877,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private clickedRequest(item: IChatListItemTemplate) {
-
-		// cancel current request before we start editing.
-		if (this.viewModel) {
-			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionId);
-		}
-
 		const currentElement = item.currentElement;
 		if (isRequestVM(currentElement) && !this.viewModel?.editing) {
 
@@ -2271,7 +2265,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			throw new Error('Call render() before setModel()');
 		}
 
-		if (model.sessionId === this.viewModel?.sessionId) {
+		if (isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
 			return;
 		}
 

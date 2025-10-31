@@ -19,7 +19,7 @@ import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSes
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './common.js';
+import { ChatSessionItemWithProvider, isChatSession } from './common.js';
 
 export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.localChatSessionsProvider';
@@ -158,8 +158,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			return false;
 		}
 
-		const sessionType = getChatSessionType(editor);
-		return sessionType === localChatSessionType;
+		return editor.getSessionType() === localChatSessionType;
 	}
 
 	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {

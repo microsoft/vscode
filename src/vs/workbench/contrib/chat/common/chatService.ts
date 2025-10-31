@@ -315,7 +315,6 @@ export interface IChatTerminalToolInvocationData {
 	terminalToolSessionId?: string;
 	/** The predefined command ID that will be used for this terminal command */
 	terminalCommandId?: string;
-	terminalCommandUri?: UriComponents;
 	autoApproveInfo?: IMarkdownString;
 	output?: {
 		html: string;
