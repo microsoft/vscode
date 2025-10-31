@@ -101,8 +101,9 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 		const noAccentsFilter = this.normalizeForFiltering(filter);
 
-		// Check if there's an exact command ID match first
-		const hasExactCommandIdMatch = allCommandPicks.some(pick => filter === pick.commandId);
+		// Check if there's an exact command ID match first (using Set for O(1) lookup)
+		const commandIds = new Set(allCommandPicks.map(pick => pick.commandId));
+		const hasExactCommandIdMatch = commandIds.has(filter);
 
 		// Filter
 		const filteredCommandPicks: ICommandQuickPick[] = [];
