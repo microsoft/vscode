@@ -320,13 +320,6 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					this.updateBodySize(this.tree.contentHeight);
 				}));
 
-				// Add/Remove event handlers
-				this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.visibilityDisposables);
-				this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.visibilityDisposables);
-				for (const repository of this.scmService.repositories) {
-					this.onDidAddRepository(repository);
-				}
-
 				// Update tree selection
 				const onDidChangeVisibleRepositoriesSignal = observableSignalFromEvent(
 					this, this.scmViewService.onDidChangeVisibleRepositories);
@@ -335,6 +328,13 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					onDidChangeVisibleRepositoriesSignal.read(reader);
 					await this.treeOperationSequencer.queue(() => this.updateTreeSelection());
 				}));
+
+				// Add/Remove event handlers
+				this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.visibilityDisposables);
+				this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.visibilityDisposables);
+				for (const repository of this.scmService.repositories) {
+					this.onDidAddRepository(repository);
+				}
 			});
 		}, this, this._store);
 	}
