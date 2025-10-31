@@ -1399,6 +1399,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 		this._store.add(autorun(r => {
 
+			// HIDE/SHOW
 			const session = visibleSessionObs.read(r);
 			if (!session) {
 				this._zone.rawValue?.hide();
@@ -1413,15 +1414,25 @@ export class InlineChatController2 implements IEditorContribution {
 				}
 				this._zone.value.reveal(this._zone.value.position!);
 				this._zone.value.widget.focus();
-
 			}
 		}));
 
 		this._store.add(autorun(r => {
 			const session = visibleSessionObs.read(r);
-			if (session) {
-				const entry = session.editingSession.readEntry(session.uri, r);
-				entry?.enableReviewModeUntilSettled();
+			if (!session) {
+				return;
+			}
+
+			const entry = session.editingSession.readEntry(session.uri, r);
+			entry?.enableReviewModeUntilSettled();
+
+			const inProgress = session.chatModel.requestInProgressObs.read(r);
+			this._zone.value.widget.domNode.classList.toggle('request-in-progress', inProgress);
+			if (!inProgress) {
+				this._zone.value.widget.chatWidget.setInputPlaceholder(localize('placeholder', "Edit, refactor, and generate code"));
+			} else {
+				const prompt = session.chatModel.getRequests().at(-1)?.message.text;
+				this._zone.value.widget.chatWidget.setInputPlaceholder(prompt || localize('loading', "Working..."));
 			}
 		}));
 
