@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AppResourcePath, FileAccess, nodeModulesAsarPath, Schemas, VSCODE_AUTHORITY } from './base/common/network.js';
+import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath, Schemas, VSCODE_AUTHORITY } from './base/common/network.js';
+import * as platform from './base/common/platform.js';
+import { IProductConfiguration } from './base/common/product.js';
 import { URI } from './base/common/uri.js';
 import { generateUuid } from './base/common/uuid.js';
 
@@ -199,6 +201,11 @@ const cache = new Map<string, Promise<any>>();
  * e.g. pass in `vscode-textmate/release/main.js`
  */
 export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideNodeModule: string, isBuilt?: boolean): Promise<T> {
+	if (isBuilt === undefined) {
+		const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
+		isBuilt = Boolean((product ?? globalThis.vscode?.context?.configuration()?.product)?.commit);
+	}
+
 	const nodeModulePath = pathInsideNodeModule ? `${nodeModuleName}/${pathInsideNodeModule}` : nodeModuleName;
 	if (cache.has(nodeModulePath)) {
 		return cache.get(nodeModulePath)!;
@@ -209,7 +216,9 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 		// bit of a special case for: src/vs/workbench/services/languageDetection/browser/languageDetectionWebWorker.ts
 		scriptSrc = nodeModulePath;
 	} else {
-		const resourcePath: AppResourcePath = `${nodeModulesAsarPath}/${nodeModulePath}`;
+		const useASAR = (isBuilt && (platform.isElectron || (platform.isWebWorker && platform.hasElectronUserAgent)));
+		const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);
+		const resourcePath: AppResourcePath = `${actualNodeModulesPath}/${nodeModulePath}`;
 		scriptSrc = FileAccess.asBrowserUri(resourcePath).toString(true);
 	}
 	const result = AMDModuleImporter.INSTANCE.load<T>(scriptSrc);
@@ -218,7 +227,12 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 }
 
 export function resolveAmdNodeModulePath(nodeModuleName: string, pathInsideNodeModule: string): string {
+	const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
+	const isBuilt = Boolean((product ?? globalThis.vscode?.context?.configuration()?.product)?.commit);
+	const useASAR = (isBuilt && (platform.isElectron || (platform.isWebWorker && platform.hasElectronUserAgent)));
+
 	const nodeModulePath = `${nodeModuleName}/${pathInsideNodeModule}`;
-	const resourcePath: AppResourcePath = `${nodeModulesAsarPath}/${nodeModulePath}`;
+	const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);
+	const resourcePath: AppResourcePath = `${actualNodeModulesPath}/${nodeModulePath}`;
 	return FileAccess.asBrowserUri(resourcePath).toString(true);
 }
