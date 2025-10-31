@@ -21,7 +21,6 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -119,7 +118,6 @@ export interface IChatViewWelcomeContent {
 	readonly additionalMessage?: string | IMarkdownString;
 	tips?: IMarkdownString;
 	readonly inputPart?: HTMLElement;
-	readonly isNew?: boolean;
 	readonly suggestedPrompts?: readonly IChatSuggestedPrompts[];
 	readonly useLargeIcon?: boolean;
 }
@@ -148,7 +146,6 @@ export class ChatViewWelcomePart extends Disposable {
 		@ILogService private logService: ILogService,
 		@IChatWidgetService private chatWidgetService: IChatWidgetService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
@@ -185,26 +182,13 @@ export class ChatViewWelcomePart extends Disposable {
 			const title = dom.append(this.element, $('.chat-welcome-view-title'));
 			title.textContent = content.title;
 
-			// Preview indicator (no experimental variants)
-			const expEmptyState = this.configurationService.getValue<boolean>('chat.emptyChatState.enabled');
-			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent && !expEmptyState) {
-				const container = dom.append(this.element, $('.chat-welcome-view-indicator-container'));
-				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Agent")));
-			}
-
-			const message = dom.append(this.element, content.isNew ? $('.chat-welcome-new-view-message') : $('.chat-welcome-view-message'));
-			message.classList.toggle('empty-state', expEmptyState);
+			const message = dom.append(this.element, $('.chat-welcome-view-message'));
 
 			const messageResult = this.renderMarkdownMessageContent(content.message, options);
 			dom.append(message, messageResult.element);
 
-			if (content.isNew && content.inputPart) {
-				content.inputPart.querySelector('.chat-attachments-container')?.remove();
-				dom.append(this.element, content.inputPart);
-			}
-
-			// Additional message (new user mode)
-			if (!content.isNew && content.additionalMessage) {
+			// Additional message
+			if (content.additionalMessage) {
 				const disclaimers = dom.append(this.element, $('.chat-welcome-view-disclaimer'));
 				if (typeof content.additionalMessage === 'string') {
 					disclaimers.textContent = content.additionalMessage;
@@ -302,17 +286,6 @@ export class ChatViewWelcomePart extends Disposable {
 				const tipsResult = this._register(this.markdownRendererService.render(content.tips));
 				tips.appendChild(tipsResult.element);
 			}
-
-			// In new user mode, render the additional message after suggested prompts (deferred)
-			if (content.isNew && content.additionalMessage) {
-				const additionalMsg = dom.append(this.element, $('.chat-welcome-view-additional-message'));
-				if (typeof content.additionalMessage === 'string') {
-					additionalMsg.textContent = content.additionalMessage;
-				} else {
-					const additionalMessageResult = this.renderMarkdownMessageContent(content.additionalMessage, options);
-					additionalMsg.appendChild(additionalMessageResult.element);
-				}
-			}
 		} catch (err) {
 			this.logService.error('Failed to render chat view welcome content', err);
 		}
@@ -341,9 +314,8 @@ export class ChatViewWelcomePart extends Disposable {
 
 	public needsRerender(content: IChatViewWelcomeContent): boolean {
 		// Heuristic based on content that changes between states
-		return !!(content.isNew ||
+		return !!(
 			this.content.title !== content.title ||
-			this.content.isNew !== content.isNew ||
 			this.content.message.value !== content.message.value ||
 			this.content.additionalMessage !== content.additionalMessage ||
 			this.content.tips?.value !== content.tips?.value ||

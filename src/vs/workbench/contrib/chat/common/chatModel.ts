@@ -1139,7 +1139,6 @@ export interface IExportableChatData {
 	responderUsername: string;
 	requesterAvatarIconUri: UriComponents | undefined;
 	responderAvatarIconUri: ThemeIcon | UriComponents | undefined; // Keeping Uri name for backcompat
-	inputType?: string;
 }
 
 /*
@@ -1164,7 +1163,6 @@ export interface ISerializableChatData2 extends ISerializableChatData1 {
 export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 'version' | 'computedTitle'> {
 	version: 3;
 	customTitle: string | undefined;
-	inputType?: string;
 }
 
 /**
@@ -1454,11 +1452,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._editingSession?.promiseResult.get()?.data;
 	}
 
-	private readonly _inputType: string | undefined;
-	get inputType(): string | undefined {
-		return this._inputType;
-	}
-
 	private readonly _initialLocation: ChatAgentLocation;
 	get initialLocation(): ChatAgentLocation {
 		return this._initialLocation;
@@ -1471,7 +1464,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	constructor(
 		initialData: ISerializableChatData | IExportableChatData | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; inputType?: string; resource?: URI },
+		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; resource?: URI },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -1497,7 +1490,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._initialRequesterAvatarIconUri = initialData?.requesterAvatarIconUri && URI.revive(initialData.requesterAvatarIconUri);
 		this._initialResponderAvatarIconUri = isUriComponents(initialData?.responderAvatarIconUri) ? URI.revive(initialData.responderAvatarIconUri) : initialData?.responderAvatarIconUri;
 
-		this._inputType = initialData?.inputType ?? initialModelProps.inputType;
 		this._initialLocation = initialData?.initialLocation ?? initialModelProps.initialLocation;
 		this._canUseTools = initialModelProps.canUseTools;
 

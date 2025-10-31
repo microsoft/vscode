@@ -31,6 +31,7 @@ import { IChatModel } from '../../contrib/chat/common/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { LocalChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
@@ -117,7 +118,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			this._proxy.$releaseSession(e.sessionId);
+			const local = LocalChatSessionUri.parse(e.sessionResource);
+			if (local) {
+				this._proxy.$releaseSession(local.sessionId);
+			}
 		}));
 		this._register(this._chatService.onDidPerformUserAction(e => {
 			if (typeof e.agentId === 'string') {
@@ -168,7 +172,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 		const impl: IChatAgentImplementation = {
 			invoke: async (request, progress, history, token) => {
-				const chatSession = this._chatService.getSession(request.sessionId);
+				const chatSession = this._chatService.getSession(LocalChatSessionUri.forSession(request.sessionId));
 				this._pendingProgress.set(request.requestId, { progress, chatSession });
 				try {
 					return await this._proxy.$invokeAgent(handle, request, {
@@ -358,7 +362,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return;
 				}
 
-				const parsedRequest = this._instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue()).parts;
+				const parsedRequest = this._instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionResource, model.getValue()).parts;
 				const agentPart = parsedRequest.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
 				const thisAgentId = this._agents.get(handle)?.id;
 				if (agentPart?.agent.id !== thisAgentId) {

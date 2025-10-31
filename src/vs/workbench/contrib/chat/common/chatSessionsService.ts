@@ -157,7 +157,6 @@ export interface IChatSessionsService {
 	getWelcomeTitleForSessionType(chatSessionType: string): string | undefined;
 	getWelcomeMessageForSessionType(chatSessionType: string): string | undefined;
 	getInputPlaceholderForSessionType(chatSessionType: string): string | undefined;
-	getWelcomeTipsForSessionType(chatSessionType: string): string | undefined;
 
 	/**
 	 * Get the list of chat session items grouped by session type.

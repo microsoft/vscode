@@ -176,7 +176,6 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 
 		const editorService = accessor.get(IEditorService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const sessionId = context.session.id;
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		if (context.session.provider?.chatSessionType) {
 			const uri = context.session.resource;
@@ -186,7 +185,7 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 			if (existingEditor) {
 				await editorService.openEditor(existingEditor.editor, existingEditor.group);
 				return;
-			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
+			} else if (chatWidgetService.getWidgetBySessionResource(uri)) {
 				return;
 			} else {
 				const options: IChatEditorOptions = {
@@ -223,7 +222,6 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 
 		const editorService = accessor.get(IEditorService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const sessionId = context.session.id;
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		if (context.session.provider?.chatSessionType) {
 			const uri = context.session.resource;
@@ -232,7 +230,7 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 			if (existingEditor) {
 				await editorService.openEditor(existingEditor.editor, existingEditor.group);
 				return;
-			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
+			} else if (chatWidgetService.getWidgetBySessionResource(uri)) {
 				// Already opened in chat widget
 				return;
 			} else {
@@ -284,7 +282,7 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 		if (existingEditor) {
 			await editorService.openEditor(existingEditor.editor, existingEditor.group);
 			return;
-		} else if (chatWidgetService.getWidgetBySessionId(context.session.id)) {
+		} else if (chatWidgetService.getWidgetBySessionResource(context.session.resource)) {
 			return;
 		}
 

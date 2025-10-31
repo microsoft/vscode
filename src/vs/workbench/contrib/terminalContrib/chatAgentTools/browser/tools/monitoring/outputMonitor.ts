@@ -29,6 +29,7 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
+import { LocalChatSessionUri } from '../../../../../chat/common/chatUri.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -622,7 +623,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		onReject?: () => Promise<T | undefined> | T | undefined,
 		moreActions?: IAction[] | undefined
 	): { promise: Promise<T | undefined>; part: ChatElicitationRequestPart } {
-		const chatModel = sessionId && this._chatService.getSession(sessionId);
+		const chatModel = sessionId && this._chatService.getSession(LocalChatSessionUri.forSession(sessionId));
 		if (!(chatModel instanceof ChatModel)) {
 			throw new Error('No model');
 		}

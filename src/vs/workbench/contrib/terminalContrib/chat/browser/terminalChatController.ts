@@ -154,7 +154,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 }
 
 async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | undefined) {
-
 	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
 	const layoutService = accessor.get(IWorkbenchLayoutService);
@@ -163,7 +162,7 @@ async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | u
 
 	if (widget && widget.viewModel && model) {
 		for (const request of model.getRequests().slice()) {
-			await chatService.adoptRequest(widget.viewModel.model.sessionId, request);
+			await chatService.adoptRequest(widget.viewModel.model.sessionResource, request);
 		}
 		widget.focusResponseItem();
 	}
