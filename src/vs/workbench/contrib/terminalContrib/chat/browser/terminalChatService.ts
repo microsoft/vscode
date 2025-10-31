@@ -105,7 +105,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			return undefined;
 		}
 		if (this._pendingRestoredMappings.has(terminalToolSessionId)) {
-			const instance = this._terminalService.instances.find(i => i.persistentProcessId === this._pendingRestoredMappings.get(terminalToolSessionId));
+			const instance = this._terminalService.instances.find(i => i.shellLaunchConfig.attachPersistentProcess?.id === this._pendingRestoredMappings.get(terminalToolSessionId));
 			if (instance) {
 				this._tryAdoptRestoredMapping(instance);
 				return instance;
@@ -164,7 +164,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			return;
 		}
 		for (const [toolSessionId, persistentProcessId] of this._pendingRestoredMappings) {
-			if (persistentProcessId === instance.persistentProcessId) {
+			if (persistentProcessId === instance.shellLaunchConfig.attachPersistentProcess?.id) {
 				this._terminalInstancesByToolSessionId.set(toolSessionId, instance);
 				this._onDidRegisterTerminalInstanceForToolSession.fire(instance);
 				this._terminalInstanceListenersByToolSessionId.set(toolSessionId, instance.onDisposed(() => {
