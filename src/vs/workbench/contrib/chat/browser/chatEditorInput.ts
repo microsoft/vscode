@@ -87,14 +87,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				throw new Error('Invalid chat URI');
 			}
 		} else if (resource.scheme === Schemas.vscodeLocalChatSession) {
-			const parsed = LocalChatSessionUri.parse(resource);
-			if (!parsed?.sessionId) {
-				throw new Error('Invalid chat session URI');
+			const localSessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+			if (!localSessionId) {
+				throw new Error('Invalid local chat session URI');
 			}
-			if (parsed.chatSessionType !== localChatSessionType) {
-				throw new Error('Chat session URI must be of local chat session type');
-			}
-			this._sessionInfo = { resource, sessionId: parsed.sessionId };
+			this._sessionInfo = { resource, sessionId: localSessionId };
 		} else {
 			this._sessionInfo = { resource, sessionId: undefined };
 		}

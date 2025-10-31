@@ -761,7 +761,6 @@ export function registerChatActions() {
 										description: '',
 										session: { providerType: chatSessionType, session: session },
 										chat: {
-											sessionId: session.id,
 											sessionResource: session.resource,
 											title: session.label,
 											isActive: false,

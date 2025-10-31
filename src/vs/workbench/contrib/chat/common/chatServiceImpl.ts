@@ -371,7 +371,6 @@ export class ChatService extends Disposable implements IChatService {
 			.map((session): IChatDetail => {
 				const title = session.title || localize('newChat', "New Chat");
 				return {
-					sessionId: session.sessionId,
 					sessionResource: session.sessionResource,
 					title,
 					lastMessageDate: session.lastMessageDate,
@@ -462,7 +461,7 @@ export class ChatService extends Disposable implements IChatService {
 			return model;
 		}
 
-		const sessionId = LocalChatSessionUri.parse(sessionResource)?.sessionId;
+		const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
 		if (!sessionId) {
 			throw new Error(`Cannot restore non-local session ${sessionResource}`);
 		}
@@ -492,7 +491,7 @@ export class ChatService extends Disposable implements IChatService {
 	 * This is really just for migrating data from the edit session location to the panel.
 	 */
 	isPersistedSessionEmpty(sessionResource: URI): boolean {
-		const sessionId = LocalChatSessionUri.parse(sessionResource)?.sessionId;
+		const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
 		if (!sessionId) {
 			throw new Error(`Cannot restore non-local session ${sessionResource}`);
 		}
@@ -506,7 +505,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	getPersistedSessionTitle(sessionResource: URI): string | undefined {
-		const sessionId = LocalChatSessionUri.parse(sessionResource)?.sessionId;
+		const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
 		if (!sessionId) {
 			throw new Error(`Cannot restore non-local session ${sessionResource}`);
 		}
@@ -1204,11 +1203,11 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionResource}`);
 		}
 
-		const localSession = LocalChatSessionUri.parse(sessionResource);
-		if (localSession && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.EditorInline)) {
+		const localSessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
+		if (localSessionId && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.EditorInline)) {
 			// Always preserve sessions that have custom titles, even if empty
 			if (model.getRequests().length === 0 && !model.customTitle) {
-				await this._chatSessionStore.deleteSession(localSession.sessionId);
+				await this._chatSessionStore.deleteSession(localSessionId);
 			} else {
 				await this._chatSessionStore.storeSessions([model]);
 			}
@@ -1255,14 +1254,10 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private toLocalSessionId(sessionResource: URI) {
-		const parsed = LocalChatSessionUri.parse(sessionResource);
-		if (!parsed) {
-			throw new Error(`Invalid local chat session resource: ${sessionResource.toString()}`);
+		const localSessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
+		if (!localSessionId) {
+			throw new Error(`Invalid local chat session resource: ${sessionResource}`);
 		}
-		if (parsed.chatSessionType !== 'local') {
-			throw new Error(`Can only delete local chat sessions, got: ${parsed.chatSessionType}`);
-		}
-
-		return parsed.sessionId;
+		return localSessionId;
 	}
 }

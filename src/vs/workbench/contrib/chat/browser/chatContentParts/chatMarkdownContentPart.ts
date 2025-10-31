@@ -60,6 +60,7 @@ import { IChatContentPart, IChatContentPartRenderContext } from './chatContentPa
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
 import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../../platform/editor/browser/editor.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
+import { ChatEditingActionContext } from '../chatEditing/chatEditingActions.js';
 
 const $ = dom.$;
 
@@ -189,7 +190,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					if (hideToolbar !== undefined) {
 						renderOptions.hideToolbar = hideToolbar;
 					}
-					const codeBlockInfo: ICodeBlockData = { languageId, textModel, codeBlockIndex: globalIndex, codeBlockPartIndex: thisPartIndex, element, range, parentContextKeyService: contextKeyService, vulns, codemapperUri: codeblockEntry?.codemapperUri, renderOptions, chatSessionId: element.sessionId };
+					const codeBlockInfo: ICodeBlockData = { languageId, textModel, codeBlockIndex: globalIndex, codeBlockPartIndex: thisPartIndex, element, range, parentContextKeyService: contextKeyService, vulns, codemapperUri: codeblockEntry?.codemapperUri, renderOptions, chatSessionResource: element.sessionResource };
 
 					if (element.isCompleteAddedRequest || !codeblockEntry?.codemapperUri || !codeblockEntry.isEdit) {
 						const ref = this.renderCodeBlock(codeBlockInfo, text, isCodeBlockComplete, currentWidth);
@@ -204,7 +205,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							readonly ownerMarkdownPartId = ownerMarkdownPartId;
 							readonly codeBlockIndex = globalIndex;
 							readonly elementId = element.id;
-							readonly chatSessionId = element.sessionId;
+							readonly chatSessionResource = element.sessionResource;
 							readonly languageId = languageId;
 							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
 							codemapperUri = undefined; // will be set async
@@ -223,7 +224,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						return ref.object.element;
 					} else {
 						const requestId = isRequestVM(element) ? element.id : element.requestId;
-						const ref = this.renderCodeBlockPill(element.sessionId, element.sessionResource, requestId, inUndoStop, codeBlockInfo.codemapperUri);
+						const ref = this.renderCodeBlockPill(element.sessionResource, requestId, inUndoStop, codeBlockInfo.codemapperUri);
 						if (isResponseVM(codeBlockInfo.element)) {
 							// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
 							this.codeBlockModelCollection.update(codeBlockInfo.element.sessionResource, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId, isComplete: isCodeBlockComplete }).then((e) => {
@@ -239,7 +240,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							readonly codeBlockIndex = globalIndex;
 							readonly elementId = element.id;
 							readonly codemapperUri = codeblockEntry?.codemapperUri;
-							readonly chatSessionId = element.sessionId;
+							readonly chatSessionResource = element.sessionResource;
 							get uri() {
 								return undefined;
 							}
@@ -325,8 +326,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		}
 	}
 
-	private renderCodeBlockPill(sessionId: string, sessionResource: URI, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined): IDisposableReference<CollapsedCodeBlock> {
-		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionId, sessionResource, requestId, inUndoStop);
+	private renderCodeBlockPill(sessionResource: URI, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined): IDisposableReference<CollapsedCodeBlock> {
+		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionResource, requestId, inUndoStop);
 		if (codemapperUri) {
 			codeBlock.render(codemapperUri);
 		}
@@ -434,7 +435,6 @@ export class CollapsedCodeBlock extends Disposable {
 	private readonly progressStore = this._store.add(new DisposableStore());
 
 	constructor(
-		private readonly sessionId: string,
 		private readonly sessionResource: URI,
 		private readonly requestId: string,
 		private readonly inUndoStop: string | undefined,
@@ -469,13 +469,17 @@ export class CollapsedCodeBlock extends Disposable {
 				contextKeyService: this.contextKeyService,
 				getAnchor: () => event,
 				getActions: () => {
+					if (!this.uri) {
+						return [];
+					}
+
 					const menu = this.menuService.getMenuActions(MenuId.ChatEditingCodeBlockContext, this.contextKeyService, {
 						arg: {
-							sessionId: this.sessionId,
+							sessionResource: this.sessionResource,
 							requestId: this.requestId,
 							uri: this.uri,
 							stopId: this.inUndoStop
-						}
+						} satisfies ChatEditingActionContext
 					});
 
 					return getFlatContextMenuActions(menu);

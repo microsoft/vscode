@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { Location, TextEdit } from '../../../../editor/common/languages.js';
@@ -328,12 +329,12 @@ export const enum ChatEditKind {
 }
 
 export interface IChatEditingActionContext {
-	// The chat session ID that this editing session is associated with
-	sessionId: string;
+	// The chat session that this editing session is associated with
+	sessionResource: URI;
 }
 
 export function isChatEditingActionContext(thing: unknown): thing is IChatEditingActionContext {
-	return typeof thing === 'object' && !!thing && 'sessionId' in thing;
+	return typeof thing === 'object' && !!thing && hasKey(thing, { sessionResource: true });
 }
 
 export function getMultiDiffSourceUri(session: IChatEditingSession, showPreviousChanges?: boolean): URI {
