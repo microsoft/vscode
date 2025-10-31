@@ -90,6 +90,7 @@ export const enum RemoteTerminalChannelRequest {
 	ReviveTerminalProcesses = '$reviveTerminalProcesses',
 	GetRevivedPtyNewId = '$getRevivedPtyNewId',
 	SetUnicodeVersion = '$setUnicodeVersion',
+	SetNextCommandId = '$setNextCommandId',
 	ReduceConnectionGraceTime = '$reduceConnectionGraceTime',
 	UpdateIcon = '$updateIcon',
 	UpdateTitle = '$updateTitle',

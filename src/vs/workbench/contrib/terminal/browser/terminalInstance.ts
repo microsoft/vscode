@@ -950,6 +950,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// so it will be used when the shell sends the command start sequence
 		if (commandId && commandDetection) {
 			this.xterm?.shellIntegration.setNextCommandId(commandLine, commandId);
+			await this._processManager.setNextCommandId(commandLine, commandId);
 		}
 
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always

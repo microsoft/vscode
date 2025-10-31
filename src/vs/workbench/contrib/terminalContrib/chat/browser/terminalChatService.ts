@@ -93,7 +93,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			}
 		}));
 
-		if (typeof instance.persistentProcessId === 'number') {
+		if (typeof instance.shellLaunchConfig?.attachPersistentProcess?.id === 'number') {
 			this._persistToStorage();
 		}
 
@@ -116,7 +116,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			return undefined;
 		}
 		if (this._pendingRestoredMappings.has(terminalToolSessionId)) {
-			const instance = this._terminalService.instances.find(i => i.persistentProcessId === this._pendingRestoredMappings.get(terminalToolSessionId));
+			const instance = this._terminalService.instances.find(i => i.shellLaunchConfig?.attachPersistentProcess?.id === this._pendingRestoredMappings.get(terminalToolSessionId));
 			if (instance) {
 				this._tryAdoptRestoredMapping(instance);
 				return instance;
