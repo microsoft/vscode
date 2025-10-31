@@ -289,8 +289,9 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 				}
 			}
 
-			// Convert / to \ on Windows for convenience
-			if (profile.path) {
+			// Convert / to \ on Windows for convenience, but only for Windows native paths.
+			// Don't convert Unix-style paths that are intended for WSL or other Unix-like environments.
+			if (profile.path && !this._isUnixStylePath(profile.path)) {
 				profile.path = profile.path.replace(/\//g, '\\');
 			}
 		}
@@ -351,6 +352,24 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 			return false;
 		}
 		if ('path' in profile && typeof (profile as { path: unknown }).path === 'string') {
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Determines if a path is a Unix-style path that should not be converted to Windows path format.
+	 * This includes absolute Unix paths and paths that look like they're intended for WSL or other Unix environments.
+	 */
+	private _isUnixStylePath(path: string): boolean {
+		// Unix absolute paths start with /
+		if (path.startsWith('/')) {
+			return true;
+		}
+		// Common Unix shell executables that might be found in PATH
+		const unixShells = ['bash', 'zsh', 'fish', 'sh', 'dash', 'tcsh', 'csh'];
+		const basename = path.split(/[\\/\\\\]/).pop()?.toLowerCase() || '';
+		if (unixShells.includes(basename) && !path.includes(':') && !path.includes('\\\\')) {
 			return true;
 		}
 		return false;
