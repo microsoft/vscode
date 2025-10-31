@@ -48,8 +48,8 @@ export class CloneManager {
 
 		url = url.trim().replace(/^git\s+clone\s+/, '');
 
-		const cachedRepository = url ? this.repositoryCache.get(url) : undefined;
-		if (url && cachedRepository && (cachedRepository.length > 0)) {
+		const cachedRepository = this.repositoryCache.get(url);
+		if (cachedRepository && (cachedRepository.length > 0)) {
 			return this.tryOpenExistingRepository(cachedRepository, url, options.postCloneAction, options.parentPath, options.ref);
 		}
 		return this.cloneRepository(url, options.parentPath, options);
