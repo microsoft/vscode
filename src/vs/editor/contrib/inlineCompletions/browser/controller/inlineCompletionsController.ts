@@ -23,6 +23,7 @@ import { hotClassGetOriginalInstance } from '../../../../../platform/observable/
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
+import { TriggerInlineEditCommandsRegistry } from '../../../../browser/triggerInlineEditCommandsRegistry.js';
 import { getOuterEditor } from '../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Position } from '../../../../common/core/position.js';
@@ -30,6 +31,8 @@ import { Range } from '../../../../common/core/range.js';
 import { CursorChangeReason } from '../../../../common/cursorEvents.js';
 import { ILanguageFeatureDebounceService } from '../../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { FIND_IDS } from '../../../find/browser/findModel.js';
+import { InsertLineAfterAction, InsertLineBeforeAction } from '../../../linesOperations/browser/linesOperations.js';
 import { InlineSuggestionHintsContentWidget } from '../hintsWidget/inlineCompletionsHintsWidget.js';
 import { TextModelChangeRecorder } from '../model/changeRecorder.js';
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
@@ -42,7 +45,7 @@ import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 export class InlineCompletionsController extends Disposable {
 	private static readonly _instances = new Set<InlineCompletionsController>();
 
-	public static hot = createHotClass(InlineCompletionsController);
+	public static hot = createHotClass(this);
 	public static ID = 'editor.contrib.inlineCompletionsController';
 
 	/**
@@ -214,16 +217,20 @@ export class InlineCompletionsController extends Disposable {
 			}
 		}));
 
+		// These commands don't trigger onDidType.
+		const triggerCommands = new Set([
+			CoreEditingCommands.Tab.id,
+			CoreEditingCommands.DeleteLeft.id,
+			CoreEditingCommands.DeleteRight.id,
+			inlineSuggestCommitId,
+			'acceptSelectedSuggestion',
+			InsertLineAfterAction.ID,
+			InsertLineBeforeAction.ID,
+			FIND_IDS.NextMatchFindAction,
+			...TriggerInlineEditCommandsRegistry.getRegisteredCommands(),
+		]);
 		this._register(this._commandService.onDidExecuteCommand((e) => {
-			// These commands don't trigger onDidType.
-			const commands = new Set([
-				CoreEditingCommands.Tab.id,
-				CoreEditingCommands.DeleteLeft.id,
-				CoreEditingCommands.DeleteRight.id,
-				inlineSuggestCommitId,
-				'acceptSelectedSuggestion',
-			]);
-			if (commands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
+			if (triggerCommands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
 				let noDelay = false;
 				if (e.commandId === inlineSuggestCommitId) {
 					noDelay = true;

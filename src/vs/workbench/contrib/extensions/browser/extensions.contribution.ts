@@ -13,6 +13,7 @@ import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
 import { Disposable, DisposableStore, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isNative, isWeb } from '../../../../base/common/platform.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { MultiCommand } from '../../../../editor/browser/editorExtensions.js';
 import { CopyAction, CutAction, PasteAction } from '../../../../editor/contrib/clipboard/browser/clipboard.js';
@@ -286,7 +287,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				included: false,
 				policy: {
 					name: 'ExtensionGalleryServiceUrl',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.99',
+					localization: {
+						description: {
+							key: 'extensions.gallery.serviceUrl',
+							value: localize('extensions.gallery.serviceUrl', "Configure the Marketplace service URL to connect to"),
+						}
+					}
 				},
 			},
 			'extensions.supportNodeGlobalNavigator': {
@@ -516,7 +524,7 @@ async function runAction(action: IAction): Promise<void> {
 
 type IExtensionActionOptions = IAction2Options & {
 	menuTitles?: { [id: string]: string };
-	run(accessor: ServicesAccessor, ...args: any[]): Promise<any>;
+	run(accessor: ServicesAccessor, ...args: unknown[]): Promise<any>;
 };
 
 class ExtensionsContributions extends Disposable implements IWorkbenchContribution {
@@ -1942,7 +1950,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					menu: menusWithOutTitles
 				});
 			}
-			run(accessor: ServicesAccessor, ...args: any[]): Promise<any> {
+			run(accessor: ServicesAccessor, ...args: unknown[]): Promise<any> {
 				return extensionActionOptions.run(accessor, ...args);
 			}
 		}));

@@ -18,6 +18,7 @@ export const enum TerminalChatCommandId {
 	InsertFirstCommand = 'workbench.action.terminal.chat.insertFirstCommand',
 	ViewInChat = 'workbench.action.terminal.chat.viewInChat',
 	RerunRequest = 'workbench.action.terminal.chat.rerunRequest',
+	ViewChatTerminals = 'workbench.action.terminal.chat.viewChatTerminals',
 }
 
 export const MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR = MenuId.for('terminalChatWidget');
@@ -35,6 +36,7 @@ export const enum TerminalChatContextKeyStrings {
 	ChatResponseContainsMultipleCodeBlocks = 'terminalChatResponseContainsMultipleCodeBlocks',
 	ChatResponseSupportsIssueReporting = 'terminalChatResponseSupportsIssueReporting',
 	ChatSessionResponseVote = 'terminalChatSessionResponseVote',
+	ChatHasTerminals = 'hasChatTerminals',
 }
 
 
@@ -60,4 +62,7 @@ export namespace TerminalChatContextKeys {
 
 	/** A chat agent exists for the terminal location */
 	export const hasChatAgent = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatAgentRegistered, false, localize('chatAgentRegisteredContextKey', "Whether a chat agent is registered for the terminal location."));
+
+	/** Has terminals created via chat */
+	export const hasChatTerminals = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatHasTerminals, false, localize('terminalHasChatTerminals', "Whether there are any chat terminals."));
 }

@@ -141,7 +141,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	// in the passed params the rootPath of the workspace plus the client capabilities.
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
 
-		const initializationOptions = params.initializationOptions as any || {};
+		const initializationOptions = params.initializationOptions || {};
 
 		const handledProtocols = initializationOptions?.handledSchemaProtocols;
 

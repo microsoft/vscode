@@ -98,7 +98,7 @@ export function registerDiffEditorCommands(): void {
 	});
 
 
-	function getActiveTextDiffEditor(accessor: ServicesAccessor, args: any[]): TextDiffEditor | undefined {
+	function getActiveTextDiffEditor(accessor: ServicesAccessor, args: unknown[]): TextDiffEditor | undefined {
 		const editorService = accessor.get(IEditorService);
 		const resource = args.length > 0 && args[0] instanceof URI ? args[0] : undefined;
 
@@ -111,7 +111,7 @@ export function registerDiffEditorCommands(): void {
 		return undefined;
 	}
 
-	function navigateInDiffEditor(accessor: ServicesAccessor, args: any[], next: boolean): void {
+	function navigateInDiffEditor(accessor: ServicesAccessor, args: unknown[], next: boolean): void {
 		const activeTextDiffEditor = getActiveTextDiffEditor(accessor, args);
 
 		if (activeTextDiffEditor) {
@@ -125,7 +125,7 @@ export function registerDiffEditorCommands(): void {
 		Toggle
 	}
 
-	function focusInDiffEditor(accessor: ServicesAccessor, args: any[], mode: FocusTextDiffEditorMode): void {
+	function focusInDiffEditor(accessor: ServicesAccessor, args: unknown[], mode: FocusTextDiffEditorMode): void {
 		const activeTextDiffEditor = getActiveTextDiffEditor(accessor, args);
 
 		if (activeTextDiffEditor) {
@@ -146,7 +146,7 @@ export function registerDiffEditorCommands(): void {
 		}
 	}
 
-	function toggleDiffSideBySide(accessor: ServicesAccessor, args: any[]): void {
+	function toggleDiffSideBySide(accessor: ServicesAccessor, args: unknown[]): void {
 		const configService = accessor.get(ITextResourceConfigurationService);
 		const activeTextDiffEditor = getActiveTextDiffEditor(accessor, args);
 
@@ -158,7 +158,7 @@ export function registerDiffEditorCommands(): void {
 		configService.updateValue(m.uri, key, !val);
 	}
 
-	function toggleDiffIgnoreTrimWhitespace(accessor: ServicesAccessor, args: any[]): void {
+	function toggleDiffIgnoreTrimWhitespace(accessor: ServicesAccessor, args: unknown[]): void {
 		const configService = accessor.get(ITextResourceConfigurationService);
 		const activeTextDiffEditor = getActiveTextDiffEditor(accessor, args);
 
@@ -170,7 +170,7 @@ export function registerDiffEditorCommands(): void {
 		configService.updateValue(m.uri, key, !val);
 	}
 
-	async function swapDiffSides(accessor: ServicesAccessor, args: any[]): Promise<void> {
+	async function swapDiffSides(accessor: ServicesAccessor, args: unknown[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
 		const diffEditor = getActiveTextDiffEditor(accessor, args);

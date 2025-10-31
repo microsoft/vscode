@@ -29,6 +29,8 @@ import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browse
 import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/terminalStickyScrollContribution.js';
 import './media/terminalChatWidget.css';
 import { MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { ChatMode } from '../../../chat/common/chatModes.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -102,6 +104,7 @@ export class TerminalChatWidget extends Disposable {
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -141,7 +144,8 @@ export class TerminalChatWidget extends Disposable {
 						telemetrySource: 'terminal-inline-chat',
 						executeToolbar: MenuId.ChatExecute,
 						inputSideToolbar: MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR,
-					}
+					},
+					defaultMode: ChatMode.Ask
 				}
 			},
 		);
@@ -421,14 +425,14 @@ export class TerminalChatWidget extends Disposable {
 		this._activeRequestCts?.cancel();
 		this._requestActiveContextKey.set(false);
 		const model = this._inlineChatWidget.getChatModel();
-		if (!model?.sessionId) {
+		if (!model?.sessionResource) {
 			return;
 		}
-		this._chatService.cancelCurrentRequestForSession(model?.sessionId);
+		this._chatService.cancelCurrentRequestForSession(model?.sessionResource);
 	}
 
 	async viewInChat(): Promise<void> {
-		const widget = await showChatView(this._viewsService);
+		const widget = await showChatView(this._viewsService, this._layoutService);
 		const currentRequest = this._inlineChatWidget.chatWidget.viewModel?.model.getRequests().find(r => r.id === this._currentRequestId);
 		if (!widget || !currentRequest?.response) {
 			return;
@@ -465,7 +469,7 @@ export class TerminalChatWidget extends Disposable {
 			}
 		}
 
-		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
+		this._chatService.addCompleteRequest(widget!.viewModel!.sessionResource,
 			`@${this._terminalAgentName} ${currentRequest.message.text}`,
 			currentRequest.variableData,
 			currentRequest.attempt,
@@ -474,7 +478,7 @@ export class TerminalChatWidget extends Disposable {
 				result: currentRequest.response!.result,
 				followups: currentRequest.response!.followups
 			});
-		widget.focusLastMessage();
+		widget.focusResponseItem();
 		this.hide();
 	}
 }

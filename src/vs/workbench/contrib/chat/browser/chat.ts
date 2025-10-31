@@ -17,18 +17,20 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
 import { IChatResponseModel } from '../common/chatModel.js';
+import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService.js';
+import { LocalChatSessionUri } from '../common/chatUri.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
-import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatInputPart } from './chatInputPart.js';
+import { findExistingChatEditorByUri } from './chatSessions/common.js';
 import { ChatViewPane } from './chatViewPane.js';
-import { IChatViewState, IChatWidgetContrib } from './chatWidget.js';
+import { ChatWidget, IChatViewState, IChatWidgetContrib } from './chatWidget.js';
 import { ICodeBlockActionContext } from './codeBlockPart.js';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
@@ -46,7 +48,11 @@ export interface IChatWidgetService {
 
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
+
+	/** @deprecated Use {@link getWidgetBySessionResource} instead */
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
+	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined;
+
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
 }
 
@@ -54,30 +60,24 @@ export async function showChatWidgetInViewOrEditor(accessor: ServicesAccessor, w
 	if ('viewId' in widget.viewContext) {
 		await accessor.get(IViewsService).openView(widget.location);
 	} else {
-		for (const group of accessor.get(IEditorGroupsService).groups) {
-			for (const editor of group.editors) {
-				if (editor instanceof ChatEditorInput && editor.sessionId === widget.viewModel?.sessionId) {
-					group.openEditor(editor);
-					return;
-				}
+		const sessionId = widget.viewModel?.sessionId;
+		if (sessionId) {
+			const existing = findExistingChatEditorByUri(LocalChatSessionUri.forSession(sessionId), accessor.get(IEditorGroupsService));
+			if (existing) {
+				existing.group.openEditor(existing.editor);
 			}
 		}
 	}
 }
 
-
-export async function showChatView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
-	return (await viewsService.openView<ChatViewPane>(ChatViewId))?.widget;
-}
-
-export function showCopilotView(viewsService: IViewsService, layoutService: IWorkbenchLayoutService): Promise<IChatWidget | undefined> {
+export async function showChatView(viewsService: IViewsService, layoutService: IWorkbenchLayoutService): Promise<IChatWidget | undefined> {
 
 	// Ensure main window is in front
 	if (layoutService.activeContainer !== layoutService.mainContainer) {
 		layoutService.mainContainer.focus();
 	}
 
-	return showChatView(viewsService);
+	return (await viewsService.openView<ChatViewPane>(ChatViewId))?.widget;
 }
 
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
@@ -112,7 +112,7 @@ export const IChatAccessibilityService = createDecorator<IChatAccessibilityServi
 export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
 	acceptRequest(): number;
-	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void;
+	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void;
 	acceptElicitation(message: IChatElicitationRequest): void;
 }
 
@@ -123,7 +123,6 @@ export interface IChatCodeBlockInfo {
 	readonly uri: URI | undefined;
 	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
-	readonly isStreaming: boolean;
 	readonly chatSessionId: string;
 	focus(): void;
 	readonly languageId?: string | undefined;
@@ -179,6 +178,7 @@ export interface IChatWidgetViewOptions {
 	enableWorkingSet?: 'explicit' | 'implicit';
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
+	defaultMode?: IChatMode;
 }
 
 export interface IChatViewViewContext {
@@ -212,6 +212,7 @@ export interface IChatWidget {
 	readonly viewModel: IChatViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
 	readonly supportsFileReferences: boolean;
+	readonly attachmentCapabilities: IChatAgentAttachmentCapabilities;
 	readonly parsedInput: IParsedChatRequest;
 	readonly lockedAgentId: string | undefined;
 	lastSelectedAgent: IChatAgentData | undefined;
@@ -237,7 +238,11 @@ export interface IChatWidget {
 	rerunLastRequest(): Promise<void>;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;
-	focusLastMessage(): void;
+	/**
+	 * Focuses the response item in the list.
+	 * @param lastFocused Focuses the most recently focused response. Otherwise, focuses the last response.
+	 */
+	focusResponseItem(lastFocused?: boolean): void;
 	focusInput(): void;
 	hasInputFocus(): boolean;
 	getModeRequestOptions(): Partial<IChatSendRequestOptions>;

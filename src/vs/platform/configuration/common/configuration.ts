@@ -150,7 +150,7 @@ export interface IConfigurationUpdateOptions {
 export interface IConfigurationService {
 	readonly _serviceBrand: undefined;
 
-	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
+	readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 
 	getConfigurationData(): IConfigurationData | null;
 
@@ -196,6 +196,7 @@ export interface IConfigurationService {
 
 	keys(): {
 		default: string[];
+		policy: string[];
 		user: string[];
 		workspace: string[];
 		workspaceFolder: string[];

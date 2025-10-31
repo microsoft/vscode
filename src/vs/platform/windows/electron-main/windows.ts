@@ -42,9 +42,9 @@ export interface IWindowsMainService {
 
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
 
-	sendToFocused(channel: string, ...args: any[]): void;
-	sendToOpeningWindow(channel: string, ...args: any[]): void;
-	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
+	sendToFocused(channel: string, ...args: unknown[]): void;
+	sendToOpeningWindow(channel: string, ...args: unknown[]): void;
+	sendToAll(channel: string, payload?: unknown, windowIdsToIgnore?: number[]): void;
 
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;

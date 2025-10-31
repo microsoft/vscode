@@ -32,23 +32,8 @@ declare module 'vscode' {
 		export const onDidChangeCompletionsUnificationState: Event<void>;
 	}
 
-	/**
-	 * temporary: to be removed
-	 */
-	export interface InlineCompletionsUnificationState {
-		codeUnification: boolean;
-		modelUnification: boolean;
-		expAssignments: string[];
-	}
-
 	export interface InlineCompletionItem {
-		/**
-		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
-		 * Defaults to `false`.
-		*/
-		completeBracketPairs?: boolean;
-
-		warning?: InlineCompletionWarning;
+		// insertText: string | SnippetString | undefined;
 
 		/** If set to `true`, this item is treated as inline edit. */
 		isInlineEdit?: boolean;
@@ -61,23 +46,39 @@ declare module 'vscode' {
 
 		showInlineEditMenu?: boolean;
 
+		/**
+		 * If set, specifies where insertText, filterText and range apply to.
+		*/
+		uri?: Uri;
+
+		// TODO: rename to gutterMenuLinkAction
 		action?: Command;
 
 		displayLocation?: InlineCompletionDisplayLocation;
 
 		/** Used for telemetry. Can be an arbitrary string. */
 		correlationId?: string;
+
+		/**
+		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
+		 * Defaults to `false`.
+		*/
+		completeBracketPairs?: boolean;
+
+		warning?: InlineCompletionWarning;
 	}
 
-	export enum InlineCompletionDisplayLocationKind {
-		Code = 1,
-		Label = 2
-	}
 
 	export interface InlineCompletionDisplayLocation {
 		range: Range;
 		kind: InlineCompletionDisplayLocationKind;
 		label: string;
+		jumpToEdit?: boolean;
+	}
+
+	export enum InlineCompletionDisplayLocationKind {
+		Code = 1,
+		Label = 2
 	}
 
 	export interface InlineCompletionWarning {
@@ -131,7 +132,7 @@ declare module 'vscode' {
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleListEndOfLifetime?(list: InlineCompletionList, reason: InlineCompletionsDisposeReason): void;
 
-		onDidChange?: Event<void>;
+		readonly onDidChange?: Event<void>;
 
 		// #region Deprecated methods
 
@@ -216,5 +217,15 @@ declare module 'vscode' {
 		 * Defaults to false (might change).
 		 */
 		enableForwardStability?: boolean;
+	}
+
+	/**
+	 * temporary: to be removed
+	 */
+	export interface InlineCompletionsUnificationState {
+		codeUnification: boolean;
+		modelUnification: boolean;
+		extensionUnification: boolean;
+		expAssignments: string[];
 	}
 }
