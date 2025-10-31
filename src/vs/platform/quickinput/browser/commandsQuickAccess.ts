@@ -134,8 +134,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 			// Handle tf-idf scoring for the rest if there's a filter
 			// Skip tf-idf if we have an exact command ID match
-			const shouldRunTfIdf = filter.length >= 3 && !hasExactIdMatch;
-			if (shouldRunTfIdf) {
+			else if (filter.length >= 3 && !hasExactIdMatch) {
 				const tfidf = runTfidf();
 				if (token.isCancellationRequested) {
 					return [];
