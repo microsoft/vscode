@@ -10,9 +10,10 @@ import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ITerminalConfigurationService, LinuxDistro } from './terminal.js';
 import type { IXtermCore } from './xterm-private.js';
-import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, ITerminalConfiguration, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from '../common/terminal.js';
+import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from '../common/terminal.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { TerminalLocation, TerminalLocationConfigValue } from '../../../../platform/terminal/common/terminal.js';
+import type { ITerminalConfiguration2 } from '../common/terminalConfiguration.js';
 
 // #region TerminalConfigurationService
 
@@ -21,7 +22,7 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 
 	protected _fontMetrics: TerminalFontMetrics;
 
-	protected _config!: Readonly<ITerminalConfiguration>;
+	protected _config!: ITerminalConfiguration2;
 	get config() { return this._config; }
 
 	get defaultLocation(): TerminalLocation {
@@ -53,7 +54,7 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont { return this._fontMetrics.getFont(w, xtermCore, excludeDimensions); }
 
 	private _updateConfig(): void {
-		const configValues = { ...this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION) };
+		const configValues = { ...this._configurationService.getValue<ITerminalConfiguration2>(TERMINAL_CONFIG_SECTION) };
 		configValues.fontWeight = this._normalizeFontWeight(configValues.fontWeight, DEFAULT_FONT_WEIGHT);
 		configValues.fontWeightBold = this._normalizeFontWeight(configValues.fontWeightBold, DEFAULT_BOLD_FONT_WEIGHT);
 		this._config = configValues;

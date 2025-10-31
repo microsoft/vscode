@@ -39,7 +39,7 @@ export const MINIMUM_FONT_WEIGHT = 1;
 export const MAXIMUM_FONT_WEIGHT = 1000;
 export const DEFAULT_FONT_WEIGHT = 'normal';
 export const DEFAULT_BOLD_FONT_WEIGHT = 'bold';
-export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+export const SUGGESTIONS_FONT_WEIGHT: FontWeight[] = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
 
 export const ITerminalProfileResolverService = createDecorator<ITerminalProfileResolverService>('terminalProfileResolverService');
 export interface ITerminalProfileResolverService {
@@ -96,7 +96,7 @@ export interface IShellLaunchConfigResolveOptions {
 	allowAutomationShell?: boolean;
 }
 
-export type FontWeight = 'normal' | 'bold' | number;
+export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900' | number;
 
 export interface ITerminalProfiles {
 	linux: { [key: string]: ITerminalProfileObject };

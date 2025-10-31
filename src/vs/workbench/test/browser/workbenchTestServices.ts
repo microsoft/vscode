@@ -138,7 +138,7 @@ import { TerminalConfigurationService } from '../../contrib/terminal/browser/ter
 import { TerminalEditorInput } from '../../contrib/terminal/browser/terminalEditorInput.js';
 import { IEnvironmentVariableService } from '../../contrib/terminal/common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../contrib/terminal/common/environmentVariableService.js';
-import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from '../../contrib/terminal/common/terminal.js';
+import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService } from '../../contrib/terminal/common/terminal.js';
 import { IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
 import { IDecoration, IDecorationData, IDecorationsProvider, IDecorationsService, IResourceDecorationChangeEvent } from '../../services/decorations/common/decorations.js';
 import { CodeEditorService } from '../../services/editor/browser/codeEditorService.js';
@@ -186,6 +186,7 @@ import { IWorkingCopyEditorService, WorkingCopyEditorService } from '../../servi
 import { IWorkingCopyFileService, WorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { IWorkingCopyService, WorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
 import { TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
+import type { ITerminalConfiguration2 } from '../../contrib/terminal/common/terminalConfiguration.js';
 
 // Backcompat export
 export { TestFileService };
@@ -1966,7 +1967,7 @@ export class TestTerminalProfileResolverService implements ITerminalProfileResol
 export class TestTerminalConfigurationService extends TerminalConfigurationService {
 	get fontMetrics() { return this._fontMetrics; }
 	// eslint-disable-next-line local/code-no-any-casts
-	setConfig(config: Partial<ITerminalConfiguration>) { this._config = config as any; }
+	setConfig(config: Partial<ITerminalConfiguration2>) { this._config = config as any; }
 }
 
 export class TestQuickInputService implements IQuickInputService {

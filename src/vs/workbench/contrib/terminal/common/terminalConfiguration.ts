@@ -5,17 +5,17 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import type { IStringDictionary } from '../../../../base/common/collections.js';
-import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchemaSnippet, type TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { TerminalLocationConfigValue, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalLocationConfigValue, TerminalSettingId, type ITerminalProfileObject } from '../../../../platform/terminal/common/terminal.js';
 import { terminalColorSchema, terminalIconSchema } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchExtensions } from '../../../common/configuration.js';
 import { terminalContribConfiguration, TerminalContribSettingId } from '../terminalContribExports.js';
-import { DEFAULT_COMMANDS_TO_SKIP_SHELL, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, SUGGESTIONS_FONT_WEIGHT } from './terminal.js';
+import { DEFAULT_COMMANDS_TO_SKIP_SHELL, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, SUGGESTIONS_FONT_WEIGHT, type FontWeight, type ITerminalProfiles } from './terminal.js';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory."),
@@ -41,7 +41,7 @@ terminalDescription += terminalDescriptors;
 
 export const defaultTerminalFontSize = isMacintosh ? 12 : 14;
 
-const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
+const terminalConfigurationConst = {
 	[TerminalSettingId.SendKeybindingsToShell]: {
 		markdownDescription: localize('terminal.integrated.sendKeybindingsToShell', "Dispatches most keybindings to the terminal instead of the workbench, overriding {0}, which can be used alternatively for fine tuning.", '`#terminal.integrated.commandsToSkipShell#`'),
 		type: 'boolean',
@@ -190,7 +190,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSettingId.FontLigaturesFallbackLigatures]: {
 		markdownDescription: localize('terminal.integrated.fontLigatures.fallbackLigatures', "When {0} is enabled and the particular {1} cannot be parsed, this is the set of character sequences that will always be drawn together. This allows the use of a fixed set of ligatures even when the font isn't supported.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.FontFamily}#\``),
 		type: 'array',
-		items: [{ type: 'string' }],
+		items: { type: 'string' },
 		default: [
 			'<--', '<---', '<<-', '<-', '->', '->>', '-->', '--->',
 			'<==', '<===', '<<=', '<=', '=>', '=>>', '==>', '===>', '>=', '>>=',
@@ -254,11 +254,9 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			},
 			{
 				type: 'string',
-				pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$'
-			},
-			{
+				pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$',
 				enum: SUGGESTIONS_FONT_WEIGHT,
-			}
+			},
 		],
 		description: localize('terminal.integrated.fontWeight', "The font weight to use within the terminal for non-bold text. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000."),
 		default: 'normal'
@@ -273,11 +271,9 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			},
 			{
 				type: 'string',
-				pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$'
-			},
-			{
+				pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$',
 				enum: SUGGESTIONS_FONT_WEIGHT,
-			}
+			},
 		],
 		description: localize('terminal.integrated.fontWeightBold', "The font weight to use within the terminal for bold text. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000."),
 		default: 'bold'
@@ -416,9 +412,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 
 		),
 		type: 'array',
-		items: {
-			type: 'string'
-		},
+		items: { type: 'string' },
 		default: []
 	},
 	[TerminalSettingId.AllowChords]: {
@@ -510,9 +504,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSettingId.AllowedLinkSchemes]: {
 		description: localize('terminal.integrated.allowedLinkSchemes', "An array of strings containing the URI schemes that the terminal is allowed to open links for. By default, only a small subset of possible schemes are allowed for security reasons."),
 		type: 'array',
-		items: {
-			type: 'string'
-		},
+		items: { type: 'string' },
 		default: [
 			'file',
 			'http',
@@ -660,7 +652,92 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		tags: ['advanced']
 	},
 	...terminalContribConfiguration,
+} as const satisfies IStringDictionary<IConfigurationPropertySchema>;
+
+const terminalConfiguration = terminalConfigurationConst as IStringDictionary<IConfigurationPropertySchema>;
+
+// Helper type to make string arrays readonly
+type MakeArraysReadonly<T> = T extends string[] ? readonly string[] : T;
+
+// Helpers to convert dot notation keys to nested objects
+type SplitKey<K extends string> = K extends `${infer First}.${infer Rest}` ? [First, Rest] : [K, never];
+
+// Get all first parts of dot notation keys
+type FirstParts<T> = {
+	[K in keyof T]: SplitKey<K & string>[0]
+}[keyof T];
+
+// Get all keys that start with a specific prefix
+type KeysStartingWith<T, Prefix extends string> = {
+	[K in keyof T]: K extends `${Prefix}.${string}` ? K : never
+}[keyof T];
+
+// Get all keys that exactly match (no dots)
+type ExactKeys<T> = {
+	[K in keyof T]: K extends `${string}.${string}` ? never : K
+}[keyof T];
+
+// Build nested object by grouping keys
+type NestedObject<T> = {
+	// Exact matches (no dots)
+	readonly [K in ExactKeys<T>]: MakeArraysReadonly<T[K]>
+} & {
+	// Nested objects
+	readonly [P in FirstParts<T> as P extends ExactKeys<T> ? never : P]: NestedObject<{
+		[K in KeysStartingWith<T, P> as K extends `${P}.${infer Rest}` ? Rest : never]: T[K]
+	}>
 };
+
+// Assemble config interface with flat keys, excluding terminal.integrated.
+type FlatTerminalConfig = (
+	Omit<{
+		[K in keyof typeof terminalConfigurationConst as K extends `terminal.integrated.${infer Rest}` ? Rest : K]: TypeFromJsonSchema<typeof terminalConfigurationConst[K]>
+	}, (
+			// Omit keys that resolve to never
+			'env.linux' |
+			'env.osx' |
+			'env.windows' |
+			'tabs.defaultColor' |
+			'tabs.defaultIcon' |
+			// Omit keys that don't pull correct type
+			'fontWeight' |
+			'fontWeightBold'
+		)
+	>
+	&
+	{
+		// Manually set keys that don't resolve correctly
+		'env.linux': { [key: string]: string | null };
+		'env.osx': { [key: string]: string | null };
+		'env.windows': { [key: string]: string | null };
+		'tabs.defaultColor': null | 'terminal.ansiBlack' | 'terminal.ansiRed' | 'terminal.ansiGreen' | 'terminal.ansiYellow' | 'terminal.ansiBlue' | 'terminal.ansiMagenta' | 'terminal.ansiCyan' | 'terminal.ansiWhite';
+		'tabs.defaultIcon': string;
+		'fontWeight': FontWeight | number;
+		'fontWeightBold': FontWeight | number;
+		// Manually set keys that come from platform configuration
+		// TODO: Derive these from JSON
+		// TODO: Not all platform configs are included here
+		automationShell: {
+			linux: string | null;
+			osx: string | null;
+			windows: string | null;
+		};
+		profiles: {
+			linux: { [key: string]: ITerminalProfileObject };
+			osx: { [key: string]: ITerminalProfileObject };
+			windows: { [key: string]: ITerminalProfileObject };
+		};
+		defaultProfile: {
+			linux: string | null;
+			osx: string | null;
+			windows: string | null;
+		};
+		useWslProfiles: boolean;
+	}
+);
+
+// Map flat keys to nested object
+export type ITerminalConfiguration2 = NestedObject<FlatTerminalConfig>;
 
 export async function registerTerminalConfiguration(getFontSnippets: () => Promise<IJSONSchemaSnippet[]>) {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
