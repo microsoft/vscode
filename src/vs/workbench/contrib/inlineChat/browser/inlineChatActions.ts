@@ -655,7 +655,7 @@ export class KeepSessionAction2 extends KeepOrUndoSessionAction {
 				ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditorInline)
 			),
 			keybinding: [{
-				when: ChatContextKeys.inputHasFocus,
+				when: ContextKeyExpr.and(ChatContextKeys.inputHasFocus, ChatContextKeys.inputHasText.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.Enter
 			}, {
