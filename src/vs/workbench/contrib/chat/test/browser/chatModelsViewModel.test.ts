@@ -530,4 +530,117 @@ suite('ChatModelsViewModel', () => {
 			assert.ok(model.capabilityMatches.some(c => c === 'toolCalling' || c === 'vision'));
 		}
 	});
+
+	// Helper function to create a single vendor test environment
+	function createSingleVendorViewModel(store: DisposableStore, chatEntitlementService: IChatEntitlementService, includeSecondModel: boolean = true): { service: MockLanguageModelsService; viewModel: ChatModelsViewModel } {
+		const service = new MockLanguageModelsService();
+		service.addVendor({
+			vendor: 'copilot',
+			displayName: 'GitHub Copilot',
+			managementCommand: undefined,
+			when: undefined
+		});
+
+		service.addModel('copilot', 'copilot-gpt-4', {
+			extension: new ExtensionIdentifier('github.copilot'),
+			id: 'gpt-4',
+			name: 'GPT-4',
+			family: 'gpt-4',
+			version: '1.0',
+			vendor: 'copilot',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			modelPickerCategory: { label: 'Copilot', order: 1 },
+			isUserSelectable: true,
+			capabilities: {
+				toolCalling: true,
+				vision: true,
+				agentMode: false
+			}
+		});
+
+		if (includeSecondModel) {
+			service.addModel('copilot', 'copilot-gpt-4o', {
+				extension: new ExtensionIdentifier('github.copilot'),
+				id: 'gpt-4o',
+				name: 'GPT-4o',
+				family: 'gpt-4',
+				version: '1.0',
+				vendor: 'copilot',
+				maxInputTokens: 8192,
+				maxOutputTokens: 4096,
+				modelPickerCategory: { label: 'Copilot', order: 1 },
+				isUserSelectable: true,
+				capabilities: {
+					toolCalling: true,
+					vision: true,
+					agentMode: true
+				}
+			});
+		}
+
+		const viewModel = store.add(new ChatModelsViewModel(service, chatEntitlementService));
+		return { service, viewModel };
+	}
+
+	test('should not show vendor header when only one vendor exists', async () => {
+		const { viewModel: singleVendorViewModel } = createSingleVendorViewModel(store, chatEntitlementService);
+		await singleVendorViewModel.resolve();
+
+		const results = singleVendorViewModel.fetch('');
+
+		// Should have only model entries, no vendor entry
+		const vendors = results.filter(isVendorEntry);
+		assert.strictEqual(vendors.length, 0, 'Should not show vendor header when only one vendor exists');
+
+		const models = results.filter(r => !isVendorEntry(r)) as IModelItemEntry[];
+		assert.strictEqual(models.length, 2, 'Should show all models');
+		assert.ok(models.every(m => m.modelEntry.vendor === 'copilot'));
+	});
+
+	test('should show vendor headers when multiple vendors exist', () => {
+		// This is the existing behavior test
+		const results = viewModel.fetch('');
+
+		// Should have 2 vendor entries and 4 model entries (grouped by vendor)
+		const vendors = results.filter(isVendorEntry);
+		assert.strictEqual(vendors.length, 2, 'Should show vendor headers when multiple vendors exist');
+
+		const models = results.filter(r => !isVendorEntry(r)) as IModelItemEntry[];
+		assert.strictEqual(models.length, 4);
+	});
+
+	test('should show models even when single vendor is collapsed', async () => {
+		const { viewModel: singleVendorViewModel } = createSingleVendorViewModel(store, chatEntitlementService, false);
+		await singleVendorViewModel.resolve();
+
+		// Try to collapse the single vendor
+		singleVendorViewModel.toggleVendorCollapsed('copilot');
+
+		const results = singleVendorViewModel.fetch('');
+
+		// Should still show models even though vendor is "collapsed"
+		// because there's no vendor header to collapse
+		const vendors = results.filter(isVendorEntry);
+		assert.strictEqual(vendors.length, 0, 'Should not show vendor header');
+
+		const models = results.filter(r => !isVendorEntry(r)) as IModelItemEntry[];
+		assert.strictEqual(models.length, 1, 'Should still show models even when single vendor is collapsed');
+	});
+
+	test('should filter single vendor models by capability', async () => {
+		const { viewModel: singleVendorViewModel } = createSingleVendorViewModel(store, chatEntitlementService);
+		await singleVendorViewModel.resolve();
+
+		const results = singleVendorViewModel.fetch('@capability:agent');
+
+		// Should not show vendor header
+		const vendors = results.filter(isVendorEntry);
+		assert.strictEqual(vendors.length, 0, 'Should not show vendor header');
+
+		// Should only show the model with agent capability
+		const models = results.filter(r => !isVendorEntry(r)) as IModelItemEntry[];
+		assert.strictEqual(models.length, 1);
+		assert.strictEqual(models[0].modelEntry.metadata.id, 'gpt-4o');
+	});
 });

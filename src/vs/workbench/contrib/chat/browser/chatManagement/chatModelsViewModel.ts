@@ -309,23 +309,28 @@ export class ChatModelsViewModel extends EditorModel {
 			vendorMap.set(modelEntry.vendor, models);
 		}
 
+		const showVendorHeaders = vendorMap.size > 1;
+
 		for (const [vendor, models] of vendorMap) {
 			const firstModel = models[0];
 			const isCollapsed = this.collapsedVendors.has(vendor);
 			const vendorInfo = this.languageModelsService.getVendors().find(v => v.vendor === vendor);
-			result.push({
-				type: 'vendor',
-				id: `vendor-${vendor}`,
-				vendorEntry: {
-					vendor: firstModel.vendor,
-					vendorDisplayName: firstModel.vendorDisplayName,
-					managementCommand: vendorInfo?.managementCommand
-				},
-				templateId: VENDOR_ENTRY_TEMPLATE_ID,
-				collapsed: isCollapsed
-			});
 
-			if (!isCollapsed) {
+			if (showVendorHeaders) {
+				result.push({
+					type: 'vendor',
+					id: `vendor-${vendor}`,
+					vendorEntry: {
+						vendor: firstModel.vendor,
+						vendorDisplayName: firstModel.vendorDisplayName,
+						managementCommand: vendorInfo?.managementCommand
+					},
+					templateId: VENDOR_ENTRY_TEMPLATE_ID,
+					collapsed: isCollapsed
+				});
+			}
+
+			if (!isCollapsed || !showVendorHeaders) {
 				for (const modelEntry of models) {
 					const modelId = ChatModelsViewModel.getId(modelEntry);
 					result.push({

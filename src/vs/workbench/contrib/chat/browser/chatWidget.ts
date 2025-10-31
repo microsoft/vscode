@@ -1067,9 +1067,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const numItems = this.viewModel?.getItems().length ?? 0;
 		if (!numItems) {
-			const expEmptyState = this.configurationService.getValue<boolean>('chat.emptyChatState.enabled');
-
-			let welcomeContent: IChatViewWelcomeContent;
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 			let additionalMessage: string | IMarkdownString | undefined;
 			if (this.chatEntitlementService.anonymous && !this.chatEntitlementService.sentiment.installed) {
@@ -1080,19 +1077,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (!additionalMessage && !this._lockedAgent) {
 				additionalMessage = this._getGenerateInstructionsMessage();
 			}
-			if (expEmptyState) {
-				welcomeContent = this.getWelcomeViewContent(additionalMessage, expEmptyState);
-			} else {
-				const defaultTips = this.input.currentModeKind === ChatModeKind.Ask
-					? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
-					: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
-				const contributedTips = this._lockedAgent?.id ? this.chatSessionsService.getWelcomeTipsForSessionType(this._lockedAgent.id) : undefined;
-				const tips = contributedTips
-					? new MarkdownString(contributedTips, { supportThemeIcons: true })
-					: (!this._lockedAgent ? defaultTips : undefined);
-				welcomeContent = this.getWelcomeViewContent(additionalMessage);
-				welcomeContent.tips = tips;
-			}
+			const welcomeContent = this.getWelcomeViewContent(additionalMessage);
 			if (!this.welcomePart.value || this.welcomePart.value.needsRerender(welcomeContent)) {
 				this.historyViewStore.clear();
 				dom.clearNode(this.welcomeMessageContainer);
@@ -1355,13 +1340,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined, expEmptyState?: boolean): IChatViewWelcomeContent {
-		const disclaimerMessage = expEmptyState
-			? this.chatDisclaimer
-			: localize('chatMessage', "Chat is powered by AI, so mistakes are possible. Review output carefully before use.");
-		const icon = Codicon.chatSparkle;
-
-
+	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
 		if (this.isLockedToCodingAgent) {
 			// Check for provider-specific customizations from chat sessions service
 			const providerIcon = this._lockedAgent ? this.chatSessionsService.getIconForSessionType(this._lockedAgent.id) : undefined;
@@ -1384,39 +1363,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			};
 		}
 
-		const suggestedPrompts = this.getPromptFileSuggestions();
-
+		let title: string;
 		if (this.input.currentModeKind === ChatModeKind.Ask) {
-			return {
-				title: localize('chatDescription', "Ask about your code"),
-				message: new MarkdownString(disclaimerMessage),
-				icon,
-				additionalMessage,
-				suggestedPrompts
-			};
+			title = localize('chatDescription', "Ask about your code");
 		} else if (this.input.currentModeKind === ChatModeKind.Edit) {
-			const editsHelpMessage = localize('editsHelp', "Start your editing session by defining a set of files that you want to work with. Then ask for the changes you want to make.");
-			const message = expEmptyState ? disclaimerMessage : `${editsHelpMessage}\n\n${disclaimerMessage}`;
-
-			return {
-				title: localize('editsTitle', "Edit in context"),
-				message: new MarkdownString(message),
-				icon,
-				additionalMessage,
-				suggestedPrompts
-			};
+			title = localize('editsTitle', "Edit in context");
 		} else {
-			const agentHelpMessage = localize('agentMessage', "Ask to edit your files using [Agent]({0}). Agent will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent');
-			const message = expEmptyState ? disclaimerMessage : `${agentHelpMessage}\n\n${disclaimerMessage}`;
-
-			return {
-				title: localize('agentTitle', "Build with Agent"),
-				message: new MarkdownString(message),
-				icon,
-				additionalMessage,
-				suggestedPrompts
-			};
+			title = localize('agentTitle', "Build with Agent");
 		}
+
+		return {
+			title,
+			message: new MarkdownString(this.chatDisclaimer),
+			icon: Codicon.chatSparkle,
+			additionalMessage,
+			suggestedPrompts: this.getPromptFileSuggestions()
+		};
 	}
 
 	private getPromptFileSuggestions(): IChatSuggestedPrompts[] {
