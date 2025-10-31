@@ -1178,12 +1178,14 @@ export class Extension<T extends object | null | undefined> implements vscode.Ex
 	readonly packageJSON: IExtensionDescription;
 	readonly extensionKind: vscode.ExtensionKind;
 	readonly isFromDifferentExtensionHost: boolean;
+	readonly isBuiltin: boolean;
 
 	constructor(extensionService: IExtHostExtensionService, originExtensionId: ExtensionIdentifier, description: IExtensionDescription, kind: ExtensionKind, isFromDifferentExtensionHost: boolean) {
 		this.#extensionService = extensionService;
 		this.#originExtensionId = originExtensionId;
 		this.#identifier = description.identifier;
 		this.id = description.identifier.value;
+		this.isBuiltin = description.isBuiltin || description.isUserBuiltin;
 		this.extensionUri = description.extensionLocation;
 		this.extensionPath = path.normalize(originalFSPath(description.extensionLocation));
 		this.packageJSON = description;
