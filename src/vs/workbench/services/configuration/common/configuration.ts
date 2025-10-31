@@ -101,5 +101,5 @@ export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';
 
 export const APPLY_ALL_PROFILES_SETTING = 'workbench.settings.applyToAllProfiles';
 
-// Used for extension unification. Shoulds be removed when complete.
+// Used for extension unification. Should be removed when complete.
 export const IGNORE_VALIDATION_SETTINGS: Set<string> = new Set([product.defaultChatAgent?.completionsEnablementSetting].filter(Boolean) as string[]);
