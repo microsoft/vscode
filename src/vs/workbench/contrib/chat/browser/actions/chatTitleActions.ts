@@ -219,7 +219,7 @@ export function registerChatTitleActions() {
 				return;
 			}
 			const itemIndex = chatRequests?.findIndex(request => request.id === item.requestId);
-			const widget = chatWidgetService.getWidgetBySessionId(item.sessionId);
+			const widget = chatWidgetService.getWidgetBySessionResource(item.sessionResource);
 			const mode = widget?.input.currentModeKind;
 			if (chatModel && (mode === ChatModeKind.Edit || mode === ChatModeKind.Agent)) {
 				const configurationService = accessor.get(IConfigurationService);

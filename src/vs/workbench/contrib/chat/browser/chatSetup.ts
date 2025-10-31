@@ -309,7 +309,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doForwardRequestToChatWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
-		const widget = chatWidgetService.getWidgetBySessionId(requestModel.session.sessionId);
+		const widget = chatWidgetService.getWidgetBySessionResource(requestModel.session.sessionResource);
 		const modeInfo = widget?.input.currentModeInfo;
 
 		// We need a signal to know when we can resend the request to
