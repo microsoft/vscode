@@ -451,7 +451,7 @@ export class InlineChatWidget {
 		if (!item) {
 			return;
 		}
-		return viewModel.codeBlockModelCollection.get(viewModel.sessionId, item, codeBlockIndex)?.model;
+		return viewModel.codeBlockModelCollection.get(viewModel.sessionResource, item, codeBlockIndex)?.model;
 	}
 
 	get responseContent(): string | undefined {
