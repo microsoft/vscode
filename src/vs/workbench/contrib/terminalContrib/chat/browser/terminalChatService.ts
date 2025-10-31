@@ -101,6 +101,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			}
 		}));
 
+		// Fired when a background terminal is revealed
 		this._register(this._terminalService.onDidChangeInstances(() => this._updateHasToolTerminalContextKeys()));
 
 		if (typeof instance.persistentProcessId === 'number') {
