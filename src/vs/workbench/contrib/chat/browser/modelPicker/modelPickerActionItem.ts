@@ -84,7 +84,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					id: 'manageModels',
 					label: localize('chat.manageModels', "Manage Models..."),
 					enabled: true,
-					tooltip: localize('chat.manageModels.tooltip', "Manage language models"),
+					tooltip: localize('chat.manageModels.tooltip', "Manage Language Models"),
 					class: undefined,
 					run: () => {
 						const commandId = ManageModelsAction.ID;
@@ -93,16 +93,17 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 				});
 			}
 
-			// Add sign-in / upgrade option if entitlement is anonymous / free
-			if (chatEntitlementService.anonymous || chatEntitlementService.entitlement === ChatEntitlement.Free) {
+			// Add sign-in / upgrade option if entitlement is anonymous / free / new user
+			const isNewOrAnonymousUser = !chatEntitlementService.sentiment.installed || chatEntitlementService.entitlement === ChatEntitlement.Available || chatEntitlementService.anonymous;
+			if (isNewOrAnonymousUser || chatEntitlementService.entitlement === ChatEntitlement.Free) {
 				additionalActions.push({
 					id: 'moreModels',
-					label: localize('chat.moreModels', "Add Premium Models"),
+					label: isNewOrAnonymousUser ? localize('chat.moreModels', "Add Language Models") : localize('chat.morePremiumModels', "Add Premium Models"),
 					enabled: true,
-					tooltip: localize('chat.moreModels.tooltip', "Add premium models"),
+					tooltip: isNewOrAnonymousUser ? localize('chat.moreModels.tooltip', "Add Language Models") : localize('chat.morePremiumModels.tooltip', "Add Premium Models"),
 					class: undefined,
 					run: () => {
-						const commandId = chatEntitlementService.anonymous ? 'workbench.action.chat.triggerSetup' : 'workbench.action.chat.upgradePlan';
+						const commandId = isNewOrAnonymousUser ? 'workbench.action.chat.triggerSetup' : 'workbench.action.chat.upgradePlan';
 						commandService.executeCommand(commandId);
 					}
 				});
