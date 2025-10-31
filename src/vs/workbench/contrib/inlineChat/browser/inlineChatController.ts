@@ -243,7 +243,7 @@ export class InlineChatController1 implements IEditorContribution {
 						document: this._session.textModelN.uri,
 						wholeRange: this._session?.wholeRange.trackedInitialRange,
 						close: () => this.cancelSession(),
-						delegateSessionId: this._delegateSession?.chatSessionId,
+						delegateSessionResource: this._delegateSession?.chatSessionResource,
 					};
 				}
 			};
@@ -1292,12 +1292,12 @@ export class InlineChatController2 implements IEditorContribution {
 						document,
 						wholeRange,
 						close: () => this._showWidgetOverrideObs.set(false, undefined),
-						delegateSessionId: chatService.editingSessions.find(session =>
+						delegateSessionResource: chatService.editingSessions.find(session =>
 							session.entries.get().some(e => e.hasModificationAt({
 								range: wholeRange,
 								uri: document
 							}))
-						)?.chatSessionId,
+						)?.chatSessionResource,
 					};
 				}
 			};

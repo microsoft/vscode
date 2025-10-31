@@ -91,7 +91,7 @@ export interface ICodeBlockData {
 	readonly parentContextKeyService?: IContextKeyService;
 	readonly renderOptions?: ICodeBlockRenderOptions;
 
-	readonly chatSessionId: string;
+	readonly chatSessionResource: URI;
 }
 
 /**
@@ -139,7 +139,7 @@ export interface ICodeBlockActionContext {
 	readonly codeBlockIndex: number;
 	readonly element: unknown;
 
-	readonly chatSessionId: string | undefined;
+	readonly chatSessionResource: URI | undefined;
 }
 
 export interface ICodeBlockRenderOptions {
@@ -498,7 +498,7 @@ export class CodeBlockPart extends Disposable {
 			element: data.element,
 			languageId: textModel.getLanguageId(),
 			codemapperUri: data.codemapperUri,
-			chatSessionId: data.chatSessionId
+			chatSessionResource: data.chatSessionResource
 		} satisfies ICodeBlockActionContext;
 		this.resourceContextKey.set(textModel.uri);
 	}
