@@ -24,9 +24,11 @@ export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInpu
 
 		// A chat editor can only be open in one group
 		const identifier = editorService.findEditors(chatEditorInput.resource)[0];
-		await editorService.replaceEditors([{
-			editor: chatEditorInput,
-			replacement: { resource, options: { pinned: true } satisfies IChatEditorOptions }
-		}], identifier.groupId);
+		if (identifier) {
+			await editorService.replaceEditors([{
+				editor: chatEditorInput,
+				replacement: { resource, options: { pinned: true } satisfies IChatEditorOptions }
+			}], identifier.groupId);
+		}
 	}
 }

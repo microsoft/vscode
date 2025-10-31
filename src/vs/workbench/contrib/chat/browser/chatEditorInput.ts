@@ -324,7 +324,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	override dispose(): void {
 		super.dispose();
-		if (this._sessionId) {
+		if (this._sessionId && this.chatService.getSession(this._sessionId)) {
 			this.chatService.clearSession(this._sessionId);
 		}
 	}
