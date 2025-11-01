@@ -5352,6 +5352,38 @@ export class CommandCenter {
 		await repository.tag({ name, message: inputMessage, ref });
 	}
 
+	@command('git.repositories.deleteBranch', { repository: true })
+	async artifactDeleteBranch(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const message = l10n.t('Are you sure you want to DELETE branch "{0}"? This action will permanently remove the branch reference from the repository.', artifact.name);
+		const yes = l10n.t('Yes');
+		const result = await window.showWarningMessage(message, { modal: true }, yes);
+		if (result !== yes) {
+			return;
+		}
+
+		await this._deleteBranch(repository, undefined, artifact.name, { remote: false });
+	}
+
+	@command('git.repositories.deleteTag', { repository: true })
+	async artifactDeleteTag(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const message = l10n.t('Are you sure you want to DELETE tag "{0}"? This action will permanently remove the tag reference from the repository.', artifact.name);
+		const yes = l10n.t('Yes');
+		const result = await window.showWarningMessage(message, { modal: true }, yes);
+		if (result !== yes) {
+			return;
+		}
+
+		await repository.deleteTag(artifact.name);
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;

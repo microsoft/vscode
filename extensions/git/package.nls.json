@@ -142,6 +142,7 @@
 	"command.graphCompareRef": "Compare with...",
 	"command.graphCompareWithMergeBase": "Compare with Merge Base",
 	"command.graphCompareWithRemote": "Compare with Remote",
+	"command.deleteRef": "Delete",
 	"command.blameToggleEditorDecoration": "Toggle Git Blame Editor Decoration",
 	"command.blameToggleStatusBarItem": "Toggle Git Blame Status Bar Item",
 	"command.api.getRepositories": "Get Repositories",
