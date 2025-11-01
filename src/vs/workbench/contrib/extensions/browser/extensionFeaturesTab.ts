@@ -369,15 +369,31 @@ export class ExtensionFeaturesTab extends Themable {
 		list.splice(0, list.length, features);
 
 		const featureViewContainer = $('.feature-view-container');
+		
+		// Cache the default index to avoid repeated calculations
+		const defaultIndex = this.feature ? features.findIndex(f => f.id === this.feature) : 0;
+		const resolvedDefaultIndex = defaultIndex === -1 ? 0 : defaultIndex;
+		
+		// Track if we're currently setting selection to prevent recursion
+		let isSettingSelection = false;
+		
 		this._register(list.onDidChangeSelection(e => {
 			const feature = e.elements[0];
 			if (feature) {
 				this.showFeatureView(feature, featureViewContainer);
+			} else if (!isSettingSelection && e.elements.length === 0 && features.length > 0) {
+				// If selection was cleared but we have features, restore the default one
+				// Use a flag to prevent recursion when we set the selection
+				isSettingSelection = true;
+				try {
+					list.setSelection([resolvedDefaultIndex]);
+				} finally {
+					isSettingSelection = false;
+				}
 			}
 		}));
 
-		const index = this.feature ? features.findIndex(f => f.id === this.feature) : 0;
-		list.setSelection([index === -1 ? 0 : index]);
+		list.setSelection([resolvedDefaultIndex]);
 
 		splitView.addView({
 			onDidChange: Event.None,
@@ -433,6 +449,11 @@ export class ExtensionFeaturesTab extends Themable {
 
 	private showFeatureView(feature: IExtensionFeatureDescriptor, container: HTMLElement): void {
 		if (this.featureView.value?.feature.id === feature.id) {
+			// Ensure the view is still properly attached to the container
+			if (container.firstChild !== this.featureView.value.domNode) {
+				clearNode(container);
+				container.appendChild(this.featureView.value.domNode);
+			}
 			return;
 		}
 		clearNode(container);
