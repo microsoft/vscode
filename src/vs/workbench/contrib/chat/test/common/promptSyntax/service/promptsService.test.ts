@@ -34,8 +34,8 @@ import { TestContextService, TestUserDataProfileService } from '../../../../../.
 import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
-import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
+import { AGENT_FILE_EXTENSION, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { AGENT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
@@ -82,6 +82,10 @@ suite('PromptsService', () => {
 					return INSTRUCTIONS_LANGUAGE_ID;
 				}
 
+				if (uri.path.endsWith(AGENT_FILE_EXTENSION)) {
+					return AGENT_LANGUAGE_ID;
+				}
+
 				return 'plaintext';
 			}
 		});
@@ -97,7 +101,7 @@ suite('PromptsService', () => {
 	});
 
 	suite('parse', () => {
-		test('explicit', async function () {
+		test('explicit', async () => {
 			const rootFolderName = 'resolves-nested-file-references';
 			const rootFolder = `/${rootFolderName}`;
 
@@ -1091,6 +1095,275 @@ suite('PromptsService', () => {
 			assert.strictEqual(actual[0].storage, PromptsStorage.extension);
 			assert.strictEqual(actual[0].type, PromptsType.instructions);
 			registered.dispose();
+		});
+	});
+
+	suite('Per-PromptsType Caching', () => {
+		teardown(() => {
+			sinon.restore();
+		});
+
+		test('listParsedPromptFiles returns parsed prompt files', async () => {
+			const rootFolderName = 'list-parsed-prompts';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/prompts',
+							children: [
+								{
+									name: 'prompt1.prompt.md',
+									contents: [
+										'---',
+										'description: \'Prompt 1\'',
+										'---',
+										'Content of prompt 1',
+									],
+								},
+								{
+									name: 'prompt2.prompt.md',
+									contents: [
+										'---',
+										'description: \'Prompt 2\'',
+										'---',
+										'Content of prompt 2',
+									],
+								},
+							],
+						},
+					],
+				}])).mock();
+
+			const result = await service.listParsedPromptFiles(PromptsType.prompt, CancellationToken.None);
+
+			assert.strictEqual(result.length, 2);
+			assert.ok(result.find(p => p.header?.description === 'Prompt 1'));
+			assert.ok(result.find(p => p.header?.description === 'Prompt 2'));
+		});
+
+		test('getCachedParsedPromptFile returns cached value and triggers background fetch', async () => {
+			const rootFolderName = 'cached-prompts';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/prompts',
+							children: [
+								{
+									name: 'test.prompt.md',
+									contents: [
+										'---',
+										'description: \'Test Prompt\'',
+										'---',
+										'Test content',
+									],
+								},
+							],
+						},
+					],
+				}])).mock();
+
+			const testUri = URI.joinPath(rootFolderUri, '.github/prompts/test.prompt.md');
+
+			// First call should return undefined and trigger background fetch
+			const result1 = service.getCachedParsedPromptFile(testUri);
+			assert.strictEqual(result1, undefined);
+
+			// Wait for background fetch to complete
+			await service.waitForPendingCacheOperations();
+
+			// Second call should return the cached value
+			const result2 = service.getCachedParsedPromptFile(testUri);
+			assert.ok(result2);
+			assert.strictEqual(result2.header?.description, 'Test Prompt');
+		});
+
+		test('onDidChangeParsedPromptFileCache fires when cache updates', async () => {
+			const rootFolderName = 'cache-event-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/prompts',
+							children: [
+								{
+									name: 'test.instructions.md',
+									contents: [
+										'---',
+										'description: \'Test Instructions\'',
+										'applyTo: \'**/*.ts\'',
+										'---',
+										'Test instructions content',
+									],
+								},
+							],
+						},
+					],
+				}])).mock();
+
+			let eventFired = false;
+			const disposable = service.onDidChangeParsedPromptFileCache(PromptsType.instructions)(
+				() => { eventFired = true; }
+			);
+
+			const testUri = URI.joinPath(rootFolderUri, '.github/prompts/test.instructions.md');
+
+			// Trigger cache population
+			service.getCachedParsedPromptFile(testUri);
+
+			// Wait for background fetch to complete
+			await service.waitForPendingCacheOperations();
+
+			assert.ok(eventFired, 'Event should have been fired when cache was updated');
+
+			disposable.dispose();
+		});
+
+		test('getCachedParsedPromptFile works for different PromptsTypes', async () => {
+			const rootFolderName = 'multi-type-cache';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/prompts',
+							children: [
+								{
+									name: 'test.prompt.md',
+									contents: [
+										'---',
+										'description: \'Test Prompt\'',
+										'---',
+										'Prompt content',
+									],
+								},
+							],
+						},
+						{
+							name: '.github/instructions',
+							children: [
+								{
+									name: 'test.instructions.md',
+									contents: [
+										'---',
+										'description: \'Test Instructions\'',
+										'applyTo: \'**/*.ts\'',
+										'---',
+										'Instructions content',
+									],
+								},
+							],
+						},
+						{
+							name: '.github/agents',
+							children: [
+								{
+									name: 'test.agent.md',
+									contents: [
+										'---',
+										'description: \'Test Agent\'',
+										'---',
+										'Agent content',
+									],
+								},
+							],
+						},
+					],
+				}])).mock();
+
+			const promptUri = URI.joinPath(rootFolderUri, '.github/prompts/test.prompt.md');
+			const instructionsUri = URI.joinPath(rootFolderUri, '.github/instructions/test.instructions.md');
+			const agentUri = URI.joinPath(rootFolderUri, '.github/agents/test.agent.md');
+
+			// Trigger cache population for all types
+			service.getCachedParsedPromptFile(promptUri);
+			service.getCachedParsedPromptFile(instructionsUri);
+			service.getCachedParsedPromptFile(agentUri);
+
+			// Wait for background fetches
+			await service.waitForPendingCacheOperations();
+
+			// All should now be cached
+			const promptResult = service.getCachedParsedPromptFile(promptUri);
+			const instructionsResult = service.getCachedParsedPromptFile(instructionsUri);
+			const agentResult = service.getCachedParsedPromptFile(agentUri);
+
+			assert.ok(promptResult);
+			assert.strictEqual(promptResult.header?.description, 'Test Prompt');
+
+			assert.ok(instructionsResult);
+			assert.strictEqual(instructionsResult.header?.description, 'Test Instructions');
+
+			assert.ok(agentResult);
+			assert.strictEqual(agentResult.header?.description, 'Test Agent');
+		});
+
+		test('onDidChangeParsedPromptFileCache fires on slash command cache update', async () => {
+			const rootFolderName = 'slash-command-event';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/prompts',
+							children: [
+								{
+									name: 'test.prompt.md',
+									contents: [
+										'---',
+										'description: \'Test\'',
+										'---',
+										'Content',
+									],
+								},
+							],
+						},
+					],
+				}])).mock();
+
+			let eventFired = false;
+
+			const disposable = service.onDidChangeParsedPromptFileCache(PromptsType.prompt)(() => {
+				eventFired = true;
+			});
+
+			// Trigger cache population
+			service.resolvePromptSlashCommandFromCache('test');
+
+			// Wait for background fetch
+			await service.waitForPendingCacheOperations();
+
+			assert.ok(eventFired, 'Event should fire');
+
+			disposable.dispose();
 		});
 	});
 });

@@ -16,6 +16,8 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 
 /**
  * Provides prompt services.
+ * This includes working with prompt files, instruction files, and agent files.
+ * These are all referred to as "prompts" within this service, distinguished by different PromptsType values.
  */
 export const IPromptsService = createDecorator<IPromptsService>('IPromptsService');
 
@@ -157,6 +159,11 @@ export interface IPromptsService extends IDisposable {
 	listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]>;
 
 	/**
+	 * List all available prompt files with their parsed content.
+	 */
+	listParsedPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly ParsedPromptFile[]>;
+
+	/**
 	 * List all available prompt files.
 	 */
 	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]>;
@@ -184,10 +191,18 @@ export interface IPromptsService extends IDisposable {
 	resolvePromptSlashCommandFromCache(command: string): ParsedPromptFile | undefined;
 
 	/**
-	 * Event that is triggered when slash command -> ParsedPromptFile cache is updated.
-	 * Event handler can call resolvePromptSlashCommandFromCache in case there is new value populated.
+	 * Gets the parsed prompt file from cache by URI.
+	 * If not in cache, triggers async population and returns undefined.
+	 * @param uri - the URI of the prompt file
 	 */
-	readonly onDidChangeParsedPromptFilesCache: Event<void>;
+	getCachedParsedPromptFile(uri: URI): ParsedPromptFile | undefined;
+
+	/**
+	 * Event that is triggered when the parsed prompt file cache is updated for a specific PromptsType.
+	 * Event handler can call getCachedParsedPromptFile in case there is new value populated.
+	 * @param type - the PromptsType to listen for cache updates (use PromptsType.prompt for slash command cache)
+	 */
+	onDidChangeParsedPromptFileCache(type: PromptsType): Event<void>;
 
 	/**
 	 * Returns a prompt command if the command name is valid.
@@ -251,6 +266,12 @@ export interface IPromptsService extends IDisposable {
 	 * @param oldURI
 	 */
 	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined;
+
+	/**
+	 * Helper method for tests to await all pending cache operations.
+	 * @internal
+	 */
+	waitForPendingCacheOperations(): Promise<void>;
 }
 
 export interface IChatPromptSlashCommand {

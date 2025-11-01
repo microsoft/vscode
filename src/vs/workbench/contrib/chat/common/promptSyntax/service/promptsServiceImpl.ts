@@ -35,6 +35,8 @@ import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent
 
 /**
  * Provides prompt services.
+ * This includes working with prompt files, instruction files, and agent files.
+ * These are all referred to as "prompts" within this service, distinguished by different PromptsType values.
  */
 export class PromptsService extends Disposable implements IPromptsService {
 	public declare readonly _serviceBrand: undefined;
@@ -56,11 +58,28 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private parsedPromptFileCache = new ResourceMap<[number, ParsedPromptFile]>();
 
 	/**
-	 * Cache for parsed prompt files keyed by command name.
+	 * Cache for parsed prompt files keyed by PromptsType then URI.
 	 */
-	private promptFileByCommandCache = new Map<string, { value: ParsedPromptFile | undefined; pendingPromise: Promise<ParsedPromptFile | undefined> | undefined }>();
+	private promptCaches = {
+		[PromptsType.prompt]: new ResourceMap<CachedParsedPromptFile>(),
+		[PromptsType.instructions]: new ResourceMap<CachedParsedPromptFile>(),
+		[PromptsType.agent]: new ResourceMap<CachedParsedPromptFile>(),
+	};
 
-	private onDidChangeParsedPromptFilesCacheEmitter = new Emitter<void>();
+	/**
+	 * Track pending un-awaited sync calls to async functions.
+	 * This is used in tests to wait for async calls to complete without relying on timeouts.
+	 */
+	private pendingUnawaitedPromises = new Set<Promise<any>>();
+
+	/**
+	 * Emitters for per-type cache updates.
+	 */
+	private onDidChangePromptCacheEmitters = {
+		[PromptsType.prompt]: new Emitter<void>(),
+		[PromptsType.instructions]: new Emitter<void>(),
+		[PromptsType.agent]: new Emitter<void>(),
+	};
 
 	/**
 	 * Contributed files from extensions keyed by prompt type then name.
@@ -89,31 +108,29 @@ export class PromptsService extends Disposable implements IPromptsService {
 	) {
 		super();
 
-		this.onDidChangeParsedPromptFilesCacheEmitter = this._register(new Emitter<void>());
+		this.onDidChangePromptCacheEmitters = {
+			[PromptsType.prompt]: this._register(new Emitter<void>()),
+			[PromptsType.instructions]: this._register(new Emitter<void>()),
+			[PromptsType.agent]: this._register(new Emitter<void>()),
+		};
 
 		this.fileLocator = this._register(this.instantiationService.createInstance(PromptFilesLocator));
 
-		const promptUpdateTracker = this._register(new UpdateTracker(this.fileLocator, PromptsType.prompt, this.modelService));
-		this._register(promptUpdateTracker.onDidPromptChange((event) => {
-			if (event.kind === 'fileSystem') {
-				this.promptFileByCommandCache.clear();
-			}
-			else {
-				// Clear cache for prompt files that match the changed URI
-				const pendingDeletes: string[] = [];
-				for (const [key, value] of this.promptFileByCommandCache) {
-					if (isEqual(value.value?.uri, event.uri)) {
-						pendingDeletes.push(key);
-					}
+		for (const type of [PromptsType.prompt, PromptsType.instructions, PromptsType.agent]) {
+			const updateTracker = this._register(new UpdateTracker(this.fileLocator, type, this.modelService));
+			this._register(updateTracker.onDidPromptChange((event) => {
+				if (event.kind === 'fileSystem') {
+					// Clear entire cache
+					this.promptCaches[type].clear();
+				} else if (event.uri) {
+					// Clear cache for the specific URI
+					this.promptCaches[type].delete(event.uri);
 				}
 
-				for (const key of pendingDeletes) {
-					this.promptFileByCommandCache.delete(key);
-				}
-			}
-
-			this.onDidChangeParsedPromptFilesCacheEmitter.fire();
-		}));
+				// Fire type-specific event if anyone is listening
+				this.onDidChangePromptCacheEmitters[type].fire();
+			}));
+		}
 
 		this._register(this.modelService.onModelRemoved((model) => {
 			this.parsedPromptFileCache.delete(model.uri);
@@ -135,8 +152,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.onDidChangeCustomAgentsEmitter.event;
 	}
 
-	public get onDidChangeParsedPromptFilesCache(): Event<void> {
-		return this.onDidChangeParsedPromptFilesCacheEmitter.event;
+	public onDidChangeParsedPromptFileCache(type: PromptsType): Event<void> {
+		return this.onDidChangePromptCacheEmitters[type].event;
 	}
 
 	public getPromptFileType(uri: URI): PromptsType | undefined {
@@ -180,6 +197,28 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 	}
 
+	public async listParsedPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly ParsedPromptFile[]> {
+		const promptPaths = await this.listPromptFiles(type, token);
+		const parsedFiles = await Promise.all(
+			promptPaths.map(async (promptPath) => {
+				try {
+					// Check cache first
+					const cached = this.promptCaches[type].get(promptPath.uri);
+					if (cached?.value) {
+						return cached.value;
+					}
+					// Parse and cache
+					const parsed = await this.populatePromptCacheForUri(promptPath.uri);
+					return parsed;
+				} catch (error) {
+					this.logger.error(`[listParsedPromptFiles] Failed to parse prompt file: ${promptPath.uri}`, error);
+					return undefined;
+				}
+			})
+		);
+		return parsedFiles.filter((file): file is ParsedPromptFile => file !== undefined);
+	}
+
 	private async getExtensionContributions(type: PromptsType): Promise<IPromptPath[]> {
 		return Promise.all(this.contributedFiles[type].values());
 	}
@@ -218,46 +257,116 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		try {
-			return await this.parseNew(promptUri, token);
+			return await this.populatePromptCacheForUri(promptUri);
 		} catch (error) {
 			this.logger.error(`[resolvePromptSlashCommand] Failed to parse prompt file: ${promptUri}`, error);
 			return undefined;
 		}
 	}
 
-	private async populatePromptCommandCache(command: string): Promise<ParsedPromptFile | undefined> {
-		let cache = this.promptFileByCommandCache.get(command);
+	private async populatePromptCacheForUri(uri: URI): Promise<ParsedPromptFile | undefined> {
+		const type = this.getPromptFileType(uri);
+		if (!type) {
+			return undefined;
+		}
+
+		let cache = this.promptCaches[type].get(uri);
 		if (cache && cache.pendingPromise) {
 			return cache.pendingPromise;
 		}
 
-		const newPromise = this.resolvePromptSlashCommand({ command, detail: '' }, CancellationToken.None);
+		const newPromise = this.parseNew(uri, CancellationToken.None).catch((error) => {
+			this.logger.error(`[populatePromptCacheForUri] Failed to parse prompt file: ${uri}`, error);
+			return undefined;
+		});
+
 		if (cache) {
 			cache.pendingPromise = newPromise;
-		}
-		else {
+		} else {
 			cache = { value: undefined, pendingPromise: newPromise };
-			this.promptFileByCommandCache.set(command, cache);
+			this.promptCaches[type].set(uri, cache);
 		}
 
-		const newValue = await newPromise.finally(() => cache.pendingPromise = undefined);
+		const newValue = await newPromise;
 
-		// TODO: consider comparing the newValue and the old and only emit change event when there are value changes
+		cache.pendingPromise = undefined;
 		cache.value = newValue;
-		this.onDidChangeParsedPromptFilesCacheEmitter.fire();
+		this.onDidChangePromptCacheEmitters[type].fire();
 
 		return newValue;
 	}
 
+	private async populatePromptCacheForCommand(command: string): Promise<ParsedPromptFile | undefined> {
+		const promptUri = await this.getPromptPath(command);
+		if (!promptUri) {
+			return undefined;
+		}
+		// Populate the per-URI cache to avoid maintaining a separate command-keyed cache
+		return await this.populatePromptCacheForUri(promptUri);
+	}
+
+	private trackUnawaitedPromise<T>(promise: Promise<T>): Promise<T> {
+		this.pendingUnawaitedPromises.add(promise);
+		return promise.finally(() => {
+			this.pendingUnawaitedPromises.delete(promise);
+		});
+	}
+
 	public resolvePromptSlashCommandFromCache(command: string): ParsedPromptFile | undefined {
-		const cache = this.promptFileByCommandCache.get(command);
-		const value = cache?.value;
-		if (value === undefined) {
-			// kick off a async process to refresh the cache while we returns the current cached value
-			void this.populatePromptCommandCache(command).catch((error) => { });
+		const cache = this.promptCaches[PromptsType.prompt];
+		// Iterate over URI-keyed cache to avoid maintaining a separate command-keyed cache
+		for (const [uri, entry] of cache) {
+			if (getCommandNameFromURI(uri) === command) {
+				return entry?.value;
+			}
+		}
+		// Not found in cache.
+		// Kick off an async process to refresh the cache while we returns the current cached value
+		const promise = this.populatePromptCacheForCommand(command).catch((error) => { });
+		this.trackUnawaitedPromise(promise);
+		return undefined;
+	}
+
+	public getCachedParsedPromptFile(uri: URI): ParsedPromptFile | undefined {
+		const type = this.getPromptFileType(uri);
+		if (!type) {
+			return undefined;
 		}
 
+		const cache = this.promptCaches[type].get(uri);
+		const value = cache?.value;
+		if (value === undefined) {
+			// Not found in cache.
+			// Kick off an async process to refresh the cache while we returns the current cached value
+			const promise = this.populatePromptCacheForUri(uri).catch((error) => { });
+			this.trackUnawaitedPromise(promise);
+			return undefined;
+		}
 		return value;
+	}
+
+	/**
+	 * Helper method for tests to await all pending cache operations.
+	 * @internal
+	 */
+	public async waitForPendingCacheOperations(): Promise<void> {
+		const allPending: Promise<any>[] = [];
+
+		// Collect per-type cache promises
+		for (const type of [PromptsType.prompt, PromptsType.instructions, PromptsType.agent]) {
+			for (const cache of this.promptCaches[type].values()) {
+				if (cache.pendingPromise) {
+					allPending.push(cache.pendingPromise);
+				}
+			}
+		}
+
+		// Collect pending unawaited promises (usually triggered from sync methods)
+		for (const promise of this.pendingUnawaitedPromises) {
+			allPending.push(promise);
+		}
+
+		await Promise.allSettled(allPending);
 	}
 
 	private async getPromptDetails(promptPath: IPromptPath): Promise<{ name: string; description?: string }> {
@@ -450,6 +559,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 }
+
+type CachedParsedPromptFile = {
+	value: ParsedPromptFile | undefined;
+	pendingPromise: Promise<ParsedPromptFile | undefined> | undefined;
+};
 
 function getCommandNameFromURI(uri: URI): string {
 	return basename(uri.fsPath, PROMPT_FILE_EXTENSION);
