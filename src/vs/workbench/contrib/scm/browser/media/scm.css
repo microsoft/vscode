@@ -186,7 +186,7 @@
 }
 
 .scm-view .monaco-list-row.focused.selected:not(:focus) .history-item > .graph-container > .graph > circle:first-of-type {
-	stroke: var(--vscode-list-inactiveSelectionBackground);
+	stroke: var(--vscode-list-inactiveSelectionBackground) !important;
 }
 
 .scm-view .monaco-list-row .history-item > .label-container {
@@ -667,6 +667,10 @@
 	max-width: 100px;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.scm-history-view .monaco-list-row.focused.selected {
+	background-color: var(--vscode-list-inactiveSelectionBackground) !important;
 }
 
 .scm-history-view .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie.force-no-twistie {
