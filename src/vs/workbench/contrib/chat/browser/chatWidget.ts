@@ -2015,7 +2015,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Check if the context menu was opened on a KaTeX element
 		const target = e.browserEvent.target as HTMLElement;
-		const isKatexElement = target.closest('.katex') !== null;
+		const isKatexElement = target.closest('.vscode-katex-container') !== null;
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
 			[ChatContextKeys.responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered],

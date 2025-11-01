@@ -134,14 +134,13 @@ export function registerChatCopyActions() {
 
 			// Otherwise, fallback to querying from the active element
 			if (!selectedElement) {
-				selectedElement = activeElement?.querySelector('.katex') ?? null;
+				selectedElement = activeElement?.querySelector('.vscode-katex-container') ?? null;
 			}
 
 			// Extract the LaTeX source from the annotation element
-			const katexElement = dom.isHTMLElement(selectedElement) ? selectedElement.closest('.katex') : null;
-			const annotation = katexElement?.querySelector('annotation[encoding="application/x-tex"]');
-			if (annotation) {
-				const latexSource = annotation.textContent || '';
+			const katexElement = dom.isHTMLElement(selectedElement) ? selectedElement.closest('.vscode-katex-container') : null;
+			const latexSource = katexElement?.getAttribute('data-latex') || '';
+			if (latexSource) {
 				await clipboardService.writeText(latexSource);
 			}
 		}

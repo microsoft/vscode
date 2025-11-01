@@ -32,17 +32,34 @@ export namespace MarkedKatexExtension {
 		return (token: marked.Tokens.Generic) => {
 			let out: string;
 			try {
-				out = katex.renderToString(token.text, {
+				const html = katex.renderToString(token.text, {
 					...options,
 					throwOnError: true,
 					displayMode: token.displayMode,
 				});
+
+				// Wrap in a container with data-latex attribute as a fallback for extracting the original LaTeX source
+				// This ensures we can always retrieve the source even if the annotation element is not present
+				out = `<span class="vscode-katex-container" data-latex="${escapeHtmlAttribute(token.text)}">${html}</span>`;
 			} catch {
 				// On failure, just use the original text including the wrapping $ or $$
 				out = token.raw;
 			}
 			return out + (isBlock ? '\n' : '');
 		};
+	}
+
+	function escapeHtmlAttribute(text: string): string {
+		return text.replace(/[&"<>]/g, char => {
+			switch (char) {
+				case '&': return '&amp;';
+				case '"': return '&quot;';
+				case `'`: return '&#39;';
+				case '<': return '&lt;';
+				case '>': return '&gt;';
+				default: return char;
+			}
+		});
 	}
 
 	function inlineKatex(options: MarkedKatexOptions, renderer: marked.RendererExtensionFunction): marked.TokenizerAndRendererExtension {
