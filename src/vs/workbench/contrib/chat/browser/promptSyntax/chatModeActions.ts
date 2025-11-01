@@ -12,26 +12,15 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ChatViewId } from '../chat.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 
 abstract class ConfigAgentActionImpl extends Action2 {
 	public override async run(accessor: ServicesAccessor): Promise<void> {
-		const openerService = accessor.get(IOpenerService);
 		const instaService = accessor.get(IInstantiationService);
-
 		const pickers = instaService.createInstance(PromptFilePickers);
 
-		const placeholder = localize(
-			'commands.agent.select-dialog.placeholder',
-			'Select the agent file to open'
-		);
-
-		const result = await pickers.selectPromptFile({ placeholder, type: PromptsType.agent, optionEdit: false });
-		if (result !== undefined) {
-			await openerService.open(result.promptFile);
-		}
+		await pickers.managePromptFiles(PromptsType.agent);
 	}
 }
 
