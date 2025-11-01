@@ -1704,6 +1704,7 @@ export interface SCMArtifactDto {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
 }
 
 export interface MainThreadSCMShape extends IDisposable {
