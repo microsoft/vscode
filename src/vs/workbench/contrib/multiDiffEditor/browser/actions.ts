@@ -131,3 +131,47 @@ export class ExpandAllAction extends Action2 {
 		}
 	}
 }
+
+export class GoToNextFileAction extends Action2 {
+	constructor() {
+		super({
+			id: 'multiDiffEditor.goToNextFile',
+			title: localize2('goToNextFile', 'Go to Next File'),
+			icon: Codicon.goToFile,
+			precondition: ActiveEditorContext.isEqualTo(MultiDiffEditor.ID),
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeEditorPane = editorService.activeEditorPane;
+		if (!(activeEditorPane instanceof MultiDiffEditor)) {
+			return;
+		}
+
+		activeEditorPane.goToNextFile();
+	}
+}
+
+export class GoToPreviousFileAction extends Action2 {
+	constructor() {
+		super({
+			id: 'multiDiffEditor.goToPreviousFile',
+			title: localize2('goToPreviousFile', 'Go to Previous File'),
+			icon: Codicon.goToFile,
+			precondition: ActiveEditorContext.isEqualTo(MultiDiffEditor.ID),
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeEditorPane = editorService.activeEditorPane;
+		if (!(activeEditorPane instanceof MultiDiffEditor)) {
+			return;
+		}
+
+		activeEditorPane.goToPreviousFile();
+	}
+}

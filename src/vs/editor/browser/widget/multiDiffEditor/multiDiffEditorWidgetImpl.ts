@@ -2,8 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-import { addStandardDisposableListener, Dimension, getWindow, h, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { SmoothScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { compareBy, numberComparator } from '../../../../base/common/arrays.js';
 import { findFirstMax } from '../../../../base/common/arraysFind.js';
@@ -12,7 +11,6 @@ import { Disposable, IReference, toDisposable } from '../../../../base/common/li
 import { IObservable, IReader, ITransaction, autorun, autorunWithStore, derived, disposableObservableValue, globalTransaction, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { Scrollable, ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -228,17 +226,6 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				this.render(reader);
 			});
 		})));
-
-		// Add keyboard navigation support
-		this._register(addStandardDisposableListener(this._element, 'keydown', (e) => {
-			if (e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow) || e.equals(KeyMod.Alt | KeyCode.DownArrow)) {
-				e.preventDefault();
-				this.goToNextFile();
-			} else if (e.equals(KeyMod.CtrlCmd | KeyCode.UpArrow) || e.equals(KeyMod.Alt | KeyCode.UpArrow)) {
-				e.preventDefault();
-				this.goToPreviousFile();
-			}
-		}));
 	}
 
 	public setScrollState(scrollState: { top?: number; left?: number }): void {
