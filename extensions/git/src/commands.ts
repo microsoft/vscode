@@ -5367,8 +5367,8 @@ export class CommandCenter {
 			return;
 		}
 
-		const message = l10n.t('Are you sure you want to DELETE branch "{0}"? This action will permanently remove the branch reference from the repository.', artifact.name);
-		const yes = l10n.t('Yes');
+		const message = l10n.t('Are you sure you want to delete branch "{0}"? This action will permanently remove the branch reference from the repository.', artifact.name);
+		const yes = l10n.t('Delete Branch');
 		const result = await window.showWarningMessage(message, { modal: true }, yes);
 		if (result !== yes) {
 			return;
@@ -5383,8 +5383,8 @@ export class CommandCenter {
 			return;
 		}
 
-		const message = l10n.t('Are you sure you want to DELETE tag "{0}"? This action will permanently remove the tag reference from the repository.', artifact.name);
-		const yes = l10n.t('Yes');
+		const message = l10n.t('Are you sure you want to delete tag "{0}"? This action will permanently remove the tag reference from the repository.', artifact.name);
+		const yes = l10n.t('Delete Tag');
 		const result = await window.showWarningMessage(message, { modal: true }, yes);
 		if (result !== yes) {
 			return;
