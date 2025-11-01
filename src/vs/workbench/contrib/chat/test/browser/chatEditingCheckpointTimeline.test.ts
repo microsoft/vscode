@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { autorun, transaction } from '../../../../../base/common/observable.js';
+import { transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -422,25 +422,56 @@ suite('ChatEditingCheckpointTimeline', function () {
 	});
 
 	test('requestDisablement tracks disabled requests', async function () {
-		const disabledRequests: string[] = [];
-		store.add(autorun(reader => {
-			const disabled = timeline.requestDisablement.read(reader);
-			disabledRequests.length = 0;
-			disabledRequests.push(...disabled.map(d => d.requestId));
-		}));
+		const uri = URI.parse('file:///test.txt');
 
-		// Create checkpoints for multiple requests
 		timeline.createCheckpoint('req1', undefined, 'Start req1');
+		timeline.recordFileOperation(createFileCreateOperation(uri, 'req1', timeline.incrementEpoch(), 'a'));
+
 		timeline.createCheckpoint('req1', 'stop1', 'Stop req1');
+		timeline.recordFileOperation(createTextEditOperation(uri, 'req1', timeline.incrementEpoch(), [{ range: new Range(1, 1, 1, 2), text: 'b' }]));
+
 		timeline.createCheckpoint('req2', undefined, 'Start req2');
+		timeline.recordFileOperation(createTextEditOperation(uri, 'req2', timeline.incrementEpoch(), [{ range: new Range(1, 1, 1, 2), text: 'c' }]));
 
-		// Navigate to req1 stop1
-		const req1StopId = timeline.getCheckpointIdForRequest('req1', 'stop1')!;
-		await timeline.navigateToCheckpoint(req1StopId);
+		// Undo sequence:
+		assert.deepStrictEqual(timeline.requestDisablement.get(), []);
 
-		// req2 should be disabled as we're before it. req1 is also disabled because
-		// we're in the past relative to the current tip
-		assert.ok(disabledRequests.includes('req2'));
+		await timeline.undoToLastCheckpoint();
+		assert.strictEqual(fileContents.get(uri), 'b');
+		assert.deepStrictEqual(timeline.requestDisablement.get(), [
+			{ requestId: 'req2', afterUndoStop: undefined },
+		]);
+
+		await timeline.undoToLastCheckpoint();
+		assert.strictEqual(fileContents.get(uri), 'a');
+		assert.deepStrictEqual(timeline.requestDisablement.get(), [
+			{ requestId: 'req2', afterUndoStop: undefined },
+			{ requestId: 'req1', afterUndoStop: 'stop1' },
+		]);
+
+		await timeline.undoToLastCheckpoint();
+		assert.strictEqual(fileContents.get(uri), undefined);
+		assert.deepStrictEqual(timeline.requestDisablement.get(), [
+			{ requestId: 'req2', afterUndoStop: undefined },
+			{ requestId: 'req1', afterUndoStop: undefined },
+		]);
+
+		// Redo sequence:
+		await timeline.redoToNextCheckpoint();
+		assert.strictEqual(fileContents.get(uri), 'a');
+		assert.deepStrictEqual(timeline.requestDisablement.get(), [
+			{ requestId: 'req2', afterUndoStop: undefined },
+			{ requestId: 'req1', afterUndoStop: 'stop1' },
+		]);
+
+		await timeline.redoToNextCheckpoint();
+		assert.strictEqual(fileContents.get(uri), 'b');
+		assert.deepStrictEqual(timeline.requestDisablement.get(), [
+			{ requestId: 'req2', afterUndoStop: undefined },
+		]);
+
+		await timeline.redoToNextCheckpoint();
+		assert.strictEqual(fileContents.get(uri), 'c');
 	});
 
 	test('persistence - save and restore state', function () {
@@ -597,7 +628,7 @@ suite('ChatEditingCheckpointTimeline', function () {
 
 		// Verify we're at the start of req1, which has epoch 2 (0 = initial, 1 = baseline, 2 = start checkpoint)
 		const state = timeline.getStateForPersistence();
-		assert.strictEqual(state.currentEpoch, 3); // Should be at the "Start req1" checkpoint epoch
+		assert.strictEqual(state.currentEpoch, 2); // Should be at the "Start req1" checkpoint epoch
 	});
 
 	test('operations use incrementing epochs', function () {
