@@ -104,21 +104,28 @@ function isHelpButton(button: IQuickInputButton): button is IQuickInputButton & 
 /**
  * Button that adds a new prompt file.
  */
-function newAddButton(type: PromptsType): IQuickInputButton {
-	const getToolTip = () => {
-		switch (type) {
-			case PromptsType.prompt:
-				return localize('new.prompt', "New prompt");
-			case PromptsType.instructions:
-				return localize('new.instructions', "New instruction");
-			default:
-				return localize('new.agent', "New custom agent");
-		}
-	};
-	return {
-		tooltip: getToolTip(),
-		iconClass: ThemeIcon.asClassName(Codicon.plus),
-	};
+function newAddButton(type: PromptsType): IQuickInputButton & { commandId: string } {
+	const iconClass = ThemeIcon.asClassName(Codicon.plus);
+	switch (type) {
+		case PromptsType.prompt:
+			return {
+				tooltip: localize('new.prompt', "New prompt file"),
+				iconClass,
+				commandId: NEW_PROMPT_COMMAND_ID
+			};
+		case PromptsType.instructions:
+			return {
+				tooltip: localize('new.instructions', "New instruction file"),
+				iconClass,
+				commandId: NEW_INSTRUCTIONS_COMMAND_ID
+			};
+		default:
+			return {
+				tooltip: localize('new.agent', "New custom agent"),
+				iconClass,
+				commandId: NEW_AGENT_COMMAND_ID
+			};
+	}
 }
 
 interface IPromptPickerQuickPickItem extends IQuickPickItem {
@@ -345,9 +352,9 @@ export class PromptFilePickers {
 
 			disposables.add(quickPick.onDidTriggerButton(async e => {
 				if (e === helpButton) {
-					await this._openerService.open(AGENT_DOCUMENTATION_URL);
+					await this._openerService.open(helpButton.helpURI);
 				} else if (e === newButton) {
-					await this._commandService.executeCommand(NEW_AGENT_COMMAND_ID);
+					await this._commandService.executeCommand(newButton.commandId);
 				}
 			}));
 
@@ -669,9 +676,9 @@ export class PromptFilePickers {
 
 			disposables.add(quickPick.onDidTriggerButton(async e => {
 				if (e === helpButton) {
-					await this._openerService.open(AGENT_DOCUMENTATION_URL);
+					await this._openerService.open(helpButton.helpURI);
 				} else if (e === newButton) {
-					await this._commandService.executeCommand(NEW_AGENT_COMMAND_ID);
+					await this._commandService.executeCommand(newButton.commandId);
 				}
 			}));
 
