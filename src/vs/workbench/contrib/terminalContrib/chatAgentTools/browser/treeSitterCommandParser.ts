@@ -120,9 +120,6 @@ class TreeCache extends Disposable {
 		super();
 		this._register(toDisposable(() => this._cache.clear()));
 	}
-	private _getCacheKey(languageId: TreeSitterCommandParserLanguage, commandLine: string): string {
-		return `${languageId}:${commandLine}`;
-	}
 
 	get(languageId: TreeSitterCommandParserLanguage, commandLine: string): Tree | undefined {
 		this._resetClearTimer();
@@ -132,6 +129,10 @@ class TreeCache extends Disposable {
 	set(languageId: TreeSitterCommandParserLanguage, commandLine: string, tree: Tree): void {
 		this._resetClearTimer();
 		this._cache.set(this._getCacheKey(languageId, commandLine), tree);
+	}
+
+	private _getCacheKey(languageId: TreeSitterCommandParserLanguage, commandLine: string): string {
+		return `${languageId}:${commandLine}`;
 	}
 
 	private _resetClearTimer(): void {
