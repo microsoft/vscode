@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from '../../../../../base/common/assert.js';
 import { commonPrefixLength, commonSuffixLength } from '../../../../../base/common/strings.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
+import { SelectionDirection } from '../../../../common/core/selection.js';
 import { ISimpleScreenReaderContentState } from '../screenReaderUtils.js';
 
 export const _debugComposition = false;
@@ -225,11 +227,25 @@ export class TextAreaState {
 		};
 	}
 
-	public static fromScreenReaderContentState(screenReaderContentState: ISimpleScreenReaderContentState) {
+	public static fromScreenReaderContentState(
+		screenReaderContentState: ISimpleScreenReaderContentState,
+		direction: SelectionDirection,
+	) {
+		let selectionStart;
+		let selectionEnd;
+		if (direction === SelectionDirection.LTR) {
+			selectionStart = screenReaderContentState.selectionStart;
+			selectionEnd = screenReaderContentState.selectionEnd;
+		} else if (direction === SelectionDirection.RTL) {
+			selectionStart = screenReaderContentState.selectionEnd;
+			selectionEnd = screenReaderContentState.selectionStart;
+		} else {
+			assertNever(direction, 'Unknown selection direction');
+		}
 		return new TextAreaState(
 			screenReaderContentState.value,
-			screenReaderContentState.selectionStart,
-			screenReaderContentState.selectionEnd,
+			selectionStart,
+			selectionEnd,
 			screenReaderContentState.selection,
 			screenReaderContentState.newlineCountBeforeSelection
 		);
