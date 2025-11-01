@@ -282,15 +282,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		this._osBackend = this._remoteAgentService.getEnvironment().then(remoteEnv => remoteEnv?.os ?? OS);
 
-		this._terminalToolCreator = _instantiationService.createInstance(ToolTerminalCreator);
-		this._treeSitterCommandParser = this._instantiationService.createInstance(TreeSitterCommandParser);
-		this._commandSimplifier = _instantiationService.createInstance(CommandSimplifier, this._osBackend, this._treeSitterCommandParser);
-		this._telemetry = _instantiationService.createInstance(RunInTerminalToolTelemetry);
+		this._terminalToolCreator = this._instantiationService.createInstance(ToolTerminalCreator);
+		this._treeSitterCommandParser = this._register(this._instantiationService.createInstance(TreeSitterCommandParser));
+		this._commandSimplifier = this._instantiationService.createInstance(CommandSimplifier, this._osBackend, this._treeSitterCommandParser);
+		this._telemetry = this._instantiationService.createInstance(RunInTerminalToolTelemetry);
 		this._commandLineAnalyzers = [
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
 		];
-		this._profileFetcher = _instantiationService.createInstance(TerminalProfileFetcher);
+		this._profileFetcher = this._instantiationService.createInstance(TerminalProfileFetcher);
 
 		// Clear out warning accepted state if the setting is disabled
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
