@@ -9,6 +9,7 @@ import { arch } from '../../../../../base/common/process.js';
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
 
 export const enum TreeSitterCommandParserLanguage {
 	Bash = 'bash',
@@ -16,14 +17,14 @@ export const enum TreeSitterCommandParserLanguage {
 }
 
 export class TreeSitterCommandParser extends Disposable {
-	private readonly _parser: Promise<Parser>;
+	private readonly _parser: Lazy<Promise<Parser>>;
 	private readonly _treeCache = this._register(new TreeCache());
 
 	constructor(
 		@ITreeSitterLibraryService private readonly _treeSitterLibraryService: ITreeSitterLibraryService,
 	) {
 		super();
-		this._parser = this._treeSitterLibraryService.getParserClass().then(ParserCtor => new ParserCtor());
+		this._parser = new Lazy(() => this._treeSitterLibraryService.getParserClass().then(ParserCtor => new ParserCtor()));
 	}
 
 	async extractSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
@@ -78,7 +79,7 @@ export class TreeSitterCommandParser extends Disposable {
 
 		let tree = this._treeCache.get(languageId, commandLine);
 		if (!tree) {
-			const parser = await this._parser;
+			const parser = await this._parser.value;
 			parser.setLanguage(language);
 			const parsedTree = parser.parse(commandLine);
 			if (!parsedTree) {
