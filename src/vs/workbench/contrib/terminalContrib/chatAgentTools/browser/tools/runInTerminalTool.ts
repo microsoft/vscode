@@ -290,10 +290,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		this._osBackend = this._remoteAgentService.getEnvironment().then(remoteEnv => remoteEnv?.os ?? OS);
 
-		this._terminalToolCreator = _instantiationService.createInstance(ToolTerminalCreator);
-		this._treeSitterCommandParser = this._instantiationService.createInstance(TreeSitterCommandParser);
-		this._telemetry = _instantiationService.createInstance(RunInTerminalToolTelemetry);
-		this._profileFetcher = _instantiationService.createInstance(TerminalProfileFetcher);
+		this._terminalToolCreator = this._instantiationService.createInstance(ToolTerminalCreator);
+		this._treeSitterCommandParser = this._register(this._instantiationService.createInstance(TreeSitterCommandParser));
+		this._telemetry = this._instantiationService.createInstance(RunInTerminalToolTelemetry);
+		this._profileFetcher = this._instantiationService.createInstance(TerminalProfileFetcher);
 
 		this._commandLineRewriters = [
 			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),

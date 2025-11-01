@@ -49,7 +49,7 @@ import type { ICommandLineRewriterOptions } from '../../browser/tools/commandLin
 		treeSitterLibraryService.isTest = true;
 		instantiationService.stub(ITreeSitterLibraryService, treeSitterLibraryService);
 
-		parser = instantiationService.createInstance(TreeSitterCommandParser);
+		parser = store.add(instantiationService.createInstance(TreeSitterCommandParser));
 		rewriter = store.add(instantiationService.createInstance(CommandLinePwshChainOperatorRewriter, parser));
 	});
 
