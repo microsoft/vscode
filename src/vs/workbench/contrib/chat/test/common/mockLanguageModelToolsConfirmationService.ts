@@ -12,7 +12,7 @@ export class MockLanguageModelToolsConfirmationService implements ILanguageModel
 	manageConfirmationPreferences(tools: Readonly<IToolData>[], options?: { defaultScope?: 'workspace' | 'profile' | 'session' }): void {
 		throw new Error('Method not implemented.');
 	}
-	registerConfirmationContribution(toolNAme: string, contribution: ILanguageModelToolConfirmationContribution): IDisposable {
+	registerConfirmationContribution(toolName: string, contribution: ILanguageModelToolConfirmationContribution): IDisposable {
 		throw new Error('Method not implemented.');
 	}
 	resetToolAutoConfirmation(): void {

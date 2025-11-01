@@ -86,7 +86,7 @@ export interface ILanguageModelToolsConfirmationService extends ILanguageModelTo
 	 * Registers a contribution that provides more specific confirmation logic
 	 * for a tool, in addition to the default confirmation handling.
 	 */
-	registerConfirmationContribution(toolNAme: string, contribution: ILanguageModelToolConfirmationContribution): IDisposable;
+	registerConfirmationContribution(toolName: string, contribution: ILanguageModelToolConfirmationContribution): IDisposable;
 
 	/** Resets all tool and server confirmation preferences */
 	resetToolAutoConfirmation(): void;
