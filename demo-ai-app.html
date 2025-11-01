@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VSCode AI App - Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1e1e1e;
+            color: #cccccc;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .ai-app-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            background: #1e1e1e;
+        }
+
+        .browser-container {
+            flex: 0 0 80%;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #3c3c3c;
+        }
+
+        .url-container {
+            display: flex;
+            padding: 8px;
+            background: #2d2d30;
+            border-bottom: 1px solid #3c3c3c;
+        }
+
+        .url-input {
+            flex: 1;
+            padding: 6px 12px;
+            border: 1px solid #3c3c3c;
+            background: #3c3c3c;
+            color: #cccccc;
+            border-radius: 3px 0 0 3px;
+            outline: none;
+        }
+
+        .url-input:focus {
+            border-color: #007acc;
+        }
+
+        .go-button {
+            padding: 6px 16px;
+            background: #0e639c;
+            color: white;
+            border: 1px solid #0e639c;
+            border-left: none;
+            border-radius: 0 3px 3px 0;
+            cursor: pointer;
+        }
+
+        .go-button:hover {
+            background: #1177bb;
+        }
+
+        .webview-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #1e1e1e;
+        }
+
+        .webview-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: white;
+        }
+
+        .chatbox-container {
+            flex: 0 0 20%;
+            display: flex;
+            flex-direction: column;
+            min-width: 300px;
+            background: #1e1e1e;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            background: #1e1e1e;
+            border-bottom: 1px solid #3c3c3c;
+        }
+
+        .message {
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            max-width: 100%;
+            word-wrap: break-word;
+        }
+
+        .message.user {
+            background: #0e639c;
+            color: white;
+            margin-left: 20px;
+        }
+
+        .message.ai {
+            background: #2d2d30;
+            color: #cccccc;
+            margin-right: 20px;
+        }
+
+        .message-content {
+            white-space: pre-wrap;
+            line-height: 1.4;
+        }
+
+        .message-timestamp {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+
+        .input-container {
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            background: #1e1e1e;
+            border-top: 1px solid #3c3c3c;
+        }
+
+        .api-key-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .api-key-label {
+            margin-right: 8px;
+            color: #cccccc;
+            font-size: 12px;
+        }
+
+        .api-key-input {
+            flex: 1;
+            padding: 4px 8px;
+            border: 1px solid #3c3c3c;
+            background: #3c3c3c;
+            color: #cccccc;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        .input-wrapper {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #3c3c3c;
+            background: #3c3c3c;
+            color: #cccccc;
+            border-radius: 3px;
+            resize: vertical;
+            min-height: 60px;
+            max-height: 120px;
+            font-family: inherit;
+            font-size: 13px;
+        }
+
+        .message-input:focus {
+            border-color: #007acc;
+            outline: none;
+        }
+
+        .send-button {
+            padding: 8px 16px;
+            background: #0e639c;
+            color: white;
+            border: 1px solid #0e639c;
+            border-radius: 3px;
+            cursor: pointer;
+            height: fit-content;
+        }
+
+        .send-button:hover {
+            background: #1177bb;
+        }
+
+        .welcome-message {
+            text-align: center;
+            padding: 20px;
+            color: #888;
+            font-style: italic;
+        }
+
+        .error-message {
+            color: #f48771;
+            background: #5a1d1d;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="ai-app-container">
+        <!-- Browser Container (80%) -->
+        <div class="browser-container">
+            <div class="url-container">
+                <input type="text" class="url-input" placeholder="Enter website URL (e.g., https://vnexpress.net)" value="https://vnexpress.net">
+                <button class="go-button" onclick="loadUrl()">Go</button>
+                <button class="go-button" onclick="loadDemoContent()" style="margin-left: 5px; background: #28a745;">Demo</button>
+            </div>
+            <div class="webview-container">
+                <iframe class="webview-iframe" id="webview" src="about:blank"></iframe>
+            </div>
+        </div>
+
+        <!-- Chatbox Container (20%) -->
+        <div class="chatbox-container">
+            <div class="messages-container" id="messages">
+                <div class="welcome-message">
+                    Welcome to VSCode AI App!<br>
+                    Load a website and ask questions about its content.
+                </div>
+            </div>
+            <div class="input-container">
+                <div class="api-key-container">
+                    <label class="api-key-label">API Key:</label>
+                    <input type="password" class="api-key-input" placeholder="Enter your OpenAI API key" id="apiKey">
+                </div>
+                <div class="input-wrapper">
+                    <textarea class="message-input" placeholder="Ask about the website content..." id="messageInput" rows="3"></textarea>
+                    <button class="send-button" onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUrl = 'https://vnexpress.net';
+        let messages = [];
+
+        // Load URL function
+        function loadUrl() {
+            const urlInput = document.querySelector('.url-input');
+            const webview = document.getElementById('webview');
+            const url = urlInput.value.trim();
+            
+            if (!url) return;
+
+            // Add protocol if missing
+            let fullUrl = url;
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                fullUrl = 'https://' + url;
+            }
+
+            currentUrl = fullUrl;
+            
+            // Clear previous content
+            webview.src = 'about:blank';
+            
+            addMessage(`Loading: ${fullUrl}`, 'ai');
+            
+            // Set up error handling before loading
+            let loadTimeout;
+            let hasLoaded = false;
+            
+            webview.onload = function() {
+                clearTimeout(loadTimeout);
+                hasLoaded = true;
+                // Check if the iframe actually loaded content or just a blank page
+                setTimeout(() => {
+                    try {
+                        // Try to access iframe content to detect CORS errors
+                        const iframeDoc = webview.contentDocument || webview.contentWindow.document;
+                        if (iframeDoc && iframeDoc.body && iframeDoc.body.innerHTML.trim()) {
+                            addMessage(`Successfully loaded: ${fullUrl}`, 'ai');
+                        } else {
+                            throw new Error('Empty content');
+                        }
+                    } catch (e) {
+                        // CORS error or empty content - load demo instead
+                        addMessage(`Error: ${fullUrl} refused to connect due to CORS restrictions. Loading demo content instead.`, 'ai');
+                        loadDemoContent();
+                    }
+                }, 1000);
+            };
+            
+            webview.onerror = function() {
+                clearTimeout(loadTimeout);
+                addMessage(`Error: ${fullUrl} refused to connect. Loading demo content instead.`, 'ai');
+                loadDemoContent();
+            };
+            
+            // Set a timeout to detect if loading takes too long
+            loadTimeout = setTimeout(() => {
+                if (!hasLoaded) {
+                    addMessage(`Timeout: ${fullUrl} is taking too long to load. Loading demo content instead.`, 'ai');
+                    loadDemoContent();
+                }
+            }, 5000);
+            
+            try {
+                webview.src = fullUrl;
+            } catch (error) {
+                clearTimeout(loadTimeout);
+                addMessage(`Error loading URL: ${error.message}. Loading demo content instead.`, 'ai');
+                loadDemoContent();
+            }
+        }
+        
+        // Load demo content when external sites fail
+        function loadDemoContent() {
+            const webview = document.getElementById('webview');
+            const demoContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Demo Content - VNExpress Style</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+                        .header { background: #d32f2f; color: white; padding: 15px; text-align: center; }
+                        .content { background: white; padding: 20px; margin: 10px 0; }
+                        .article { border-bottom: 1px solid #eee; padding: 15px 0; }
+                        .title { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 10px; }
+                        .summary { color: #666; line-height: 1.5; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>VNExpress Demo Content</h1>
+                        <p>This is a simulated VNExpress page for testing the AI app</p>
+                    </div>
+                    <div class="content">
+                        <div class="article">
+                            <div class="title">Vietnam's Economy Shows Strong Growth in Q3 2024</div>
+                            <div class="summary">Vietnam's economy continued to show robust growth in the third quarter of 2024, with GDP expanding by 6.2% year-on-year. The manufacturing sector led the growth, particularly in electronics and textiles exports.</div>
+                        </div>
+                        <div class="article">
+                            <div class="title">New Infrastructure Projects Approved for Ho Chi Minh City</div>
+                            <div class="summary">The government has approved several major infrastructure projects for Ho Chi Minh City, including a new metro line and highway expansion. These projects are expected to improve transportation and boost economic development.</div>
+                        </div>
+                        <div class="article">
+                            <div class="title">Technology Sector Attracts Record Foreign Investment</div>
+                            <div class="summary">Vietnam's technology sector attracted a record $2.3 billion in foreign direct investment in the first nine months of 2024. Major tech companies are expanding their operations in the country.</div>
+                        </div>
+                        <div class="article">
+                            <div class="title">Climate Change Initiatives Gain Momentum</div>
+                            <div class="summary">Vietnam is stepping up its climate change initiatives with new renewable energy projects and environmental protection measures. The country aims to achieve net-zero emissions by 2050.</div>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `;
+            
+            webview.srcdoc = demoContent;
+            addMessage("Loaded demo content instead. You can now ask questions about this simulated VNExpress page!", 'ai');
+        }
+
+        // Add message to chat
+        function addMessage(content, type) {
+            const messagesContainer = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = content;
+            
+            const timestampDiv = document.createElement('div');
+            timestampDiv.className = 'message-timestamp';
+            timestampDiv.textContent = new Date().toLocaleTimeString();
+            
+            messageDiv.appendChild(contentDiv);
+            messageDiv.appendChild(timestampDiv);
+            messagesContainer.appendChild(messageDiv);
+            
+            // Scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // Store message
+            messages.push({ content, type, timestamp: new Date() });
+        }
+
+        // Send message function
+        async function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const apiKeyInput = document.getElementById('apiKey');
+            const message = messageInput.value.trim();
+            
+            if (!message) return;
+
+            const apiKey = apiKeyInput.value.trim();
+            if (!apiKey) {
+                addMessage('Please enter your OpenAI API key first.', 'ai');
+                return;
+            }
+
+            // Add user message
+            addMessage(message, 'user');
+            messageInput.value = '';
+
+            // Add loading message
+            addMessage('Thinking...', 'ai');
+
+            try {
+                // Get website content (simulated)
+                const webContent = await getWebsiteContent();
+                
+                // Send to OpenAI API
+                const response = await sendToOpenAI(message, webContent, apiKey);
+                
+                // Remove loading message and add response
+                const messagesContainer = document.getElementById('messages');
+                const lastMessage = messagesContainer.lastElementChild;
+                if (lastMessage && lastMessage.textContent.includes('Thinking...')) {
+                    lastMessage.remove();
+                }
+                
+                addMessage(response, 'ai');
+            } catch (error) {
+                // Remove loading message
+                const messagesContainer = document.getElementById('messages');
+                const lastMessage = messagesContainer.lastElementChild;
+                if (lastMessage && lastMessage.textContent.includes('Thinking...')) {
+                    lastMessage.remove();
+                }
+                
+                addMessage(`Error: ${error.message}`, 'ai');
+            }
+        }
+
+        // Simulate getting website content
+        async function getWebsiteContent() {
+            // In a real implementation, this would extract content from the iframe
+            // For demo purposes, we'll return the demo content
+            return `Website: ${currentUrl}
+            
+VNExpress Demo Content - Vietnam News Website
+
+Vietnam's Economy Shows Strong Growth in Q3 2024
+Vietnam's economy continued to show robust growth in the third quarter of 2024, with GDP expanding by 6.2% year-on-year. The manufacturing sector led the growth, particularly in electronics and textiles exports.
+
+New Infrastructure Projects Approved for Ho Chi Minh City
+The government has approved several major infrastructure projects for Ho Chi Minh City, including a new metro line and highway expansion. These projects are expected to improve transportation and boost economic development.
+
+Technology Sector Attracts Record Foreign Investment
+Vietnam's technology sector attracted a record $2.3 billion in foreign direct investment in the first nine months of 2024. Major tech companies are expanding their operations in the country.
+
+Climate Change Initiatives Gain Momentum
+Vietnam is stepping up its climate change initiatives with new renewable energy projects and environmental protection measures. The country aims to achieve net-zero emissions by 2050.
+
+This is a simulated content extraction from the VNExpress demo page. In the actual VSCode implementation, 
+this would extract the real text content from the loaded webpage for AI analysis.`;
+        }
+
+        // Send to OpenAI API
+        async function sendToOpenAI(message, webContent, apiKey) {
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'gpt-3.5-turbo',
+                    messages: [
+                        {
+                            role: 'system',
+                            content: `You are an AI assistant that helps users understand website content. The user is asking about a website, and you have access to the website's content. Please provide helpful and accurate responses based on the website content.
+
+Website content:
+${webContent.substring(0, 4000)}
+
+Please respond to the user's question about this website content.`
+                        },
+                        {
+                            role: 'user',
+                            content: message
+                        }
+                    ],
+                    max_tokens: 1000,
+                    temperature: 0.7
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            return data.choices[0]?.message?.content || 'No response received';
+        }
+
+        // Event listeners
+        document.querySelector('.url-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                loadUrl();
+            }
+        });
+
+        document.getElementById('messageInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Load demo content initially instead of trying external sites
+        loadDemoContent();
+
+        // Demo message
+        setTimeout(() => {
+            addMessage('This is a demo of the VSCode AI App! The demo content is loaded. You can try loading external websites with the "Go" button, or ask questions about the current content.', 'ai');
+        }, 1000);
+    </script>
+</body>
+</html>
