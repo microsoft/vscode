@@ -27,7 +27,7 @@ export class QuickInputBox extends Disposable {
 		this.container = dom.append(this.parent, $('.quick-input-box'));
 		this.findInput = this._register(new FindInput(this.container, undefined, { label: '', inputBoxStyles, toggleStyles }));
 		const input = this.findInput.inputBox.inputElement;
-		input.role = 'textbox';
+		input.role = 'combobox';
 		input.ariaHasPopup = 'menu';
 		input.ariaAutoComplete = 'list';
 	}
