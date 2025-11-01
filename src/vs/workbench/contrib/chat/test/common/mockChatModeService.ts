@@ -5,7 +5,7 @@
 
 
 import { Event } from '../../../../../base/common/event.js';
-import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
+import { ChatMode, IChatMode, IChatModeService, IChatCustomAgentActionsManager } from '../../common/chatModes.js';
 
 export class MockChatModeService implements IChatModeService {
 	readonly _serviceBrand: undefined;
@@ -24,5 +24,9 @@ export class MockChatModeService implements IChatModeService {
 
 	findModeByName(name: string): IChatMode | undefined {
 		return this._modes.builtin.find(mode => mode.name === name) ?? this._modes.custom.find(mode => mode.name === name);
+	}
+
+	setActionsManager(manager: IChatCustomAgentActionsManager | undefined): void {
+		// No-op for mock
 	}
 }

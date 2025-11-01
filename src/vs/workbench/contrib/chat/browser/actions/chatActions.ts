@@ -428,13 +428,76 @@ export function getOpenChatActionIdForMode(mode: IChatMode): string {
 	return `workbench.action.chat.open${mode.name}`;
 }
 
-abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
+export abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 	constructor(mode: IChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
 		super({
 			id: getOpenChatActionIdForMode(mode),
 			title: localize2('openChatMode', "Open Chat ({0})", mode.label),
 			keybinding
 		}, mode);
+	}
+}
+
+class SwitchCustomChatAgentAction extends OpenChatGlobalAction {
+	static readonly ID = 'workbench.action.chat.switchCustomChatAgent';
+
+	constructor() {
+		super({
+			id: SwitchCustomChatAgentAction.ID,
+			title: localize2('switchCustomChatAgent', "Switch to Custom Chat Agent"),
+			keybinding: undefined
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<IChatAgentResult & { type?: 'confirmation' } | undefined> {
+		opts = typeof opts === 'string' ? { query: opts } : opts;
+
+		const chatModeService = accessor.get(IChatModeService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const commandService = accessor.get(ICommandService);
+
+		const modes = chatModeService.getModes().custom;
+		if (modes.length === 0) {
+			return undefined;
+		}
+
+		let selectedModeName: string | undefined;
+		const agentName = opts?.mode;
+		if (agentName) {
+			// If agent name is provided as argument, use it directly
+			const selectedMode = modes.find(m => m.name === agentName);
+			selectedModeName = selectedMode?.name;
+		} else {
+			// Show quick pick to select - use a setTimeout to defer execution after accessor becomes invalid
+			const selected = await quickInputService.pick(
+				modes.map(mode => ({
+					label: mode.label,
+					description: mode.name,
+					mode
+				})),
+				{
+					placeHolder: localize('selectCustomAgent', "Select a custom chat agent")
+				}
+			);
+
+			if (!selected) {
+				return undefined;
+			}
+
+			selectedModeName = selected.mode.name;
+
+			// After selection, execute the command with the selected mode name
+			// This defers the actual execution until after the accessor is invalid
+			// Note this cannot call super.run directly because accessor is invalid after the async await
+			return commandService.executeCommand(SwitchCustomChatAgentAction.ID, { mode: selectedModeName }) as Promise<IChatAgentResult & { type?: 'confirmation' } | undefined>;
+		}
+
+		if (!selectedModeName) {
+			return undefined;
+		}
+
+		// Call parent's run with mode option - this is called immediately without any await
+		return super.run(accessor, { mode: selectedModeName, query: '' });
 	}
 }
 
@@ -458,6 +521,7 @@ export function registerChatActions() {
 	registerAction2(class extends ModeOpenChatGlobalAction {
 		constructor() { super(ChatMode.Edit); }
 	});
+	registerAction2(SwitchCustomChatAgentAction);
 
 	registerAction2(class ToggleChatAction extends Action2 {
 		constructor() {
