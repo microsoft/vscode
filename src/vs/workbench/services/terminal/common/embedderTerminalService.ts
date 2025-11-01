@@ -136,6 +136,9 @@ class EmbedderTerminalProcess extends Disposable implements ITerminalChildProces
 	async setUnicodeVersion(): Promise<void> {
 		// no-op
 	}
+	async setNextCommandId(): Promise<void> {
+		// no-op
+	}
 	async getInitialCwd(): Promise<string> {
 		return '';
 	}

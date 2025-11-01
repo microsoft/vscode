@@ -21,7 +21,7 @@ import { IToolData } from '../languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
-import { ParsedPromptFile } from './service/newPromptsParser.js';
+import { ParsedPromptFile } from './promptFileParser.js';
 import { IPromptPath, IPromptsService } from './service/promptsService.js';
 
 export type InstructionsCollectionEvent = {
@@ -101,12 +101,6 @@ export class ComputeAutomaticInstructions {
 			telemetryEvent.listedInstructionsCount++;
 		}
 
-		this.sendTelemetry(telemetryEvent);
-	}
-
-	public async collectAgentInstructionsOnly(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
-		const telemetryEvent: InstructionsCollectionEvent = newInstructionsCollectionEvent();
-		await this._addAgentInstructions(variables, telemetryEvent, token);
 		this.sendTelemetry(telemetryEvent);
 	}
 
@@ -225,7 +219,7 @@ export class ComputeAutomaticInstructions {
 			// add the instructions file if its rule matches the file
 			for (const file of files) {
 				// if the file is not a valid URI, skip it
-				if (match(pattern, file.path)) {
+				if (match(pattern, file.path, { ignoreCase: true })) {
 					return { pattern, file }; // return the matched pattern and file URI
 				}
 			}
@@ -315,7 +309,7 @@ export class ComputeAutomaticInstructions {
 						const uri = refsToCheck[i].resource;
 						if (stat.success && stat.stat?.isFile) {
 							if (isPromptOrInstructionsFile(uri)) {
-								// only recursivly parse instruction files
+								// only recursively parse instruction files
 								todo.push(uri);
 							}
 							const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(next));

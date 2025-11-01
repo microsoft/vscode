@@ -164,7 +164,7 @@ export interface IEditorResolverService {
 	): IDisposable;
 
 	/**
-	 * Given an editor resolves it to the suitable ResolvedEitor based on user extensions, settings, and built-in editors
+	 * Given an editor resolves it to the suitable ResolvedEditor based on user extensions, settings, and built-in editors
 	 * @param editor The editor to resolve
 	 * @param preferredGroup The group you want to open the editor in
 	 * @returns An EditorInputWithOptionsAndGroup if there is an available editor or a status of how to proceed
@@ -220,6 +220,6 @@ export function globMatchesResource(globPattern: string | glob.IRelativePattern,
 	}
 	const matchOnPath = typeof globPattern === 'string' && globPattern.indexOf(posix.sep) >= 0;
 	const target = matchOnPath ? `${resource.scheme}:${resource.path}` : basename(resource);
-	return glob.match(typeof globPattern === 'string' ? globPattern.toLowerCase() : globPattern, target.toLowerCase());
+	return glob.match(globPattern, target, { ignoreCase: true });
 }
 //#endregion

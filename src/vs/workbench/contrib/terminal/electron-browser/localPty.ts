@@ -91,6 +91,10 @@ export class LocalPty extends BasePty implements ITerminalChildProcess {
 		return this._proxy.setUnicodeVersion(this.id, version);
 	}
 
+	setNextCommandId(commandLine: string, commandId: string): Promise<void> {
+		return this._proxy.setNextCommandId(this.id, commandLine, commandId);
+	}
+
 	handleOrphanQuestion() {
 		this._proxy.orphanQuestionReply(this.id);
 	}

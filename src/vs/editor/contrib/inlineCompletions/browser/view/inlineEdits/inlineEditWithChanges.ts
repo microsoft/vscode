@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LineReplacement } from '../../../../../common/core/edits/lineEdit.js';
-import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
-import { Position } from '../../../../../common/core/position.js';
 import { TextEdit } from '../../../../../common/core/edits/textEdit.js';
+import { Position } from '../../../../../common/core/position.js';
+import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { AbstractText } from '../../../../../common/core/text/abstractText.js';
 import { InlineCompletionCommand } from '../../../../../common/languages.js';
 import { InlineSuggestionItem } from '../../model/inlineSuggestionItem.js';
 
 export class InlineEditWithChanges {
 	public get lineEdit() {
+		if (this.edit.replacements.length === 0) {
+			return new LineReplacement(new LineRange(1, 1), []);
+		}
 		return LineReplacement.fromSingleTextEdit(this.edit.toReplacement(this.originalText), this.originalText);
 	}
 
@@ -33,7 +36,7 @@ export class InlineEditWithChanges {
 		public readonly cursorPosition: Position,
 		public readonly multiCursorPositions: readonly Position[],
 		public readonly commands: readonly InlineCompletionCommand[],
-		public readonly inlineCompletion: InlineSuggestionItem
+		public readonly inlineCompletion: InlineSuggestionItem,
 	) {
 	}
 

@@ -65,7 +65,7 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 
 	const chatWidgetService = accessor.get(IChatWidgetService);
 	const chatEditingService = accessor.get(IChatEditingService);
-	let chatWidget = context ? chatWidgetService.getWidgetBySessionId(context.sessionId) : undefined;
+	let chatWidget = context ? chatWidgetService.getWidgetBySessionResource(context.sessionResource) : undefined;
 	if (!chatWidget) {
 		chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).find(w => w.supportsChangingModes);
 	}
@@ -74,9 +74,7 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 		return;
 	}
 
-	const chatSessionId = chatWidget.viewModel.model.sessionId;
-	const editingSession = chatEditingService.getEditingSession(chatSessionId);
-
+	const editingSession = chatEditingService.getEditingSession(chatWidget.viewModel.model.sessionResource);
 	return { editingSession, chatWidget };
 }
 
@@ -309,7 +307,7 @@ async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item:
 	const chatWidgetService = accessor.get(IChatWidgetService);
 	const widget = chatWidgetService.lastFocusedWidget;
 	const chatService = accessor.get(IChatService);
-	const chatModel = chatService.getSession(item.sessionId);
+	const chatModel = chatService.getSession(item.sessionResource);
 	if (!chatModel) {
 		return;
 	}
@@ -504,7 +502,7 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 			return;
 		}
 
-		const chatModel = chatService.getSession(item.sessionId);
+		const chatModel = chatService.getSession(item.sessionResource);
 		if (!chatModel) {
 			return;
 		}
@@ -569,6 +567,13 @@ registerAction2(class EditAction extends Action2 {
 	}
 });
 
+export interface ChatEditingActionContext {
+	readonly sessionResource: URI;
+	readonly requestId: string;
+	readonly uri: URI;
+	readonly stopId: string | undefined;
+}
+
 registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 
 	static readonly id = 'chat.openFileUpdatedBySnapshot';
@@ -585,8 +590,8 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const context = args[0] as { sessionId: string; requestId: string; uri: URI; stopId: string | undefined } | undefined;
-		if (!context?.sessionId) {
+		const context = args[0] as ChatEditingActionContext | undefined;
+		if (!context?.sessionResource) {
 			return;
 		}
 
@@ -611,8 +616,8 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const context = args[0] as { sessionId: string; requestId: string; uri: URI; stopId: string | undefined } | undefined;
-		if (!context?.sessionId) {
+		const context = args[0] as ChatEditingActionContext | undefined;
+		if (!context?.sessionResource) {
 			return;
 		}
 
@@ -620,12 +625,12 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 		const chatEditingService = accessor.get(IChatEditingService);
 		const editorService = accessor.get(IEditorService);
 
-		const chatModel = chatService.getSession(context.sessionId);
+		const chatModel = chatService.getSession(context.sessionResource);
 		if (!chatModel) {
 			return;
 		}
 
-		const snapshot = chatEditingService.getEditingSession(chatModel.sessionId)?.getSnapshotUri(context.requestId, context.uri, context.stopId);
+		const snapshot = chatEditingService.getEditingSession(chatModel.sessionResource)?.getSnapshotUri(context.requestId, context.uri, context.stopId);
 		if (snapshot) {
 			const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Snapshot)', basename(context.uri)), options: { activation: EditorActivation.ACTIVATE } });
 			if (isCodeEditor(editor)) {

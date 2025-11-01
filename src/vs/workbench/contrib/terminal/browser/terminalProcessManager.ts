@@ -80,6 +80,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	backend: ITerminalBackend | undefined;
 	readonly capabilities = this._register(new TerminalCapabilityStore());
 	readonly shellIntegrationNonce: string;
+	processReadyTimestamp: number = 0;
 
 	private _isDisposed: boolean = false;
 	private _process: ITerminalChildProcess | null = null;
@@ -95,6 +96,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _dataFilter: SeamlessRelaunchDataFilter;
 	private _processListeners?: IDisposable[];
 	private _isDisconnected: boolean = false;
+	private _hasLoggedSetNextCommandIdFallback = false;
 
 	private _processTraits: IProcessReadyEvent | undefined;
 	private _shellLaunchConfig?: IShellLaunchConfig;
@@ -370,6 +372,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this._processTraits = e;
 				this.shellProcessId = e.pid;
 				this._initialCwd = e.cwd;
+				this.processReadyTimestamp = Date.now();
 				this._onDidChangeProperty.fire({ type: ProcessPropertyType.InitialCwd, value: this._initialCwd });
 				this._onProcessReady.fire(e);
 
@@ -587,6 +590,35 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
 		return this._process?.setUnicodeVersion(version);
+	}
+
+	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
+		await this.ptyProcessReady;
+		const process = this._process;
+		if (!process) {
+			return;
+		}
+		try {
+			await process.setNextCommandId(commandLine, commandId);
+		} catch (error) {
+			if (!this._shouldIgnoreSetNextCommandIdError(error)) {
+				throw error;
+			}
+		}
+	}
+
+	private _shouldIgnoreSetNextCommandIdError(error: unknown): boolean {
+		if (!(error instanceof Error) || !error.message) {
+			return false;
+		}
+		if (!error.message.includes('Method not found: setNextCommandId') && !error.message.includes('Method not found: $setNextCommandId')) {
+			return false;
+		}
+		if (!this._hasLoggedSetNextCommandIdFallback) {
+			this._hasLoggedSetNextCommandIdFallback = true;
+			this._logService.trace('setNextCommandId not supported by current terminal backend, falling back.');
+		}
+		return true;
 	}
 
 	private _resize(cols: number, rows: number) {
