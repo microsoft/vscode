@@ -315,7 +315,6 @@ export namespace McpServerTrust {
 	}
 }
 
-
 export interface IMcpServer extends IDisposable {
 	readonly collection: McpCollectionReference;
 	readonly definition: McpDefinitionReference;

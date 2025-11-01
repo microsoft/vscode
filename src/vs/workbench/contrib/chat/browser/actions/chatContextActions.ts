@@ -640,17 +640,32 @@ export class AttachContextAction extends Action2 {
 		const defer = new DeferredPromise<boolean>();
 		const addPromises: Promise<void>[] = [];
 
-		store.add(qp.onDidAccept(e => {
+		store.add(qp.onDidAccept(async e => {
 			const [selected] = qp.selectedItems;
 			if (isChatContextPickerPickItem(selected)) {
-				const attachment = selected.asAttachment();
-				if (isThenable(attachment)) {
-					addPromises.push(attachment.then(v => widget.attachmentModel.addContext(v)));
+				qp.busy = true;
+				const isValidForAttachment = await selected.validateForAttachment?.().finally(() => {
+					qp.busy = false;
+				});
+				if (isValidForAttachment) {
+					const attachment = selected.asAttachment();
+					if (attachment !== 'noop') {
+						if (isThenable(attachment)) {
+							addPromises.push(attachment.then(v => widget.attachmentModel.addContext(v as IChatRequestVariableEntry)));
+						} else {
+							widget.attachmentModel.addContext(attachment);
+						}
+					}
 				} else {
-					widget.attachmentModel.addContext(attachment);
+					return; // stay in picker
 				}
 			}
 			if (selected === goBackItem) {
+				if (pickerConfig.goBack?.()) {
+					// Custom goBack handled the navigation, stay in the picker
+					return; // Don't complete, keep picker open
+				}
+				// Default behavior: go back to main picker
 				defer.complete(false);
 			}
 			if (selected === configureItem) {
@@ -664,6 +679,7 @@ export class AttachContextAction extends Action2 {
 
 		store.add(qp.onDidHide(() => {
 			defer.complete(true);
+			pickerConfig.dispose?.();
 		}));
 
 		try {
