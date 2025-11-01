@@ -31,7 +31,6 @@ import { IChatMultiDiffData } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { getChatSessionType } from '../chatSessions/common.js';
 import { IChatContentPart } from './chatContentParts.js';
 
 const $ = dom.$;
@@ -141,7 +140,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			let contextKeyService: IContextKeyService = this.contextKeyService;
 			if (this.editorService.activeEditor instanceof ChatEditorInput) {
 				contextKeyService = this.contextKeyService.createOverlay([
-					[ChatContextKeys.sessionType.key, getChatSessionType(this.editorService.activeEditor)]
+					[ChatContextKeys.sessionType.key, this.editorService.activeEditor.getSessionType()]
 				]);
 
 				marshalledUri = {

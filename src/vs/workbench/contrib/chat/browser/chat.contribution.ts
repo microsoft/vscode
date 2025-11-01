@@ -125,6 +125,7 @@ import './promptSyntax/promptToolsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
+import './chatManagement/chatManagement.contribution.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -302,15 +303,6 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
-		},
-		'chat.emptyChatState.enabled': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.emptyChatState', "Shows a modified empty chat state with hints in the input placeholder text."),
-			tags: ['experimental'],
-			experiment: {
-				mode: 'startup'
-			}
 		},
 		[ChatConfiguration.EmptyStateHistoryEnabled]: {
 			type: 'boolean',

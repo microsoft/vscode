@@ -23,10 +23,8 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
-import { Position } from '../../../../../editor/common/core/position.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
@@ -64,7 +62,6 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
@@ -236,7 +233,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
 			for (const { request, response } of opts.previousRequests) {
-				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
+				chatService.addCompleteRequest(chatWidget.viewModel.sessionResource, request, undefined, 0, { message: response });
 			}
 		}
 		if (opts?.attachScreenshot) {
@@ -764,7 +761,6 @@ export function registerChatActions() {
 										description: '',
 										session: { providerType: chatSessionType, session: session },
 										chat: {
-											sessionId: session.id,
 											sessionResource: session.resource,
 											title: session.label,
 											isActive: false,
@@ -1052,7 +1048,7 @@ export function registerChatActions() {
 			super({
 				id: ACTION_ID_OPEN_CHAT,
 				title: localize2('interactiveSession.open', "New Chat Editor"),
-				icon: Codicon.newFile,
+				icon: Codicon.plus,
 				f1: true,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
@@ -1069,6 +1065,11 @@ export function registerChatActions() {
 					id: MenuId.ChatNewMenu,
 					group: '2_new',
 					order: 2
+				}, {
+					id: MenuId.EditorTitle,
+					group: 'navigation',
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.lockedToCodingAgent.negate()),
+					order: 1
 				}],
 			});
 		}
@@ -1201,54 +1202,6 @@ export function registerChatActions() {
 				{ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } },
 				newGroup.id
 			);
-		}
-	});
-
-	registerAction2(class ChatAddAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.addParticipant',
-				title: localize2('chatWith', "Chat with Extension"),
-				icon: Codicon.mention,
-				f1: false,
-				category: CHAT_CATEGORY,
-				menu: [{
-					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
-						ContextKeyExpr.not('config.chat.emptyChatState.enabled'),
-						ChatContextKeys.lockedToCodingAgent.negate()
-					),
-					group: 'navigation',
-					order: 1
-				}]
-			});
-		}
-
-		override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-			const widgetService = accessor.get(IChatWidgetService);
-			const context = args[0] as { widget?: IChatWidget } | undefined;
-			const widget = context?.widget ?? widgetService.lastFocusedWidget;
-			if (!widget) {
-				return;
-			}
-
-			const hasAgentOrCommand = extractAgentAndCommand(widget.parsedInput);
-			if (hasAgentOrCommand?.agentPart || hasAgentOrCommand?.commandPart) {
-				return;
-			}
-
-			const suggestCtrl = SuggestController.get(widget.inputEditor);
-			if (suggestCtrl) {
-				const curText = widget.inputEditor.getValue();
-				const newValue = curText ? `@ ${curText}` : '@';
-				if (!curText.startsWith('@')) {
-					widget.inputEditor.setValue(newValue);
-				}
-
-				widget.inputEditor.setPosition(new Position(1, 2));
-				suggestCtrl.triggerSuggest(undefined, true);
-			}
 		}
 	});
 

@@ -84,6 +84,14 @@
 }
 
 
+@keyframes pulse-opacity {
+	0%, 100% {
+		opacity: 1;
+	}
+	33% {
+		opacity: .6;
+	}
+}
 
 .monaco-workbench .zone-widget.inline-chat-widget.inline-chat-2 {
 
@@ -97,6 +105,16 @@
 
 	.interactive-session .chat-input-container:focus-within {
 		border-color: var(--vscode-input-border);
+	}
+
+	.chat-attachments-container > .chat-input-toolbar {
+		margin-left: auto;
+		margin-right: 16px;
+	}
+
+	/* TODO@jrieken this isn't the nicest selector... */
+	.request-in-progress .monaco-editor [class^="ced-chat-session-detail"]::after {
+		animation: pulse-opacity 2.5s ease-in-out infinite;
 	}
 }
 

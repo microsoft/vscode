@@ -9,6 +9,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelContentProvider } from '../../../../../editor/common/services/resolverService.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 
 type ChatEditingTextModelContentQueryData = { kind: 'doc'; documentId: string; chatSessionId: string };
 
@@ -36,7 +37,7 @@ export class ChatEditingTextModelContentProvider implements ITextModelContentPro
 
 		const data: ChatEditingTextModelContentQueryData = JSON.parse(resource.query);
 
-		const session = this._chatEditingService.getEditingSession(data.chatSessionId);
+		const session = this._chatEditingService.getEditingSession(LocalChatSessionUri.forSession(data.chatSessionId));
 
 		const entry = session?.entries.get().find(candidate => candidate.entryId === data.documentId);
 		if (!entry) {
@@ -70,7 +71,7 @@ export class ChatEditingSnapshotTextModelContentProvider implements ITextModelCo
 		}
 
 		const data: ChatEditingSnapshotTextModelContentQueryData = JSON.parse(resource.query);
-		const session = this._chatEditingService.getEditingSession(data.sessionId);
+		const session = this._chatEditingService.getEditingSession(LocalChatSessionUri.forSession(data.sessionId));
 		if (!session || !data.requestId) {
 			return null;
 		}

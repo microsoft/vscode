@@ -14,7 +14,6 @@ import { Disposable, DisposableStore } from '../../../../../../base/common/lifec
 import { basename } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
-import type { DeepImmutable } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -46,6 +45,7 @@ import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLin
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
+import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
 
 // #region Tool data
 
@@ -313,7 +313,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Listen for chat session disposal to clean up associated terminals
 		this._register(this._chatService.onDidDisposeSession(e => {
-			this._cleanupSessionTerminals(e.sessionId);
+			const localSessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
+			if (localSessionId) {
+				this._cleanupSessionTerminals(localSessionId);
+			}
 		}));
 	}
 
@@ -326,6 +329,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
 		const terminalToolSessionId = generateUuid();
+		// Generate a custom command ID to link the command between renderer and pty host
+		const terminalCommandId = `tool-${generateUuid()}`;
 
 		let toolEditedCommand: string | undefined = await this._commandSimplifier.rewriteIfNeeded(args, instance, shell);
 		if (toolEditedCommand === args.command) {
@@ -334,6 +339,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const toolSpecificData: IChatTerminalToolInvocationData = {
 			kind: 'terminal',
 			terminalToolSessionId,
+			terminalCommandId,
 			commandLine: {
 				original: args.command,
 				toolEdited: toolEditedCommand
@@ -403,8 +409,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-
-		const toolSpecificData = invocation.toolSpecificData as DeepImmutable<IChatTerminalToolInvocationData> | undefined;
+		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}
@@ -460,6 +465,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			throw new Error('Instance was disposed before xterm.js was ready');
 		}
 
+		const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
+
 		let inputUserChars = 0;
 		let inputUserSigint = false;
 		store.add(xterm.raw.onData(data => {
@@ -474,7 +481,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId);
+				const commandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
+				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId, commandId);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
@@ -551,7 +559,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let exitCode: number | undefined;
 			try {
 				let strategy: ITerminalExecuteStrategy;
-				const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
 						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false);
@@ -573,7 +580,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context, token, command));
 					}
 				}));
-				const executeResult = await strategy.execute(command, token);
+				const commandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
+				const executeResult = await strategy.execute(command, token, commandId);
 				// Reset user input state after command execution completes
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
@@ -823,12 +831,13 @@ class BackgroundTerminalExecution extends Disposable {
 		readonly instance: ITerminalInstance,
 		private readonly _xterm: XtermTerminal,
 		private readonly _commandLine: string,
-		readonly sessionId: string
+		readonly sessionId: string,
+		commandId?: string
 	) {
 		super();
 
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
-		this.instance.runCommand(this._commandLine, true);
+		this.instance.runCommand(this._commandLine, true, commandId);
 	}
 	getOutput(marker?: IXtermMarker): string {
 		return getOutput(this.instance, marker ?? this._startMarker);

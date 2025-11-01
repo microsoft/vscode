@@ -9,11 +9,14 @@ import { ITransaction, autorun, transaction } from '../../../../../base/common/o
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { TextEdit as EditorTextEdit } from '../../../../../editor/common/core/edits/textEdit.js';
+import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
 import { Location, TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { SingleModelEditStackElement } from '../../../../../editor/common/model/editStack.js';
 import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
@@ -97,6 +100,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAiEditTelemetryService aiEditTelemetryService: IAiEditTelemetryService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 	) {
 		super(
 			resourceRef.object.textEditorModel.uri,
@@ -306,19 +310,15 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	}
 
 	async computeEditsFromSnapshots(beforeSnapshot: string, afterSnapshot: string): Promise<(TextEdit | ICellEditOperation)[]> {
-		// Simple full-content replacement approach
-		// This is similar to how streaming edits work - we just replace the entire content
-		const endLine = beforeSnapshot.split(/\r?\n/).length;
+		const stringEdit = await this._editorWorkerService.computeStringEditFromDiff(
+			beforeSnapshot,
+			afterSnapshot,
+			{ maxComputationTimeMs: 5000 },
+			'advanced'
+		);
 
-		return [{
-			range: {
-				startLineNumber: 1,
-				startColumn: 1,
-				endLineNumber: endLine,
-				endColumn: beforeSnapshot.split(/\r?\n/)[endLine - 1]?.length + 1 || 1
-			},
-			text: afterSnapshot
-		}];
+		const editorTextEdit = EditorTextEdit.fromStringEdit(stringEdit, new StringText(beforeSnapshot));
+		return editorTextEdit.replacements.slice();
 	}
 
 	async save(): Promise<void> {

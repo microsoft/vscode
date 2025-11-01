@@ -5,6 +5,7 @@
 
 import { fromNow } from '../../../../../base/common/date.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -45,19 +46,12 @@ export function isChatSession(schemes: readonly string[], editor?: EditorInput):
 }
 
 /**
- * Returns chat session type from a URI, or {@linkcode localChatSessionType} if not specified or cannot be determined.
- */
-export function getChatSessionType(editor: ChatEditorInput): string {
-	return editor.getSessionType();
-}
-
-/**
  * Find existing chat editors that have the same session URI (for external providers)
  */
 export function findExistingChatEditorByUri(sessionUri: URI, editorGroupsService: IEditorGroupsService): { editor: ChatEditorInput; group: IEditorGroup } | undefined {
 	for (const group of editorGroupsService.groups) {
 		for (const editor of group.editors) {
-			if (editor instanceof ChatEditorInput && editor.isForSession(sessionUri)) {
+			if (editor instanceof ChatEditorInput && isEqual(editor.sessionResource, sessionUri)) {
 				return { editor, group };
 			}
 		}
@@ -161,7 +155,7 @@ export function getSessionItemContextOverlay(
 		isActiveSession = true;
 	} else if (session.isHistory && chatWidgetService && chatService && editorGroupsService) {
 		// Check if session is open in a chat widget
-		const widget = chatWidgetService.getWidgetBySessionId(session.id);
+		const widget = chatWidgetService.getWidgetBySessionResource(session.resource);
 		if (widget) {
 			isActiveSession = true;
 		} else {

@@ -580,9 +580,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		breakpointIdToActionBarDomeNode.set(breakpoint.getId(), data.actionBar.domNode);
 	}
 
-
-
-	disposeElement(a: any, index: number, template: IBreakpointTemplateData): void {
+	disposeElement(a: IBreakpoint, index: number, template: IBreakpointTemplateData): void {
 		template.elementDisposables.clear();
 	}
 

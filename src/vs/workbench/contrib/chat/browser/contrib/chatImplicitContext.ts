@@ -102,8 +102,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				this.updateImplicitContext();
 			}
 		}));
-		this._register(this.chatService.onDidSubmitRequest(({ chatSessionId }) => {
-			const widget = this.chatWidgetService.getWidgetBySessionId(chatSessionId);
+		this._register(this.chatService.onDidSubmitRequest(({ chatSessionResource }) => {
+			const widget = this.chatWidgetService.getWidgetBySessionResource(chatSessionResource);
 			if (!widget?.input.implicitContext) {
 				return;
 			}

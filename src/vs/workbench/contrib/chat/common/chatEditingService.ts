@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { Location, TextEdit } from '../../../../editor/common/languages.js';
@@ -30,7 +31,7 @@ export interface IChatEditingService {
 
 	startOrContinueGlobalEditingSession(chatModel: ChatModel): Promise<IChatEditingSession>;
 
-	getEditingSession(chatSessionId: string): IChatEditingSession | undefined;
+	getEditingSession(chatSessionResource: URI): IChatEditingSession | undefined;
 
 	/**
 	 * All editing sessions, sorted by recency, e.g the last created session comes first.
@@ -46,7 +47,7 @@ export interface IChatEditingService {
 
 	hasRelatedFilesProviders(): boolean;
 	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable;
-	getRelatedFiles(chatSessionId: string, prompt: string, files: URI[], token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined>;
+	getRelatedFiles(chatSessionResource: URI, prompt: string, files: URI[], token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined>;
 
 	//#endregion
 }
@@ -107,7 +108,9 @@ export interface ISnapshotEntry {
 
 export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
+	/** @deprecated */
 	readonly chatSessionId: string;
+	readonly chatSessionResource: URI;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
@@ -326,12 +329,12 @@ export const enum ChatEditKind {
 }
 
 export interface IChatEditingActionContext {
-	// The chat session ID that this editing session is associated with
-	sessionId: string;
+	// The chat session that this editing session is associated with
+	sessionResource: URI;
 }
 
 export function isChatEditingActionContext(thing: unknown): thing is IChatEditingActionContext {
-	return typeof thing === 'object' && !!thing && 'sessionId' in thing;
+	return typeof thing === 'object' && !!thing && hasKey(thing, { sessionResource: true });
 }
 
 export function getMultiDiffSourceUri(session: IChatEditingSession, showPreviousChanges?: boolean): URI {

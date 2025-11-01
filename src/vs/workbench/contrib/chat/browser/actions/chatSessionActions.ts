@@ -176,7 +176,6 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 
 		const editorService = accessor.get(IEditorService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const sessionId = context.session.id;
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		if (context.session.provider?.chatSessionType) {
 			const uri = context.session.resource;
@@ -186,7 +185,7 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 			if (existingEditor) {
 				await editorService.openEditor(existingEditor.editor, existingEditor.group);
 				return;
-			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
+			} else if (chatWidgetService.getWidgetBySessionResource(uri)) {
 				return;
 			} else {
 				const options: IChatEditorOptions = {
@@ -223,7 +222,6 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 
 		const editorService = accessor.get(IEditorService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const sessionId = context.session.id;
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		if (context.session.provider?.chatSessionType) {
 			const uri = context.session.resource;
@@ -232,7 +230,7 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 			if (existingEditor) {
 				await editorService.openEditor(existingEditor.editor, existingEditor.group);
 				return;
-			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
+			} else if (chatWidgetService.getWidgetBySessionResource(uri)) {
 				// Already opened in chat widget
 				return;
 			} else {
@@ -264,24 +262,28 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): Promise<void> {
-		if (!context) {
-			return;
-		}
-
 		const editorService = accessor.get(IEditorService);
 		const viewsService = accessor.get(IViewsService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const sessionId = context.session.id;
-		if (context.session.provider?.chatSessionType) {
-			// Check if this session is already open in another editor
-			const existingEditor = findExistingChatEditorByUri(context.session.resource, editorGroupsService);
-			if (existingEditor) {
-				await editorService.openEditor(existingEditor.editor, existingEditor.group);
-				return;
-			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
-				return;
-			}
+
+		if (!context) {
+			return;
+		}
+
+		if (context.session.provider.chatSessionType !== localChatSessionType) {
+			// We only allow local sessions to be opened in the side bar
+			return;
+		}
+
+		// Check if this session is already open in another editor
+		// TODO: this feels strange. Should we prefer moving the editor to the sidebar instead?
+		const existingEditor = findExistingChatEditorByUri(context.session.resource, editorGroupsService);
+		if (existingEditor) {
+			await editorService.openEditor(existingEditor.editor, existingEditor.group);
+			return;
+		} else if (chatWidgetService.getWidgetBySessionResource(context.session.resource)) {
+			return;
 		}
 
 		// Open the chat view in the sidebar
