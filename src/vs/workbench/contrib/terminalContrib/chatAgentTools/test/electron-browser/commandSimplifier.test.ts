@@ -67,7 +67,7 @@ import { arch } from '../../../../../../base/common/process.js';
 		treeSitterLibraryService.isTest = true;
 		instantiationService.stub(ITreeSitterLibraryService, treeSitterLibraryService);
 
-		parser = instantiationService.createInstance(TreeSitterCommandParser);
+		parser = store.add(instantiationService.createInstance(TreeSitterCommandParser));
 
 		workspaceService = instantiationService.get(IWorkspaceContextService) as TestContextService;
 	});
