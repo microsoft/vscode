@@ -634,7 +634,7 @@ export class PromptFilePickers {
 		return new Promise<boolean>(resolve => {
 			const disposables = new DisposableStore();
 			let isClosed = false;
-			let isResolved = true;
+			let isResolved = false;
 
 			const getDisabled = () => {
 				const selected = quickPick.selectedItems;
