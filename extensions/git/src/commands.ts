@@ -5278,6 +5278,24 @@ export class CommandCenter {
 		await this._checkout(repository, { treeish: artifact.name, detached: true });
 	}
 
+	@command('git.repositories.merge', { repository: true })
+	async artifactMerge(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		await repository.merge(artifact.id);
+	}
+
+	@command('git.repositories.rebase', { repository: true })
+	async artifactRebase(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		await repository.rebase(artifact.id);
+	}
+
 	@command('git.repositories.compareRef', { repository: true })
 	async artifactCompareWith(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
 		if (!repository || !artifact) {
