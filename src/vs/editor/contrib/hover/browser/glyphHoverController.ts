@@ -12,7 +12,7 @@ import { IEditorContribution, IScrollEvent } from '../../../common/editorCommon.
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHoverWidget } from './hoverTypes.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { isMousePositionWithinElement } from './hoverUtils.js';
+import { isMousePositionWithinElement, shouldShowHover } from './hoverUtils.js';
 import './hover.css';
 import { GlyphHoverWidget } from './glyphHoverWidget.js';
 
@@ -22,7 +22,7 @@ const _sticky = false
 	;
 
 interface IHoverSettings {
-	readonly enabled: boolean;
+	readonly enabled: 'on' | 'off' | 'onKeyboardModifier';
 	readonly sticky: boolean;
 	readonly hidingDelay: number;
 }
@@ -80,7 +80,7 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 			hidingDelay: hoverOpts.hidingDelay
 		};
 
-		if (hoverOpts.enabled) {
+		if (hoverOpts.enabled !== 'off') {
 			this._listenersStore.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
 			this._listenersStore.add(this._editor.onMouseUp(() => this._onEditorMouseUp()));
 			this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
@@ -174,6 +174,17 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent | undefined): void {
 
 		if (!mouseEvent) {
+			return;
+		}
+		if (!shouldShowHover(
+			this._hoverSettings.enabled,
+			this._editor.getOption(EditorOption.multiCursorModifier),
+			mouseEvent
+		)) {
+			if (_sticky) {
+				return;
+			}
+			this.hideGlyphHover();
 			return;
 		}
 		const glyphWidgetShowsOrWillShow = this._tryShowHoverWidget(mouseEvent);

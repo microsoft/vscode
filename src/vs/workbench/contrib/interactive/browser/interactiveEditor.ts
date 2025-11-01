@@ -296,7 +296,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 					bottom: INPUT_EDITOR_PADDING
 				},
 				hover: {
-					enabled: true
+					enabled: 'on' as const
 				},
 				rulers: []
 			}
