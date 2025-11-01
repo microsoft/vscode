@@ -182,19 +182,12 @@ function getChatFocusKeybindingLabel(keybindingService: IKeybindingService, type
 		return fallback;
 	}
 	let kb;
-	if (type === 'agentView' || type === 'panelChat') {
-		if (focus !== 'input') {
-			kb = kbs.find(kb => kb.getAriaLabel()?.includes('UpArrow'))?.getAriaLabel();
-		} else {
-			kb = kbs.find(kb => kb.getAriaLabel()?.includes('DownArrow'))?.getAriaLabel();
-		}
+	let arrowKey: 'UpArrow' | 'DownArrow';
+	if (focus !== 'input') {
+		arrowKey = (type === 'agentView' || type === 'panelChat') ? 'UpArrow' : 'DownArrow';
 	} else {
-		// Quick chat
-		if (focus !== 'input') {
-			kb = kbs.find(kb => kb.getAriaLabel()?.includes('DownArrow'))?.getAriaLabel();
-		} else {
-			kb = kbs.find(kb => kb.getAriaLabel()?.includes('UpArrow'))?.getAriaLabel();
-		}
+		arrowKey = (type === 'agentView' || type === 'panelChat') ? 'DownArrow' : 'UpArrow';
 	}
+	kb = kbs.find(kb => kb.getAriaLabel()?.includes(arrowKey))?.getAriaLabel();
 	return !!kb ? ` (${kb})` : fallback;
 }
