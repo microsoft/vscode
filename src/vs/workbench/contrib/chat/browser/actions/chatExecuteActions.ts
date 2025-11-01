@@ -80,10 +80,10 @@ abstract class SubmitAction extends Action2 {
 
 			if (requestId) {
 				const chatRequests = chatModel.getRequests();
-				const itemIndex = chatRequests.findIndex(request => request.id === requestId);
+				const itemIndex = chatRequests.findIndex(request => request.id === requestId) - 1;
 				const editsToUndo = chatRequests.length - itemIndex;
 
-				const requestsToRemove = chatRequests.slice(itemIndex);
+				const requestsToRemove = itemIndex < 0 ? chatRequests : chatRequests.slice(itemIndex);
 				const requestIdsToRemove = new Set(requestsToRemove.map(request => request.id));
 				const entriesModifiedInRequestsToRemove = session.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
 				const shouldPrompt = entriesModifiedInRequestsToRemove.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
@@ -149,8 +149,13 @@ abstract class SubmitAction extends Action2 {
 				}
 
 				// Restore the snapshot to what it was before the request(s) that we deleted
-				const snapshotRequestId = chatRequests[itemIndex].id;
-				await session.restoreSnapshot(snapshotRequestId, undefined);
+				if (itemIndex < 0) {
+					const snapshotRequestId = chatRequests[0].id;
+					chatService.removeRequest(widget.viewModel.sessionResource, snapshotRequestId);
+				} else {
+					const snapshotRequestId = chatRequests[itemIndex].id;
+					await session.restoreSnapshot(snapshotRequestId, undefined);
+				}
 			}
 		} else if (widget?.viewModel?.model.checkpoint) {
 			widget.viewModel.model.setCheckpoint(undefined);
