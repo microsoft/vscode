@@ -1184,9 +1184,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.renderHistoryItems(initialHistoryItems);
 
-			// Add "Chat history..." link at the end
+			// Add "More history..." link at the end
 			const previousChatsLink = dom.append(container, $('.chat-welcome-history-more'));
-			previousChatsLink.textContent = localize('chat.history.showMore', 'Chat history...');
+			previousChatsLink.textContent = localize('chat.history.showMore', 'More history...');
 			previousChatsLink.setAttribute('role', 'button');
 			previousChatsLink.setAttribute('tabindex', '0');
 			previousChatsLink.setAttribute('aria-label', localize('chat.history.showMoreAriaLabel', 'Open chat history'));
@@ -2701,6 +2701,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		welcomeOffset = Math.max(welcomeOffset - this.input.attachmentsHeight, 0);
 		this.welcomeMessageContainer.style.height = `${contentHeight - welcomeOffset}px`;
 		this.welcomeMessageContainer.style.paddingBottom = `${welcomeOffset}px`;
+		this.updateWelcomeElementVisibility(contentHeight - welcomeOffset);
 
 		this.renderer.layout(width);
 
@@ -2711,6 +2712,54 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listContainer.style.height = `${contentHeight}px`;
 
 		this._onDidChangeHeight.fire(height);
+	}
+
+	private updateWelcomeElementVisibility(availableHeight: number): void {
+		const container = this.welcomeMessageContainer;
+		if (!container || container.offsetHeight === 0) {
+			return;
+		}
+
+		const suggestedPrompts = container.querySelector<HTMLElement>('.chat-welcome-view-suggested-prompts');
+		if (!suggestedPrompts) {
+			return;
+		}
+
+		if (this.container.classList.contains('new-welcome-view')) {
+			return;
+		}
+
+		const selectors = [
+			'.chat-welcome-history-root',
+			'.chat-welcome-view-message',
+			'.chat-welcome-view-disclaimer',
+			'.chat-welcome-view-title',
+			'.chat-welcome-view-icon'
+		];
+
+		const elements = selectors
+			.map(sel => container.querySelector<HTMLElement>(sel))
+			.filter((el): el is HTMLElement => el !== null);
+
+		elements.forEach(el => {
+			if (el.style.display === 'none') {
+				el.style.display = '';
+			}
+		});
+
+		const suggestedPromptsHeight = suggestedPrompts.offsetHeight;
+		const adjustedAvailableHeight = availableHeight - suggestedPromptsHeight;
+
+		let totalHeight = 0;
+		for (const elem of elements) {
+			if (elem.style.display !== 'none') {
+				totalHeight += elem.offsetHeight;
+				if (totalHeight > adjustedAvailableHeight) {
+					elem.style.display = 'none';
+					totalHeight -= elem.offsetHeight;
+				}
+			}
+		}
 	}
 
 	private _dynamicMessageLayoutData?: { numOfMessages: number; maxHeight: number; enabled: boolean };
