@@ -44,7 +44,7 @@ export function getInstanceHoverInfo(instance: ITerminalInstance, storageService
 	});
 
 	const shellProcessString = getShellProcessTooltip(instance, !!showDetailed);
-	const content = new MarkdownString(instance.title + shellProcessString + statusString, { supportThemeIcons: true });
+	const content = new MarkdownString(instance.title + shellProcessString + statusString, { supportThemeIcons: true, supportHtml: true });
 
 	return { content, actions };
 }
@@ -109,7 +109,11 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 	}
 	const combinedString = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString();
 	if (combinedString !== undefined) {
-		detailedAdditions.push(`Prompt input: \`${combinedString}\``);
+		const escapedPromptInput = combinedString
+			.replaceAll('<', '&lt;').replaceAll('>', '&gt;') 		 //Prevent escaping from wrapping
+			.replaceAll(/\((.+?)(\|?(?: (?:.+?)?)?)\)/g, '(<$1>$2)') //Escape links as clickable links
+			.replaceAll(/([\[\]\(\)\-\*\!\#\`])/g, '\\$1'); 		 //Comment most of the markdown elements to not render them inside
+		detailedAdditions.push(`Prompt input: <code>\n${escapedPromptInput}\n</code>`);
 	}
 	const detailedAdditionsString = detailedAdditions.length > 0
 		? '\n\n' + detailedAdditions.map(e => `- ${e}`).join('\n')
