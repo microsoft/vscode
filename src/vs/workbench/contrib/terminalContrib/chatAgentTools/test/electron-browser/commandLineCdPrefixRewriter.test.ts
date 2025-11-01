@@ -45,286 +45,53 @@ suite('CommandLineCdPrefixRewriter', () => {
 
 	suite('cd <cwd> && <suffix> -> <suffix>', () => {
 		(!isWindows ? suite : suite.skip)('Posix', () => {
-			test('should return undefined when no cd prefix pattern matches', () => {
-				const options = createRewriteOptions('echo hello world', undefined, 'bash', OperatingSystem.Linux);
+			function t(commandLine: string, cwd: URI | undefined, workspaceFolders: URI[], shell: string, expectedResult: string | undefined) {
+				setWorkspaceFolders(workspaceFolders);
+				const options = createRewriteOptions(commandLine, cwd, shell, OperatingSystem.Linux);
 				const result = rewriter.rewrite(options);
+				strictEqual(result?.rewritten, expectedResult);
+				if (expectedResult !== undefined) {
+					strictEqual(result?.reasoning, 'Removed redundant cd command');
+				}
+			}
 
-				strictEqual(result, undefined);
-			});
-
-			test('should return undefined when cd pattern does not have suffix', () => {
-				const options = createRewriteOptions('cd /some/path', undefined, 'bash', OperatingSystem.Linux);
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result, undefined);
-			});
-
-			test('should rewrite command with ; separator when directory matches cwd', () => {
-				const testDir = '/test/workspace';
-				const options = createRewriteOptions(`cd ${testDir}; npm test`, undefined, 'pwsh', OperatingSystem.Linux);
-				setWorkspaceFolders([URI.file(testDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, 'npm test');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
-
-			test('should rewrite command with && separator when directory matches cwd', () => {
-				const testDir = '/test/workspace';
-				const options = createRewriteOptions(`cd ${testDir} && npm install`, undefined, 'bash', OperatingSystem.Linux);
-				setWorkspaceFolders([URI.file(testDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, 'npm install');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
-
-			test('should rewrite command when the path is wrapped in double quotes', () => {
-				const testDir = '/test/workspace';
-				const options = createRewriteOptions(`cd "${testDir}" && npm install`, undefined, 'bash', OperatingSystem.Linux);
-				setWorkspaceFolders([URI.file(testDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, 'npm install');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
-
-			test('should not rewrite command when directory does not match cwd', () => {
-				const testDir = '/test/workspace';
-				const differentDir = '/different/path';
-				const command = `cd ${differentDir} && npm install`;
-				const options = createRewriteOptions(command, undefined, 'bash', OperatingSystem.Linux);
-				setWorkspaceFolders([URI.file(testDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result, undefined);
-			});
-
-			test('should return undefined when no workspace folders available', () => {
-				const command = 'cd /some/path && npm install';
-				const options = createRewriteOptions(command, undefined, 'bash', OperatingSystem.Linux);
-				setWorkspaceFolders([]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result, undefined);
-			});
-
-			test('should return undefined when multiple workspace folders available', () => {
-				const command = 'cd /some/path && npm install';
-				const options = createRewriteOptions(command, undefined, 'bash', OperatingSystem.Linux);
-				setWorkspaceFolders([
-					URI.file('/workspace1'),
-					URI.file('/workspace2')
-				]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result, undefined);
-			});
-
-			test('should handle commands with complex suffixes', () => {
-				const testDir = '/test/workspace';
-				const command = `cd ${testDir} && npm install && npm test && echo "done"`;
-				const options = createRewriteOptions(command, undefined, 'bash', OperatingSystem.Linux);
-				setWorkspaceFolders([URI.file(testDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, 'npm install && npm test && echo "done"');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
-
-			test('should ignore any trailing forward slash', () => {
-				const testDir = '/test/workspace';
-				const options = createRewriteOptions(`cd ${testDir}/ && npm install`, undefined, 'bash', OperatingSystem.Linux);
-				setWorkspaceFolders([URI.file(testDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, 'npm install');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
+			test('should return undefined when no cd prefix pattern matches', () => t('echo hello world', undefined, [], 'bash', undefined));
+			test('should return undefined when cd pattern does not have suffix', () => t('cd /some/path', undefined, [], 'bash', undefined));
+			test('should rewrite command with ; separator when directory matches cwd', () => t('cd /test/workspace; npm test', undefined, [URI.file('/test/workspace')], 'pwsh', 'npm test'));
+			test('should rewrite command with && separator when directory matches cwd', () => t('cd /test/workspace && npm install', undefined, [URI.file('/test/workspace')], 'bash', 'npm install'));
+			test('should rewrite command when the path is wrapped in double quotes', () => t('cd "/test/workspace" && npm install', undefined, [URI.file('/test/workspace')], 'bash', 'npm install'));
+			test('should not rewrite command when directory does not match cwd', () => t('cd /different/path && npm install', undefined, [URI.file('/test/workspace')], 'bash', undefined));
+			test('should return undefined when no workspace folders available', () => t('cd /some/path && npm install', undefined, [], 'bash', undefined));
+			test('should return undefined when multiple workspace folders available', () => t('cd /some/path && npm install', undefined, [URI.file('/workspace1'), URI.file('/workspace2')], 'bash', undefined));
+			test('should handle commands with complex suffixes', () => t('cd /test/workspace && npm install && npm test && echo "done"', undefined, [URI.file('/test/workspace')], 'bash', 'npm install && npm test && echo "done"'));
+			test('should ignore any trailing forward slash', () => t('cd /test/workspace/ && npm install', undefined, [URI.file('/test/workspace')], 'bash', 'npm install'));
 		});
 
 		(isWindows ? suite : suite.skip)('Windows', () => {
-			test('should ignore any trailing back slash', () => {
-				const testDir = 'c:\\test\\workspace';
-				const options = createRewriteOptions(`cd ${testDir}\\ && npm install`, undefined, 'cmd', OperatingSystem.Windows);
-				setWorkspaceFolders([URI.file(testDir)]);
-
+			function t(commandLine: string, cwd: URI | undefined, workspaceFolders: URI[], shell: string, expectedResult: string | undefined) {
+				setWorkspaceFolders(workspaceFolders);
+				const options = createRewriteOptions(commandLine, cwd, shell, OperatingSystem.Windows);
 				const result = rewriter.rewrite(options);
+				strictEqual(result?.rewritten, expectedResult);
+				if (expectedResult !== undefined) {
+					strictEqual(result?.reasoning, 'Removed redundant cd command');
+				}
+			}
 
-				strictEqual(result?.rewritten, 'npm install');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
-
-			test('should prioritize cwd option over workspace service', () => {
-				const cwdDir = 'C:\\cwd\\workspace';
-				const workspaceDir = 'C:\\workspace\\service';
-				const command = `cd ${cwdDir} && npm test`;
-				const options = createRewriteOptions(command, URI.file(cwdDir), 'cmd', OperatingSystem.Windows);
-
-				setWorkspaceFolders([URI.file(workspaceDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, 'npm test');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
-
-			test('should prioritize cwd option over workspace service - PowerShell style', () => {
-				const cwdDir = 'C:\\cwd\\workspace';
-				const workspaceDir = 'C:\\workspace\\service';
-				const command = `cd ${cwdDir}; npm test`;
-				const options = createRewriteOptions(command, URI.file(cwdDir), 'pwsh', OperatingSystem.Windows);
-
-				setWorkspaceFolders([URI.file(workspaceDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, 'npm test');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
-
-			test('should not rewrite when cwd differs from cd path', () => {
-				const cwdDir = 'C:\\cwd\\workspace';
-				const cdDir = 'C:\\different\\path';
-				const workspaceDir = 'C:\\workspace\\service';
-				const command = `cd ${cdDir} && npm test`;
-				const options = createRewriteOptions(command, URI.file(cwdDir), 'cmd', OperatingSystem.Windows);
-
-				setWorkspaceFolders([URI.file(workspaceDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result, undefined);
-			});
-
-			test('should fallback to workspace service when cwd is undefined', () => {
-				const workspaceDir = 'C:\\workspace\\service';
-				const command = `cd ${workspaceDir} && npm test`;
-				const options = createRewriteOptions(command, undefined, 'cmd', OperatingSystem.Windows);
-
-				setWorkspaceFolders([URI.file(workspaceDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, 'npm test');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
-
-			test('should prioritize cwd over workspace service even when both match cd path', () => {
-				const sharedDir = 'C:\\shared\\workspace';
-				const command = `cd ${sharedDir} && npm build`;
-				const options = createRewriteOptions(command, URI.file(sharedDir), 'cmd', OperatingSystem.Windows);
-
-				setWorkspaceFolders([URI.file(sharedDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, 'npm build');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
-
-			test('should handle case-insensitive comparison on Windows', () => {
-				const cwdDir = 'C:\\Cwd\\Workspace';
-				const cdDir = 'c:\\cwd\\workspace'; // Different case
-				const command = `cd ${cdDir} && npm test`;
-				const options = createRewriteOptions(command, URI.file(cwdDir), 'cmd', OperatingSystem.Windows);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, 'npm test');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
-
-			test('should handle quoted paths with cwd priority', () => {
-				const cwdDir = 'C:\\cwd\\workspace';
-				const command = 'cd "C:\\cwd\\workspace" && npm test';
-				const options = createRewriteOptions(command, URI.file(cwdDir), 'cmd', OperatingSystem.Windows);
-
-				setWorkspaceFolders([URI.file('C:\\different\\workspace')]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, 'npm test');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
-
-			test('should handle cd /d flag when directory matches cwd', () => {
-				const testDir = 'C:\\test\\workspace';
-				const options = createRewriteOptions(`cd /d ${testDir} && echo hello`, undefined, 'pwsh', OperatingSystem.Windows);
-				setWorkspaceFolders([URI.file(testDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, 'echo hello');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
-
-			test('should handle cd /d flag with quoted paths when directory matches cwd', () => {
-				const testDir = 'C:\\test\\workspace';
-				const options = createRewriteOptions(`cd /d "${testDir}" && echo hello`, undefined, 'pwsh', OperatingSystem.Windows);
-				setWorkspaceFolders([URI.file(testDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, 'echo hello');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
-
-			test('should handle cd /d flag with quoted paths from issue example', () => {
-				const testDir = 'd:\\microsoft\\vscode';
-				const options = createRewriteOptions(`cd /d "${testDir}" && .\\scripts\\test.bat`, undefined, 'pwsh', OperatingSystem.Windows);
-				setWorkspaceFolders([URI.file(testDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, '.\\scripts\\test.bat');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
-
-			test('should not rewrite cd /d when directory does not match cwd', () => {
-				const testDir = 'C:\\test\\workspace';
-				const differentDir = 'C:\\different\\path';
-				const command = `cd /d ${differentDir} ; echo hello`;
-				const options = createRewriteOptions(command, undefined, 'pwsh', OperatingSystem.Windows);
-				setWorkspaceFolders([URI.file(testDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result, undefined);
-			});
-
-			test('should handle cd /d flag with cwd priority', () => {
-				const cwdDir = 'C:\\cwd\\workspace';
-				const workspaceDir = 'C:\\workspace\\service';
-				const command = `cd /d ${cwdDir} && npm test`;
-				const options = createRewriteOptions(command, URI.file(cwdDir), 'pwsh', OperatingSystem.Windows);
-
-				setWorkspaceFolders([URI.file(workspaceDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, 'npm test');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
-
-			test('should handle cd /d flag with semicolon separator', () => {
-				const testDir = 'C:\\test\\workspace';
-				const options = createRewriteOptions(`cd /d ${testDir}; echo hello`, undefined, 'pwsh', OperatingSystem.Windows);
-				setWorkspaceFolders([URI.file(testDir)]);
-
-				const result = rewriter.rewrite(options);
-
-				strictEqual(result?.rewritten, 'echo hello');
-				strictEqual(result?.reasoning, 'Removed redundant cd command');
-			});
+			test('should ignore any trailing back slash', () => t('cd c:\\test\\workspace\\ && npm install', undefined, [URI.file('c:\\test\\workspace')], 'cmd', 'npm install'));
+			test('should prioritize cwd option over workspace service', () => t('cd C:\\cwd\\workspace && npm test', URI.file('C:\\cwd\\workspace'), [URI.file('C:\\workspace\\service')], 'cmd', 'npm test'));
+			test('should prioritize cwd option over workspace service - PowerShell style', () => t('cd C:\\cwd\\workspace; npm test', URI.file('C:\\cwd\\workspace'), [URI.file('C:\\workspace\\service')], 'pwsh', 'npm test'));
+			test('should not rewrite when cwd differs from cd path', () => t('cd C:\\different\\path && npm test', URI.file('C:\\cwd\\workspace'), [URI.file('C:\\workspace\\service')], 'cmd', undefined));
+			test('should fallback to workspace service when cwd is undefined', () => t('cd C:\\workspace\\service && npm test', undefined, [URI.file('C:\\workspace\\service')], 'cmd', 'npm test'));
+			test('should prioritize cwd over workspace service even when both match cd path', () => t('cd C:\\shared\\workspace && npm build', URI.file('C:\\shared\\workspace'), [URI.file('C:\\shared\\workspace')], 'cmd', 'npm build'));
+			test('should handle case-insensitive comparison on Windows', () => t('cd c:\\cwd\\workspace && npm test', URI.file('C:\\Cwd\\Workspace'), [], 'cmd', 'npm test'));
+			test('should handle quoted paths with cwd priority', () => t('cd "C:\\cwd\\workspace" && npm test', URI.file('C:\\cwd\\workspace'), [URI.file('C:\\different\\workspace')], 'cmd', 'npm test'));
+			test('should handle cd /d flag when directory matches cwd', () => t('cd /d C:\\test\\workspace && echo hello', undefined, [URI.file('C:\\test\\workspace')], 'pwsh', 'echo hello'));
+			test('should handle cd /d flag with quoted paths when directory matches cwd', () => t('cd /d "C:\\test\\workspace" && echo hello', undefined, [URI.file('C:\\test\\workspace')], 'pwsh', 'echo hello'));
+			test('should handle cd /d flag with quoted paths from issue example', () => t('cd /d "d:\\microsoft\\vscode" && .\\scripts\\test.bat', undefined, [URI.file('d:\\microsoft\\vscode')], 'pwsh', '.\\scripts\\test.bat'));
+			test('should not rewrite cd /d when directory does not match cwd', () => t('cd /d C:\\different\\path ; echo hello', undefined, [URI.file('C:\\test\\workspace')], 'pwsh', undefined));
+			test('should handle cd /d flag with cwd priority', () => t('cd /d C:\\cwd\\workspace && npm test', URI.file('C:\\cwd\\workspace'), [URI.file('C:\\workspace\\service')], 'pwsh', 'npm test'));
+			test('should handle cd /d flag with semicolon separator', () => t('cd /d C:\\test\\workspace; echo hello', undefined, [URI.file('C:\\test\\workspace')], 'pwsh', 'echo hello'));
 		});
 	});
 });
