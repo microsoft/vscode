@@ -185,6 +185,10 @@
 	stroke: transparent;
 }
 
+.scm-view .monaco-list-row.focused.selected:not(:focus) .history-item > .graph-container > .graph > circle:first-of-type {
+	stroke: var(--vscode-list-inactiveSelectionBackground);
+}
+
 .scm-view .monaco-list-row .history-item > .label-container {
 	display: flex;
 	flex-shrink: 0;
