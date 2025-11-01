@@ -500,14 +500,16 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover,
 .monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread,
-.monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread-unresolved {
+.monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread-unresolved,
+.monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread-draft {
 	margin-left: 13px;
 }
 
 .monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before,
 .monaco-editor .comment-range-glyph.comment-thread:before,
-.monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
+.monaco-editor .comment-range-glyph.comment-thread-unresolved:before,
+.monaco-editor .comment-range-glyph.comment-thread-draft:before {
 	position: absolute;
 	height: 100%;
 	width: 9px;
@@ -523,6 +525,10 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 
 .monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
 	color: var(--vscode-editorGutter-commentUnresolvedGlyphForeground);
+}
+
+.monaco-editor .comment-range-glyph.comment-thread-draft:before {
+	color: var(--vscode-editorGutter-commentDraftGlyphForeground);
 }
 
 .monaco-editor .margin-view-overlays .comment-range-glyph.multiline-add {
@@ -544,12 +550,14 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 }
 
 .monaco-editor .comment-range-glyph.comment-thread,
-.monaco-editor .comment-range-glyph.comment-thread-unresolved {
+.monaco-editor .comment-range-glyph.comment-thread-unresolved,
+.monaco-editor .comment-range-glyph.comment-thread-draft {
 	z-index: 20;
 }
 
 .monaco-editor .comment-range-glyph.comment-thread:before,
-.monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
+.monaco-editor .comment-range-glyph.comment-thread-unresolved:before,
+.monaco-editor .comment-range-glyph.comment-thread-draft:before {
 	font-family: "codicon";
 	font-size: 13px;
 	width: 18px !important;
@@ -569,6 +577,10 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 .monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
 	content: var(--vscode-icon-comment-unresolved-content);
 	font-family: var(--vscode-icon-comment-unresolved-font-family);
+}
+.monaco-editor .comment-range-glyph.comment-thread-draft:before {
+	content: var(--vscode-icon-comment-draft-content);
+	font-family: var(--vscode-icon-comment-draft-font-family);
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .codicon-folding-expanded,
