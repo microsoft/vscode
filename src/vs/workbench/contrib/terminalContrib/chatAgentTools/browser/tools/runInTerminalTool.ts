@@ -335,17 +335,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunInTerminalInputParams;
 
-		const os = await this._osBackend;
-		const shell = await this._profileFetcher.getCopilotShell();
-		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
-
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
-		let cwd = await instance?.getCwdResource();
-		if (!cwd) {
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-			const workspaceFolder = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
-			cwd = workspaceFolder?.uri;
-		}
+		const [os, shell, cwd] = await Promise.all([
+			this._osBackend,
+			this._profileFetcher.getCopilotShell(),
+			(async () => {
+				let cwd = await instance?.getCwdResource();
+				if (!cwd) {
+					const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+					const workspaceFolder = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
+					cwd = workspaceFolder?.uri;
+				}
+				return cwd;
+			})()
+		]);
+		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 
 		const terminalToolSessionId = generateUuid();
 		// Generate a custom command ID to link the command between renderer and pty host
