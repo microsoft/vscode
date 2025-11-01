@@ -9,7 +9,7 @@ import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { EditorOption, RenderLineNumbersType, ConfigurationChangedEvent } from '../../../common/config/editorOptions.js';
 import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget.js';
-import { IStickyLineCandidateProvider, StickyLineCandidateProvider } from './stickyScrollProvider.js';
+import { IStickyLineCandidateProvider, StickyLineCandidate, StickyLineCandidateProvider } from './stickyScrollProvider.js';
 import { IModelTokensChangedEvent } from '../../../common/textModelEvents.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -591,6 +591,32 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._stickyScrollWidget.setState(undefined, undefined);
 	}
 
+	private _shouldAppendStickyLine(
+		line: StickyLineCandidate,
+		startLineNumbers: number[],
+		innerScopes: boolean,
+		maxNumberStickyLines: number,
+		scrollTop: number,
+		stickyWidgetHeight: number
+	): boolean {
+		const topOfBeginningLine = this._editor.getTopForLineNumber(line.startLineNumber) - scrollTop;
+		const bottomOfEndLine = this._editor.getBottomForLineNumber(line.endLineNumber + (innerScopes ? 1 : 0)) - scrollTop;
+
+		if (!innerScopes) {
+			return topOfBeginningLine < stickyWidgetHeight && bottomOfEndLine >= stickyWidgetHeight;
+		}
+
+		const isAtMaxLines = startLineNumbers.length === maxNumberStickyLines;
+
+		if (isAtMaxLines) {
+			const bottomOfBeginningLine = this._editor.getBottomForLineNumber(line.startLineNumber) - scrollTop;
+			return (bottomOfBeginningLine) < stickyWidgetHeight
+				&& (bottomOfEndLine) >= stickyWidgetHeight;
+		}
+
+		return topOfBeginningLine < stickyWidgetHeight && bottomOfEndLine >= stickyWidgetHeight;
+	}
+
 	findScrollWidgetState(): StickyScrollWidgetState {
 		const maxNumberStickyLines = Math.min(this._maxStickyLines, this._editor.getOption(EditorOption.stickyScroll).maxLineCount);
 		const scrollTop: number = this._editor.getScrollTop();
@@ -601,22 +627,36 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (arrayVisibleRanges.length !== 0) {
 			const fullVisibleRange = new StickyRange(arrayVisibleRanges[0].startLineNumber, arrayVisibleRanges[arrayVisibleRanges.length - 1].endLineNumber);
 			const candidateRanges = this._stickyLineCandidateProvider.getCandidateStickyLinesIntersecting(fullVisibleRange);
+			const innerScopes = this._editor.getOption(EditorOption.stickyScroll).scopePreference === 'innerScopes';
+			let stickyWidgetHeight = 0;
 			for (const range of candidateRanges) {
-				const start = range.startLineNumber;
-				const end = range.endLineNumber;
-				const topOfElement = range.top;
-				const bottomOfElement = topOfElement + range.height;
-				const topOfBeginningLine = this._editor.getTopForLineNumber(start) - scrollTop;
-				const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
-				if (topOfElement > topOfBeginningLine && topOfElement <= bottomOfEndLine) {
-					startLineNumbers.push(start);
-					endLineNumbers.push(end + 1);
-					if (bottomOfElement > bottomOfEndLine) {
-						lastLineRelativePosition = bottomOfEndLine - bottomOfElement;
+				const bottomOfEndLine = this._editor.getBottomForLineNumber(range.endLineNumber + (innerScopes ? 1 : 0)) - scrollTop;
+				const shouldAppendStickyLine = this._shouldAppendStickyLine(range, startLineNumbers, innerScopes, maxNumberStickyLines, scrollTop, stickyWidgetHeight);
+
+				if (shouldAppendStickyLine) {
+					startLineNumbers.push(range.startLineNumber);
+					endLineNumbers.push(range.endLineNumber + (innerScopes ? 1 : 0));
+					stickyWidgetHeight += range.height;
+					if (stickyWidgetHeight > bottomOfEndLine) {
+						lastLineRelativePosition = innerScopes ? 0 : bottomOfEndLine - stickyWidgetHeight;
+					}
+
+					if (innerScopes && startLineNumbers.length > maxNumberStickyLines) {
+						const line = startLineNumbers.shift()!;
+						endLineNumbers.shift();
+						stickyWidgetHeight -= this._editor.getLineHeightForPosition(new Position(line, 1));
 					}
 				}
-				if (startLineNumbers.length === maxNumberStickyLines) {
+				if (startLineNumbers.length === maxNumberStickyLines && !innerScopes) {
 					break;
+				}
+			}
+
+			// Edge case to smoothly scroll out the outermost scopes
+			if (innerScopes && endLineNumbers.length > 0) {
+				const bottomOfEndLine = this._editor.getBottomForLineNumber(endLineNumbers[endLineNumbers.length - 1]) - scrollTop;
+				if (stickyWidgetHeight > bottomOfEndLine) {
+					lastLineRelativePosition = bottomOfEndLine - stickyWidgetHeight;
 				}
 			}
 		}

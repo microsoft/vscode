@@ -4450,6 +4450,10 @@ declare namespace monaco.editor {
 		 * Define whether to scroll sticky scroll with editor horizontal scrollbae
 		 */
 		scrollWithEditor?: boolean;
+		/**
+		 * Define whether to show outer scopes or inner scopes when the max line count is reached
+		 */
+		scopePreference?: 'outerScopes' | 'innerScopes';
 	}
 
 	/**
