@@ -106,7 +106,7 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 		return {
 			origin: input.webview.origin,
 			viewType: input.viewType,
-			providedId: input.providedId,
+			providedId: input.providerId,
 			title: input.getName(),
 			options: { ...input.webview.options, ...input.webview.contentOptions },
 			extensionLocation: input.extension?.location,
