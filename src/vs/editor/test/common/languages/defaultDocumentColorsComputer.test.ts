@@ -99,4 +99,25 @@ suite('Default Document Colors Computer', () => {
 		assert.strictEqual(colors[0].color.blue, 0, 'Blue component should be 0');
 		assert.strictEqual(colors[0].color.alpha, 1, 'Alpha should be 1 (ff/255)');
 	});
+
+	test('hsl 100 percent saturation works with decimals', () => {
+		const model = new TestDocumentModel("const color = 'hsl(253, 100.00%, 47.10%)';");
+		const colors = computeDefaultDocumentColors(model);
+
+		assert.strictEqual(colors.length, 1, 'Should detect one hsl color');
+	});
+
+	test('hsl 100 percent saturation works without decimals', () => {
+		const model = new TestDocumentModel("const color = 'hsl(253, 100%, 47.10%)';");
+		const colors = computeDefaultDocumentColors(model);
+
+		assert.strictEqual(colors.length, 1, 'Should detect one hsl color');
+	});
+
+	test('hsl not 100 percent saturation should also work', () => {
+		const model = new TestDocumentModel("const color = 'hsl(0, 83.60%, 47.80%)';");
+		const colors = computeDefaultDocumentColors(model);
+
+		assert.strictEqual(colors.length, 1, 'Should detect one hsl color');
+	});
 });
