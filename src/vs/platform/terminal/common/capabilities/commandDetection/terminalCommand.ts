@@ -6,7 +6,6 @@
 import { IMarkProperties, ISerializedTerminalCommand, ITerminalCommand } from '../capabilities.js';
 import { ITerminalOutputMatcher, ITerminalOutputMatch } from '../../terminal.js';
 import type { IBuffer, IBufferLine, IMarker, Terminal } from '@xterm/headless';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 
 export interface ITerminalCommandProperties {
 	command: string;
@@ -14,7 +13,7 @@ export interface ITerminalCommandProperties {
 	isTrusted: boolean;
 	timestamp: number;
 	duration: number;
-	id: string;
+	id: string | undefined;
 	marker: IMarker | undefined;
 	cwd: string | undefined;
 	exitCode: number | undefined;
@@ -276,7 +275,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 	cwd?: string;
 	command?: string;
 	commandLineConfidence?: 'low' | 'medium' | 'high';
-	id: string;
+	id: string | undefined;
 
 	isTrusted?: boolean;
 	isInvalid?: boolean;
@@ -285,8 +284,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 		private readonly _xterm: Terminal,
 		id?: string
 	) {
-		//TODO: this does not restore properly due to conflicting with the one created in the. PtyHost
-		this.id = id ?? generateUuid();
+		this.id = id;
 	}
 
 	serialize(cwd: string | undefined): ISerializedTerminalCommand | undefined {

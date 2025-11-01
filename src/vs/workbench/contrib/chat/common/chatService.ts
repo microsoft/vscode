@@ -313,12 +313,9 @@ export interface IChatTerminalToolInvocationData {
 	alternativeRecommendation?: string;
 	language: string;
 	terminalToolSessionId?: string;
-	terminalCommandUri?: UriComponents;
+	/** The predefined command ID that will be used for this terminal command */
+	terminalCommandId?: string;
 	autoApproveInfo?: IMarkdownString;
-	output?: {
-		html: string;
-		truncated?: boolean;
-	};
 }
 
 /**
@@ -816,8 +813,6 @@ export interface IChatCompleteResponse {
 }
 
 export interface IChatDetail {
-	/** @deprecated Use {@link sessionResource} instead */
-	sessionId: string;
 	sessionResource: URI;
 	title: string;
 	lastMessageDate: number;
@@ -851,7 +846,7 @@ export interface IChatEditorLocationData {
 	selection: ISelection;
 	wholeRange: IRange;
 	close: () => void;
-	delegateSessionId: string | undefined;
+	delegateSessionResource: URI | undefined;
 }
 
 export interface IChatNotebookLocationData {
@@ -905,7 +900,7 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
-	readonly onDidSubmitRequest: Event<{ readonly chatSessionId: string }>;
+	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;

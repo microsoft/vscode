@@ -13,18 +13,17 @@ import { MarkdownString, type IMarkdownString } from '../../../../../../base/com
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
-import { count, escape } from '../../../../../../base/common/strings.js';
+import { count } from '../../../../../../base/common/strings.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { TerminalCapability, type ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
-import { CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES } from '../../../../chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
@@ -37,7 +36,7 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { isFish, isPowerShell, isWindowsPowerShell, isZsh, sanitizeTerminalOutput } from '../runInTerminalHelpers.js';
+import { isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
@@ -314,9 +313,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Listen for chat session disposal to clean up associated terminals
 		this._register(this._chatService.onDidDisposeSession(e => {
-			const localSession = LocalChatSessionUri.parse(e.sessionResource);
-			if (localSession) {
-				this._cleanupSessionTerminals(localSession.sessionId);
+			const localSessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
+			if (localSessionId) {
+				this._cleanupSessionTerminals(localSessionId);
 			}
 		}));
 	}
@@ -330,6 +329,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
 		const terminalToolSessionId = generateUuid();
+		// Generate a custom command ID to link the command between renderer and pty host
+		const terminalCommandId = `tool-${generateUuid()}`;
 
 		let toolEditedCommand: string | undefined = await this._commandSimplifier.rewriteIfNeeded(args, instance, shell);
 		if (toolEditedCommand === args.command) {
@@ -338,6 +339,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const toolSpecificData: IChatTerminalToolInvocationData = {
 			kind: 'terminal',
 			terminalToolSessionId,
+			terminalCommandId,
 			commandLine: {
 				original: args.command,
 				toolEdited: toolEditedCommand
@@ -479,13 +481,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId);
+				const commandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
+				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId, commandId);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
 				await Event.toPromise(outputMonitor.onDidFinishCommand);
 				const pollingResult = outputMonitor.pollingResult;
-				await this._updateTerminalCommandMetadata(toolSpecificData, toolTerminal.instance, commandDetection, pollingResult?.output ? { text: pollingResult.output } : undefined);
 
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
@@ -521,12 +523,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
-				await this._updateTerminalCommandMetadata(
-					toolSpecificData,
-					toolTerminal.instance,
-					commandDetection,
-					pollingResult?.output ? { text: pollingResult.output } : undefined
-				);
 				store.dispose();
 				this._logService.debug(`RunInTerminalTool: Finished polling \`${pollingResult?.output.length}\` lines of output in \`${pollingResult?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
@@ -584,7 +580,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context, token, command));
 					}
 				}));
-				const executeResult = await strategy.execute(command, token);
+				const commandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
+				const executeResult = await strategy.execute(command, token, commandId);
 				// Reset user input state after command execution completes
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
@@ -611,12 +608,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
-				await this._updateTerminalCommandMetadata(
-					toolSpecificData,
-					toolTerminal.instance,
-					commandDetection,
-					terminalResult ? { text: terminalResult } : undefined
-				);
 				store.dispose();
 				const timingExecuteMs = Date.now() - timingStart;
 				this._telemetry.logInvoke(toolTerminal.instance, {
@@ -663,58 +654,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					kind: 'text',
 					value: resultText.join(''),
 				}]
-			};
-		}
-	}
-
-	private async _updateTerminalCommandMetadata(
-		toolSpecificData: IChatTerminalToolInvocationData,
-		instance: ITerminalInstance,
-		commandDetection: ICommandDetectionCapability | undefined,
-		fallbackOutput?: { text: string; truncated?: boolean }
-	): Promise<void> {
-		const command = commandDetection?.commands.at(-1);
-		if (command?.id && !toolSpecificData.terminalCommandUri) {
-			const params = new URLSearchParams(instance.resource.query);
-			params.set('command', command.id);
-			const commandUri = instance.resource.with({ query: params.toString() || undefined });
-			toolSpecificData.terminalCommandUri = commandUri;
-		}
-
-		if (toolSpecificData.output?.html) {
-			return;
-		}
-
-		let serializedHtml: string | undefined;
-		let truncated = fallbackOutput?.truncated ?? false;
-
-		if (command?.endMarker) {
-			try {
-				const xterm = await instance.xtermReadyPromise;
-				if (xterm) {
-					const html = await xterm.getCommandOutputAsHtml(command, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
-					if (html) {
-						serializedHtml = html;
-						truncated = false;
-					}
-				}
-			} catch (error) {
-				this._logService.debug('RunInTerminalTool: Failed to capture terminal HTML output for serialization', error);
-			}
-		}
-
-		if (!serializedHtml && fallbackOutput?.text) {
-			const sanitized = sanitizeTerminalOutput(fallbackOutput.text);
-			if (sanitized) {
-				serializedHtml = escape(sanitized);
-				truncated = fallbackOutput.truncated ?? truncated;
-			}
-		}
-
-		if (serializedHtml) {
-			toolSpecificData.output = {
-				html: serializedHtml,
-				truncated
 			};
 		}
 	}
@@ -892,12 +831,13 @@ class BackgroundTerminalExecution extends Disposable {
 		readonly instance: ITerminalInstance,
 		private readonly _xterm: XtermTerminal,
 		private readonly _commandLine: string,
-		readonly sessionId: string
+		readonly sessionId: string,
+		commandId?: string
 	) {
 		super();
 
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
-		this.instance.runCommand(this._commandLine, true);
+		this.instance.runCommand(this._commandLine, true, commandId);
 	}
 	getOutput(marker?: IXtermMarker): string {
 		return getOutput(this.instance, marker ?? this._startMarker);

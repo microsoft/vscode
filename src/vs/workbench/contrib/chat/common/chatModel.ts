@@ -1060,6 +1060,7 @@ export interface IChatRequestDisablement {
 export interface IChatModel extends IDisposable {
 	readonly onDidDispose: Event<void>;
 	readonly onDidChange: Event<IChatChangeEvent>;
+	/** @deprecated Use {@link sessionResource} instead */
 	readonly sessionId: string;
 	readonly sessionResource: URI;
 	readonly initialLocation: ChatAgentLocation;
@@ -1363,6 +1364,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	// TODO to be clear, this is not the same as the id from the session object, which belongs to the provider.
 	// It's easier to be able to identify this model before its async initialization is complete
 	private readonly _sessionId: string;
+	/** @deprecated Use {@link sessionResource} instead */
 	get sessionId(): string {
 		return this._sessionId;
 	}

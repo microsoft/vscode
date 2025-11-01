@@ -90,7 +90,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 			}
 
 			const isAbsolutePath = isAbsolute(pattern);
-			const parsedPattern = parseGlob(pattern);
+			const parsedPattern = parseGlob(pattern, { ignoreCase: true });
 
 			this.patterns.push({ pattern, template, isAbsolutePath, parsedPattern });
 		}

@@ -44,6 +44,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	clearBuffer(): void { }
 	acknowledgeDataEvent(charCount: number): void { }
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> { }
+	async setNextCommandId(commandLine: string, commandId: string): Promise<void> { }
 	async getInitialCwd(): Promise<string> { return ''; }
 	async getCwd(): Promise<string> { return ''; }
 	async processBinary(data: string): Promise<void> { }

@@ -77,7 +77,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 					code: editor.getValue(),
 					codeBlockIndex: 0,
 					languageId: editor.getModel()!.getLanguageId(),
-					chatSessionId: this._terminalChatWidget.value.inlineChatWidget.chatWidget.viewModel?.sessionId
+					chatSessionResource: this._terminalChatWidget.value.inlineChatWidget.chatWidget.viewModel?.sessionResource
 				};
 			}
 		}, 'terminal'));

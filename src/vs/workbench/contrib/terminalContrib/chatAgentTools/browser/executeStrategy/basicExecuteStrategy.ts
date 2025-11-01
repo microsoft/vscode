@@ -53,7 +53,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 	) {
 	}
 
-	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {
+	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
 
 		try {

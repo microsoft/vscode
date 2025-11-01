@@ -140,6 +140,12 @@ export class TerminalTabbedView extends Disposable {
 			this._updateChatTerminalsEntry();
 		}));
 
+		this._register(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set(['hasHiddenChatTerminals']))) {
+				this._refreshShowTabs();
+				this._updateChatTerminalsEntry();
+			}
+		}));
 		this._attachEventListeners(parentElement, this._terminalContainer);
 
 		this._register(this._terminalGroupService.onDidChangePanelOrientation((orientation) => {

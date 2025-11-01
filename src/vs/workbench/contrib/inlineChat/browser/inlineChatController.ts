@@ -243,7 +243,7 @@ export class InlineChatController1 implements IEditorContribution {
 						document: this._session.textModelN.uri,
 						wholeRange: this._session?.wholeRange.trackedInitialRange,
 						close: () => this.cancelSession(),
-						delegateSessionId: this._delegateSession?.chatSessionId,
+						delegateSessionResource: this._delegateSession?.chatSessionResource,
 					};
 				}
 			};
@@ -1292,12 +1292,12 @@ export class InlineChatController2 implements IEditorContribution {
 						document,
 						wholeRange,
 						close: () => this._showWidgetOverrideObs.set(false, undefined),
-						delegateSessionId: chatService.editingSessions.find(session =>
+						delegateSessionResource: chatService.editingSessions.find(session =>
 							session.entries.get().some(e => e.hasModificationAt({
 								range: wholeRange,
 								uri: document
 							}))
-						)?.chatSessionId,
+						)?.chatSessionResource,
 					};
 				}
 			};
@@ -1324,7 +1324,7 @@ export class InlineChatController2 implements IEditorContribution {
 					enableWorkingSet: 'implicit',
 					enableImplicitContext: false,
 					renderInputOnTop: false,
-					renderStyle: 'compact',
+					renderInputToolbarBelowInput: true,
 					filter: _item => false, // filter ALL items
 					menus: {
 						telemetrySource: 'inlineChatWidget',
@@ -1398,8 +1398,8 @@ export class InlineChatController2 implements IEditorContribution {
 
 		this._store.add(autorun(r => {
 
+			// HIDE/SHOW
 			const session = visibleSessionObs.read(r);
-
 			if (!session) {
 				this._zone.rawValue?.hide();
 				_editor.focus();
@@ -1413,10 +1413,25 @@ export class InlineChatController2 implements IEditorContribution {
 				}
 				this._zone.value.reveal(this._zone.value.position!);
 				this._zone.value.widget.focus();
-				const entry = session.editingSession.getEntry(session.uri);
+			}
+		}));
 
-				entry?.autoAcceptController.read(undefined)?.cancel();
+		this._store.add(autorun(r => {
+			const session = visibleSessionObs.read(r);
+			if (!session) {
+				return;
+			}
 
+			const entry = session.editingSession.readEntry(session.uri, r);
+			entry?.enableReviewModeUntilSettled();
+
+			const inProgress = session.chatModel.requestInProgressObs.read(r);
+			this._zone.value.widget.domNode.classList.toggle('request-in-progress', inProgress);
+			if (!inProgress) {
+				this._zone.value.widget.chatWidget.setInputPlaceholder(localize('placeholder', "Edit, refactor, and generate code"));
+			} else {
+				const prompt = session.chatModel.getRequests().at(-1)?.message.text;
+				this._zone.value.widget.chatWidget.setInputPlaceholder(prompt || localize('loading', "Working..."));
 			}
 		}));
 

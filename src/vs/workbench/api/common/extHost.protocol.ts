@@ -1704,6 +1704,7 @@ export interface SCMArtifactDto {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
 }
 
 export interface MainThreadSCMShape extends IDisposable {
@@ -1728,7 +1729,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$onDidChangeHistoryProviderCurrentHistoryItemRefs(sourceControlHandle: number, historyItemRef?: SCMHistoryItemRefDto, historyItemRemoteRef?: SCMHistoryItemRefDto, historyItemBaseRef?: SCMHistoryItemRefDto): Promise<void>;
 	$onDidChangeHistoryProviderHistoryItemRefs(sourceControlHandle: number, historyItemRefs: SCMHistoryItemRefsChangeEventDto): Promise<void>;
 
-	$onDidChangeArtifacts(sourceControlHandle: number, group: string): Promise<void>;
+	$onDidChangeArtifacts(sourceControlHandle: number, groups: string[]): Promise<void>;
 }
 
 export interface MainThreadQuickDiffShape extends IDisposable {

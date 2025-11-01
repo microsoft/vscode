@@ -14,7 +14,7 @@ import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, fromNow, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
+import { DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -124,6 +124,7 @@ class RefItem implements QuickPickItem {
 	get refName(): string | undefined { return this.ref.name; }
 	get refRemote(): string | undefined { return this.ref.remote; }
 	get shortCommit(): string { return (this.ref.commit || '').substring(0, this.shortCommitLength); }
+	get commitMessage(): string | undefined { return this.ref.commitDetails?.message; }
 
 	private _buttons?: QuickInputButton[];
 	get buttons(): QuickInputButton[] | undefined { return this._buttons; }
@@ -3115,10 +3116,13 @@ export class CommandCenter {
 			return;
 		}
 
+		const title = `${repository.historyProvider.currentHistoryItemRemoteRef.name} ↔ ${getHistoryItemDisplayName(historyItem)}`;
+
 		await this._openChangesBetweenRefs(
 			repository,
-			repository.historyProvider.currentHistoryItemRemoteRef.name,
-			historyItem);
+			repository.historyProvider.currentHistoryItemRemoteRef.revision,
+			historyItem.id,
+			title);
 	}
 
 	@command('git.graph.compareWithMergeBase', { repository: true })
@@ -3127,14 +3131,17 @@ export class CommandCenter {
 			return;
 		}
 
+		const title = `${repository.historyProvider.currentHistoryItemBaseRef.name} ↔ ${getHistoryItemDisplayName(historyItem)}`;
+
 		await this._openChangesBetweenRefs(
 			repository,
 			repository.historyProvider.currentHistoryItemBaseRef.name,
-			historyItem);
+			historyItem.id,
+			title);
 	}
 
 	@command('git.graph.compareRef', { repository: true })
-	async compareBranch(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+	async compareRef(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
 		if (!repository || !historyItem) {
 			return;
 		}
@@ -3161,39 +3168,30 @@ export class CommandCenter {
 			return;
 		}
 
+		const title = `${sourceRef.ref.name} ↔ ${getHistoryItemDisplayName(historyItem)}`;
+
 		await this._openChangesBetweenRefs(
 			repository,
-			sourceRef.ref.name,
-			historyItem);
+			sourceRef.ref.commit,
+			historyItem.id,
+			title);
 	}
 
-	private async _openChangesBetweenRefs(repository: Repository, ref: string | undefined, historyItem: SourceControlHistoryItem | undefined): Promise<void> {
-		if (!repository || !ref || !historyItem) {
+	private async _openChangesBetweenRefs(repository: Repository, ref1: string | undefined, ref2: string | undefined, title: string): Promise<void> {
+		if (!repository || !ref1 || !ref2) {
 			return;
 		}
 
-		const ref2 = historyItem.references?.length
-			? historyItem.references[0].name
-			: historyItem.id;
-
 		try {
-			const changes = await repository.diffBetween2(ref, historyItem.id);
+			const changes = await repository.diffBetween2(ref1, ref2);
 
 			if (changes.length === 0) {
-				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref, ref2));
+				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref1, ref2));
 				return;
 			}
 
-			const refDisplayName = historyItem.references?.length
-				? historyItem.references[0].name
-				: `${historyItem.displayId || historyItem.id} - ${historyItem.subject}`;
-
-			const resources = changes.map(change => toMultiFileDiffEditorUris(change, ref, ref2));
-			const title = `${ref} ↔ ${refDisplayName}`;
-			const multiDiffSourceUri = Uri.from({
-				scheme: 'git-ref-compare',
-				path: `${repository.root}/${ref}..${ref2}`
-			});
+			const multiDiffSourceUri = Uri.from({ scheme: 'git-ref-compare', path: `${repository.root}/${ref1}..${ref2}` });
+			const resources = changes.map(change => toMultiFileDiffEditorUris(change, ref1, ref2));
 
 			await commands.executeCommand('_workbench.openMultiDiffEditor', {
 				multiDiffSourceUri,
@@ -3201,7 +3199,7 @@ export class CommandCenter {
 				resources
 			});
 		} catch (err) {
-			window.showErrorMessage(l10n.t('Failed to open changes between "{0}" and "{1}": {2}', ref, ref2, err.message));
+			window.showErrorMessage(l10n.t('Failed to open changes between "{0}" and "{1}": {2}', ref1, ref2, err.message));
 		}
 	}
 
@@ -3365,24 +3363,7 @@ export class CommandCenter {
 
 	@command('git.createTag', { repository: true })
 	async createTag(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
-		const inputTagName = await window.showInputBox({
-			placeHolder: l10n.t('Tag name'),
-			prompt: l10n.t('Please provide a tag name'),
-			ignoreFocusOut: true
-		});
-
-		if (!inputTagName) {
-			return;
-		}
-
-		const inputMessage = await window.showInputBox({
-			placeHolder: l10n.t('Message'),
-			prompt: l10n.t('Please provide a message to annotate the tag'),
-			ignoreFocusOut: true
-		});
-
-		const name = inputTagName.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
-		await repository.tag({ name, message: inputMessage, ref: historyItem?.id });
+		await this._createTag(repository, historyItem?.id);
 	}
 
 	@command('git.deleteTag', { repository: true })
@@ -3507,6 +3488,85 @@ export class CommandCenter {
 			input2: incoming,
 			output: uri
 		});
+	}
+
+	@command('git.createWorktreeWithDefaults', { repository: true, repositoryFilter: ['repository'] })
+	async createWorktreeWithDefaults(
+		repository: Repository,
+		commitish: string = 'HEAD'
+	): Promise<string | undefined> {
+		const config = workspace.getConfiguration('git');
+		const branchPrefix = config.get<string>('branchPrefix', '');
+
+		// Generate branch name if not provided
+		let branch = await this.generateRandomBranchName(repository, '-');
+		if (!branch) {
+			// Fallback to timestamp-based name if random generation fails
+			const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+			branch = `${branchPrefix}worktree-${timestamp}`;
+		}
+
+		// Ensure branch name starts with prefix if configured
+		if (branchPrefix && !branch.startsWith(branchPrefix)) {
+			branch = branchPrefix + branch;
+		}
+
+		// Create worktree name from branch name
+		const worktreeName = branch.startsWith(branchPrefix)
+			? branch.substring(branchPrefix.length).replace(/\//g, '-')
+			: branch.replace(/\//g, '-');
+
+		// Determine default worktree path
+		const defaultWorktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
+		const defaultWorktreePath = defaultWorktreeRoot
+			? path.join(defaultWorktreeRoot, worktreeName)
+			: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
+
+		// Check if worktree already exists at this path
+		const existingWorktree = repository.worktrees.find(worktree =>
+			pathEquals(path.normalize(worktree.path), path.normalize(defaultWorktreePath))
+		);
+
+		if (existingWorktree) {
+			// Generate unique path by appending a number
+			let counter = 1;
+			let uniquePath = `${defaultWorktreePath}-${counter}`;
+			while (repository.worktrees.some(wt => pathEquals(path.normalize(wt.path), path.normalize(uniquePath)))) {
+				counter++;
+				uniquePath = `${defaultWorktreePath}-${counter}`;
+			}
+			const finalWorktreePath = uniquePath;
+
+			try {
+				await repository.addWorktree({ path: finalWorktreePath, branch, commitish });
+
+				// Update worktree root in global state
+				const worktreeRoot = path.dirname(finalWorktreePath);
+				if (worktreeRoot !== defaultWorktreeRoot) {
+					this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
+				}
+
+				return finalWorktreePath;
+			} catch (err) {
+				// Return undefined on failure
+				return undefined;
+			}
+		}
+
+		try {
+			await repository.addWorktree({ path: defaultWorktreePath, branch, commitish });
+
+			// Update worktree root in global state
+			const worktreeRoot = path.dirname(defaultWorktreePath);
+			if (worktreeRoot !== defaultWorktreeRoot) {
+				this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
+			}
+
+			return defaultWorktreePath;
+		} catch (err) {
+			// Return undefined on failure
+			return undefined;
+		}
 	}
 
 	@command('git.createWorktree')
@@ -5182,6 +5242,24 @@ export class CommandCenter {
 		config.update(setting, !enabled, true);
 	}
 
+	@command('git.repositories.createBranch', { repository: true })
+	async artifactGroupCreateBranch(repository: Repository): Promise<void> {
+		if (!repository) {
+			return;
+		}
+
+		await this._branch(repository, undefined, false);
+	}
+
+	@command('git.repositories.createTag', { repository: true })
+	async artifactGroupCreateTag(repository: Repository): Promise<void> {
+		if (!repository) {
+			return;
+		}
+
+		await this._createTag(repository);
+	}
+
 	@command('git.repositories.checkout', { repository: true })
 	async artifactCheckout(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
 		if (!repository || !artifact) {
@@ -5189,6 +5267,89 @@ export class CommandCenter {
 		}
 
 		await this._checkout(repository, { treeish: artifact.name });
+	}
+
+	@command('git.repositories.checkoutDetached', { repository: true })
+	async artifactCheckoutDetached(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		await this._checkout(repository, { treeish: artifact.name, detached: true });
+	}
+
+	@command('git.repositories.merge', { repository: true })
+	async artifactMerge(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		await repository.merge(artifact.id);
+	}
+
+	@command('git.repositories.rebase', { repository: true })
+	async artifactRebase(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		await repository.rebase(artifact.id);
+	}
+
+	@command('git.repositories.compareRef', { repository: true })
+	async artifactCompareWith(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
+		const getRefPicks = async () => {
+			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
+			const processors = [
+				new RefProcessor(RefType.Head, BranchItem),
+				new RefProcessor(RefType.RemoteHead, BranchItem),
+				new RefProcessor(RefType.Tag, BranchItem)
+			];
+
+			const itemsProcessor = new RefItemsProcessor(repository, processors);
+			return itemsProcessor.processRefs(refs);
+		};
+
+		const placeHolder = l10n.t('Select a reference to compare with');
+		const sourceRef = await this.pickRef(getRefPicks(), placeHolder);
+
+		if (!(sourceRef instanceof BranchItem) || !sourceRef.ref.commit) {
+			return;
+		}
+
+		await this._openChangesBetweenRefs(
+			repository,
+			sourceRef.ref.commit,
+			artifact.id,
+			`${sourceRef.ref.name} ↔ ${artifact.name}`);
+	}
+
+	private async _createTag(repository: Repository, ref?: string): Promise<void> {
+		const inputTagName = await window.showInputBox({
+			placeHolder: l10n.t('Tag name'),
+			prompt: l10n.t('Please provide a tag name'),
+			ignoreFocusOut: true
+		});
+
+		if (!inputTagName) {
+			return;
+		}
+
+		const inputMessage = await window.showInputBox({
+			placeHolder: l10n.t('Message'),
+			prompt: l10n.t('Please provide a message to annotate the tag'),
+			ignoreFocusOut: true
+		});
+
+		const name = inputTagName.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
+		await repository.tag({ name, message: inputMessage, ref });
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
