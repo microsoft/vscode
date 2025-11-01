@@ -125,7 +125,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 					: reason.scope === 'workspace'
 						? localize('chat.autoapprove.lmServicePerTool.workspace', 'Auto approved for this workspace')
 						: localize('chat.autoapprove.lmServicePerTool.profile', 'Auto approved for this profile');
-				md += ' (' + markdownCommandLink({ title: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [this.toolInvocation.toolId] }) + ')';
+				md += ' (' + markdownCommandLink({ title: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [reason.scope] }) + ')';
 				break;
 			case ToolConfirmKind.UserAction:
 			case ToolConfirmKind.Denied:
