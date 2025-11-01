@@ -221,15 +221,14 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 
 		const selection = this.tree.getSelection();
 
-		const contextKeyService = element && await getContextForWatchExpressionMenuWithDataAccess(this.contextKeyService, element);
+		const contextKeyService = element && await getContextForWatchExpressionMenuWithDataAccess(this.contextKeyService, element, this.debugService);
 		const menu = this.menuService.getMenuActions(MenuId.DebugWatchContext, contextKeyService, { arg: element, shouldForwardArgs: false });
 		const { secondary } = getContextMenuActions(menu, 'inline');
 
-		//		const actions = getFlatContextMenuActions(this.menu.getActions({ arg: element, shouldForwardArgs: true }));
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => secondary,
-			getActionsContext: () => element && selection.includes(element) ? selection : element ? [element] : [],
+			getActionsContext: () => element && selection.includes(element) ? selection : element ? [element] : []
 		});
 	}
 }
@@ -409,14 +408,65 @@ function getContextForWatchExpressionMenu(parentContext: IContextKeyService, exp
 /**
  * Gets a context key overlay that has context for the given expression, including data access info.
  */
-async function getContextForWatchExpressionMenuWithDataAccess(parentContext: IContextKeyService, expression: IExpression) {
+async function getContextForWatchExpressionMenuWithDataAccess(parentContext: IContextKeyService, expression: IExpression, debugService: IDebugService) {
 	const session = expression.getSession();
 	if (!session || !session.capabilities.supportsDataBreakpoints) {
 		return getContextForWatchExpressionMenu(parentContext, expression);
 	}
 
 	const contextKeys: [string, unknown][] = [];
-	const dataBreakpointInfoResponse = await session.dataBreakpointInfo('evaluateName' in expression ? expression.evaluateName as string : expression.name);
+
+	// Ensure variables are fetched from their container so the debug adapter knows about them.
+	// For Variables (nested items like s.x), the container is the parent expression.
+	// For Expressions (top-level items like s), the container is the local scope.
+	const stackFrame = debugService.getViewModel().focusedStackFrame;
+	let dataBreakpointInfoResponse;
+
+	try {
+		if (expression instanceof Variable) {
+			// For nested variables, ensure the parent's children have been fetched
+			if ('getChildren' in expression.parent && typeof expression.parent.getChildren === 'function') {
+				await expression.parent.getChildren();
+			}
+
+			dataBreakpointInfoResponse = await session.dataBreakpointInfo(expression.name, expression.parent.reference);
+		} else {
+			const expressionName = 'evaluateName' in expression ? expression.evaluateName as string : expression.name;
+
+			// For simple expressions (variable names), use the local scope reference
+			// For complex expressions (like s.x), pass frameId and let the adapter parse it
+			if (expressionName.includes('.') || expressionName.includes('[')) {
+				// Complex expression - pass frameId for context, adapter may parse the expression
+				dataBreakpointInfoResponse = await session.dataBreakpointInfo(
+					expressionName,
+					undefined,
+					stackFrame?.frameId
+				);
+			} else {
+				// Simple variable name - get it from the local scope
+				let scopeReference = 0;
+				if (stackFrame) {
+					const scopes = await stackFrame.getScopes();
+					const localScope = scopes.find(s => !s.expensive); // Local scope is typically not expensive
+					if (localScope) {
+						// Fetch the variables from the scope to ensure the debug adapter knows about them.
+						// getChildren() is cached, so this won't make duplicate requests if already fetched.
+						await localScope.getChildren();
+						scopeReference = localScope.reference || 0;
+					}
+				}
+
+				dataBreakpointInfoResponse = await session.dataBreakpointInfo(
+					expressionName,
+					scopeReference
+				);
+			}
+		}
+	} catch (error) {
+		// If dataBreakpointInfo fails (e.g., expression not found, invalid expression),
+		// silently continue without data breakpoint support for this item
+	}
+
 	const dataBreakpointId = dataBreakpointInfoResponse?.dataId;
 	const dataBreakpointAccessTypes = dataBreakpointInfoResponse?.accessTypes;
 	setDataBreakpointInfoResponse(dataBreakpointInfoResponse);
