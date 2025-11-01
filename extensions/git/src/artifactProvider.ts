@@ -70,7 +70,10 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				return refs.map(r => ({
 					id: `refs/heads/${r.name}`,
 					name: r.name ?? r.commit ?? '',
-					description: getArtifactDescription(r, shortCommitLength)
+					description: getArtifactDescription(r, shortCommitLength),
+					icon: r.name === this.repository.HEAD?.name
+						? new ThemeIcon('target')
+						: new ThemeIcon('git-branch')
 				}));
 			} else if (group === 'tags') {
 				const refs = await this.repository
@@ -79,7 +82,8 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				return refs.map(r => ({
 					id: `refs/tags/${r.name}`,
 					name: r.name ?? r.commit ?? '',
-					description: getArtifactDescription(r, shortCommitLength)
+					description: getArtifactDescription(r, shortCommitLength),
+					icon: new ThemeIcon('tag')
 				}));
 			}
 		} catch (err) {

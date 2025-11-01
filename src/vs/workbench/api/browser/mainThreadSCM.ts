@@ -188,7 +188,8 @@ class MainThreadSCMArtifactProvider implements ISCMArtifactProvider {
 	}
 
 	async provideArtifacts(group: string, token?: CancellationToken): Promise<ISCMArtifact[] | undefined> {
-		return this.proxy.$provideArtifacts(this.handle, group, token ?? CancellationToken.None);
+		const artifacts = await this.proxy.$provideArtifacts(this.handle, group, token ?? CancellationToken.None);
+		return artifacts?.map(artifact => ({ ...artifact, icon: getIconFromIconDto(artifact.icon) }));
 	}
 
 	$onDidChangeArtifacts(groups: string[]): void {

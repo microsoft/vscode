@@ -45,6 +45,10 @@ export interface IToolData {
 	 */
 	runsInWorkspace?: boolean;
 	alwaysDisplayInputOutput?: boolean;
+	/** True if this tool might ask for pre-approval */
+	canRequestPreApproval?: boolean;
+	/** True if this tool might ask for post-approval */
+	canRequestPostApproval?: boolean;
 }
 
 export interface IToolProgressStep {
@@ -331,10 +335,6 @@ export interface ILanguageModelToolsService {
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
-	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'session' | 'never'): void;
-	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never';
-	resetToolAutoConfirmation(): void;
-	getToolPostExecutionAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never';
 	cancelToolCallsForRequest(requestId: string): void;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;

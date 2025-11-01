@@ -167,55 +167,64 @@ class ArtifactRenderer implements ICompressibleTreeRenderer<SCMArtifactTreeEleme
 	renderElement(nodeOrElement: ITreeNode<SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>, FuzzyScore>, index: number, templateData: ArtifactTemplate): void {
 		const artifactOrFolder = nodeOrElement.element;
 
-		if (isSCMArtifactNode(artifactOrFolder)) {
-			// Folder
-			templateData.icon.className = `icon ${ThemeIcon.asClassName(Codicon.folder)}`;
-			templateData.label.setLabel(basename(artifactOrFolder.uri));
-
-			templateData.actionBar.setActions([]);
-			templateData.actionBar.context = undefined;
-		} else {
+		// Label
+		if (isSCMArtifactTreeElement(artifactOrFolder)) {
 			// Artifact
 			const artifact = artifactOrFolder.artifact;
 
-			templateData.icon.className = ThemeIcon.isThemeIcon(artifactOrFolder.group.icon)
-				? `icon ${ThemeIcon.asClassName(artifactOrFolder.group.icon)}`
+			const artifactIcon = artifact.icon ?? artifactOrFolder.group.icon;
+			templateData.icon.className = ThemeIcon.isThemeIcon(artifactIcon)
+				? `icon ${ThemeIcon.asClassName(artifactIcon)}`
 				: '';
 
 			const artifactLabel = artifact.name.split('/').pop() ?? artifact.name;
 			templateData.label.setLabel(artifactLabel, artifact.description);
-
-			const provider = artifactOrFolder.repository.provider;
-			const repositoryMenus = this._scmViewService.menus.getRepositoryMenus(provider);
-			templateData.elementDisposables.add(connectPrimaryMenu(repositoryMenus.getArtifactMenu(artifactOrFolder.group), primary => {
-				templateData.actionBar.setActions(primary);
-			}, 'inline', provider));
-			templateData.actionBar.context = artifact;
+		} else if (isSCMArtifactNode(artifactOrFolder)) {
+			// Folder
+			templateData.icon.className = `icon ${ThemeIcon.asClassName(Codicon.folder)}`;
+			templateData.label.setLabel(basename(artifactOrFolder.uri));
 		}
+
+		// Actions
+		this._renderActionBar(artifactOrFolder, templateData);
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>>, FuzzyScore>, index: number, templateData: ArtifactTemplate, details?: ITreeElementRenderDetails): void {
 		const compressed = node.element;
 		const artifactOrFolder = compressed.elements[compressed.elements.length - 1];
 
+		// Label
 		if (isSCMArtifactTreeElement(artifactOrFolder)) {
+			// Artifact
 			const artifact = artifactOrFolder.artifact;
 
-			templateData.icon.className = ThemeIcon.isThemeIcon(artifactOrFolder.group.icon)
-				? `icon ${ThemeIcon.asClassName(artifactOrFolder.group.icon)}`
+			const artifactIcon = artifact.icon ?? artifactOrFolder.group.icon;
+			templateData.icon.className = ThemeIcon.isThemeIcon(artifactIcon)
+				? `icon ${ThemeIcon.asClassName(artifactIcon)}`
 				: '';
-			templateData.label.setLabel(artifact.name, artifact.description);
 
+			templateData.label.setLabel(artifact.name, artifact.description);
+		} else if (isSCMArtifactNode(artifactOrFolder)) {
+			// Folder
+			templateData.icon.className = `icon ${ThemeIcon.asClassName(Codicon.folder)}`;
+			templateData.label.setLabel(artifactOrFolder.uri.fsPath.substring(1));
+		}
+
+		// Actions
+		this._renderActionBar(artifactOrFolder, templateData);
+	}
+
+	private _renderActionBar(artifactOrFolder: SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>, templateData: ArtifactTemplate): void {
+		if (isSCMArtifactTreeElement(artifactOrFolder)) {
+			const artifact = artifactOrFolder.artifact;
 			const provider = artifactOrFolder.repository.provider;
 			const repositoryMenus = this._scmViewService.menus.getRepositoryMenus(provider);
 			templateData.elementDisposables.add(connectPrimaryMenu(repositoryMenus.getArtifactMenu(artifactOrFolder.group), primary => {
 				templateData.actionBar.setActions(primary);
 			}, 'inline', provider));
 			templateData.actionBar.context = artifact;
-		} else if (ResourceTree.isResourceNode(artifactOrFolder)) {
-			templateData.icon.className = `icon ${ThemeIcon.asClassName(Codicon.folder)}`;
-			templateData.label.setLabel(artifactOrFolder.uri.fsPath.substring(1));
 
+		} else if (ResourceTree.isResourceNode(artifactOrFolder)) {
 			templateData.actionBar.setActions([]);
 			templateData.actionBar.context = undefined;
 		}
