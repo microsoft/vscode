@@ -88,7 +88,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		const tool = languageModelToolsService.getTool(toolInvocation.toolId);
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<ConfirmationOutcome | (() => void)>,
-			this.context.container,
+			this.context,
 			{
 				title: this.getTitle(),
 				icon: tool?.icon && 'id' in tool.icon ? tool.icon : Codicon.tools,
@@ -132,7 +132,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 				}
 			}
 
-			this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.focusInput();
+			this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
 		}));
 
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));

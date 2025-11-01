@@ -116,10 +116,9 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 						codemapperUri: undefined,
 						elementId: this.context.element.id,
 						focus: () => { },
-						isStreaming: false,
 						ownerMarkdownPartId: this.codeblocksPartId,
 						uri: model.uri,
-						chatSessionId: this.context.element.sessionId,
+						chatSessionResource: this.context.element.sessionResource,
 						uriPromise: Promise.resolve(model.uri)
 					}
 				});
@@ -149,10 +148,9 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 						codemapperUri: undefined,
 						elementId: this.context.element.id,
 						focus: () => { },
-						isStreaming: false,
 						ownerMarkdownPartId: this.codeblocksPartId,
 						uri: model.uri,
-						chatSessionId: this.context.element.sessionId,
+						chatSessionResource: this.context.element.sessionResource,
 						uriPromise: Promise.resolve(model.uri)
 					}
 				});
@@ -194,10 +192,9 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 								codemapperUri: undefined,
 								elementId: this.context.element.id,
 								focus: () => { },
-								isStreaming: false,
 								ownerMarkdownPartId: this.codeblocksPartId,
 								uri: model.uri,
-								chatSessionId: this.context.element.sessionId,
+								chatSessionResource: this.context.element.sessionResource,
 								uriPromise: Promise.resolve(model.uri)
 							}
 						});
@@ -227,10 +224,9 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 								codemapperUri: undefined,
 								elementId: this.context.element.id,
 								focus: () => { },
-								isStreaming: false,
 								ownerMarkdownPartId: this.codeblocksPartId,
 								uri: model.uri,
-								chatSessionId: this.context.element.sessionId,
+								chatSessionResource: this.context.element.sessionResource,
 								uriPromise: Promise.resolve(model.uri)
 							}
 						});

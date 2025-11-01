@@ -202,18 +202,17 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 					languageId: langId ?? 'json',
 					renderOptions: codeBlockRenderOptions,
 					textModel: Promise.resolve(model),
-					chatSessionId: this.context.element.sessionId
+					chatSessionResource: this.context.element.sessionResource
 				}, this.currentWidthDelegate());
 				this.codeblocks.push({
 					codeBlockIndex: this.codeBlockStartIndex,
 					codemapperUri: undefined,
 					elementId: this.context.element.id,
 					focus: () => editor.object.focus(),
-					isStreaming: false,
 					ownerMarkdownPartId: this.codeblocksPartId,
 					uri: model.uri,
 					uriPromise: Promise.resolve(model.uri),
-					chatSessionId: this.context.element.sessionId
+					chatSessionResource: this.context.element.sessionResource
 				});
 				this._register(editor.object.onDidChangeContentHeight(() => {
 					editor.object.layout(this.currentWidthDelegate());

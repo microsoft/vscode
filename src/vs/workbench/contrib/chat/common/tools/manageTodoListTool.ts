@@ -21,6 +21,8 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IChatTodo, IChatTodoListService } from '../chatTodoListService.js';
 import { localize } from '../../../../../nls.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { chatSessionResourceToId, LocalChatSessionUri } from '../chatUri.js';
 
 export const TodoListToolWriteOnlySettingId = 'chat.todoListTool.writeOnly';
 export const TodoListToolDescriptionFieldSettingId = 'chat.todoListTool.descriptionField';
@@ -139,9 +141,9 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			}
 
 			if (operation === 'read') {
-				return this.handleReadOperation(chatSessionId);
+				return this.handleReadOperation(LocalChatSessionUri.forSession(chatSessionId));
 			} else if (operation === 'write') {
-				return this.handleWriteOperation(args, chatSessionId);
+				return this.handleWriteOperation(args, LocalChatSessionUri.forSession(chatSessionId));
 			} else {
 				return {
 					content: [{
@@ -168,7 +170,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		const DEFAULT_TODO_SESSION_ID = 'default';
 		const chatSessionId = context.chatSessionId ?? args.chatSessionId ?? DEFAULT_TODO_SESSION_ID;
 
-		const currentTodoItems = this.chatTodoListService.getTodos(chatSessionId);
+		const currentTodoItems = this.chatTodoListService.getTodos(LocalChatSessionUri.forSession(chatSessionId));
 		let message: string | undefined;
 
 
@@ -227,7 +229,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			const startedTodo = startedTodos[0]; // Should only be one in-progress at a time
 			const totalTodos = newTodos.length;
 			const currentPosition = newTodos.findIndex(todo => todo.id === startedTodo.id) + 1;
-			return localize('todo.starting', "Starting ({0}/{1}) *{2}*", currentPosition, totalTodos, startedTodo.title);
+			return localize('todo.starting', "Starting: *{0}* ({1}/{2})", startedTodo.title, currentPosition, totalTodos);
 		}
 
 		// Check for newly completed todos
@@ -240,7 +242,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			const completedTodo = completedTodos[0]; // Get the first completed todo for the message
 			const totalTodos = newTodos.length;
 			const currentPosition = newTodos.findIndex(todo => todo.id === completedTodo.id) + 1;
-			return localize('todo.completed', "Completed ({0}/{1}) *{2}*", currentPosition, totalTodos, completedTodo.title);
+			return localize('todo.completed', "Completed: *{0}* ({1}/{2})", completedTodo.title, currentPosition, totalTodos);
 		}
 
 		// Check for new todos added
@@ -255,7 +257,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		return localize('todo.updated', "Updated todo list");
 	}
 
-	private handleRead(todoItems: IChatTodo[], sessionId: string): string {
+	private handleRead(todoItems: IChatTodo[], sessionResource: URI): string {
 		if (todoItems.length === 0) {
 			return 'No todo list found.';
 		}
@@ -264,9 +266,9 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		return `# Todo List\n\n${markdownTaskList}`;
 	}
 
-	private handleReadOperation(chatSessionId: string): IToolResult {
-		const todoItems = this.chatTodoListService.getTodos(chatSessionId);
-		const readResult = this.handleRead(todoItems, chatSessionId);
+	private handleReadOperation(chatSessionResource: URI): IToolResult {
+		const todoItems = this.chatTodoListService.getTodos(chatSessionResource);
+		const readResult = this.handleRead(todoItems, chatSessionResource);
 		const statusCounts = this.calculateStatusCounts(todoItems);
 
 		this.telemetryService.publicLog2<TodoListToolInvokedEvent, TodoListToolInvokedClassification>(
@@ -276,7 +278,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 				notStartedCount: statusCounts.notStartedCount,
 				inProgressCount: statusCounts.inProgressCount,
 				completedCount: statusCounts.completedCount,
-				chatSessionId: chatSessionId
+				chatSessionId: chatSessionResourceToId(chatSessionResource)
 			}
 		);
 
@@ -288,7 +290,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		};
 	}
 
-	private handleWriteOperation(args: IManageTodoListToolInputParams, chatSessionId: string): IToolResult {
+	private handleWriteOperation(args: IManageTodoListToolInputParams, chatSessionResource: URI): IToolResult {
 		if (!args.todoList) {
 			return {
 				content: [{
@@ -305,10 +307,10 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			status: parsedTodo.status
 		}));
 
-		const existingTodos = this.chatTodoListService.getTodos(chatSessionId);
+		const existingTodos = this.chatTodoListService.getTodos(chatSessionResource);
 		const changes = this.calculateTodoChanges(existingTodos, todoList);
 
-		this.chatTodoListService.setTodos(chatSessionId, todoList);
+		this.chatTodoListService.setTodos(chatSessionResource, todoList);
 		const statusCounts = this.calculateStatusCounts(todoList);
 
 		// Build warnings
@@ -331,7 +333,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 				notStartedCount: statusCounts.notStartedCount,
 				inProgressCount: statusCounts.inProgressCount,
 				completedCount: statusCounts.completedCount,
-				chatSessionId: chatSessionId
+				chatSessionId: chatSessionResourceToId(chatSessionResource)
 			}
 		);
 

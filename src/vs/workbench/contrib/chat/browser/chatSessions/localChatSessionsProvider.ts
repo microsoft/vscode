@@ -10,20 +10,22 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IEditorGroupsService, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { IChatSessionItemProvider, IChatSessionsService, ChatSessionStatus, IChatSessionItem } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { IChatWidgetService, IChatWidget } from '../chat.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { isChatSession, getChatSessionType, ChatSessionItemWithProvider } from './common.js';
+import { ChatSessionItemWithProvider, isChatSession } from './common.js';
 
-export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider {
+export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.localChatSessionsProvider';
 	static readonly CHAT_WIDGET_VIEW_ID = 'workbench.panel.chat.view.copilot';
 	static readonly HISTORY_NODE_ID = 'show-history';
-	readonly chatSessionType = 'local';
+	readonly chatSessionType = localChatSessionType;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -44,6 +46,8 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
+
+		this._register(this.chatSessionsService.registerChatSessionItemProvider(this));
 
 		this.initializeCurrentEditorSet();
 		this.registerWidgetListeners();
@@ -154,8 +158,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			return false;
 		}
 
-		const sessionType = getChatSessionType(editor);
-		return sessionType === 'local';
+		return editor.getSessionType() === localChatSessionType;
 	}
 
 	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
@@ -200,7 +203,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		const status = chatWidget?.viewModel?.model ? this.modelToStatus(chatWidget.viewModel.model) : undefined;
 		const widgetSession: ChatSessionItemWithProvider = {
 			id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
-			resource: URI.parse(`${Schemas.vscodeChatSession}://widget`),
+			resource: URI.parse(`${Schemas.vscodeLocalChatSession}://widget`),
 			label: chatWidget?.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat").value,
 			description: nls.localize('chat.sessions.chatView.description', "Chat View"),
 			iconPath: Codicon.chatSparkle,
@@ -216,19 +219,18 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			if (editorInfo) {
 				// Determine status and timestamp for editor-based session
 				let status: ChatSessionStatus | undefined;
-				let timestamp: number | undefined;
-				if (editorInfo.editor instanceof ChatEditorInput && editorInfo.editor.sessionId) {
-					const model = this.chatService.getSession(editorInfo.editor.sessionId);
+				let startTime: number | undefined;
+				if (editorInfo.editor instanceof ChatEditorInput && editorInfo.editor.sessionResource && editorInfo.editor.sessionId) {
+					const model = this.chatService.getSession(editorInfo.editor.sessionResource);
 					if (model) {
 						status = this.modelToStatus(model);
 						// Get the last interaction timestamp from the model
 						const requests = model.getRequests();
 						if (requests.length > 0) {
-							const lastRequest = requests[requests.length - 1];
-							timestamp = lastRequest.timestamp;
+							startTime = requests.at(0)?.timestamp;
 						} else {
 							// Fallback to current time if no requests yet
-							timestamp = Date.now();
+							startTime = Date.now();
 						}
 					}
 					const editorSession: ChatSessionItemWithProvider = {
@@ -239,7 +241,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 						status,
 						provider: this,
 						timing: {
-							startTime: timestamp ?? 0
+							startTime: startTime ?? 0
 						}
 					};
 					sessions.push(editorSession);
@@ -250,7 +252,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		// TODO: This should not be a session items
 		const historyNode: IChatSessionItem = {
 			id: LocalChatSessionsProvider.HISTORY_NODE_ID,
-			resource: URI.parse(`${Schemas.vscodeChatSession}://history`),
+			resource: URI.parse(`${Schemas.vscodeLocalChatSession}://history`),
 			label: nls.localize('chat.sessions.showHistory', "History"),
 			timing: { startTime: 0 }
 		};

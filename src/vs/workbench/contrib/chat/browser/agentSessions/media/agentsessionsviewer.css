@@ -20,23 +20,6 @@
 		flex-direction: row;
 		padding: 0 6px;
 
-		/* #region Icon Column */
-
-		.agent-session-icon-col {
-			display: flex;
-			align-items: flex-start;
-			padding-top: 3px;
-		}
-
-		.agent-session-icon {
-			flex-shrink: 0;
-			width: 16px;
-			height: 16px;
-			font-size: 16px;
-		}
-
-		/* #endregion */
-
 		.agent-session-main-col,
 		.agent-session-title-row,
 		.agent-session-details-row {
@@ -47,6 +30,7 @@
 		.agent-session-title-row,
 		.agent-session-details-row {
 			display: flex;
+			align-items: center;
 			line-height: 22px;
 			gap: 6px;
 			padding: 0 6px;
@@ -66,11 +50,21 @@
 			}
 		}
 
+		.agent-session-title {
+			flex: 1;
+		}
+
 		.agent-session-title,
 		.agent-session-description {
-			flex: 1;
 			text-overflow: ellipsis;
 			overflow: hidden;
+		}
+
+		.agent-session-icon {
+			flex-shrink: 0;
+			width: 16px;
+			height: 16px;
+			font-size: 16px;
 		}
 
 		.agent-session-timestamp {

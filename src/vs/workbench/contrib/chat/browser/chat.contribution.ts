@@ -10,7 +10,6 @@ import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js'
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
-import { assertDefined } from '../../../../base/common/types.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -107,6 +106,7 @@ import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatPart
 import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 import { QuickChatService } from './chatQuick.js';
 import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
+import { LocalChatSessionsProvider } from './chatSessions/localChatSessionsProvider.js';
 import { ChatSessionsView, ChatSessionsViewContrib } from './chatSessions/view/chatSessionsView.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup.js';
 import { ChatStatusBarEntry } from './chatStatus.js';
@@ -123,9 +123,9 @@ import { LanguageModelToolsService, globalAutoApproveDescription } from './langu
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
-import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
+import './chatManagement/chatManagement.contribution.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -303,15 +303,6 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
-		},
-		'chat.emptyChatState.enabled': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.emptyChatState', "Shows a modified empty chat state with hints in the input placeholder text."),
-			tags: ['experimental'],
-			experiment: {
-				mode: 'startup'
-			}
 		},
 		[ChatConfiguration.EmptyStateHistoryEnabled]: {
 			type: 'boolean',
@@ -700,6 +691,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agent.thinkingStyle', "Controls how thinking is rendered."),
 			tags: ['experimental'],
 		},
+		'chat.agent.thinking.collapsedTools': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.agent.thinking.collapsedTools', "When enabled, tool calls will be added by default inside the thinking block."),
+			tags: ['experimental'],
+		},
 		'chat.disableAIFeatures': {
 			type: 'boolean',
 			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
@@ -727,6 +724,15 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		'chat.extensionUnification.enabled': {
+			type: 'boolean',
+			description: nls.localize('chat.extensionUnification.enabled', "Enables the unification of GitHub Copilot extensions. When enabled, all GitHub Copilot functionality is served from the GitHub Copilot Chat extension. When disabled, the GitHub Copilot and GitHub Copilot Chat extensions operate independently."),
+			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		}
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -773,7 +779,7 @@ class ChatResolverContribution extends Disposable {
 		super();
 
 		this._registerEditor(Schemas.vscodeChatEditor);
-		this._registerEditor(Schemas.vscodeChatSession);
+		this._registerEditor(Schemas.vscodeLocalChatSession);
 
 		this._register(chatSessionsService.onDidChangeContentProviderSchemes((e) => {
 			for (const scheme of e.added) {
@@ -883,22 +889,6 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
-			command: SAVE_TO_PROMPT_SLASH_COMMAND_NAME,
-			detail: nls.localize('save-chat-to-prompt-file', "Save chat to a prompt file"),
-			sortText: `z3_${SAVE_TO_PROMPT_SLASH_COMMAND_NAME}`,
-			executeImmediately: true,
-			silent: true,
-			locations: [ChatAgentLocation.Chat]
-		}, async () => {
-			const { lastFocusedWidget } = chatWidgetService;
-			assertDefined(
-				lastFocusedWidget,
-				'No currently active chat widget found.',
-			);
-			const options = { chat: lastFocusedWidget };
-			return commandService.executeCommand(SAVE_TO_PROMPT_ACTION_ID, options,);
-		}));
-		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',
 			detail: '',
 			sortText: 'z1_help',
@@ -980,6 +970,7 @@ registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribu
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatResponseResourceFileSystemProvider.ID, ChatResponseResourceFileSystemProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(LocalChatSessionsProvider.ID, LocalChatSessionsProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatSessionsViewContrib.ID, ChatSessionsViewContrib, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatSessionsView.ID, ChatSessionsView, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);

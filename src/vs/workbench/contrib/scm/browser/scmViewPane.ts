@@ -986,6 +986,7 @@ export const ContextKeys = {
 	SCMHistoryItemCount: new RawContextKey<number>('scmHistoryItemCount', 0),
 	SCMHistoryViewMode: new RawContextKey<ViewMode>('scmHistoryViewMode', ViewMode.List),
 	SCMCurrentHistoryItemRefHasRemote: new RawContextKey<boolean>('scmCurrentHistoryItemRefHasRemote', false),
+	SCMCurrentHistoryItemRefHasBase: new RawContextKey<boolean>('scmCurrentHistoryItemRefHasBase', false),
 	SCMCurrentHistoryItemRefInFilter: new RawContextKey<boolean>('scmCurrentHistoryItemRefInFilter', false),
 	RepositoryCount: new RawContextKey<number>('scmRepositoryCount', 0),
 	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),
@@ -1213,8 +1214,18 @@ abstract class RepositorySelectionModeAction extends ViewAction<SCMViewPane> {
 			f1: false,
 			toggled: RepositoryContextKeys.RepositorySelectionMode.isEqualTo(selectionMode),
 			menu: [
-				{ id: Menus.Repositories, order, group: '2_selectionMode' },
-				{ id: MenuId.SCMSourceControlTitle, order, group: '2_selectionMode' },
+				{
+					id: Menus.Repositories,
+					when: ContextKeyExpr.greater(ContextKeys.RepositoryCount.key, 1),
+					group: '2_selectionMode',
+					order
+				},
+				{
+					id: MenuId.SCMSourceControlTitle,
+					when: ContextKeyExpr.greater(ContextKeys.RepositoryCount.key, 1),
+					group: '2_selectionMode',
+					order
+				},
 			]
 		});
 	}

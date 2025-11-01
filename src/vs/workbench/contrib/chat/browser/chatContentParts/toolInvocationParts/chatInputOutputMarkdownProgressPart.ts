@@ -78,10 +78,9 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 					codemapperUri: undefined,
 					elementId: context.element.id,
 					focus: () => { },
-					isStreaming: false,
 					ownerMarkdownPartId: this.codeblocksPartId,
 					uri: model.uri,
-					chatSessionId: context.element.sessionId,
+					chatSessionResource: context.element.sessionResource,
 					uriPromise: Promise.resolve(model.uri)
 				}
 			};

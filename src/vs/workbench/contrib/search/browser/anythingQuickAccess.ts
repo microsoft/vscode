@@ -417,8 +417,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			// Slow picks: files and symbols
 			additionalPicks: (async (): Promise<Picks<IAnythingQuickPickItem>> => {
 
-				// Exclude any result that is already present in editor history
-				const additionalPicksExcludes = new ResourceMap<boolean>();
+				// Exclude any result that is already present in editor history.
+				const additionalPicksExcludes = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 				for (const historyEditorPick of historyEditorPicks) {
 					if (historyEditorPick.resource) {
 						additionalPicksExcludes.set(historyEditorPick.resource, true);
@@ -638,7 +638,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Otherwise, make sure to filter relative path results from
 		// the search results to prevent duplicates
-		const relativePathFileResultsMap = new ResourceMap<boolean>();
+		const relativePathFileResultsMap = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		for (const relativePathFileResult of relativePathFileResults) {
 			relativePathFileResultsMap.set(relativePathFileResult, true);
 		}
@@ -681,7 +681,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			}
 
 			// Remember which result we already covered
-			const existingFileSearchResultsMap = new ResourceMap<boolean>();
+			const existingFileSearchResultsMap = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 			for (const fileSearchResult of fileSearchResults.results) {
 				existingFileSearchResultsMap.set(fileSearchResult.resource, true);
 			}
@@ -751,8 +751,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			}
 
 			try {
-				if ((await this.fileService.stat(resource)).isFile) {
-					return resource;
+				const stat = await this.fileService.stat(resource);
+				if (stat.isFile) {
+					return await this.matchFilenameCasing(resource);
 				}
 			} catch (error) {
 				// ignore if file does not exist
@@ -784,8 +785,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				);
 
 				try {
-					if ((await this.fileService.stat(resource)).isFile) {
-						resources.push(resource);
+					const stat = await this.fileService.stat(resource);
+					if (stat.isFile) {
+						resources.push(await this.matchFilenameCasing(resource));
 					}
 				} catch (error) {
 					// ignore if file does not exist
@@ -796,6 +798,21 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		return;
+	}
+
+	/**
+	 * Attempts to match the filename casing to file system by checking the parent folder's children.
+	 */
+	private async matchFilenameCasing(resource: URI): Promise<URI> {
+		const parent = dirname(resource);
+		const stat = await this.fileService.resolve(parent, { resolveTo: [resource] });
+		if (stat?.children) {
+			const match = stat.children.find(child => this.uriIdentityService.extUri.isEqual(child.resource, resource));
+			if (match) {
+				return URI.joinPath(parent, match.name);
+			}
+		}
+		return resource;
 	}
 
 	//#endregion

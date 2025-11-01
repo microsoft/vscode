@@ -21,7 +21,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { canceledName } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, dispose, thenIfNotDisposed, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -160,8 +160,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	protected readonly _onDidClickFollowup = this._register(new Emitter<IChatFollowup>());
 	readonly onDidClickFollowup: Event<IChatFollowup> = this._onDidClickFollowup.event;
 
-	private readonly _onDidClickRerunWithAgentOrCommandDetection = new Emitter<{ sessionId: string; requestId: string }>();
-	readonly onDidClickRerunWithAgentOrCommandDetection: Event<{ sessionId: string; requestId: string }> = this._onDidClickRerunWithAgentOrCommandDetection.event;
+	private readonly _onDidClickRerunWithAgentOrCommandDetection = new Emitter<{ readonly sessionResource: URI; readonly requestId: string }>();
+	readonly onDidClickRerunWithAgentOrCommandDetection = this._onDidClickRerunWithAgentOrCommandDetection.event;
 
 
 	private readonly _onDidClickRequest = this._register(new Emitter<IChatListItemTemplate>());
@@ -575,7 +575,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const isFiltered = !!(isResponseVM(element) && element.errorDetails?.responseIsFiltered);
 		ChatContextKeys.responseIsFiltered.bindTo(templateData.contextKeyService).set(isFiltered);
 
-		const location = this.chatWidgetService.getWidgetBySessionId(element.sessionId)?.location;
+		const location = this.chatWidgetService.getWidgetBySessionResource(element.sessionResource)?.location;
 		templateData.rowContainer.classList.toggle('editing-session', location === ChatAgentLocation.Chat);
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
@@ -881,7 +881,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					if (newPart.domNode) {
 						newPart.domNode.style.display = 'inline-flex';
 					}
-					const cmdPart = this.instantiationService.createInstance(ChatAgentCommandContentPart, element.slashCommand, () => this._onDidClickRerunWithAgentOrCommandDetection.fire({ sessionId: element.sessionId, requestId: element.id }));
+					const cmdPart = this.instantiationService.createInstance(ChatAgentCommandContentPart, element.slashCommand, () => this._onDidClickRerunWithAgentOrCommandDetection.fire({ sessionResource: element.sessionResource, requestId: element.id }));
 					templateData.value.appendChild(cmdPart.domNode);
 					parts.push(cmdPart);
 					inlineSlashCommandRendered = true;
@@ -1208,6 +1208,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	// put thinking parts inside a pinned part. commented out for now.
 	private shouldPinPart(part: IChatRendererContent, element?: IChatResponseViewModel): boolean {
 
+		const thinkingStyle = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
+		const collapsedTools = this.configService.getValue<boolean>('chat.agent.thinking.collapsedTools');
+		const collapseToolsForFixedScrolling = thinkingStyle === ThinkingDisplayMode.FixedScrollingTools && collapsedTools;
+
+		if (collapseToolsForFixedScrolling) {
+			if (part.kind === 'toolInvocation') {
+				return !part.confirmationMessages;
+			}
+
+			if (part.kind === 'toolInvocationSerialized') {
+				return true;
+			}
+		}
+
 		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && element) {
 			// Explicit set of tools that should be pinned when there has been thinking
 			const specialToolIds = new Set<string>([
@@ -1226,6 +1240,26 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		return part.kind === 'prepareToolInvocation';
+	}
+
+	private isCreateToolInvocationContent(content: IChatRendererContent | undefined): content is IChatToolInvocation | IChatToolInvocationSerialized {
+		if (!content || (content.kind !== 'toolInvocation' && content.kind !== 'toolInvocationSerialized')) {
+			return false;
+		}
+
+		const containsCreate = (value: string | IMarkdownString | undefined) => {
+			if (!value) {
+				return false;
+			}
+			const text = typeof value === 'string' ? value : value.value;
+			return text.toLowerCase().includes('create');
+		};
+
+		if (containsCreate(content.invocationMessage) || containsCreate(content.pastTenseMessage)) {
+			return true;
+		}
+
+		return content.toolId.toLowerCase().includes('create');
 	}
 
 	private finalizeCurrentThinkingPart(): void {
@@ -1252,11 +1286,22 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					return this.renderNoContent(other => content.kind === other.kind);
 				}
 
-				const allowToolStreaming = (isResponseVM(context.element) && this.shouldCombineThinking(context.element));
-				const isThinkingContent = content.kind === 'working' || content.kind === 'thinking';
-				const isToolStreamingContent = allowToolStreaming && this.shouldPinPart(content, isResponseVM(context.element) ? context.element : undefined);
-				if (this._currentThinkingPart && !this._streamingThinking && !isThinkingContent && !isToolStreamingContent) {
-					this.finalizeCurrentThinkingPart();
+				const lastRenderedPart = context.preceedingContentParts.length ? context.preceedingContentParts[context.preceedingContentParts.length - 1] : undefined;
+				const previousContent = context.contentIndex > 0 ? context.content[context.contentIndex - 1] : undefined;
+
+				// Special handling for "create" tool invocations- do not end thinking if previous part is a create tool invocation and config is set.
+				const collapsedTools = this.configService.getValue<boolean>('chat.agent.thinking.collapsedTools');
+				const shouldKeepThinkingForCreateTool = collapsedTools && lastRenderedPart instanceof ChatToolInvocationPart && this.isCreateToolInvocationContent(previousContent);
+
+				if (!shouldKeepThinkingForCreateTool) {
+					const isResponseElement = isResponseVM(context.element);
+					const allowToolStreaming = isResponseElement && this.shouldCombineThinking(context.element);
+					const isThinkingContent = content.kind === 'working' || content.kind === 'thinking';
+					const toolInvocationContext = isResponseElement ? context.element : undefined;
+					const isToolStreamingContent = allowToolStreaming && this.shouldPinPart(content, toolInvocationContext);
+					if (this._currentThinkingPart && !this._streamingThinking && !isThinkingContent && !isToolStreamingContent) {
+						this.finalizeCurrentThinkingPart();
+					}
 				}
 			}
 

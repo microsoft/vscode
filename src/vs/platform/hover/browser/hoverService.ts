@@ -3,34 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
-import { editorHoverBorder } from '../../../../platform/theme/common/colorRegistry.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
+import { registerThemingParticipant } from '../../theme/common/themeService.js';
+import { editorHoverBorder } from '../../theme/common/colorRegistry.js';
+import { IHoverService } from './hover.js';
+import { IContextMenuService } from '../../contextview/browser/contextView.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { HoverWidget } from './hoverWidget.js';
-import { IContextViewProvider, IDelegate } from '../../../../base/browser/ui/contextview/contextview.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement, isAncestor, getWindow, isHTMLElement, isEditableElement } from '../../../../base/browser/dom.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { mainWindow } from '../../../../base/browser/window.js';
-import { ContextViewHandler } from '../../../../platform/contextview/browser/contextViewService.js';
-import { isManagedHoverTooltipMarkdownString, type IHoverLifecycleOptions, type IHoverOptions, type IHoverWidget, type IManagedHover, type IManagedHoverContentOrFactory, type IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
-import type { IHoverDelegate, IHoverDelegateTarget } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IContextViewProvider, IDelegate } from '../../../base/browser/ui/contextview/contextview.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement, isAncestor, getWindow, isHTMLElement, isEditableElement } from '../../../base/browser/dom.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { ResultKind } from '../../keybinding/common/keybindingResolver.js';
+import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { ContextViewHandler } from '../../contextview/browser/contextViewService.js';
+import { isManagedHoverTooltipMarkdownString, type IHoverLifecycleOptions, type IHoverOptions, type IHoverWidget, type IManagedHover, type IManagedHoverContentOrFactory, type IManagedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
+import type { IHoverDelegate, IHoverDelegateTarget } from '../../../base/browser/ui/hover/hoverDelegate.js';
 import { ManagedHoverWidget } from './updatableHoverWidget.js';
-import { timeout, TimeoutTimer } from '../../../../base/common/async.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { isNumber, isString } from '../../../../base/common/types.js';
-import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { EditorContextKeys } from '../../../common/editorContextKeys.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { stripIcons } from '../../../../base/common/iconLabels.js';
+import { timeout, TimeoutTimer } from '../../../base/common/async.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { isNumber, isString } from '../../../base/common/types.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../keybinding/common/keybindingsRegistry.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../base/common/iconLabels.js';
 
 export class HoverService extends Disposable implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -63,8 +62,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 		this._register(KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: 'workbench.action.showHover',
-			weight: KeybindingWeight.WorkbenchContrib - 1,
-			when: EditorContextKeys.editorTextFocus.negate(),
+			weight: KeybindingWeight.EditorCore,
 			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
 			handler: () => { this._showAndFocusHoverForActiveElement(); },
 		}));
@@ -446,7 +444,7 @@ export class HoverService extends Disposable implements IHoverService {
 				// track the mouse position
 				const onMouseMove = (e: MouseEvent) => {
 					target.x = e.x + 10;
-					if ((isHTMLElement(e.target)) && getHoverTargetElement(e.target, targetElement) !== targetElement) {
+					if (!eventIsRelatedToTarget(e, targetElement)) {
 						hideHover(true, true);
 					}
 				};
@@ -455,17 +453,21 @@ export class HoverService extends Disposable implements IHoverService {
 
 			hoverPreparation = mouseOverStore;
 
-			if ((isHTMLElement(e.target)) && getHoverTargetElement(e.target as HTMLElement, targetElement) !== targetElement) {
+			if (!eventIsRelatedToTarget(e, targetElement)) {
 				return; // Do not show hover when the mouse is over another hover target
 			}
 
 			mouseOverStore.add(triggerShowHover(typeof hoverDelegate.delay === 'function' ? hoverDelegate.delay(content) : hoverDelegate.delay, false, target));
 		}, true));
 
-		const onFocus = () => {
+		const onFocus = (e: FocusEvent) => {
 			if (isMouseDown || hoverPreparation) {
 				return;
 			}
+			if (!eventIsRelatedToTarget(e, targetElement)) {
+				return; // Do not show hover when the focus is on another hover target
+			}
+
 			const target: IHoverDelegateTarget = {
 				targetElements: [targetElement],
 				dispose: () => { }
@@ -597,6 +599,10 @@ class HoverContextViewDelegate implements IDelegate {
 	layout() {
 		this._hover.layout();
 	}
+}
+
+function eventIsRelatedToTarget(event: UIEvent, target: HTMLElement): boolean {
+	return isHTMLElement(event.target) && getHoverTargetElement(event.target as HTMLElement, target) === target;
 }
 
 function getHoverTargetElement(element: HTMLElement, stopElement?: HTMLElement): HTMLElement {

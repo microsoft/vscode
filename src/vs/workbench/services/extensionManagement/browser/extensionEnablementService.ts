@@ -31,10 +31,13 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { equals } from '../../../../base/common/arrays.js';
 import { isString } from '../../../../base/common/types.js';
 import { Delayer } from '../../../../base/common/async.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
 type WorkspaceType = { readonly virtual: boolean; readonly trusted: boolean };
+
+const EXTENSION_UNIFICATION_SETTING = 'chat.extensionUnification.enabled';
 
 export class ExtensionEnablementService extends Disposable implements IWorkbenchExtensionEnablementService {
 
@@ -47,6 +50,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	private readonly storageManager: StorageManager;
 	private extensionsDisabledExtensions: IExtension[] = [];
 	private readonly delayer = this._register(new Delayer<void>(0));
+
+	private readonly _completionsExtensionId: string | undefined;
+	private readonly _chatExtensionId: string | undefined;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -68,6 +74,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
+		@IProductService productService: IProductService
 	) {
 		super();
 		this.storageManager = this._register(new StorageManager(storageService));
@@ -87,6 +94,16 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		this._register(this.globalExtensionEnablementService.onDidChangeEnablement(({ extensions, source }) => this._onDidChangeGloballyDisabledExtensions(extensions, source)));
 		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => this._onDidChangeExtensions([], [], false)));
+
+		// Extension unification
+		this._completionsExtensionId = productService.defaultChatAgent?.extensionId.toLowerCase();
+		this._chatExtensionId = productService.defaultChatAgent?.chatExtensionId.toLowerCase();
+		const unificationExtensions = [this._completionsExtensionId, this._chatExtensionId].filter(id => !!id);
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(EXTENSION_UNIFICATION_SETTING)) {
+				this._onEnablementChanged.fire(this.extensionsManager.extensions.filter(ext => unificationExtensions.includes(ext.identifier.id.toLowerCase())));
+			}
+		}));
 
 		// delay notification for extensions disabled until workbench restored
 		if (this.allUserExtensionsDisabled) {
@@ -384,6 +401,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			enablementState = EnablementState.DisabledByExtensionDependency;
 		}
 
+		else if (this._isDisabledByUnification(extension.identifier)) {
+			enablementState = EnablementState.DisabledByUnification;
+		}
+
 		else if (!isEnabled && this._isEnabledInEnv(extension)) {
 			enablementState = EnablementState.EnabledByEnvironment;
 		}
@@ -537,6 +558,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private _isDisabledGlobally(identifier: IExtensionIdentifier): boolean {
 		return this.globalExtensionEnablementService.getDisabledExtensions().some(e => areSameExtensions(e, identifier));
+	}
+
+	private _isDisabledByUnification(identifier: IExtensionIdentifier): boolean {
+		return identifier.id.toLowerCase() === this._completionsExtensionId && this.configurationService.getValue<boolean>(EXTENSION_UNIFICATION_SETTING);
 	}
 
 	private _enableExtension(identifier: IExtensionIdentifier): Promise<boolean> {

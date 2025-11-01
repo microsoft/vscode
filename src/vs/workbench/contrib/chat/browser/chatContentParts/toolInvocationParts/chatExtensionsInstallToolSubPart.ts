@@ -75,7 +75,7 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 
 			const confirmWidget = this._register(instantiationService.createInstance(
 				ChatConfirmationWidget<ConfirmedReason>,
-				context.container,
+				context,
 				{
 					title: toolInvocation.confirmationMessages?.title ?? localize('installExtensions', "Install Extensions"),
 					message: toolInvocation.confirmationMessages?.message ?? localize('installExtensionsConfirmation', "Click the Install button on the extension and then press Allow when finished."),
@@ -86,7 +86,7 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 			dom.append(this.domNode, confirmWidget.domNode);
 			this._register(confirmWidget.onDidClick(button => {
 				IChatToolInvocation.confirmWith(toolInvocation, button.data);
-				chatWidgetService.getWidgetBySessionId(context.element.sessionId)?.focusInput();
+				chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput();
 			}));
 			const hasToolConfirmationKey = ChatContextKeys.Editing.hasToolConfirmation.bindTo(contextKeyService);
 			hasToolConfirmationKey.set(true);

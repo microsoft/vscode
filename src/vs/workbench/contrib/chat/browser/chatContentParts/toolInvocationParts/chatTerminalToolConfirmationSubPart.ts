@@ -157,7 +157,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			languageId,
 			renderOptions: codeBlockRenderOptions,
 			textModel: Promise.resolve(model),
-			chatSessionId: this.context.element.sessionId
+			chatSessionResource: this.context.element.sessionResource
 		}, this.currentWidthDelegate());
 		this._register(thenIfNotDisposed(renderPromise, () => this._onDidChangeHeight.fire()));
 		this.codeblocks.push({
@@ -165,11 +165,10 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			codemapperUri: undefined,
 			elementId: this.context.element.id,
 			focus: () => editor.object.focus(),
-			isStreaming: false,
 			ownerMarkdownPartId: this.codeblocksPartId,
 			uri: model.uri,
 			uriPromise: Promise.resolve(model.uri),
-			chatSessionId: this.context.element.sessionId
+			chatSessionResource: this.context.element.sessionResource
 		});
 		this._register(editor.object.onDidChangeContentHeight(() => {
 			editor.object.layout(this.currentWidthDelegate());
@@ -190,7 +189,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		}));
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,
-			this.context.container,
+			this.context,
 			{
 				title,
 				icon: Codicon.terminal,
@@ -304,7 +303,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 
 			if (doComplete) {
 				IChatToolInvocation.confirmWith(toolInvocation, { type: toolConfirmKind });
-				this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.focusInput();
+				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
 			}
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));

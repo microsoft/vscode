@@ -8,7 +8,7 @@
  */
 
 import * as path from '../../../../base/common/path.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, uriToFsPath } from '../../../../base/common/uri.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { sanitizeProcessEnvironment } from '../../../../base/common/processes.js';
@@ -315,7 +315,7 @@ export async function createTerminalEnvironment(
  * @param backend The backend for the terminal.
  * @param isWindowsFrontend Whether the frontend is Windows, this is only exposed for injection via
  * tests.
- * @returns An escaped version of the path to be execuded in the terminal.
+ * @returns An escaped version of the path to be executed in the terminal.
  */
 export async function preparePathForShell(resource: string | URI, executable: string | undefined, title: string, shellType: TerminalShellType | undefined, backend: Pick<ITerminalBackend, 'getWslPath'> | undefined, os: OperatingSystem | undefined, isWindowsFrontend: boolean = isWindows): Promise<string> {
 	let originalPath: string;
@@ -343,7 +343,6 @@ export async function preparePathForShell(resource: string | URI, executable: st
 		title === 'pwsh' ||
 		pathBasename === 'powershell' ||
 		title === 'powershell';
-
 
 	if (isPowerShell && (hasSpace || originalPath.includes('\''))) {
 		return `& '${originalPath.replace(/'/g, '\'\'')}'`;
@@ -390,6 +389,25 @@ export function getWorkspaceForTerminal(cwd: URI | string | undefined, workspace
 		workspaceFolder = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 	}
 	return workspaceFolder;
+}
+
+export async function getUriLabelForShell(uri: URI | string, backend: Pick<ITerminalBackend, 'getWslPath'>, shellType?: TerminalShellType, os?: OperatingSystem, isWindowsFrontend: boolean = isWindows): Promise<string> {
+	let path = typeof uri === 'string' ? uri : uri.fsPath;
+	if (os === OperatingSystem.Windows) {
+		if (shellType === WindowsShellType.Wsl) {
+			return backend.getWslPath(path.replaceAll('/', '\\'), 'win-to-unix');
+		} else if (shellType === WindowsShellType.GitBash) {
+			// Convert \ to / and replace 'c:\' with '/c/'.
+			return path.replaceAll('\\', '/').replace(/^([a-zA-Z]):\//, '/$1/');
+		} else {
+			// If the frontend is not Windows but the terminal is, convert / to \.
+			path = typeof uri === 'string' ? path : uriToFsPath(uri, true);
+			return !isWindowsFrontend ? path.replaceAll('/', '\\') : path;
+		}
+	} else {
+		// If the frontend is Windows but the terminal is not, convert \ to /.
+		return isWindowsFrontend ? path.replaceAll('\\', '/') : path;
+	}
 }
 
 /**

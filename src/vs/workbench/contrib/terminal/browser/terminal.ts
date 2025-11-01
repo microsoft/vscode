@@ -9,7 +9,7 @@ import { Color } from '../../../../base/common/color.js';
 import { Event, IDynamicListEventMultiplexer, type DynamicListEventMultiplexer } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeyMods } from '../../../../platform/quickinput/common/quickInput.js';
 import { IMarkProperties, ITerminalCapabilityImplMap, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -124,7 +124,7 @@ export interface ITerminalChatService {
 	 * @param terminalToolSessionId The tool session id provided in toolSpecificData.
 	 * If no tool session ID is provided, we do nothing.
 	 */
-	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): ITerminalInstance | undefined;
+	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): Promise<ITerminalInstance | undefined>;
 
 	/**
 	 * Returns the list of terminal instances that have been registered with a tool session id.
@@ -650,7 +650,7 @@ export interface ITerminalInstanceHost {
 	 * Gets an instance from a resource if it exists. This MUST be used instead of getInstanceFromId
 	 * when you only know about a terminal's URI. (a URI's instance ID may not be this window's instance ID)
 	 */
-	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined;
+	getInstanceFromResource(resource: UriComponents | undefined): ITerminalInstance | undefined;
 }
 
 /**
@@ -764,7 +764,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	/**
 	 * Whether the terminal's pty is hosted on a remote.
 	 */
-	readonly isRemote: boolean;
+	readonly hasRemoteAuthority: boolean;
 
 	/**
 	 * The remote authority of the terminal's pty.
@@ -1029,7 +1029,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 */
 	sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void>;
 
-	runCommand(command: string, shouldExecute?: boolean): Promise<void>;
+	runCommand(command: string, shouldExecute?: boolean, commandId?: string): Promise<void>;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
@@ -1038,6 +1038,12 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * @param originalPath The path to be escaped and formatted.
 	 */
 	preparePathForShell(originalPath: string): Promise<string>;
+
+	/**
+	 * Formats a file system URI for display in UI so that it appears in the terminal shell's format.
+	 * @param uri The URI to format.
+	 */
+	getUriLabelForShell(uri: URI): Promise<string>;
 
 	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;
