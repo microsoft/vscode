@@ -36,6 +36,16 @@ suite('Prompt Constants', () => {
 			);
 
 			assert.strictEqual(
+				getCleanPromptName(URI.file('.github/instructions/learnings.instructions.md')),
+				'learnings',
+			);
+
+			assert.strictEqual(
+				getCleanPromptName(URI.file('/path/to/custom.instructions.md')),
+				'custom',
+			);
+
+			assert.strictEqual(
 				getCleanPromptName(URI.file('/etc/prompts/my-prompt')),
 				'my-prompt',
 			);
@@ -68,6 +78,24 @@ suite('Prompt Constants', () => {
 
 			assert(
 				isPromptOrInstructionsFile(URI.file('.github/copilot-instructions.md')),
+			);
+		});
+
+		test('returns `true` for instruction files', () => {
+			assert(
+				isPromptOrInstructionsFile(URI.file('.github/instructions/learnings.instructions.md')),
+			);
+
+			assert(
+				isPromptOrInstructionsFile(URI.file('/path/to/my-instructions.instructions.md')),
+			);
+
+			assert(
+				isPromptOrInstructionsFile(URI.file('../common.instructions.md')),
+			);
+
+			assert(
+				isPromptOrInstructionsFile(URI.file('.github/instructions/telemetry.instructions.md')),
 			);
 		});
 
