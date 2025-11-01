@@ -65,8 +65,9 @@ export class ParcelWatcherInstance extends Disposable {
 	) {
 		super();
 
-		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
-		this.excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
+		const options = { ignoreCase: this.request.ignoreGlobPatternCase };
+		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes, options) : undefined;
+		this.excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes, options) : undefined;
 
 		this._register(toDisposable(() => this.subscriptions.clear()));
 	}
@@ -169,13 +170,13 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	// to schedule sufficiently after Parcel.
 	//
 	// Note: since Parcel 2.0.7, the very first event is
-	// emitted without delay if no events occured over a
+	// emitted without delay if no events occurred over a
 	// duration of 500ms. But we always want to aggregate
-	// events to apply our coleasing logic.
+	// events to apply our coalescing logic.
 	//
 	private static readonly FILE_CHANGES_HANDLER_DELAY = 75;
 
-	// Reduce likelyhood of spam from file events via throttling.
+	// Reduce likelihood of spam from file events via throttling.
 	// (https://github.com/microsoft/vscode/issues/124723)
 	private readonly throttledFileChangesEmitter = this._register(new ThrottledWorker<IFileChange>(
 		{

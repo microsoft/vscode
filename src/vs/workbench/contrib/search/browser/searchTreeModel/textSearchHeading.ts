@@ -130,6 +130,7 @@ export abstract class TextSearchHeadingImpl<QueryType extends ITextSearchQuery> 
 	}
 
 	groupFilesByFolder<FileMatch extends IFileMatch>(fileMatches: FileMatch[]): { byFolder: ResourceMap<FileMatch[]>; other: FileMatch[] } {
+		// TODO: Pass uri => this.uriIdentityService.extUri.getComparisonKey(uri) into these maps?
 		const rawPerFolder = new ResourceMap<FileMatch[]>();
 		const otherFileMatches: FileMatch[] = [];
 		this._folderMatches.forEach(fm => rawPerFolder.set(fm.resource, []));

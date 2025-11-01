@@ -88,6 +88,7 @@ export class McpDevModeServerAttache extends Disposable {
 			const excludes = pattern.filter(p => p.startsWith('!')).map(p => p.slice(1));
 			reader.store.add(fileService.watch(wf, { includes, excludes, recursive: true }));
 
+			// TODO: review case sensitivity
 			const includeParse = includes.map(p => glob.parse({ base: wf.fsPath, pattern: p }));
 			const excludeParse = excludes.map(p => glob.parse({ base: wf.fsPath, pattern: p }));
 			reader.store.add(fileService.onDidFilesChange(e => {

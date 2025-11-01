@@ -108,7 +108,8 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 			includes: opts.includes,
 			recursive: opts.recursive,
 			filter: opts.filter,
-			correlationId: opts.correlationId
+			correlationId: opts.correlationId,
+			ignoreGlobPatternCase: opts.ignoreGlobPatternCase
 		};
 
 		if (isRecursiveWatchRequest(request)) {

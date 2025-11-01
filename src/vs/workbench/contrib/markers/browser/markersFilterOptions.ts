@@ -21,10 +21,10 @@ export class ResourceGlobMatcher {
 		rootExpressions: { root: URI; expression: IExpression }[],
 		uriIdentityService: IUriIdentityService
 	) {
-		this.globalExpression = parse(globalExpression);
+		this.globalExpression = parse(globalExpression, { ignoreCase: true });
 		this.expressionsByRoot = TernarySearchTree.forUris<{ root: URI; expression: ParsedExpression }>(uri => uriIdentityService.extUri.ignorePathCasing(uri));
 		for (const expression of rootExpressions) {
-			this.expressionsByRoot.set(expression.root, { root: expression.root, expression: parse(expression.expression) });
+			this.expressionsByRoot.set(expression.root, { root: expression.root, expression: parse(expression.expression, { ignoreCase: true }) });
 		}
 	}
 

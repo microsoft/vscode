@@ -118,6 +118,7 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 				normalizedPattern = { ...pattern, base: normalize(pattern.base) };
 			}
 
+			// TODO: review case sensitivity
 			if (normalizedPattern === candidateUri.fsPath || matchGlobPattern(normalizedPattern, candidateUri.fsPath)) {
 				ret = 10;
 			} else {

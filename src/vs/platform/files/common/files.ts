@@ -538,6 +538,11 @@ export interface IWatchOptionsWithoutCorrelation {
 	 * `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
 	 */
 	filter?: FileChangeFilter;
+
+	/**
+	 * Set to `true` to ignore case when matching glob patterns for includes and excludes.
+	 */
+	ignoreGlobPatternCase?: boolean;
 }
 
 export interface IWatchOptions extends IWatchOptionsWithoutCorrelation {
@@ -1507,6 +1512,7 @@ export interface IFilesConfigurationNode {
 	readonlyInclude: IGlobPatterns;
 	readonlyExclude: IGlobPatterns;
 	readonlyFromPermissions: boolean;
+	ignoreGlobPatternCase: boolean;
 }
 
 //#endregion

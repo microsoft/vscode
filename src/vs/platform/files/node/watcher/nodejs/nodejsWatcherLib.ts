@@ -96,8 +96,9 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	) {
 		super();
 
-		this.excludes = parseWatcherPatterns(this.request.path, this.request.excludes);
-		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
+		const globOptions = { ignoreCase: this.request.ignoreGlobPatternCase };
+		this.excludes = parseWatcherPatterns(this.request.path, this.request.excludes, globOptions);
+		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes, globOptions) : undefined;
 		this.filter = isWatchRequestWithCorrelation(this.request) ? this.request.filter : undefined; // filtering is only enabled when correlating because watchers are otherwise potentially reused
 
 		this.ready = this.watch();
@@ -593,7 +594,7 @@ export async function watchFileContents(path: string, onData: (chunk: Uint8Array
 
 					try {
 						// Consume the new contents of the file until finished
-						// everytime there is a change event signalling a change
+						// every time there is a change event signalling a change
 						while (!cts.token.isCancellationRequested) {
 							const { bytesRead } = await Promises.read(handle, buffer, 0, bufferSize, null);
 							if (!bytesRead || cts.token.isCancellationRequested) {

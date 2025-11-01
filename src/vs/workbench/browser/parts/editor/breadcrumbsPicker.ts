@@ -294,6 +294,7 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 
 					adjustedConfig[patternAbs] = excludesConfig[pattern];
 				}
+				// TODO: review case sensitivity
 				this._cachedExpressions.set(folder.uri.toString(), glob.parse(adjustedConfig));
 			});
 		};

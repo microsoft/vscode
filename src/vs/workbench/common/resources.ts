@@ -68,6 +68,7 @@ export class ResourceGlobMatcher extends Disposable {
 				if (!currentExpression || !equals(currentExpression.expression, newExpression.expression)) {
 					changed = true;
 
+					// TODO: review case sensitivity
 					this.mapFolderToParsedExpression.set(folderUriStr, parse(newExpression.expression));
 					this.mapFolderToConfiguredExpression.set(folderUriStr, newExpression);
 				}
@@ -103,6 +104,7 @@ export class ResourceGlobMatcher extends Disposable {
 			if (!globalCurrentExpression || !equals(globalCurrentExpression.expression, globalNewExpression.expression)) {
 				changed = true;
 
+				// TODO: review case sensitivity
 				this.mapFolderToParsedExpression.set(ResourceGlobMatcher.NO_FOLDER, parse(globalNewExpression.expression));
 				this.mapFolderToConfiguredExpression.set(ResourceGlobMatcher.NO_FOLDER, globalNewExpression);
 			}

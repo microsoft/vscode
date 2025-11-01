@@ -118,6 +118,11 @@ export interface TextSearchQuery2 {
 	 * Whether or not to search for whole word matches only.
 	 */
 	isWordMatch?: boolean;
+
+	/**
+	 * Whether glob pattern matching should be case insensitive.
+	 */
+	ignoreGlobPatternCase?: boolean;
 }
 
 
@@ -166,6 +171,11 @@ export interface TextSearchProviderFolderOptions {
 	 * See the vscode setting `"files.encoding"`
 	 */
 	encoding: string;
+
+	/**
+	 * Whether glob pattern matching should be case insensitive.
+	 */
+	ignoreGlobPatternCase?: boolean;
 }
 
 /**
@@ -208,6 +218,11 @@ export interface TextSearchProviderOptions {
 	 * Number of lines of context to include before and after each match.
 	 */
 	surroundingContext: number;
+
+	/**
+	 * Whether glob pattern matching should be case insensitive.
+	 */
+	ignoreGlobPatternCase?: boolean;
 }
 
 
@@ -264,6 +279,11 @@ export interface FileSearchProviderFolderOptions {
 		 */
 		global: boolean;
 	};
+
+	/**
+	 * Whether glob pattern matching should be case insensitive.
+	 */
+	ignoreGlobPatternCase?: boolean;
 }
 
 /**

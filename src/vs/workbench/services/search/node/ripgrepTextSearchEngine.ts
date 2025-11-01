@@ -36,7 +36,8 @@ export class RipgrepTextSearchEngine {
 				maxResults: options.maxResults,
 				previewOptions: options.previewOptions,
 				maxFileSize: options.maxFileSize,
-				surroundingContext: options.surroundingContext
+				surroundingContext: options.surroundingContext,
+				ignoreGlobPatternCase: query.ignoreGlobPatternCase || options.ignoreGlobPatternCase || folderOption.ignoreGlobPatternCase
 			};
 			return this.provideTextSearchResultsWithRgOptions(query, extendedOptions, progress, token);
 		})).then((e => {
@@ -408,6 +409,11 @@ export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOpt
 	const args = ['--hidden', '--no-require-git'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
+	if (query.ignoreGlobPatternCase || options.ignoreGlobPatternCase || options.folderOptions.ignoreGlobPatternCase) {
+		args.push('--glob-case-insensitive');
+		args.push('--ignore-file-case-insensitive');
+	}
+
 	const { doubleStarIncludes, otherIncludes } = groupBy(
 		options.folderOptions.includes,
 		(include: string) => include.startsWith('**') ? 'doubleStarIncludes' : 'otherIncludes');
@@ -418,8 +424,8 @@ export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOpt
 
 		args.push('-g', '!*');
 		uniqueOthers
-			.forEach(otherIncude => {
-				spreadGlobComponents(otherIncude)
+			.forEach(otherInclude => {
+				spreadGlobComponents(otherInclude)
 					.map(anchorGlob)
 					.forEach(globArg => {
 						args.push('-g', globArg);
@@ -584,7 +590,7 @@ export type IRgBytesOrText = { bytes: string } | { text: string };
 const isLookBehind = (node: ReAST.Node) => node.type === 'Assertion' && node.kind === 'lookbehind';
 
 export function fixRegexNewline(pattern: string): string {
-	// we parse the pattern anew each tiem
+	// we parse the pattern anew each item
 	let re: ReAST.Pattern;
 	try {
 		re = new RegExpParser().parsePattern(pattern);
@@ -690,7 +696,7 @@ function getEscapeAwareSplitStringForRipgrep(pattern: string): { fixedStart?: st
 		switch (char) {
 			case '\\':
 				if (escaped) {
-					// If we're already escaped, then just leave the escaped slash and the preceeding slash that escapes it.
+					// If we're already escaped, then just leave the escaped slash and the preceding slash that escapes it.
 					// The two escaped slashes will result in a single slash and whatever processes the glob later will properly process the escape
 					if (inBraces) {
 						strInBraces += '\\' + char;
@@ -704,7 +710,7 @@ function getEscapeAwareSplitStringForRipgrep(pattern: string): { fixedStart?: st
 				break;
 			case '{':
 				if (escaped) {
-					// if we escaped this opening bracket, then it is to be taken literally. Remove the `\` because we've acknowleged it and add the `{` to the appropriate string
+					// if we escaped this opening bracket, then it is to be taken literally. Remove the `\` because we've acknowledge it and add the `{` to the appropriate string
 					if (inBraces) {
 						strInBraces += char;
 					} else {
