@@ -98,7 +98,7 @@ function newHelpButton(type: PromptsType): IQuickInputButton & { helpURI: URI } 
 }
 
 function isHelpButton(button: IQuickInputButton): button is IQuickInputButton & { helpURI: URI } {
-	return 'helpURI' in button;
+	return (<{ helpURI: URI }>button).helpURI !== undefined;
 }
 
 /**
