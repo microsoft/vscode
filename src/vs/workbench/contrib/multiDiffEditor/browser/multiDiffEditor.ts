@@ -153,6 +153,14 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	public async showWhile(promise: Promise<unknown>): Promise<void> {
 		return this.editorProgressService.showWhile(promise);
 	}
+
+	public goToNextFile(): void {
+		this._multiDiffEditorWidget?.goToNextFile();
+	}
+
+	public goToPreviousFile(): void {
+		this._multiDiffEditorWidget?.goToPreviousFile();
+	}
 }
 
 

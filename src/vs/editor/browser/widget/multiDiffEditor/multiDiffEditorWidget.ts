@@ -85,6 +85,14 @@ export class MultiDiffEditorWidget extends Disposable {
 	public findDocumentDiffItem(resource: URI): IDocumentDiffItem | undefined {
 		return this._widgetImpl.get().findDocumentDiffItem(resource);
 	}
+
+	public goToNextFile(): void {
+		this._widgetImpl.get().goToNextFile();
+	}
+
+	public goToPreviousFile(): void {
+		this._widgetImpl.get().goToPreviousFile();
+	}
 }
 
 export interface RevealOptions {
