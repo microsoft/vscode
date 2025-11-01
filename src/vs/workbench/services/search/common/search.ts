@@ -40,7 +40,7 @@ const SEARCH_ELIDED_MIN_LEN = (SEARCH_ELIDED_PREFIX.length + SEARCH_ELIDED_SUFFI
 export const ISearchService = createDecorator<ISearchService>('searchService');
 
 /**
- * A service that enables to search for files or with in files.
+ * A service that enables to search for files, folders, or within files.
  */
 export interface ISearchService {
 	readonly _serviceBrand: undefined;
@@ -49,7 +49,9 @@ export interface ISearchService {
 	getAIName(): Promise<string | undefined>;
 	textSearchSplitSyncAsync(query: ITextQuery, token?: CancellationToken | undefined, onProgress?: ((result: ISearchProgressItem) => void) | undefined, notebookFilesToIgnore?: ResourceSet, asyncNotebookFilesToIgnore?: Promise<ResourceSet>): { syncResults: ISearchComplete; asyncResults: Promise<ISearchComplete> };
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
+	folderSearch(query: IFolderQuery2, token?: CancellationToken): Promise<ISearchComplete>;
 	schemeHasFileSearchProvider(scheme: string): boolean;
+	schemeHasFolderSearchProvider(scheme: string): boolean;
 	clearCache(cacheKey: string): Promise<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
 }
@@ -60,13 +62,15 @@ export interface ISearchService {
 export const enum SearchProviderType {
 	file,
 	text,
-	aiText
+	aiText,
+	folder
 }
 
 export interface ISearchResultProvider {
 	getAIName(): Promise<string | undefined>;
 	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
+	folderSearch?(query: IFolderQuery2, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
 }
 
@@ -146,21 +150,40 @@ export interface IAITextQueryProps<U extends UriComponents> extends ICommonQuery
 	userDisabledExcludesAndIgnoreFiles?: boolean;
 }
 
+export interface IFolderQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
+	type: QueryType.Folder;
+	folderPattern?: string;
+
+	// when walking through the tree to find the result, don't use the folderPattern to fuzzy match.
+	// Instead, should use glob matching.
+	shouldGlobMatchFolderPattern?: boolean;
+
+	/**
+	 * If true no results will be returned. Instead `limitHit` will indicate if at least one result exists or not.
+	 */
+	exists?: boolean;
+	sortByScore?: boolean;
+	cacheKey?: string;
+}
+
 export type IFileQuery = IFileQueryProps<URI>;
 export type IRawFileQuery = IFileQueryProps<UriComponents>;
 export type ITextQuery = ITextQueryProps<URI>;
 export type IRawTextQuery = ITextQueryProps<UriComponents>;
 export type IAITextQuery = IAITextQueryProps<URI>;
 export type IRawAITextQuery = IAITextQueryProps<UriComponents>;
+export type IFolderQuery2 = IFolderQueryProps<URI>;
+export type IRawFolderQuery = IFolderQueryProps<UriComponents>;
 
-export type IRawQuery = IRawTextQuery | IRawFileQuery | IRawAITextQuery;
-export type ISearchQuery = ITextQuery | IFileQuery | IAITextQuery;
+export type IRawQuery = IRawTextQuery | IRawFileQuery | IRawAITextQuery | IRawFolderQuery;
+export type ISearchQuery = ITextQuery | IFileQuery | IAITextQuery | IFolderQuery2;
 export type ITextSearchQuery = ITextQuery | IAITextQuery;
 
 export const enum QueryType {
 	File = 1,
 	Text = 2,
-	aiText = 3
+	aiText = 3,
+	Folder = 4
 }
 
 /* __GDPR__FRAGMENT__
@@ -576,6 +599,7 @@ export interface ITelemetryEvent {
 export interface IRawSearchService {
 	fileSearch(search: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	textSearch(search: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
+	folderSearch(search: IRawFolderQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
 }
 

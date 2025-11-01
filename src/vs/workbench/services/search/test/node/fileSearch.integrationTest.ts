@@ -8,7 +8,7 @@ import { FileAccess } from '../../../../../base/common/network.js';
 import * as path from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { flakySuite } from '../../../../../base/test/node/testUtils.js';
-import { IFileQuery, IFolderQuery, ISerializedSearchProgressItem, isProgressMessage, QueryType } from '../../common/search.js';
+import { IFileQuery, IFolderQuery, IFolderQuery2, ISerializedSearchProgressItem, isProgressMessage, QueryType } from '../../common/search.js';
 import { SearchService } from '../../node/rawSearchService.js';
 
 const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
@@ -42,6 +42,27 @@ async function doSearchTest(query: IFileQuery, expectedResultCount: number | Fun
 	});
 
 	assert.strictEqual(results.length, expectedResultCount, `rg ${results.length} !== ${expectedResultCount}`);
+}
+
+async function doFolderSearchTest(query: IFolderQuery2, expectedResultCount: number | Function): Promise<void> {
+	const svc = new SearchService();
+
+	const results: ISerializedSearchProgressItem[] = [];
+	await svc.doFolderSearch(query, numThreads, e => {
+		if (!isProgressMessage(e)) {
+			if (Array.isArray(e)) {
+				results.push(...e);
+			} else {
+				results.push(e);
+			}
+		}
+	});
+
+	if (typeof expectedResultCount === 'function') {
+		assert.ok(expectedResultCount(results.length), `folder search ${results.length} didn't match expected condition`);
+	} else {
+		assert.strictEqual(results.length, expectedResultCount, `folder search ${results.length} !== ${expectedResultCount}`);
+	}
 }
 
 flakySuite('FileSearch-integration', function () {
@@ -109,5 +130,38 @@ flakySuite('FileSearch-integration', function () {
 		};
 
 		return doSearchTest(config, 1);
+	});
+
+	test('Folder - simple', () => {
+		const config: IFolderQuery2 = {
+			type: QueryType.Folder,
+			folderQueries: ROOT_FOLDER_QUERY
+		};
+
+		// Should find at least examples, more, subfolder, anotherfolder, and üm laut汉语
+		return doFolderSearchTest(config, (count: number) => count >= 5);
+	});
+
+	test('Folder - with pattern', () => {
+		const config: IFolderQuery2 = {
+			type: QueryType.Folder,
+			folderQueries: ROOT_FOLDER_QUERY,
+			folderPattern: 'examples'
+		};
+
+		// Should find examples folder
+		return doFolderSearchTest(config, (count: number) => count >= 1);
+	});
+
+	test('Folder - exclude', () => {
+		const config: IFolderQuery2 = {
+			type: QueryType.Folder,
+			folderQueries: ROOT_FOLDER_QUERY,
+			folderPattern: 'folder',
+			excludePattern: { '**/anotherfolder/**': true }
+		};
+
+		// Should find subfolder but not anotherfolder
+		return doFolderSearchTest(config, (count: number) => count >= 1);
 	});
 });
