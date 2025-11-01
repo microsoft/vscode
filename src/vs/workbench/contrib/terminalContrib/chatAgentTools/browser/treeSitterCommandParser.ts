@@ -7,6 +7,7 @@ import type { Parser, Query, QueryCapture, Tree } from '@vscode/tree-sitter-wasm
 import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { arch } from '../../../../../base/common/process.js';
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
 
 export const enum TreeSitterCommandParserLanguage {
 	Bash = 'bash',
@@ -14,12 +15,12 @@ export const enum TreeSitterCommandParserLanguage {
 }
 
 export class TreeSitterCommandParser {
-	private readonly _parser: Promise<Parser>;
+	private readonly _parser: Lazy<Promise<Parser>>;
 
 	constructor(
 		@ITreeSitterLibraryService private readonly _treeSitterLibraryService: ITreeSitterLibraryService,
 	) {
-		this._parser = this._treeSitterLibraryService.getParserClass().then(ParserCtor => new ParserCtor());
+		this._parser = new Lazy(() => this._treeSitterLibraryService.getParserClass().then(ParserCtor => new ParserCtor()));
 	}
 
 	async extractSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
@@ -67,7 +68,7 @@ export class TreeSitterCommandParser {
 	private async _doQuery(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<{ tree: Tree; query: Query }> {
 		this._throwIfCanCrash(languageId);
 
-		const parser = await this._parser;
+		const parser = await this._parser.value;
 		const language = await this._treeSitterLibraryService.getLanguagePromise(languageId);
 		if (!language) {
 			throw new BugIndicatingError('Failed to fetch language grammar');
