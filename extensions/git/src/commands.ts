@@ -5296,6 +5296,15 @@ export class CommandCenter {
 		await repository.rebase(artifact.id);
 	}
 
+	@command('git.repositories.createFrom', { repository: true })
+	async artifactCreateFrom(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		await this._branch(repository, undefined, false, artifact.id);
+	}
+
 	@command('git.repositories.compareRef', { repository: true })
 	async artifactCompareWith(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
 		if (!repository || !artifact) {
