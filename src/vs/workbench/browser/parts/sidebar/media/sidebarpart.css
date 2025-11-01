@@ -20,6 +20,10 @@
 	background-color: var(--vscode-sideBarTitle-background);
 }
 
+.monaco-workbench .part.sidebar > .content {
+	font-size: var(--vscode-workbench-sidebar-font-size, 13px);
+}
+
 .monaco-workbench .part.sidebar > .title > .title-label h2 {
 	text-transform: uppercase;
 }
