@@ -30,7 +30,6 @@ import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerm
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
-import { CommandSimplifier } from '../commandSimplifier.js';
 import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
 import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
@@ -46,6 +45,9 @@ import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineF
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
 import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
+import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';
+import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
+import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
 
 // #region Tool data
 
@@ -248,11 +250,13 @@ const telemetryIgnoredSequences = [
 export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private readonly _terminalToolCreator: ToolTerminalCreator;
-	private readonly _commandSimplifier: CommandSimplifier;
 	private readonly _treeSitterCommandParser: TreeSitterCommandParser;
 	private readonly _telemetry: RunInTerminalToolTelemetry;
-	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
 	protected readonly _profileFetcher: TerminalProfileFetcher;
+
+	private readonly _commandLineRewriters: ICommandLineRewriter[];
+	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
+
 	protected readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
 
 	// Immutable window state
@@ -284,13 +288,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		this._terminalToolCreator = _instantiationService.createInstance(ToolTerminalCreator);
 		this._treeSitterCommandParser = this._instantiationService.createInstance(TreeSitterCommandParser);
-		this._commandSimplifier = _instantiationService.createInstance(CommandSimplifier, this._osBackend, this._treeSitterCommandParser);
 		this._telemetry = _instantiationService.createInstance(RunInTerminalToolTelemetry);
+		this._profileFetcher = _instantiationService.createInstance(TerminalProfileFetcher);
+
+		this._commandLineRewriters = [
+			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),
+			this._register(this._instantiationService.createInstance(CommandLinePwshChainOperatorRewriter, this._treeSitterCommandParser)),
+		];
 		this._commandLineAnalyzers = [
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
 		];
-		this._profileFetcher = _instantiationService.createInstance(TerminalProfileFetcher);
 
 		// Clear out warning accepted state if the setting is disabled
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
@@ -323,26 +331,37 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunInTerminalInputParams;
 
+		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
 		const os = await this._osBackend;
 		const shell = await this._profileFetcher.getCopilotShell();
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
+		const cwd = await instance?.getCwdResource();
 
-		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
 		const terminalToolSessionId = generateUuid();
 		// Generate a custom command ID to link the command between renderer and pty host
 		const terminalCommandId = `tool-${generateUuid()}`;
 
-		let toolEditedCommand: string | undefined = await this._commandSimplifier.rewriteIfNeeded(args, instance, shell);
-		if (toolEditedCommand === args.command) {
-			toolEditedCommand = undefined;
+		let rewrittenCommand: string | undefined = args.command;
+		for (const rewriter of this._commandLineRewriters) {
+			const rewriteResult = await rewriter.rewrite({
+				commandLine: rewrittenCommand,
+				cwd,
+				shell,
+				os
+			});
+			if (rewriteResult) {
+				rewrittenCommand = rewriteResult.rewritten;
+				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
+			}
 		}
+
 		const toolSpecificData: IChatTerminalToolInvocationData = {
 			kind: 'terminal',
 			terminalToolSessionId,
 			terminalCommandId,
 			commandLine: {
 				original: args.command,
-				toolEdited: toolEditedCommand
+				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand
 			},
 			language,
 		};
@@ -362,7 +381,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Determine auto approval, this happens even when auto approve is off to that reasoning
 		// can be reviewed in the terminal channel. It also allows gauging the effective set of
 		// commands that would be auto approved if it were enabled.
-		const commandLine = toolEditedCommand ?? args.command;
+		const commandLine = rewrittenCommand ?? args.command;
 
 		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
 		const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
