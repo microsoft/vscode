@@ -394,10 +394,13 @@ export class ConfigurationManager implements IConfigurationManager {
 		return undefined;
 	}
 
-	async selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig, dynamicConfig?: { type?: string }): Promise<void> {
+	async selectConfiguration(launch: ILaunch | uri | undefined, name?: string, config?: IConfig, dynamicConfig?: { type?: string }): Promise<void> {
 		if (typeof launch === 'undefined') {
-			const rootUri = this.historyService.getLastActiveWorkspaceRoot();
-			launch = this.getLaunch(rootUri);
+			launch = this.historyService.getLastActiveWorkspaceRoot();
+		}
+		if (launch && launch instanceof uri) {
+			launch = this.getLaunch(launch);
+			name ??= config?.name;
 			if (!launch || launch.getConfigurationNames().length === 0) {
 				launch = this.launches.find(l => !!(l && l.getConfigurationNames().length)) || launch || this.launches[0];
 			}
