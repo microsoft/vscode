@@ -1939,6 +1939,7 @@ registerAction2(class EditToolApproval extends Action2 {
 			metadata: {
 				description: localize2('chat.editToolApproval.description', "Edit/manage the tool approval and confirmation preferences for AI chat agents."),
 			},
+			precondition: ChatContextKeys.enabled,
 			f1: true,
 			category: CHAT_CATEGORY,
 		});

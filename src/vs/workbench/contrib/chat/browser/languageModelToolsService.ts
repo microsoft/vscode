@@ -337,7 +337,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					if (!result.confirmed) {
 						throw new CancellationError();
 					}
-				} dto.toolSpecificData = preparedInvocation?.toolSpecificData;
+				}
+				dto.toolSpecificData = preparedInvocation?.toolSpecificData;
 			}
 
 			if (token.isCancellationRequested) {
