@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 
-const filter = require('gulp-filter');
+const filter = require('gulp-filter').default;
 const es = require('event-stream');
 const VinylFile = require('vinyl');
 const vfs = require('vinyl-fs');
 const path = require('path');
 const fs = require('fs');
-const pall = require('p-all');
+const pall = require('p-all').default;
 
 const { all, copyrightFilter, unicodeFilter, indentationFilter, tsFormattingFilter, eslintFilter, stylelintFilter } = require('./filters');
 
