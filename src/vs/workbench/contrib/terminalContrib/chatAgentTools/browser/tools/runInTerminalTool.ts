@@ -388,8 +388,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const isAutoApproveAllowed = isAutoApproveEnabled && isAutoApproveWarningAccepted;
 
 		const commandLineAnalyzerOptions: ICommandLineAnalyzerOptions = {
-			instance,
 			commandLine,
+			cwd,
 			os,
 			shell,
 			treeSitterLanguage: isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,

@@ -34,7 +34,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		// TODO: Handle environment variables https://github.com/microsoft/vscode/issues/274166
 		// TODO: Handle command substitions/complex destinations https://github.com/microsoft/vscode/issues/274167
 		if (capturedFileWrites.length) {
-			let cwd = await options.instance?.getCwdResource();
+			let cwd = options.cwd;
 			if (!cwd) {
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 				const workspaceFolder = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
