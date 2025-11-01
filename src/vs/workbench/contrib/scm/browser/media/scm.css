@@ -185,8 +185,21 @@
 	stroke: transparent;
 }
 
-.scm-view .monaco-list-row.focused.selected:not(:focus) .history-item > .graph-container > .graph > circle:first-of-type {
+.scm-view .monaco-list-row:hover .history-item > .graph-container > .graph > circle:nth-of-type(2) {
+	stroke: var(--vscode-list-hoverBackground);
+}
+
+.scm-view .monaco-list-row.focused.selected .history-item > .graph-container > .graph > circle:first-of-type {
+	stroke: transparent !important;
+}
+
+.scm-view .monaco-list-row.focused.selected .history-item > .graph-container > .graph > circle:nth-of-type(2) {
 	stroke: var(--vscode-list-inactiveSelectionBackground) !important;
+}
+
+.scm-view .monaco-list-row.focused.selected .history-item > .graph-container.incoming-changes > .graph > circle:last-child,
+.scm-view .monaco-list-row.focused.selected .history-item > .graph-container.outgoing-changes > .graph > circle:last-child {
+	fill: var(--vscode-list-inactiveSelectionBackground) !important;
 }
 
 .scm-view .monaco-list-row .history-item > .label-container {
