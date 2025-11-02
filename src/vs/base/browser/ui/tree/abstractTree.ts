@@ -1500,6 +1500,10 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		// This is either the previous sticky node (if it exists) or the root
 		const parentNode = previousStickyNode ?? this.model.getNode();
 
+		// Find the first child that should stick and is scrolled past
+		let candidateNode: ITreeNode<T, TFilterData> | undefined = undefined;
+		let candidateIndex = Number.MAX_SAFE_INTEGER;
+
 		// Check all direct children of the parent node
 		for (const childNode of parentNode.children) {
 			// Check if this child should stick
@@ -1518,13 +1522,17 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 			const scrollTop = this.view.scrollTop;
 
 			// The node should stick if the scroll position is past the node's top
-			// and the node is at or before the first visible node under the widget
-			if (scrollTop > childTop) {
-				const firstVisibleIndex = this.getNodeIndex(firstVisibleNodeUnderWidget);
-				// Only stick if this node comes before or at the first visible node
-				if (childIndex <= firstVisibleIndex) {
-					return this.createStickyScrollNode(childNode, stickyNodesHeight);
-				}
+			if (scrollTop > childTop && childIndex < candidateIndex) {
+				candidateNode = childNode;
+				candidateIndex = childIndex;
+			}
+		}
+
+		// If we found a candidate, check if it's at or before the first visible node
+		if (candidateNode) {
+			const firstVisibleIndex = this.getNodeIndex(firstVisibleNodeUnderWidget);
+			if (candidateIndex <= firstVisibleIndex) {
+				return this.createStickyScrollNode(candidateNode, stickyNodesHeight);
 			}
 		}
 
