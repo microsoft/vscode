@@ -591,6 +591,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._stickyScrollWidget.setState(undefined, undefined);
 	}
 
+	/**
+	 * Determines if a candidate sticky line should be appended to the sticky scroll widget.
+	 *
+	 * outer scopes: top of the start line triggers the sticky line.
+	 * inner scopes not at max lines: same as outer scopes.
+	 * inner scopes at max lines: bottom of start line triggers the sticky line.
+	 */
 	private _shouldAppendStickyLine(
 		candidate: StickyLineCandidate,
 		useInnerScopes: boolean,
@@ -598,20 +605,18 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		scrollTop: number,
 		currentWidgetHeight: number
 	): boolean {
-		const topOfBeginningLine = this._editor.getTopForLineNumber(candidate.startLineNumber) - scrollTop;
-		const bottomOfEndLine = this._editor.getBottomForLineNumber(candidate.endLineNumber + (useInnerScopes ? 1 : 0)) - scrollTop;
+		const endLineNumber = candidate.endLineNumber + (useInnerScopes ? 1 : 0);
+		const endLineBottom = this._editor.getBottomForLineNumber(endLineNumber) - scrollTop;
 
-		if (!useInnerScopes) {
-			return topOfBeginningLine < currentWidgetHeight && bottomOfEndLine >= currentWidgetHeight;
+		// Don't append if we've scrolled past the end of this range
+		if (endLineBottom < currentWidgetHeight) {
+			return false;
 		}
 
-		if (isAtMaxLines) {
-			const bottomOfBeginningLine = this._editor.getBottomForLineNumber(candidate.startLineNumber) - scrollTop;
-			return (bottomOfBeginningLine) < currentWidgetHeight
-				&& (bottomOfEndLine) >= currentWidgetHeight;
-		}
-
-		return topOfBeginningLine < currentWidgetHeight && bottomOfEndLine >= currentWidgetHeight;
+		const triggerEdge = (useInnerScopes && isAtMaxLines)
+			? this._editor.getBottomForLineNumber(candidate.startLineNumber) - scrollTop
+			: this._editor.getTopForLineNumber(candidate.startLineNumber) - scrollTop;
+		return triggerEdge < currentWidgetHeight;
 	}
 
 	findScrollWidgetState(): StickyScrollWidgetState {
