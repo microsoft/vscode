@@ -58,6 +58,10 @@
 		margin-top: -12px;
 		margin-bottom: 12px;
 	}
+
+	.rendered-markdown p {
+		opacity: 0.85;
+	}
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title.expandable {
