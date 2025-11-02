@@ -33,7 +33,7 @@ export interface IActionListDelegate<T> {
 export interface IActionListItem<T> {
 	readonly item?: T;
 	readonly kind: ActionListItemKind;
-	readonly group?: { kind?: any; icon?: ThemeIcon; title: string };
+	readonly group?: { kind?: unknown; icon?: ThemeIcon; title: string };
 	readonly disabled?: boolean;
 	readonly label?: string;
 	readonly description?: string;

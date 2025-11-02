@@ -9,7 +9,7 @@
 	display: flex;
 	flex-direction: column;
 	margin: 0px auto;
-	max-width: 80%;
+	max-width: 90%;
 }
 
 .extension-editor .clickable {
@@ -19,9 +19,8 @@
 .extension-editor > .header {
 	display: flex;
 	padding-top: 20px;
-	padding-bottom: 14px;
+	padding-bottom: 12px;
 	padding-left: 20px;
-	padding-right: 20px;
 	overflow: hidden;
 	font-size: 14px;
 }
@@ -59,7 +58,7 @@
 }
 
 .extension-editor > .header > .details {
-	padding-left: 20px;
+	padding-left: 12px;
 	overflow: hidden;
 	user-select: text;
 	-webkit-user-select: text;
@@ -281,6 +280,7 @@
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item:not(.empty) > .monaco-dropdown .extension-action.label {
 	border-left-width: 0;
 	border-radius: 0 2px 2px 0;
+	padding: 0 2px;
 }
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status {
@@ -460,16 +460,16 @@
 .extension-editor > .body > .content > .details > .additional-details-container > .monaco-scrollable-element > .additional-details-content {
 	height: 100%;
 	overflow-y: scroll;
-	padding: 20px;
+	padding: 12px;
 	box-sizing: border-box;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .additional-details-element:not(:first-child) {
-	padding-top: 15px;
+	padding-top: 16px;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .additional-details-element {
-	padding-bottom: 15px;
+	padding-bottom: 16px;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .additional-details-element:not(:last-child) {
@@ -478,7 +478,7 @@
 
 .extension-editor > .body > .content > .details > .additional-details-container .additional-details-element > .additional-details-title {
 	font-size: 120%;
-	padding-bottom: 15px;
+	padding-bottom: 12px;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories > .category {

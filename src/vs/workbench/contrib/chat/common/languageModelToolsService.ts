@@ -45,6 +45,10 @@ export interface IToolData {
 	 */
 	runsInWorkspace?: boolean;
 	alwaysDisplayInputOutput?: boolean;
+	/** True if this tool might ask for pre-approval */
+	canRequestPreApproval?: boolean;
+	/** True if this tool might ask for post-approval */
+	canRequestPostApproval?: boolean;
 }
 
 export interface IToolProgressStep {
@@ -191,6 +195,8 @@ export interface IToolResult {
 	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails;
 	toolResultError?: string;
 	toolMetadata?: unknown;
+	/** Whether to ask the user to confirm these tool results. Overrides {@link IToolConfirmationMessages.confirmResults}. */
+	confirmResults?: boolean;
 }
 
 export function toolResultHasBuffers(result: IToolResult): boolean {
@@ -222,11 +228,15 @@ export interface IToolResultDataPart {
 }
 
 export interface IToolConfirmationMessages {
-	title: string | IMarkdownString;
-	message: string | IMarkdownString;
+	/** Title for the confirmation. If set, the user will be asked to confirm execution of the tool */
+	title?: string | IMarkdownString;
+	/** MUST be set if `title` is also set */
+	message?: string | IMarkdownString;
 	disclaimer?: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
 	terminalCustomActions?: ToolConfirmationAction[];
+	/** If true, confirmation will be requested after the tool executes and before results are sent to the model */
+	confirmResults?: boolean;
 }
 
 export interface IToolConfirmationAction {
@@ -317,6 +327,7 @@ export type CountTokensCallback = (input: string, token: CancellationToken) => P
 export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	readonly onDidChangeTools: Event<void>;
+	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ readonly sessionId: string; readonly toolData: IToolData }>;
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
@@ -324,9 +335,6 @@ export interface ILanguageModelToolsService {
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
-	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'session' | 'never'): void;
-	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never';
-	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;

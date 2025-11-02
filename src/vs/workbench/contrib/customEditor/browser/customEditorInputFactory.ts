@@ -25,6 +25,7 @@ export interface CustomDocumentBackupData extends IWorkingCopyBackupMeta {
 	readonly editorResource: UriComponents;
 
 	readonly customTitle: string | undefined;
+	readonly iconPath: { dark: UriComponents; light: UriComponents } | undefined;
 
 	backupId: string;
 
@@ -98,7 +99,8 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 		const customInput = this._instantiationService.createInstance(CustomEditorInput, {
 			resource: data.editorResource,
 			viewType: data.viewType,
-			customTitle: data.title,
+			webviewTitle: data.title,
+			iconPath: data.iconPath,
 		}, webview, { startsDirty: data.dirty, backupId: data.backupId });
 		if (typeof data.group === 'number') {
 			customInput.updateGroup(data.group);
@@ -198,7 +200,10 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 		const editor = this._instantiationService.createInstance(CustomEditorInput, {
 			resource: URI.revive(backupData.editorResource),
 			viewType: backupData.viewType,
-			customTitle: backupData.customTitle,
+			webviewTitle: backupData.customTitle,
+			iconPath: backupData.iconPath
+				? { dark: URI.revive(backupData.iconPath.dark), light: URI.revive(backupData.iconPath.light) }
+				: undefined
 		}, webview, { backupId: backupData.backupId });
 		editor.updateGroup(0);
 		return editor;

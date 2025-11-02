@@ -13,6 +13,7 @@ import { createDecorator } from '../../../../../../platform/instantiation/common
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
 import { PromptsType } from '../promptTypes.js';
 import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 
 /**
  * Provides prompt services.
@@ -108,6 +109,16 @@ export interface ICustomAgent {
 	readonly model?: string;
 
 	/**
+	 * Argument hint metadata in the prompt header that describes what inputs the agent expects or supports.
+	 */
+	readonly argumentHint?: string;
+
+	/**
+	 * Target metadata in the prompt header.
+	 */
+	readonly target?: string;
+
+	/**
 	 * Contents of the custom agent file body and other agent instructions.
 	 */
 	readonly agentInstructions: IChatModeInstructions;
@@ -166,6 +177,18 @@ export interface IPromptsService extends IDisposable {
 	 * Gets the prompt file for a slash command.
 	 */
 	resolvePromptSlashCommand(data: IChatPromptSlashCommand, _token: CancellationToken): Promise<ParsedPromptFile | undefined>;
+
+	/**
+	 * Gets the prompt file for a slash command from cache if available.
+	 * @param command - name of the prompt command without slash
+	 */
+	resolvePromptSlashCommandFromCache(command: string): ParsedPromptFile | undefined;
+
+	/**
+	 * Event that is triggered when slash command -> ParsedPromptFile cache is updated.
+	 * Event handler can call resolvePromptSlashCommandFromCache in case there is new value populated.
+	 */
+	readonly onDidChangeParsedPromptFilesCache: Event<void>;
 
 	/**
 	 * Returns a prompt command if the command name is valid.
@@ -229,6 +252,16 @@ export interface IPromptsService extends IDisposable {
 	 * @param oldURI
 	 */
 	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined;
+
+	/**
+	 * Returns the list of disabled prompt file URIs for a given type. By default no prompt files are disabled.
+	 */
+	getDisabledPromptFiles(type: PromptsType): ResourceSet;
+
+	/**
+	 * Persists the set of disabled prompt file URIs for the given type.
+	 */
+	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
 }
 
 export interface IChatPromptSlashCommand {

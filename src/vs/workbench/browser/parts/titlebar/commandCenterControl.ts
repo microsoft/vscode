@@ -209,7 +209,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 			// spacer
 			if (i < groups.length - 1) {
 				const icon = renderIcon(Codicon.circleSmallFilled);
-				icon.style.padding = '0 12px';
+				icon.style.padding = '0 8px';
 				icon.style.height = '100%';
 				icon.style.opacity = '0.5';
 				container.appendChild(icon);

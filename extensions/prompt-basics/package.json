@@ -38,14 +38,13 @@
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "agent",
+        "id": "chatagent",
         "aliases": [
           "Agent",
           "chat agent"
         ],
         "extensions": [
           ".agent.md",
-          ".vscode-agent.md",
           ".chatmode.md"
         ],
         "configuration": "./language-configuration.json"
@@ -71,7 +70,7 @@
         ]
       },
       {
-        "language": "chatmode",
+        "language": "chatagent",
         "path": "./syntaxes/prompt.tmLanguage.json",
         "scopeName": "text.html.markdown.prompt",
         "unbalancedBracketScopes": [
@@ -103,7 +102,7 @@
           "other": "off"
         }
       },
-      "[chatmode]": {
+      "[chatagent]": {
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false,

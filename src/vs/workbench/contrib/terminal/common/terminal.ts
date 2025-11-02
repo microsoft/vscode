@@ -277,6 +277,7 @@ export const isTerminalProcessManager = (t: ITerminalProcessInfo | ITerminalProc
 
 export interface ITerminalProcessManager extends IDisposable, ITerminalProcessInfo {
 	readonly processTraits: IProcessReadyEvent | undefined;
+	readonly processReadyTimestamp: number;
 
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
@@ -301,6 +302,7 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	setDimensions(cols: number, rows: number, sync: true): void;
 	clearBuffer(): Promise<void>;
 	setUnicodeVersion(version: '6' | '11'): Promise<void>;
+	setNextCommandId(commandLine: string, commandId: string): Promise<void>;
 	acknowledgeDataEvent(charCount: number): void;
 	processBinary(data: string): void;
 
@@ -486,6 +488,7 @@ export const enum TerminalCommandId {
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
 	StartVoice = 'workbench.action.terminal.startVoice',
 	StopVoice = 'workbench.action.terminal.stopVoice',
+	RevealCommand = 'workbench.action.terminal.revealCommand',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

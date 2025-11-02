@@ -28,6 +28,9 @@ import { IContextKey } from '../../../../../platform/contextkey/common/contextke
 import { AccessibleViewProviderId, IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { getCommandHistory, getDirectoryHistory, getShellFileHistory } from '../common/history.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { extUri, extUriIgnorePathCase } from '../../../../../base/common/resources.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
 
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
@@ -46,6 +49,7 @@ export async function showRunRecentQuickPick(
 	const instantiationService = accessor.get(IInstantiationService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const storageService = accessor.get(IStorageService);
+	const pathService = accessor.get(IPathService);
 
 	const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${instance.shellType}`;
 	let placeholder: string;
@@ -198,10 +202,22 @@ export async function showRunRecentQuickPick(
 		placeholder = isMacintosh
 			? localize('selectRecentDirectoryMac', 'Select a directory to go to (hold Option-key to edit the command)')
 			: localize('selectRecentDirectory', 'Select a directory to go to (hold Alt-key to edit the command)');
+
+		// Check path uniqueness following target platform's case sensitivity rules.
+		const uriComparer = instance.os === OperatingSystem.Windows ? extUriIgnorePathCase : extUri;
+		const uniqueUris = new ResourceSet(o => uriComparer.getComparisonKey(o));
+
 		const cwds = instance.capabilities.get(TerminalCapability.CwdDetection)?.cwds || [];
 		if (cwds && cwds.length > 0) {
 			for (const label of cwds) {
-				items.push({ label, rawLabel: label });
+				const itemUri = URI.file(label);
+				if (!uniqueUris.has(itemUri)) {
+					uniqueUris.add(itemUri);
+					items.push({
+						label: await instance.getUriLabelForShell(itemUri),
+						rawLabel: label
+					});
+				}
 			}
 			items = items.reverse();
 			items.unshift({ type: 'separator', label: terminalStrings.currentSessionCategory });
@@ -212,12 +228,16 @@ export async function showRunRecentQuickPick(
 		const previousSessionItems: (IQuickPickItem & { rawLabel: string })[] = [];
 		// Only add previous session item if it's not in this session and it matches the remote authority
 		for (const [label, info] of history.entries) {
-			if ((info === null || info.remoteAuthority === instance.remoteAuthority) && !cwds.includes(label)) {
-				previousSessionItems.unshift({
-					label,
-					rawLabel: label,
-					buttons: [removeFromCommandHistoryButton]
-				});
+			if (info === null || info.remoteAuthority === instance.remoteAuthority) {
+				const itemUri = info?.remoteAuthority ? await pathService.fileURI(label) : URI.file(label);
+				if (!uniqueUris.has(itemUri)) {
+					uniqueUris.add(itemUri);
+					previousSessionItems.unshift({
+						label: await instance.getUriLabelForShell(itemUri),
+						rawLabel: label,
+						buttons: [removeFromCommandHistoryButton]
+					});
+				}
 			}
 		}
 		if (previousSessionItems.length > 0) {
@@ -255,7 +275,7 @@ export async function showRunRecentQuickPick(
 			if (type === 'command') {
 				instantiationService.invokeFunction(getCommandHistory)?.remove(e.item.label);
 			} else {
-				instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.label);
+				instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.rawLabel);
 			}
 		} else if (e.button === commandOutputButton) {
 			const selectedCommand = (e.item as Item).command;

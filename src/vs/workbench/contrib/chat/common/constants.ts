@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../base/common/network.js';
+import { IChatSessionsService } from './chatSessionsService.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
 export enum ChatConfiguration {
 	AgentEnabled = 'chat.agent.enabled',
@@ -16,7 +18,7 @@ export enum ChatConfiguration {
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
-	TodoList = 'chat.agent.todoList',
+	TodosShowWidget = 'chat.tools.todos.showWidget',
 	UseCloudButtonV2 = 'chat.useCloudButtonV2',
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
@@ -49,11 +51,14 @@ export function isChatMode(mode: unknown): mode is ChatModeKind {
 
 // Thinking display modes for pinned content
 export enum ThinkingDisplayMode {
+	Default = 'default',
 	Collapsed = 'collapsed',
 	CollapsedPreview = 'collapsedPreview',
 	Expanded = 'expanded',
 	None = 'none',
-	CollapsedPerItem = 'collapsedPerItem'
+	CollapsedPerItem = 'collapsedPerItem',
+	FixedScrolling = 'fixedScrolling',
+	FixedScrollingTools = 'fixedScrollingTools'
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
@@ -84,8 +89,37 @@ export namespace ChatAgentLocation {
 	}
 }
 
-export const ChatUnsupportedFileSchemes = new Set([Schemas.vscodeChatEditor, Schemas.walkThrough, Schemas.vscodeChatSession, 'ccreq']);
+/**
+ * List of file schemes that are always unsupported for use in chat
+ */
+const chatAlwaysUnsupportedFileSchemes = new Set([
+	Schemas.vscodeChatEditor,
+	Schemas.walkThrough,
+	Schemas.vscodeLocalChatSession,
+	Schemas.vscodeSettings,
+	Schemas.webviewPanel,
+	'ccreq',
+]);
 
-export const VIEWLET_ID = 'workbench.view.chat.sessions';
+export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: string): boolean {
+	const chatService = accessor.get(IChatSessionsService);
 
+	// Exclude schemes we always know are bad
+	if (chatAlwaysUnsupportedFileSchemes.has(scheme)) {
+		return false;
+	}
+
+	// Plus any schemes used by content providers
+	if (chatService.getContentProviderSchemes().includes(scheme)) {
+		return false;
+	}
+
+	// Everything else is supported
+	return true;
+}
+
+export const AGENT_SESSIONS_VIEWLET_ID = 'workbench.view.chat.sessions'; // TODO@bpasero clear once settled
+export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
 export const ChatEditorTitleMaxLength = 30;
+
+export const CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES = 1000;

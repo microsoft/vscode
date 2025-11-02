@@ -59,7 +59,7 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 	}
 
 	private get toolIsConfirmed() {
-		const c = IChatToolInvocation.isConfirmed(this.toolInvocation);
+		const c = IChatToolInvocation.executionConfirmedOrDenied(this.toolInvocation);
 		return !!c && c.type !== ToolConfirmKind.Denied;
 	}
 
@@ -77,7 +77,7 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 			this.provideScreenReaderStatus(content);
 		}
 
-		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, this.getIcon());
+		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, this.getIcon(), this.toolInvocation);
 	}
 
 	private getAnnouncementKey(kind: 'progress' | 'complete'): string {

@@ -109,6 +109,8 @@ export const enum TerminalSettingId {
 	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
+	ShellIntegrationTimeout = 'terminal.integrated.shellIntegration.timeout',
+	ShellIntegrationQuickFixEnabled = 'terminal.integrated.shellIntegration.quickFixEnabled',
 	ShellIntegrationEnvironmentReporting = 'terminal.integrated.shellIntegration.environmentReporting',
 	EnableImages = 'terminal.integrated.enableImages',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
@@ -118,7 +120,7 @@ export const enum TerminalSettingId {
 	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
 	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
 
-	// Debug settings that are hidden from user
+	// Developer/debug settings
 
 	/** Simulated latency applied to all calls made to the pty host */
 	DeveloperPtyHostLatency = 'terminal.integrated.developer.ptyHost.latency',
@@ -337,6 +339,7 @@ export interface IPtyService {
 	getInitialCwd(id: number): Promise<string>;
 	getCwd(id: number): Promise<string>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
+	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void>;
 	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void>;
 	processBinary(id: number, data: string): Promise<void>;
 	/** Confirm the process is _not_ an orphan. */
@@ -815,6 +818,12 @@ export interface ITerminalChildProcess {
 	acknowledgeDataEvent(charCount: number): void;
 
 	/**
+	 * Pre-assigns the command identifier that should be associated with the next command detected by
+	 * shell integration. This keeps the pty host and renderer command stores aligned.
+	 */
+	setNextCommandId(commandLine: string, commandId: string): Promise<void>;
+
+	/**
 	 * Sets the unicode version for the process, this drives the size of some characters in the
 	 * xterm-headless instance.
 	 */
@@ -974,6 +983,8 @@ export interface IShellIntegration {
 	readonly onDidChangeSeenSequences: Event<ReadonlySet<string>>;
 
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+
+	setNextCommandId(command: string, commandId: string): void;
 }
 
 export interface IDecorationAddon {

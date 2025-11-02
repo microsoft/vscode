@@ -291,7 +291,7 @@ export class CodeCell extends Disposable {
 		if (this._useNewApproachForEditorLayout) {
 			return;
 		}
-		const extraOffset = - 6 /** distance to the top of the cell editor, which is 6px under the focus indicator */ - 1 /** border */;
+		const extraOffset = -6 /** distance to the top of the cell editor, which is 6px under the focus indicator */ - 1 /** border */;
 		const min = 0;
 
 		const scrollTop = this.notebookEditor.scrollTop;
@@ -334,7 +334,7 @@ export class CodeCell extends Disposable {
 		this._register(this.templateData.editor.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
 				if (this.viewCell.layoutInfo.editorHeight !== e.contentHeight) {
-					this.onCellEditorHeightChange(`onDidContentSizeChange: ${e.contentHeight}`);
+					this.onCellEditorHeightChange(`onDidContentSizeChange`);
 					this.adjustEditorPosition();
 				}
 			}
@@ -601,7 +601,7 @@ export class CodeCell extends Disposable {
 		}, true);
 	}
 
-	private onCellWidthChange(dbgReasonForChange: string): void {
+	private onCellWidthChange(dbgReasonForChange: CellLayoutChangeReason): void {
 		this._debug(`Cell Editor Width Change, ${dbgReasonForChange}, Content Height = ${this.templateData.editor.getContentHeight()}`);
 		const height = this.templateData.editor.getContentHeight();
 		if (this.templateData.editor.hasModel()) {
@@ -620,7 +620,7 @@ export class CodeCell extends Disposable {
 		this._cellLayout.layoutEditor(dbgReasonForChange);
 	}
 
-	private onCellEditorHeightChange(dbgReasonForChange: string): void {
+	private onCellEditorHeightChange(dbgReasonForChange: CellLayoutChangeReason): void {
 		const height = this.templateData.editor.getContentHeight();
 		if (!this.templateData.editor.hasModel()) {
 			this._debug(`Cell Editor Height Change without model, return (2), ContentHeight: ${height}, CodeCellLayoutInfo.EditorWidth ${this.viewCell.layoutInfo.editorWidth}, EditorLayoutInfo ${this.templateData.editor.getLayoutInfo()}`);
@@ -660,6 +660,8 @@ export class CodeCell extends Disposable {
 		super.dispose();
 	}
 }
+
+type CellLayoutChangeReason = 'nbLayoutChange' | 'nbDidScroll' | 'viewCellLayoutChange' | 'init' | 'onDidChangeCursorSelection' | 'onDidContentSizeChange' | 'onDidResolveTextModel';
 
 export class CodeCellLayout {
 	private _editorVisibility?: 'Full' | 'Top Clipped' | 'Bottom Clipped' | 'Full (Small Viewport)' | 'Invisible';
@@ -755,7 +757,7 @@ export class CodeCellLayout {
 	 *   │ (Outputs region begins at outputContainerOffset below input area)                │
 	 *   └──────────────────────────────────────────────────────────────────────────────────┘
 	 */
-	public layoutEditor(reason: string) {
+	public layoutEditor(reason: CellLayoutChangeReason): void {
 		if (!this._enabled) {
 			return;
 		}
@@ -773,6 +775,9 @@ export class CodeCellLayout {
 
 		const editor = this.templateData.editor;
 		const editorLayout = this.templateData.editor.getLayoutInfo();
+		// If we've already initialized once, we should use the viewCell layout info for editor width.
+		// E.g. when resizing VS Code window or notebook editor (horizontal space changes).
+		const editorWidth = this._initialized && (reason === 'nbLayoutChange' || reason === 'viewCellLayoutChange') ? this.viewCell.layoutInfo.editorWidth : editorLayout.width;
 		const editorHeight = this.viewCell.layoutInfo.editorHeight;
 		const scrollTop = this.notebookEditor.scrollTop;
 		const elementTop = this.notebookEditor.getAbsoluteTopOfElement(this.viewCell);
@@ -831,13 +836,13 @@ export class CodeCellLayout {
 		this._logService.debug(`=> scrollTop = ${scrollTop}, top = ${top}`);
 		this._logService.debug(`=> cellTopMargin = ${CELL_TOP_MARGIN}, cellBottomMargin = ${this.viewCell.layoutInfo.topMargin}, cellOutline = ${CELL_OUTLINE_WIDTH}`);
 		this._logService.debug(`=> scrollBottom: ${scrollBottom}, editBottom: ${editorBottom}, viewport: ${viewportHeight}, scroll: ${scrollDirection}, contOffset: ${outputContainerOffset})`);
-		this._logService.debug(`=> Editor Height = ${height}px, Width: ${editorLayout.width}px, Initial Width: ${this._initialEditorDimension.width}, EditorScrollTop = ${editorScrollTop}px, StatusbarHeight = ${STATUSBAR_HEIGHT}, lineHeight = ${this.notebookEditor.getLayoutInfo().fontInfo.lineHeight}`);
+		this._logService.debug(`=> Editor Height = ${height}px, Width: ${editorWidth}px, Initial Width: ${this._initialEditorDimension.width}, EditorScrollTop = ${editorScrollTop}px, StatusbarHeight = ${STATUSBAR_HEIGHT}, lineHeight = ${this.notebookEditor.getLayoutInfo().fontInfo.lineHeight}`);
 
 		try {
 			this._isUpdatingLayout = true;
 			element.style.top = `${top}px`;
 			editor.layout({
-				width: this._initialized ? editorLayout.width : this._initialEditorDimension.width,
+				width: this._initialized ? editorWidth : this._initialEditorDimension.width,
 				height
 			}, true);
 			if (editorScrollTop >= 0) {

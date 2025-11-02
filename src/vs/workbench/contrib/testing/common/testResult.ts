@@ -465,7 +465,7 @@ export class LiveTestResult extends Disposable implements ITestResult {
 		task.output.end();
 
 		this.setAllToState(
-			TestResultState.Unset,
+			TestResultState.Skipped,
 			taskId,
 			t => t.state === TestResultState.Queued || t.state === TestResultState.Running,
 		);
