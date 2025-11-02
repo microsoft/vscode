@@ -12,7 +12,7 @@ import { IEditorService } from '../../editor/common/editorService.js';
 import { GoFilter, GoScope, IHistoryService } from '../common/history.js';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from '../../../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { dispose, Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { dispose, Disposable, DisposableStore, IDisposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -473,7 +473,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (editors) {
 			const editorStack = editors.get(e.editor);
 			if (editorStack) {
-				editorStack.disposable.dispose();
+				editorStack.disposable.dispose(); // TODO maybe the stack also needs to be disposed?
 				editors.delete(e.editor);
 			}
 
@@ -491,7 +491,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Editor groups
 		const editorGroupStack = this.editorGroupScopedNavigationStacks.get(group.id);
 		if (editorGroupStack) {
-			editorGroupStack.disposable.dispose();
+			editorGroupStack.disposable.dispose(); // TODO maybe the stack also needs to be disposed?
 			this.editorGroupScopedNavigationStacks.delete(group.id);
 		}
 	}
@@ -1435,7 +1435,7 @@ export class EditorNavigationStack extends Disposable {
 	readonly onDidChange = this._onDidChange.event;
 
 	private readonly mapEditorToDisposable = new Map<EditorInput, DisposableStore>();
-	private readonly mapGroupToDisposable = new Map<GroupIdentifier, IDisposable>();
+	private readonly mapGroupToDisposable = this._register(new DisposableMap<GroupIdentifier, IDisposable>);
 
 	private readonly editorHelper: EditorHelper;
 
@@ -1476,6 +1476,9 @@ export class EditorNavigationStack extends Disposable {
 	private registerListeners(): void {
 		this._register(this.onDidChange(() => this.traceStack()));
 		this._register(this.logService.onDidChangeLogLevel(() => this.traceStack()));
+		this._register(this.editorGroupService.onDidRemoveGroup(group => {
+			this.mapGroupToDisposable.deleteAndDispose(group.id);
+		}));
 	}
 
 	private traceStack(): void {
@@ -1807,8 +1810,7 @@ ${entryLabels.join('\n')}
 
 		// Clear group listener
 		if (typeof arg1 === 'number') {
-			this.mapGroupToDisposable.get(arg1)?.dispose();
-			this.mapGroupToDisposable.delete(arg1);
+			this.mapGroupToDisposable.deleteAndDispose(arg1);
 		}
 
 		// Event
@@ -1841,16 +1843,13 @@ ${entryLabels.join('\n')}
 		}
 		this.mapEditorToDisposable.clear();
 
-		for (const [, disposable] of this.mapGroupToDisposable) {
-			dispose(disposable);
-		}
-		this.mapGroupToDisposable.clear();
+		this.mapGroupToDisposable.clearAndDisposeAll();
 	}
 
 	override dispose(): void {
+		this.clear();
 		super.dispose();
 
-		this.clear();
 	}
 
 	//#endregion
