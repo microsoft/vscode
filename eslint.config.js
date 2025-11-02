@@ -1644,6 +1644,145 @@ export default tseslint.config(
 			]
 		}
 	},
+	// browser/electron-browser layer
+	{
+		files: [
+			'src/**/{browser,electron-browser}/**/*.ts'
+		],
+		ignores: [
+			// Base
+			'src/vs/base/browser/dom.ts',
+			'src/vs/base/browser/markdownRenderer.ts',
+			'src/vs/base/browser/ui/button/button.ts',
+			'src/vs/base/browser/ui/dialog/dialog.ts',
+			'src/vs/base/browser/ui/iconLabel/iconLabel.ts',
+			'src/vs/base/browser/ui/list/listWidget.ts',
+			'src/vs/base/browser/ui/sash/sash.ts',
+			'src/vs/base/browser/ui/splitview/paneview.ts',
+			// Code
+			'src/vs/code/browser/workbench/workbench.ts',
+			// Editor
+			'src/vs/editor/browser/controller/editContext/native/debugEditContext.ts',
+			'src/vs/editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.ts',
+			'src/vs/editor/contrib/documentSymbols/browser/outlineModel.ts',
+			'src/vs/editor/contrib/find/browser/findWidget.ts',
+			'src/vs/editor/contrib/hover/browser/contentHoverWidget.ts',
+			'src/vs/editor/contrib/hover/browser/glyphHoverWidget.ts',
+			'src/vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/debugVisualization.ts',
+			'src/vs/editor/contrib/parameterHints/browser/parameterHintsWidget.ts',
+			'src/vs/editor/test/browser/controller/imeRecorder.ts',
+			// Platform
+			'src/vs/platform/actionWidget/browser/actionList.ts',
+			'src/vs/platform/dnd/browser/dnd.ts',
+			'src/vs/platform/quickinput/browser/quickInputList.ts',
+			// Workbench
+			'src/vs/workbench/browser/actions/listCommands.ts',
+			'src/vs/workbench/browser/layout.ts',
+			'src/vs/workbench/browser/parts/titlebar/titlebarPart.ts',
+			'src/vs/workbench/browser/parts/views/treeView.ts',
+			'src/vs/workbench/browser/style.ts',
+			'src/vs/workbench/contrib/chat/browser/actions/chatAccessibilityActions.ts',
+			'src/vs/workbench/contrib/chat/browser/actions/chatCopyActions.ts',
+			'src/vs/workbench/contrib/chat/browser/agentSessions/agentSessionsViewer.ts',
+			'src/vs/workbench/contrib/chat/browser/chatAttachmentWidgets.ts',
+			'src/vs/workbench/contrib/chat/browser/chatContentMarkdownRenderer.ts',
+			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatAttachmentsContentPart.ts',
+			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatChangesSummaryPart.ts',
+			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatMarkdownContentPart.ts',
+			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatMcpServersInteractionContentPart.ts',
+			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatMultiDiffContentPart.ts',
+			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatReferencesContentPart.ts',
+			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatThinkingContentPart.ts',
+			'src/vs/workbench/contrib/chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.ts',
+			'src/vs/workbench/contrib/chat/browser/chatEditing/simpleBrowserEditorOverlay.ts',
+			'src/vs/workbench/contrib/chat/browser/chatEditor.ts',
+			'src/vs/workbench/contrib/chat/browser/chatInlineAnchorWidget.ts',
+			'src/vs/workbench/contrib/chat/browser/chatInputPart.ts',
+			'src/vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer.ts',
+			'src/vs/workbench/contrib/chat/browser/chatSessions/view/sessionsTreeRenderer.ts',
+			'src/vs/workbench/contrib/chat/browser/viewsWelcome/chatViewWelcomeController.ts',
+			'src/vs/workbench/contrib/codeEditor/browser/emptyTextEditorHint/emptyTextEditorHint.ts',
+			'src/vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput.ts',
+			'src/vs/workbench/contrib/comments/browser/commentsTreeViewer.ts',
+			'src/vs/workbench/contrib/files/browser/views/explorerView.ts',
+			'src/vs/workbench/contrib/files/browser/views/explorerViewer.ts',
+			'src/vs/workbench/contrib/files/browser/views/openEditorsView.ts',
+			'src/vs/workbench/contrib/issue/browser/baseIssueReporterService.ts',
+			'src/vs/workbench/contrib/issue/browser/issueReporterService.ts',
+			'src/vs/workbench/contrib/issue/electron-browser/issueReporterService.ts',
+			'src/vs/workbench/contrib/languageStatus/browser/languageStatus.ts',
+			'src/vs/workbench/contrib/markdown/browser/markedKatexSupport.ts',
+			'src/vs/workbench/contrib/markers/browser/markersTable.ts',
+			'src/vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout.ts',
+			'src/vs/workbench/contrib/notebook/browser/view/cellParts/cellDragRenderer.ts',
+			'src/vs/workbench/contrib/notebook/browser/view/cellParts/cellExecution.ts',
+			'src/vs/workbench/contrib/preferences/browser/settingsEditor2.ts',
+			'src/vs/workbench/contrib/preferences/browser/settingsTree.ts',
+			'src/vs/workbench/contrib/processExplorer/browser/processExplorerControl.ts',
+			'src/vs/workbench/contrib/scm/browser/scmHistoryViewPane.ts',
+			'src/vs/workbench/contrib/scm/browser/scmRepositoryRenderer.ts',
+			'src/vs/workbench/contrib/scm/browser/scmViewPane.ts',
+			'src/vs/workbench/contrib/search/browser/searchResultsView.ts',
+			'src/vs/workbench/contrib/search/browser/searchWidget.ts',
+			'src/vs/workbench/contrib/splash/browser/partsSplash.ts',
+			'src/vs/workbench/contrib/terminal/browser/terminalTabsList.ts',
+			'src/vs/workbench/contrib/terminal/browser/xterm/decorationAddon.ts',
+			'src/vs/workbench/contrib/terminal/browser/xterm/xtermTerminal.ts',
+			'src/vs/workbench/contrib/terminalContrib/commandGuide/browser/terminal.commandGuide.contribution.ts',
+			'src/vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollOverlay.ts',
+			'src/vs/workbench/contrib/terminalContrib/suggest/browser/terminal.suggest.contribution.ts',
+			'src/vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon.ts',
+			'src/vs/workbench/contrib/testing/test/browser/testObjectTree.ts',
+			'src/vs/workbench/contrib/webview/electron-browser/webviewCommands.ts',
+			'src/vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.ts',
+			'src/vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughPart.ts',
+			'src/vs/workbench/services/driver/browser/driver.ts',
+			'src/vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.ts',
+			'src/vs/workbench/services/themes/browser/workbenchThemeService.ts',
+			// Tests
+			'**/*.test.ts',
+			'**/*.integrationTest.ts'
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'no-restricted-syntax': [
+				'warn',
+				{
+					'selector': 'CallExpression[callee.property.name=\'querySelector\']',
+					'message': 'querySelector should not be used. Use dom.ts h() to build your elements and access them directly.'
+				},
+				{
+					'selector': 'CallExpression[callee.property.name=\'querySelectorAll\']',
+					'message': 'querySelectorAll should not be used. Use dom.ts h() to build your elements and access them directly.'
+				},
+				{
+					'selector': 'CallExpression[callee.property.name=\'getElementById\']',
+					'message': 'getElementById should not be used. Use dom.ts h() to build your elements and access them directly.'
+				},
+				{
+					'selector': 'CallExpression[callee.property.name=\'getElementsByClassName\']',
+					'message': 'getElementsByClassName should not be used. Use dom.ts h() to build your elements and access them directly.'
+				},
+				{
+					'selector': 'CallExpression[callee.property.name=\'getElementsByTagName\']',
+					'message': 'getElementsByTagName should not be used. Use dom.ts h() to build your elements and access them directly.'
+				},
+				{
+					'selector': 'CallExpression[callee.property.name=\'getElementsByName\']',
+					'message': 'getElementsByName should not be used. Use dom.ts h() to build your elements and access them directly.'
+				},
+				{
+					'selector': 'CallExpression[callee.property.name=\'getElementsByTagNameNS\']',
+					'message': 'getElementsByTagNameNS should not be used. Use dom.ts h() to build your elements and access them directly.'
+				}
+			]
+		}
+	},
 	// electron-utility layer
 	{
 		files: [
