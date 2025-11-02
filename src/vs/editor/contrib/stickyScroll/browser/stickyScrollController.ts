@@ -592,29 +592,26 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private _shouldAppendStickyLine(
-		line: StickyLineCandidate,
-		startLineNumbers: number[],
-		innerScopes: boolean,
-		maxNumberStickyLines: number,
+		candidate: StickyLineCandidate,
+		useInnerScopes: boolean,
+		isAtMaxLines: boolean,
 		scrollTop: number,
-		stickyWidgetHeight: number
+		currentWidgetHeight: number
 	): boolean {
-		const topOfBeginningLine = this._editor.getTopForLineNumber(line.startLineNumber) - scrollTop;
-		const bottomOfEndLine = this._editor.getBottomForLineNumber(line.endLineNumber + (innerScopes ? 1 : 0)) - scrollTop;
+		const topOfBeginningLine = this._editor.getTopForLineNumber(candidate.startLineNumber) - scrollTop;
+		const bottomOfEndLine = this._editor.getBottomForLineNumber(candidate.endLineNumber + (useInnerScopes ? 1 : 0)) - scrollTop;
 
-		if (!innerScopes) {
-			return topOfBeginningLine < stickyWidgetHeight && bottomOfEndLine >= stickyWidgetHeight;
+		if (!useInnerScopes) {
+			return topOfBeginningLine < currentWidgetHeight && bottomOfEndLine >= currentWidgetHeight;
 		}
-
-		const isAtMaxLines = startLineNumbers.length === maxNumberStickyLines;
 
 		if (isAtMaxLines) {
-			const bottomOfBeginningLine = this._editor.getBottomForLineNumber(line.startLineNumber) - scrollTop;
-			return (bottomOfBeginningLine) < stickyWidgetHeight
-				&& (bottomOfEndLine) >= stickyWidgetHeight;
+			const bottomOfBeginningLine = this._editor.getBottomForLineNumber(candidate.startLineNumber) - scrollTop;
+			return (bottomOfBeginningLine) < currentWidgetHeight
+				&& (bottomOfEndLine) >= currentWidgetHeight;
 		}
 
-		return topOfBeginningLine < stickyWidgetHeight && bottomOfEndLine >= stickyWidgetHeight;
+		return topOfBeginningLine < currentWidgetHeight && bottomOfEndLine >= currentWidgetHeight;
 	}
 
 	findScrollWidgetState(): StickyScrollWidgetState {
@@ -631,7 +628,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			let stickyWidgetHeight = 0;
 			for (const range of candidateRanges) {
 				const bottomOfEndLine = this._editor.getBottomForLineNumber(range.endLineNumber + (innerScopes ? 1 : 0)) - scrollTop;
-				const shouldAppendStickyLine = this._shouldAppendStickyLine(range, startLineNumbers, innerScopes, maxNumberStickyLines, scrollTop, stickyWidgetHeight);
+				const shouldAppendStickyLine = this._shouldAppendStickyLine(range, innerScopes, startLineNumbers.length === maxNumberStickyLines, scrollTop, stickyWidgetHeight);
 
 				if (shouldAppendStickyLine) {
 					startLineNumbers.push(range.startLineNumber);
