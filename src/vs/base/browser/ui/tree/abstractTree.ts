@@ -1300,7 +1300,7 @@ export interface IStickyScrollDelegate<T, TFilterData> {
 	shouldStick?(node: ITreeNode<T, TFilterData>): boolean;
 }
 
-class DefaultStickyScrollDelegate<T, TFilterData> implements IStickyScrollDelegate<T, TFilterData> {
+export class DefaultStickyScrollDelegate<T, TFilterData> implements IStickyScrollDelegate<T, TFilterData> {
 
 	constrainStickyScrollNodes(stickyNodes: StickyScrollNode<T, TFilterData>[], stickyScrollMaxItemCount: number, maxWidgetHeight: number): StickyScrollNode<T, TFilterData>[] {
 
@@ -1313,10 +1313,6 @@ class DefaultStickyScrollDelegate<T, TFilterData> implements IStickyScrollDelega
 		}
 
 		return stickyNodes;
-	}
-
-	shouldStick(node: ITreeNode<T, TFilterData>): boolean {
-		return false;
 	}
 }
 
