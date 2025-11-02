@@ -288,5 +288,9 @@
 			padding: 2px 5px;
 			width: inherit;
 		}
+
+		.monaco-text-button {
+			padding: 2px 10px;
+		}
 	}
 }
