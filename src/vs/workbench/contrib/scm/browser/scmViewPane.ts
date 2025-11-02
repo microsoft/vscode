@@ -68,7 +68,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer.js';
 import { isDark } from '../../../../platform/theme/common/theme.js';
-import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
+import { LabelFuzzyScore, IStickyScrollDelegate, StickyScrollNode } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { createActionViewItem, getFlatActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -2125,6 +2125,27 @@ class SCMInputWidget {
 	}
 }
 
+class SCMStickyScrollDelegate implements IStickyScrollDelegate<TreeElement, FuzzyScore> {
+
+	constrainStickyScrollNodes(stickyNodes: StickyScrollNode<TreeElement, FuzzyScore>[], stickyScrollMaxItemCount: number, maxWidgetHeight: number): StickyScrollNode<TreeElement, FuzzyScore>[] {
+		// Use default behavior - constrain based on max item count and max height
+		for (let i = 0; i < stickyNodes.length; i++) {
+			const stickyNode = stickyNodes[i];
+			const stickyNodeBottom = stickyNode.position + stickyNode.height;
+			if (stickyNodeBottom > maxWidgetHeight || i >= stickyScrollMaxItemCount) {
+				return stickyNodes.slice(0, i);
+			}
+		}
+
+		return stickyNodes;
+	}
+
+	shouldStick(node: ITreeNode<TreeElement, FuzzyScore>): boolean {
+		// SCM input nodes should stick
+		return isSCMInput(node.element);
+	}
+}
+
 export class SCMViewPane extends ViewPane {
 
 	private _onDidLayout: Emitter<void>;
@@ -2414,7 +2435,8 @@ export class SCMViewPane extends ViewPane {
 					// History Item Group, History Item, or History Item Change
 					return (viewState?.expanded ?? []).indexOf(getSCMResourceId(e as TreeElement)) === -1;
 				},
-				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
+				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider),
+				stickyScrollDelegate: new SCMStickyScrollDelegate()
 			}) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 
 		this.disposables.add(this.tree);
