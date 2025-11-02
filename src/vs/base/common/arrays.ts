@@ -31,7 +31,7 @@ export function tail<T>(arr: T[]): [T[], T] {
  * @param one The first array.
  * @param other The second array.
  * @param itemEquals Optional function to compare two elements. Defaults to strict equality.
- * @returns True if the arrays are equal, false otherwise.
+ * @returns true if the arrays are equal, false otherwise.
  */
 export function equals<T>(one: ReadonlyArray<T> | undefined, other: ReadonlyArray<T> | undefined, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
 	if (one === other) {
