@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { isLinux, isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, type IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IPickOptions, IQuickInputService, Omit, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -101,7 +101,6 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 	private _profiles: Map<string, ITerminalProfile[]> = new Map();
 	private _hasReturnedNone = true;
 	async getBackend(remoteAuthority: string | undefined): Promise<ITerminalBackend> {
-		// eslint-disable-next-line local/code-no-any-casts
 		return {
 			getProfiles: async () => {
 				if (this._hasReturnedNone) {
@@ -111,7 +110,7 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 					return [];
 				}
 			}
-		} satisfies Partial<ITerminalBackend> as any;
+		} satisfies Partial<ITerminalBackend> as unknown as ITerminalBackend;
 	}
 	setProfiles(remoteAuthority: string | undefined, profiles: ITerminalProfile[]) {
 		this._profiles.set(remoteAuthority ?? '', profiles);
@@ -127,8 +126,7 @@ class TestRemoteAgentService implements Partial<IRemoteAgentService> {
 		this._os = os;
 	}
 	async getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
-		// eslint-disable-next-line local/code-no-any-casts
-		return { os: this._os } satisfies Partial<IRemoteAgentEnvironment> as any;
+		return { os: this._os } satisfies Partial<IRemoteAgentEnvironment> as unknown as IRemoteAgentEnvironment;
 	}
 }
 
@@ -156,7 +154,6 @@ suite('TerminalProfileService', () => {
 	let terminalProfileService: TestTerminalProfileService;
 	let remoteAgentService: TestRemoteAgentService;
 	let extensionService: TestTerminalExtensionService;
-	let environmentService: IWorkbenchEnvironmentService;
 	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
@@ -172,8 +169,6 @@ suite('TerminalProfileService', () => {
 		remoteAgentService = new TestRemoteAgentService();
 		terminalInstanceService = new TestTerminalInstanceService();
 		extensionService = new TestTerminalExtensionService();
-		// eslint-disable-next-line local/code-no-any-casts
-		environmentService = { remoteAuthority: undefined } satisfies Partial<IWorkbenchEnvironmentService> as any;
 
 		const themeService = new TestThemeService();
 		const terminalContributionService = new TestTerminalContributionService();
@@ -183,7 +178,7 @@ suite('TerminalProfileService', () => {
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		instantiationService.stub(ITerminalContributionService, terminalContributionService);
 		instantiationService.stub(ITerminalInstanceService, terminalInstanceService);
-		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: undefined });
 		instantiationService.stub(IThemeService, themeService);
 
 		terminalProfileService = store.add(instantiationService.createInstance(TestTerminalProfileService));
@@ -227,8 +222,7 @@ suite('TerminalProfileService', () => {
 					}
 				}
 			});
-			// eslint-disable-next-line local/code-no-any-casts
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, source: ConfigurationTarget.USER } as any);
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, source: ConfigurationTarget.USER } satisfies Partial<IConfigurationChangeEvent> as unknown as IConfigurationChangeEvent);
 			await terminalProfileService.refreshAndAwaitAvailableProfiles();
 			deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 			deepStrictEqual(terminalProfileService.contributedProfiles, []);
@@ -244,8 +238,7 @@ suite('TerminalProfileService', () => {
 					}
 				}
 			});
-			// eslint-disable-next-line local/code-no-any-casts
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, source: ConfigurationTarget.USER } as any);
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, source: ConfigurationTarget.USER } satisfies Partial<IConfigurationChangeEvent> as unknown as IConfigurationChangeEvent);
 			await terminalProfileService.refreshAndAwaitAvailableProfiles();
 			deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 			deepStrictEqual(terminalProfileService.contributedProfiles, []);
@@ -261,8 +254,7 @@ suite('TerminalProfileService', () => {
 					}
 				}
 			});
-			// eslint-disable-next-line local/code-no-any-casts
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, source: ConfigurationTarget.USER } as any);
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, source: ConfigurationTarget.USER } satisfies Partial<IConfigurationChangeEvent> as unknown as IConfigurationChangeEvent);
 			await terminalProfileService.refreshAndAwaitAvailableProfiles();
 			deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 			deepStrictEqual(terminalProfileService.contributedProfiles, []);
@@ -275,9 +267,7 @@ suite('TerminalProfileService', () => {
 	});
 
 	test('should get profiles from remoteTerminalService when there is a remote authority', async () => {
-		// eslint-disable-next-line local/code-no-any-casts
-		environmentService = { remoteAuthority: 'fakeremote' } satisfies Partial<IWorkbenchEnvironmentService> as any;
-		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: 'fakeremote' });
 		terminalProfileService = store.add(instantiationService.createInstance(TestTerminalProfileService));
 		await terminalProfileService.hasRefreshedProfiles;
 		deepStrictEqual(terminalProfileService.availableProfiles, []);
