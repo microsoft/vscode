@@ -25,6 +25,14 @@ export function tail<T>(arr: T[]): [T[], T] {
 	return [arr.slice(0, arr.length - 1), arr[arr.length - 1]];
 }
 
+/**
+ * Check if two arrays are equal by comparing their elements using `itemEquals`.
+ *
+ * @param one The first array.
+ * @param other The second array.
+ * @param itemEquals Optional function to compare two elements. Defaults to strict equality.
+ * @returns True if the arrays are equal, false otherwise.
+ */
 export function equals<T>(one: ReadonlyArray<T> | undefined, other: ReadonlyArray<T> | undefined, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
 	if (one === other) {
 		return true;
