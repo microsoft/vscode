@@ -50,8 +50,20 @@ export function equals<T>(one: ReadonlyArray<T> | undefined, other: ReadonlyArra
 /**
  * Remove the element at `index` by replacing it with the last element. This is faster than `splice`
  * but changes the order of the array
+ *
+ * @param array The array.
+ * @param index The index of the element to remove.
+ * @returns void
  */
 export function removeFastWithoutKeepingOrder<T>(array: T[], index: number) {
+	if (index < 0 || index >= array.length) {
+		throw new Error('Index out of bounds');
+	}
+
+	if (array.length === 0) {
+		throw new Error('Cannot remove from empty array');
+	}
+
 	const last = array.length - 1;
 	if (index < last) {
 		array[index] = array[last];
