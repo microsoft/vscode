@@ -32,7 +32,7 @@
     "@types/mime": "0.0.29",
     "@types/minimatch": "^3.0.3",
     "@types/minimist": "^1.2.1",
-    "@types/node": "22.x",
+    "@types/node": "^22.18.10",
     "@types/p-all": "^1.0.0",
     "@types/pump": "^1.0.1",
     "@types/rimraf": "^2.0.4",
