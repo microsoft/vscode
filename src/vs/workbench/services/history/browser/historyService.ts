@@ -473,7 +473,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (editors) {
 			const editorStack = editors.get(e.editor);
 			if (editorStack) {
-				editorStack.disposable.dispose(); // TODO maybe the stack also needs to be disposed?
+				editorStack.disposable.dispose();
 				editors.delete(e.editor);
 			}
 
@@ -491,7 +491,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Editor groups
 		const editorGroupStack = this.editorGroupScopedNavigationStacks.get(group.id);
 		if (editorGroupStack) {
-			editorGroupStack.disposable.dispose(); // TODO maybe the stack also needs to be disposed?
+			editorGroupStack.disposable.dispose();
 			this.editorGroupScopedNavigationStacks.delete(group.id);
 		}
 	}
