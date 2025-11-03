@@ -594,9 +594,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	/**
 	 * Determines if a candidate sticky line should be appended to the sticky scroll widget.
 	 *
-	 * outer scopes: top of the start line triggers the sticky line.
-	 * inner scopes not at max lines: same as outer scopes.
-	 * inner scopes at max lines: bottom of start line triggers the sticky line.
+	 * outer scopes: top of the scope's starting line triggers the sticky line.
+	 * inner scopes before widget is full: same as outer scopes.
+	 * inner scopes when widget is full: bottom of the scope's starting line triggers the sticky line.
 	 */
 	private _shouldAppendStickyLine(
 		candidate: StickyLineCandidate,
