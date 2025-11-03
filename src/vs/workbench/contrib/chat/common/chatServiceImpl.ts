@@ -840,7 +840,7 @@ export class ChatService extends Disposable implements IChatService {
 					// Normally timings happen inside the EH around the actual provider. For cancellation we can measure how long the user waited before cancelling
 					totalTime: stopWatch.elapsed(),
 					requestType,
-					detectedAgent,
+					detectedAgent: (detectedAgent ?? agentPart?.agent ?? defaultAgent),
 					request,
 				});
 
@@ -1020,7 +1020,7 @@ export class ChatService extends Disposable implements IChatService {
 						totalTime: rawResult.timings?.totalElapsed,
 						result,
 						requestType,
-						detectedAgent,
+						detectedAgent: (detectedAgent ?? agentPart?.agent ?? defaultAgent),
 						request,
 					});
 
@@ -1049,7 +1049,7 @@ export class ChatService extends Disposable implements IChatService {
 					totalTime: undefined,
 					result: 'error',
 					requestType,
-					detectedAgent,
+					detectedAgent: (detectedAgent ?? agentPart?.agent ?? defaultAgent),
 					request,
 				});
 				if (request) {
