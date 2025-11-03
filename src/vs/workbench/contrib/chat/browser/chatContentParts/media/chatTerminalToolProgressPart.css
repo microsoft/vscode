@@ -72,6 +72,7 @@
 	box-sizing: border-box;
 	overflow: hidden;
 	position: relative;
+	width: 100%;
 }
 .chat-terminal-output-container.expanded { display: block; }
 .chat-terminal-output-container > .monaco-scrollable-element {
