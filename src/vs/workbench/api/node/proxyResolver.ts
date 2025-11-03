@@ -54,7 +54,7 @@ export function connectProxyResolver(
 		isAdditionalFetchSupportEnabled: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.fetchAdditionalSupport', true),
 		addCertificatesV1: () => certSettingV1(configProvider, isRemote),
 		addCertificatesV2: () => certSettingV2(configProvider, isRemote),
-		loadSystemCertificatesFromNode: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', false),
+		loadSystemCertificatesFromNode: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', true),
 		log: extHostLogService,
 		getLogLevel: () => {
 			const level = extHostLogService.getLevel();
@@ -79,7 +79,7 @@ export function connectProxyResolver(
 			return intervalSeconds * 1000;
 		},
 		loadAdditionalCertificates: async () => {
-			const useNodeSystemCerts = getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', false);
+			const useNodeSystemCerts = getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', true);
 			const promises: Promise<string[]>[] = [];
 			if (isRemote) {
 				promises.push(loadSystemCertificates({
