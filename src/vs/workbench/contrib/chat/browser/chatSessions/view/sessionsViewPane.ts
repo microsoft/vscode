@@ -8,7 +8,7 @@ import { $, append } from '../../../../../../base/browser/dom.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
-import { Action, IAction } from '../../../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
@@ -143,9 +143,7 @@ export class SessionsViewPane extends ViewPane {
 			icon: Codicon.plus,
 		}, undefined, undefined, undefined, undefined);
 
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.scopedContextKeyService);
-
-		const actions = menu.getActions({ shouldForwardArgs: true });
+		const actions = this.menuService.getMenuActions(MenuId.ChatSessionsMenu, this.scopedContextKeyService, { shouldForwardArgs: true });
 		const primaryActions = getActionBarActions(
 			actions,
 			'submenu',
@@ -165,12 +163,12 @@ export class SessionsViewPane extends ViewPane {
 			return;
 		}
 
-		const dropdownAction = new Action(
-			'selectNewChatSessionOption',
-			nls.localize('chatSession.selectOption', 'More...'),
-			'codicon-chevron-down',
-			true
-		);
+		const dropdownAction = toAction({
+			id: 'selectNewChatSessionOption',
+			label: nls.localize('chatSession.selectOption', 'More...'),
+			class: 'codicon-chevron-down',
+			run: () => { }
+		});
 
 		const dropdownActions: IAction[] = [];
 
