@@ -5,6 +5,7 @@
 
 import type * as http from 'http';
 import type * as https from 'https';
+import * as tls from 'tls';
 import { parse as parseUrl } from 'url';
 import { Promises } from '../../../base/common/async.js';
 import { streamToBufferReadableStream } from '../../../base/common/buffer.js';
@@ -118,16 +119,23 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	}
 
 	async loadCertificates(): Promise<string[]> {
+		const useNodeSystemCerts = this.getConfigValue<boolean>('http.systemCertificatesNode', false);
+		if (useNodeSystemCerts) {
+			const start = Date.now();
+			const systemCerts = tls.getCACertificates('system');
+			this.logService.trace(`RequestService#loadCertificates: Loaded Node.js system certificates (${Date.now() - start}ms):`, systemCerts.length);
+			return systemCerts;
+		}
 		const proxyAgent = await import('@vscode/proxy-agent');
 		return proxyAgent.loadSystemCertificates({ log: this.logService });
 	}
 
-	private getConfigValue<T>(key: string): T | undefined {
+	private getConfigValue<T>(key: string, fallback?: T): T | undefined {
 		if (this.machine === 'remote') {
 			return this.configurationService.getValue<T>(key);
 		}
 		const values = this.configurationService.inspect<T>(key);
-		return values.userLocalValue || values.defaultValue;
+		return values.userLocalValue ?? values.defaultValue ?? fallback;
 	}
 }
 

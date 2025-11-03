@@ -8,7 +8,6 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
-import { IHistoryService } from '../../../../../../services/history/common/history.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import type { TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
 import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
@@ -18,7 +17,6 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		private readonly _treeSitterCommandParser: TreeSitterCommandParser,
 		private readonly _log: (message: string, ...args: unknown[]) => void,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IHistoryService private readonly _historyService: IHistoryService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
@@ -34,12 +32,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		// TODO: Handle environment variables https://github.com/microsoft/vscode/issues/274166
 		// TODO: Handle command substitions/complex destinations https://github.com/microsoft/vscode/issues/274167
 		if (capturedFileWrites.length) {
-			let cwd = await options.instance?.getCwdResource();
-			if (!cwd) {
-				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-				const workspaceFolder = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
-				cwd = workspaceFolder?.uri;
-			}
+			const cwd = options.cwd;
 			if (cwd) {
 				fileWrites = capturedFileWrites.map(e => URI.joinPath(cwd, e));
 			} else {

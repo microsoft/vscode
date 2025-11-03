@@ -58,6 +58,10 @@
 		margin-top: -12px;
 		margin-bottom: 12px;
 	}
+
+	.rendered-markdown p {
+		opacity: 0.85;
+	}
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title.expandable {
@@ -287,6 +291,10 @@
 			overflow-wrap: break-word;
 			padding: 2px 5px;
 			width: inherit;
+		}
+
+		.monaco-text-button {
+			padding: 2px 10px;
 		}
 	}
 }

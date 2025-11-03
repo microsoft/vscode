@@ -123,16 +123,23 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		{ equalsFn: (a, b) => arraysEqual(a, b, objectsEqual) },
 		reader => {
 			const currentEpoch = this._currentEpoch.read(reader);
-			const checkpoints = this._checkpoints.read(reader);
+			const operations = this._operations.read(reader);
+			const firstUnappliedOperationIdx = operations.findIndex(op => op.epoch >= currentEpoch);
+			if (firstUnappliedOperationIdx === -1) {
+				return [];
+			}
 
+			const lastAppliedOperation = firstUnappliedOperationIdx > 0 ? operations[firstUnappliedOperationIdx - 1].epoch : 0;
+			const checkpoints = this._checkpoints.read(reader);
 			const disablement = new Map<string, string | undefined>();
-			// Go through the checkpoints and disable any that are after our current epoch.
+
+			// Go through the checkpoints and disable any until the one that contains the last applied operation.
 			// Subtle: the request will first make a checkpoint with an 'undefined' undo
 			// stop, and in this loop we'll "automatically" disable the entire request when
 			// we reach that checkpoint.
 			for (let i = checkpoints.length - 1; i >= 0; i--) {
 				const { undoStopId, requestId, epoch } = checkpoints[i];
-				if (epoch < currentEpoch) {
+				if (epoch < lastAppliedOperation) {
 					break;
 				}
 
@@ -165,19 +172,23 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			return existing.checkpointId;
 		}
 
+		const { checkpoints, operations } = this._getVisibleOperationsAndCheckpoints();
 		const checkpointId = generateUuid();
-		const checkpoint: ICheckpoint = {
+		const epoch = this.incrementEpoch();
+
+		checkpoints.push({
 			checkpointId,
 			requestId,
 			undoStopId,
-			epoch: this.incrementEpoch(),
+			epoch,
 			label,
 			description
-		};
+		});
 
 		transaction(tx => {
-			this._checkpoints.set([...existingCheckpoints, checkpoint], tx);
-			this._currentEpoch.set(checkpoint.epoch + 1, tx);
+			this._checkpoints.set(checkpoints, tx);
+			this._operations.set(operations, tx);
+			this._currentEpoch.set(epoch + 1, tx);
 		});
 
 		return checkpointId;
@@ -203,26 +214,36 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			throw new Error(`Checkpoint ${checkpointId} not found`);
 		}
 
-		return this._navigateToEpoch(targetCheckpoint.epoch + 1);
+		if (targetCheckpoint.undoStopId === undefined) {
+			// If we're navigating to the start of a request, we want to restore the file
+			// to whatever baseline we captured, _not_ the result state from the prior request
+			// because there may have been user changes in the meantime. But we still want
+			// to set the epoch marking that checkpoint as having been undone (the second
+			// arg below) so that disablement works and so it's discarded if appropriate later.
+			return this._navigateToEpoch(targetCheckpoint.epoch + 1, targetCheckpoint.epoch);
+		} else {
+			return this._navigateToEpoch(targetCheckpoint.epoch + 1);
+		}
+
 	}
 
 	public getContentURIAtStop(requestId: string, fileURI: URI, stopId: string | undefined): URI {
 		return ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this.chatSessionId, requestId, stopId, fileURI.path);
 	}
 
-	private async _navigateToEpoch(targetEpoch: number): Promise<void> {
+	private async _navigateToEpoch(restoreToEpoch: number, navigateToEpoch = restoreToEpoch): Promise<void> {
 		const currentEpoch = this._currentEpoch.get();
-		if (currentEpoch === targetEpoch) {
+		if (currentEpoch === restoreToEpoch) {
 			return; // Already at target epoch
 		}
 
-		const urisToRestore = await this._applyFileSystemOperations(currentEpoch, targetEpoch);
+		const urisToRestore = await this._applyFileSystemOperations(currentEpoch, restoreToEpoch);
 
 		// Reconstruct content for files affected by operations in the range
-		await this._reconstructAllFileContents(targetEpoch, urisToRestore);
+		await this._reconstructAllFileContents(restoreToEpoch, urisToRestore);
 
 		// Update current epoch
-		this._currentEpoch.set(targetEpoch, undefined);
+		this._currentEpoch.set(navigateToEpoch, undefined);
 	}
 
 	private _getCheckpoint(checkpointId: string): ICheckpoint | undefined {
@@ -234,24 +255,29 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 	}
 
 	public recordFileOperation(operation: FileOperation): void {
-		const currentEpoch = this._currentEpoch.get();
-		const currentCheckpoints = this._checkpoints.get();
+		const { currentEpoch, checkpoints, operations } = this._getVisibleOperationsAndCheckpoints();
+		if (operation.epoch < currentEpoch) {
+			throw new Error(`Cannot record operation at epoch ${operation.epoch} when current epoch is ${currentEpoch}`);
+		}
 
-		const operations = this._operations.get();
-		const insertAt = findLastIdx(operations, op => op.epoch < currentEpoch);
-		operations[insertAt + 1] = operation;
-		operations.length = insertAt + 2; // Truncate any operations beyond this point
-
-		// If we undid some operations and are dropping them out of history, also remove
-		// any associated checkpoints.
-		const newCheckpoints = currentCheckpoints.filter(c => c.epoch < currentEpoch);
+		operations.push(operation);
 		transaction(tx => {
-			if (newCheckpoints.length !== currentCheckpoints.length) {
-				this._checkpoints.set(newCheckpoints, tx);
-			}
-			this._currentEpoch.set(operation.epoch + 1, tx);
+			this._checkpoints.set(checkpoints, tx);
 			this._operations.set(operations, tx);
+			this._currentEpoch.set(operation.epoch + 1, tx);
 		});
+	}
+
+	private _getVisibleOperationsAndCheckpoints() {
+		const currentEpoch = this._currentEpoch.get();
+		const checkpoints = this._checkpoints.get();
+		const operations = this._operations.get();
+
+		return {
+			currentEpoch,
+			checkpoints: checkpoints.filter(c => c.epoch < currentEpoch),
+			operations: operations.filter(op => op.epoch < currentEpoch)
+		};
 	}
 
 	public recordFileBaseline(baseline: IFileBaseline): void {

@@ -313,12 +313,9 @@ export interface IChatTerminalToolInvocationData {
 	alternativeRecommendation?: string;
 	language: string;
 	terminalToolSessionId?: string;
-	terminalCommandUri?: UriComponents;
+	/** The predefined command ID that will be used for this terminal command */
+	terminalCommandId?: string;
 	autoApproveInfo?: IMarkdownString;
-	output?: {
-		html: string;
-		truncated?: boolean;
-	};
 }
 
 /**
@@ -363,6 +360,7 @@ export interface IChatToolInvocation {
 	readonly source: ToolDataSource;
 	readonly toolId: string;
 	readonly toolCallId: string;
+	readonly parameters: unknown;
 	readonly fromSubAgent?: boolean;
 	readonly state: IObservable<IChatToolInvocation.State>;
 

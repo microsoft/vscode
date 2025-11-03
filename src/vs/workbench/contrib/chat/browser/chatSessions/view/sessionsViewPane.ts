@@ -346,6 +346,16 @@ export class SessionsViewPane extends ViewPane {
 				},
 				accessibilityProvider,
 				identityProvider,
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: (session: ChatSessionItemWithProvider) => {
+						const parts = [
+							session.label || '',
+							session.id || '',
+							typeof session.description === 'string' ? session.description : (session.description?.value || '')
+						];
+						return parts.filter(text => text.length > 0).join(' ');
+					}
+				},
 				multipleSelectionSupport: false,
 				overrideStyles: {
 					listBackground: undefined

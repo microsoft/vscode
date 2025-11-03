@@ -78,15 +78,30 @@ export function connectProxyResolver(
 			return intervalSeconds * 1000;
 		},
 		loadAdditionalCertificates: async () => {
+			const useNodeSystemCerts = getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', false);
 			const promises: Promise<string[]>[] = [];
-			if (initData.remote.isRemote) {
-				promises.push(loadSystemCertificates({ log: extHostLogService }));
+			if (isRemote) {
+				if (useNodeSystemCerts) {
+					const start = Date.now();
+					const systemCerts = tls.getCACertificates('system');
+					extHostLogService.trace(`ProxyResolver#loadAdditionalCertificates: Loaded Node.js system certificates (${Date.now() - start}ms):`, systemCerts.length);
+					promises.push(Promise.resolve(systemCerts));
+				} else {
+					promises.push(loadSystemCertificates({ log: extHostLogService }));
+				}
 			}
 			if (loadLocalCertificates) {
-				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading certificates from main process');
-				const certs = extHostWorkspace.loadCertificates(); // Loading from main process to share cache.
-				certs.then(certs => extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loaded certificates from main process', certs.length));
-				promises.push(certs);
+				if (!isRemote && useNodeSystemCerts) {
+					const start = Date.now();
+					const systemCerts = tls.getCACertificates('system');
+					extHostLogService.trace(`ProxyResolver#loadAdditionalCertificates: Loaded Node.js system certificates (${Date.now() - start}ms):`, systemCerts.length);
+					promises.push(Promise.resolve(systemCerts));
+				} else {
+					extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading certificates from main process');
+					const certs = extHostWorkspace.loadCertificates(); // Loading from main process to share cache.
+					certs.then(certs => extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loaded certificates from main process', certs.length));
+					promises.push(certs);
+				}
 			}
 			// Using https.globalAgent because it is shared with proxy.test.ts and mutable.
 			// eslint-disable-next-line local/code-no-any-casts

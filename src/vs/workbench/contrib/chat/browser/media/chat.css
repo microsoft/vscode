@@ -450,7 +450,6 @@
 .interactive-item-container .value > .chat-tool-invocation-part {
 	.rendered-markdown p {
 		margin: 0 0 6px 0;
-		opacity: 0.85;
 	}
 
 	.disclaimer {
