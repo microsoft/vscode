@@ -96,7 +96,6 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		};
 		// Listen for view model changes on this widget
 		this._register(widget.onDidChangeViewModel(() => {
-			this._onDidChange.fire();
 			register();
 			this._onDidChangeChatSessionItems.fire();
 		}));
