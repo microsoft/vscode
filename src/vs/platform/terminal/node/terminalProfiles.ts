@@ -176,7 +176,7 @@ async function transformToTerminalProfiles(
 	for (const [profileName, profile] of entries) {
 		promises.push(getValidatedProfile(profileName, profile, defaultProfileName, fsProvider, shellEnv, logService, variableResolver));
 	}
-	return (await Promise.all(promises)).filter(e => !!e) as ITerminalProfile[];
+	return (await Promise.all(promises)).filter(e => !!e);
 }
 
 async function getValidatedProfile(

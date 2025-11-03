@@ -1210,8 +1210,7 @@ export class ContextKeyGreaterExpr implements IContextKeyExpression {
 		if (typeof this.value === 'string') {
 			return false;
 		}
-		// eslint-disable-next-line local/code-no-any-casts
-		return (parseFloat(<any>context.getValue(this.key)) > this.value);
+		return (parseFloat(context.getValue<any>(this.key)) > this.value);
 	}
 
 	public serialize(): string {
@@ -1270,8 +1269,7 @@ export class ContextKeyGreaterEqualsExpr implements IContextKeyExpression {
 		if (typeof this.value === 'string') {
 			return false;
 		}
-		// eslint-disable-next-line local/code-no-any-casts
-		return (parseFloat(<any>context.getValue(this.key)) >= this.value);
+		return (parseFloat(context.getValue<any>(this.key)) >= this.value);
 	}
 
 	public serialize(): string {
@@ -1331,8 +1329,7 @@ export class ContextKeySmallerExpr implements IContextKeyExpression {
 		if (typeof this.value === 'string') {
 			return false;
 		}
-		// eslint-disable-next-line local/code-no-any-casts
-		return (parseFloat(<any>context.getValue(this.key)) < this.value);
+		return (parseFloat(context.getValue<any>(this.key)) < this.value);
 	}
 
 	public serialize(): string {
@@ -1392,8 +1389,7 @@ export class ContextKeySmallerEqualsExpr implements IContextKeyExpression {
 		if (typeof this.value === 'string') {
 			return false;
 		}
-		// eslint-disable-next-line local/code-no-any-casts
-		return (parseFloat(<any>context.getValue(this.key)) <= this.value);
+		return (parseFloat(context.getValue<any>(this.key)) <= this.value);
 	}
 
 	public serialize(): string {

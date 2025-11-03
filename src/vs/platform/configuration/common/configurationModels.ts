@@ -356,7 +356,7 @@ export class ConfigurationModelParser {
 
 		function onValue(value: any) {
 			if (Array.isArray(currentParent)) {
-				(<any[]>currentParent).push(value);
+				currentParent.push(value);
 			} else if (currentProperty !== null) {
 				currentParent[currentProperty] = value;
 			}

@@ -602,7 +602,7 @@ class HoverContextViewDelegate implements IDelegate {
 }
 
 function eventIsRelatedToTarget(event: UIEvent, target: HTMLElement): boolean {
-	return isHTMLElement(event.target) && getHoverTargetElement(event.target as HTMLElement, target) === target;
+	return isHTMLElement(event.target) && getHoverTargetElement(event.target, target) === target;
 }
 
 function getHoverTargetElement(element: HTMLElement, stopElement?: HTMLElement): HTMLElement {

@@ -45,12 +45,10 @@ const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
 declare module vsda {
 	// the signer is a native module that for historical reasons uses a lower case class name
-	// eslint-disable-next-line @typescript-eslint/naming-convention
 	export class signer {
 		sign(arg: string): string;
 	}
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
 	export class validator {
 		createNewMessage(arg: string): string;
 		validate(arg: string): 'ok' | 'error';

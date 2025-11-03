@@ -83,7 +83,7 @@ async function fileExistsDefault(path: string): Promise<boolean> {
 	return false;
 }
 
-export async function findExecutable(command: string, cwd?: string, paths?: string[], env: Platform.IProcessEnvironment = processCommon.env as Platform.IProcessEnvironment, fileExists: (path: string) => Promise<boolean> = fileExistsDefault): Promise<string | undefined> {
+export async function findExecutable(command: string, cwd?: string, paths?: string[], env: Platform.IProcessEnvironment = processCommon.env, fileExists: (path: string) => Promise<boolean> = fileExistsDefault): Promise<string | undefined> {
 	// If we have an absolute path then we take it.
 	if (path.isAbsolute(command)) {
 		return await fileExists(command) ? command : undefined;
