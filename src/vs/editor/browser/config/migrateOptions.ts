@@ -255,6 +255,6 @@ registerEditorSettingMigration('inlineSuggest.edits.codeShifting', (value, read,
 // Migrate Hover
 registerEditorSettingMigration('hover.enabled', (value, read, write) => {
 	if (typeof value === 'boolean') {
-		write('hover.enabled', value ? undefined : 'off');
+		write('hover.enabled', value ? 'on' : 'off');
 	}
 });
