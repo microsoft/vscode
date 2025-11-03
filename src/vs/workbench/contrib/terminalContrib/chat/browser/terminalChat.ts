@@ -37,6 +37,7 @@ export const enum TerminalChatContextKeyStrings {
 	ChatResponseSupportsIssueReporting = 'terminalChatResponseSupportsIssueReporting',
 	ChatSessionResponseVote = 'terminalChatSessionResponseVote',
 	ChatHasTerminals = 'hasChatTerminals',
+	ChatHasHiddenTerminals = 'hasHiddenChatTerminals',
 }
 
 
@@ -65,4 +66,7 @@ export namespace TerminalChatContextKeys {
 
 	/** Has terminals created via chat */
 	export const hasChatTerminals = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatHasTerminals, false, localize('terminalHasChatTerminals', "Whether there are any chat terminals."));
+
+	/** Has hidden chat terminals */
+	export const hasHiddenChatTerminals = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatHasHiddenTerminals, false, localize('terminalHasHiddenChatTerminals', "Whether there are any hidden chat terminals."));
 }

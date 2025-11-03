@@ -8,9 +8,9 @@ import { Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, type IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ITerminalChildProcess } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalChildProcess, type ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalInstanceService } from '../../browser/terminal.js';
 import { TerminalProcessManager } from '../../browser/terminalProcessManager.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -44,6 +44,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	clearBuffer(): void { }
 	acknowledgeDataEvent(charCount: number): void { }
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> { }
+	async setNextCommandId(commandLine: string, commandId: string): Promise<void> { }
 	async getInitialCwd(): Promise<string> { return ''; }
 	async getCwd(): Promise<string> { return ''; }
 	async processBinary(data: string): Promise<void> { }
@@ -51,8 +52,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 }
 
 class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
-	getBackend() {
-		// eslint-disable-next-line local/code-no-any-casts
+	async getBackend() {
 		return {
 			onPtyHostExit: Event.None,
 			onPtyHostUnresponsive: Event.None,
@@ -71,7 +71,7 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 				shouldPersist: boolean
 			) => new TestTerminalChildProcess(shouldPersist),
 			getLatency: () => Promise.resolve([])
-		} as any;
+		} as unknown as ITerminalBackend;
 	}
 }
 
@@ -93,10 +93,9 @@ suite('Workbench - TerminalProcessManager', () => {
 				}
 			}
 		});
-		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({
 			affectsConfiguration: () => true,
-		} as any);
+		} satisfies Partial<IConfigurationChangeEvent> as unknown as IConfigurationChangeEvent);
 		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 
 		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, undefined, undefined, undefined));

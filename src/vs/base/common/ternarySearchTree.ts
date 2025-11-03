@@ -258,7 +258,7 @@ abstract class Undef {
 	}
 
 	static unwrap<V>(value: V | typeof Undef.Val): V | undefined {
-		return value === Undef.Val ? undefined : value as V;
+		return value === Undef.Val ? undefined : value;
 	}
 }
 

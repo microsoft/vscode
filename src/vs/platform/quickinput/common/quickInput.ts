@@ -1121,6 +1121,11 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	readonly onDidChangeCheckedLeafItems: Event<ReadonlyArray<T>>;
 
 	/**
+	 * An event that is fired when the checkbox state of an item changes.
+	 */
+	readonly onDidChangeCheckboxState: Event<T>;
+
+	/**
 	 * An event that is fired when an item button is triggered.
 	 */
 	readonly onDidTriggerItemButton: Event<IQuickTreeItemButtonEvent<T>>;

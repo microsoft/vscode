@@ -265,7 +265,7 @@ registerActiveXtermAction({
 
 		const lastRequest = model.getRequests().at(-1);
 		if (lastRequest) {
-			const widget = chatWidgetService.getWidgetBySessionId(model.sessionId);
+			const widget = chatWidgetService.getWidgetBySessionResource(model.sessionResource);
 			await chatService.resendRequest(lastRequest, {
 				noCommandDetection: false,
 				attempt: lastRequest.attempt + 1,
@@ -320,7 +320,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): Promise<void> | void {
+	run(accessor: ServicesAccessor): void {
 		const terminalService = accessor.get(ITerminalService);
 		const groupService = accessor.get(ITerminalGroupService);
 		const editorService = accessor.get(ITerminalEditorService);

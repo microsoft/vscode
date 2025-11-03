@@ -14,6 +14,7 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../j
 import { Registry } from '../../registry/common/platform.js';
 import { IPolicy, PolicyName } from '../../../base/common/policy.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import product from '../../product/common/product.js';
 
 export enum EditPresentationTypes {
 	Multiline = 'multilineText',
@@ -918,7 +919,7 @@ export function keyFromOverrideIdentifiers(overrideIdentifiers: string[]): strin
 }
 
 export function getDefaultValue(type: string | string[] | undefined) {
-	const t = Array.isArray(type) ? (<string[]>type)[0] : <string>type;
+	const t = Array.isArray(type) ? type[0] : <string>type;
 	switch (t) {
 		case 'boolean':
 			return false;
@@ -946,7 +947,7 @@ export function validateProperty(property: string, schema: IRegisteredConfigurat
 	if (OVERRIDE_PROPERTY_REGEX.test(property)) {
 		return nls.localize('config.property.languageDefault', "Cannot register '{0}'. This matches property pattern '\\\\[.*\\\\]$' for describing language specific editor settings. Use 'configurationDefaults' contribution.", property);
 	}
-	if (configurationRegistry.getConfigurationProperties()[property] !== undefined) {
+	if (configurationRegistry.getConfigurationProperties()[property] !== undefined && !CODE_UNIFICATION_DUPLICATE_SETTINGS.has(property)) {
 		return nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", property);
 	}
 	if (schema.policy?.name && configurationRegistry.getPolicyConfigurations().get(schema.policy?.name) !== undefined) {
@@ -998,3 +999,6 @@ export function parseScope(scope: string): ConfigurationScope {
 			return ConfigurationScope.WINDOW;
 	}
 }
+
+// Used for extension unification. Should be removed when complete.
+export const CODE_UNIFICATION_DUPLICATE_SETTINGS: Set<string> = new Set([product.defaultChatAgent?.completionsEnablementSetting].filter(Boolean) as string[]);

@@ -140,6 +140,12 @@ export class TerminalTabbedView extends Disposable {
 			this._updateChatTerminalsEntry();
 		}));
 
+		this._register(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set(['hasHiddenChatTerminals']))) {
+				this._refreshShowTabs();
+				this._updateChatTerminalsEntry();
+			}
+		}));
 		this._attachEventListeners(parentElement, this._terminalContainer);
 
 		this._register(this._terminalGroupService.onDidChangePanelOrientation((orientation) => {
@@ -293,7 +299,7 @@ export class TerminalTabbedView extends Disposable {
 	private _addTabTree() {
 		this._splitView.addView({
 			element: this._tabContainer,
-			layout: width => this._tabList.layout(width),
+			layout: width => this._tabList.layout(this._height || 0, width),
 			minimumSize: TerminalTabsListSizes.NarrowViewWidth,
 			maximumSize: TerminalTabsListSizes.MaximumWidth,
 			onDidChange: () => Disposable.None,

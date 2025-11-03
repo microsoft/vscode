@@ -35,6 +35,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _handleCommandStartOptions?: IHandleCommandOptions;
 	private _hasRichCommandDetection: boolean = false;
 	get hasRichCommandDetection() { return this._hasRichCommandDetection; }
+	private _nextCommandId: { command: string; commandId: string | undefined } | undefined;
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
 	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
@@ -342,6 +343,14 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._ptyHeuristics.value.handleCommandStart(options);
 	}
 
+	/**
+	 * Sets the command ID to use for the next command that starts.
+	 * This is useful when you want to pre-assign an ID before the shell sends the command start sequence.
+	 */
+	setNextCommandId(command: string, commandId: string): void {
+		this._nextCommandId = { command, commandId };
+	}
+
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
 		this._ptyHeuristics.value.handleCommandExecuted(options);
 		this._currentCommand.markExecutedTime();
@@ -355,7 +364,20 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		if (!this._currentCommand.commandExecutedMarker) {
 			this.handleCommandExecuted();
 		}
-
+		// If a custom command ID is provided, use it for the current command
+		// Otherwise, check if there's a pending next command ID
+		if (options?.commandId) {
+			this._currentCommand.id = options.commandId;
+			this._nextCommandId = undefined; // Clear the pending ID
+		} else if (
+			this._nextCommandId &&
+			typeof this.currentCommand.command === 'string' &&
+			typeof this._nextCommandId.command === 'string' &&
+			this.currentCommand.command.trim() === this._nextCommandId.command.trim()
+		) {
+			this._currentCommand.id = this._nextCommandId.commandId;
+			this._nextCommandId = undefined; // Clear after use
+		}
 		this._currentCommand.markFinishedTime();
 		this._ptyHeuristics.value.preHandleCommandFinished?.();
 
@@ -392,7 +414,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
 		}
-		this._currentCommand = new PartialTerminalCommand(this._terminal);
+		// Create new command for next execution, preserving command ID if one was specified
+		const nextCommandId = this._handleCommandStartOptions?.commandId;
+		this._currentCommand = new PartialTerminalCommand(this._terminal, nextCommandId);
 		this._handleCommandStartOptions = undefined;
 	}
 

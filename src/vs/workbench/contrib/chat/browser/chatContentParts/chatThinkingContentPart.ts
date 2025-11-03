@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, clearNode } from '../../../../../base/browser/dom.js';
-import * as dom from '../../../../../base/browser/dom.js';
 import { IChatThinkingPart } from '../../common/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
-import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
+import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ThinkingDisplayMode } from '../../common/constants.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -35,23 +34,6 @@ function extractTitleFromThinkingContent(content: string): string | undefined {
 	return headerMatch ? headerMatch[1].trim() : undefined;
 }
 
-/**
- * everything     => fixedScrolling
- * gpt-5-codex    => collapsed with special grouping
- */
-function resolvePerModelDefaultThinkingStyle(modelId: string | undefined): ThinkingDisplayMode {
-	if (!modelId) {
-		return ThinkingDisplayMode.FixedScrolling;
-	}
-	const id = modelId.toLowerCase();
-
-	// TODO @justschen: could have additional styles specific to gemini/codex besides collapased.
-	if (id.includes('gpt-5-codex')) {
-		return ThinkingDisplayMode.FixedScrollingTools;
-	}
-
-	return ThinkingDisplayMode.FixedScrolling;
-}
 
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
 	public readonly codeblocks: undefined;
@@ -70,7 +52,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private fixedScrollViewport: HTMLElement | undefined;
 	private fixedContainer: HTMLElement | undefined;
 	private headerButton: ButtonWithIcon | undefined;
-	private statusIcon: HTMLElement | undefined;
 	private lastExtractedTitle: string | undefined;
 	private hasMultipleItems: boolean = false;
 
@@ -89,18 +70,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		this.id = content.id;
 
-		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.None;
-		let effectiveMode = configuredMode;
-		if (configuredMode === ThinkingDisplayMode.Default) {
-			let modelId: string | undefined;
-			if (isResponseVM(context.element)) {
-				modelId = context.element.model.request?.modelId;
-			}
-			effectiveMode = resolvePerModelDefaultThinkingStyle(modelId);
-		}
+		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
 
-		this.perItemCollapsedMode = effectiveMode === ThinkingDisplayMode.CollapsedPerItem;
-		this.fixedScrollingMode = effectiveMode === ThinkingDisplayMode.FixedScrolling || effectiveMode === ThinkingDisplayMode.FixedScrollingTools;
+		this.fixedScrollingMode = configuredMode === ThinkingDisplayMode.FixedScrolling;
 
 		this.currentTitle = extractedTitle;
 		if (extractedTitle !== this.defaultTitle) {
@@ -108,7 +80,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.currentThinkingValue = this.parseContent(initialText);
 
-		if (effectiveMode === ThinkingDisplayMode.Collapsed) {
+		if (configuredMode === ThinkingDisplayMode.Collapsed) {
 			this.setExpanded(false);
 		} else {
 			this.setExpanded(true);
@@ -116,12 +88,14 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		if (this.perItemCollapsedMode) {
 			this.setExpanded(true);
+			// eslint-disable-next-line no-restricted-syntax
 			const header = this.domNode.querySelector('.chat-used-context-label');
 			if (header) {
 				header.remove();
 				this.domNode.classList.add('chat-thinking-no-outer-header');
 			}
 		} else if (this.fixedScrollingMode) {
+			// eslint-disable-next-line no-restricted-syntax
 			const header = this.domNode.querySelector('.chat-used-context-label');
 			if (header) {
 				header.remove();
@@ -159,11 +133,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 			const button = this.headerButton = this._register(new ButtonWithIcon(header, {}));
 			button.label = this.defaultTitle;
-			button.icon = Codicon.chevronRight;
-			this.statusIcon = $('.chat-thinking-fixed-title-icon');
-			const spinnerEl = dom.h(ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin')));
-			this.statusIcon.appendChild(spinnerEl.root);
-			button.element.appendChild(this.statusIcon);
+			button.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 
 			this.fixedScrollViewport = this.wrapper;
 			this.textContainer = $('.chat-thinking-item.markdown-content');
@@ -199,7 +169,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.fixedCollapsed = collapsed;
 		this.fixedContainer.classList.toggle('collapsed', collapsed);
-		if (this.headerButton) {
+		if (this.fixedContainer.classList.contains('finished') && this.headerButton) {
 			this.headerButton.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 		}
 		if (this.fixedCollapsed && userInitiated) {
@@ -309,11 +279,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 			if (this.headerButton) {
 				this.headerButton.label = finalLabel;
+				this.headerButton.icon = this.fixedCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			}
-			if (this.statusIcon && this.fixedContainer) {
+			if (this.fixedContainer) {
 				this.fixedContainer.classList.add('finished');
-				this.setFixedCollapsedState(true);
-				this.statusIcon.replaceChildren(dom.h(ThemeIcon.asCSSSelector(Codicon.check)).root);
 			}
 
 			this.currentTitle = finalLabel;
@@ -329,10 +298,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const suffix = localize('chat.thinking.fixed.done.generic', 'Thought for a few seconds');
 			this.setTitle(suffix);
 			this.currentTitle = suffix;
-		}
-
-		if (!this.fixedScrollingMode && this.statusIcon) {
-			this.statusIcon.replaceChildren(dom.h(ThemeIcon.asCSSSelector(Codicon.check)).root);
 		}
 	}
 

@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.models-widget {
+	padding-right: 24px;
+}
+
 /** Search and button container styling **/
 
 .models-widget .models-search-and-button-container {
@@ -15,10 +19,6 @@
 .models-widget .models-search-container {
 	flex: 1;
 	position: relative;
-}
-
-.models-widget .models-search-container .settings-header-widget {
-	width: 100%;
 }
 
 .models-widget .models-search-container .models-search-actions {
@@ -39,6 +39,10 @@
 	padding: 3px;
 	margin-left: 0;
 	box-sizing: content-box;
+}
+
+.models-widget .models-search-and-button-container .section-title-actions .models-add-model-button {
+	white-space: nowrap;
 }
 
 /** Table styling **/
@@ -74,20 +78,24 @@
 }
 
 
-/** Twistie column styling **/
+/** Gutter column styling **/
 
-.models-widget .models-table-container .monaco-table-td .models-twistie {
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	align-self: stretch;
-	justify-content: center;
-	padding: 0 6px;
+.models-widget .models-table-container .monaco-table-tr.models-model-row.model-hidden .models-table-column.models-gutter-column {
+	opacity: 1;
 }
 
-.models-widget .models-table-container .monaco-table-td .models-twistie:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	border-radius: 3px;
+.models-widget .models-table-container .monaco-table-td .models-gutter-column .models-twistie {
+	align-self: stretch;
+}
+
+.models-widget .models-table-container .monaco-list-row .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar {
+	display: none;
+}
+
+.models-widget .models-table-container .monaco-list-row.focused .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar,
+.models-widget .models-table-container .monaco-list-row.selected .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar,
+.models-widget .models-table-container .monaco-list-row:hover .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar {
+	display: inherit;
 }
 
 /** Model Name column styling **/
@@ -161,6 +169,7 @@
 }
 
 .models-widget .models-table-container .monaco-table-td .model-capability {
+	width: fit-content;
 	padding: 0 6px;
 	border-radius: 3px;
 	font-size: 11px;
@@ -170,8 +179,6 @@
 }
 
 .models-widget .models-table-container .monaco-table-td .model-capability.active {
-	color: var(--vscode-radio-activeForeground);
-	background-color: var(--vscode-radio-activeBackground);
 	border-color: var(--vscode-radio-activeBorder, transparent);
 }
 
@@ -179,6 +186,7 @@
 
 .models-widget .models-table-container .models-vendor-row {
 	background-color: var(--vscode-keybindingTable-headerBackground);
+	cursor: pointer;
 }
 
 .models-widget .models-table-container .monaco-table-tr:hover .models-vendor-row {
@@ -187,6 +195,12 @@
 
 .models-widget .models-table-container .models-vendor-row .model-name {
 	font-weight: bold;
+}
+
+/** Model row styling **/
+
+.models-widget .models-table-container .monaco-table-tr.models-model-row.model-hidden .models-table-column {
+	opacity: 0.6;
 }
 
 /** Row alternating colors **/

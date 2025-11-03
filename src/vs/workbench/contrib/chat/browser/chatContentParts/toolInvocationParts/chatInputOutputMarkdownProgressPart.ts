@@ -80,7 +80,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 					focus: () => { },
 					ownerMarkdownPartId: this.codeblocksPartId,
 					uri: model.uri,
-					chatSessionId: context.element.sessionId,
+					chatSessionResource: context.element.sessionResource,
 					uriPromise: Promise.resolve(model.uri)
 				}
 			};

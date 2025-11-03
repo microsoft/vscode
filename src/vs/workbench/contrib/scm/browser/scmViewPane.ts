@@ -192,6 +192,7 @@ export class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActio
 
 	renderTemplate(container: HTMLElement): ActionButtonTemplate {
 		// hack
+		// eslint-disable-next-line no-restricted-syntax
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		// Use default cursor & disable hover for list item
@@ -316,6 +317,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 	renderTemplate(container: HTMLElement): InputTemplate {
 		// hack
+		// eslint-disable-next-line no-restricted-syntax
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		// Disable hover for list item
@@ -448,6 +450,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
 		// hack
+		// eslint-disable-next-line no-restricted-syntax
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
 
 		const element = append(container, $('.resource-group'));

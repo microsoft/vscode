@@ -346,7 +346,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 		this._pty.setDimensions?.({ columns: cols, rows });
 	}
 
-	clearBuffer(): void | Promise<void> {
+	clearBuffer(): void {
 		// no-op
 	}
 
@@ -361,6 +361,10 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
 		// No-op, xterm-headless isn't used for extension owned terminals.
+	}
+
+	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
+		// No-op, command IDs are only tracked on the renderer for extension terminals.
 	}
 
 	getInitialCwd(): Promise<string> {
