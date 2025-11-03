@@ -346,7 +346,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 		this._pty.setDimensions?.({ columns: cols, rows });
 	}
 
-	clearBuffer(): void | Promise<void> {
+	clearBuffer(): void {
 		// no-op
 	}
 

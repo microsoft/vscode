@@ -20,7 +20,7 @@ function getArtifactDescription(ref: Ref, shortCommitLength: number): string {
 		segments.push(ref.commitDetails.message.split('\n')[0]);
 	}
 
-	return segments.join(' • ');
+	return segments.join(' \u2022 ');
 }
 
 export class GitArtifactProvider implements SourceControlArtifactProvider, IDisposable {

@@ -3116,13 +3116,12 @@ export class CommandCenter {
 			return;
 		}
 
-		const title = `${repository.historyProvider.currentHistoryItemRemoteRef.name} ↔ ${getHistoryItemDisplayName(historyItem)}`;
-
 		await this._openChangesBetweenRefs(
 			repository,
 			repository.historyProvider.currentHistoryItemRemoteRef.revision,
 			historyItem.id,
-			title);
+			repository.historyProvider.currentHistoryItemRemoteRef.name,
+			getHistoryItemDisplayName(historyItem));
 	}
 
 	@command('git.graph.compareWithMergeBase', { repository: true })
@@ -3131,13 +3130,12 @@ export class CommandCenter {
 			return;
 		}
 
-		const title = `${repository.historyProvider.currentHistoryItemBaseRef.name} ↔ ${getHistoryItemDisplayName(historyItem)}`;
-
 		await this._openChangesBetweenRefs(
 			repository,
 			repository.historyProvider.currentHistoryItemBaseRef.name,
 			historyItem.id,
-			title);
+			repository.historyProvider.currentHistoryItemBaseRef.name,
+			getHistoryItemDisplayName(historyItem));
 	}
 
 	@command('git.graph.compareRef', { repository: true })
@@ -3168,16 +3166,15 @@ export class CommandCenter {
 			return;
 		}
 
-		const title = `${sourceRef.ref.name} ↔ ${getHistoryItemDisplayName(historyItem)}`;
-
 		await this._openChangesBetweenRefs(
 			repository,
 			sourceRef.ref.commit,
 			historyItem.id,
-			title);
+			sourceRef.ref.name,
+			getHistoryItemDisplayName(historyItem));
 	}
 
-	private async _openChangesBetweenRefs(repository: Repository, ref1: string | undefined, ref2: string | undefined, title: string): Promise<void> {
+	private async _openChangesBetweenRefs(repository: Repository, ref1: string | undefined, ref2: string | undefined, ref1DisplayId: string | undefined, ref2DisplayId: string | undefined): Promise<void> {
 		if (!repository || !ref1 || !ref2) {
 			return;
 		}
@@ -3186,7 +3183,7 @@ export class CommandCenter {
 			const changes = await repository.diffBetween2(ref1, ref2);
 
 			if (changes.length === 0) {
-				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref1, ref2));
+				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref1DisplayId ?? ref1, ref2DisplayId ?? ref2));
 				return;
 			}
 
@@ -3195,11 +3192,11 @@ export class CommandCenter {
 
 			await commands.executeCommand('_workbench.openMultiDiffEditor', {
 				multiDiffSourceUri,
-				title,
+				title: `${ref1DisplayId} \u2194 ${ref2DisplayId}`,
 				resources
 			});
 		} catch (err) {
-			window.showErrorMessage(l10n.t('Failed to open changes between "{0}" and "{1}": {2}', ref1, ref2, err.message));
+			window.showErrorMessage(l10n.t('Failed to open changes between "{0}" and "{1}": {2}', ref1DisplayId ?? ref1, ref2DisplayId ?? ref2, err.message));
 		}
 	}
 
@@ -4892,7 +4889,7 @@ export class CommandCenter {
 		else if (item.previousRef === 'HEAD' && item.ref === '~') {
 			title = l10n.t('{0} (Index)', basename);
 		} else {
-			title = l10n.t('{0} ({1}) ↔ {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
+			title = l10n.t('{0} ({1}) \u2194 {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
 		}
 
 		return {
@@ -5009,7 +5006,7 @@ export class CommandCenter {
 		}
 
 
-		const title = l10n.t('{0} ↔ {1}', leftTitle, rightTitle);
+		const title = l10n.t('{0} \u2194 {1}', leftTitle, rightTitle);
 		await commands.executeCommand('vscode.diff', selected.ref === '' ? uri : toGitUri(uri, selected.ref), item.ref === '' ? uri : toGitUri(uri, item.ref), title);
 	}
 
@@ -5337,7 +5334,8 @@ export class CommandCenter {
 			repository,
 			sourceRef.ref.commit,
 			artifact.id,
-			`${sourceRef.ref.name} ↔ ${artifact.name}`);
+			sourceRef.ref.name,
+			artifact.name);
 	}
 
 	private async _createTag(repository: Repository, ref?: string): Promise<void> {

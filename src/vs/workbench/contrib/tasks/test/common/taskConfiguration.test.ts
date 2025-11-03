@@ -567,7 +567,7 @@ function assertProblemMatcher(actual: string | ProblemMatcher, expected: string 
 	}
 }
 
-function assertProblemPatterns(actual: IProblemPattern | IProblemPattern[], expected: IProblemPattern | IProblemPattern[]) {
+function assertProblemPatterns(actual: Types.SingleOrMany<IProblemPattern>, expected: Types.SingleOrMany<IProblemPattern>) {
 	assert.strictEqual(typeof actual, typeof expected);
 	if (Array.isArray(actual)) {
 		const actuals = <IProblemPattern[]>actual;

@@ -522,6 +522,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	private async onDidAddRepository(repository: ISCMRepository): Promise<void> {
 		const disposables = new DisposableStore();
 
+		// Artifact group changed
 		disposables.add(autorun(async reader => {
 			const artifactsProvider = repository.provider.artifactProvider.read(reader);
 			if (!artifactsProvider) {
@@ -529,6 +530,19 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			}
 
 			reader.store.add(artifactsProvider.onDidChangeArtifacts(async groups => {
+				await this.updateRepository(repository);
+			}));
+		}));
+
+		// HistoryItemRef changed
+		disposables.add(autorun(async reader => {
+			const historyProvider = repository.provider.historyProvider.read(reader);
+			if (!historyProvider) {
+				return;
+			}
+
+			reader.store.add(autorun(async reader => {
+				historyProvider.historyItemRef.read(reader);
 				await this.updateRepository(repository);
 			}));
 		}));

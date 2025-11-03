@@ -65,12 +65,29 @@ export interface IChatRequestToolSetEntry extends IBaseChatRequestVariableEntry 
 
 export type ChatRequestToolReferenceEntry = IChatRequestToolEntry | IChatRequestToolSetEntry;
 
+export interface StringChatContextValue {
+	value: string;
+	name: string;
+	modelDescription?: string;
+	icon: ThemeIcon;
+	uri: URI;
+}
+
 export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'implicit';
 	readonly isFile: true;
-	readonly value: URI | Location | undefined;
+	readonly value: URI | Location | StringChatContextValue | undefined;
+	readonly uri: URI | undefined;
 	readonly isSelection: boolean;
 	enabled: boolean;
+}
+
+export interface IChatRequestStringVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'string';
+	readonly value: string;
+	readonly modelDescription?: string;
+	readonly icon: ThemeIcon;
+	readonly uri: URI;
 }
 
 export interface IChatRequestPasteVariableEntry extends IBaseChatRequestVariableEntry {
@@ -242,7 +259,8 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
-	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry;
+	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
+	| IChatRequestStringVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -261,6 +279,10 @@ export namespace IChatRequestVariableEntry {
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
+}
+
+export function isStringVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestStringVariableEntry {
+	return obj.kind === 'string';
 }
 
 export function isTerminalVariableEntry(obj: IChatRequestVariableEntry): obj is ITerminalVariableEntry {
@@ -317,6 +339,18 @@ export function isSCMHistoryItemChangeVariableEntry(obj: IChatRequestVariableEnt
 
 export function isSCMHistoryItemChangeRangeVariableEntry(obj: IChatRequestVariableEntry): obj is ISCMHistoryItemChangeRangeVariableEntry {
 	return obj.kind === 'scmHistoryItemChangeRange';
+}
+
+export function isStringImplicitContextValue(value: unknown): value is StringChatContextValue {
+	const asStringImplicitContextValue = value as Partial<StringChatContextValue>;
+	return (
+		typeof asStringImplicitContextValue === 'object' &&
+		asStringImplicitContextValue !== null &&
+		typeof asStringImplicitContextValue.value === 'string' &&
+		typeof asStringImplicitContextValue.name === 'string' &&
+		ThemeIcon.isThemeIcon(asStringImplicitContextValue.icon) &&
+		URI.isUri(asStringImplicitContextValue.uri)
+	);
 }
 
 export enum PromptFileVariableKind {
