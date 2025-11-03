@@ -777,7 +777,7 @@ export class ChatService extends Disposable implements IChatService {
 		const commandPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
 		const requests = [...model.getRequests()];
 		const requestTelemetry = this.instantiationService.createInstance(ChatRequestTelemetry, {
-			agentPart,
+			agent: agentPart?.agent ?? defaultAgent,
 			agentSlashCommandPart,
 			commandPart,
 			sessionId: model.sessionId,
@@ -840,7 +840,7 @@ export class ChatService extends Disposable implements IChatService {
 					// Normally timings happen inside the EH around the actual provider. For cancellation we can measure how long the user waited before cancelling
 					totalTime: stopWatch.elapsed(),
 					requestType,
-					detectedAgent: (detectedAgent ?? agentPart?.agent ?? defaultAgent),
+					detectedAgent,
 					request,
 				});
 
@@ -1020,7 +1020,7 @@ export class ChatService extends Disposable implements IChatService {
 						totalTime: rawResult.timings?.totalElapsed,
 						result,
 						requestType,
-						detectedAgent: (detectedAgent ?? agentPart?.agent ?? defaultAgent),
+						detectedAgent,
 						request,
 					});
 
@@ -1049,7 +1049,7 @@ export class ChatService extends Disposable implements IChatService {
 					totalTime: undefined,
 					result: 'error',
 					requestType,
-					detectedAgent: (detectedAgent ?? agentPart?.agent ?? defaultAgent),
+					detectedAgent,
 					request,
 				});
 				if (request) {
