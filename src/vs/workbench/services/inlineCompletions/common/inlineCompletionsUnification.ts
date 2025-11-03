@@ -148,12 +148,13 @@ export class InlineCompletionsUnificationImpl extends Disposable implements IInl
 			return false;
 		}
 
-		const completionExtensionInstalled = installedExtensions.find(ext => ext.identifier.id.toLowerCase() === this._completionsExtensionId);
-		if (!completionExtensionInstalled) {
+		// Extension might be installed on remote and local
+		const completionExtensionInstalled = installedExtensions.filter(ext => ext.identifier.id.toLowerCase() === this._completionsExtensionId);
+		if (completionExtensionInstalled.length === 0) {
 			return false;
 		}
 
-		const completionsExtensionDisabledByUnification = this._extensionEnablementService.getEnablementState(completionExtensionInstalled) === EnablementState.DisabledByUnification;
+		const completionsExtensionDisabledByUnification = completionExtensionInstalled.some(ext => this._extensionEnablementService.getEnablementState(ext) === EnablementState.DisabledByUnification);
 
 		return !!chatExtension && completionsExtensionDisabledByUnification;
 	}
