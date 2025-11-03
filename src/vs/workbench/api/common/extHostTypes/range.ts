@@ -11,15 +11,15 @@ import { Position } from './position.js';
 @es5ClassCompat
 export class Range {
 
-	static isRange(thing: any): thing is vscode.Range {
+	static isRange(thing: unknown): thing is vscode.Range {
 		if (thing instanceof Range) {
 			return true;
 		}
-		if (!thing) {
+		if (!thing || typeof thing !== 'object') {
 			return false;
 		}
 		return Position.isPosition((<Range>thing).start)
-			&& Position.isPosition((<Range>thing.end));
+			&& Position.isPosition((<Range>thing).end);
 	}
 
 	static of(obj: vscode.Range): Range {
@@ -149,7 +149,7 @@ export class Range {
 		return new Range(start, end);
 	}
 
-	toJSON(): any {
+	toJSON(): unknown {
 		return [this.start, this.end];
 	}
 

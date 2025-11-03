@@ -17,7 +17,7 @@ export enum NotebookCellKind {
 }
 
 export class NotebookRange {
-	static isNotebookRange(thing: any): thing is vscode.NotebookRange {
+	static isNotebookRange(thing: unknown): thing is vscode.NotebookRange {
 		if (thing instanceof NotebookRange) {
 			return true;
 		}
@@ -104,10 +104,10 @@ export class NotebookCellData {
 	languageId: string;
 	mime?: string;
 	outputs?: vscode.NotebookCellOutput[];
-	metadata?: Record<string, any>;
+	metadata?: Record<string, unknown>;
 	executionSummary?: vscode.NotebookCellExecutionSummary;
 
-	constructor(kind: NotebookCellKind, value: string, languageId: string, mime?: string, outputs?: vscode.NotebookCellOutput[], metadata?: Record<string, any>, executionSummary?: vscode.NotebookCellExecutionSummary) {
+	constructor(kind: NotebookCellKind, value: string, languageId: string, mime?: string, outputs?: vscode.NotebookCellOutput[], metadata?: Record<string, unknown>, executionSummary?: vscode.NotebookCellExecutionSummary) {
 		this.kind = kind;
 		this.value = value;
 		this.languageId = languageId;
@@ -123,7 +123,7 @@ export class NotebookCellData {
 export class NotebookData {
 
 	cells: NotebookCellData[];
-	metadata?: { [key: string]: any };
+	metadata?: { [key: string]: unknown };
 
 	constructor(cells: NotebookCellData[]) {
 		this.cells = cells;
@@ -133,7 +133,7 @@ export class NotebookData {
 @es5ClassCompat
 export class NotebookEdit implements vscode.NotebookEdit {
 
-	static isNotebookCellEdit(thing: any): thing is NotebookEdit {
+	static isNotebookCellEdit(thing: unknown): thing is NotebookEdit {
 		if (thing instanceof NotebookEdit) {
 			return true;
 		}
@@ -156,13 +156,13 @@ export class NotebookEdit implements vscode.NotebookEdit {
 		return new NotebookEdit(range, []);
 	}
 
-	static updateCellMetadata(index: number, newMetadata: { [key: string]: any }): NotebookEdit {
+	static updateCellMetadata(index: number, newMetadata: { [key: string]: unknown }): NotebookEdit {
 		const edit = new NotebookEdit(new NotebookRange(index, index), []);
 		edit.newCellMetadata = newMetadata;
 		return edit;
 	}
 
-	static updateNotebookMetadata(newMetadata: { [key: string]: any }): NotebookEdit {
+	static updateNotebookMetadata(newMetadata: { [key: string]: unknown }): NotebookEdit {
 		const edit = new NotebookEdit(new NotebookRange(0, 0), []);
 		edit.newNotebookMetadata = newMetadata;
 		return edit;
@@ -170,8 +170,8 @@ export class NotebookEdit implements vscode.NotebookEdit {
 
 	range: NotebookRange;
 	newCells: NotebookCellData[];
-	newCellMetadata?: { [key: string]: any };
-	newNotebookMetadata?: { [key: string]: any };
+	newCellMetadata?: { [key: string]: unknown };
+	newNotebookMetadata?: { [key: string]: unknown };
 
 	constructor(range: NotebookRange, newCells: NotebookCellData[]) {
 		this.range = range;
@@ -220,7 +220,7 @@ export class NotebookCellOutputItem {
 		return new NotebookCellOutputItem(bytes, mime);
 	}
 
-	static json(value: any, mime: string = 'text/x-json'): NotebookCellOutputItem {
+	static json(value: unknown, mime: string = 'text/x-json'): NotebookCellOutputItem {
 		const rawStr = JSON.stringify(value, undefined, '\t');
 		return NotebookCellOutputItem.text(rawStr, mime);
 	}
@@ -239,7 +239,7 @@ export class NotebookCellOutputItem {
 
 export class NotebookCellOutput {
 
-	static isNotebookCellOutput(candidate: any): candidate is vscode.NotebookCellOutput {
+	static isNotebookCellOutput(candidate: unknown): candidate is vscode.NotebookCellOutput {
 		if (candidate instanceof NotebookCellOutput) {
 			return true;
 		}
@@ -274,12 +274,12 @@ export class NotebookCellOutput {
 
 	id: string;
 	items: NotebookCellOutputItem[];
-	metadata?: Record<string, any>;
+	metadata?: Record<string, unknown>;
 
 	constructor(
 		items: NotebookCellOutputItem[],
-		idOrMetadata?: string | Record<string, any>,
-		metadata?: Record<string, any>
+		idOrMetadata?: string | Record<string, unknown>,
+		metadata?: Record<string, unknown>
 	) {
 		this.items = NotebookCellOutput.ensureUniqueMimeTypes(items, true);
 		if (typeof idOrMetadata === 'string') {
@@ -291,4 +291,3 @@ export class NotebookCellOutput {
 		}
 	}
 }
-
