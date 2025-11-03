@@ -72,7 +72,7 @@ export class ManageModelsAction extends Action2 {
 			quickPick.hide();
 			const selectedItem: IVendorQuickPickItem = quickPick.selectedItems[0] as IVendorQuickPickItem;
 			if (selectedItem) {
-				const models: ILanguageModelChatMetadataAndIdentifier[] = coalesce((await languageModelsService.selectLanguageModels({ vendor: selectedItem.vendor }, true)).sort((m1, m2) => m1.localeCompare(m2)).map(modelIdentifier => {
+				const models: ILanguageModelChatMetadataAndIdentifier[] = coalesce((await languageModelsService.selectLanguageModels({ vendor: selectedItem.vendor }, true)).map(modelIdentifier => {
 					const modelMetadata = languageModelsService.lookupLanguageModel(modelIdentifier);
 					if (!modelMetadata) {
 						return undefined;
@@ -81,7 +81,7 @@ export class ManageModelsAction extends Action2 {
 						metadata: modelMetadata,
 						identifier: modelIdentifier,
 					};
-				}));
+				})).sort((m1, m2) => m1.metadata.name.localeCompare(m2.metadata.name));
 				await this.showModelSelectorQuickpick(models, quickInputService, languageModelsService);
 			}
 		}));
