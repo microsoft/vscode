@@ -191,7 +191,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private _clearAllCommands(): void {
-		// Clear all commands when the screen is cleared (Ctrl+L, clear command, etc.)
+		// Clear all commands both scrollback, viewport.
 		if (this._commands.length > 0) {
 			const clearedCommands = this._commands.splice(0, this._commands.length);
 			this._onCommandInvalidated.fire(clearedCommands);
