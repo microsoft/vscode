@@ -1282,10 +1282,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			encode(content: string, options?: { uri?: vscode.Uri; encoding?: string }) {
 				return extHostWorkspace.encode(content, options);
 			},
-			registerChatContextProvider(selector: vscode.DocumentSelector, id: string, provider: vscode.ChatContextProvider): vscode.Disposable {
-				checkProposedApiEnabled(extension, 'chatContextProvider');
-				return extHostChatContext.registerChatContextProvider(checkSelector(selector), `${extension.id}-${id}`, provider);
-			}
 		};
 
 		// namespace: scm
@@ -1539,6 +1535,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerChatOutputRenderer: (viewType: string, renderer: vscode.ChatOutputRenderer) => {
 				checkProposedApiEnabled(extension, 'chatOutputRenderer');
 				return extHostChatOutputRenderer.registerChatOutputRenderer(extension, viewType, renderer);
+			},
+			registerChatContextProvider(selector: vscode.DocumentSelector, id: string, provider: vscode.ChatContextProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'chatContextProvider');
+				return extHostChatContext.registerChatContextProvider(checkSelector(selector), `${extension.id}-${id}`, provider);
 			},
 		};
 
