@@ -80,5 +80,11 @@
     "path-scurry": {
       "lru-cache": "11.2.1"
     }
+  },
+  "config": {
+    "node_gyp_disturl": "https://nodejs.org/dist",
+    "node_gyp_runtime": "node",
+    "node_gyp_build_from_source": "true",
+    "node_gyp_force_process_config": "true"
   }
 }

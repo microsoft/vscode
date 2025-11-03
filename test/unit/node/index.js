@@ -69,7 +69,7 @@ const src = path.join(REPO_ROOT, out);
 const baseUrl = pathToFileURL(src);
 
 //@ts-ignore
-const requiredNodeVersion = semver.parse(/^target="(.*)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8'))[1]);
+const requiredNodeVersion = semver.parse(JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'remote', 'package.json'), 'utf8')).config.node_gyp_target);
 const currentNodeVersion = semver.parse(process.version);
 //@ts-ignore
 if (currentNodeVersion?.major < requiredNodeVersion?.major) {

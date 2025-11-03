@@ -7,9 +7,9 @@ import path from 'path';
 import fs from 'fs';
 
 const root = path.dirname(path.dirname(__dirname));
-const npmrcPath = path.join(root, 'remote', '.npmrc');
-const npmrc = fs.readFileSync(npmrcPath, 'utf8');
-const version = /^target="(.*)"$/m.exec(npmrc)![1];
+const packageJson = fs.readFileSync(path.join(root, 'remote', 'package.json'), 'utf8');
+const { config } = JSON.parse(packageJson);
+const version = config.node_gyp_target;
 
 const platform = process.platform;
 const arch = process.arch;

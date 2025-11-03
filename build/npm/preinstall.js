@@ -4,13 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 const nodeVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(process.versions.node);
+const npmVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(process.env.npm_config_npm_version);
 const majorNodeVersion = parseInt(nodeVersion[1]);
 const minorNodeVersion = parseInt(nodeVersion[2]);
 const patchNodeVersion = parseInt(nodeVersion[3]);
+const majorNpmVersion = parseInt(npmVersion[1]);
+const minorNpmVersion = parseInt(npmVersion[2]);
+const patchNpmVersion = parseInt(npmVersion[3]);
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
-	if (majorNodeVersion < 22 || (majorNodeVersion === 22 && minorNodeVersion < 15) || (majorNodeVersion === 22 && minorNodeVersion === 15 && patchNodeVersion < 1)) {
-		console.error('\x1b[1;31m*** Please use Node.js v22.15.1 or later for development.\x1b[0;0m');
+	if (majorNodeVersion < 24 || (majorNodeVersion === 24 && (minorNodeVersion < 11 || (minorNodeVersion === 11 && patchNodeVersion === 0)))) {
+		console.error('\x1b[1;31m*** Please use Node.js > v24.11.0 or >= v25.0.0 for development.\x1b[0;0m');
+		throw new Error();
+	}
+
+	if (majorNpmVersion < 11 || (majorNpmVersion === 11 && (minorNpmVersion < 6 || (minorNpmVersion === 6 && patchNpmVersion < 2)))) {
+		console.error('\x1b[1;31m*** Please use npm >= 11.6.2 for development.\x1b[0;0m');
 		throw new Error();
 	}
 }
@@ -95,8 +104,8 @@ function installHeaders() {
 	const result = cp.execFileSync(node_gyp, ['list'], { encoding: 'utf8', shell: true });
 	const versions = new Set(result.split(/\n/g).filter(line => !line.startsWith('gyp info')).map(value => value));
 
-	const local = getHeaderInfo(path.join(__dirname, '..', '..', '.npmrc'));
-	const remote = getHeaderInfo(path.join(__dirname, '..', '..', 'remote', '.npmrc'));
+	const local = getHeaderInfo(path.join(__dirname, '..', '..', 'package.json'));
+	const remote = getHeaderInfo(path.join(__dirname, '..', '..', 'remote', 'package.json'));
 
 	if (local !== undefined && !versions.has(local.target)) {
 		// Both disturl and target come from a file checked into our repository
@@ -110,22 +119,14 @@ function installHeaders() {
 }
 
 /**
- * @param {string} rcFile
+ * @param {string} packageJsonFile
  * @returns {{ disturl: string; target: string } | undefined}
  */
-function getHeaderInfo(rcFile) {
-	const lines = fs.readFileSync(rcFile, 'utf8').split(/\r\n?/g);
-	let disturl, target;
-	for (const line of lines) {
-		let match = line.match(/\s*disturl=*\"(.*)\"\s*$/);
-		if (match !== null && match.length >= 1) {
-			disturl = match[1];
-		}
-		match = line.match(/\s*target=*\"(.*)\"\s*$/);
-		if (match !== null && match.length >= 1) {
-			target = match[1];
-		}
-	}
+function getHeaderInfo(packageJsonFile) {
+	const packageJson = fs.readFileSync(packageJsonFile, 'utf8');
+	const { config } = JSON.parse(packageJson);
+	const disturl = config.node_gyp_disturl;
+	const target = config.node_gyp_target;
 	return disturl !== undefined && target !== undefined
 		? { disturl, target }
 		: undefined;

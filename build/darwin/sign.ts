@@ -17,9 +17,9 @@ const rendererHelperAppName = helperAppBaseName + ' Helper (Renderer).app';
 const pluginHelperAppName = helperAppBaseName + ' Helper (Plugin).app';
 
 function getElectronVersion(): string {
-	const npmrc = fs.readFileSync(path.join(root, '.npmrc'), 'utf8');
-	const target = /^target="(.*)"$/m.exec(npmrc)![1];
-	return target;
+	const packageJson = fs.readFileSync(path.join(root, 'package.json'), 'utf8');
+	const { config } = JSON.parse(packageJson);
+	return config.node_gyp_target;
 }
 
 function getEntitlementsForFile(filePath: string): string {
