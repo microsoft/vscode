@@ -17,6 +17,7 @@ import type * as performance from '../../../base/common/performance.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IAction } from '../../../base/common/actions.js';
 import type { IDisposable } from '../../../base/common/lifecycle.js';
+import type { SingleOrMany } from '../../../base/common/types.js';
 
 export const enum TerminalSettingPrefix {
 	AutomationProfile = 'terminal.integrated.automationProfile.',
@@ -917,7 +918,7 @@ export interface ITerminalProfile {
 	 * cleaner to display this profile in the UI using only `basename(path)`.
 	 */
 	isFromPath?: boolean;
-	args?: string | string[] | undefined;
+	args?: SingleOrMany<string> | undefined;
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;
 	color?: string;
@@ -937,7 +938,7 @@ export const enum ProfileSource {
 }
 
 export interface IBaseUnresolvedTerminalProfile {
-	args?: string | string[] | undefined;
+	args?: SingleOrMany<string> | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
 	icon?: string | ThemeIcon | URI | { light: URI; dark: URI };
@@ -946,15 +947,13 @@ export interface IBaseUnresolvedTerminalProfile {
 	requiresPath?: string | ITerminalUnsafePath;
 }
 
-type OneOrN<T> = T | T[];
-
 export interface ITerminalUnsafePath {
 	path: string;
 	isUnsafe: true;
 }
 
 export interface ITerminalExecutable extends IBaseUnresolvedTerminalProfile {
-	path: OneOrN<string | ITerminalUnsafePath>;
+	path: SingleOrMany<string | ITerminalUnsafePath>;
 }
 
 export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {

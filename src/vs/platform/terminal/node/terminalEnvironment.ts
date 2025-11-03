@@ -17,6 +17,7 @@ import { deserializeEnvironmentVariableCollections } from '../common/environment
 import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection.js';
 import { chmod, realpathSync, mkdirSync } from 'fs';
 import { promisify } from 'util';
+import type { SingleOrMany } from '../../../base/common/types.js';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
@@ -348,7 +349,7 @@ const shLoginArgs = ['--login', '-l'];
 const shInteractiveArgs = ['-i', '--interactive'];
 const pwshImpliedArgs = ['-nol', '-nologo'];
 
-function arePwshLoginArgs(originalArgs: string | string[]): boolean {
+function arePwshLoginArgs(originalArgs: SingleOrMany<string>): boolean {
 	if (typeof originalArgs === 'string') {
 		return pwshLoginArgs.includes(originalArgs.toLowerCase());
 	} else {
@@ -359,7 +360,7 @@ function arePwshLoginArgs(originalArgs: string | string[]): boolean {
 	}
 }
 
-function arePwshImpliedArgs(originalArgs: string | string[]): boolean {
+function arePwshImpliedArgs(originalArgs: SingleOrMany<string>): boolean {
 	if (typeof originalArgs === 'string') {
 		return pwshImpliedArgs.includes(originalArgs.toLowerCase());
 	} else {
@@ -367,7 +368,7 @@ function arePwshImpliedArgs(originalArgs: string | string[]): boolean {
 	}
 }
 
-function areZshBashFishLoginArgs(originalArgs: string | string[]): boolean {
+function areZshBashFishLoginArgs(originalArgs: SingleOrMany<string>): boolean {
 	if (typeof originalArgs !== 'string') {
 		originalArgs = originalArgs.filter(arg => !shInteractiveArgs.includes(arg.toLowerCase()));
 	}
