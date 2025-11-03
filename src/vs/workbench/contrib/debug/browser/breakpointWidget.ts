@@ -298,7 +298,6 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 				this.triggeredByBreakpointInput = breakpoints[e.index - 1];
 			}
 		}));
-		this.store.add(selectBreakpointBox);
 		this.selectBreakpointContainer = $('.select-breakpoint-container');
 		this.store.add(dom.addDisposableListener(this.selectBreakpointContainer, dom.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
