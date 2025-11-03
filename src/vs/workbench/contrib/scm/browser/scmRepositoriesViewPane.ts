@@ -418,7 +418,8 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 					// If we only have one repository, expand it
 					if (this.scmViewService.repositories.length === 1) {
-						await this.tree.expand(this.scmViewService.repositories[0]);
+						await this.treeOperationSequencer.queue(() =>
+							this.tree.expand(this.scmViewService.repositories[0]));
 					}
 				}));
 
