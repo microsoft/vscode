@@ -388,7 +388,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get machineId() { return initData.telemetryInfo.machineId; },
 			get devDeviceId() {
 				checkProposedApiEnabled(extension, 'devDeviceId');
-				return initData.telemetryInfo.devDeviceId;
+				return initData.telemetryInfo.devDeviceId ?? initData.telemetryInfo.machineId;
 			},
 			get sessionId() { return initData.telemetryInfo.sessionId; },
 			get language() { return initData.environment.appLanguage; },
