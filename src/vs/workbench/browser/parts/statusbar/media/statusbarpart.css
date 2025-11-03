@@ -49,6 +49,9 @@
 .monaco-workbench .part.statusbar > .left-items,
 .monaco-workbench .part.statusbar > .right-items {
 	display: flex;
+	/* Alignment fix: Remove extra gaps for correct edge alignment */
+	margin: 0;
+	padding: 0;
 }
 
 .monaco-workbench .part.statusbar > .right-items {
@@ -92,17 +95,19 @@
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.left.first-visible-item,
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.right.last-visible-item {
-	padding-right: 0;
-	padding-left: 0;
+	/* Alignment fix: Remove extra padding from edge items */
+	padding-left: 0 !important;
+	padding-right: 0 !important;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
 	cursor: pointer;
 	display: flex;
 	height: 100%;
-	margin-right: 3px;
-	margin-left: 3px;
-	padding: 0 5px;
+	/* Alignment fix: Remove margin and set even horizontal padding */
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+	padding: 0 8px !important;
 	white-space: pre; /* gives some degree of styling */
 	align-items: center;
 	text-overflow: ellipsis;
@@ -210,7 +215,7 @@
  * when a prominent item uses `compact: true` with other items. The presence of the
  * !important directive for `background-color` otherwise blocks our special hover handling
  * code here:
- * https://github.com/microsoft/vscode/blob/c2037f152b2bb3119ce1d87f52987776540dd57f/src/vs/workbench/browser/parts/statusbar/statusbarPart.ts#L483-L505
+ * [https://github.com/microsoft/vscode/blob/c2037f152b2bb3119ce1d87f52987776540dd57f/src/vs/workbench/browser/parts/statusbar/statusbarPart.ts#L483-L505](https://github.com/microsoft/vscode/blob/c2037f152b2bb3119ce1d87f52987776540dd57f/src/vs/workbench/browser/parts/statusbar/statusbarPart.ts#L483-L505)
  *
  * Note: this is currently only done for the prominent kind, but needs to be expanded if
  * other kinds use compact feature.
