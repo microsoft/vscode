@@ -776,7 +776,7 @@ export class ChatService extends Disposable implements IChatService {
 		const commandPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
 		const requests = [...model.getRequests()];
 		const requestTelemetry = this.instantiationService.createInstance(ChatRequestTelemetry, {
-			agentPart,
+			agent: agentPart?.agent ?? defaultAgent,
 			agentSlashCommandPart,
 			commandPart,
 			sessionId: model.sessionId,
