@@ -365,8 +365,8 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			let chatSessionTitle: string | undefined;
 			if (toolSessionId) {
 				const sessionUri = LocalChatSessionUri.forSession(toolSessionId);
-				const chatModel = chatService.getSession(sessionUri);
-				chatSessionTitle = chatModel?.title;
+				// Try to get title from active session first, then fall back to persisted title
+				chatSessionTitle = chatService.getSession(sessionUri)?.title || chatService.getPersistedSessionTitle(sessionUri);
 			}
 
 			// Build description: chat session title and/or hidden status
