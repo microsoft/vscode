@@ -1405,7 +1405,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return menuBarVisibility;
 	}
 
-	private setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
+	private setMenuBarVisibility(visibility: MenuBarVisibility, notify = true): void {
 		if (isMacintosh) {
 			return; // ignore for macOS platform
 		}
@@ -1632,7 +1632,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 class UnresponsiveError extends Error {
 
-	constructor(sample: string, windowId: number, pid: number = 0) {
+	constructor(sample: string, windowId: number, pid = 0) {
 		// Since the stacks are available via the sample
 		// we can avoid collecting them when constructing the error.
 		const stackTraceLimit = Error.stackTraceLimit;

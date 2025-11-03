@@ -516,7 +516,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
 			// We've changed models and the current one is no longer available. Select a new one
 			const selectedModel = this._currentLanguageModel ? this.getModels().find(m => m.identifier === this._currentLanguageModel?.identifier) : undefined;
-			const selectedModelNotAvailable = this._currentLanguageModel && (!selectedModel || !selectedModel.metadata.isUserSelectable);
+			const selectedModelNotAvailable = this._currentLanguageModel && (!selectedModel?.metadata.isUserSelectable);
 			if (!this.currentLanguageModel || selectedModelNotAvailable) {
 				this.setCurrentLanguageModelToDefault();
 			}
@@ -1359,7 +1359,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
 		options.stickyScroll = { enabled: false };
 
-		this._inputEditorElement = dom.append(editorContainer!, $(chatInputEditorContainerSelector));
+		this._inputEditorElement = dom.append(editorContainer, $(chatInputEditorContainerSelector));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, DropIntoEditorController.ID, CopyPasteController.ID, LinkDetector.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));

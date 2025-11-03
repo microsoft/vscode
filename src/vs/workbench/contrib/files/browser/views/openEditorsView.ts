@@ -286,7 +286,7 @@ export class OpenEditorsView extends ViewPane {
 			}
 		}));
 
-		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!);
 		this._register(containerModel.onDidChangeAllViewDescriptors(() => {
 			this.updateSize();
 		}));
@@ -512,7 +512,7 @@ export class OpenEditorsView extends ViewPane {
 		if (typeof minVisibleOpenEditors !== 'number') {
 			minVisibleOpenEditors = OpenEditorsView.DEFAULT_MIN_VISIBLE_OPEN_EDITORS;
 		}
-		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!);
 		if (containerModel.visibleViewDescriptors.length <= 1) {
 			return Number.POSITIVE_INFINITY;
 		}

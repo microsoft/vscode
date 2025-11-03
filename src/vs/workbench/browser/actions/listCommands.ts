@@ -725,7 +725,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		const elementWithHover = getCustomHoverForElement(focusedElement as HTMLElement);
 		if (elementWithHover) {
-			accessor.get(IHoverService).showManagedHover(elementWithHover as HTMLElement);
+			accessor.get(IHoverService).showManagedHover(elementWithHover);
 		}
 	},
 });

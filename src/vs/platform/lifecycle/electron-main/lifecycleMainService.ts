@@ -231,7 +231,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	private _quitRequested = false;
 	get quitRequested(): boolean { return this._quitRequested; }
 
-	private _wasRestarted: boolean = false;
+	private _wasRestarted = false;
 	get wasRestarted(): boolean { return this._wasRestarted; }
 
 	private _phase = LifecycleMainPhase.Starting;

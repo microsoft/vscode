@@ -104,7 +104,7 @@ export class NodeSocket implements ISocket {
 		SocketDiagnostics.traceSocketEvent(this.socket, this.debugLabel, type, data);
 	}
 
-	constructor(socket: Socket, debugLabel: string = '') {
+	constructor(socket: Socket, debugLabel = '') {
 		this.debugLabel = debugLabel;
 		this.socket = socket;
 		this.traceSocketEvent(SocketDiagnosticsEventType.Created, { type: 'NodeSocket' });
@@ -295,7 +295,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 	private readonly _incomingData: ChunkStream;
 	private readonly _onData = this._register(new Emitter<VSBuffer>());
 	private readonly _onClose = this._register(new Emitter<SocketCloseEvent>());
-	private _isEnded: boolean = false;
+	private _isEnded = false;
 
 	private readonly _state = {
 		state: ReadState.PeekHeader,
@@ -837,7 +837,7 @@ function unmask(buffer: VSBuffer, mask: number): void {
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/microsoft/vscode/issues/30624
-export const XDG_RUNTIME_DIR = <string | undefined>process.env['XDG_RUNTIME_DIR'];
+export const XDG_RUNTIME_DIR = process.env['XDG_RUNTIME_DIR'];
 
 const safeIpcPathLengths: { [platform: number]: number } = {
 	[Platform.Linux]: 107,

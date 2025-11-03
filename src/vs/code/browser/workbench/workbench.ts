@@ -131,7 +131,7 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
 		const keyData = new Uint8Array(AESConstants.KEY_LENGTH / 8);
 
 		for (let i = 0; i < keyData.byteLength; i++) {
-			keyData[i] = clientKey[i]! ^ serverKey[i]!;
+			keyData[i] = clientKey[i] ^ serverKey[i];
 		}
 
 		return mainWindow.crypto.subtle.importKey(

@@ -651,7 +651,7 @@ class EditorStatus extends Disposable {
 	}
 
 	private getSelectionLabel(info: IEditorSelectionStatus): string | undefined {
-		if (!info || !info.selections) {
+		if (!info?.selections) {
 			return undefined;
 		}
 
@@ -1374,7 +1374,7 @@ export class ChangeLanguageAction extends Action2 {
 
 				// If the association is already being made in the workspace, make sure to target workspace settings
 				let target = ConfigurationTarget.USER;
-				if (fileAssociationsConfig.workspaceValue && fileAssociationsConfig.workspaceValue[associationKey as keyof typeof fileAssociationsConfig.workspaceValue]) {
+				if (fileAssociationsConfig.workspaceValue?.[associationKey as keyof typeof fileAssociationsConfig.workspaceValue]) {
 					target = ConfigurationTarget.WORKSPACE;
 				}
 

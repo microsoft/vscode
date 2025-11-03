@@ -21,7 +21,7 @@ export type ErrorCallback = (error?: any) => void;
 export type ProgressCallback<T> = (progress: T) => void;
 
 
-export function getWindowsShell(env = processCommon.env as Platform.IProcessEnvironment): string {
+export function getWindowsShell(env = processCommon.env): string {
 	return env['comspec'] || 'cmd.exe';
 }
 

@@ -509,7 +509,7 @@ export class SessionsViewPane extends ViewPane {
 		}
 
 		const session = e.element;
-		const sessionWithProvider = session as ChatSessionItemWithProvider;
+		const sessionWithProvider = session;
 
 		// Create context overlay for this specific session item
 		const contextOverlay = getSessionItemContextOverlay(

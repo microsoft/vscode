@@ -547,7 +547,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 			const firstParent = findFirstParent(resource, root);
 			if (firstParent) {
 				this.findHighlightTree.add(resource, root);
-				storeDirectories(firstParent.parent!);
+				storeDirectories(firstParent.parent);
 			}
 		}
 
@@ -737,7 +737,7 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 
 	get index(): number { return this._index; }
 	get count(): number { return this.items.length; }
-	get current(): ExplorerItem { return this.items[this._index]!; }
+	get current(): ExplorerItem { return this.items[this._index]; }
 	get currentId(): string { return `${this.id}_${this.index}`; }
 	get labels(): HTMLElement[] { return this._labels; }
 
@@ -752,7 +752,7 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 	}
 
 	private updateLabels(templateData: IFileTemplateData): void {
-		this._labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
+		this._labels = Array.from(templateData.container.querySelectorAll('.label-name'));
 		let parents = '';
 		for (let i = 0; i < this.labels.length; i++) {
 			const ariaLabel = parents.length ? `${this.items[i].name}, compact, ${parents}` : this.items[i].name;
@@ -948,7 +948,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 			// If there is a fuzzy score, we need to adjust the offset of the score
 			// to align with the last stat of the compressed label
-			let fuzzyScore = node.filterData as FuzzyScore | undefined;
+			let fuzzyScore = node.filterData;
 			if (fuzzyScore && fuzzyScore.length > 2) {
 				const filterDataOffset = labels.join('/').length - labels[labels.length - 1].length;
 				fuzzyScore = [fuzzyScore[0], fuzzyScore[1] + filterDataOffset, ...fuzzyScore.slice(2)];
