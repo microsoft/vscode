@@ -26,6 +26,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import { PromptFileRewriter } from '../promptFileRewriter.js';
 
 /**
  * Options for the {@link askToSelectInstructions} function.
@@ -505,6 +506,8 @@ export class PromptFilePickers {
 				}
 
 				await this._openerService.open(newFile);
+				await this._instaService.createInstance(PromptFileRewriter).openAndRewriteName(newFile, getCleanPromptName(newFile), CancellationToken.None);
+
 				return true;
 			});
 		}
