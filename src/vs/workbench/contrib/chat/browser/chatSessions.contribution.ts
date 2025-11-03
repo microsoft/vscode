@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -188,8 +189,7 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 	}
 });
 
-class ContributedChatSessionData implements IDisposable {
-	private readonly _disposableStore: DisposableStore;
+class ContributedChatSessionData extends Disposable {
 
 	private readonly _optionsCache: Map<string /* 'models' */, string>;
 	public getOption(optionId: string): string | undefined {
@@ -206,20 +206,18 @@ class ContributedChatSessionData implements IDisposable {
 		readonly options: Record<string, string> | undefined,
 		private readonly onWillDispose: (resource: URI) => void
 	) {
+		super();
+
 		this._optionsCache = new Map<string, string>();
 		if (options) {
 			for (const [key, value] of Object.entries(options)) {
 				this._optionsCache.set(key, value);
 			}
 		}
-		this._disposableStore = new DisposableStore();
-		this._disposableStore.add(this.session.onWillDispose(() => {
+
+		this._register(this.session.onWillDispose(() => {
 			this.onWillDispose(this.resource);
 		}));
-	}
-
-	dispose(): void {
-		this._disposableStore.dispose();
 	}
 }
 
@@ -777,31 +775,32 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
-		if (!(await this.canResolveChatSession(sessionResource))) {
+		const existingSessionData = this._sessions.get(sessionResource);
+		if (existingSessionData) {
+			return existingSessionData.session;
+		}
+
+		if (!(await raceCancellationError(this.canResolveChatSession(sessionResource), token))) {
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}
+
 		const resolvedType = this._resolveToPrimaryType(sessionResource.scheme) || sessionResource.scheme;
 		const provider = this._contentProviders.get(resolvedType);
 		if (!provider) {
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}
 
-		const existingSessionData = this._sessions.get(sessionResource);
-		if (existingSessionData) {
-			return existingSessionData.session;
-		}
-
-		const session = await provider.provideChatSessionContent(sessionResource, token);
-		const sessionData = new ContributedChatSessionData(session, sessionResource.scheme, sessionResource, session.options, this._onWillDisposeSession.bind(this));
+		const session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+		const sessionData = new ContributedChatSessionData(session, sessionResource.scheme, sessionResource, session.options, resource => {
+			sessionData.dispose();
+			this._sessions.delete(resource);
+		});
 
 		this._sessions.set(sessionResource, sessionData);
 
 		return session;
 	}
 
-	private _onWillDisposeSession(sessionResource: URI): void {
-		this._sessions.delete(sessionResource);
-	}
 
 	public hasAnySessionOptions(sessionResource: URI): boolean {
 		const session = this._sessions.get(sessionResource);
