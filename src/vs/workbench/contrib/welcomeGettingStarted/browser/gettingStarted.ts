@@ -1326,7 +1326,7 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}
 
-			this.commandService.executeCommand(commandURI.path, ...args).then(result => {
+			this.commandService.executeCommand<any>(commandURI.path, ...args).then(result => {
 				const toOpen: URI = result?.openFolder;
 				if (toOpen) {
 					if (!URI.isUri(toOpen)) {

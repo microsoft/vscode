@@ -431,7 +431,7 @@ registerAction2(class GoToTypeDefinitionsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToTypeDefinition', location);
+		await runGoToCommand(accessor, 'editor.action.goToTypeDefinition', location);
 	}
 });
 
@@ -456,7 +456,7 @@ registerAction2(class GoToImplementations extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToImplementation', location);
+		await runGoToCommand(accessor, 'editor.action.goToImplementation', location);
 	}
 });
 
@@ -481,7 +481,7 @@ registerAction2(class GoToReferencesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToReferences', location);
+		await runGoToCommand(accessor, 'editor.action.goToReferences', location);
 	}
 });
 

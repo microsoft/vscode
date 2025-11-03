@@ -167,7 +167,7 @@ export class McpDevModeDebugging implements IMcpDevModeDebugging {
 				} else {
 					try {
 						// The Python debugger exposes a command to get its bundle debugpy module path.  Use that if it's available.
-						const debugPyPath = await this._commandService.executeCommand('python.getDebugpyPackagePath');
+						const debugPyPath = await this._commandService.executeCommand<string | undefined>('python.getDebugpyPackagePath');
 						if (debugPyPath) {
 							command = launch.command;
 							args = [debugPyPath, ...args];

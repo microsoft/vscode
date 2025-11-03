@@ -190,8 +190,15 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 
 					const newMarker: IMarkerData[] = [];
 
-					const result = await this.commandService.executeCommand('json.validate', schemaUri, model.getValue());
-					for (const item of result) {
+					type JsonDiagnostic = {
+						message: string;
+						range: { line: number; character: number }[];
+						severity: string;
+						code?: string | number;
+					};
+
+					const result = await this.commandService.executeCommand<JsonDiagnostic[]>('json.validate', schemaUri, model.getValue());
+					for (const item of result ?? []) {
 						if (item.range && item.message) {
 							newMarker.push({
 								severity: item.severity === 'Error' ? MarkerSeverity.Error : MarkerSeverity.Warning,
