@@ -262,7 +262,7 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 				'http.systemCertificatesNode': {
 					type: 'boolean',
 					tags: ['experimental'],
-					default: false,
+					default: true,
 					markdownDescription: localize('systemCertificatesNode', "Controls whether system certificates should be loaded using Node.js built-in support. Reload the window after changing this setting. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
 					restricted: true,
 					experiment: {

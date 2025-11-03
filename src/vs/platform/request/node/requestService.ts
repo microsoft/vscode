@@ -120,7 +120,7 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	async loadCertificates(): Promise<string[]> {
 		const proxyAgent = await import('@vscode/proxy-agent');
 		return proxyAgent.loadSystemCertificates({
-			loadSystemCertificatesFromNode: () => this.getConfigValue<boolean>('http.systemCertificatesNode', false),
+			loadSystemCertificatesFromNode: () => this.getConfigValue<boolean>('http.systemCertificatesNode', true),
 			log: this.logService,
 		});
 	}
