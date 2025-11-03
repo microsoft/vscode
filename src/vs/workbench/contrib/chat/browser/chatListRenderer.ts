@@ -1279,7 +1279,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const previousContent = context.contentIndex > 0 ? context.content[context.contentIndex - 1] : undefined;
 
 			// Special handling for "create" tool invocations- do not end thinking if previous part is a create tool invocation and config is set.
-			const shouldKeepThinkingForCreateTool = collapsedTools && lastRenderedPart instanceof ChatToolInvocationPart && this.isCreateToolInvocationContent(previousContent);
+			const shouldKeepThinkingForCreateTool = collapsedTools !== 'none' && lastRenderedPart instanceof ChatToolInvocationPart && this.isCreateToolInvocationContent(previousContent);
 
 			if (!shouldKeepThinkingForCreateTool) {
 				const isResponseElement = isResponseVM(context.element);
