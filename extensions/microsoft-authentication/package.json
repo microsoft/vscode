@@ -14,7 +14,6 @@
   ],
   "activationEvents": [],
   "enabledApiProposals": [
-    "idToken",
     "nativeWindowHandle",
     "authIssuers",
     "authenticationChallenges"

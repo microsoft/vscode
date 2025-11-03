@@ -17969,9 +17969,16 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * The access token.
+		 * The access token. This token should be used to authenticate requests to a service. Popularized by OAuth.
+		 * @reference https://oauth.net/2/access-tokens/
 		 */
 		readonly accessToken: string;
+
+		/**
+		 * The ID token. This token contains identity information about the user. Popularized by OpenID Connect.
+		 * @reference https://openid.net/specs/openid-connect-core-1_0.html#IDToken
+		 */
+		readonly idToken?: string;
 
 		/**
 		 * The account associated with the session.
