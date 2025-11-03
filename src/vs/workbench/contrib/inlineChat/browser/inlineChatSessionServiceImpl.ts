@@ -23,7 +23,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -535,7 +535,7 @@ export class InlineChatEscapeToolContribution extends Disposable {
 
 				let result: { confirmed: boolean; checkboxChecked?: boolean };
 				if (dontAskAgain !== undefined) {
-					// User chose to always continue in panel chat
+					// Use previously stored user preference: true = 'Rephrase', false = 'Continue in Chat'
 					result = { confirmed: dontAskAgain, checkboxChecked: false };
 				} else {
 					result = await dialogService.confirm({
@@ -576,6 +576,7 @@ registerAction2(class ResetMoveToPanelChatChoice extends Action2 {
 	constructor() {
 		super({
 			id: 'inlineChat.resetMoveToPanelChatChoice',
+			precondition: ContextKeyExpr.has('config.chat.disableAIFeatures').negate(),
 			title: localize2('resetChoice.label', "Reset Choice for 'Move Inline Chat to Panel Chat'"),
 			f1: true
 		});
