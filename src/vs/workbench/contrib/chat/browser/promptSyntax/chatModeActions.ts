@@ -21,7 +21,7 @@ abstract class ConfigAgentActionImpl extends Action2 {
 		const instaService = accessor.get(IInstantiationService);
 		const openerService = accessor.get(IOpenerService);
 		const pickers = instaService.createInstance(PromptFilePickers);
-		const placeholder = localize('configure.agent.prompts.placeholder', "Select the custom agents to open and configure visibility in the agent picker",);
+		const placeholder = localize('configure.agent.prompts.placeholder', "Select the custom agents to open and configure visibility in the agent picker");
 
 		const result = await pickers.selectPromptFile({ placeholder, type: PromptsType.agent, optionEdit: false, optionVisibility: true });
 		if (result !== undefined) {
