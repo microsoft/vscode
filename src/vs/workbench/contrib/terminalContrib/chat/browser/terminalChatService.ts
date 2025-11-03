@@ -27,6 +27,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	private readonly _terminalInstancesByToolSessionId = new Map<string, ITerminalInstance>();
 	private readonly _toolSessionIdByTerminalInstance = new Map<ITerminalInstance, string>();
+	private readonly _chatSessionIdByTerminalInstance = new Map<ITerminalInstance, string>();
 	private readonly _terminalInstanceListenersByToolSessionId = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _onDidRegisterTerminalInstanceForToolSession = new Emitter<ITerminalInstance>();
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance> = this._onDidRegisterTerminalInstanceForToolSession.event;
@@ -114,6 +115,19 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	getToolSessionIdForInstance(instance: ITerminalInstance): string | undefined {
 		return this._toolSessionIdByTerminalInstance.get(instance);
+	}
+
+	registerTerminalInstanceWithChatSession(chatSessionId: string, instance: ITerminalInstance): void {
+		this._chatSessionIdByTerminalInstance.set(instance, chatSessionId);
+		// Clean up when the instance is disposed
+		const disposable = instance.onDisposed(() => {
+			this._chatSessionIdByTerminalInstance.delete(instance);
+		});
+		this._register(disposable);
+	}
+
+	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined {
+		return this._chatSessionIdByTerminalInstance.get(instance);
 	}
 
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean {

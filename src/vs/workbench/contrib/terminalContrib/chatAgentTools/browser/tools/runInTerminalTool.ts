@@ -705,6 +705,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const profile = await this._profileFetcher.getCopilotProfile();
 		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
+		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionId, toolTerminal.instance);
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
@@ -721,11 +722,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._logService.debug(`RunInTerminalTool: Using cached foreground terminal with session ID \`${chatSessionId}\``);
 			this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
 			this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance);
+			this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionId, cachedTerminal.instance);
 			return cachedTerminal;
 		}
 		const profile = await this._profileFetcher.getCopilotProfile();
 		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
+		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionId, toolTerminal.instance);
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
@@ -766,6 +769,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							shellIntegrationQuality: association.shellIntegrationQuality
 						};
 						this._sessionTerminalAssociations.set(association.sessionId, toolTerminal);
+						this._terminalChatService.registerTerminalInstanceWithChatSession(association.sessionId, instance);
 
 						// Listen for terminal disposal to clean up storage
 						this._register(instance.onDisposed(() => {
