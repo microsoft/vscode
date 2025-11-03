@@ -114,8 +114,10 @@ const CONFIRM_Y_RE = /\(y\)\s*$/i;
 
 const LINE_ENDS_WITH_COLON_RE = /:\s*$/;
 
+const END = /\(END\)$/;
+
 export function detectsInputRequiredPattern(cursorLine: string): boolean {
-	return PS_CONFIRM_RE.test(cursorLine) || YN_PAIRED_RE.test(cursorLine) || YN_AFTER_PUNCT_RE.test(cursorLine) || CONFIRM_Y_RE.test(cursorLine) || LINE_ENDS_WITH_COLON_RE.test(cursorLine.trim());
+	return PS_CONFIRM_RE.test(cursorLine) || YN_PAIRED_RE.test(cursorLine) || YN_AFTER_PUNCT_RE.test(cursorLine) || CONFIRM_Y_RE.test(cursorLine) || LINE_ENDS_WITH_COLON_RE.test(cursorLine.trim()) || END.test(cursorLine);
 }
 
 
