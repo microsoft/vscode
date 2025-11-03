@@ -213,5 +213,6 @@
 		"kusto"
 	],
 	"azureMcp.serverMode": "all",
-	"azureMcp.readOnly": true
+	"azureMcp.readOnly": true,
+	"chat.tools.terminal.outputLocation": "none"
 }
