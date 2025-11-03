@@ -158,7 +158,9 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	}
 
 	public clearCurrentEditLineDecoration() {
-		this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, []);
+		if (!this.modifiedModel.isDisposed()) {
+			this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, []);
+		}
 	}
 
 	public async areOriginalAndModifiedIdentical(): Promise<boolean> {
