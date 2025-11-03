@@ -158,7 +158,6 @@ export const USER_LOCAL_AND_REMOTE_SETTINGS = [
 	'http.experimental.systemCertificatesV2',
 	'http.fetchAdditionalSupport',
 	'http.experimental.networkInterfaceCheckInterval',
-	'http.requestTimeout',
 ];
 
 let proxyConfiguration: IConfigurationNode[] = [];
@@ -290,13 +289,6 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 					experiment: {
 						mode: 'auto'
 					}
-				},
-				'http.requestTimeout': {
-					type: 'number',
-					default: 60000,
-					minimum: 0,
-					markdownDescription: localize('requestTimeout', "Controls the timeout in milliseconds for HTTP requests made when downloading extensions and other resources. Use 0 for no timeout. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
-					restricted: true
 				}
 			}
 		}

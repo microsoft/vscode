@@ -302,6 +302,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('extensionsSupportNodeGlobalNavigator', "When enabled, Node.js navigator object is exposed on the global scope."),
 				default: false,
 			},
+			'extensions.requestTimeout': {
+				type: 'number',
+				description: localize('extensionsRequestTimeout', "Controls the timeout in milliseconds for HTTP requests made when downloading extensions from the Marketplace. Use 0 for no timeout."),
+				default: 60000,
+				minimum: 0,
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['usesOnlineServices']
+			},
 		}
 	});
 

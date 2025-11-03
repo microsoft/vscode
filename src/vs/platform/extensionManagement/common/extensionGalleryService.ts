@@ -610,7 +610,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	}
 
 	private getRequestTimeout(): number {
-		const configuredTimeout = this.configurationService.getValue<number>('http.requestTimeout');
+		const configuredTimeout = this.configurationService.getValue<number>('extensions.requestTimeout');
 		// Use configured timeout, or fallback to default if not set or invalid
 		return (typeof configuredTimeout === 'number' && configuredTimeout >= 0) ? configuredTimeout : DEFAULT_REQUEST_TIMEOUT;
 	}
