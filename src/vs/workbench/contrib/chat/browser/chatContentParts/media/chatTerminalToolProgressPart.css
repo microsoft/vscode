@@ -93,7 +93,9 @@
 	white-space: pre;
 	font-size: 12px;
 }
-.chat-terminal-output div {
+.chat-terminal-output div,
+.chat-terminal-output span {
+	height: auto !important;
 	line-height: normal !important;
 }
 .chat-terminal-output-info {
