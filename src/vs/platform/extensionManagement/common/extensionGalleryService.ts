@@ -37,6 +37,7 @@ const SEARCH_ACTIVITY_HEADER_NAME = 'X-Market-Search-Activity-Id';
 const ACTIVITY_HEADER_NAME = 'Activityid';
 const SERVER_HEADER_NAME = 'Server';
 const END_END_ID_HEADER_NAME = 'X-Vss-E2eid';
+const DEFAULT_REQUEST_TIMEOUT = 60000;
 
 interface IRawGalleryExtensionFile {
 	readonly assetType: string;
@@ -610,8 +611,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 	private getRequestTimeout(): number {
 		const configuredTimeout = this.configurationService.getValue<number>('http.requestTimeout');
-		// Use configured timeout, or fallback to 60 seconds if not set or invalid
-		return (typeof configuredTimeout === 'number' && configuredTimeout >= 0) ? configuredTimeout : 60000;
+		// Use configured timeout, or fallback to default if not set or invalid
+		return (typeof configuredTimeout === 'number' && configuredTimeout >= 0) ? configuredTimeout : DEFAULT_REQUEST_TIMEOUT;
 	}
 
 	isEnabled(): boolean {
