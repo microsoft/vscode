@@ -68,7 +68,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer.js';
 import { isDark } from '../../../../platform/theme/common/theme.js';
-import { LabelFuzzyScore, IStickyScrollDelegate, StickyScrollNode, DefaultStickyScrollDelegate } from '../../../../base/browser/ui/tree/abstractTree.js';
+import { LabelFuzzyScore, DefaultStickyScrollDelegate } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { createActionViewItem, getFlatActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -2127,7 +2127,7 @@ class SCMInputWidget {
 
 class SCMStickyScrollDelegate extends DefaultStickyScrollDelegate<TreeElement, FuzzyScore> {
 
-	override shouldStick(node: ITreeNode<TreeElement, FuzzyScore>): boolean {
+	shouldStick(node: ITreeNode<TreeElement, FuzzyScore>): boolean {
 		// SCM input nodes should stick
 		return isSCMInput(node.element);
 	}
