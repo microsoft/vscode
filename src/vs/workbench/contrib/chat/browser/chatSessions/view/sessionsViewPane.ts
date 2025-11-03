@@ -7,13 +7,16 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { $, append } from '../../../../../../base/browser/dom.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
+import { ITreeContextMenuEvent, ITreeNode } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
+import { TreeFindMatchType, TreeFindMode } from '../../../../../../base/browser/ui/tree/abstractTree.js';
+import { IAsyncFindProvider, IAsyncFindResult, IAsyncFindToggles } from '../../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { truncate } from '../../../../../../base/common/strings.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
@@ -64,6 +67,204 @@ class SessionsAccessibilityProvider {
 
 	getAriaLabel(element: ChatSessionItemWithProvider): string | null {
 		return element.label;
+	}
+}
+
+// Word-based fuzzy find provider for sessions
+class ChatSessionsFindProvider implements IAsyncFindProvider<ChatSessionItemWithProvider> {
+	private pattern: string = '';
+	private matchType: TreeFindMatchType = TreeFindMatchType.Contiguous;
+	private matchedSessions: Set<ChatSessionItemWithProvider> = new Set();
+	private tree: WorkbenchAsyncDataTree<IChatSessionItemProvider, ChatSessionItemWithProvider, FuzzyScore> | undefined;
+	private isSearchActive: boolean = false;
+
+	constructor(
+		private readonly provider: IChatSessionItemProvider,
+	) { }
+
+	setTree(tree: WorkbenchAsyncDataTree<IChatSessionItemProvider, ChatSessionItemWithProvider, FuzzyScore>): void {
+		this.tree = tree;
+	}
+
+	/**
+	 * Converts a session to searchable text combining label, id and description
+	 */
+	private getSearchableText(session: ChatSessionItemWithProvider): string {
+		const parts = [
+			session.label || '',
+			session.id || '',
+			typeof session.description === 'string' ? session.description : (session.description?.value || '')
+		];
+		return parts.filter(text => text.length > 0).join(' ');
+	}
+
+	/**
+	 * Word-based fuzzy matching: each search word must appear in the searchable text in order
+	 * but can be separated by other text
+	 */
+	private matches(pattern: string, searchableText: string, matchType: TreeFindMatchType): boolean {
+		if (!pattern) {
+			return true;
+		}
+
+		const textLower = searchableText.toLowerCase();
+
+		if (matchType === TreeFindMatchType.Contiguous) {
+			// Exact substring match
+			return textLower.includes(pattern.toLowerCase());
+		}
+
+		// Word-based fuzzy matching (default)
+		const words = pattern.split(/\s+/).filter(w => w.length > 0);
+		let currentPosition = 0;
+
+		// Each word must appear in order in the text
+		for (const word of words) {
+			const wordLower = word.toLowerCase();
+			const foundIndex = textLower.indexOf(wordLower, currentPosition);
+
+			if (foundIndex === -1) {
+				return false; // Word not found
+			}
+
+			currentPosition = foundIndex + wordLower.length;
+		}
+
+		return true; // All words found in order
+	}
+
+	/**
+	 * Gets all rendered sessions from the tree's visible nodes, including nested/collapsed items
+	 */
+	private getAllSessionsFromTree(): ChatSessionItemWithProvider[] {
+		if (!this.tree) {
+			return [];
+		}
+
+		const sessions: ChatSessionItemWithProvider[] = [];
+
+		// Get the provider node
+		if (!this.tree.hasNode(this.provider)) {
+			return sessions;
+		}
+
+		// Recursively collect all session nodes
+		const collectSessions = (node: ITreeNode<ChatSessionItemWithProvider | IChatSessionItemProvider, FuzzyScore>) => {
+			if (node.children) {
+				for (const child of node.children) {
+					// Filter out the provider node itself, keep only items with an id
+					if (child.element && child.element !== this.provider && 'id' in child.element) {
+						sessions.push(child.element as ChatSessionItemWithProvider);
+					}
+					// Recursively collect from nested children
+					collectSessions(child);
+				}
+			}
+		};
+
+		const providerNode = this.tree.getNode(this.provider);
+		collectSessions(providerNode);
+
+		return sessions;
+	}
+
+	async find(pattern: string, toggles: IAsyncFindToggles, token: CancellationToken): Promise<IAsyncFindResult<ChatSessionItemWithProvider> | undefined> {
+		this.pattern = pattern;
+		this.matchType = toggles.matchType;
+		this.matchedSessions.clear();
+		this.isSearchActive = true; // Mark search as active
+
+		// Get all sessions from the tree's rendered nodes (fast, no async I/O)
+		const allSessions = this.getAllSessionsFromTree();
+
+		// Count matches synchronously
+		let matchCount = 0;
+		for (const session of allSessions) {
+			const searchableText = this.getSearchableText(session);
+			if (this.matches(this.pattern, searchableText, this.matchType)) {
+				this.matchedSessions.add(session);
+				matchCount++;
+			}
+		}
+
+		if (this.tree) {
+			this.tree.refilter();
+		}
+
+		// If we found matches, return result with isMatch callback that uses the pre-calculated set
+		if (matchCount > 0) {
+			return {
+				matchCount,
+				isMatch: (session: ChatSessionItemWithProvider) => {
+					return this.matchedSessions.has(session);
+				}
+			};
+		}
+
+		// If we found no matches, return undefined to allow the tree's built-in matching to run
+		// This prevents showing "No results found" when the built-in fuzzy matcher might have hits
+		return undefined;
+	}
+
+	isVisible(element: ChatSessionItemWithProvider): boolean {
+		// If no search is active, show everything
+		if (!this.isSearchActive) {
+			return true;
+		}
+
+		// If this element matches, show it
+		if (this.matchedSessions.has(element)) {
+			return true;
+		}
+
+		// For parent/group nodes (nodes that have children in the tree),
+		// check if any descendant matches. Only show parent if it has matching children.
+		if (this.tree && this.tree.hasNode(element)) {
+			const node = this.tree.getNode(element);
+			if (node.children && node.children.length > 0) {
+				// Check if any child (recursively) has a match
+				const hasMatchingChild = this.hasMatchingDescendant(node);
+				if (hasMatchingChild) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Recursively checks if a node or any of its descendants have a matching session
+	 */
+	private hasMatchingDescendant(node: ITreeNode<ChatSessionItemWithProvider | IChatSessionItemProvider, FuzzyScore>): boolean {
+		if (!node.children) {
+			return false;
+		}
+
+		for (const child of node.children) {
+			// Only check elements that are actual sessions
+			if (child.element && this.matchedSessions.has(child.element as ChatSessionItemWithProvider)) {
+				return true;
+			}
+			// Recursively check descendants
+			if (this.hasMatchingDescendant(child)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	startSession(): void {
+		this.matchedSessions.clear();
+		this.pattern = '';
+		this.isSearchActive = false;
+	}
+
+	async endSession(): Promise<void> {
+		this.matchedSessions.clear();
+		this.pattern = '';
+		this.isSearchActive = false;
 	}
 }
 
@@ -297,6 +498,7 @@ export class SessionsViewPane extends ViewPane {
 		const delegate = new SessionsDelegate(this.configurationService);
 		const identityProvider = new SessionsIdentityProvider();
 		const accessibilityProvider = new SessionsAccessibilityProvider();
+		const findProvider = new ChatSessionsFindProvider(this.provider);
 
 		// Use the existing ResourceLabels service for consistent styling
 		const renderer = this.instantiationService.createInstance(SessionsRenderer, this.viewDescriptorService.getViewLocationById(this.viewId));
@@ -361,10 +563,15 @@ export class SessionsViewPane extends ViewPane {
 					listBackground: undefined
 				},
 				paddingBottom: SessionsDelegate.ITEM_HEIGHT,
-				setRowLineHeight: false
-
+				setRowLineHeight: false,
+				defaultFindMatchType: TreeFindMatchType.Contiguous,
+				defaultFindMode: TreeFindMode.Filter,
+				findProvider
 			}
 		) as WorkbenchAsyncDataTree<IChatSessionItemProvider, ChatSessionItemWithProvider, FuzzyScore>;
+
+		// Set the tree reference in the find provider for accessing node data
+		findProvider.setTree(this.tree);
 
 		// Set the input
 		this.tree.setInput(this.provider);
