@@ -93,6 +93,9 @@
 	white-space: pre;
 	font-size: 12px;
 }
+.chat-terminal-output div {
+	line-height: normal !important;
+}
 .chat-terminal-output-info {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-chat-font-size-body-xs);
