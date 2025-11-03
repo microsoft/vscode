@@ -329,7 +329,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	private readonly writeHandles = new Map<number, URI>();
 
-	private static canFlush: boolean = true;
+	private static canFlush = true;
 
 	static configureFlushOnWrite(enabled: boolean): void {
 		DiskFileSystemProvider.canFlush = enabled;

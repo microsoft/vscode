@@ -393,7 +393,7 @@ export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => unknow
 	const seen = new Set<any>();
 
 	return array.filter(element => {
-		const key = keyFn!(element);
+		const key = keyFn(element);
 		if (seen.has(key)) {
 			return false;
 		}

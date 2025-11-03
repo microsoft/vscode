@@ -136,7 +136,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	private static _reviveWorkspaceSymbolDto(data: undefined): undefined;
 	private static _reviveWorkspaceSymbolDto(data: IWorkspaceSymbolDto | IWorkspaceSymbolDto[] | undefined): search.IWorkspaceSymbol | search.IWorkspaceSymbol[] | undefined {
 		if (!data) {
-			return <undefined>data;
+			return data;
 		} else if (Array.isArray(data)) {
 			data.forEach(MainThreadLanguageFeatures._reviveWorkspaceSymbolDto);
 			return <search.IWorkspaceSymbol[]>data;

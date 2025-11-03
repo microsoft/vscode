@@ -205,8 +205,7 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 
 			const gettingStartedViewId = `${AGENT_SESSIONS_VIEWLET_ID}.gettingStarted`;
 			if (!this.registeredViewDescriptors.has('gettingStarted')
-				&& this.productService.chatSessionRecommendations
-				&& this.productService.chatSessionRecommendations.length) {
+				&& this.productService.chatSessionRecommendations?.length) {
 				const gettingStartedDescriptor: IViewDescriptor = {
 					id: gettingStartedViewId,
 					name: {

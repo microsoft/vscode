@@ -252,7 +252,7 @@ export class Placeholder extends TransformableMarker {
 
 	get choice(): Choice | undefined {
 		return this._children.length === 1 && this._children[0] instanceof Choice
-			? this._children[0] as Choice
+			? this._children[0]
 			: undefined;
 	}
 

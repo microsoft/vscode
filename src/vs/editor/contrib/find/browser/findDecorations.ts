@@ -68,7 +68,7 @@ export class FindDecorations implements IDisposable {
 				this._editor.getModel().getDecorationRange(findScopeDecorationId)
 			).filter(element => !!element);
 			if (scopes.length) {
-				return scopes as Range[];
+				return scopes;
 			}
 		}
 		return null;

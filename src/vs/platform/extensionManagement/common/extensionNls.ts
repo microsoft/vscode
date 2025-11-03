@@ -31,7 +31,7 @@ function replaceNLStrings(logger: ILogger, extensionManifest: IExtensionManifest
 	const processEntry = (obj: any, key: string | number, command?: boolean) => {
 		const value = obj[key];
 		if (isString(value)) {
-			const str = <string>value;
+			const str = value;
 			const length = str.length;
 			if (length > 1 && str[0] === '%' && str[length - 1] === '%') {
 				const messageKey = str.substr(1, length - 2);

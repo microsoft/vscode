@@ -35,8 +35,7 @@ function createWrapper<T extends any[]>(getClass: () => any, B: new (...args: T)
 		override init(...params: any[]) {
 			this._autorun = autorunWithStore((reader, store) => {
 				const clazz = readHotReloadableExport(getClass(), reader);
-				// eslint-disable-next-line local/code-no-any-casts
-				store.add(this.instantiationService.createInstance(clazz as any, ...params) as IDisposable);
+				store.add(this.instantiationService.createInstance(clazz, ...params));
 			});
 		}
 

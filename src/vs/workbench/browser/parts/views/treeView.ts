@@ -752,7 +752,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			multipleSelectionSupport: this.canSelectMany,
 			dnd: this.treeViewDnd,
 			overrideStyles: getLocationBasedViewColors(this.viewLocation).listOverrideStyles
-		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
+		}));
 
 		this.treeDisposables.add(renderer.onDidChangeMenuContext(e => e.forEach(e => this.tree?.rerender(e))));
 
@@ -1361,7 +1361,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			for (const syntax of syntaxes) {
 				if (text.startsWith(syntax.open) && text.endsWith(syntax.close)) {
 					// If there is a match within the markers, stop processing
-					if (matches && matches.some(match => match.start < syntax.open.length || match.end > text.length - syntax.close.length)) {
+					if (matches?.some(match => match.start < syntax.open.length || match.end > text.length - syntax.close.length)) {
 						return false;
 					}
 
@@ -2102,7 +2102,7 @@ function setCascadingCheckboxUpdates(items: readonly ITreeItem[]) {
 
 			const visitedParents: Set<ITreeItem> = new Set();
 			const checkParents = (currentItem: ITreeItem) => {
-				if (currentItem.parent && (currentItem.parent.checkbox !== undefined) && currentItem.parent.children) {
+				if (currentItem.parent?.checkbox !== undefined && currentItem.parent.children) {
 					if (visitedParents.has(currentItem.parent)) {
 						return;
 					} else {

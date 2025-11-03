@@ -422,7 +422,7 @@ export namespace COI {
 		if (urlOrSearch instanceof URLSearchParams) {
 			urlOrSearch.set(coiSearchParamName, value);
 		} else {
-			(<Record<string, string>>urlOrSearch)[coiSearchParamName] = value;
+			urlOrSearch[coiSearchParamName] = value;
 		}
 	}
 }

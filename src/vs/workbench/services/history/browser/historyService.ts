@@ -1444,7 +1444,7 @@ export class EditorNavigationStack extends Disposable {
 	private index = -1;
 	private previousIndex = -1;
 
-	private navigating: boolean = false;
+	private navigating = false;
 
 	private currentSelectionState: EditorSelectionState | undefined = undefined;
 

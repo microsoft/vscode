@@ -169,7 +169,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			if (requests.length > 0) {
 				// Check if the last request was completed successfully or failed
 				const lastRequest = requests[requests.length - 1];
-				if (lastRequest && lastRequest.response) {
+				if (lastRequest?.response) {
 					if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails) {
 						return ChatSessionStatus.Failed;
 					} else if (lastRequest.response.isComplete) {

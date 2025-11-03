@@ -486,7 +486,7 @@ export class CommandsHistory extends Disposable {
 	}
 
 	static getConfiguredCommandHistoryLength(configurationService: IConfigurationService): number {
-		const config = <ICommandsQuickAccessConfiguration>configurationService.getValue();
+		const config = configurationService.getValue<ICommandsQuickAccessConfiguration>();
 
 		const configuredCommandHistoryLength = config.workbench?.commandPalette?.history;
 		if (typeof configuredCommandHistoryLength === 'number') {

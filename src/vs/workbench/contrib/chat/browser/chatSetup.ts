@@ -391,7 +391,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 			for (const id of languageModelsService.getLanguageModelIds()) {
 				const model = languageModelsService.lookupLanguageModel(id);
-				if (model && model.isDefault) {
+				if (model?.isDefault) {
 					return true;
 				}
 			}

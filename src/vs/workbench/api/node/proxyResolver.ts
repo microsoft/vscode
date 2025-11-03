@@ -104,11 +104,9 @@ export function connectProxyResolver(
 				}
 			}
 			// Using https.globalAgent because it is shared with proxy.test.ts and mutable.
-			// eslint-disable-next-line local/code-no-any-casts
-			if (initData.environment.extensionTestsLocationURI && (https.globalAgent as any).testCertificates?.length) {
+			if (initData.environment.extensionTestsLocationURI && https.globalAgent.testCertificates?.length) {
 				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading test certificates');
-				// eslint-disable-next-line local/code-no-any-casts
-				promises.push(Promise.resolve((https.globalAgent as any).testCertificates as string[]));
+				promises.push(Promise.resolve(https.globalAgent.testCertificates as string[]));
 			}
 			return (await Promise.all(promises)).flat();
 		},
@@ -385,8 +383,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 						cache[request] = undici;
 					} else {
 						const mod = lookup[request];
-						// eslint-disable-next-line local/code-no-any-casts
-						cache[request] = <any>{ ...mod }; // Copy to work around #93167.
+						cache[request] = { ...mod }; // Copy to work around #93167.
 					}
 				}
 				return cache[request];

@@ -1012,7 +1012,7 @@ function completeWithString(tokens: marked.Token[] | marked.Token, closingString
 	// If it was completed correctly, this should be a single token.
 	// Expecting either a Paragraph or a List
 	const trimmedRawText = shouldTrim ? mergedRawText.trimEnd() : mergedRawText;
-	return marked.lexer(trimmedRawText + closingString)[0] as marked.Token;
+	return marked.lexer(trimmedRawText + closingString)[0];
 }
 
 function completeTable(tokens: marked.Token[]): marked.Token[] | undefined {
