@@ -21,8 +21,6 @@ import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPick
 import { askForPromptFileName } from './askForPromptName.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { UILabelProvider } from '../../../../../../base/common/keybindingLabels.js';
-import { OS } from '../../../../../../base/common/platform.js';
 import { askForPromptSourceFolder } from './askForPromptSourceFolder.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -180,20 +178,6 @@ const NEW_AGENT_FILE_OPTION: IPromptPickerQuickPickItem = {
 	commandId: NEW_AGENT_COMMAND_ID,
 };
 
-
-/**
- * A quick pick item that starts the 'New Instructions File' command.
- */
-const CONFIGURE_VISIBILITY_OPTION: IPromptPickerQuickPickItem = {
-	type: 'item',
-	label: `$(eye) ${localize(
-		'commands.configure-visibility.select-dialog.label',
-		'Configure visibility in agent picker...',
-	)}`,
-	pickable: false,
-	alwaysShow: true,
-};
-
 /**
  * Button that opens a prompt file in the editor.
  */
@@ -214,16 +198,8 @@ const DELETE_BUTTON: IQuickInputButton = {
  * Button that renames a prompt file.
  */
 const RENAME_BUTTON: IQuickInputButton = {
-	tooltip: localize('rename', "Rename"),
+	tooltip: localize('rename', "Move and/or Rename"),
 	iconClass: ThemeIcon.asClassName(Codicon.replace),
-};
-
-/**
- * Button that copies or moves a prompt file.
- */
-const COPY_OR_MOVE_BUTTON: IQuickInputButton = {
-	tooltip: localize('copyOrMove', "Copy or Move (press {0})", UILabelProvider.modifierLabels[OS].ctrlKey),
-	iconClass: ThemeIcon.asClassName(Codicon.copy),
 };
 
 /**
@@ -238,19 +214,17 @@ const COPY_BUTTON: IQuickInputButton = {
  * Button that set a prompt file to be visible .
  */
 const MAKE_VISIBLE_BUTTON: IQuickInputButton = {
-	tooltip: localize('makeVisible', "Make Visible"),
+	tooltip: localize('makeVisible', "Show in Agent Picker"),
 	iconClass: ThemeIcon.asClassName(Codicon.eye),
 };
 
 /**
- * Button that set a prompt file to be visible .
+ * Button that set a prompt file to be invisible .
  */
 const MAKE_INVISIBLE_BUTTON: IQuickInputButton = {
-	tooltip: localize('makeInvisible', "Make Invisible"),
+	tooltip: localize('makeInvisible', "Hide from Agent Picker"),
 	iconClass: ThemeIcon.asClassName(Codicon.eyeClosed),
 };
-
-
 
 export class PromptFilePickers {
 	constructor(
@@ -321,14 +295,6 @@ export class PromptFilePickers {
 					if (selectedItem.commandId) {
 						await this._commandService.executeCommand(selectedItem.commandId);
 						return;
-					} else if (selectedItem === CONFIGURE_VISIBILITY_OPTION) {
-						await this.keepQuickPickOpen(quickPick, async () => {
-							await this.managePromptFiles(options.type, localize('configure.agent.prompts.placeholder', "Select the custom agents that should appear in the agent picker"));
-						});
-						if (!isClosed) {
-							await refreshItems();
-						}
-						return;
 					}
 				}
 
@@ -366,7 +332,7 @@ export class PromptFilePickers {
 			buttons.push(EDIT_BUTTON);
 		}
 		if (options.optionCopy !== false) {
-			buttons.push(COPY_OR_MOVE_BUTTON);
+			buttons.push(COPY_BUTTON);
 		}
 		if (options.optionRename !== false) {
 			buttons.push(RENAME_BUTTON);
@@ -378,9 +344,6 @@ export class PromptFilePickers {
 		if (options.optionNew !== false) {
 			result.push(...this._getNewItems(options.type));
 		}
-		// if (options.optionVisibility === true) {
-		// 	result.push(CONFIGURE_VISIBILITY_OPTION);
-		// }
 
 		let getVisbility: (p: IPromptPath) => boolean | undefined = () => undefined;
 		if (options.optionVisibility) {
@@ -472,18 +435,23 @@ export class PromptFilePickers {
 				tooltip = undefined;
 				break;
 		}
-		if (visibility !== undefined) {
-			buttons = [visibility ? MAKE_INVISIBLE_BUTTON : MAKE_VISIBLE_BUTTON, ...buttons ?? []];
+		let iconClass: string | undefined;
+		if (visibility === false) {
+			buttons = (buttons ?? []).concat(MAKE_VISIBLE_BUTTON);
+			tooltip = localize('hiddenInAgentPicker', "Hidden from chat view agent picker");
+			iconClass = ThemeIcon.asClassName(Codicon.eyeClosed);
+		} else if (visibility === true) {
+			buttons = (buttons ?? []).concat(MAKE_INVISIBLE_BUTTON);
 		}
 		return {
 			id: promptFile.uri.toString(),
 			type: 'item',
 			label: promptName,
-			strikethrough: visibility === false,
 			description: promptDescription,
+			iconClass,
 			tooltip,
 			promptFileUri: promptFile.uri,
-			buttons: buttons,
+			buttons,
 		} satisfies IPromptPickerQuickPickItem;
 	}
 
@@ -517,10 +485,10 @@ export class PromptFilePickers {
 		}
 
 		// `copy` button was pressed, make a copy of the prompt file, open the copy in editor
-		if (button === COPY_OR_MOVE_BUTTON || button === COPY_BUTTON) {
+		if (button === RENAME_BUTTON || button === COPY_BUTTON) {
 			return await this.keepQuickPickOpen(quickPick, async () => {
 				const currentFolder = dirname(value);
-				const isMove = button === COPY_OR_MOVE_BUTTON && quickPick.keyMods.ctrlCmd;
+				const isMove = button === RENAME_BUTTON && quickPick.keyMods.ctrlCmd;
 				const newFolder = await this._instaService.invokeFunction(askForPromptSourceFolder, options.type, currentFolder, isMove);
 				if (!newFolder) {
 					return false;
@@ -537,20 +505,6 @@ export class PromptFilePickers {
 				}
 
 				await this._openerService.open(newFile);
-				return true;
-			});
-		}
-
-		// `rename` button was pressed, open a rename dialog
-		if (button === RENAME_BUTTON) {
-			return await this.keepQuickPickOpen(quickPick, async () => {
-				const currentFolder = dirname(value);
-				const newName = await this._instaService.invokeFunction(askForPromptFileName, options.type, currentFolder, item.label);
-				if (newName) {
-					const newFile = joinPath(currentFolder, newName);
-					await this._fileService.move(value, newFile);
-					await this._openerService.open(newFile);
-				}
 				return true;
 			});
 		}
