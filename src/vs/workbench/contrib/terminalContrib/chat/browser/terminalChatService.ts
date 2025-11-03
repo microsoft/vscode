@@ -29,6 +29,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private readonly _toolSessionIdByTerminalInstance = new Map<ITerminalInstance, string>();
 	private readonly _chatSessionIdByTerminalInstance = new Map<ITerminalInstance, string>();
 	private readonly _terminalInstanceListenersByToolSessionId = this._register(new DisposableMap<string, IDisposable>());
+	private readonly _chatSessionListenersByTerminalInstance = this._register(new DisposableMap<ITerminalInstance, IDisposable>());
 	private readonly _onDidRegisterTerminalInstanceForToolSession = new Emitter<ITerminalInstance>();
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance> = this._onDidRegisterTerminalInstanceForToolSession.event;
 
@@ -118,12 +119,21 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	}
 
 	registerTerminalInstanceWithChatSession(chatSessionId: string, instance: ITerminalInstance): void {
+		// If already registered with the same session ID, skip to avoid duplicate listeners
+		if (this._chatSessionIdByTerminalInstance.get(instance) === chatSessionId) {
+			return;
+		}
+
+		// Clean up previous listener if the instance was registered with a different session
+		this._chatSessionListenersByTerminalInstance.deleteAndDispose(instance);
+
 		this._chatSessionIdByTerminalInstance.set(instance, chatSessionId);
 		// Clean up when the instance is disposed
 		const disposable = instance.onDisposed(() => {
 			this._chatSessionIdByTerminalInstance.delete(instance);
+			this._chatSessionListenersByTerminalInstance.deleteAndDispose(instance);
 		});
-		this._register(disposable);
+		this._chatSessionListenersByTerminalInstance.set(instance, disposable);
 	}
 
 	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined {
