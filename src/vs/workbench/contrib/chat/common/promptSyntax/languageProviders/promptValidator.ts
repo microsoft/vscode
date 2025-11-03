@@ -123,33 +123,34 @@ export class PromptValidator {
 		const attributes = header.attributes;
 		const target = header.target;
 
-		if (isTargetOrUndefined(target)) {
-			this.checkForInvalidArguments(attributes, promptType, target, report);
-		}
-
 		this.validateName(attributes, report);
 		this.validateDescription(attributes, report);
-		this.validateArgumentHint(attributes, report);
+
 		switch (promptType) {
 			case PromptsType.prompt: {
 				const agent = this.validateAgent(attributes, report);
 				this.validateTools(attributes, agent?.kind ?? ChatModeKind.Agent, Target.VSCode, report);
 				this.validateModel(attributes, agent?.kind ?? ChatModeKind.Agent, report);
+				this.validateArgumentHint(attributes, report);
+				this.checkForInvalidArguments(attributes, promptType, undefined, report);
 				break;
 			}
 			case PromptsType.instructions:
 				this.validateApplyTo(attributes, report);
 				this.validateExcludeAgent(attributes, report);
+				this.checkForInvalidArguments(attributes, promptType, undefined, report);
 				break;
 
 			case PromptsType.agent: {
 				this.validateTarget(attributes, report);
+				this.validateArgumentHint(attributes, report);
 				if (isTargetOrUndefined(target)) {
 					this.validateTools(attributes, ChatModeKind.Agent, target, report);
 					if (target !== Target.GitHubCopilot) {
 						this.validateModel(attributes, ChatModeKind.Agent, report);
 						this.validateHandoffs(attributes, report);
 					}
+					this.checkForInvalidArguments(attributes, promptType, target, report);
 				}
 				break;
 			}
