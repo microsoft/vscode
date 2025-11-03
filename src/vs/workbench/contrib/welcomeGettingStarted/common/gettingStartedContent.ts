@@ -146,7 +146,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 	{
 		id: 'topLevelOpenFolder',
 		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
-		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
+		description: localize('gettingStarted.openFolder.description', "Open a floder to start working"),
 		icon: Codicon.folderOpened,
 		when: '!isWeb && !isMac',
 		content: {
@@ -157,7 +157,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 	{
 		id: 'topLevelOpenFolderWeb',
 		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
-		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
+		description: localize('gettingStarted.openFolder.description', "Open a floder to start working"),
 		icon: Codicon.folderOpened,
 		when: '!openFolderWorkspaceSupport && workbenchState == \'workspace\'',
 		content: {
