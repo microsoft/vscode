@@ -35,7 +35,7 @@ import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import type { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
-import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
+import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
@@ -312,19 +312,19 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 	}
 
 	private _createButtons(moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined): IChatConfirmationButton<boolean | TerminalNewAutoApproveButtonData>[] {
-		const allowLabel = localize('allow', "Allow");
-		const allowKeybinding = this.keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
-		const allowTooltip = allowKeybinding ? `${allowLabel} (${allowKeybinding})` : allowLabel;
+		const getLabelAndTooltip = (label: string, actionId: string, tooltipDetail: string = label): { label: string; tooltip: string } => {
+			const keybinding = this.keybindingService.lookupKeybinding(actionId)?.getLabel();
+			const tooltip = keybinding ? `${tooltipDetail} (${keybinding})` : (tooltipDetail);
+			return { label, tooltip };
+		};
 		return [
 			{
-				label: allowLabel,
-				tooltip: allowTooltip,
+				...getLabelAndTooltip(localize('tool.allow', "Allow"), AcceptToolConfirmationActionId),
 				data: true,
 				moreActions,
 			},
 			{
-				label: localize('skip', 'Skip'),
-				tooltip: localize('skip.detail', 'Proceed without executing this command'),
+				...getLabelAndTooltip(localize('tool.skip', "Skip"), SkipToolConfirmationActionId, localize('skip.detail', 'Proceed without executing this command')),
 				data: { type: 'skip' },
 				isSecondary: true,
 			},

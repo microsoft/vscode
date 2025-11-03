@@ -6,6 +6,7 @@
 import '../media/chatCodeBlockPill.css';
 import './media/chatMarkdownPart.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { allowedMarkdownHtmlAttributes, MarkdownRendererMarkedOptions, type MarkdownRenderOptions } from '../../../../../base/browser/markdownRenderer.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -61,11 +62,19 @@ import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
 import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../../platform/editor/browser/editor.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { ChatEditingActionContext } from '../chatEditing/chatEditingActions.js';
+import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 
 const $ = dom.$;
 
 export interface IChatMarkdownContentPartOptions {
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
+	readonly accessibilityOptions?: {
+		/**
+		 * Message to announce to screen readers as a status update if VerboseChatProgressUpdates is enabled.
+		 * Will also be used as the aria-label for the container.
+		 * */
+		statusMessage?: string;
+	};
 }
 
 export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
@@ -117,6 +126,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		let thisPartCodeBlockIndexStart = 0;
 
 		this.domNode = $('div.chat-markdown-part');
+
+		if (this.rendererOptions.accessibilityOptions?.statusMessage) {
+			this.domNode.ariaLabel = this.rendererOptions.accessibilityOptions.statusMessage;
+			if (configurationService.getValue<boolean>(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
+				status(this.rendererOptions.accessibilityOptions.statusMessage);
+			}
+		}
 
 		const enableMath = configurationService.getValue<boolean>(ChatConfiguration.EnableMath);
 
@@ -291,6 +307,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			});
 
 			// Make katex blocks horizontally scrollable
+			// eslint-disable-next-line no-restricted-syntax
 			for (const katexBlock of this.domNode.querySelectorAll('.katex-display')) {
 				if (!dom.isHTMLElement(katexBlock)) {
 					continue;
@@ -567,7 +584,9 @@ export class CollapsedCodeBlock extends Disposable {
 				return;
 			}
 
+			// eslint-disable-next-line no-restricted-syntax
 			const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
+			// eslint-disable-next-line no-restricted-syntax
 			const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
 			if (changes && !changes?.identical && !changes?.quitEarly) {
 				this.currentDiff = changes;

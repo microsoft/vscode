@@ -64,7 +64,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			...options,
 			onDidFocus: el => {
 				if (el) {
-					this._proxy.$onItemSelected((<TransferQuickPickItem>el).handle);
+					this._proxy.$onItemSelected(el.handle);
 				}
 			}
 		};

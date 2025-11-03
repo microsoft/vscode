@@ -33,6 +33,8 @@ import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import type { TerminalEditorInput } from './terminalEditorInput.js';
+import type { MaybePromise } from '../../../../base/common/async.js';
+import type { SingleOrMany } from '../../../../base/common/types.js';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -52,7 +54,7 @@ export interface ITerminalContribution extends IDisposable {
 	xtermOpen?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
 	xtermReady?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
 
-	handleMouseEvent?(event: MouseEvent): Promise<{ handled: boolean } | void> | { handled: boolean } | void;
+	handleMouseEvent?(event: MouseEvent): MaybePromise<{ handled: boolean } | void>;
 }
 
 /**
@@ -228,7 +230,7 @@ export interface ITerminalGroup {
 	attachToElement(element: HTMLElement): void;
 	addInstance(instance: ITerminalInstance): void;
 	removeInstance(instance: ITerminalInstance): void;
-	moveInstance(instances: ITerminalInstance | ITerminalInstance[], index: number, position: 'before' | 'after'): void;
+	moveInstance(instances: SingleOrMany<ITerminalInstance>, index: number, position: 'before' | 'after'): void;
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
@@ -529,7 +531,7 @@ export interface ISerializedTerminalEditorInput extends ITerminalEditorInputObje
 export interface IDeserializedTerminalEditorInput extends ITerminalEditorInputObject {
 }
 
-export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: Promise<ITerminalInstance> | ITerminalInstance } | { splitActiveTerminal: boolean };
+export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: MaybePromise<ITerminalInstance> } | { splitActiveTerminal: boolean };
 
 export interface ICreateTerminalOptions {
 	/**
@@ -599,8 +601,8 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	 * @param source The source instance to move.
 	 * @param target The target instance to move the source instance to.
 	 */
-	moveGroup(source: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance): void;
-	moveGroupToEnd(source: ITerminalInstance | ITerminalInstance[]): void;
+	moveGroup(source: SingleOrMany<ITerminalInstance>, target: ITerminalInstance): void;
+	moveGroupToEnd(source: SingleOrMany<ITerminalInstance>): void;
 
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 	unsplitInstance(instance: ITerminalInstance): void;

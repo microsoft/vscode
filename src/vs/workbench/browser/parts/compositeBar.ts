@@ -126,7 +126,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(dragData.id);
 
 			// ... that cannot move
-			if (!viewDescriptor || !viewDescriptor.canMoveView) {
+			if (!viewDescriptor?.canMoveView) {
 				return false;
 			}
 

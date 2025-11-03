@@ -128,7 +128,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		this._onResize.fire({ cols, rows });
 	}
 
-	clearBuffer(): void | Promise<void> {
+	clearBuffer(): void {
 		// no-op
 	}
 

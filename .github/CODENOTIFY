@@ -103,15 +103,19 @@ src/vs/workbench/contrib/files/** @bpasero
 src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
 src/vs/workbench/contrib/chat/browser/chatSetup.ts @bpasero
 src/vs/workbench/contrib/chat/browser/chatStatus.ts @bpasero
+src/vs/workbench/contrib/chat/browser/chatInputPart.ts @bpasero
+src/vs/workbench/contrib/chat/browser/chatWidget.ts @bpasero
 src/vs/workbench/contrib/chat/browser/chatManagement/chatUsageWidget.ts @bpasero
 src/vs/workbench/contrib/chat/browser/chatManagement/media/chatUsageWidget.css @bpasero
 src/vs/workbench/contrib/chat/browser/agentSessions/** @bpasero
 src/vs/workbench/contrib/chat/browser/chatSessions/** @bpasero
 src/vs/workbench/contrib/localization/** @TylerLeonhardt
 src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts @TylerLeonhardt
+src/vs/workbench/contrib/scm/** @lszomoru
 src/vs/workbench/contrib/update/browser/releaseNotesEditor.ts @alexr00 @joaomoreno
 
 # Build
+build/azure-pipelines/** @lszomoru
 build/lib/i18n.ts @TylerLeonhardt
 
 # Editor contrib
@@ -130,3 +134,6 @@ src/vs/workbench/api/browser/mainThreadSecretState.ts @TylerLeonhardt
 # Extensions
 extensions/microsoft-authentication/** @TylerLeonhardt
 extensions/github-authentication/** @TylerLeonhardt
+extensions/git/** @lszomoru
+extensions/git-base/** @lszomoru
+extensions/github/** @lszomoru

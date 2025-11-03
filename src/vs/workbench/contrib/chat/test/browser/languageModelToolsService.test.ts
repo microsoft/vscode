@@ -28,6 +28,8 @@ import { isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, 
 import { MockChatService } from '../common/mockChatService.js';
 import { ChatToolInvocation } from '../../common/chatProgressTypes/chatToolInvocation.js';
 import { LocalChatSessionUri } from '../../common/chatUri.js';
+import { ILanguageModelToolsConfirmationService } from '../../common/languageModelToolsConfirmationService.js';
+import { MockLanguageModelToolsConfirmationService } from '../common/mockLanguageModelToolsConfirmationService.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -114,6 +116,7 @@ suite('LanguageModelToolsService', () => {
 		contextKeyService = instaService.get(IContextKeyService);
 		chatService = new MockChatService();
 		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		service = store.add(instaService.createInstance(LanguageModelToolsService));
 	});
 
@@ -780,6 +783,7 @@ suite('LanguageModelToolsService', () => {
 		instaService.stub(IChatService, chatService);
 		instaService.stub(IAccessibilityService, testAccessibilityService);
 		instaService.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		const toolData: IToolData = {
@@ -841,6 +845,7 @@ suite('LanguageModelToolsService', () => {
 		instaService.stub(IChatService, chatService);
 		instaService.stub(IAccessibilityService, testAccessibilityService);
 		instaService.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		const toolData: IToolData = {
@@ -879,6 +884,7 @@ suite('LanguageModelToolsService', () => {
 			configurationService: () => testConfigService
 		}, store);
 		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Register a tool that should be auto-approved
@@ -912,6 +918,7 @@ suite('LanguageModelToolsService', () => {
 			configurationService: () => testConfigService
 		}, store);
 		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Tool explicitly approved
@@ -1013,6 +1020,7 @@ suite('LanguageModelToolsService', () => {
 		}, store);
 		instaService.stub(IChatService, chatService);
 		instaService.stub(ITelemetryService, testTelemetryService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Test successful invocation telemetry
@@ -1102,6 +1110,7 @@ suite('LanguageModelToolsService', () => {
 		instaService1.stub(IChatService, chatService);
 		instaService1.stub(IAccessibilityService, testAccessibilityService1);
 		instaService1.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		instaService1.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService1 = store.add(instaService1.createInstance(LanguageModelToolsService));
 
 		const tool1 = registerToolForTest(testService1, store, 'soundOnlyTool', {
@@ -1142,6 +1151,7 @@ suite('LanguageModelToolsService', () => {
 		instaService2.stub(IChatService, chatService);
 		instaService2.stub(IAccessibilityService, testAccessibilityService2);
 		instaService2.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		instaService2.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService2 = store.add(instaService2.createInstance(LanguageModelToolsService));
 
 		const tool2 = registerToolForTest(testService2, store, 'autoScreenReaderTool', {
@@ -1183,6 +1193,7 @@ suite('LanguageModelToolsService', () => {
 		instaService3.stub(IChatService, chatService);
 		instaService3.stub(IAccessibilityService, testAccessibilityService3);
 		instaService3.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		instaService3.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService3 = store.add(instaService3.createInstance(LanguageModelToolsService));
 
 		const tool3 = registerToolForTest(testService3, store, 'offTool', {
@@ -1543,6 +1554,7 @@ suite('LanguageModelToolsService', () => {
 			configurationService: () => testConfigService
 		}, store);
 		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		const workspaceTool = registerToolForTest(testService, store, 'workspaceTool', {

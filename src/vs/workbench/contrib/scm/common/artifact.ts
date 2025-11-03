@@ -24,6 +24,7 @@ export interface ISCMArtifact {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 }
 
 export interface SCMArtifactGroupTreeElement {

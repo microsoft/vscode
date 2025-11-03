@@ -320,7 +320,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): Promise<void> | void {
+	run(accessor: ServicesAccessor): void {
 		const terminalService = accessor.get(ITerminalService);
 		const groupService = accessor.get(ITerminalGroupService);
 		const editorService = accessor.get(ITerminalEditorService);

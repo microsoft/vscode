@@ -149,7 +149,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		}
 	}
 
-	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError: boolean = false): Promise<void> {
+	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError = false): Promise<void> {
 		try {
 			await this.contextService.updateFolders(foldersToAdd, foldersToDelete, index);
 		} catch (error) {
@@ -161,7 +161,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		}
 	}
 
-	addFolders(foldersToAddCandidates: IWorkspaceFolderCreationData[], donotNotifyError: boolean = false): Promise<void> {
+	addFolders(foldersToAddCandidates: IWorkspaceFolderCreationData[], donotNotifyError = false): Promise<void> {
 
 		// Normalize
 		const foldersToAdd = foldersToAddCandidates.map(folderToAdd => ({ uri: removeTrailingPathSeparator(folderToAdd.uri), name: folderToAdd.name }));
@@ -169,7 +169,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		return this.doAddFolders(foldersToAdd, undefined, donotNotifyError);
 	}
 
-	private async doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError: boolean = false): Promise<void> {
+	private async doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError = false): Promise<void> {
 		const state = this.contextService.getWorkbenchState();
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		if (remoteAuthority) {
@@ -203,7 +203,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		}
 	}
 
-	async removeFolders(foldersToRemove: URI[], donotNotifyError: boolean = false): Promise<void> {
+	async removeFolders(foldersToRemove: URI[], donotNotifyError = false): Promise<void> {
 
 		// If we are in single-folder state and the opened folder is to be removed,
 		// we create an empty workspace and enter it.

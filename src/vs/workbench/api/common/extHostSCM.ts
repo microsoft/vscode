@@ -1229,7 +1229,10 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			const artifactProvider = this._sourceControls.get(sourceControlHandle)?.artifactProvider;
 			const artifacts = await artifactProvider?.provideArtifacts(group, token);
 
-			return artifacts ?? undefined;
+			return artifacts?.map(artifact => ({
+				...artifact,
+				icon: getHistoryItemIconDto(artifact.icon)
+			}));
 		}
 		catch (err) {
 			this.logService.error('ExtHostSCM#$provideArtifacts', err);

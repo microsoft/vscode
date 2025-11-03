@@ -80,6 +80,7 @@ import { ILanguageFeaturesService } from '../../../../editor/common/services/lan
 import { NewSymbolName, NewSymbolNameTriggerKind } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IRange } from '../../../../editor/common/core/range.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -219,7 +220,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	private readonly _onUnresolvableError = this._register(new Emitter<void>());
 	readonly onUnresolvableError = this._onUnresolvableError.event;
 
-	private readonly pendingForwardedRequests = new Map<string, Promise<void>>();
+	private readonly pendingForwardedRequests = new ResourceMap<Promise<void>>();
 
 	constructor(
 		private readonly context: ChatEntitlementContext,
@@ -294,17 +295,17 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doForwardRequestToChat(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
-		if (this.pendingForwardedRequests.has(requestModel.session.sessionId)) {
+		if (this.pendingForwardedRequests.has(requestModel.session.sessionResource)) {
 			throw new Error('Request already in progress');
 		}
 
 		const forwardRequest = this.doForwardRequestToChatWhenReady(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
-		this.pendingForwardedRequests.set(requestModel.session.sessionId, forwardRequest);
+		this.pendingForwardedRequests.set(requestModel.session.sessionResource, forwardRequest);
 
 		try {
 			await forwardRequest;
 		} finally {
-			this.pendingForwardedRequests.delete(requestModel.session.sessionId);
+			this.pendingForwardedRequests.delete(requestModel.session.sessionResource);
 		}
 	}
 
@@ -391,7 +392,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 			for (const id of languageModelsService.getLanguageModelIds()) {
 				const model = languageModelsService.lookupLanguageModel(id);
-				if (model && model.isDefault) {
+				if (model?.isDefault) {
 					return true;
 				}
 			}

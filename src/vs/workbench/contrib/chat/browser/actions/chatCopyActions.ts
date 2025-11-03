@@ -134,11 +134,13 @@ export function registerChatCopyActions() {
 
 			// Otherwise, fallback to querying from the active element
 			if (!selectedElement) {
+				// eslint-disable-next-line no-restricted-syntax
 				selectedElement = activeElement?.querySelector('.katex') ?? null;
 			}
 
 			// Extract the LaTeX source from the annotation element
 			const katexElement = dom.isHTMLElement(selectedElement) ? selectedElement.closest('.katex') : null;
+			// eslint-disable-next-line no-restricted-syntax
 			const annotation = katexElement?.querySelector('annotation[encoding="application/x-tex"]');
 			if (annotation) {
 				const latexSource = annotation.textContent || '';

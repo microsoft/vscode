@@ -320,6 +320,8 @@ registerAction2(class extends Action2 {
 		const historyItem = historyItems[0];
 		const historyItemLast = historyItems[historyItems.length - 1];
 		const historyProvider = provider.historyProvider.get();
+		const historyItemRef = historyProvider?.historyItemRef.get();
+		const historyItemRemoteRef = historyProvider?.historyItemRemoteRef.get();
 
 		if (historyItems.length > 1) {
 			const ancestor = await historyProvider?.resolveHistoryItemRefsCommonAncestor([historyItem.id, historyItemLast.id]);
@@ -331,11 +333,11 @@ registerAction2(class extends Action2 {
 		let title: string, historyItemId: string, historyItemParentId: string | undefined;
 
 		if (historyItem.id === SCMIncomingHistoryItemId) {
-			title = historyItem.subject;
+			title = `${historyItem.subject} - ${historyItemRef?.name} \u2194 ${historyItemRemoteRef?.name}`;
 			historyItemId = historyProvider!.historyItemRemoteRef.get()!.id;
 			historyItemParentId = historyItem.parentIds[0];
 		} else if (historyItem.id === SCMOutgoingHistoryItemId) {
-			title = historyItem.subject;
+			title = `${historyItem.subject} - ${historyItemRemoteRef?.name} \u2194 ${historyItemRef?.name}`;
 			historyItemId = historyProvider!.historyItemRef.get()!.id;
 			historyItemParentId = historyItem.parentIds[0];
 		} else {
@@ -378,10 +380,17 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		await editorService.openEditor({
-			resource: historyItemChange.modifiedUri,
-			label: `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItem.displayId ?? historyItem.id})`,
-		});
+		let version: string;
+		if (historyItem.id === SCMIncomingHistoryItemId) {
+			version = localize('incomingChanges', "Incoming Changes");
+		} else if (historyItem.id === SCMOutgoingHistoryItemId) {
+			version = localize('outgoingChanges', "Outgoing Changes");
+		} else {
+			version = historyItem.displayId ?? historyItem.id;
+		}
+
+		const name = basename(historyItemChange.modifiedUri.fsPath);
+		await editorService.openEditor({ resource: historyItemChange.modifiedUri, label: `${name} (${version})` });
 	}
 });
 
@@ -436,7 +445,8 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 	}
 
 	renderTemplate(container: HTMLElement): HistoryItemTemplate {
-		// hack
+		// HACK
+		// eslint-disable-next-line no-restricted-syntax
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		const element = append(container, $('.history-item'));
@@ -712,7 +722,8 @@ class HistoryItemLoadMoreRenderer implements ICompressibleTreeRenderer<SCMHistor
 	) { }
 
 	renderTemplate(container: HTMLElement): LoadMoreTemplate {
-		// hack
+		// HACK
+		// eslint-disable-next-line no-restricted-syntax
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		const element = append(container, $('.history-item-load-more'));
@@ -1986,7 +1997,11 @@ export class SCMHistoryViewPane extends ViewPane {
 		} else if (isSCMHistoryItemChangeViewModelTreeElement(e.element)) {
 			const historyItemChange = e.element.historyItemChange;
 			const historyItem = e.element.historyItemViewModel.historyItem;
-			const historyItemDisplayId = historyItem.displayId ?? historyItem.id;
+			const historyItemDisplayId = historyItem.id === SCMIncomingHistoryItemId
+				? localize('incomingChanges', "Incoming Changes")
+				: historyItem.id === SCMOutgoingHistoryItemId
+					? localize('outgoingChanges', "Outgoing Changes")
+					: historyItem.displayId ?? historyItem.id;
 
 			const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
 			const historyItemParentDisplayId = historyItemParentId && historyItem.displayId
@@ -1998,7 +2013,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				const originalUriTitle = `${basename(historyItemChange.originalUri.fsPath)} (${historyItemParentDisplayId})`;
 				const modifiedUriTitle = `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItemDisplayId})`;
 
-				const title = `${originalUriTitle} ↔ ${modifiedUriTitle}`;
+				const title = `${originalUriTitle} \u2194 ${modifiedUriTitle}`;
 				await this._editorService.openEditor({
 					label: title,
 					original: { resource: historyItemChange.originalUri },

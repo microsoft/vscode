@@ -5,7 +5,7 @@
 
 import type { IMarker as XtermMarker } from '@xterm/xterm';
 import { IAction } from '../../../../../../../base/common/actions.js';
-import { timeout } from '../../../../../../../base/common/async.js';
+import { timeout, type MaybePromise } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -619,8 +619,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		subtitle: string,
 		acceptLabel: string,
 		rejectLabel?: string,
-		onAccept?: (value: IAction | true) => Promise<T | undefined> | T | undefined,
-		onReject?: () => Promise<T | undefined> | T | undefined,
+		onAccept?: (value: IAction | true) => MaybePromise<T | undefined>,
+		onReject?: () => MaybePromise<T | undefined>,
 		moreActions?: IAction[] | undefined
 	): { promise: Promise<T | undefined>; part: ChatElicitationRequestPart } {
 		const chatModel = sessionId && this._chatService.getSession(LocalChatSessionUri.forSession(sessionId));

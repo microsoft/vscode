@@ -487,6 +487,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		this._attached = { container, options };
 		// Screen must be created at this point as xterm.open is called
+		// eslint-disable-next-line no-restricted-syntax
 		return this._attached?.container.querySelector('.xterm-screen')!;
 	}
 

@@ -496,7 +496,6 @@
       {
         "command": "git.branch",
         "title": "%command.branch%",
-        "icon": "$(plus)",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1044,6 +1043,50 @@
       {
         "command": "git.repositories.compareRef",
         "title": "%command.graphCompareRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.createBranch",
+        "title": "%command.branch%",
+        "icon": "$(plus)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.createTag",
+        "title": "%command.createTag%",
+        "icon": "$(plus)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.merge",
+        "title": "%command.merge2%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.rebase",
+        "title": "%command.rebase2%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.deleteBranch",
+        "title": "%command.deleteRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.deleteTag",
+        "title": "%command.deleteRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.createFrom",
+        "title": "%command.createFrom%",
         "category": "Git",
         "enablement": "!operationInProgress"
       }
@@ -1681,6 +1724,34 @@
         {
           "command": "git.repositories.compareRef",
           "when": "false"
+        },
+        {
+          "command": "git.repositories.createBranch",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.createTag",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.merge",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.rebase",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.deleteBranch",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.deleteTag",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.createFrom",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1873,12 +1944,12 @@
       ],
       "scm/artifactGroup/context": [
         {
-          "command": "git.branch",
+          "command": "git.repositories.createBranch",
           "group": "inline@1",
           "when": "scmProvider == git && scmArtifactGroup == branches"
         },
         {
-          "command": "git.createTag",
+          "command": "git.repositories.createTag",
           "group": "inline@1",
           "when": "scmProvider == git && scmArtifactGroup == tags"
         }
@@ -1900,8 +1971,33 @@
           "when": "scmProvider == git"
         },
         {
+          "command": "git.repositories.merge",
+          "group": "2_modify@1",
+          "when": "scmProvider == git && scmArtifactGroupId == branches"
+        },
+        {
+          "command": "git.repositories.rebase",
+          "group": "2_modify@2",
+          "when": "scmProvider == git && scmArtifactGroupId == branches"
+        },
+        {
+          "command": "git.repositories.createFrom",
+          "group": "3_modify@1",
+          "when": "scmProvider == git && scmArtifactGroupId == branches"
+        },
+        {
+          "command": "git.repositories.deleteBranch",
+          "group": "3_modify@2",
+          "when": "scmProvider == git && scmArtifactGroupId == branches"
+        },
+        {
+          "command": "git.repositories.deleteTag",
+          "group": "3_modify@1",
+          "when": "scmProvider == git && scmArtifactGroupId == tags"
+        },
+        {
           "command": "git.repositories.compareRef",
-          "group": "2_compare@1",
+          "group": "4_compare@1",
           "when": "scmProvider == git"
         }
       ],
@@ -2402,6 +2498,11 @@
           "command": "git.openFile",
           "group": "navigation",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInNotebookTextDiffEditor && resourceScheme =~ /^git$|^file$/"
+        },
+        {
+          "command": "git.openFile",
+          "group": "navigation",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isInNotebookTextDiffEditor && resourceScheme == git"
         },
         {
           "command": "git.openChange",

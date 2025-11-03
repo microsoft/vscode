@@ -1,6 +1,6 @@
 {
 	// --- Chat ---
-	// "inlineChat.enableV2": true,
+	"inlineChat.enableV2": true,
 	"chat.tools.terminal.autoApprove": {
 		"/^npm (test|lint|run compile)\\b/": true,
 		"/^npx tsc\\b.*--noEmit/": true,
@@ -9,7 +9,6 @@
 		"scripts/test-integration.bat": true,
 		"scripts/test-integration.sh": true,
 	},
-
 	// --- Editor ---
 	"editor.insertSpaces": false,
 	"editor.experimental.asyncTokenization": true,
@@ -18,7 +17,6 @@
 	// "editor.experimental.preferTreeSitter.typescript": true,
 	// "editor.experimental.preferTreeSitter.regex": true,
 	// "editor.experimental.preferTreeSitter.css": true,
-
 	// --- Language Specific ---
 	"[plaintext]": {
 		"files.insertFinalNewline": false
@@ -38,7 +36,6 @@
 	"[github-issues]": {
 		"editor.wordWrap": "on"
 	},
-
 	// --- Files ---
 	"files.trimTrailingWhitespace": true,
 	"files.insertFinalNewline": true,
@@ -81,7 +78,6 @@
 		"build/npm/*.js": true,
 		"build/*.js": true
 	},
-
 	// --- Search ---
 	"search.exclude": {
 		"**/node_modules": true,
@@ -104,7 +100,6 @@
 		"build/loader.min": true,
 		"**/*.snap": true,
 	},
-
 	// --- TypeScript ---
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"typescript.preferences.importModuleSpecifier": "relative",
@@ -117,7 +112,6 @@
 		"vscode-notebook-renderer",
 		"src/vs/workbench/workbench.web.main.internal.ts"
 	],
-
 	// --- Languages ---
 	"json.schemas": [
 		{
@@ -134,7 +128,6 @@
 		}
 	],
 	"css.format.spaceAroundSelectorSeparator": true,
-
 	// --- Git ---
 	"git.ignoreLimitWarning": true,
 	"git.branchProtection": [
@@ -152,7 +145,6 @@
 		"ts": "warning",
 		"eslint": "warning"
 	},
-
 	// --- GitHub ---
 	"githubPullRequests.experimental.createView": true,
 	"githubPullRequests.assignCreated": "${user}",
@@ -162,7 +154,6 @@
 	],
 	"githubPullRequests.codingAgent.enabled": true,
 	"githubPullRequests.codingAgent.uiIntegration": true,
-
 	// --- Testing & Debugging ---
 	"testing.autoRun.mode": "rerun",
 	"debug.javascript.terminalOptions": {
@@ -176,7 +167,6 @@
 			"${workspaceFolder}/extensions/*/out/**/*.js",
 		]
 	},
-
 	// --- Coverage ---
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
@@ -191,7 +181,6 @@
 			}
 		}
 	],
-
 	// --- Tools ---
 	"npm.exclude": "**/extensions/**",
 	"eslint.useFlatConfig": true,
@@ -210,10 +199,8 @@
 		"git",
 		"sash"
 	],
-
 	// --- Workbench ---
 	// "application.experimental.rendererProfiling": true, // https://github.com/microsoft/vscode/issues/265654
-
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
 	"chat.emptyState.history.enabled": true,
 	"chat.agentSessionsViewLocation": "view",

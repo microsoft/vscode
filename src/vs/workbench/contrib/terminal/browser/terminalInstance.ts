@@ -904,6 +904,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}));
 		}
 
+		if (this.xterm?.shellIntegration) {
+			this.capabilities.add(this.xterm.shellIntegration.capabilities);
+		}
+
 		this._pathService.userHome().then(userHome => {
 			this._userHome = userHome.fsPath;
 		});
@@ -1552,9 +1556,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		if (this.isDisposed) {
 			return;
-		}
-		if (this.xterm?.shellIntegration) {
-			this.capabilities.add(this.xterm.shellIntegration.capabilities);
 		}
 		if (originalIcon !== this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
 			this._icon = this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon;

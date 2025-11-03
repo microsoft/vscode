@@ -395,8 +395,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	// Welcome view rendering scheduler to prevent reentrant calls
 	private _welcomeRenderScheduler: RunOnceScheduler;
-	// Suggest next widget rendering scheduler to prevent excessive renders during mode changes
-	private _chatSuggestNextScheduler: RunOnceScheduler;
 
 	// Coding agent locking state
 	private _lockedAgent?: {
@@ -459,7 +457,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser)
-				.parseChatRequest(this.viewModel!.sessionResource, this.getInput(), this.location, {
+				.parseChatRequest(this.viewModel.sessionResource, this.getInput(), this.location, {
 					selectedAgent: this._lastSelectedAgent,
 					mode: this.input.currentModeKind,
 					forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined
@@ -554,9 +552,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._welcomeRenderScheduler.schedule();
 			}
 		}));
-		this._chatSuggestNextScheduler = this._register(
-			new RunOnceScheduler(() => this.renderChatSuggestNextWidget(), 20),
-		);
 		this.updateEmptyStateWithHistoryContext();
 
 		// Update welcome view content when `anonymous` condition changes
@@ -971,9 +966,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
-		// Cancel any pending widget render and hide the widget BEFORE firing onDidClear
-		// This prevents the widget from being re-shown by any handlers triggered by the clear event
-		this._chatSuggestNextScheduler.cancel();
 		this.chatSuggestNextWidget.hide();
 		this._onDidClear.fire();
 	}
@@ -1647,7 +1639,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private handleNextPromptSelection(handoff: IHandOff): void {
 		// Hide the widget after selection
 		this.chatSuggestNextWidget.hide();
-		this._chatSuggestNextScheduler.cancel();
 
 		// Log telemetry
 		const currentMode = this.input.currentModeObs.get();
@@ -1957,7 +1948,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.inputPart?.toggleChatInputOverlay(false);
 			try {
-				if (editedRequest?.rowContainer && editedRequest.rowContainer.contains(this.inputContainer)) {
+				if (editedRequest?.rowContainer?.contains(this.inputContainer)) {
 					editedRequest.rowContainer.removeChild(this.inputContainer);
 				} else if (this.inputContainer.parentElement) {
 					this.inputContainer.parentElement.removeChild(this.inputContainer);
@@ -1979,7 +1970,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart?.setEditing(!!this.viewModel?.editing && isInput);
 
 		this.onDidChangeItems();
-		if (editedRequest && editedRequest.currentElement) {
+		if (editedRequest?.currentElement) {
 			this.renderer.updateItemHeightOnRender(editedRequest.currentElement, editedRequest);
 		}
 
@@ -2194,7 +2185,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._welcomeRenderScheduler.schedule();
 			this.refreshParsedInput();
 			this.renderFollowups();
-			this._chatSuggestNextScheduler.schedule();
+			this.renderChatSuggestNextWidget();
 		}));
 
 		this._register(autorun(r => {
@@ -2316,7 +2307,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Show next steps widget when response completes (not when request starts)
 			if (e.kind === 'completedRequest') {
 				// Only show if response wasn't canceled
-				this._chatSuggestNextScheduler.schedule();
+				this.renderChatSuggestNextWidget();
 			}
 		}));
 
