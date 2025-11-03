@@ -21,6 +21,7 @@ import { ContextKeyExpression } from '../../../../platform/contextkey/common/con
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
+import { UserSelectedTools } from './chatAgents.js';
 import { IVariableReference } from './chatModes.js';
 import { IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, type IChatTerminalToolInvocationData } from './chatService.js';
 import { ChatRequestToolReferenceEntry } from './chatVariableEntries.js';
@@ -134,6 +135,7 @@ export interface IToolInvocation {
 	fromSubAgent?: boolean;
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 	modelId?: string;
+	userSelectedTools?: UserSelectedTools;
 }
 
 export interface IToolInvocationContext {
