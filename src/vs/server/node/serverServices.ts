@@ -216,8 +216,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const ptyHostStarter = instantiationService.createInstance(
 		NodePtyHostStarter,
 		{
-			graceTime: ProtocolConstants.ReconnectionGraceTime,
-			shortGraceTime: ProtocolConstants.ReconnectionShortGraceTime,
+			graceTime: environmentService.reconnectionGraceTime,
+			shortGraceTime: environmentService.reconnectionGraceTime > 0 ? Math.min(ProtocolConstants.ReconnectionShortGraceTime, environmentService.reconnectionGraceTime) : 0,
 			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
 		}
 	);

@@ -125,7 +125,8 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				home: this._userDataProfilesService.profilesHome,
 				all: [...this._userDataProfilesService.profiles].map(profile => ({ ...profile }))
 			},
-			isUnsupportedGlibc
+			isUnsupportedGlibc,
+			reconnectionGraceTime: this._environmentService.reconnectionGraceTime
 		};
 	}
 
