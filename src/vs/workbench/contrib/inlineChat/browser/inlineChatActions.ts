@@ -636,6 +636,7 @@ class KeepOrUndoSessionAction extends AbstractInline2ChatAction {
 			} else {
 				await session.editingSession.reject();
 			}
+			editor.setSelection(editor.getSelection().collapseToStart());
 			session.dispose();
 		}
 	}
