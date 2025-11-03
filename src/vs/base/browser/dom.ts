@@ -799,6 +799,7 @@ export function setParentFlowTo(fromChildElement: HTMLElement, toParentElement: 
 function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
 	const flowToParentId = node.dataset[parentFlowToDataKey];
 	if (typeof flowToParentId === 'string') {
+		// eslint-disable-next-line no-restricted-syntax
 		return node.ownerDocument.getElementById(flowToParentId);
 	}
 	return null;

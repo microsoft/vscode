@@ -293,6 +293,7 @@ class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, ICh
 		});
 
 		const labelElement = templateData.label.element;
+		// eslint-disable-next-line no-restricted-syntax
 		labelElement.querySelector(`.${ChatMultiDiffListRenderer.CHANGES_SUMMARY_CLASS_NAME}`)?.remove();
 
 		if (element.diff?.added || element.diff?.removed) {

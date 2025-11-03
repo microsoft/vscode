@@ -166,6 +166,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		if (isAttachmentPartialOrOmitted) {
 			ariaLabel = `${ariaLabel}${description ? ` ${description}` : ''}`;
 			for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
+				// eslint-disable-next-line no-restricted-syntax
 				const element = widget.label.element.querySelector(selector);
 				if (element) {
 					element.classList.add('warning');
