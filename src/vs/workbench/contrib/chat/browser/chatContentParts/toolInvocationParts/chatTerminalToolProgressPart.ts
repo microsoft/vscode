@@ -199,19 +199,17 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const actionBar = this._actionBar.value;
 		const isTerminalHidden = this._terminalChatService.isBackgroundTerminal(terminalToolSessionId);
 		const command = this._getResolvedCommand(terminalInstance);
-		if (command) {
-			const existingFocus = this._focusAction.value;
-			if (existingFocus) {
-				const existingIndex = actionBar.viewItems.findIndex(item => item.action === existingFocus);
-				if (existingIndex >= 0) {
-					actionBar.pull(existingIndex);
-				}
+		const existingFocus = this._focusAction.value;
+		if (existingFocus) {
+			const existingIndex = actionBar.viewItems.findIndex(item => item.action === existingFocus);
+			if (existingIndex >= 0) {
+				actionBar.pull(existingIndex);
 			}
-			const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, command, isTerminalHidden);
-			this._focusAction.value = focusAction;
-			actionBar.push(focusAction, { icon: true, label: false, index: 0 });
-			this._ensureShowOutputAction();
 		}
+		const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, command, isTerminalHidden);
+		this._focusAction.value = focusAction;
+		actionBar.push(focusAction, { icon: true, label: false, index: 0 });
+		this._ensureShowOutputAction();
 	}
 
 	private _ensureShowOutputAction(): void {
@@ -262,9 +260,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const commandDetectionListener = this._register(new MutableDisposable<IDisposable>());
 		const tryResolveCommand = async (): Promise<ITerminalCommand | undefined> => {
 			const resolvedCommand = this._resolveCommand(terminalInstance);
-			if (resolvedCommand?.endMarker) {
-				await this._addActions(terminalInstance, this._terminalData.terminalToolSessionId!);
-			}
+			await this._addActions(terminalInstance, this._terminalData.terminalToolSessionId!);
 			return resolvedCommand;
 		};
 
@@ -544,7 +540,7 @@ class ToggleChatTerminalOutputAction extends Action implements IAction {
 export class FocusChatInstanceAction extends Action implements IAction {
 	constructor(
 		private readonly _instance: ITerminalInstance,
-		private readonly _command: ITerminalCommand,
+		private readonly _command: ITerminalCommand | undefined,
 		isTerminalHidden: boolean,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
@@ -568,6 +564,8 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		}
 		this._terminalService.setActiveInstance(this._instance);
 		await this._instance?.focusWhenReady(true);
-		this._instance.xterm?.markTracker.revealCommand(this._command);
+		if (this._command) {
+			this._instance.xterm?.markTracker.revealCommand(this._command);
+		}
 	}
 }
