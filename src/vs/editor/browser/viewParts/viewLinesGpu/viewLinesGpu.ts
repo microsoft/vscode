@@ -240,7 +240,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		const module = this._device.createShaderModule({
 			label: 'Monaco shader module',
-			code: this._renderStrategy.value!.wgsl,
+			code: this._renderStrategy.value.wgsl,
 		});
 
 		// #endregion Shader module

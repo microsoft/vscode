@@ -1302,7 +1302,7 @@ CommandsRegistry.registerCommand('_executeFoldingRangeProvider', async function 
 	const strategy = configurationService.getValue('editor.foldingStrategy', { resource });
 	const foldingLimitReporter = {
 		get limit() {
-			return <number>configurationService.getValue('editor.foldingMaximumRegions', { resource });
+			return configurationService.getValue<number>('editor.foldingMaximumRegions', { resource });
 		},
 		update: (computed: number, limited: number | false) => { }
 	};

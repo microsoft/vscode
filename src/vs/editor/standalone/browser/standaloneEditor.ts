@@ -58,7 +58,7 @@ export function create(domElement: HTMLElement, options?: IStandaloneEditorConst
 export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): IDisposable {
 	const codeEditorService = StandaloneServices.get(ICodeEditorService);
 	return codeEditorService.onCodeEditorAdd((editor) => {
-		listener(<ICodeEditor>editor);
+		listener(editor);
 	});
 }
 
