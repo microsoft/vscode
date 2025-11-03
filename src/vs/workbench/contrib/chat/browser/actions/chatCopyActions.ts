@@ -12,6 +12,7 @@ import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isChatTreeItem, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { katexContainerClassName, katexContainerLatexAttributeName } from '../../../markdown/common/markedKatexExtension.js';
 
 export function registerChatCopyActions() {
 	registerAction2(class CopyAllAction extends Action2 {
@@ -135,12 +136,12 @@ export function registerChatCopyActions() {
 			// Otherwise, fallback to querying from the active element
 			if (!selectedElement) {
 				// eslint-disable-next-line no-restricted-syntax
-				selectedElement = activeElement?.querySelector('.vscode-katex-container') ?? null;
+				selectedElement = activeElement?.querySelector(`.${katexContainerClassName}`) ?? null;
 			}
 
 			// Extract the LaTeX source from the annotation element
-			const katexElement = dom.isHTMLElement(selectedElement) ? selectedElement.closest('.vscode-katex-container') : null;
-			const latexSource = katexElement?.getAttribute('data-latex') || '';
+			const katexElement = dom.isHTMLElement(selectedElement) ? selectedElement.closest(`.${katexContainerClassName}`) : null;
+			const latexSource = katexElement?.getAttribute(katexContainerLatexAttributeName) || '';
 			if (latexSource) {
 				await clipboardService.writeText(latexSource);
 			}
