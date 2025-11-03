@@ -408,9 +408,11 @@ export function toISCMHistoryItemViewModelArray(
 			// Create incoming changes node
 			const inputSwimlanes = viewModels[beforeHistoryItemIndex].outputSwimlanes.map(i => deepClone(i));
 			const outputSwimlanes = viewModels[afterHistoryItemIndex].inputSwimlanes.map(i => deepClone(i));
+			const displayIdLength = viewModels[0].historyItem.displayId?.length ?? 0;
 
 			const incomingChangesHistoryItem = {
 				id: SCMIncomingHistoryItemId,
+				displayId: '0'.repeat(displayIdLength),
 				parentIds: [mergeBase],
 				author: currentHistoryItemRemoteRef?.name,
 				subject: localize('incomingChanges', 'Incoming Changes'),
@@ -450,9 +452,11 @@ export function toISCMHistoryItemViewModelArray(
 					})
 				: [];
 			const outputSwimlanes = viewModels[afterHistoryItemIndex].inputSwimlanes.slice(0);
+			const displayIdLength = viewModels[0].historyItem.displayId?.length ?? 0;
 
 			const outgoingChangesHistoryItem = {
 				id: SCMOutgoingHistoryItemId,
+				displayId: '0'.repeat(displayIdLength),
 				parentIds: [mergeBase],
 				author: currentHistoryItemRef?.name,
 				subject: localize('outgoingChanges', 'Outgoing Changes'),
