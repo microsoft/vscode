@@ -184,6 +184,9 @@ const _allApiProposals = {
 	dataChannels: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.dataChannels.d.ts',
 	},
+	debugConfiguration: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.debugConfiguration.d.ts',
+	},
 	debugVisualization: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.debugVisualization.d.ts',
 	},

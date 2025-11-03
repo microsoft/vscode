@@ -79,6 +79,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._toDispose.add(debugService.getViewModel().onDidFocusSession(session => {
 			this._proxy.$acceptDebugSessionActiveChanged(this.getSessionDto(session));
 		}));
+
+		// Listen for changes to the selected launch configuration name and notify extension host
+		this.sendConfigurationChanged();
+		this._toDispose.add(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => this.sendConfigurationChanged()));
+
 		this._toDispose.add(toDisposable(() => {
 			for (const [handle, da] of this._debugAdapters) {
 				da.fireError(handle, new Error('Extension host shut down'));
@@ -145,6 +150,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		const key = `${extensionId}/${id}`;
 		this._visualizerHandles.get(key)?.dispose();
 		this._visualizerHandles.delete(key);
+	}
+
+	private sendConfigurationChanged(): void {
+		const selected = this.debugService.getConfigurationManager().selectedConfiguration;
+		selected.getConfig().then(config => {
+			this._proxy.$acceptConfigurationChanged(selected.launch?.workspace?.uri, config);
+		});
 	}
 
 	private sendBreakpointsAndListen(): void {
@@ -367,6 +379,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			return Promise.resolve(session.getDebugProtocolBreakpoint(breakpoinId));
 		}
 		return Promise.reject(new ErrorNoTelemetry('debug session not found'));
+	}
+
+	public $setDebugConfiguration(workspace: UriComponents | undefined, config: IConfig): Promise<void> {
+		return this.debugService.getConfigurationManager().selectConfiguration(uri.revive(workspace), undefined, config);
 	}
 
 	public $stopDebugging(sessionId: DebugSessionUUID | undefined): Promise<void> {

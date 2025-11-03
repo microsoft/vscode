@@ -1321,6 +1321,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get activeStackItem() {
 				return extHostDebugService.activeStackItem;
 			},
+			get configuration() {
+				return extHostDebugService.configuration;
+			},
+
 			registerDebugVisualizationProvider(id, provider) {
 				checkProposedApiEnabled(extension, 'debugVisualization');
 				return extHostDebugService.registerDebugVisualizationProvider(extension, id, provider);
@@ -1373,6 +1377,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri {
 				return extHostDebugService.asDebugSourceUri(source, session);
+			},
+			setConfiguration(folder: vscode.WorkspaceFolder | undefined, nameOrConfiguration: string | vscode.DebugConfiguration) {
+				return extHostDebugService.setConfiguration(folder, nameOrConfiguration);
+			},
+
+			onDidChangeConfiguration(listener: (e: { workspace: vscode.WorkspaceFolder | undefined; configuration: vscode.DebugConfiguration | undefined }) => any, thisArgs?: any, disposables?) {
+				return _asExtensionEvent(extHostDebugService.onDidChangeConfiguration)((e) => listener.call(thisArgs, { workspace: e.workspace, configuration: e.configuration }), thisArgs, disposables);
 			}
 		};
 

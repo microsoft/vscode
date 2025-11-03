@@ -1793,6 +1793,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$unregisterDebugVisualizer(extensionId: string, id: string): void;
 	$registerDebugVisualizerTree(treeId: string, canEdit: boolean): void;
 	$unregisterDebugVisualizerTree(treeId: string): void;
+	$setDebugConfiguration(workspace: UriComponents | undefined, nameOrConfiguration: string | IConfig): Promise<void>;
 }
 
 export interface IOpenUriOptions {
@@ -2764,6 +2765,7 @@ export interface ExtHostDebugServiceShape {
 	$acceptDebugSessionCustomEvent(session: IDebugSessionDto, event: any): void;
 	$acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void;
 	$acceptDebugSessionNameChanged(session: IDebugSessionDto, name: string): void;
+	$acceptConfigurationChanged(workspace: UriComponents | undefined, configuration: IConfig | undefined): void;
 	$acceptStackFrameFocus(focus: IThreadFocusDto | IStackFrameFocusDto | undefined): void;
 	$provideDebugVisualizers(extensionId: string, id: string, context: IDebugVisualizationContext, token: CancellationToken): Promise<IDebugVisualization.Serialized[]>;
 	$resolveDebugVisualizer(id: number, token: CancellationToken): Promise<MainThreadDebugVisualization>;
