@@ -902,7 +902,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 				// Unresponsive
 				if (type === WindowError.UNRESPONSIVE) {
-					if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || (this._win && this._win.webContents && this._win.webContents.isDevToolsOpened())) {
+					if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || this._win?.webContents?.isDevToolsOpened()) {
 						// TODO@electron Workaround for https://github.com/microsoft/vscode/issues/56994
 						// In certain cases the window can report unresponsiveness because a breakpoint was hit
 						// and the process is stopped executing. The most typical cases are:
@@ -1405,7 +1405,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return menuBarVisibility;
 	}
 
-	private setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
+	private setMenuBarVisibility(visibility: MenuBarVisibility, notify = true): void {
 		if (isMacintosh) {
 			return; // ignore for macOS platform
 		}
@@ -1473,7 +1473,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this._win?.close();
 	}
 
-	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void {
+	sendWhenReady(channel: string, token: CancellationToken, ...args: unknown[]): void {
 		if (this.isReady) {
 			this.send(channel, ...args);
 		} else {
@@ -1485,7 +1485,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 	}
 
-	send(channel: string, ...args: any[]): void {
+	send(channel: string, ...args: unknown[]): void {
 		if (this._win) {
 			if (this._win.isDestroyed() || this._win.webContents.isDestroyed()) {
 				this.logService.warn(`Sending IPC message to channel '${channel}' for window that is destroyed`);
@@ -1576,7 +1576,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private async startCollectingJScallStacks(): Promise<void> {
 		if (!this.jsCallStackCollector.isTriggered()) {
-			const stack = await this._win.webContents.mainFrame.collectJavaScriptCallStack();
+			const stack = await this._win?.webContents.mainFrame.collectJavaScriptCallStack();
 
 			// Increment the count for this stack trace
 			if (stack) {
@@ -1604,7 +1604,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				// If the stack appears more than 20 percent of the time, log it
 				// to the error telemetry as UnresponsiveSampleError.
 				if (Math.round((count * 100) / this.jsCallStackEffectiveSampleCount) > 20) {
-					const fakeError = new UnresponsiveError(stack, this.id, this.win?.webContents.getOSProcessId());
+					const fakeError = new UnresponsiveError(stack, this.id, this._win?.webContents.getOSProcessId());
 					errorHandler.onUnexpectedError(fakeError);
 				}
 				logMessage += `<${count}> ${stack}\n`;
@@ -1632,7 +1632,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 class UnresponsiveError extends Error {
 
-	constructor(sample: string, windowId: number, pid: number = 0) {
+	constructor(sample: string, windowId: number, pid = 0) {
 		// Since the stacks are available via the sample
 		// we can avoid collecting them when constructing the error.
 		const stackTraceLimit = Error.stackTraceLimit;

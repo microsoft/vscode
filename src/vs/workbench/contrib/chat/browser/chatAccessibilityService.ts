@@ -8,7 +8,7 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../base/com
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityProgressSignalScheduler } from '../../../../platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler.js';
-import { IChatAccessibilityService } from './chat.js';
+import { IChatAccessibilityService, showChatWidgetInViewOrEditor } from './chat.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -64,14 +64,17 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		if (!response || !responseContent) {
 			return;
 		}
-		this._showOSNotification(widget, container, responseContent.substring(0, 20));
-		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
 		const plainTextResponse = renderAsPlaintext(new MarkdownString(responseContent));
+		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
+		this._showOSNotification(widget, container, plainTextResponse + errorDetails);
 		if (!isVoiceInput || this._configurationService.getValue(AccessibilityVoiceSettingId.AutoSynthesize) !== 'on') {
 			status(plainTextResponse + errorDetails);
 		}
 	}
 	acceptElicitation(elicitation: IChatElicitationRequest): void {
+		if (elicitation.state !== 'pending') {
+			return;
+		}
 		const title = typeof elicitation.title === 'string' ? elicitation.title : elicitation.title.value;
 		const message = typeof elicitation.message === 'string' ? elicitation.message : elicitation.message.value;
 		alert(title + ' ' + message);
@@ -92,6 +95,11 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			return;
 		}
 
+		// Don't show notification if there's no meaningful content
+		if (!responseContent || !responseContent.trim()) {
+			return;
+		}
+
 		await this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 
 		// Dispose any previous unhandled notifications to avoid replacement/coalescing.
@@ -100,12 +108,12 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			this.notifications.delete(ds);
 		}
 
-
-		const notification = await dom.triggerNotification(localize('chat.responseReceivedNotification', "Chat response received: {0}", responseContent), {
-			detail: localize('chat.responseReceivedNotification.detail', "Click to focus chat"),
-			sticky: false,
-		});
-
+		const title = widget?.viewModel?.model.title ? localize('chatTitle', "Chat: {0}", widget.viewModel.model.title) : localize('chat.untitledChat', "Untitled Chat");
+		const notification = await dom.triggerNotification(title,
+			{
+				detail: localize('notificationDetail', "New chat response.")
+			}
+		);
 		if (!notification) {
 			return;
 		}
@@ -116,7 +124,8 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 
 		disposables.add(Event.once(notification.onClick)(async () => {
 			await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
-			widget.input.focus();
+			await this._instantiationService.invokeFunction(showChatWidgetInViewOrEditor, widget);
+			widget.focusInput();
 			disposables.dispose();
 			this.notifications.delete(disposables);
 		}));

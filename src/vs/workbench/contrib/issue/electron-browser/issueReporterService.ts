@@ -86,7 +86,9 @@ export class IssueReporter extends BaseIssueReporterService {
 		const updateState = this.updateService.state;
 		if (updateState.type === StateType.Ready || updateState.type === StateType.Downloaded) {
 			this.needsUpdate = true;
+			// eslint-disable-next-line no-restricted-syntax
 			const includeAcknowledgement = this.getElementById('version-acknowledgements');
+			// eslint-disable-next-line no-restricted-syntax
 			const updateBanner = this.getElementById('update-banner');
 			if (updateBanner && includeAcknowledgement) {
 				includeAcknowledgement.classList.remove('hidden');
@@ -109,6 +111,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			}
 
 			// Resets placeholder
+			// eslint-disable-next-line no-restricted-syntax
 			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
 			if (descriptionTextArea) {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
@@ -187,6 +190,7 @@ export class IssueReporter extends BaseIssueReporterService {
 		if (!this.validateInputs()) {
 			// If inputs are invalid, set focus to the first one and add listeners on them
 			// to detect further changes
+			// eslint-disable-next-line no-restricted-syntax
 			const invalidInput = this.window.document.getElementsByClassName('invalid-input');
 			if (invalidInput.length) {
 				(<HTMLInputElement>invalidInput[0]).focus();
@@ -216,6 +220,7 @@ export class IssueReporter extends BaseIssueReporterService {
 
 		this.hasBeenSubmitted = true;
 
+		// eslint-disable-next-line no-restricted-syntax
 		const issueTitle = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		const issueBody = this.issueReporterModel.serialize();
 
@@ -230,6 +235,7 @@ export class IssueReporter extends BaseIssueReporterService {
 
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
 
+		// eslint-disable-next-line no-restricted-syntax
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
@@ -267,6 +273,7 @@ export class IssueReporter extends BaseIssueReporterService {
 	}
 
 	private updateSystemInfo(state: IssueReporterModelData) {
+		// eslint-disable-next-line no-restricted-syntax
 		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
 
 		if (target) {
@@ -356,6 +363,7 @@ export class IssueReporter extends BaseIssueReporterService {
 
 	private updateExperimentsInfo(experimentInfo: string | undefined) {
 		this.issueReporterModel.update({ experimentInfo });
+		// eslint-disable-next-line no-restricted-syntax
 		const target = this.window.document.querySelector<HTMLElement>('.block-experiments .block-info');
 		if (target) {
 			target.textContent = experimentInfo ? experimentInfo : localize('noCurrentExperiments', "No current experiments.");

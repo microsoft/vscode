@@ -230,7 +230,7 @@ export interface ILegacyCommandProperties {
 	isShellCommand?: boolean | IShellConfiguration;
 }
 
-export type CommandString = string | string[] | { value: string | string[]; quoting: 'escape' | 'strong' | 'weak' };
+export type CommandString = Types.SingleOrMany<string> | { value: Types.SingleOrMany<string>; quoting: 'escape' | 'strong' | 'weak' };
 
 export namespace CommandString {
 	export function value(value: CommandString): string {
@@ -1717,6 +1717,7 @@ export namespace TaskParser {
 
 	function isCustomTask(value: ICustomTask | IConfiguringTask): value is ICustomTask {
 		const type = value.type;
+		// eslint-disable-next-line local/code-no-any-casts
 		const customize = (value as any).customize;
 		return customize === undefined && (type === undefined || type === null || type === Tasks.CUSTOMIZED_TASK_TYPE || type === 'shell' || type === 'process');
 	}
@@ -1989,8 +1990,8 @@ export interface IProblemReporter extends IProblemReporterBase {
 
 export class UUIDMap {
 
-	private last: IStringDictionary<string | string[]> | undefined;
-	private current: IStringDictionary<string | string[]>;
+	private last: IStringDictionary<Types.SingleOrMany<string>> | undefined;
+	private current: IStringDictionary<Types.SingleOrMany<string>>;
 
 	constructor(other?: UUIDMap) {
 		this.current = Object.create(null);

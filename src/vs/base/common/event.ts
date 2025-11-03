@@ -886,7 +886,7 @@ class LeakageMonitor {
 			const [topStack, topCount] = this.getMostFrequentStack()!;
 			const message = `[${this.name}] potential listener LEAK detected, having ${listenerCount} listeners already. MOST frequent listener (${topCount}):`;
 			console.warn(message);
-			console.warn(topStack!);
+			console.warn(topStack);
 
 			const error = new ListenerLeakError(message, topStack);
 			this._errorHandler(error);

@@ -288,7 +288,7 @@ class ViewPaneDropOverlay extends Themable {
 	}
 }
 
-export class ViewPaneContainer extends Component implements IViewPaneContainer {
+export class ViewPaneContainer<MementoType extends object = object> extends Component<MementoType> implements IViewPaneContainer {
 
 	readonly viewContainer: ViewContainer;
 	private lastFocusedPane: ViewPane | undefined;
@@ -424,7 +424,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {
 			onDragEnter: (e) => {
 				bounds = getOverlayBounds();
-				if (overlay && overlay.disposed) {
+				if (overlay?.disposed) {
 					overlay = undefined;
 				}
 
@@ -453,7 +453,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				}
 			},
 			onDragOver: (e) => {
-				if (overlay && overlay.disposed) {
+				if (overlay?.disposed) {
 					overlay = undefined;
 				}
 
@@ -484,7 +484,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 					} else if (dropData.type === 'view') {
 						const oldViewContainer = this.viewDescriptorService.getViewContainerByViewId(dropData.id);
 						const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(dropData.id);
-						if (oldViewContainer !== this.viewContainer && viewDescriptor && viewDescriptor.canMoveView) {
+						if (oldViewContainer !== this.viewContainer && viewDescriptor?.canMoveView) {
 							this.viewDescriptorService.moveViewsToContainer([viewDescriptor], this.viewContainer, undefined, 'dnd');
 						}
 					}
@@ -684,7 +684,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
-		return (this.instantiationService as any).createInstance(viewDescriptor.ctorDescriptor.ctor, ...(viewDescriptor.ctorDescriptor.staticArguments || []), options) as ViewPane;
+		return this.instantiationService.createInstance(viewDescriptor.ctorDescriptor.ctor, ...(viewDescriptor.ctorDescriptor.staticArguments || []), options);
 	}
 
 	getView(id: string): ViewPane | undefined {
@@ -1169,7 +1169,7 @@ export abstract class ViewPaneContainerAction<T extends IViewPaneContainer> exte
 		this.desc = desc;
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]): unknown {
+	run(accessor: ServicesAccessor, ...args: unknown[]): unknown {
 		const viewPaneContainer = accessor.get(IViewsService).getActiveViewPaneContainerWithId(this.desc.viewPaneContainerId);
 		if (viewPaneContainer) {
 			return this.runInViewPaneContainer(accessor, <T>viewPaneContainer, ...args);
@@ -1177,7 +1177,7 @@ export abstract class ViewPaneContainerAction<T extends IViewPaneContainer> exte
 		return undefined;
 	}
 
-	abstract runInViewPaneContainer(accessor: ServicesAccessor, viewPaneContainer: T, ...args: any[]): unknown;
+	abstract runInViewPaneContainer(accessor: ServicesAccessor, viewPaneContainer: T, ...args: unknown[]): unknown;
 }
 
 class MoveViewPosition extends Action2 {

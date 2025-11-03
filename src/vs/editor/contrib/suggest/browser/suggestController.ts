@@ -347,7 +347,7 @@ export class SuggestController implements IEditorContribution {
 		const { item } = event;
 
 		//
-		const tasks: Promise<any>[] = [];
+		const tasks: Promise<unknown>[] = [];
 		const cts = new CancellationTokenSource();
 
 		// pushing undo stops *before* additional text edits and
@@ -662,7 +662,7 @@ export class SuggestController implements IEditorContribution {
 			// wait for trigger because only then the cancel-event is trustworthy
 			const listener: IDisposable[] = [];
 
-			Event.any<any>(this.model.onDidTrigger, this.model.onDidCancel)(() => {
+			Event.any<unknown>(this.model.onDidTrigger, this.model.onDidCancel)(() => {
 				// retrigger or cancel -> try to type default text
 				dispose(listener);
 				fallback();
@@ -829,7 +829,7 @@ export class TriggerSuggestAction extends EditorAction {
 		});
 	}
 
-	run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	run(_accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void {
 		const controller = SuggestController.get(editor);
 
 		if (!controller) {

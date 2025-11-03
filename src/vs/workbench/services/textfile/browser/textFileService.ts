@@ -507,7 +507,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Prefer an existing model if it is already resolved for the given target resource
-		let targetExists: boolean = false;
+		let targetExists = false;
 		let targetModel = this.files.get(target);
 		if (targetModel?.isResolved()) {
 			targetExists = true;

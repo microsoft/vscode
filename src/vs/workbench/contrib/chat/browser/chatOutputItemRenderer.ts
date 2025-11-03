@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { matchesMimeType } from '../../../../base/common/dataTransfer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { IJSONSchema, TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -171,14 +172,30 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 	}
 }
 
-interface IChatOutputRendererContribution {
-	readonly viewType: string;
-	readonly mimeTypes: readonly string[];
-}
+const chatOutputRendererContributionSchema = {
+	type: 'object',
+	additionalProperties: false,
+	required: ['viewType', 'mimeTypes'],
+	properties: {
+		viewType: {
+			type: 'string',
+			description: nls.localize('chatOutputRenderer.viewType', 'Unique identifier for the renderer.'),
+		},
+		mimeTypes: {
+			type: 'array',
+			description: nls.localize('chatOutputRenderer.mimeTypes', 'MIME types that this renderer can handle'),
+			items: {
+				type: 'string'
+			}
+		}
+	}
+} as const satisfies IJSONSchema;
+
+type IChatOutputRendererContribution = TypeFromJsonSchema<typeof chatOutputRendererContributionSchema>;
 
 const chatOutputRenderContributionPoint = ExtensionsRegistry.registerExtensionPoint<IChatOutputRendererContribution[]>({
 	extensionPoint: 'chatOutputRenderers',
-	activationEventsGenerator: function* (contributions: readonly IChatOutputRendererContribution[]) {
+	activationEventsGenerator: function* (contributions) {
 		for (const contrib of contributions) {
 			yield `onChatOutputRenderer:${contrib.viewType}`;
 		}
@@ -186,24 +203,7 @@ const chatOutputRenderContributionPoint = ExtensionsRegistry.registerExtensionPo
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.chatOutputRenderer', 'Contributes a renderer for specific MIME types in chat outputs'),
 		type: 'array',
-		items: {
-			type: 'object',
-			additionalProperties: false,
-			required: ['viewType', 'mimeTypes'],
-			properties: {
-				viewType: {
-					type: 'string',
-					description: nls.localize('chatOutputRenderer.viewType', 'Unique identifier for the renderer.'),
-				},
-				mimeTypes: {
-					type: 'array',
-					description: nls.localize('chatOutputRenderer.mimeTypes', 'MIME types that this renderer can handle'),
-					items: {
-						type: 'string'
-					}
-				}
-			}
-		}
+		items: chatOutputRendererContributionSchema,
 	}
 });
 

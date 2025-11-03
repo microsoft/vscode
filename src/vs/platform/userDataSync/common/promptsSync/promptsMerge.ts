@@ -161,8 +161,8 @@ function compare(from: IStringDictionary<string> | null, to: IStringDictionary<s
 		if (removed.has(key)) {
 			continue;
 		}
-		const fromPrompt = from![key]!;
-		const toPrompt = to![key]!;
+		const fromPrompt = from![key];
+		const toPrompt = to![key];
 		if (fromPrompt !== toPrompt) {
 			updated.add(key);
 		}

@@ -13,6 +13,7 @@ export interface ITerminalCommandProperties {
 	isTrusted: boolean;
 	timestamp: number;
 	duration: number;
+	id: string | undefined;
 	marker: IMarker | undefined;
 	cwd: string | undefined;
 	exitCode: number | undefined;
@@ -48,6 +49,7 @@ export class TerminalCommand implements ITerminalCommand {
 	get markProperties() { return this._properties.markProperties; }
 	get executedX() { return this._properties.executedX; }
 	get startX() { return this._properties.startX; }
+	get id() { return this._properties.id; }
 
 	constructor(
 		private readonly _xterm: Terminal,
@@ -72,6 +74,7 @@ export class TerminalCommand implements ITerminalCommand {
 			command: isCommandStorageDisabled ? '' : serialized.command,
 			commandLineConfidence: serialized.commandLineConfidence ?? 'low',
 			isTrusted: serialized.isTrusted,
+			id: serialized.id,
 			promptStartMarker,
 			marker,
 			startX: serialized.startX,
@@ -107,6 +110,7 @@ export class TerminalCommand implements ITerminalCommand {
 			timestamp: this.timestamp,
 			duration: this.duration,
 			markProperties: this.markProperties,
+			id: this.id,
 		};
 	}
 
@@ -271,13 +275,16 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 	cwd?: string;
 	command?: string;
 	commandLineConfidence?: 'low' | 'medium' | 'high';
+	id: string | undefined;
 
 	isTrusted?: boolean;
 	isInvalid?: boolean;
 
 	constructor(
 		private readonly _xterm: Terminal,
+		id?: string
 	) {
+		this.id = id;
 	}
 
 	serialize(cwd: string | undefined): ISerializedTerminalCommand | undefined {
@@ -300,7 +307,8 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 			commandStartLineContent: undefined,
 			timestamp: 0,
 			duration: 0,
-			markProperties: undefined
+			markProperties: undefined,
+			id: this.id
 		};
 	}
 
@@ -315,6 +323,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 				command: ignoreCommandLine ? '' : (this.command || ''),
 				commandLineConfidence: ignoreCommandLine ? 'low' : (this.commandLineConfidence || 'low'),
 				isTrusted: !!this.isTrusted,
+				id: this.id,
 				promptStartMarker: this.promptStartMarker,
 				marker: this.commandStartMarker,
 				startX: this.commandStartX,

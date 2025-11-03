@@ -24,7 +24,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings, EditorActionsLocation, EditorTabsMode } from '../../../services/layout/browser/layoutService.js';
-import { createActionViewItem, fillInActionBarActions as fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -491,8 +491,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				// Check if the locale is RTL, macOS will move traffic lights in RTL locales
 				// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Locale/textInfo
 
-				const localeInfo = safeIntl.Locale(platformLocale).value as any;
-				if (localeInfo?.textInfo?.direction === 'rtl') {
+				const localeInfo = safeIntl.Locale(platformLocale).value;
+				const textInfo = (localeInfo as { textInfo?: unknown }).textInfo;
+				if (textInfo && typeof textInfo === 'object' && 'direction' in textInfo && textInfo.direction === 'rtl') {
 					primaryWindowControlsLocation = 'right';
 				}
 			}
@@ -873,6 +874,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		if (this.customMenubar.value) {
 			this.customMenubar.value.toggleFocus();
 		} else {
+			// eslint-disable-next-line no-restricted-syntax
 			(this.element.querySelector('[tabindex]:not([tabindex="-1"])') as HTMLElement | null)?.focus();
 		}
 	}

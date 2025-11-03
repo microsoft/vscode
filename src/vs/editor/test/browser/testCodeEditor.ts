@@ -194,7 +194,7 @@ function _withTestCodeEditor(arg: ITextModel | string | string[] | ITextBufferFa
 	const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model, options));
 	const viewModel = editor.getViewModel()!;
 	viewModel.setHasFocus(true);
-	const result = callback(<ITestCodeEditor>editor, editor.getViewModel()!, instantiationService);
+	const result = callback(editor, editor.getViewModel()!, instantiationService);
 	if (result) {
 		return result.then(() => disposables.dispose());
 	}
@@ -276,6 +276,7 @@ export function instantiateTestCodeEditor(instantiationService: IInstantiationSe
 	};
 	const editor = instantiationService.createInstance(
 		TestCodeEditor,
+		// eslint-disable-next-line local/code-no-any-casts
 		<HTMLElement><any>new TestEditorDomElement(),
 		options,
 		codeEditorWidgetOptions

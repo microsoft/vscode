@@ -63,7 +63,7 @@ interface ICodeBlock {
 	endLine: number;
 	code: string;
 	languageId?: string;
-	chatSessionId: string | undefined;
+	chatSessionResource: URI | undefined;
 }
 
 export class AccessibleView extends Disposable implements ITextModelContentProvider {
@@ -200,6 +200,9 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	}
 
 	private _playDiffSignals(): void {
+		if (this._currentProvider?.id !== AccessibleViewProviderId.DiffEditor && this._currentProvider?.id !== AccessibleViewProviderId.InlineCompletions) {
+			return;
+		}
 		const position = this._editorWidget.getPosition();
 		const model = this._editorWidget.getModel();
 		if (!position || !model) {
@@ -258,7 +261,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (!codeBlock || codeBlockIndex === undefined) {
 			return;
 		}
-		return { code: codeBlock.code, languageId: codeBlock.languageId, codeBlockIndex, element: undefined, chatSessionId: codeBlock.chatSessionId };
+		return { code: codeBlock.code, languageId: codeBlock.languageId, codeBlockIndex, element: undefined, chatSessionResource: codeBlock.chatSessionResource };
 	}
 
 	navigateToCodeBlock(type: 'next' | 'previous'): void {
@@ -402,7 +405,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 				inBlock = false;
 				const endLine = i;
 				const code = lines.slice(startLine, endLine).join('\n');
-				this._codeBlocks?.push({ startLine, endLine, code, languageId, chatSessionId: undefined });
+				this._codeBlocks?.push({ startLine, endLine, code, languageId, chatSessionResource: undefined });
 			}
 		});
 		this._accessibleViewContainsCodeBlocks.set(this._codeBlocks.length > 0);

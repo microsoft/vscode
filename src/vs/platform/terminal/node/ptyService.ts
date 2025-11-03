@@ -42,7 +42,7 @@ export function traceRpc(_target: any, key: string, descriptor: any) {
 	}
 	const fnKey = 'value';
 	const fn = descriptor.value;
-	descriptor[fnKey] = async function (...args: any[]) {
+	descriptor[fnKey] = async function (...args: unknown[]) {
 		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
 			this.traceRpcArgs.logService.trace(`[RPC Request] PtyService#${fn.name}(${args.map(e => JSON.stringify(e)).join(', ')})`);
 		}
@@ -455,6 +455,11 @@ export class PtyService extends Disposable implements IPtyService {
 	async setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
 		return this._throwIfNoPty(id).setUnicodeVersion(version);
 	}
+
+	@traceRpc
+	async setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
+		return this._throwIfNoPty(id).setNextCommandId(commandLine, commandId);
+	}
 	@traceRpc
 	async getLatency(): Promise<IPtyHostLatencyMeasurement[]> {
 		return [];
@@ -550,8 +555,9 @@ export class PtyService extends Disposable implements IPtyService {
 			const doneSet: Set<number> = new Set();
 			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(args.workspaceId, tab, doneSet)));
 			const tabs = expandedTabs.filter(t => t.terminals.length > 0);
+			const expandedBackground = (await Promise.all(layout.background?.map(b => this._expandTerminalInstance(args.workspaceId, b, doneSet)) ?? [])).filter(b => b.terminal !== null).map(b => b.terminal);
 			performance.mark('code/didGetTerminalLayoutInfo');
-			return { tabs };
+			return { tabs, background: expandedBackground };
 		}
 		performance.mark('code/didGetTerminalLayoutInfo');
 		return undefined;
@@ -567,22 +573,24 @@ export class PtyService extends Disposable implements IPtyService {
 		};
 	}
 
-	private async _expandTerminalInstance(workspaceId: string, t: ITerminalInstanceLayoutInfoById, doneSet: Set<number>): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
+	private async _expandTerminalInstance(workspaceId: string, t: ITerminalInstanceLayoutInfoById | number, doneSet: Set<number>): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
+		const hasLayout = typeof t !== 'number';
+		const ptyId = hasLayout ? t.terminal : t;
 		try {
-			const oldId = this._getRevivingProcessId(workspaceId, t.terminal);
+			const oldId = this._getRevivingProcessId(workspaceId, ptyId);
 			const revivedPtyId = this._revivedPtyIdMap.get(oldId)?.newId;
 			this._logService.info(`Expanding terminal instance, old id ${oldId} -> new id ${revivedPtyId}`);
 			this._revivedPtyIdMap.delete(oldId);
-			const persistentProcessId = revivedPtyId ?? t.terminal;
+			const persistentProcessId = revivedPtyId ?? ptyId;
 			if (doneSet.has(persistentProcessId)) {
 				throw new Error(`Terminal ${persistentProcessId} has already been expanded`);
 			}
 			doneSet.add(persistentProcessId);
 			const persistentProcess = this._throwIfNoPty(persistentProcessId);
-			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess, revivedPtyId !== undefined);
+			const processDetails = persistentProcess && await this._buildProcessDetails(ptyId, persistentProcess, revivedPtyId !== undefined);
 			return {
 				terminal: { ...processDetails, id: persistentProcessId },
-				relativeSize: t.relativeSize
+				relativeSize: hasLayout ? t.relativeSize : 0
 			};
 		} catch (e) {
 			this._logService.warn(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
@@ -592,7 +600,7 @@ export class PtyService extends Disposable implements IPtyService {
 			// this will be filtered out and not reconnected
 			return {
 				terminal: null,
-				relativeSize: t.relativeSize
+				relativeSize: hasLayout ? t.relativeSize : 0
 			};
 		}
 	}
@@ -889,6 +897,11 @@ class PersistentTerminalProcess extends Disposable {
 		this._serializer.setUnicodeVersion?.(version);
 		// TODO: Pass in unicode version in ctor
 	}
+
+	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
+		this._serializer.setNextCommandId?.(commandLine, commandId);
+	}
+
 	acknowledgeDataEvent(charCount: number): void {
 		if (this._inReplay) {
 			return;
@@ -1036,6 +1049,10 @@ class XtermSerializer implements ITerminalSerializer {
 		this._xterm.clear();
 	}
 
+	setNextCommandId(commandLine: string, commandId: string): void {
+		this._shellIntegrationAddon.setNextCommandId(commandLine, commandId);
+	}
+
 	async generateReplayEvent(normalBufferOnly?: boolean, restoreToLastReviveBuffer?: boolean): Promise<IPtyHostProcessReplayEvent> {
 		const serialize = new (await this._getSerializeConstructor());
 		this._xterm.loadAddon(serialize);
@@ -1123,4 +1140,5 @@ interface ITerminalSerializer {
 	clearBuffer(): void;
 	generateReplayEvent(normalBufferOnly?: boolean, restoreToLastReviveBuffer?: boolean): Promise<IPtyHostProcessReplayEvent>;
 	setUnicodeVersion?(version: '6' | '11'): void;
+	setNextCommandId?(commandLine: string, commandId: string): void;
 }

@@ -177,6 +177,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 					// scrolling horizontally in a pager
 					this._xterm.raw.onCursorMove,
 				)(() => this._refresh()),
+				// eslint-disable-next-line no-restricted-syntax
 				addStandardDisposableListener(this._xterm.raw.element!.querySelector('.xterm-viewport')!, 'scroll', () => this._refresh()),
 			);
 		}
@@ -227,8 +228,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// scroll.
 		this._currentStickyCommand = undefined;
 
-		// No command
-		if (!command) {
+		// No command or clear command
+		if (!command || this._isClearCommand(command)) {
 			this._setVisible(false);
 			return;
 		}
@@ -406,7 +407,10 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 		hoverOverlay.title = hoverTitle;
 
-		const scrollBarWidth = (this._xterm.raw as any as { _core: IXtermCore })._core.viewport?.scrollBarWidth;
+		interface XtermWithCore extends XTermTerminal {
+			_core: IXtermCore;
+		}
+		const scrollBarWidth = (this._xterm.raw as XtermWithCore)._core.viewport?.scrollBarWidth;
 		if (scrollBarWidth !== undefined) {
 			this._element.style.right = `${scrollBarWidth}px`;
 		}
@@ -520,6 +524,20 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			selectionBackground: undefined,
 			selectionInactiveBackground: undefined
 		};
+	}
+
+	private _isClearCommand(command: ITerminalCommand | ICurrentPartialCommand): boolean {
+		if (!command.command) {
+			return false;
+		}
+		const trimmedCommand = command.command.trim().toLowerCase();
+		const clearCommands = [
+			'clear',
+			'cls',
+			'clear-host',
+		];
+
+		return clearCommands.includes(trimmedCommand);
 	}
 }
 

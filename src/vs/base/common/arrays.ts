@@ -393,7 +393,7 @@ export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => unknow
 	const seen = new Set<any>();
 
 	return array.filter(element => {
-		const key = keyFn!(element);
+		const key = keyFn(element);
 		if (seen.has(key)) {
 			return false;
 		}
@@ -561,6 +561,22 @@ export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
 	return Array.isArray(items) ?
 		items.map(fn) :
 		fn(items);
+}
+
+export function mapFilter<T, U>(array: ReadonlyArray<T>, fn: (t: T) => U | undefined): U[] {
+	const result: U[] = [];
+	for (const item of array) {
+		const mapped = fn(item);
+		if (mapped !== undefined) {
+			result.push(mapped);
+		}
+	}
+	return result;
+}
+
+export function withoutDuplicates<T>(array: ReadonlyArray<T>): T[] {
+	const s = new Set(array);
+	return Array.from(s);
 }
 
 export function asArray<T>(x: T | T[]): T[];

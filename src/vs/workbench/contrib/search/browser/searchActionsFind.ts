@@ -329,7 +329,7 @@ registerAction2(class FindInWorkspaceAction extends Action2 {
 			searchView?.searchInFolders();
 		}
 		else {
-			return accessor.get(ICommandService).executeCommand(SearchEditorConstants.OpenEditorCommandId, {
+			await accessor.get(ICommandService).executeCommand(SearchEditorConstants.OpenEditorCommandId, {
 				location: mode === 'newEditor' ? 'new' : 'reuse',
 				filesToInclude: '',
 			});
@@ -457,6 +457,7 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 			const name = entry[0];
 			const value = entry[1];
 			if (value !== undefined) {
+				// eslint-disable-next-line local/code-no-any-casts
 				(args as any)[name as any] = (typeof value === 'string') ? await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, value) : value;
 			}
 		}

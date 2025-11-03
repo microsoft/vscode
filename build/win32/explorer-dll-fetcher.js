@@ -13,6 +13,7 @@ const debug_1 = __importDefault(require("debug"));
 const path_1 = __importDefault(require("path"));
 const get_1 = require("@electron/get");
 const product_json_1 = __importDefault(require("../../product.json"));
+const product = product_json_1.default;
 const d = (0, debug_1.default)('explorer-dll-fetcher');
 async function downloadExplorerDll(outDir, quality = 'stable', targetArch = 'x64') {
     const fileNamePrefix = quality === 'insider' ? 'code_insider' : 'code';
@@ -53,7 +54,7 @@ async function main(outputDir) {
     if (!outputDir) {
         throw new Error('Required build env not set');
     }
-    await downloadExplorerDll(outputDir, product_json_1.default.quality, arch);
+    await downloadExplorerDll(outputDir, product.quality, arch);
 }
 if (require.main === module) {
     main(process.argv[2]).catch(err => {

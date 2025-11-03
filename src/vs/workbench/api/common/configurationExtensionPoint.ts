@@ -8,7 +8,7 @@ import * as objects from '../../../base/common/objects.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import { ExtensionsRegistry, IExtensionPointUser } from '../../services/extensions/common/extensionsRegistry.js';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue, getAllConfigurationProperties, parseScope } from '../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue, getAllConfigurationProperties, parseScope, CODE_UNIFICATION_DUPLICATE_SETTINGS } from '../../../platform/configuration/common/configurationRegistry.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId, mcpSchemaId } from '../../services/configuration/common/configuration.js';
 import { isObject, isUndefined } from '../../../base/common/types.js';
@@ -119,9 +119,25 @@ const configurationEntrySchema: IJSONSchema = {
 							tags: {
 								type: 'array',
 								items: {
-									type: 'string'
+									type: 'string',
+									enum: [
+										'accessibility',
+										'advanced',
+										'experimental',
+										'telemetry',
+										'usesOnlineServices',
+									],
+									enumDescriptions: [
+										nls.localize('accessibility', 'Accessibility settings'),
+										nls.localize('advanced', 'Advanced settings are hidden by default in the Settings editor unless the user chooses to show advanced settings.'),
+										nls.localize('experimental', 'Experimental settings are subject to change and may be removed in future releases.'),
+										nls.localize('preview', 'Preview settings can be used to try out new features before they are finalized.'),
+										nls.localize('telemetry', 'Telemetry settings'),
+										nls.localize('usesOnlineServices', 'Settings that use online services')
+									],
 								},
-								markdownDescription: nls.localize('scope.tags', 'A list of categories under which to place the setting. The category can then be searched up in the Settings editor. For example, specifying the `experimental` tag allows one to find the setting by searching `@tag:experimental`.'),
+								additionalItems: true,
+								markdownDescription: nls.localize('scope.tags', 'A list of tags under which to place the setting. The tag can then be searched up in the Settings editor. For example, specifying the `experimental` tag allows one to find the setting by searching `@tag:experimental`.'),
 							}
 						}
 					}
@@ -258,7 +274,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 					extension.collector.warn(message);
 					continue;
 				}
-				if (seenProperties.has(key)) {
+				if (seenProperties.has(key) && !CODE_UNIFICATION_DUPLICATE_SETTINGS.has(key)) {
 					delete properties[key];
 					extension.collector.warn(nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", key));
 					continue;

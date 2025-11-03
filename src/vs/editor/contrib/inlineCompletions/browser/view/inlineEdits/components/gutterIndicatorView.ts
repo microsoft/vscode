@@ -18,8 +18,8 @@ import { IEditorMouseEvent } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../../common/core/2d/point.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
-import { HoverService } from '../../../../../../browser/services/hoverService/hoverService.js';
-import { HoverWidget } from '../../../../../../browser/services/hoverService/hoverWidget.js';
+import { HoverService } from '../../../../../../../platform/hover/browser/hoverService.js';
+import { HoverWidget } from '../../../../../../../platform/hover/browser/hoverWidget.js';
 import { EditorOption, RenderLineNumbersType } from '../../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
@@ -96,7 +96,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			if (!range) { return undefined; }
 			return {
 				range,
-				lineOffsetRange: this._editorObs.observeLineOffsetRange(range, this._store),
+				lineOffsetRange: this._editorObs.observeLineOffsetRange(range, reader.store),
 			};
 		});
 		this._stickyScrollController = StickyScrollController.get(this._editorObs.editor);
@@ -343,6 +343,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 					zIndex: '20',
 					position: 'absolute',
 					backgroundColor: this._gutterIndicatorStyles.map(v => v.background),
+					// eslint-disable-next-line local/code-no-any-casts
 					['--vscodeIconForeground' as any]: this._gutterIndicatorStyles.map(v => v.foreground),
 					border: this._gutterIndicatorStyles.map(v => `1px solid ${v.border}`),
 					boxSizing: 'border-box',

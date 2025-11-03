@@ -53,6 +53,7 @@ type ContentRefData =
 	};
 
 export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore) {
+	// eslint-disable-next-line no-restricted-syntax
 	const links = element.querySelectorAll('a');
 	links.forEach(a => {
 		// Empty link text -> render file widget
@@ -75,8 +76,6 @@ export class InlineAnchorWidget extends Disposable {
 	private readonly _chatResourceContext: IContextKey<string>;
 
 	readonly data: ContentRefData;
-
-	private _isDisposed = false;
 
 	constructor(
 		private readonly element: HTMLAnchorElement | HTMLElement,
@@ -170,7 +169,7 @@ export class InlineAnchorWidget extends Disposable {
 					console.error(e);
 				}
 
-				if (this._isDisposed) {
+				if (this._store.isDisposed) {
 					return;
 				}
 
@@ -214,11 +213,6 @@ export class InlineAnchorWidget extends Disposable {
 				e.dataTransfer?.setDragImage(element, 0, 0);
 			}));
 		}
-	}
-
-	override dispose(): void {
-		this._isDisposed = true;
-		super.dispose();
 	}
 
 	getHTMLElement(): HTMLElement {
@@ -386,7 +380,7 @@ registerAction2(class GoToDefinitionAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
+	override async run(accessor: ServicesAccessor, location: Location): Promise<unknown> {
 		const editorService = accessor.get(ICodeEditorService);
 		const instantiationService = accessor.get(IInstantiationService);
 
@@ -438,7 +432,7 @@ registerAction2(class GoToTypeDefinitionsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToTypeDefinition', location);
+		await runGoToCommand(accessor, 'editor.action.goToTypeDefinition', location);
 	}
 });
 
@@ -463,7 +457,7 @@ registerAction2(class GoToImplementations extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToImplementation', location);
+		await runGoToCommand(accessor, 'editor.action.goToImplementation', location);
 	}
 });
 
@@ -488,7 +482,7 @@ registerAction2(class GoToReferencesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToReferences', location);
+		await runGoToCommand(accessor, 'editor.action.goToReferences', location);
 	}
 });
 

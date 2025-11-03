@@ -10,7 +10,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as languages from '../../../../editor/common/languages.js';
-import { IMarkdownRendererOptions } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererExtraOptions } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CommentMenus } from './commentMenus.js';
@@ -22,7 +22,7 @@ import { CommentThreadAdditionalActions } from './commentThreadAdditionalActions
 import { CommentContextKeys } from '../common/commentContextKeys.js';
 import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
 import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
-import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textLinkActiveForeground, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { PANEL_BORDER } from '../../../common/theme.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from './commentColors.js';
@@ -69,7 +69,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		private _commentThread: languages.CommentThread<T>,
 		private _pendingComment: languages.PendingComment | undefined,
 		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
-		private _markdownOptions: IMarkdownRendererOptions,
+		private _markdownOptions: IMarkdownRendererExtraOptions,
 		private _commentOptions: languages.CommentOptions | undefined,
 		private _containerDelegate: {
 			actionRunner: (() => void) | null;
@@ -99,7 +99,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		this._header.updateCommentThread(this._commentThread);
 
-		const bodyElement = <HTMLDivElement>dom.$('.body');
+		const bodyElement = dom.$('.body');
 		container.appendChild(bodyElement);
 		this._register(toDisposable(() => bodyElement.remove()));
 
@@ -186,13 +186,13 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		let hasMouse = false;
 		let hasFocus = false;
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_ENTER, (e) => {
-			if ((<any>e).toElement === this.container) {
+			if (e.relatedTarget === this.container) {
 				hasMouse = true;
 				this.updateCurrentThread(hasMouse, hasFocus);
 			}
 		}, true));
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_LEAVE, (e) => {
-			if ((<any>e).fromElement === this.container) {
+			if (e.relatedTarget === this.container) {
 				hasMouse = false;
 				this.updateCurrentThread(hasMouse, hasFocus);
 			}
@@ -407,11 +407,6 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		const blockQuoteBackground = theme.getColor(textBlockQuoteBackground);
 		if (blockQuoteBackground) {
 			content.push(`.review-widget .body .review-comment blockquote { background: ${blockQuoteBackground}; }`);
-		}
-
-		const blockQuoteBOrder = theme.getColor(textBlockQuoteBorder);
-		if (blockQuoteBOrder) {
-			content.push(`.review-widget .body .review-comment blockquote { border-color: ${blockQuoteBOrder}; }`);
 		}
 
 		const border = theme.getColor(PANEL_BORDER);

@@ -8,15 +8,17 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IOverlayWebview } from '../../webview/browser/webview.js';
-import { WebviewIconManager, WebviewIcons } from './webviewIconManager.js';
 
 export interface WebviewInputInitInfo {
 	readonly viewType: string;
 	readonly providedId: string | undefined;
 	readonly name: string;
+	readonly iconPath: WebviewIcons | undefined;
 }
 
 export class WebviewInput extends EditorInput {
@@ -37,7 +39,7 @@ export class WebviewInput extends EditorInput {
 
 	private readonly _resourceId = generateUuid();
 
-	private _name: string;
+	private _webviewTitle: string;
 	private _iconPath?: WebviewIcons;
 	private _group?: GroupIdentifier;
 
@@ -48,25 +50,31 @@ export class WebviewInput extends EditorInput {
 	get resource() {
 		return URI.from({
 			scheme: Schemas.webviewPanel,
-			path: `webview-panel/webview-${this._resourceId}`
+			path: `webview-panel/webview-${this.providerId}-${this._resourceId}`
 		});
 	}
 
 	public readonly viewType: string;
-	public readonly providedId: string | undefined;
+	public readonly providerId: string | undefined;
 
 	constructor(
 		init: WebviewInputInitInfo,
 		webview: IOverlayWebview,
-		private readonly _iconManager: WebviewIconManager,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 
 		this.viewType = init.viewType;
-		this.providedId = init.providedId;
+		this.providerId = init.providedId;
 
-		this._name = init.name;
+		this._webviewTitle = init.name;
+		this._iconPath = init.iconPath;
 		this._webview = webview;
+
+		this._register(_themeService.onDidColorThemeChange(() => {
+			// Potentially update icon
+			this._onDidChangeLabel.fire();
+		}));
 	}
 
 	override dispose() {
@@ -79,7 +87,7 @@ export class WebviewInput extends EditorInput {
 	}
 
 	public override getName(): string {
-		return this._name;
+		return this._webviewTitle;
 	}
 
 	public override getTitle(_verbosity?: Verbosity): string {
@@ -90,10 +98,14 @@ export class WebviewInput extends EditorInput {
 		return undefined;
 	}
 
-	public setName(value: string): void {
-		this._name = value;
+	public setWebviewTitle(value: string): void {
+		this._webviewTitle = value;
 		this.webview.setTitle(value);
 		this._onDidChangeLabel.fire();
+	}
+
+	public getWebviewTitle(): string | undefined {
+		return this._webviewTitle;
 	}
 
 	public get webview(): IOverlayWebview {
@@ -104,13 +116,23 @@ export class WebviewInput extends EditorInput {
 		return this.webview.extension;
 	}
 
+	override getIcon(): URI | undefined {
+		if (!this._iconPath) {
+			return;
+		}
+
+		return isDark(this._themeService.getColorTheme().type)
+			? this._iconPath.dark
+			: (this._iconPath.light ?? this._iconPath.dark);
+	}
+
 	public get iconPath() {
 		return this._iconPath;
 	}
 
 	public set iconPath(value: WebviewIcons | undefined) {
 		this._iconPath = value;
-		this._iconManager.setIcons(this._resourceId, value);
+		this._onDidChangeLabel.fire();
 	}
 
 	public override matches(other: EditorInput | IUntypedEditorInput): boolean {
@@ -138,3 +160,8 @@ export class WebviewInput extends EditorInput {
 		return this._webview.claim(claimant, targetWindow, scopedContextKeyService);
 	}
 }
+export interface WebviewIcons {
+	readonly light: URI;
+	readonly dark: URI;
+}
+

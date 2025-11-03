@@ -57,7 +57,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection;
 	getTerminalById(id: number): ExtHostTerminal | null;
 	getTerminalIdByApiObject(apiTerminal: vscode.Terminal): number | null;
-	registerTerminalCompletionProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalCompletionProvider<vscode.TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable;
+	registerTerminalCompletionProvider(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<vscode.TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable;
 }
 
 interface IEnvironmentVariableCollection extends vscode.EnvironmentVariableCollection {
@@ -346,7 +346,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 		this._pty.setDimensions?.({ columns: cols, rows });
 	}
 
-	clearBuffer(): void | Promise<void> {
+	clearBuffer(): void {
 		// no-op
 	}
 
@@ -361,6 +361,10 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
 		// No-op, xterm-headless isn't used for extension owned terminals.
+	}
+
+	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
+		// No-op, command IDs are only tracked on the renderer for extension terminals.
 	}
 
 	getInitialCwd(): Promise<string> {
@@ -757,15 +761,15 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public registerTerminalCompletionProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalCompletionProvider<TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable {
-		if (this._completionProviders.has(id)) {
-			throw new Error(`Terminal completion provider "${id}" already registered`);
+	public registerTerminalCompletionProvider(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable {
+		if (this._completionProviders.has(extension.identifier.value)) {
+			throw new Error(`Terminal completion provider "${extension.identifier.value}" already registered`);
 		}
-		this._completionProviders.set(id, provider);
-		this._proxy.$registerCompletionProvider(id, extension.identifier.value, ...triggerCharacters);
+		this._completionProviders.set(extension.identifier.value, provider);
+		this._proxy.$registerCompletionProvider(extension.identifier.value, extension.identifier.value, ...triggerCharacters);
 		return new VSCodeDisposable(() => {
-			this._completionProviders.delete(id);
-			this._proxy.$unregisterCompletionProvider(id);
+			this._completionProviders.delete(extension.identifier.value);
+			this._proxy.$unregisterCompletionProvider(extension.identifier.value);
 		});
 	}
 
@@ -1284,6 +1288,7 @@ function convertMutator(mutator: IEnvironmentVariableMutator): vscode.Environmen
 	const newMutator = { ...mutator };
 	delete newMutator.scope;
 	newMutator.options = newMutator.options ?? undefined;
+	// eslint-disable-next-line local/code-no-any-casts
 	delete (newMutator as any).variable;
 	return newMutator as vscode.EnvironmentVariableMutator;
 }

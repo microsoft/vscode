@@ -1,0 +1,211 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.models-widget {
+	padding-right: 24px;
+}
+
+/** Search and button container styling **/
+
+.models-widget .models-search-and-button-container {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.models-widget .models-search-container {
+	flex: 1;
+	position: relative;
+}
+
+.models-widget .models-search-container .models-search-actions {
+	position: absolute;
+	top: 0;
+	right: 0;
+	height: 100%;
+	margin-right: 1px;
+	display: flex;
+	align-items: center;
+}
+
+.models-widget .models-search-container .models-search-actions .monaco-toolbar {
+	height: 100%;
+}
+
+.models-widget .models-search-container .models-search-actions .action-label {
+	padding: 3px;
+	margin-left: 0;
+	box-sizing: content-box;
+}
+
+.models-widget .models-search-and-button-container .section-title-actions .models-add-model-button {
+	white-space: nowrap;
+}
+
+/** Table styling **/
+
+.models-widget .models-table-container {
+	width: 100%;
+	border-spacing: 0;
+	border-collapse: separate;
+}
+
+.models-widget .models-table-container .monaco-table-tr {
+	cursor: default;
+}
+
+.models-widget .models-table-container .monaco-table-td {
+	align-items: center;
+	display: flex;
+	overflow: hidden;
+	padding-left: 10px;
+}
+
+.models-widget .models-table-container .monaco-table-td[data-col-index="1"] {
+	padding-left: 8px;
+}
+
+.models-widget .models-table-container .monaco-table-th {
+	padding-left: 10px;
+	background-color: var(--vscode-keybindingTable-headerBackground);
+}
+
+.models-widget .models-table-container .monaco-table-th[data-col-index="1"] {
+	padding-left: 8px;
+}
+
+
+/** Gutter column styling **/
+
+.models-widget .models-table-container .monaco-table-tr.models-model-row.model-hidden .models-table-column.models-gutter-column {
+	opacity: 1;
+}
+
+.models-widget .models-table-container .monaco-table-td .models-gutter-column .models-twistie {
+	align-self: stretch;
+}
+
+.models-widget .models-table-container .monaco-list-row .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar {
+	display: none;
+}
+
+.models-widget .models-table-container .monaco-list-row.focused .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar,
+.models-widget .models-table-container .monaco-list-row.selected .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar,
+.models-widget .models-table-container .monaco-list-row:hover .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar {
+	display: inherit;
+}
+
+/** Model Name column styling **/
+
+.models-widget .models-table-container .monaco-table-td .model-name-container {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	width: 100%;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-name-container .model-status-icon {
+	flex-shrink: 0;
+	margin-left: auto;
+	margin-right: 4px;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-name-container .model-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 0 1 auto;
+}
+
+/** Actions column styling **/
+
+.models-widget .models-table-container .monaco-table-td .actions-column {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+}
+
+.models-widget .models-table-container .monaco-table-td .actions-column .monaco-action-bar {
+	margin-right: 9px;
+}
+
+/** Cost column styling **/
+
+.models-widget .models-table-container .monaco-table-td .model-multiplier {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/** Token Limits column styling **/
+
+.models-widget .models-table-container .monaco-table-td .model-token-limits {
+	display: flex;
+	gap: 12px;
+	white-space: nowrap;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-token-limits .token-limit-item {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-token-limits .codicon {
+	font-size: 12px;
+}
+
+/** Capabilities column styling **/
+
+.models-widget .models-table-container .monaco-table-td .model-metadata {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-capability {
+	width: fit-content;
+	padding: 0 6px;
+	border-radius: 3px;
+	font-size: 11px;
+	color: var(--vscode-radio-inactiveForeground);
+	background-color: var(--vscode-radio-inactiveBackground);
+	border-color: var(--vscode-radio-inactiveBorder, transparent);
+}
+
+.models-widget .models-table-container .monaco-table-td .model-capability.active {
+	border-color: var(--vscode-radio-activeBorder, transparent);
+}
+
+/** Vendor row styling **/
+
+.models-widget .models-table-container .models-vendor-row {
+	background-color: var(--vscode-keybindingTable-headerBackground);
+	cursor: pointer;
+}
+
+.models-widget .models-table-container .monaco-table-tr:hover .models-vendor-row {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.models-widget .models-table-container .models-vendor-row .model-name {
+	font-weight: bold;
+}
+
+/** Model row styling **/
+
+.models-widget .models-table-container .monaco-table-tr.models-model-row.model-hidden .models-table-column {
+	opacity: 0.6;
+}
+
+/** Row alternating colors **/
+.models-widget .models-table-container .monaco-table .monaco-list-row[data-parity=odd]:not(.focused):not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row),
+.models-widget .models-table-container .monaco-table .monaco-list:not(:focus) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row),
+.models-widget .models-table-container .monaco-table .monaco-list:not(.focused) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row) {
+	background-color: var(--vscode-editor-background);
+}

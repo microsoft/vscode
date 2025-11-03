@@ -432,7 +432,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		}, undefined));
 
 		// listen on selection and focus
-		const onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
+		const onEvent = (element: TreeElement | undefined, kind: 'show' | 'goto' | 'side') => {
 			if (element instanceof OneReference) {
 				if (kind === 'show') {
 					this._revealReference(element, false);
@@ -467,7 +467,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		this._splitView.resizeView(0, widthInPixel * this.layoutData.ratio);
 	}
 
-	setSelection(selection: OneReference): Promise<any> {
+	setSelection(selection: OneReference): Promise<unknown> {
 		return this._revealReference(selection, true).then(() => {
 			if (!this._model) {
 				// disposed
@@ -479,7 +479,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		});
 	}
 
-	setModel(newModel: ReferencesModel | undefined): Promise<any> {
+	setModel(newModel: ReferencesModel | undefined): Promise<unknown> {
 		// clean up
 		this._disposeOnNewModel.clear();
 		this._model = newModel;
@@ -489,7 +489,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		return Promise.resolve();
 	}
 
-	private _onNewModel(): Promise<any> {
+	private _onNewModel(): Promise<unknown> {
 		if (!this._model) {
 			return Promise.resolve(undefined);
 		}

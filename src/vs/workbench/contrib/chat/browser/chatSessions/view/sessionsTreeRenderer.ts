@@ -7,19 +7,24 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { $, append } from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { InputBox, MessageType } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from '../../../../../../base/browser/ui/tree/tree.js';
 import { timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore, createMatches } from '../../../../../../base/common/filters.js';
 import { createSingleCallFunction } from '../../../../../../base/common/functional.js';
 import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import * as nls from '../../../../../../nls.js';
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
@@ -27,25 +32,24 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IResourceLabel, ResourceLabels } from '../../../../../browser/labels.js';
-import { IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { IEditableData } from '../../../../../common/views.js';
+import { IEditableData, ViewContainerLocation } from '../../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IWorkbenchLayoutService, Position } from '../../../../../services/layout/browser/layoutService.js';
+import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
 import { IChatService } from '../../../common/chatService.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { chatSessionResourceToId } from '../../../common/chatUri.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatWidgetService } from '../../chat.js';
-import { allowedChatMarkdownHtmlTags } from '../../chatMarkdownRenderer.js';
-import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, isLocalChatSessionItem, processSessionsWithTimeGrouping } from '../common.js';
+import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.js';
 import '../../media/chatSessions.css';
-import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
+import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, isLocalChatSessionItem, processSessionsWithTimeGrouping } from '../common.js';
+import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -109,27 +113,38 @@ export class GettingStartedRenderer implements IListRenderer<IGettingStartedItem
 
 export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionItem, FuzzyScore, ISessionTemplateData> {
 	static readonly TEMPLATE_ID = 'session';
-	private markdownRenderer: MarkdownRenderer;
 
 	constructor(
+		private readonly viewLocation: ViewContainerLocation | null,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
-
-		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
 	get templateId(): string {
 		return SessionsRenderer.TEMPLATE_ID;
+	}
+
+	private getHoverPosition(): HoverPosition {
+		const sideBarPosition = this.layoutService.getSideBarPosition();
+		switch (this.viewLocation) {
+			case ViewContainerLocation.Sidebar:
+				return sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
+			case ViewContainerLocation.AuxiliaryBar:
+				return sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
+			default:
+				return HoverPosition.RIGHT;
+		}
 	}
 
 	renderTemplate(container: HTMLElement): ISessionTemplateData {
@@ -186,7 +201,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		let editableData: IEditableData | undefined;
 		if (isLocalChatSessionItem(session)) {
 			templateData.container.classList.add('local-session');
-			editableData = this.chatSessionsService.getEditableData(session.id);
+			editableData = this.chatSessionsService.getEditableData(session.resource);
 		} else {
 			templateData.container.classList.remove('local-session');
 		}
@@ -211,7 +226,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			iconTheme = session.iconPath;
 		}
 
-		const renderDescriptionOnSecondRow = this.configurationService.getValue<boolean>(ChatConfiguration.ShowAgentSessionsViewDescription) && session.provider.chatSessionType !== 'local';
+		const renderDescriptionOnSecondRow = this.configurationService.getValue<boolean>(ChatConfiguration.ShowAgentSessionsViewDescription) && session.provider.chatSessionType !== localChatSessionType;
 
 		if (renderDescriptionOnSecondRow && session.description) {
 			templateData.container.classList.toggle('multiline', true);
@@ -219,7 +234,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			if (typeof session.description === 'string') {
 				templateData.descriptionLabel.textContent = session.description;
 			} else {
-				templateData.elementDisposable.add(this.markdownRenderer.render(session.description, {
+				templateData.elementDisposable.add(this.markdownRendererService.render(session.description, {
 					sanitizerConfig: {
 						replaceWithPlaintext: true,
 						allowedTags: {
@@ -267,11 +282,19 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		if (renderDescriptionOnSecondRow && session.description && tooltipContent) {
 			if (typeof tooltipContent === 'string') {
 				templateData.elementDisposable.add(
-					this.hoverService.setupDelayedHover(templateData.container, { content: tooltipContent })
+					this.hoverService.setupDelayedHover(templateData.container, () => ({
+						content: tooltipContent,
+						style: HoverStyle.Pointer,
+						position: { hoverPosition: this.getHoverPosition() }
+					}), { groupId: 'chat.sessions' })
 				);
 			} else if (tooltipContent && typeof tooltipContent === 'object' && 'markdown' in tooltipContent) {
 				templateData.elementDisposable.add(
-					this.hoverService.setupDelayedHover(templateData.container, { content: tooltipContent.markdown })
+					this.hoverService.setupDelayedHover(templateData.container, () => ({
+						content: tooltipContent.markdown,
+						style: HoverStyle.Pointer,
+						position: { hoverPosition: this.getHoverPosition() }
+					}), { groupId: 'chat.sessions' })
 				);
 			}
 		}
@@ -288,9 +311,11 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			if (session.timing?.startTime) {
 				const fullDateTime = getLocalHistoryDateFormatter().format(session.timing.startTime);
 				templateData.elementDisposable.add(
-					this.hoverService.setupDelayedHover(templateData.timestamp, {
-						content: nls.localize('chat.sessions.lastActivity', 'Last Activity: {0}', fullDateTime)
-					})
+					this.hoverService.setupDelayedHover(templateData.timestamp, () => ({
+						content: nls.localize('chat.sessions.lastActivity', 'Last Activity: {0}', fullDateTime),
+						style: HoverStyle.Pointer,
+						position: { hoverPosition: this.getHoverPosition() }
+					}), { groupId: 'chat.sessions' })
 				);
 			}
 		} else {
@@ -349,12 +374,14 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 	private renderInputBox(container: HTMLElement, session: IChatSessionItem, editableData: IEditableData): DisposableStore {
 		// Hide the existing resource label element and session content
+		// eslint-disable-next-line no-restricted-syntax
 		const existingResourceLabelElement = container.querySelector('.monaco-icon-label') as HTMLElement;
 		if (existingResourceLabelElement) {
 			existingResourceLabelElement.style.display = 'none';
 		}
 
 		// Hide the session content container to avoid layout conflicts
+		// eslint-disable-next-line no-restricted-syntax
 		const sessionContentElement = container.querySelector('.session-content') as HTMLElement;
 		if (sessionContentElement) {
 			sessionContentElement.style.display = 'none';
@@ -407,6 +434,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			}
 
 			// Restore the session content container
+			// eslint-disable-next-line no-restricted-syntax
 			const sessionContentElement = container.querySelector('.session-content') as HTMLElement;
 			if (sessionContentElement) {
 				sessionContentElement.style.display = '';
@@ -520,13 +548,15 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 				});
 
 				// Add hybrid local editor sessions for this provider using the centralized service
-				if (this.provider.chatSessionType !== 'local') {
+				if (this.provider.chatSessionType !== localChatSessionType) {
 					const hybridSessions = await this.sessionTracker.getHybridSessionsForProvider(this.provider);
-					const existingIds = new Set(itemsWithProvider.map(s => s.id));
+					const existingSessions = new ResourceSet();
+					itemsWithProvider.forEach(s => existingSessions.add(s.resource));
+
 					hybridSessions.forEach(session => {
-						if (!existingIds.has(session.id)) {
+						if (!existingSessions.has(session.resource)) {
 							itemsWithProvider.push(session as ChatSessionItemWithProvider);
-							existingIds.add(session.id);
+							existingSessions.add(session.resource);
 						}
 					});
 					processSessionsWithTimeGrouping(itemsWithProvider);
@@ -550,11 +580,12 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
 		try {
 			// Get all chat history
-			const allHistory = await this.chatService.getHistory();
+			const allHistory = await this.chatService.getLocalSessionHistory();
 
 			// Create history items with provider reference and timestamps
-			const historyItems = allHistory.map((historyDetail: any): ChatSessionItemWithProvider => ({
-				id: historyDetail.sessionId,
+			const historyItems = allHistory.map((historyDetail): ChatSessionItemWithProvider => ({
+				id: chatSessionResourceToId(historyDetail.sessionResource),
+				resource: historyDetail.sessionResource,
 				label: historyDetail.title,
 				iconPath: Codicon.chatSparkle,
 				provider: this.provider,
@@ -584,7 +615,7 @@ export class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWit
 
 	getHeight(element: ChatSessionItemWithProvider): number {
 		// Return consistent height for all items (single-line layout)
-		if (element.description && this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && element.provider.chatSessionType !== 'local') {
+		if (element.description && this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && element.provider.chatSessionType !== localChatSessionType) {
 			return SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION;
 		} else {
 			return SessionsDelegate.ITEM_HEIGHT;

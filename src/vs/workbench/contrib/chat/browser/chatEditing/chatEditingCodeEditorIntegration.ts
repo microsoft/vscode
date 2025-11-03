@@ -36,10 +36,12 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../../scm/common/quickDiff.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
 import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { ChatAgentLocation } from '../../common/constants.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
+import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { AcceptHunkAction, RejectHunkAction } from './chatEditingEditorActions.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ctxCursorInChangeRange } from './chatEditingEditorContextKeys.js';
 
 export interface IDocumentDiff2 extends IDocumentDiff {
 
@@ -71,9 +73,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		private readonly _editor: ICodeEditor,
 		documentDiffInfo: IObservable<IDocumentDiff2>,
 		renderDiffImmediately: boolean,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		this._diffLineDecorations = _editor.createDecorationsCollection();
@@ -160,22 +162,32 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			}
 		}));
 
+		const _ctxCursorInChangeRange = ctxCursorInChangeRange.bindTo(contextKeyService);
 
 		// accessibility: signals while cursor changes
+		// ctx: cursor in change range
 		this._store.add(autorun(r => {
 			const position = codeEditorObs.positions.read(r)?.at(0);
 			if (!position || !enabledObs.read(r)) {
+				_ctxCursorInChangeRange.reset();
 				return;
 			}
 
 			const diff = documentDiffInfo.read(r);
-			const mapping = diff.changes.find(m => m.modified.contains(position.lineNumber) || m.modified.isEmpty && m.modified.startLineNumber === position.lineNumber);
-			if (mapping?.modified.isEmpty) {
-				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'chatEditingEditor.cursorPositionChanged' });
-			} else if (mapping?.original.isEmpty) {
-				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'chatEditingEditor.cursorPositionChanged' });
-			} else if (mapping) {
-				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineModified, { source: 'chatEditingEditor.cursorPositionChanged' });
+			const changeAtCursor = diff.changes.find(m => m.modified.contains(position.lineNumber) || m.modified.isEmpty && m.modified.startLineNumber === position.lineNumber);
+
+			_ctxCursorInChangeRange.set(!!changeAtCursor);
+
+			if (changeAtCursor) {
+				let signal: AccessibilitySignal;
+				if (changeAtCursor.modified.isEmpty) {
+					signal = AccessibilitySignal.diffLineDeleted;
+				} else if (changeAtCursor.original.isEmpty) {
+					signal = AccessibilitySignal.diffLineInserted;
+				} else {
+					signal = AccessibilitySignal.diffLineModified;
+				}
+				this._accessibilitySignalsService.playSignal(signal, { source: 'chatEditingEditor.cursorPositionChanged' });
 			}
 		}));
 
@@ -443,6 +455,18 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		}));
 
 
+		this._diffHunksRenderStore.add(this._editor.onMouseUp(e => {
+			// set approximate position when clicking on view zone
+			if (e.target.type === MouseTargetType.CONTENT_VIEW_ZONE) {
+				const zone = e.target.detail;
+				const idx = this._viewZones.findIndex(id => id === zone.viewZoneId);
+				if (idx >= 0) {
+					this._editor.setPosition(e.target.position);
+					this._editor.focus();
+				}
+			}
+		}));
+
 		this._diffHunksRenderStore.add(this._editor.onMouseMove(e => {
 
 			// reveal when hovering over
@@ -617,14 +641,11 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		// Use the 'show' argument to control the diff state if provided
 		if (show !== undefined ? show : !isDiffEditor) {
 			// Open DIFF editor
-			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)?.fullName;
 			const diffEditor = await this._editorService.openEditor({
 				original: { resource: this._entry.originalURI },
 				modified: { resource: this._entry.modifiedURI },
 				options: { selection },
-				label: defaultAgentName
-					? localize('diff.agent', '{0} (changes from {1})', basename(this._entry.modifiedURI), defaultAgentName)
-					: localize('diff.generic', '{0} (changes from chat)', basename(this._entry.modifiedURI))
+				label: localize('diff.generic', '{0} (changes from chat)', basename(this._entry.modifiedURI))
 			});
 
 			if (diffEditor && diffEditor.input) {
@@ -690,6 +711,16 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 				renderShortTitle: true,
 				arg: this,
 			},
+			actionViewItemProvider: (action, options) => {
+				if (action.id === AcceptHunkAction.ID || action.id === RejectHunkAction.ID) {
+					return new class extends ActionViewItem {
+						constructor() {
+							super(undefined, action, { ...options, keybindingNotRenderedWithLabel: true, icon: false, label: true });
+						}
+					};
+				}
+				return undefined;
+			}
 		});
 
 		this._store.add(toolbar);

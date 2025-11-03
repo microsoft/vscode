@@ -6,6 +6,7 @@
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { asyncTransaction, transaction } from '../../../../../base/common/observable.js';
 import { splitLines } from '../../../../../base/common/strings.js';
+import { vBoolean, vObj, vOptionalProp, vString, vUndefined, vUnion, vWithJsonSchemaRef } from '../../../../../base/common/validation.js';
 import * as nls from '../../../../../nls.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -15,8 +16,10 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
-import { EditorAction, EditorCommand, ServicesAccessor } from '../../../../browser/editorExtensions.js';
+import { EditorAction, ServicesAccessor } from '../../../../browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
+import { InlineCompletionsProvider } from '../../../../common/languages.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
 import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId, toggleShowCollapsedId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
@@ -62,59 +65,71 @@ export class ShowPreviousInlineSuggestionAction extends EditorAction {
 	}
 }
 
+export const providerIdSchemaUri = 'vscode://schemas/inlineCompletionProviderIdArgs';
+
+export function inlineCompletionProviderGetMatcher(provider: InlineCompletionsProvider): string[] {
+	const result: string[] = [];
+	if (provider.providerId) {
+		result.push(provider.providerId.toStringWithoutVersion());
+		result.push(provider.providerId.extensionId + ':*');
+	}
+	return result;
+}
+
+const argsValidator = vUnion(vObj({
+	showNoResultNotification: vOptionalProp(vBoolean()),
+	providerId: vOptionalProp(vWithJsonSchemaRef(providerIdSchemaUri, vString())),
+	explicit: vOptionalProp(vBoolean()),
+}), vUndefined());
+
 export class TriggerInlineSuggestionAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inlineSuggest.trigger',
 			label: nls.localize2('action.inlineSuggest.trigger', "Trigger Inline Suggestion"),
-			precondition: EditorContextKeys.writable
+			precondition: EditorContextKeys.writable,
+			metadata: {
+				description: nls.localize('inlineSuggest.trigger.description', "Triggers an inline suggestion in the editor."),
+				args: [{
+					name: 'args',
+					description: nls.localize('inlineSuggest.trigger.args', "Options for triggering inline suggestions."),
+					isOptional: true,
+					schema: argsValidator.getJSONSchema(),
+				}]
+			}
 		});
 	}
 
-	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	public override async run(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): Promise<void> {
+		const notificationService = accessor.get(INotificationService);
+		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+
 		const controller = InlineCompletionsController.get(editor);
+
+		const validatedArgs = argsValidator.validateOrThrow(args);
+
+		const provider = validatedArgs?.providerId ?
+			languageFeaturesService.inlineCompletionsProvider.all(editor.getModel()!)
+				.find(p => inlineCompletionProviderGetMatcher(p).some(m => m === validatedArgs.providerId))
+			: undefined;
+
 		await asyncTransaction(async tx => {
 			/** @description triggerExplicitly from command */
-			await controller?.model.get()?.triggerExplicitly(tx);
+			await controller?.model.get()?.trigger(tx, {
+				provider: provider,
+				explicit: validatedArgs?.explicit ?? true,
+			});
 			controller?.playAccessibilitySignal(tx);
 		});
-	}
-}
 
-export class ExplicitTriggerInlineEditAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.inlineSuggest.triggerInlineEditExplicit',
-			label: nls.localize2('action.inlineSuggest.trigger.explicitInlineEdit', "Trigger Next Edit Suggestion"),
-			precondition: EditorContextKeys.writable,
-		});
-	}
-
-	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const notificationService = accessor.get(INotificationService);
-		const controller = InlineCompletionsController.get(editor);
-
-		await controller?.model.get()?.triggerExplicitly(undefined, true);
-		if (!controller?.model.get()?.inlineEditAvailable.get()) {
-			notificationService.notify({
-				severity: Severity.Info,
-				message: nls.localize('noInlineEditAvailable', "No inline edit is available.")
-			});
+		if (validatedArgs?.showNoResultNotification) {
+			if (!controller?.model.get()?.state.get()) {
+				notificationService.notify({
+					severity: Severity.Info,
+					message: nls.localize('noInlineSuggestionAvailable', "No inline suggestion is available.")
+				});
+			}
 		}
-	}
-}
-
-export class TriggerInlineEditAction extends EditorCommand {
-	constructor() {
-		super({
-			id: 'editor.action.inlineSuggest.triggerInlineEdit',
-			precondition: EditorContextKeys.writable,
-		});
-	}
-
-	public override async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: { triggerKind?: 'automatic' | 'explicit' }): Promise<void> {
-		const controller = InlineCompletionsController.get(editor);
-		await controller?.model.get()?.trigger(undefined, { onlyFetchInlineEdits: true });
 	}
 }
 

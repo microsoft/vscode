@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 10
+// version: 11
 
 declare module 'vscode' {
 
@@ -87,6 +87,8 @@ declare module 'vscode' {
 		 * Events for edited files in this session collected since the last request.
 		 */
 		readonly editedFileEvents?: ChatRequestEditedFileEvent[];
+
+		readonly isSubagent?: boolean;
 	}
 
 	export enum ChatRequestEditedFileEventKind {
@@ -239,7 +241,7 @@ declare module 'vscode' {
 
 	export interface PreparedToolInvocation {
 		pastTenseMessage?: string | MarkdownString;
-		presentation?: 'hidden' | undefined;
+		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 	}
 
 	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
@@ -282,6 +284,26 @@ declare module 'vscode' {
 	export interface ChatErrorDetailsConfirmationButton {
 		data: any;
 		label: string;
+	}
+
+	// #endregion
+
+	// #region LanguageModelProxyProvider
+
+	/**
+	 * Duplicated so that this proposal and languageModelProxy can be independent.
+	 */
+	export interface LanguageModelProxy extends Disposable {
+		readonly uri: Uri;
+		readonly key: string;
+	}
+
+	export interface LanguageModelProxyProvider {
+		provideModelProxy(forExtensionId: string, token: CancellationToken): ProviderResult<LanguageModelProxy>;
+	}
+
+	export namespace lm {
+		export function registerLanguageModelProxyProvider(provider: LanguageModelProxyProvider): Disposable;
 	}
 
 	// #endregion

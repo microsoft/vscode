@@ -128,7 +128,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		this._onResize.fire({ cols, rows });
 	}
 
-	clearBuffer(): void | Promise<void> {
+	clearBuffer(): void {
 		// no-op
 	}
 
@@ -137,6 +137,10 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	}
 
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
+		// No-op
+	}
+
+	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
 		// No-op
 	}
 

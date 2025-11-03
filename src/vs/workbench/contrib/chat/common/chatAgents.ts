@@ -38,6 +38,19 @@ export interface IChatAgentHistoryEntry {
 	result: IChatAgentResult;
 }
 
+export interface IChatAgentAttachmentCapabilities {
+	supportsFileAttachments?: boolean;
+	supportsToolAttachments?: boolean;
+	supportsMCPAttachments?: boolean;
+	supportsImageAttachments?: boolean;
+	supportsSearchResultAttachments?: boolean;
+	supportsInstructionAttachments?: boolean;
+	supportsSourceControlAttachments?: boolean;
+	supportsProblemAttachments?: boolean;
+	supportsSymbolAttachments?: boolean;
+	supportsTerminalAttachments?: boolean;
+}
+
 export interface IChatAgentData {
 	id: string;
 	name: string;
@@ -63,10 +76,7 @@ export interface IChatAgentData {
 	/** This is only relevant for isDefault agents. Others should have all modes available. */
 	modes: ChatModeKind[];
 	disambiguation: { category: string; description: string; examples: string[] }[];
-	capabilities?: {
-		supportsToolAttachments?: boolean;
-		supportsFileAttachments?: boolean;
-	};
+	capabilities?: IChatAgentAttachmentCapabilities;
 }
 
 export interface IChatWelcomeMessageContent {
@@ -148,6 +158,15 @@ export interface IChatAgentRequest {
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+	isSubagent?: boolean;
+
+	/**
+	 * Summary data for chat sessions context
+	 */
+	chatSummary?: {
+		prompt?: string;
+		history?: string;
+	};
 }
 
 export interface IChatQuestion {
@@ -731,26 +750,35 @@ export function getFullyQualifiedId(chatAgentData: IChatAgentData): string {
 	return `${chatAgentData.extensionId.value}.${chatAgentData.id}`;
 }
 
-export function reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAgentData {
-	const agent = 'name' in raw ?
+/**
+ * There was a period where serialized chat agent data used 'id' instead of 'name'.
+ * Don't copy this pattern, serialized data going forward should be versioned with strict interfaces.
+ */
+interface IOldSerializedChatAgentData extends Omit<ISerializableChatAgentData, 'name'> {
+	id: string;
+	extensionPublisher?: string;
+}
+
+export function reviveSerializedAgent(raw: ISerializableChatAgentData | IOldSerializedChatAgentData): IChatAgentData {
+	const normalized: ISerializableChatAgentData = 'name' in raw ?
 		raw :
 		{
-			...(raw as any),
-			name: (raw as any).id,
+			...raw,
+			name: raw.id,
 		};
 
 	// Fill in required fields that may be missing from old data
-	if (!('extensionPublisherId' in agent)) {
-		agent.extensionPublisherId = agent.extensionPublisher ?? '';
+	if (!normalized.extensionPublisherId) {
+		normalized.extensionPublisherId = (raw as IOldSerializedChatAgentData).extensionPublisher ?? '';
 	}
 
-	if (!('extensionDisplayName' in agent)) {
-		agent.extensionDisplayName = '';
+	if (!normalized.extensionDisplayName) {
+		normalized.extensionDisplayName = '';
 	}
 
-	if (!('extensionId' in agent)) {
-		agent.extensionId = new ExtensionIdentifier('');
+	if (!normalized.extensionId) {
+		normalized.extensionId = new ExtensionIdentifier('');
 	}
 
-	return revive(agent);
+	return revive(normalized);
 }

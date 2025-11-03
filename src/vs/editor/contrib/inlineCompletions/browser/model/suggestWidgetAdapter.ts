@@ -82,9 +82,9 @@ export class SuggestWidgetAdaptor extends Disposable {
 
 					const result = findFirstMax(
 						candidates,
-						compareBy(s => s!.prefixLength, numberComparator)
+						compareBy(s => s.prefixLength, numberComparator)
 					);
-					return result ? result.index : - 1;
+					return result ? result.index : -1;
 				}
 			}));
 

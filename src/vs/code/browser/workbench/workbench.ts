@@ -131,7 +131,7 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
 		const keyData = new Uint8Array(AESConstants.KEY_LENGTH / 8);
 
 		for (let i = 0; i < keyData.byteLength; i++) {
-			keyData[i] = clientKey[i]! ^ serverKey[i]!;
+			keyData[i] = clientKey[i] ^ serverKey[i];
 		}
 
 		return mainWindow.crypto.subtle.importKey(
@@ -223,6 +223,7 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 
 	private loadAuthSessionFromElement(): Record<string, string> {
 		let authSessionInfo: (AuthenticationSessionInfo & { scopes: string[][] }) | undefined;
+		// eslint-disable-next-line no-restricted-syntax
 		const authSessionElement = mainWindow.document.getElementById('vscode-workbench-auth-session');
 		const authSessionElementAttribute = authSessionElement ? authSessionElement.getAttribute('data-settings') : undefined;
 		if (authSessionElementAttribute) {
@@ -597,6 +598,7 @@ function readCookie(name: string): string | undefined {
 (function () {
 
 	// Find config by checking for DOM
+	// eslint-disable-next-line no-restricted-syntax
 	const configElement = mainWindow.document.getElementById('vscode-workbench-web-configuration');
 	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
 	if (!configElement || !configElementAttribute) {

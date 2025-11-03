@@ -21,6 +21,7 @@ export class GitProtocolHandler implements UriHandler {
 		this.disposables.push(window.registerUriHandler(this));
 	}
 
+	// example code-oss://vscode.git/clone?url=https://github.com/microsoft/vscode
 	handleUri(uri: Uri): void {
 		this.logger.info(`[GitProtocolHandler][handleUri] URI:(${uri.toString()})`);
 

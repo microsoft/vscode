@@ -31,10 +31,10 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IResourceLabel, IResourceLabelProps, ResourceLabels } from '../../../../browser/labels.js';
-import { ColorScheme } from '../../../../browser/web.api.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
@@ -336,7 +336,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		if (ThemeIcon.isThemeIcon(data.iconPath)) {
 			return data.iconPath;
 		} else {
-			return this.themeService.getColorTheme().type === ColorScheme.DARK && data.iconPath?.dark
+			return isDark(this.themeService.getColorTheme().type) && data.iconPath?.dark
 				? data.iconPath?.dark
 				: data.iconPath?.light;
 		}
@@ -401,6 +401,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		}
 
 		for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
+			// eslint-disable-next-line no-restricted-syntax
 			const element = templateData.label.element.querySelector(selector);
 			if (element) {
 				if (data.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted || data.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial) {
@@ -423,9 +424,11 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 						templateData.removedSpan.textContent = `-${diffMeta.removed}`;
 						templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', diffMeta.added, diffMeta.removed));
 					}
+					// eslint-disable-next-line no-restricted-syntax
 					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
 				} else if (data.state !== ModifiedFileEntryState.Modified) {
 					templateData.actionBarContainer.classList.remove('modified');
+					// eslint-disable-next-line no-restricted-syntax
 					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.remove('modified');
 				}
 			}
