@@ -234,6 +234,24 @@ const COPY_BUTTON: IQuickInputButton = {
 	iconClass: ThemeIcon.asClassName(Codicon.copy),
 };
 
+/**
+ * Button that set a prompt file to be visible .
+ */
+const MAKE_VISIBLE_BUTTON: IQuickInputButton = {
+	tooltip: localize('makeVisible', "Make Visible"),
+	iconClass: ThemeIcon.asClassName(Codicon.eye),
+};
+
+/**
+ * Button that set a prompt file to be visible .
+ */
+const MAKE_INVISIBLE_BUTTON: IQuickInputButton = {
+	tooltip: localize('makeInvisible', "Make Invisible"),
+	iconClass: ThemeIcon.asClassName(Codicon.eyeClosed),
+};
+
+
+
 export class PromptFilePickers {
 	constructor(
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
@@ -360,14 +378,20 @@ export class PromptFilePickers {
 		if (options.optionNew !== false) {
 			result.push(...this._getNewItems(options.type));
 		}
-		if (options.optionVisibility === true) {
-			result.push(CONFIGURE_VISIBILITY_OPTION);
+		// if (options.optionVisibility === true) {
+		// 	result.push(CONFIGURE_VISIBILITY_OPTION);
+		// }
+
+		let getVisbility: (p: IPromptPath) => boolean | undefined = () => undefined;
+		if (options.optionVisibility) {
+			const disabled = this._promptsService.getDisabledPromptFiles(options.type);
+			getVisbility = p => !disabled.has(p.uri);
 		}
 
 		const locals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.local, token);
 		if (locals.length) {
 			result.push({ type: 'separator', label: localize('separator.workspace', "Workspace") });
-			result.push(...await Promise.all(locals.map(l => this._createPromptPickItem(l, buttons, token))));
+			result.push(...await Promise.all(locals.map(l => this._createPromptPickItem(l, buttons, getVisbility(l), token))));
 		}
 
 		// Agent instruction files (copilot-instructions.md and AGENTS.md) are added here and not included in the output of
@@ -394,7 +418,7 @@ export class PromptFilePickers {
 		if (agentInstructionFiles.length) {
 			const agentButtons = buttons.filter(b => b !== RENAME_BUTTON);
 			result.push({ type: 'separator', label: localize('separator.workspace-agent-instructions', "Agent Instructions") });
-			result.push(...await Promise.all(agentInstructionFiles.map(l => this._createPromptPickItem(l, agentButtons, token))));
+			result.push(...await Promise.all(agentInstructionFiles.map(l => this._createPromptPickItem(l, agentButtons, getVisbility(l), token))));
 		}
 
 		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, token);
@@ -407,12 +431,12 @@ export class PromptFilePickers {
 			if (options.optionCopy !== false) {
 				extButtons.push(COPY_BUTTON);
 			}
-			result.push(...await Promise.all(exts.map(e => this._createPromptPickItem(e, extButtons, token))));
+			result.push(...await Promise.all(exts.map(e => this._createPromptPickItem(e, extButtons, getVisbility(e), token))));
 		}
 		const users = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.user, token);
 		if (users.length) {
 			result.push({ type: 'separator', label: localize('separator.user', "User Data") });
-			result.push(...await Promise.all(users.map(u => this._createPromptPickItem(u, buttons, token))));
+			result.push(...await Promise.all(users.map(u => this._createPromptPickItem(u, buttons, getVisbility(u), token))));
 		}
 		return result;
 	}
@@ -430,7 +454,7 @@ export class PromptFilePickers {
 		}
 	}
 
-	private async _createPromptPickItem(promptFile: IPromptPath, buttons: IQuickInputButton[] | undefined, token: CancellationToken): Promise<IPromptPickerQuickPickItem> {
+	private async _createPromptPickItem(promptFile: IPromptPath, buttons: IQuickInputButton[] | undefined, visibility: boolean | undefined, token: CancellationToken): Promise<IPromptPickerQuickPickItem> {
 		const parsedPromptFile = await this._promptsService.parseNew(promptFile.uri, token).catch(() => undefined);
 		const promptName = parsedPromptFile?.header?.name ?? promptFile.name ?? getCleanPromptName(promptFile.uri);
 		const promptDescription = parsedPromptFile?.header?.description ?? promptFile.description;
@@ -448,15 +472,19 @@ export class PromptFilePickers {
 				tooltip = undefined;
 				break;
 		}
+		if (visibility !== undefined) {
+			buttons = [visibility ? MAKE_INVISIBLE_BUTTON : MAKE_VISIBLE_BUTTON, ...buttons ?? []];
+		}
 		return {
 			id: promptFile.uri.toString(),
 			type: 'item',
 			label: promptName,
+			strikethrough: visibility === false,
 			description: promptDescription,
 			tooltip,
 			promptFileUri: promptFile.uri,
-			buttons: buttons
-		};
+			buttons: buttons,
+		} satisfies IPromptPickerQuickPickItem;
 	}
 
 
@@ -545,6 +573,17 @@ export class PromptFilePickers {
 				return true;
 			});
 
+		}
+
+		if (button === MAKE_VISIBLE_BUTTON || button === MAKE_INVISIBLE_BUTTON) {
+			const disabled = this._promptsService.getDisabledPromptFiles(options.type);
+			if (button === MAKE_VISIBLE_BUTTON) {
+				disabled.delete(value);
+			} else {
+				disabled.add(value);
+			}
+			this._promptsService.setDisabledPromptFiles(options.type, disabled);
+			return true;
 		}
 
 		throw new Error(`Unknown button '${JSON.stringify(button)}'.`);
