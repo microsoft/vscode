@@ -107,7 +107,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			throw new Error('Chat model not found for session');
 		}
 
-		const request = model?.getRequests().at(-1)!;
+		const request = model.getRequests().at(-1)!;
 
 		try {
 			// Get the default agent
