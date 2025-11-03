@@ -32,11 +32,19 @@ export namespace MarkedKatexExtension {
 		return (token: marked.Tokens.Generic) => {
 			let out: string;
 			try {
-				out = katex.renderToString(token.text, {
+				const html = katex.renderToString(token.text, {
 					...options,
 					throwOnError: true,
 					displayMode: token.displayMode,
 				});
+
+				// Wrap in a container with data-latex attribute as a fallback for extracting the original LaTeX source
+				// This ensures we can always retrieve the source even if the annotation element is not present
+				const container = document.createElement('span');
+				container.className = 'vscode-katex-container';
+				container.setAttribute('data-latex', token.text);
+				container.innerHTML = html;
+				out = container.outerHTML;
 			} catch {
 				// On failure, just use the original text including the wrapping $ or $$
 				out = token.raw;
