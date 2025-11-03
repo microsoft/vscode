@@ -46,8 +46,8 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	}
 }
 
-// TODO: The powershell grammar can cause an OOM crash on arm https://github.com/microsoft/vscode/issues/273177
-(arch === 'arm' || arch === 'arm64' ? suite.skip : suite)('RunInTerminalTool', () => {
+// TODO: The powershell grammar can cause an OOM crash on Windows/arm https://github.com/microsoft/vscode/issues/273177
+(isWindows && (arch === 'arm' || arch === 'arm64') ? suite.skip : suite)('RunInTerminalTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
