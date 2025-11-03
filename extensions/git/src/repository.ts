@@ -1625,8 +1625,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.CherryPick, () => this.repository.cherryPickAbort());
 	}
 
-	async revertCommit(commitHash: string, noEdit: boolean = false): Promise<void> {
-		await this.run(Operation.Revert, () => this.repository.revertCommit(commitHash, noEdit));
+	async revertCommit(commitHash: string): Promise<void> {
+		await this.run(Operation.Revert, () => this.repository.revertCommit(commitHash));
 	}
 
 	async move(from: string, to: string): Promise<void> {

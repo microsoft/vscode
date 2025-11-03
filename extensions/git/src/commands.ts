@@ -4284,7 +4284,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.revertCommit(historyItem.id, true);
+		await repository.revertCommit(historyItem.id);
 	}
 
 	@command('git.graph.resetCommit', { repository: true })

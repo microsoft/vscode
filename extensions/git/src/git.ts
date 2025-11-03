@@ -2141,11 +2141,8 @@ export class Repository {
 		}
 	}
 
-	async revertCommit(commitHash: string, noEdit: boolean = false): Promise<void> {
-		const args = ['revert', commitHash];
-		if (noEdit) {
-			args.push('--no-edit');
-		}
+	async revertCommit(commitHash: string): Promise<void> {
+		const args = ['revert', '--no-edit', commitHash];
 		await this.exec(args);
 	}
 
