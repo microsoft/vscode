@@ -96,8 +96,8 @@
 
 .chat-terminal-output div,
 .chat-terminal-output span {
-	height: auto !important;
-	line-height: normal !important;
+	height: auto;
+	line-height: normal;
 }
 
 .chat-terminal-output pre {
