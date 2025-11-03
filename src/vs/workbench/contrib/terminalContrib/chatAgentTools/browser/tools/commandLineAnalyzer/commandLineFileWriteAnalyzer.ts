@@ -26,7 +26,17 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 	}
 
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
-		return this._getResult(options, await this._getFileWrites(options));
+		let fileWrites: URI[] | string[];
+		try {
+			fileWrites = await this._getFileWrites(options);
+		} catch (e) {
+			console.error(e);
+			this._log(`Failed to get file writes via ${options.treeSitterLanguage} grammar`);
+			return {
+				isAutoApproveAllowed: false
+			};
+		}
+		return this._getResult(options, fileWrites);
 	}
 
 	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<URI[] | string[]> {
