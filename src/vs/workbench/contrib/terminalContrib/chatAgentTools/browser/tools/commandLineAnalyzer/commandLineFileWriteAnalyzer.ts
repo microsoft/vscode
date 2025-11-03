@@ -5,12 +5,15 @@
 
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { win32, posix } from '../../../../../../../base/common/path.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
-import type { TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
+import { type TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
 import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
+import { OperatingSystem } from '../../../../../../../base/common/platform.js';
+import { isString } from '../../../../../../../base/common/types.js';
 
 export class CommandLineFileWriteAnalyzer extends Disposable implements ICommandLineAnalyzer {
 	constructor(
@@ -23,18 +26,23 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 	}
 
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
-		return this._getResult(await this._getFileWrites(options));
+		return this._getResult(options, await this._getFileWrites(options));
 	}
 
 	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<URI[] | string[]> {
 		let fileWrites: URI[] | string[] = [];
 		const capturedFileWrites = await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine);
-		// TODO: Handle environment variables https://github.com/microsoft/vscode/issues/274166
-		// TODO: Handle command substitions/complex destinations https://github.com/microsoft/vscode/issues/274167
 		if (capturedFileWrites.length) {
 			const cwd = options.cwd;
 			if (cwd) {
-				fileWrites = capturedFileWrites.map(e => URI.joinPath(cwd, e));
+				fileWrites = capturedFileWrites.map(e => {
+					const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(e) : posix.isAbsolute(e);
+					if (isAbsolute) {
+						return URI.file(e);
+					} else {
+						return URI.joinPath(cwd, e);
+					}
+				});
 			} else {
 				this._log('Cwd could not be detected');
 				fileWrites = capturedFileWrites;
@@ -44,7 +52,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		return fileWrites;
 	}
 
-	private _getResult(fileWrites: URI[] | string[]): ICommandLineAnalyzerResult {
+	private _getResult(options: ICommandLineAnalyzerOptions, fileWrites: URI[] | string[]): ICommandLineAnalyzerResult {
 		let isAutoApproveAllowed = true;
 		if (fileWrites.length > 0) {
 			const blockDetectedFileWrites = this._configurationService.getValue<string>(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites);
@@ -58,7 +66,22 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 					const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
 					if (workspaceFolders.length > 0) {
 						for (const fileWrite of fileWrites) {
+							if (isString(fileWrite)) {
+								const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(fileWrite) : posix.isAbsolute(fileWrite);
+								if (!isAbsolute) {
+									isAutoApproveAllowed = false;
+									this._log(`File write blocked due to unknown terminal cwd: ${fileWrite}`);
+									break;
+								}
+							}
 							const fileUri = URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite);
+							// TODO: Handle command substitutions/complex destinations properly https://github.com/microsoft/vscode/issues/274167
+							// TODO: Handle environment variables properly https://github.com/microsoft/vscode/issues/274166
+							if (fileUri.fsPath.match(/[$\(\){}]/)) {
+								isAutoApproveAllowed = false;
+								this._log(`File write blocked due to likely containing a variable: ${fileUri.toString()}`);
+								break;
+							}
 							const isInsideWorkspace = workspaceFolders.some(folder =>
 								folder.uri.scheme === fileUri.scheme &&
 								(fileUri.path.startsWith(folder.uri.path + '/') || fileUri.path === folder.uri.path)
