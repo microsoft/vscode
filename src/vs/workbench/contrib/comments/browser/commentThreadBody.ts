@@ -123,11 +123,13 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		});
 	}
 
+	private _containerClientArea: dom.Dimension | null = null;
 	private _refresh() {
 		const dimensions = dom.getClientArea(this.container);
-		if (dimensions.height === 0 && dimensions.width === 0) {
+		if ((dimensions.height === 0 && dimensions.width === 0) || (this._containerClientArea && this._containerClientArea.height === dimensions.height && this._containerClientArea.width === dimensions.width)) {
 			return;
 		}
+		this._containerClientArea = dimensions;
 		this._onDidResize.fire(dimensions);
 	}
 
