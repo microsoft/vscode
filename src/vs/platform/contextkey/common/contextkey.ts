@@ -872,9 +872,29 @@ export class ContextKeyEqualsExpr implements IContextKeyExpression {
 	}
 
 	public evaluate(context: IContext): boolean {
+		const contextValue = context.getValue(this.key);
+		// Special case: check if object is empty with '{}' or array is empty with '[]'
+		if (this.value === '{}') {
+			if (contextValue === null || contextValue === undefined) {
+				return true;
+			}
+			if (typeof contextValue === 'object' && !Array.isArray(contextValue)) {
+				return Object.keys(contextValue).length === 0;
+			}
+			return false;
+		}
+		if (this.value === '[]') {
+			if (contextValue === null || contextValue === undefined) {
+				return true;
+			}
+			if (Array.isArray(contextValue)) {
+				return contextValue.length === 0;
+			}
+			return false;
+		}
 		// Intentional ==
 		// eslint-disable-next-line eqeqeq
-		return (context.getValue(this.key) == this.value);
+		return (contextValue == this.value);
 	}
 
 	public serialize(): string {
@@ -1072,9 +1092,29 @@ export class ContextKeyNotEqualsExpr implements IContextKeyExpression {
 	}
 
 	public evaluate(context: IContext): boolean {
+		const contextValue = context.getValue(this.key);
+		// Special case: check if object is not empty with '{}' or array is not empty with '[]'
+		if (this.value === '{}') {
+			if (contextValue === null || contextValue === undefined) {
+				return false;
+			}
+			if (typeof contextValue === 'object' && !Array.isArray(contextValue)) {
+				return Object.keys(contextValue).length !== 0;
+			}
+			return false;
+		}
+		if (this.value === '[]') {
+			if (contextValue === null || contextValue === undefined) {
+				return false;
+			}
+			if (Array.isArray(contextValue)) {
+				return contextValue.length !== 0;
+			}
+			return false;
+		}
 		// Intentional !=
 		// eslint-disable-next-line eqeqeq
-		return (context.getValue(this.key) != this.value);
+		return (contextValue != this.value);
 	}
 
 	public serialize(): string {
