@@ -54,11 +54,11 @@ export interface ISubmenuItem {
 	};
 }
 
-export function isIMenuItem(item: any): item is IMenuItem {
+export function isIMenuItem(item: unknown): item is IMenuItem {
 	return (item as IMenuItem).command !== undefined;
 }
 
-export function isISubmenuItem(item: any): item is ISubmenuItem {
+export function isISubmenuItem(item: unknown): item is ISubmenuItem {
 	return (item as ISubmenuItem).submenu !== undefined;
 }
 
@@ -309,7 +309,7 @@ export class MenuId {
 }
 
 export interface IMenuActionOptions {
-	arg?: any;
+	arg?: unknown;
 	shouldForwardArgs?: boolean;
 	renderShortTitle?: boolean;
 }
@@ -597,7 +597,7 @@ export class MenuItemAction implements IAction {
 	}
 
 	run(...args: unknown[]): Promise<void> {
-		let runArgs: any[] = [];
+		let runArgs: unknown[] = [];
 
 		if (this._options?.arg) {
 			runArgs = [...runArgs, this._options.arg];
