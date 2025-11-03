@@ -70,7 +70,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 								const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(fileWrite) : posix.isAbsolute(fileWrite);
 								if (!isAbsolute) {
 									isAutoApproveAllowed = false;
-									this._log(`File write blocked due to unknown terminal cwd: ${fileWrite.toString()}`);
+									this._log(`File write blocked due to unknown terminal cwd: ${fileWrite}`);
 									break;
 								}
 							}
