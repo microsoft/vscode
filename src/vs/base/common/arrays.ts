@@ -53,7 +53,6 @@ export function equals<T>(one: ReadonlyArray<T> | undefined, other: ReadonlyArra
  *
  * @param array The array.
  * @param index The index of the element to remove.
- * @returns void
  */
 export function removeFastWithoutKeepingOrder<T>(array: T[], index: number) {
 	if (index < 0 || index >= array.length) {
