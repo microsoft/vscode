@@ -134,6 +134,28 @@ export interface ITerminalChatService {
 	 */
 	getToolSessionTerminalInstances(): readonly ITerminalInstance[];
 
+	/**
+	 * Returns the tool session ID for a given terminal instance, if it has been registered.
+	 * @param instance The terminal instance to look up
+	 * @returns The tool session ID if found, undefined otherwise
+	 */
+	getToolSessionIdForInstance(instance: ITerminalInstance): string | undefined;
+
+	/**
+	 * Associate a chat session ID with a terminal instance. This is used to retrieve the chat
+	 * session title for display purposes.
+	 * @param chatSessionId The chat session ID
+	 * @param instance The terminal instance
+	 */
+	registerTerminalInstanceWithChatSession(chatSessionId: string, instance: ITerminalInstance): void;
+
+	/**
+	 * Returns the chat session ID for a given terminal instance, if it has been registered.
+	 * @param instance The terminal instance to look up
+	 * @returns The chat session ID if found, undefined otherwise
+	 */
+	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined;
+
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
 }
 
