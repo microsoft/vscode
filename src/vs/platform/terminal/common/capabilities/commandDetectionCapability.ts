@@ -13,6 +13,7 @@ import { ITerminalOutputMatcher } from '../terminal.js';
 import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from './commandDetection/terminalCommand.js';
 import { PromptInputModel, type IPromptInputModel } from './commandDetection/promptInputModel.js';
 import type { IBuffer, IDisposable, IMarker, Terminal } from '@xterm/headless';
+import { isString } from '../../../../base/common/types.js';
 
 interface ITerminalDimensions {
 	cols: number;
@@ -371,8 +372,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._nextCommandId = undefined; // Clear the pending ID
 		} else if (
 			this._nextCommandId &&
-			typeof this.currentCommand.command === 'string' &&
-			typeof this._nextCommandId.command === 'string' &&
+			isString(this.currentCommand.command) &&
+			isString(this._nextCommandId.command) &&
 			this.currentCommand.command.trim() === this._nextCommandId.command.trim()
 		) {
 			this._currentCommand.id = this._nextCommandId.commandId;
