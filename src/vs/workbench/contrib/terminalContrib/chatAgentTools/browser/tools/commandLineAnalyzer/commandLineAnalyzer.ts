@@ -6,8 +6,8 @@
 import type { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import type { IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import type { OperatingSystem } from '../../../../../../../base/common/platform.js';
+import type { URI } from '../../../../../../../base/common/uri.js';
 import type { ToolConfirmationAction } from '../../../../../chat/common/languageModelToolsService.js';
-import type { ITerminalInstance } from '../../../../../terminal/browser/terminal.js';
 import type { TreeSitterCommandParserLanguage } from '../../treeSitterCommandParser.js';
 
 export interface ICommandLineAnalyzer extends IDisposable {
@@ -16,7 +16,7 @@ export interface ICommandLineAnalyzer extends IDisposable {
 
 export interface ICommandLineAnalyzerOptions {
 	commandLine: string;
-	instance: ITerminalInstance | undefined;
+	cwd: URI | undefined;
 	shell: string;
 	os: OperatingSystem;
 	treeSitterLanguage: TreeSitterCommandParserLanguage;

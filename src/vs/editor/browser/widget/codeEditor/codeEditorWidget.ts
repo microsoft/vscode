@@ -784,7 +784,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		if (isSelection) {
-			this._setSelectionImpl(<ISelection>something, source);
+			this._setSelectionImpl(something, source);
 		} else if (isRange) {
 			// act as if it was an IRange
 			const selection: ISelection = {

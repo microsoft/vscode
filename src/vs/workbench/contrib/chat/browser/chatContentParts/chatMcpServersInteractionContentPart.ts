@@ -191,6 +191,7 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 			}
 		});
 
+		// eslint-disable-next-line no-restricted-syntax
 		const startLink = [...messageMd.element.querySelectorAll('a')].find(a => !a.getAttribute('data-href')?.startsWith('command:'));
 		if (!startLink) {
 			// Should not happen

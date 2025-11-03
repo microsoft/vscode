@@ -155,7 +155,7 @@ export function getSessionItemContextOverlay(
 		isActiveSession = true;
 	} else if (session.isHistory && chatWidgetService && chatService && editorGroupsService) {
 		// Check if session is open in a chat widget
-		const widget = chatWidgetService.getWidgetBySessionId(session.id);
+		const widget = chatWidgetService.getWidgetBySessionResource(session.resource);
 		if (widget) {
 			isActiveSession = true;
 		} else {

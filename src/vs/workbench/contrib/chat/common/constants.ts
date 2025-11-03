@@ -51,14 +51,9 @@ export function isChatMode(mode: unknown): mode is ChatModeKind {
 
 // Thinking display modes for pinned content
 export enum ThinkingDisplayMode {
-	Default = 'default',
 	Collapsed = 'collapsed',
 	CollapsedPreview = 'collapsedPreview',
-	Expanded = 'expanded',
-	None = 'none',
-	CollapsedPerItem = 'collapsedPerItem',
 	FixedScrolling = 'fixedScrolling',
-	FixedScrollingTools = 'fixedScrollingTools'
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';

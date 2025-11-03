@@ -90,8 +90,8 @@ export class ChatSessionTracker extends Disposable {
 			let status: ChatSessionStatus = ChatSessionStatus.Completed;
 			let timestamp: number | undefined;
 
-			if (editor.sessionId) {
-				const model = this.chatService.getSession(editor.sessionId);
+			if (editor.sessionResource) {
+				const model = this.chatService.getSession(editor.sessionResource);
 				const modelStatus = model ? this.modelToStatus(model) : undefined;
 				if (model && modelStatus) {
 					status = modelStatus;

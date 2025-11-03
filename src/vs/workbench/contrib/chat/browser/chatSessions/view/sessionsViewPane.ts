@@ -353,6 +353,16 @@ export class SessionsViewPane extends ViewPane {
 				},
 				accessibilityProvider,
 				identityProvider,
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: (session: ChatSessionItemWithProvider) => {
+						const parts = [
+							session.label || '',
+							session.id || '',
+							typeof session.description === 'string' ? session.description : (session.description?.value || '')
+						];
+						return parts.filter(text => text.length > 0).join(' ');
+					}
+				},
 				multipleSelectionSupport: false,
 				overrideStyles: {
 					listBackground: undefined
@@ -468,7 +478,7 @@ export class SessionsViewPane extends ViewPane {
 				await this.editorService.openEditor(existingEditor.editor, existingEditor.group);
 				return;
 			}
-			if (this.chatWidgetService.getWidgetBySessionId(session.id)) {
+			if (this.chatWidgetService.getWidgetBySessionResource(session.resource)) {
 				return;
 			}
 
@@ -506,7 +516,7 @@ export class SessionsViewPane extends ViewPane {
 		}
 
 		const session = e.element;
-		const sessionWithProvider = session as ChatSessionItemWithProvider;
+		const sessionWithProvider = session;
 
 		// Create context overlay for this specific session item
 		const contextOverlay = getSessionItemContextOverlay(

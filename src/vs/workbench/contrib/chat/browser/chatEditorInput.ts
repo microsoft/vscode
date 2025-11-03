@@ -87,22 +87,19 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				throw new Error('Invalid chat URI');
 			}
 		} else if (resource.scheme === Schemas.vscodeLocalChatSession) {
-			const parsed = LocalChatSessionUri.parse(resource);
-			if (!parsed?.sessionId) {
-				throw new Error('Invalid chat session URI');
+			const localSessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+			if (!localSessionId) {
+				throw new Error('Invalid local chat session URI');
 			}
-			if (parsed.chatSessionType !== localChatSessionType) {
-				throw new Error('Chat session URI must be of local chat session type');
-			}
-			this._sessionInfo = { resource, sessionId: parsed.sessionId };
+			this._sessionInfo = { resource, sessionId: localSessionId };
 		} else {
 			this._sessionInfo = { resource, sessionId: undefined };
 		}
 
 		// Check if we already have a custom title for this session
 		const hasExistingCustomTitle = this._sessionInfo?.sessionId && (
-			this.chatService.getSession(this._sessionInfo?.sessionId)?.title ||
-			this.chatService.getPersistedSessionTitle(this._sessionInfo?.sessionId)?.trim()
+			this.chatService.getSession(this._sessionInfo?.resource)?.title ||
+			this.chatService.getPersistedSessionTitle(this._sessionInfo?.resource)?.trim()
 		);
 
 		this.hasCustomTitle = Boolean(hasExistingCustomTitle);
@@ -178,13 +175,13 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		// If we have a sessionId but no resolved model, try to get the title from persisted sessions
 		if (this._sessionInfo?.sessionId) {
 			// First try the active session registry
-			const existingSession = this.chatService.getSession(this._sessionInfo?.sessionId);
+			const existingSession = this.chatService.getSession(this._sessionInfo?.resource);
 			if (existingSession?.title) {
 				return existingSession.title;
 			}
 
 			// If not in active registry, try persisted session data
-			const persistedTitle = this.chatService.getPersistedSessionTitle(this._sessionInfo?.sessionId);
+			const persistedTitle = this.chatService.getPersistedSessionTitle(this._sessionInfo?.resource);
 			if (persistedTitle && persistedTitle.trim()) { // Only use non-empty persisted titles
 				return persistedTitle;
 			}
@@ -262,13 +259,13 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const chatSessionType = searchParams.get('chatSessionType');
 		const inputType = chatSessionType ?? this.resource.authority;
 
-		if (this.resource.scheme !== Schemas.vscodeChatEditor && this.resource.scheme !== Schemas.vscodeLocalChatSession) {
+		if (this.resource.scheme !== Schemas.vscodeChatEditor) {
 			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Chat, CancellationToken.None);
 		} else if (this._sessionInfo?.sessionId) {
-			this.model = await this.chatService.getOrRestoreSession(this._sessionInfo.sessionId)
-				?? this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: false, inputType: inputType });
+			this.model = await this.chatService.getOrRestoreSession(this._sessionInfo.resource)
+				?? this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: false });
 		} else if (!this.options.target) {
-			this.model = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: !inputType, inputType: inputType });
+			this.model = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: !inputType });
 		} else if ('data' in this.options.target) {
 			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
@@ -319,8 +316,8 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	override dispose(): void {
 		super.dispose();
 
-		if (this._sessionInfo?.sessionId) {
-			this.chatService.clearSession(this._sessionInfo.sessionId);
+		if (this._sessionInfo) {
+			this.chatService.clearSession(this._sessionInfo.resource);
 		}
 	}
 }

@@ -16,7 +16,7 @@ import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { ISCMHistoryProvider } from './history.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IObservable } from '../../../../base/common/observable.js';
-import { ISCMArtifactProvider } from './artifact.js';
+import { ISCMArtifact, ISCMArtifactGroup, ISCMArtifactProvider } from './artifact.js';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
@@ -200,6 +200,8 @@ export interface ISCMRepositoryMenus {
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
 	getResourceMenu(resource: ISCMResource): IMenu;
 	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;
+	getArtifactGroupMenu(artifactGroup: ISCMArtifactGroup): IMenu;
+	getArtifactMenu(artifact: ISCMArtifact): IMenu;
 }
 
 export interface ISCMMenus {

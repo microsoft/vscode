@@ -8,10 +8,10 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { dirname, isEqual } from '../../../../../../base/common/resources.js';
-import { type URI } from '../../../../../../base/common/uri.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
@@ -24,6 +24,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
@@ -86,6 +87,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -306,14 +308,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]> {
-		if (!this.cachedCustomAgents) {
-			const customAgents = this.computeCustomAgents(token);
-			if (!this.onDidChangeCustomAgentsEmitter) {
-				return customAgents;
+		let customAgents = this.cachedCustomAgents;
+		if (!customAgents) {
+			customAgents = this.computeCustomAgents(token);
+			if (this.onDidChangeCustomAgentsEmitter) {
+				this.cachedCustomAgents = customAgents;
 			}
-			this.cachedCustomAgents = customAgents;
 		}
-		return this.cachedCustomAgents;
+		const disabledAgents = this.getDisabledPromptFiles(PromptsType.agent);
+		return (await customAgents).filter(agent => !disabledAgents.has(agent.uri));
 	}
 
 	private async computeCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]> {
@@ -447,6 +450,41 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	public getAgentFileURIFromModeFile(oldURI: URI): URI | undefined {
 		return this.fileLocator.getAgentFileURIFromModeFile(oldURI);
+	}
+
+	// --- Enabled Prompt Files -----------------------------------------------------------
+
+
+	private readonly disabledPromptsStorageKeyPrefix = 'chat.disabledPromptFiles.';
+
+	public getDisabledPromptFiles(type: PromptsType): ResourceSet {
+		// Migration: if disabled key absent but legacy enabled key present, convert once.
+		const disabledKey = this.disabledPromptsStorageKeyPrefix + type;
+		const value = this.storageService.get(disabledKey, StorageScope.PROFILE, '[]');
+		const result = new ResourceSet();
+		try {
+			const arr = JSON.parse(value);
+			if (Array.isArray(arr)) {
+				for (const s of arr) {
+					try {
+						result.add(URI.revive(s));
+					} catch {
+						// ignore
+					}
+				}
+			}
+		} catch {
+			// ignore invalid storage values
+		}
+		return result;
+	}
+
+	public setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void {
+		const disabled = Array.from(uris).map(uri => uri.toJSON());
+		this.storageService.store(this.disabledPromptsStorageKeyPrefix + type, JSON.stringify(disabled), StorageScope.PROFILE, StorageTarget.USER);
+		if (type === PromptsType.agent) {
+			this.onDidChangeCustomAgentsEmitter?.fire();
+		}
 	}
 
 }

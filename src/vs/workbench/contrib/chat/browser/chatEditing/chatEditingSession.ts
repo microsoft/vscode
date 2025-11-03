@@ -166,6 +166,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	constructor(
 		readonly chatSessionId: string,
+		readonly chatSessionResource: URI,
 		readonly isGlobalEditingSession: boolean,
 		private _lookupExternalEntry: (uri: URI) => AbstractChatEditingModifiedFileEntry | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -193,7 +194,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		this._register(autorun(reader => {
 			const disabled = this._timeline.requestDisablement.read(reader);
-			this._chatService.getSession(this.chatSessionId)?.setDisabledRequests(disabled);
+			this._chatService.getSession(this.chatSessionResource)?.setDisabledRequests(disabled);
 		}));
 	}
 
@@ -430,7 +431,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	override dispose() {
 		this._assertNotDisposed();
 
-		this._chatService.cancelCurrentRequestForSession(this.chatSessionId);
+		this._chatService.cancelCurrentRequestForSession(this.chatSessionResource);
 
 		dispose(this._entriesObs.get());
 		super.dispose();

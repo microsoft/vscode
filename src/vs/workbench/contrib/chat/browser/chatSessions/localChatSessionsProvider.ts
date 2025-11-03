@@ -169,7 +169,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			if (requests.length > 0) {
 				// Check if the last request was completed successfully or failed
 				const lastRequest = requests[requests.length - 1];
-				if (lastRequest && lastRequest.response) {
+				if (lastRequest?.response) {
 					if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails) {
 						return ChatSessionStatus.Failed;
 					} else if (lastRequest.response.isComplete) {
@@ -220,8 +220,8 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 				// Determine status and timestamp for editor-based session
 				let status: ChatSessionStatus | undefined;
 				let startTime: number | undefined;
-				if (editorInfo.editor instanceof ChatEditorInput && editorInfo.editor.sessionId) {
-					const model = this.chatService.getSession(editorInfo.editor.sessionId);
+				if (editorInfo.editor instanceof ChatEditorInput && editorInfo.editor.sessionResource && editorInfo.editor.sessionId) {
+					const model = this.chatService.getSession(editorInfo.editor.sessionResource);
 					if (model) {
 						status = this.modelToStatus(model);
 						// Get the last interaction timestamp from the model
