@@ -1506,10 +1506,12 @@ export class ChatModel extends Disposable implements IChatModel {
 		});
 	}
 
-	startEditingSession(isGlobalEditingSession?: boolean): void {
-		const editingSessionPromise = isGlobalEditingSession ?
-			this.chatEditingService.startOrContinueGlobalEditingSession(this) :
-			this.chatEditingService.createEditingSession(this);
+	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void {
+		const editingSessionPromise = transferFromSession
+			? this.chatEditingService.transferEditingSession(this, transferFromSession)
+			: isGlobalEditingSession ?
+				this.chatEditingService.startOrContinueGlobalEditingSession(this) :
+				this.chatEditingService.createEditingSession(this);
 		this._editingSession = new ObservablePromise(editingSessionPromise);
 		this._editingSession.promise.then(editingSession => {
 			this._store.isDisposed ? editingSession.dispose() : this._register(editingSession);

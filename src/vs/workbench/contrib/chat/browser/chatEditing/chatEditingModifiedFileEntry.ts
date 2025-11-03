@@ -359,7 +359,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	// --- snapshot
 
-	abstract createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry;
+	abstract createSnapshot(sessionId: string, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry;
 
 	abstract equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean;
 
