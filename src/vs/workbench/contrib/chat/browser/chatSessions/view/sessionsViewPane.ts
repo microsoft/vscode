@@ -8,9 +8,8 @@ import { $, append } from '../../../../../../base/browser/dom.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
-import { Action, IAction } from '../../../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../../base/common/arrays.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
@@ -75,7 +74,6 @@ export class SessionsViewPane extends ViewPane {
 	private treeContainer: HTMLElement | undefined;
 	private messageElement?: HTMLElement;
 	private _isEmpty: boolean = true;
-	private readonly _dropdownDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
@@ -139,19 +137,13 @@ export class SessionsViewPane extends ViewPane {
 	}
 
 	private getChatSessionDropdown(defaultAction: IAction, options: IBaseActionViewItemOptions) {
-		// Clear previous disposables to avoid leaks when action view items are recreated
-		this._dropdownDisposables.clear();
-
 		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
 			id: defaultAction.id,
 			title: defaultAction.label,
 			icon: Codicon.plus,
 		}, undefined, undefined, undefined, undefined);
 
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.scopedContextKeyService);
-		this._dropdownDisposables.add(menu);
-
-		const actions = menu.getActions({ shouldForwardArgs: true });
+		const actions = this.menuService.getMenuActions(MenuId.ChatSessionsMenu, this.scopedContextKeyService, { shouldForwardArgs: true });
 		const primaryActions = getActionBarActions(
 			actions,
 			'submenu',
@@ -171,13 +163,12 @@ export class SessionsViewPane extends ViewPane {
 			return;
 		}
 
-		const dropdownAction = new Action(
-			'selectNewChatSessionOption',
-			nls.localize('chatSession.selectOption', 'More...'),
-			'codicon-chevron-down',
-			true
-		);
-		this._dropdownDisposables.add(dropdownAction);
+		const dropdownAction = toAction({
+			id: 'selectNewChatSessionOption',
+			label: nls.localize('chatSession.selectOption', 'More...'),
+			class: 'codicon-chevron-down',
+			run: () => { }
+		});
 
 		const dropdownActions: IAction[] = [];
 
