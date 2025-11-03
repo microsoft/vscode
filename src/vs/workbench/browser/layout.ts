@@ -199,6 +199,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (targetDocument === this.mainContainer.ownerDocument) {
 			return this.mainContainer; // main window
 		} else {
+			// eslint-disable-next-line no-restricted-syntax
 			return targetDocument.body.getElementsByClassName('monaco-workbench')[0] as HTMLElement; // auxiliary window
 		}
 	}

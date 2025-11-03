@@ -307,6 +307,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			});
 
 			// Make katex blocks horizontally scrollable
+			// eslint-disable-next-line no-restricted-syntax
 			for (const katexBlock of this.domNode.querySelectorAll('.katex-display')) {
 				if (!dom.isHTMLElement(katexBlock)) {
 					continue;
@@ -583,7 +584,9 @@ export class CollapsedCodeBlock extends Disposable {
 				return;
 			}
 
+			// eslint-disable-next-line no-restricted-syntax
 			const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
+			// eslint-disable-next-line no-restricted-syntax
 			const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
 			if (changes && !changes?.identical && !changes?.quitEarly) {
 				this.currentDiff = changes;

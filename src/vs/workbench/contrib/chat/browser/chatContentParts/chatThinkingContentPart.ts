@@ -88,12 +88,14 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		if (this.perItemCollapsedMode) {
 			this.setExpanded(true);
+			// eslint-disable-next-line no-restricted-syntax
 			const header = this.domNode.querySelector('.chat-used-context-label');
 			if (header) {
 				header.remove();
 				this.domNode.classList.add('chat-thinking-no-outer-header');
 			}
 		} else if (this.fixedScrollingMode) {
+			// eslint-disable-next-line no-restricted-syntax
 			const header = this.domNode.querySelector('.chat-used-context-label');
 			if (header) {
 				header.remove();

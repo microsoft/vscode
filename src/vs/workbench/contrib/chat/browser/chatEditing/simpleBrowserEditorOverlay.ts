@@ -249,6 +249,7 @@ class SimpleBrowserOverlayWidget {
 	}
 
 	async addElementToChat(cts: CancellationTokenSource) {
+		// eslint-disable-next-line no-restricted-syntax
 		const editorContainer = this._container.querySelector('.editor-container') as HTMLDivElement;
 		const editorContainerPosition = editorContainer ? editorContainer.getBoundingClientRect() : this._container.getBoundingClientRect();
 

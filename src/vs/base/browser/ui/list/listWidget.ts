@@ -631,6 +631,7 @@ class DOMFocusController<T> implements IDisposable {
 			return;
 		}
 
+		// eslint-disable-next-line no-restricted-syntax
 		const tabIndexElement = focusedDomElement.querySelector('[tabIndex]');
 
 		if (!tabIndexElement || !(isHTMLElement(tabIndexElement)) || tabIndexElement.tabIndex === -1) {

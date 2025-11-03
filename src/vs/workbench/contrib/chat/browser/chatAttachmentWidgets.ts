@@ -467,6 +467,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
 		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
 
+		// eslint-disable-next-line no-restricted-syntax
 		const existingPill = element.querySelector('.chat-attached-context-pill');
 		if (existingPill) {
 			existingPill.replaceWith(pill);
@@ -488,6 +489,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			// reset to original icon on error or invalid image
 			const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
 			const pill = dom.$('div.chat-attached-context-pill', {}, pillIcon);
+			// eslint-disable-next-line no-restricted-syntax
 			const existingPill = element.querySelector('.chat-attached-context-pill');
 			if (existingPill) {
 				existingPill.replaceWith(pill);

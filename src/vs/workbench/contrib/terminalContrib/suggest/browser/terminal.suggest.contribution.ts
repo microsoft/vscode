@@ -165,6 +165,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			}
 		}
 		addon.setContainerWithOverflow(container);
+		// eslint-disable-next-line no-restricted-syntax
 		addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
 
 		this.add(dom.addDisposableListener(this._ctx.instance.domElement, dom.EventType.FOCUS_OUT, (e) => {

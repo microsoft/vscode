@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable no-restricted-syntax */
+
 import assert from 'assert';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { AsyncDataTree, CompressibleAsyncDataTree, ITreeCompressionDelegate } from '../../../../browser/ui/tree/asyncDataTree.js';

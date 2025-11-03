@@ -162,6 +162,7 @@ export class IconLabel extends Disposable {
 			}
 		}
 
+		// eslint-disable-next-line no-restricted-syntax
 		const existingIconNode = this.domNode.element.querySelector('.monaco-icon-label-iconpath');
 		if (options?.iconPath) {
 			let iconNode;

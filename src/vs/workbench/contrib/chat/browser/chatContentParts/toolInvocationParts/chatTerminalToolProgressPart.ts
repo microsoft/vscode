@@ -348,6 +348,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const content = this._renderOutput(output);
 		const theme = this._terminalInstance?.xterm?.getXtermTheme();
 		if (theme) {
+			// eslint-disable-next-line no-restricted-syntax
 			const inlineTerminal = content.querySelector('div');
 			if (inlineTerminal) {
 				inlineTerminal.style.setProperty('background-color', theme.background || 'transparent');

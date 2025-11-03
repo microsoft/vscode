@@ -1130,6 +1130,7 @@ export class QuickInputList extends Disposable {
 		// https://github.com/microsoft/vscode/issues/211976
 		if (this.accessibilityService.isScreenReaderOptimized()) {
 			setTimeout(() => {
+				// eslint-disable-next-line no-restricted-syntax
 				const focusedElement = this._tree.getHTMLElement().querySelector(`.monaco-list-row.focused`);
 				const parent = focusedElement?.parentNode;
 				if (focusedElement && parent) {

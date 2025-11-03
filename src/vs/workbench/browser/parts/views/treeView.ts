@@ -999,6 +999,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	getOptimalWidth(): number {
 		if (this.tree) {
 			const parentNode = this.tree.getHTMLElement();
+			// eslint-disable-next-line no-restricted-syntax
 			const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.outline-item-label > a'));
 			return DOM.getLargestChildWidth(parentNode, childNodes);
 		}
