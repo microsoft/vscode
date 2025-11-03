@@ -581,7 +581,8 @@ class WindowsPtyHeuristics extends Disposable {
 		super();
 
 		this._register(_terminal.parser.registerCsiHandler({ final: 'J' }, params => {
-			// Clear all commands when the screen is cleared (handles Ctrl+L and clear commands)
+			// Clear all commands when the viewport is cleared.
+			// Handles both `clear` and `ctrl+l` to prevent bad sticky scroll.
 			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
 				this._hooks.clearAllCommands();
 			}
