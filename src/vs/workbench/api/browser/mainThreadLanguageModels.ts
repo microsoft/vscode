@@ -261,7 +261,7 @@ class LanguageModelAccessAuthProvider implements IAuthenticationProvider {
 	}
 	removeSession(sessionId: string): Promise<void> {
 		if (this._session) {
-			this._onDidChangeSessions.fire({ added: [], changed: [], removed: [this._session!] });
+			this._onDidChangeSessions.fire({ added: [], changed: [], removed: [this._session] });
 			this._session = undefined;
 		}
 		return Promise.resolve();
