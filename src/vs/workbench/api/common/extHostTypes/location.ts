@@ -40,7 +40,7 @@ export class Location {
 		}
 	}
 
-	toJSON(): { uri: URI; range: Range } {
+	toJSON(): any {
 		return {
 			uri: this.uri,
 			range: this.range

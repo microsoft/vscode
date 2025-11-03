@@ -734,6 +734,7 @@ export default tseslint.config(
 			'src/vs/workbench/api/common/extHostTypeConverters.ts',
 			'src/vs/workbench/api/common/extHostTypes.ts',
 			'src/vs/workbench/api/common/extHostTypes/es5ClassCompat.ts',
+			'src/vs/workbench/api/common/extHostTypes/location.ts',
 			'src/vs/workbench/api/common/extHostWebview.ts',
 			'src/vs/workbench/api/common/extHostWebviewMessaging.ts',
 			'src/vs/workbench/api/common/extHostWebviewPanels.ts',
