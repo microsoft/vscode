@@ -19,7 +19,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/chatEditor.js';
 import { ChatEditorInput } from '../../contrib/chat/browser/chatEditorInput.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
-import { IChatContentInlineReference, IChatProgress, IChatService } from '../../contrib/chat/common/chatService.js';
+import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/common/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
@@ -333,7 +333,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ILogService private readonly _logService: ILogService,
-		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
 
@@ -402,24 +401,23 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		};
 
 		if (originalEditor) {
-			// todo@connor4312: temp work around for https://github.com/microsoft/vscode/issues/274198
-			if (originalEditor instanceof ChatEditorInput && originalEditor.sessionResource) {
-				await this._chatService.getSession(originalEditor.sessionResource)?.editingSession?.accept();
-			}
-
 			// Prefetch the chat session content to make the subsequent editor swap quick
-			this._chatSessionsService.getOrCreateChatSession(
+			const newSession = await this._chatSessionsService.getOrCreateChatSession(
 				URI.revive(modifiedResource),
 				CancellationToken.None,
-			).then(() => {
-				this._editorService.replaceEditors([{
-					editor: originalEditor,
-					replacement: {
-						resource: modifiedResource,
-						options,
-					},
-				}], originalGroup);
-			});
+			);
+
+			newSession.initialEditingSession = originalEditor instanceof ChatEditorInput
+				? originalEditor.transferOutEditingSession()
+				: undefined;
+
+			this._editorService.replaceEditors([{
+				editor: originalEditor,
+				replacement: {
+					resource: modifiedResource,
+					options,
+				},
+			}], originalGroup);
 		} else {
 			this._logService.warn(`Original chat session editor not found for resource ${originalResource.toString()}`);
 			this._editorService.openEditor({ resource: modifiedResource }, originalGroup);

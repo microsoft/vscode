@@ -169,11 +169,19 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 
 	async createEditingSession(chatModel: ChatModel, global: boolean = false): Promise<IChatEditingSession> {
+		return this._createEditingSession(chatModel, global, undefined);
+	}
+
+	async transferEditingSession(chatModel: ChatModel, session: IChatEditingSession): Promise<IChatEditingSession> {
+		return this._createEditingSession(chatModel, session.isGlobalEditingSession, session);
+	}
+
+	private async _createEditingSession(chatModel: ChatModel, global: boolean, initFrom: IChatEditingSession | undefined): Promise<IChatEditingSession> {
 
 		assertType(this.getEditingSession(chatModel.sessionResource) === undefined, 'CANNOT have more than one editing session per chat session');
 
 		const session = this._instantiationService.createInstance(ChatEditingSession, chatModel.sessionId, chatModel.sessionResource, global, this._lookupEntry.bind(this));
-		await session.init();
+		await session.init(initFrom);
 
 		const list = this._sessionsObs.get();
 		const removeSession = list.unshift(session);

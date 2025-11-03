@@ -43,6 +43,11 @@ export interface IChatEditingService {
 	 */
 	createEditingSession(chatModel: ChatModel): Promise<IChatEditingSession>;
 
+	/**
+	 * Creates an editing session with state transferred from the provided session.
+	 */
+	transferEditingSession(chatModel: ChatModel, session: IChatEditingSession): Promise<IChatEditingSession>;
+
 	//#region related files
 
 	hasRelatedFilesProviders(): boolean;

@@ -54,6 +54,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	public get sessionId(): string | undefined { return this._sessionInfo?.sessionId; }
 
 	private hasCustomTitle: boolean = false;
+	private didTransferOutEditingSession = false;
 	private cachedIcon: ThemeIcon | URI | undefined;
 
 	private model: IChatModel | undefined;
@@ -134,8 +135,13 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return this.model?.editingSession ? shouldShowClearEditingSessionConfirmation(this.model.editingSession) : false;
 	}
 
+	transferOutEditingSession(): IChatEditingSession | undefined {
+		this.didTransferOutEditingSession = true;
+		return this.model?.editingSession;
+	}
+
 	async confirm(editors: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
-		if (!this.model?.editingSession) {
+		if (!this.model?.editingSession || this.didTransferOutEditingSession) {
 			return ConfirmResult.SAVE;
 		}
 
