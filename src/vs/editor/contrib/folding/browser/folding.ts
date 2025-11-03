@@ -710,7 +710,7 @@ class UnFoldRecursivelyAction extends FoldingAction<void> {
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, _args: any): void {
+	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, _args: unknown): void {
 		setCollapseStateLevelsDown(foldingModel, false, Number.MAX_VALUE, this.getSelectedLines(editor));
 	}
 }
