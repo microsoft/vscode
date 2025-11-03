@@ -8,7 +8,7 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/271104 @alexr00
 
-	export namespace workspace {
+	export namespace chat {
 
 		// TODO@alexr00 API:
 		// selector is confusing
