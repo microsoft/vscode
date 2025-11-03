@@ -196,7 +196,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
-					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: argument-hint, description, handoffs, model, name, target, tools.` },
+					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in agent files. Supported: argument-hint, description, handoffs, model, name, target, tools.` },
 				]
 			);
 		});
@@ -453,7 +453,7 @@ suite('PromptValidator', () => {
 		});
 
 		test('github-copilot target requires name attribute', async () => {
-			// Missing name with github-copilot target
+			// Missing name with github-copilot target (should be optional)
 			{
 				const content = [
 					'---',
@@ -464,9 +464,7 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'name' attribute is required when target is 'github-copilot'.`);
+				assert.deepStrictEqual(markers, []);
 			}
 
 			// Valid name with github-copilot target

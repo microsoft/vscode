@@ -86,11 +86,10 @@ export class PromptValidator {
 				})());
 			}
 		}
-
-		const isGitHubTarget = isGithubTarget(promptType, promptAST.header?.target);
+		const target = promptAST.header?.target;
 
 		// Validate variable references (tool or toolset names)
-		if (body.variableReferences.length && !isGitHubTarget) {
+		if (body.variableReferences.length && target !== Target.GitHubCopilot) {
 			const headerTools = promptAST.header?.tools;
 			const headerToolsMap = headerTools ? this.languageModelToolsService.toToolAndToolSetEnablementMap(headerTools) : undefined;
 
@@ -325,6 +324,7 @@ export class PromptValidator {
 		switch (attribute.value.type) {
 			case 'array':
 				this.validateToolArray(attribute.value, target, report);
+				break;
 			default:
 				report(toMarker(localize('promptValidator.toolsMustBeArrayOrMap', "The 'tools' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
 		}
@@ -477,8 +477,11 @@ const recommendedAttributeNames = {
 	[PromptsType.agent]: allAttributeNames[PromptsType.agent].filter(name => !isNonRecommendedAttribute(name))
 };
 
-export function getValidAttributeNames(promptType: PromptsType, includeNonRecommended: boolean, target: Target | undefined): string[] {
+export function getValidAttributeNames(promptType: PromptsType, includeNonRecommended: boolean, target: string | undefined): string[] {
 	if (promptType === PromptsType.agent) {
+		if (!isTargetOrUndefined(target)) {
+			return [PromptHeaderAttributes.target, PromptHeaderAttributes.name, PromptHeaderAttributes.description];
+		}
 		if (target === Target.GitHubCopilot) {
 			return githubCopilotAgentAttributeNames;
 		} else if (target === undefined && includeNonRecommended) {
@@ -499,9 +502,6 @@ export const knownGithubCopilotTools: Record<string, string> = {
 	'search': localize('githubCopilotTools.search', 'Search in files'),
 	'custom-agent': localize('githubCopilotTools.customAgent', 'Call custom agents')
 };
-export function isGithubTarget(promptType: PromptsType, target: string | undefined): boolean {
-	return promptType === PromptsType.agent && target === Target.GitHubCopilot;
-}
 
 export enum Target {
 	GitHubCopilot = 'github-copilot',

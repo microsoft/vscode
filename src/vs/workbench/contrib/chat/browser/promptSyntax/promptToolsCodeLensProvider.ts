@@ -21,7 +21,7 @@ import { PromptFileRewriter } from './promptFileRewriter.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IEditorModel } from '../../../../../editor/common/editorCommon.js';
 import { PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
-import { isGithubTarget } from '../../common/promptSyntax/languageProviders/promptValidator.js';
+import { Target } from '../../common/promptSyntax/languageProviders/promptValidator.js';
 
 class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider {
 
@@ -61,7 +61,8 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 			return undefined;
 		}
 
-		if (isGithubTarget(promptType, header.target)) {
+		const target = promptAST.header?.target;
+		if (target !== Target.VSCode && target !== undefined) {
 			return undefined;
 		}
 

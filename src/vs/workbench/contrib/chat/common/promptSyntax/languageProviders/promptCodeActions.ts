@@ -17,7 +17,7 @@ import { Lazy } from '../../../../../../base/common/lazy.js';
 import { LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { isGithubTarget } from './promptValidator.js';
+import { Target } from './promptValidator.js';
 
 export class PromptCodeActionProvider implements CodeActionProvider {
 	/**
@@ -97,7 +97,8 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 		if (toolsAttr?.value.type !== 'array' || !toolsAttr.value.range.containsRange(range)) {
 			return;
 		}
-		if (isGithubTarget(promptType, promptFile.header?.target)) {
+		const target = promptFile.header?.target;
+		if (target !== Target.VSCode && target !== undefined) {
 			// GitHub Copilot custom agents use a fixed set of tool names that are not deprecated
 			return;
 		}

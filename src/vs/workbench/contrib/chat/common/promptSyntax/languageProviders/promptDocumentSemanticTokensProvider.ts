@@ -8,7 +8,7 @@ import { DocumentSemanticTokensProvider, ProviderResult, SemanticTokens, Semanti
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { isGithubTarget } from './promptValidator.js';
+import { Target } from './promptValidator.js';
 
 export class PromptDocumentSemanticTokensProvider implements DocumentSemanticTokensProvider {
 	/**
@@ -33,7 +33,8 @@ export class PromptDocumentSemanticTokensProvider implements DocumentSemanticTok
 			return undefined;
 		}
 
-		if (isGithubTarget(promptType, promptAST.header?.target)) {
+		const target = promptAST.header?.target;
+		if (target !== Target.VSCode && target !== undefined) {
 			// In GitHub Copilot mode, we don't provide variable semantic tokens to tool references
 			return undefined;
 		}
