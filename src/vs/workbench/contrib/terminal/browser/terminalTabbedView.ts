@@ -343,7 +343,7 @@ export class TerminalTabbedView extends Disposable {
 
 	layout(width: number, height: number): void {
 		const chatItemHeight = this._chatEntry?.element.style.display === 'none' ? 0 : this._chatEntry?.element.clientHeight;
-		this._height = Math.min(height, height - (chatItemHeight ?? 0));
+		this._height = height - (chatItemHeight ?? 0);
 		this._width = width;
 		this._splitView.layout(width);
 		if (this._shouldShowTabs()) {
