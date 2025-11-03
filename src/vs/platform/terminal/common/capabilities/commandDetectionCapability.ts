@@ -132,6 +132,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			get commandMarkers() { return that._commandMarkers; }
 			set commandMarkers(value) { that._commandMarkers = value; }
 			get clearCommandsInViewport() { return that._clearCommandsInViewport.bind(that); }
+			get clearAllCommands() { return that._clearAllCommands.bind(that); }
 		};
 		this._ptyHeuristics = this._register(new MandatoryMutableDisposable(new UnixPtyHeuristics(this._terminal, this, this._ptyHeuristicsHooks, this._logService)));
 
@@ -189,6 +190,14 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 	}
 
+	private _clearAllCommands(): void {
+		// Clear all commands when the screen is cleared (Ctrl+L, clear command, etc.)
+		if (this._commands.length > 0) {
+			const clearedCommands = this._commands.splice(0, this._commands.length);
+			this._onCommandInvalidated.fire(clearedCommands);
+		}
+	}
+
 	setContinuationPrompt(value: string): void {
 		this._promptInputModel.setContinuationPrompt(value);
 	}
@@ -219,6 +228,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 					get commandMarkers() { return that._commandMarkers; }
 					set commandMarkers(value) { that._commandMarkers = value; }
 					get clearCommandsInViewport() { return that._clearCommandsInViewport.bind(that); }
+					get clearAllCommands() { return that._clearAllCommands.bind(that); }
 				},
 				this._logService
 			);
@@ -476,6 +486,7 @@ interface ICommandDetectionHeuristicsHooks {
 	commandMarkers: IMarker[];
 
 	clearCommandsInViewport(): void;
+	clearAllCommands(): void;
 }
 
 type IPtyHeuristics = (
@@ -499,7 +510,7 @@ class UnixPtyHeuristics extends Disposable {
 		super();
 		this._register(_terminal.parser.registerCsiHandler({ final: 'J' }, params => {
 			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
-				_hooks.clearCommandsInViewport();
+				_hooks.clearAllCommands();
 			}
 			// We don't want to override xterm.js' default behavior, just augment it
 			return false;
@@ -570,9 +581,9 @@ class WindowsPtyHeuristics extends Disposable {
 		super();
 
 		this._register(_terminal.parser.registerCsiHandler({ final: 'J' }, params => {
-			// Clear commands when the viewport is cleared
+			// Clear all commands when the screen is cleared (handles Ctrl+L and clear commands)
 			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
-				this._hooks.clearCommandsInViewport();
+				this._hooks.clearAllCommands();
 			}
 			// We don't want to override xterm.js' default behavior, just augment it
 			return false;
@@ -580,12 +591,11 @@ class WindowsPtyHeuristics extends Disposable {
 
 		this._register(this._capability.onBeforeCommandFinished(command => {
 			// For older Windows backends we cannot listen to CSI J, instead we assume running clear
-			// or cls will clear all commands in the viewport. This is not perfect but it's right
-			// most of the time.
+			// or cls will clear all commands. This is not perfect but it's right most of the time.
 			if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
 				this._tryAdjustCommandStartMarkerScheduler?.cancel();
 				this._tryAdjustCommandStartMarkerScheduler = undefined;
-				this._hooks.clearCommandsInViewport();
+				this._hooks.clearAllCommands();
 				this._capability.currentCommand.isInvalid = true;
 				this._hooks.onCurrentCommandInvalidatedEmitter.fire({ reason: CommandInvalidationReason.Windows });
 			}

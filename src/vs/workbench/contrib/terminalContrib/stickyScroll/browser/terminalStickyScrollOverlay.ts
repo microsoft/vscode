@@ -98,6 +98,14 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// React to terminal location changes
 		this._register(this._instance.onDidChangeTarget(() => this._syncOptions()));
 
+		// Hide sticky scroll when completed commands are invalidated/cleared from viewport
+		this._register(this._commandDetection.onCommandInvalidated(commands => {
+			// If any of the cleared commands match the currently displayed sticky command, hide it
+			if (this._currentStickyCommand && commands.some(cmd => cmd === this._currentStickyCommand)) {
+				this._setVisible(false);
+			}
+		}));
+
 		// Eagerly create the overlay
 		xtermCtor.then(ctor => {
 			if (this._store.isDisposed) {
