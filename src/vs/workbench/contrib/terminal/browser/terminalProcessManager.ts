@@ -44,6 +44,7 @@ import { shouldUseEnvironmentVariableCollection } from '../../../../platform/ter
 import { TerminalContribSettingId } from '../terminalContribExports.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
+import type { MaybePromise } from '../../../../base/common/async.js';
 
 const enum ProcessConstants {
 	/**
@@ -579,7 +580,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	setDimensions(cols: number, rows: number): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: true): void;
-	setDimensions(cols: number, rows: number, sync?: boolean): Promise<void> | void {
+	setDimensions(cols: number, rows: number, sync?: boolean): MaybePromise<void> {
 		if (sync) {
 			this._resize(cols, rows);
 			return;
