@@ -35,7 +35,7 @@ suite('AbstractGotoLineQuickAccessProvider', () => {
 		], {}, (editor, _) => {
 			const { lineNumber, column } = provider.parsePositionTest(editor, input);
 			assert.strictEqual(lineNumber, expectedLine);
-			assert.strictEqual(column, expectedColumn);
+			assert.strictEqual(column, expectedColumn ?? 1);
 		});
 	}
 
@@ -48,9 +48,9 @@ suite('AbstractGotoLineQuickAccessProvider', () => {
 		runTest('1', 1);
 		runTest('2', 2);
 		runTest('5', 5);
-		runTest('6', 6);
-		runTest('7', 6);
-		runTest('100', 6);
+		runTest('6', 5);
+		runTest('7', 5);
+		runTest('100', 5);
 
 		// :line,column
 		runTest('2:-100', 2, 1);

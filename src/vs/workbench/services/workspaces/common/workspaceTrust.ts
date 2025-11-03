@@ -495,7 +495,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	isWorkspaceTrustForced(): boolean {
 		// Remote - remote authority explicitly sets workspace trust
-		if (this.environmentService.remoteAuthority && this._remoteAuthority && this._remoteAuthority.options?.isTrusted !== undefined) {
+		if (this.environmentService.remoteAuthority && this._remoteAuthority?.options?.isTrusted !== undefined) {
 			return true;
 		}
 

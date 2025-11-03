@@ -56,6 +56,7 @@ import { IRevealOptions, ITreeItem, IViewBadge } from '../../common/views.js';
 import { CallHierarchyItem } from '../../contrib/callHierarchy/common/callHierarchy.js';
 import { IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, UserSelectedTools } from '../../contrib/chat/common/chatAgents.js';
 import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
+import { IChatContextItem, IChatContextSupport } from '../../services/chat/common/chatContext.js';
 import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatProgressHistoryResponseContent, IChatRequestVariableData } from '../../contrib/chat/common/chatModel.js';
 import { ChatResponseClearToPreviousToolInvocationReason, IChatContentInlineReference, IChatExternalEditsDto, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
@@ -1307,6 +1308,17 @@ export interface ExtHostLanguageModelsShape {
 	$isFileIgnored(handle: number, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 }
 
+export interface ExtHostChatContextShape {
+	$provideChatContext(handle: number, token: CancellationToken): Promise<IChatContextItem[]>;
+	$provideChatContextForResource(handle: number, options: { resource: UriComponents }, token: CancellationToken): Promise<IChatContextItem | undefined>;
+	$resolveChatContext(handle: number, context: IChatContextItem, token: CancellationToken): Promise<IChatContextItem>;
+}
+
+export interface MainThreadChatContextShape extends IDisposable {
+	$registerChatContextProvider(handle: number, id: string, selector: IDocumentFilterDto[], options: {}, support: IChatContextSupport): void;
+	$unregisterChatContextProvider(handle: number): void;
+}
+
 export interface MainThreadEmbeddingsShape extends IDisposable {
 	$registerEmbeddingProvider(handle: number, identifier: string): void;
 	$unregisterEmbeddingProvider(handle: number): void;
@@ -1389,8 +1401,6 @@ export type IChatAgentHistoryEntryDto = {
 };
 
 export interface IChatSessionContextDto {
-	readonly chatSessionType: string;
-	readonly chatSessionId: string;
 	readonly chatSessionResource: UriComponents;
 	readonly isUntitled: boolean;
 }
@@ -1706,6 +1716,7 @@ export interface SCMArtifactDto {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
 }
 
 export interface MainThreadSCMShape extends IDisposable {
@@ -1730,7 +1741,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$onDidChangeHistoryProviderCurrentHistoryItemRefs(sourceControlHandle: number, historyItemRef?: SCMHistoryItemRefDto, historyItemRemoteRef?: SCMHistoryItemRefDto, historyItemBaseRef?: SCMHistoryItemRefDto): Promise<void>;
 	$onDidChangeHistoryProviderHistoryItemRefs(sourceControlHandle: number, historyItemRefs: SCMHistoryItemRefsChangeEventDto): Promise<void>;
 
-	$onDidChangeArtifacts(sourceControlHandle: number, group: string): Promise<void>;
+	$onDidChangeArtifacts(sourceControlHandle: number, groups: string[]): Promise<void>;
 }
 
 export interface MainThreadQuickDiffShape extends IDisposable {
@@ -3329,6 +3340,7 @@ export const MainContext = {
 	MainThreadDataChannels: createProxyIdentifier<MainThreadDataChannelsShape>('MainThreadDataChannels'),
 	MainThreadChatSessions: createProxyIdentifier<MainThreadChatSessionsShape>('MainThreadChatSessions'),
 	MainThreadChatOutputRenderer: createProxyIdentifier<MainThreadChatOutputRendererShape>('MainThreadChatOutputRenderer'),
+	MainThreadChatContext: createProxyIdentifier<MainThreadChatContextShape>('MainThreadChatContext'),
 };
 
 export const ExtHostContext = {
@@ -3388,6 +3400,7 @@ export const ExtHostContext = {
 	ExtHostChatAgents2: createProxyIdentifier<ExtHostChatAgentsShape2>('ExtHostChatAgents'),
 	ExtHostLanguageModelTools: createProxyIdentifier<ExtHostLanguageModelToolsShape>('ExtHostChatSkills'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostLanguageModelsShape>('ExtHostChatProvider'),
+	ExtHostChatContext: createProxyIdentifier<ExtHostChatContextShape>('ExtHostChatContext'),
 	ExtHostSpeech: createProxyIdentifier<ExtHostSpeechShape>('ExtHostSpeech'),
 	ExtHostEmbeddings: createProxyIdentifier<ExtHostEmbeddingsShape>('ExtHostEmbeddings'),
 	ExtHostAiRelatedInformation: createProxyIdentifier<ExtHostAiRelatedInformationShape>('ExtHostAiRelatedInformation'),

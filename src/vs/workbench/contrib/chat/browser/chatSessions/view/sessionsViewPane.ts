@@ -8,7 +8,7 @@ import { $, append } from '../../../../../../base/browser/dom.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
-import { Action, IAction } from '../../../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
@@ -143,9 +143,7 @@ export class SessionsViewPane extends ViewPane {
 			icon: Codicon.plus,
 		}, undefined, undefined, undefined, undefined);
 
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.scopedContextKeyService);
-
-		const actions = menu.getActions({ shouldForwardArgs: true });
+		const actions = this.menuService.getMenuActions(MenuId.ChatSessionsMenu, this.scopedContextKeyService, { shouldForwardArgs: true });
 		const primaryActions = getActionBarActions(
 			actions,
 			'submenu',
@@ -165,12 +163,12 @@ export class SessionsViewPane extends ViewPane {
 			return;
 		}
 
-		const dropdownAction = new Action(
-			'selectNewChatSessionOption',
-			nls.localize('chatSession.selectOption', 'More...'),
-			'codicon-chevron-down',
-			true
-		);
+		const dropdownAction = toAction({
+			id: 'selectNewChatSessionOption',
+			label: nls.localize('chatSession.selectOption', 'More...'),
+			class: 'codicon-chevron-down',
+			run: () => { }
+		});
 
 		const dropdownActions: IAction[] = [];
 
@@ -346,6 +344,16 @@ export class SessionsViewPane extends ViewPane {
 				},
 				accessibilityProvider,
 				identityProvider,
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: (session: ChatSessionItemWithProvider) => {
+						const parts = [
+							session.label || '',
+							session.id || '',
+							typeof session.description === 'string' ? session.description : (session.description?.value || '')
+						];
+						return parts.filter(text => text.length > 0).join(' ');
+					}
+				},
 				multipleSelectionSupport: false,
 				overrideStyles: {
 					listBackground: undefined
@@ -461,7 +469,7 @@ export class SessionsViewPane extends ViewPane {
 				await this.editorService.openEditor(existingEditor.editor, existingEditor.group);
 				return;
 			}
-			if (this.chatWidgetService.getWidgetBySessionId(session.id)) {
+			if (this.chatWidgetService.getWidgetBySessionResource(session.resource)) {
 				return;
 			}
 
@@ -499,7 +507,7 @@ export class SessionsViewPane extends ViewPane {
 		}
 
 		const session = e.element;
-		const sessionWithProvider = session as ChatSessionItemWithProvider;
+		const sessionWithProvider = session;
 
 		// Create context overlay for this specific session item
 		const contextOverlay = getSessionItemContextOverlay(

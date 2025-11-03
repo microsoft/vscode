@@ -22,6 +22,7 @@ import { isUriComponents, URI } from '../../../../base/common/uri.js';
 import { deepClone } from '../../../../base/common/objects.js';
 import { ITerminalInstanceService } from './terminal.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import type { SingleOrMany } from '../../../../base/common/types.js';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell(remoteAuthority: string | undefined, os: OperatingSystem): Promise<string>;
@@ -156,7 +157,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		return (await this.getDefaultProfile(options)).path;
 	}
 
-	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> {
+	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<SingleOrMany<string>> {
 		return (await this.getDefaultProfile(options)).args || [];
 	}
 
@@ -243,7 +244,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		}
 
 		// Finally fallback to a generated profile
-		let args: string | string[] | undefined;
+		let args: SingleOrMany<string> | undefined;
 		if (options.os === OperatingSystem.Macintosh && path.parse(executable).name.match(/(zsh|bash)/)) {
 			// macOS should launch a login shell by default
 			args = ['--login'];

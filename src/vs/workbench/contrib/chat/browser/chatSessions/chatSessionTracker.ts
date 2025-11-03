@@ -13,7 +13,7 @@ import { IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './common.js';
+import { ChatSessionItemWithProvider, isChatSession } from './common.js';
 
 export class ChatSessionTracker extends Disposable {
 	private readonly _onDidChangeEditors = this._register(new Emitter<{ sessionType: string; kind: GroupModelChangeKind }>());
@@ -47,7 +47,7 @@ export class ChatSessionTracker extends Disposable {
 			}
 
 			const editor = e.editor as ChatEditorInput;
-			const sessionType = getChatSessionType(editor);
+			const sessionType = editor.getSessionType();
 
 			this.chatSessionsService.notifySessionItemsChanged(sessionType);
 
@@ -61,7 +61,7 @@ export class ChatSessionTracker extends Disposable {
 
 		this.editorGroupsService.groups.forEach(group => {
 			group.editors.forEach(editor => {
-				if (editor instanceof ChatEditorInput && getChatSessionType(editor) === sessionType) {
+				if (editor instanceof ChatEditorInput && editor.getSessionType() === sessionType) {
 					localEditors.push(editor);
 				}
 			});
@@ -90,8 +90,8 @@ export class ChatSessionTracker extends Disposable {
 			let status: ChatSessionStatus = ChatSessionStatus.Completed;
 			let timestamp: number | undefined;
 
-			if (editor.sessionId) {
-				const model = this.chatService.getSession(editor.sessionId);
+			if (editor.sessionResource) {
+				const model = this.chatService.getSession(editor.sessionResource);
 				const modelStatus = model ? this.modelToStatus(model) : undefined;
 				if (model && modelStatus) {
 					status = modelStatus;

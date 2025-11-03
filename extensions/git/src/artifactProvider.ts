@@ -4,12 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable } from 'vscode';
-import { dispose, IDisposable } from './util';
+import { dispose, fromNow, IDisposable } from './util';
 import { Repository } from './repository';
+import { Ref } from './api/git';
+
+function getArtifactDescription(ref: Ref, shortCommitLength: number): string {
+	const segments: string[] = [];
+	if (ref.commitDetails?.commitDate) {
+		segments.push(fromNow(ref.commitDetails.commitDate));
+	}
+	if (ref.commit) {
+		segments.push(ref.commit.substring(0, shortCommitLength));
+	}
+	if (ref.commitDetails?.message) {
+		segments.push(ref.commitDetails.message.split('\n')[0]);
+	}
+
+	return segments.join(' \u2022 ');
+}
 
 export class GitArtifactProvider implements SourceControlArtifactProvider, IDisposable {
-	private readonly _onDidChangeArtifacts = new EventEmitter<string>();
-	readonly onDidChangeArtifacts: Event<string> = this._onDidChangeArtifacts.event;
+	private readonly _onDidChangeArtifacts = new EventEmitter<string[]>();
+	readonly onDidChangeArtifacts: Event<string[]> = this._onDidChangeArtifacts.event;
 
 	private readonly _groups: SourceControlArtifactGroup[];
 	private readonly _disposables: Disposable[] = [];
@@ -24,6 +40,18 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 		];
 
 		this._disposables.push(this._onDidChangeArtifacts);
+		this._disposables.push(repository.historyProvider.onDidChangeHistoryItemRefs(e => {
+			const groups = new Set<string>();
+			for (const ref of e.added.concat(e.modified).concat(e.removed)) {
+				if (ref.id.startsWith('refs/heads/')) {
+					groups.add('branches');
+				} else if (ref.id.startsWith('refs/tags/')) {
+					groups.add('tags');
+				}
+			}
+
+			this._onDidChangeArtifacts.fire(Array.from(groups));
+		}));
 	}
 
 	provideArtifactGroups(): SourceControlArtifactGroup[] {
@@ -42,7 +70,10 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				return refs.map(r => ({
 					id: `refs/heads/${r.name}`,
 					name: r.name ?? r.commit ?? '',
-					description: `${r.commit?.substring(0, shortCommitLength)}`
+					description: getArtifactDescription(r, shortCommitLength),
+					icon: r.name === this.repository.HEAD?.name
+						? new ThemeIcon('target')
+						: new ThemeIcon('git-branch')
 				}));
 			} else if (group === 'tags') {
 				const refs = await this.repository
@@ -51,7 +82,8 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				return refs.map(r => ({
 					id: `refs/tags/${r.name}`,
 					name: r.name ?? r.commit ?? '',
-					description: r.commitDetails?.message ?? r.commit?.substring(0, shortCommitLength)
+					description: getArtifactDescription(r, shortCommitLength),
+					icon: new ThemeIcon('tag')
 				}));
 			}
 		} catch (err) {

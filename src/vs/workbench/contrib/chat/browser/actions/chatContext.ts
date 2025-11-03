@@ -188,16 +188,16 @@ class RelatedFilesContextPickerPick implements IChatContextPickerItem {
 	asPicker(widget: IChatWidget): IChatContextPicker {
 
 		const picks = (async () => {
-			const chatSessionId = widget.viewModel?.sessionId;
-			if (!chatSessionId) {
+			const chatSessionResource = widget.viewModel?.sessionResource;
+			if (!chatSessionResource) {
 				return [];
 			}
-			const relatedFiles = await this._chatEditingService.getRelatedFiles(chatSessionId, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None);
+			const relatedFiles = await this._chatEditingService.getRelatedFiles(chatSessionResource, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None);
 			if (!relatedFiles) {
 				return [];
 			}
 			const attachments = widget.attachmentModel.getAttachmentIDs();
-			return this._chatEditingService.getRelatedFiles(chatSessionId, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None)
+			return this._chatEditingService.getRelatedFiles(chatSessionResource, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None)
 				.then((files) => (files ?? []).reduce<(IChatContextPickerPickItem | IQuickPickSeparator)[]>((acc, cur) => {
 					acc.push({ type: 'separator', label: cur.group });
 					for (const file of cur.files) {

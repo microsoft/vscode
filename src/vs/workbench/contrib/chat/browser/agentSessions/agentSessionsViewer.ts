@@ -67,6 +67,8 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	) { }
 
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
+		// Hack to disable twistie in advent of on official option
+		// eslint-disable-next-line no-restricted-syntax
 		container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie')?.classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
 
 		const disposables = new DisposableStore();

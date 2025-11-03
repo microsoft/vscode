@@ -460,7 +460,7 @@ export function getOnTypeFormattingEdits(
 	});
 }
 
-function isFormattingOptions(obj: any): obj is FormattingOptions {
+function isFormattingOptions(obj: unknown): obj is FormattingOptions {
 	const candidate = obj as FormattingOptions | undefined;
 
 	return !!candidate && typeof candidate === 'object' && typeof candidate.tabSize === 'number' && typeof candidate.insertSpaces === 'boolean';
