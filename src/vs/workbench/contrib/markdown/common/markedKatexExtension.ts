@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import type * as marked from '../../../../base/common/marked/marked.js';
+import { htmlAttributeEncodeValue } from '../../../../base/common/strings.js';
 
 export const mathInlineRegExp = /(?<![a-zA-Z0-9])(?<dollars>\${1,2})(?!\$)((?:\\.|[^\\\n])*?(?:\\.|[^\\\n\$]))\k<dollars>(?![a-zA-Z0-9])/; // Non-standard, but ensure opening $ is not preceded and closing $ is not followed by word/number characters
-
+export const katexContainerClassName = 'vscode-katex-container';
+export const katexContainerLatexAttributeName = 'data-latex';
 
 const inlineRule = new RegExp('^' + mathInlineRegExp.source);
 
@@ -32,11 +34,15 @@ export namespace MarkedKatexExtension {
 		return (token: marked.Tokens.Generic) => {
 			let out: string;
 			try {
-				out = katex.renderToString(token.text, {
+				const html = katex.renderToString(token.text, {
 					...options,
 					throwOnError: true,
 					displayMode: token.displayMode,
 				});
+
+				// Wrap in a container with attribute as a fallback for extracting the original LaTeX source
+				// This ensures we can always retrieve the source even if the annotation element is not present
+				out = `<span class="${katexContainerClassName}" ${katexContainerLatexAttributeName}="${htmlAttributeEncodeValue(token.text)}">${html}</span>`;
 			} catch {
 				// On failure, just use the original text including the wrapping $ or $$
 				out = token.raw;

@@ -95,6 +95,7 @@ import { ChatViewPane } from './chatViewPane.js';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { katexContainerClassName } from '../../markdown/common/markedKatexExtension.js';
 
 const $ = dom.$;
 
@@ -2015,7 +2016,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Check if the context menu was opened on a KaTeX element
 		const target = e.browserEvent.target as HTMLElement;
-		const isKatexElement = target.closest('.katex') !== null;
+		const isKatexElement = target.closest(`.${katexContainerClassName}`) !== null;
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
 			[ChatContextKeys.responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered],

@@ -9,7 +9,7 @@ import { MarkdownSanitizerConfig } from '../../../../base/browser/markdownRender
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import type * as marked from '../../../../base/common/marked/marked.js';
-import { MarkedKatexExtension } from '../common/markedKatexExtension.js';
+import { katexContainerLatexAttributeName, MarkedKatexExtension } from '../common/markedKatexExtension.js';
 
 export class MarkedKatexSupport {
 
@@ -32,6 +32,7 @@ export class MarkedKatexSupport {
 					'stretchy',
 					'encoding',
 					'accent',
+					katexContainerLatexAttributeName,
 
 					// SVG
 					'd',
