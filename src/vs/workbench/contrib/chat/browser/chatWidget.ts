@@ -2307,6 +2307,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			// Show next steps widget when response completes (not when request starts)
 			if (e.kind === 'completedRequest') {
+				const lastRequest = this.viewModel?.model.getRequests().at(-1);
+				const wasCancelled = lastRequest?.response?.isCanceled ?? false;
+				if (wasCancelled) {
+					// Clear todo list when request is cancelled
+					this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
+				}
 				// Only show if response wasn't canceled
 				this.renderChatSuggestNextWidget();
 			}
