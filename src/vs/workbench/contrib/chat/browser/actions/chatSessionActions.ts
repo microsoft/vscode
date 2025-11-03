@@ -325,6 +325,52 @@ export class ToggleChatSessionsDescriptionDisplayAction extends Action2 {
 	}
 }
 
+/**
+ * Action to toggle between 'view' and 'single-view' modes for Agent Sessions
+ */
+export class ToggleAgentSessionsViewLocationAction extends Action2 {
+
+	static readonly id = 'workbench.action.chatSessions.toggleNewSingleView';
+
+	constructor() {
+		super({
+			id: ToggleAgentSessionsViewLocationAction.id,
+			title: localize('chatSessions.toggleViewLocation.label', "Enable New Single View"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.AgentSessionsViewLocation}`, 'single-view'),
+			menu: [
+				{
+					id: MenuId.ViewContainerTitle,
+					when: ContextKeyExpr.equals('viewContainer', AGENT_SESSIONS_VIEWLET_ID),
+					group: '2_togglenew',
+					order: 1
+				},
+				{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.equals('view', 'workbench.view.agentSessions'),
+					group: '2_togglenew',
+					order: 1
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const viewsService = accessor.get(IViewsService);
+
+		const currentValue = configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
+
+		const newValue = currentValue === 'single-view' ? 'view' : 'single-view';
+
+		await configurationService.updateValue(ChatConfiguration.AgentSessionsViewLocation, newValue);
+
+		const viewId = newValue === 'single-view' ? 'workbench.view.agentSessions' : `${AGENT_SESSIONS_VIEWLET_ID}.local`;
+		await viewsService.openView(viewId, true);
+	}
+}
+
 export class ChatSessionsGettingStartedAction extends Action2 {
 	static readonly ID = 'chat.sessions.gettingStarted';
 
