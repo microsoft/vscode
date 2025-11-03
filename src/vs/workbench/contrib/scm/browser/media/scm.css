@@ -684,6 +684,11 @@
 
 .scm-history-view .monaco-list-row.focused.selected {
 	background-color: var(--vscode-list-inactiveSelectionBackground) !important;
+	color: var(--vscode-list-inactiveSelectionForeground) !important;
+}
+
+.scm-history-view .monaco-list-row.focused.selected .codicon {
+	color: var(--vscode-list-inactiveSelectionIconForeground) !important;
 }
 
 .scm-history-view .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie.force-no-twistie {
