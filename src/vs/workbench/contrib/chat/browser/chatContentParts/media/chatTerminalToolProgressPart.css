@@ -88,21 +88,15 @@
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
-	width: 100%;
-	box-sizing: border-box;
 }
 .chat-terminal-output {
 	margin: 0;
 	white-space: pre;
 	font-size: 12px;
-	width: 100%;
-	box-sizing: border-box;
 }
 
 .chat-terminal-output pre {
 	margin: 0;
-	width: 100%;
-	box-sizing: border-box;
 }
 .chat-terminal-output-info {
 	color: var(--vscode-descriptionForeground);
