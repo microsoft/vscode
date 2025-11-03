@@ -25,6 +25,7 @@ import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { AGENTS_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
+import { distinct } from '../../../../../../base/common/arrays.js';
 
 const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -121,16 +122,19 @@ export class PromptValidator {
 			return;
 		}
 		const attributes = header.attributes;
-		const isGitHubTarget = isGithubTarget(promptType, header.target);
-		this.checkForInvalidArguments(attributes, promptType, isGitHubTarget, report);
+		const target = header.target;
 
-		this.validateName(attributes, isGitHubTarget, report);
+		if (isTargetOrUndefined(target)) {
+			this.checkForInvalidArguments(attributes, promptType, target, report);
+		}
+
+		this.validateName(attributes, report);
 		this.validateDescription(attributes, report);
 		this.validateArgumentHint(attributes, report);
 		switch (promptType) {
 			case PromptsType.prompt: {
 				const agent = this.validateAgent(attributes, report);
-				this.validateTools(attributes, agent?.kind ?? ChatModeKind.Agent, false, report);
+				this.validateTools(attributes, agent?.kind ?? ChatModeKind.Agent, Target.VSCode, report);
 				this.validateModel(attributes, agent?.kind ?? ChatModeKind.Agent, report);
 				break;
 			}
@@ -141,10 +145,12 @@ export class PromptValidator {
 
 			case PromptsType.agent: {
 				this.validateTarget(attributes, report);
-				this.validateTools(attributes, ChatModeKind.Agent, isGitHubTarget, report);
-				if (!isGitHubTarget) {
-					this.validateModel(attributes, ChatModeKind.Agent, report);
-					this.validateHandoffs(attributes, report);
+				if (isTargetOrUndefined(target)) {
+					this.validateTools(attributes, ChatModeKind.Agent, target, report);
+					if (target !== Target.GitHubCopilot) {
+						this.validateModel(attributes, ChatModeKind.Agent, report);
+						this.validateHandoffs(attributes, report);
+					}
 				}
 				break;
 			}
@@ -152,20 +158,22 @@ export class PromptValidator {
 		}
 	}
 
-	private checkForInvalidArguments(attributes: IHeaderAttribute[], promptType: PromptsType, isGitHubTarget: boolean, report: (markers: IMarkerData) => void): void {
-		const validAttributeNames = getValidAttributeNames(promptType, true, isGitHubTarget);
+	private checkForInvalidArguments(attributes: IHeaderAttribute[], promptType: PromptsType, target: Target | undefined, report: (markers: IMarkerData) => void): void {
+		const validAttributeNames = getValidAttributeNames(promptType, true, target);
 		for (const attribute of attributes) {
 			if (!validAttributeNames.includes(attribute.key)) {
-				const supportedNames = new Lazy(() => getValidAttributeNames(promptType, false, isGitHubTarget).sort().join(', '));
+				const supportedNames = new Lazy(() => getValidAttributeNames(promptType, false, target).sort().join(', '));
 				switch (promptType) {
 					case PromptsType.prompt:
 						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
 						break;
 					case PromptsType.agent:
-						if (isGitHubTarget) {
+						if (target === Target.GitHubCopilot) {
 							report(toMarker(localize('promptValidator.unknownAttribute.github-agent', "Attribute '{0}' is not supported in custom GitHub Copilot agent files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
-						} else {
+						} else if (target === Target.VSCode) {
 							report(toMarker(localize('promptValidator.unknownAttribute.vscode-agent', "Attribute '{0}' is not supported in VS Code agent files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						} else {
+							report(toMarker(localize('promptValidator.unknownAttribute.agent', "Attribute '{0}' is not supported in agent files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
 						}
 						break;
 					case PromptsType.instructions:
@@ -178,12 +186,9 @@ export class PromptValidator {
 
 
 
-	private validateName(attributes: IHeaderAttribute[], isGitHubTarget: boolean, report: (markers: IMarkerData) => void): void {
+	private validateName(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
 		const nameAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.name);
 		if (!nameAttribute) {
-			if (isGitHubTarget) {
-				report(toMarker(localize('promptValidator.nameRequiredForGithubTarget', "The 'name' attribute is required when target is 'github-copilot'."), new Range(1, 1, 1, 4), MarkerSeverity.Error));
-			}
 			return;
 		}
 		if (nameAttribute.value.type !== 'string') {
@@ -309,7 +314,7 @@ export class PromptValidator {
 		return undefined;
 	}
 
-	private validateTools(attributes: IHeaderAttribute[], agentKind: ChatModeKind, isGitHubTarget: boolean, report: (markers: IMarkerData) => void): undefined {
+	private validateTools(attributes: IHeaderAttribute[], agentKind: ChatModeKind, target: Target | undefined, report: (markers: IMarkerData) => void): undefined {
 		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.tools);
 		if (!attribute) {
 			return;
@@ -317,23 +322,24 @@ export class PromptValidator {
 		if (agentKind !== ChatModeKind.Agent) {
 			report(toMarker(localize('promptValidator.toolsOnlyInAgent', "The 'tools' attribute is only supported when using agents. Attribute will be ignored."), attribute.range, MarkerSeverity.Warning));
 		}
-
 		switch (attribute.value.type) {
 			case 'array':
-				if (isGitHubTarget) {
-					// no validation for github-copilot target
-				} else {
-					this.validateVSCodeTools(attribute.value, report);
-				}
-				break;
+				this.validateToolArray(attribute.value, target, report);
 			default:
 				report(toMarker(localize('promptValidator.toolsMustBeArrayOrMap', "The 'tools' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
 		}
 	}
 
-	private validateVSCodeTools(valueItem: IArrayValue, report: (markers: IMarkerData) => void) {
+	private validateToolArray(valueItem: IArrayValue, target: Target | undefined, report: (markers: IMarkerData) => void) {
 		if (valueItem.items.length > 0) {
-			const available = new Set<string>(this.languageModelToolsService.getQualifiedToolNames());
+			const allTools = [];
+			if (target !== Target.GitHubCopilot) {
+				allTools.push(...this.languageModelToolsService.getQualifiedToolNames());
+			}
+			if (target !== Target.VSCode) {
+				allTools.push(...Object.keys(knownGithubCopilotTools));
+			}
+			const available = new Set<string>(allTools);
 			const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
 			for (const item of valueItem.items) {
 				if (item.type !== 'string') {
@@ -464,15 +470,20 @@ const allAttributeNames = {
 	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target]
 };
 const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers];
+const allAgentAttributeNames = distinct([...allAttributeNames[PromptsType.agent], ...githubCopilotAgentAttributeNames]);
 const recommendedAttributeNames = {
 	[PromptsType.prompt]: allAttributeNames[PromptsType.prompt].filter(name => !isNonRecommendedAttribute(name)),
 	[PromptsType.instructions]: allAttributeNames[PromptsType.instructions].filter(name => !isNonRecommendedAttribute(name)),
 	[PromptsType.agent]: allAttributeNames[PromptsType.agent].filter(name => !isNonRecommendedAttribute(name))
 };
 
-export function getValidAttributeNames(promptType: PromptsType, includeNonRecommended: boolean, isGitHubTarget: boolean): string[] {
-	if (isGitHubTarget && promptType === PromptsType.agent) {
-		return githubCopilotAgentAttributeNames;
+export function getValidAttributeNames(promptType: PromptsType, includeNonRecommended: boolean, target: Target | undefined): string[] {
+	if (promptType === PromptsType.agent) {
+		if (target === Target.GitHubCopilot) {
+			return githubCopilotAgentAttributeNames;
+		} else if (target === undefined && includeNonRecommended) {
+			return allAgentAttributeNames;
+		}
 	}
 	return includeNonRecommended ? allAttributeNames[promptType] : recommendedAttributeNames[promptType];
 }
@@ -489,7 +500,16 @@ export const knownGithubCopilotTools: Record<string, string> = {
 	'custom-agent': localize('githubCopilotTools.customAgent', 'Call custom agents')
 };
 export function isGithubTarget(promptType: PromptsType, target: string | undefined): boolean {
-	return promptType === PromptsType.agent && target === 'github-copilot';
+	return promptType === PromptsType.agent && target === Target.GitHubCopilot;
+}
+
+export enum Target {
+	GitHubCopilot = 'github-copilot',
+	VSCode = 'vscode'
+}
+
+export function isTargetOrUndefined(target: string | undefined): target is Target | undefined {
+	return target === undefined || target === Target.GitHubCopilot || target === Target.VSCode;
 }
 
 function toMarker(message: string, range: Range, severity = MarkerSeverity.Error): IMarkerData {

@@ -16,7 +16,7 @@ import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
-import { getValidAttributeNames, isGithubTarget, knownGithubCopilotTools } from './promptValidator.js';
+import { getValidAttributeNames, isTargetOrUndefined, knownGithubCopilotTools, Target } from './promptValidator.js';
 import { localize } from '../../../../../../nls.js';
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
@@ -87,9 +87,12 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	): Promise<CompletionList | undefined> {
 
 		const suggestions: CompletionItem[] = [];
+		const target = header.target;
+		if (!isTargetOrUndefined(target)) {
+			return undefined;
+		}
 
-		const isGitHubTarget = isGithubTarget(promptType, header.target);
-		const attributesToPropose = new Set(getValidAttributeNames(promptType, false, isGitHubTarget));
+		const attributesToPropose = new Set(getValidAttributeNames(promptType, false, target));
 		for (const attr of header.attributes) {
 			attributesToPropose.delete(attr.key);
 		}
@@ -132,14 +135,18 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		const lineContent = model.getLineContent(position.lineNumber);
 		const attribute = lineContent.substring(0, colonPosition.column - 1).trim();
 
-		const isGitHubTarget = isGithubTarget(promptType, header.target);
-		if (!getValidAttributeNames(promptType, true, isGitHubTarget).includes(attribute)) {
+		const target = header.target;
+		if (!isTargetOrUndefined(target)) {
+			return undefined;
+		}
+
+		if (!getValidAttributeNames(promptType, true, target).includes(attribute)) {
 			return undefined;
 		}
 
 		if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
 			// if the position is inside the tools metadata, we provide tool name completions
-			const result = this.provideToolCompletions(model, position, header, isGitHubTarget);
+			const result = this.provideToolCompletions(model, position, header, target);
 			if (result) {
 				return result;
 			}
@@ -230,14 +237,20 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		return result;
 	}
 
-	private provideToolCompletions(model: ITextModel, position: Position, header: PromptHeader, isGitHubTarget: boolean): CompletionList | undefined {
+	private provideToolCompletions(model: ITextModel, position: Position, header: PromptHeader, target: Target | undefined): CompletionList | undefined {
 		const toolsAttr = header.getAttribute(PromptHeaderAttributes.tools);
 		if (!toolsAttr || toolsAttr.value.type !== 'array' || !toolsAttr.range.containsPosition(position)) {
 			return undefined;
 		}
 		const getSuggestions = (toolRange: Range) => {
 			const suggestions: CompletionItem[] = [];
-			const toolNames = isGitHubTarget ? Object.keys(knownGithubCopilotTools) : this.languageModelToolsService.getQualifiedToolNames();
+			const toolNames: string[] = [];
+			if (target !== Target.VSCode) {
+				toolNames.push(...Object.keys(knownGithubCopilotTools));
+			}
+			if (target !== Target.GitHubCopilot) {
+				toolNames.push(...this.languageModelToolsService.getQualifiedToolNames());
+			}
 			for (const toolName of toolNames) {
 				let insertText: string;
 				if (!toolRange.isEmpty()) {
