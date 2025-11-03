@@ -10,7 +10,7 @@ import { DisposableStore, toDisposable } from '../../../common/lifecycle.js';
 import { IDerivedReader, IObservableWithChange, autorun, autorunHandleChanges, autorunWithStoreHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, recordChanges, transaction, waitForState, derivedHandleChanges, runOnChange, DebugLocation } from '../../../common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../utils.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
-import { observableReducer } from '../../../common/observableInternal/experimental/reducer.js';
+import { observableReducer, observableReducerSettable } from '../../../common/observableInternal/experimental/reducer.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { BaseObservable } from '../../../common/observableInternal/observables/baseObservable.js';
 
@@ -1611,6 +1611,53 @@ suite('observables', () => {
 			assert.deepStrictEqual(log.getAndClearEntries(), ([
 				'disposeFinal 22'
 			]));
+		});
+
+		test('observableReducerSettable - set before first read', () => {
+			const store = new DisposableStore();
+			const log = new Log();
+
+			const state = observableReducerSettable<{ value: number }, void>(this, {
+				initial: () => {
+					log.log('createInitial');
+					return { value: 0 };
+				},
+				disposeFinal: (values) => {
+					log.log(`disposeFinal ${values.value}`);
+				},
+				update: (reader, previousValue, _changes) => {
+					log.log(`update ${previousValue.value}`);
+					return previousValue;
+				}
+			});
+
+			// Add an observer without reading the value
+			store.add(autorun(reader => {
+				state.read(reader);
+				// eslint-disable-next-line local/code-no-observable-get-in-reactive-context
+				log.log(`autorun ${state.get().value}`);
+			}));
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'createInitial',
+				'update 0',
+				'autorun 0',
+			]);
+
+			// Set should work even though we haven't explicitly called .get() yet
+			transaction(tx => {
+				state.set({ value: 5 }, tx);
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'autorun 5',
+			]);
+
+			store.dispose();
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'disposeFinal 5'
+			]);
 		});
 	});
 

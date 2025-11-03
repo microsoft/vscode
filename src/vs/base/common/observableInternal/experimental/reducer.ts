@@ -48,13 +48,17 @@ export function observableReducerSettable<T, TInChanges, TOutChange = void>(owne
 	let prevValue: T | undefined = undefined;
 	let hasValue = false;
 
+	const ensureInitialized = () => {
+		if (!hasValue) {
+			prevValue = options.initial instanceof Function ? options.initial() : options.initial;
+			hasValue = true;
+		}
+	};
+
 	const d = new DerivedWithSetter(
 		new DebugNameData(owner, undefined, options.update),
 		(reader: IDerivedReader<TOutChange>, changeSummary) => {
-			if (!hasValue) {
-				prevValue = options.initial instanceof Function ? options.initial() : options.initial;
-				hasValue = true;
-			}
+			ensureInitialized();
 			const newValue = options.update(reader, prevValue!, changeSummary);
 			prevValue = newValue;
 			return newValue;
@@ -68,9 +72,10 @@ export function observableReducerSettable<T, TInChanges, TOutChange = void>(owne
 		},
 		options.equalityComparer ?? strictEquals,
 		(value, tx, change) => {
-			if (!hasValue) {
+			if (d.debugGetObservers().size === 0) {
 				throw new BugIndicatingError('Can only set when there is a listener! This is to prevent leaks.');
 			}
+			ensureInitialized();
 			subtransaction(tx, tx => {
 				prevValue = value;
 				d.setValue(value, tx, change);
