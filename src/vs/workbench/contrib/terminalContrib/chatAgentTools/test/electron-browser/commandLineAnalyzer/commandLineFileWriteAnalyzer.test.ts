@@ -65,7 +65,7 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 		));
 	});
 
-	suite('bash', () => {
+	(isWindows ? suite.skip : suite)('bash', () => {
 		const cwd = URI.file('/workspace/project');
 
 		async function t(commandLine: string, blockDetectedFileWrites: 'never' | 'outsideWorkspace' | 'all', expectedAutoApprove: boolean, expectedDisclaimers: number = 0, workspaceFolders: URI[] = [cwd]) {
@@ -166,7 +166,7 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 		});
 	});
 
-	suite('pwsh', () => {
+	(isWindows ? suite : suite.skip)('pwsh', () => {
 		const cwd = URI.file('C:/workspace/project');
 
 		async function t(commandLine: string, blockDetectedFileWrites: 'never' | 'outsideWorkspace' | 'all', expectedAutoApprove: boolean, expectedDisclaimers: number = 0, workspaceFolders: URI[] = [cwd]) {
