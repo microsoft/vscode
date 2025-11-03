@@ -54,6 +54,7 @@ export function connectProxyResolver(
 		isAdditionalFetchSupportEnabled: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.fetchAdditionalSupport', true),
 		addCertificatesV1: () => certSettingV1(configProvider, isRemote),
 		addCertificatesV2: () => certSettingV2(configProvider, isRemote),
+		loadSystemCertificatesFromNode: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', false),
 		log: extHostLogService,
 		getLogLevel: () => {
 			const level = extHostLogService.getLevel();
@@ -81,21 +82,17 @@ export function connectProxyResolver(
 			const useNodeSystemCerts = getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', false);
 			const promises: Promise<string[]>[] = [];
 			if (isRemote) {
-				if (useNodeSystemCerts) {
-					const start = Date.now();
-					const systemCerts = tls.getCACertificates('system');
-					extHostLogService.trace(`ProxyResolver#loadAdditionalCertificates: Loaded Node.js system certificates (${Date.now() - start}ms):`, systemCerts.length);
-					promises.push(Promise.resolve(systemCerts));
-				} else {
-					promises.push(loadSystemCertificates({ log: extHostLogService }));
-				}
+				promises.push(loadSystemCertificates({
+					loadSystemCertificatesFromNode: () => useNodeSystemCerts,
+					log: extHostLogService,
+				}));
 			}
 			if (loadLocalCertificates) {
 				if (!isRemote && useNodeSystemCerts) {
-					const start = Date.now();
-					const systemCerts = tls.getCACertificates('system');
-					extHostLogService.trace(`ProxyResolver#loadAdditionalCertificates: Loaded Node.js system certificates (${Date.now() - start}ms):`, systemCerts.length);
-					promises.push(Promise.resolve(systemCerts));
+					promises.push(loadSystemCertificates({
+						loadSystemCertificatesFromNode: () => useNodeSystemCerts,
+						log: extHostLogService,
+					}));
 				} else {
 					extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading certificates from main process');
 					const certs = extHostWorkspace.loadCertificates(); // Loading from main process to share cache.
