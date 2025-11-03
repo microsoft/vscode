@@ -39,7 +39,7 @@ import { IEditorGroupsService } from '../../../../../services/editor/common/edit
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatService } from '../../../common/chatService.js';
-import { IChatSessionItemProvider, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration, ChatEditorTitleMaxLength } from '../../../common/constants.js';
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat.js';
@@ -98,6 +98,7 @@ export class SessionsViewPane extends ViewPane {
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.minimumBodySize = 44;
@@ -117,6 +118,12 @@ export class SessionsViewPane extends ViewPane {
 				if (this.tree && this.isBodyVisible()) {
 					this.refreshTreeWithProgress();
 				}
+			}
+		}));
+
+		this._register(this.chatSessionsService.onDidChangeSessionItems((chatSessionType) => {
+			if (provider.chatSessionType === chatSessionType && this.tree && this.isBodyVisible()) {
+				this.refreshTreeWithProgress();
 			}
 		}));
 
@@ -184,12 +191,6 @@ export class SessionsViewPane extends ViewPane {
 			'',
 			options
 		);
-	}
-
-	public refreshTree(): void {
-		if (this.tree && this.isBodyVisible()) {
-			this.refreshTreeWithProgress();
-		}
 	}
 
 	private isEmpty() {

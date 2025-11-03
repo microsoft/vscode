@@ -74,20 +74,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 				'viewId' in widget.viewContext &&
 				widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
 				this._onDidChange.fire();
-
-				// Listen for view model changes on this widget
-				this._register(widget.onDidChangeViewModel(() => {
-					this._onDidChange.fire();
-					if (widget.viewModel) {
-						this.registerProgressListener(widget.viewModel.model.requestInProgressObs);
-					}
-				}));
-
-				// Listen for title changes on the current model
-				this.registerModelTitleListener(widget);
-				if (widget.viewModel) {
-					this.registerProgressListener(widget.viewModel.model.requestInProgressObs);
-				}
+				this._registerWidgetModelListeners(widget);
 			}
 		}));
 
@@ -96,19 +83,25 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			.filter(widget => typeof widget.viewContext === 'object' && 'viewId' in widget.viewContext && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
 
 		existingWidgets.forEach(widget => {
-			this._register(widget.onDidChangeViewModel(() => {
-				this._onDidChange.fire();
-				this.registerModelTitleListener(widget);
-			}));
+			this._registerWidgetModelListeners(widget);
+		});
+	}
 
-			// Register title listener for existing widget
+	private _registerWidgetModelListeners(widget: IChatWidget): void {
+		const register = () => {
 			this.registerModelTitleListener(widget);
 			if (widget.viewModel) {
 				this.registerProgressListener(widget.viewModel.model.requestInProgressObs);
 			}
-		});
-	}
+		};
+		// Listen for view model changes on this widget
+		this._register(widget.onDidChangeViewModel(() => {
+			register();
+			this._onDidChangeChatSessionItems.fire();
+		}));
 
+		register();
+	}
 	private registerProgressListener(observable: IObservable<boolean>) {
 		const progressEvent = Event.fromObservableLight(observable);
 		this._register(progressEvent(() => {
