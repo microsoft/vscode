@@ -398,10 +398,14 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 				if (instance) {
 					terminalService.setActiveInstance(instance);
 					await terminalService.revealTerminal(instance);
+					qp.hide();
 					terminalService.focusInstance(instance);
+				} else {
+					qp.hide();
 				}
+			} else {
+				qp.hide();
 			}
-			qp.hide();
 		});
 		qp.onDidHide(() => qp.dispose());
 		qp.show();
