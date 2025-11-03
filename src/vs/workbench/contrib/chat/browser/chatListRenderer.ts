@@ -1225,7 +1225,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				'copilot_getChangedFiles',
 			]);
 			const isSpecialTool = specialToolIds.has(part.toolId);
-			return isSpecialTool;
+			return isSpecialTool || part.presentation === 'hidden';
 		}
 
 		return part.kind === 'prepareToolInvocation';
