@@ -236,8 +236,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		};
 	}
 
-	public async init(): Promise<void> {
-		const restoredSessionState = await this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionId).restoreState();
+	public async init(transferFrom?: IChatEditingSession): Promise<void> {
+		let restoredSessionState = await this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionId).restoreState();
+
+		if (!restoredSessionState && transferFrom instanceof ChatEditingSession) {
+			restoredSessionState = transferFrom._getStoredState(this.chatSessionId);
+		}
+
 		if (restoredSessionState) {
 			for (const [uri, content] of restoredSessionState.initialFileContents) {
 				this._initialFileContents.set(uri, content);
@@ -252,13 +257,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		} else {
 			this._state.set(ChatEditingSessionState.Idle, undefined);
 		}
-
-		this._register(autorun(reader => {
-			const entries = this.entries.read(reader);
-			entries.forEach(entry => {
-				entry.state.read(reader);
-			});
-		}));
 	}
 
 	private _getEntry(uri: URI): AbstractChatEditingModifiedFileEntry | undefined {
@@ -277,20 +275,22 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	public storeState(): Promise<void> {
 		const storage = this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionId);
+		return storage.storeState(this._getStoredState());
+	}
 
+	private _getStoredState(sessionId = this.chatSessionId): StoredSessionState {
 		const entries = new ResourceMap<ISnapshotEntry>();
 		for (const entry of this._entriesObs.get()) {
-			entries.set(entry.modifiedURI, entry.createSnapshot(undefined, undefined));
+			entries.set(entry.modifiedURI, entry.createSnapshot(sessionId, undefined, undefined));
 		}
 
-		// TODO: Convert checkpoint timeline state to old format for storage compatibility
-		// For now, create a minimal compatible state
 		const state: StoredSessionState = {
 			initialFileContents: this._initialFileContents,
 			timeline: this._timeline.getStateForPersistence(),
 			recentSnapshot: { entries, stopId: undefined },
 		};
-		return storage.storeState(state);
+
+		return state;
 	}
 
 	public getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined) {
