@@ -87,6 +87,8 @@ declare module 'vscode' {
 		 * Events for edited files in this session collected since the last request.
 		 */
 		readonly editedFileEvents?: ChatRequestEditedFileEvent[];
+
+		readonly isSubagent?: boolean;
 	}
 
 	export enum ChatRequestEditedFileEventKind {

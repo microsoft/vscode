@@ -115,6 +115,8 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 					inputSchema: tool.definition.inputSchema,
 					canBeReferencedInPrompt: true,
 					alwaysDisplayInputOutput: true,
+					canRequestPreApproval: !tool.definition.annotations?.readOnlyHint,
+					canRequestPostApproval: !!tool.definition.annotations?.openWorldHint,
 					runsInWorkspace: collection?.scope === StorageScope.WORKSPACE || !!collection?.remoteAuthority,
 					tags: ['mcp'],
 				};

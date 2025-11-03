@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import { IToolResult } from '../languageModelToolsService.js';
 
-declare global {
-	var testExtensionContext: vscode.ExtensionContext;
-}
-
-export function activate(_context: vscode.ExtensionContext) {
-	// Set context as a global as some tests depend on it
-	global.testExtensionContext = _context;
+/**
+ * Creates a tool result with a single text content part.
+ */
+export function createToolSimpleTextResult(value: string): IToolResult {
+	return {
+		content: [{
+			kind: 'text',
+			value
+		}]
+	};
 }

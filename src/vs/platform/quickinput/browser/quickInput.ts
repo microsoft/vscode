@@ -465,6 +465,10 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 			// it requires a HTMLElement on its interface
 			const concreteToggles = this.toggles?.filter(opts => opts instanceof Toggle) as Toggle[] ?? [];
 			this.ui.inputBox.toggles = concreteToggles;
+			// Adjust count badge position based on number of toggles (each toggle is ~22px wide)
+			const toggleOffset = concreteToggles.length * 22;
+			this.ui.countContainer.style.right = toggleOffset > 0 ? `${4 + toggleOffset}px` : '4px';
+			this.ui.visibleCountContainer.style.right = toggleOffset > 0 ? `${4 + toggleOffset}px` : '4px';
 		}
 		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.setEnabled(this.enabled);
