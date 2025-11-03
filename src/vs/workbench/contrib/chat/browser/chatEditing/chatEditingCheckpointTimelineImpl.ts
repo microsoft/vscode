@@ -75,7 +75,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		const currentEpoch = this._currentEpoch.read(reader);
 		const checkpoints = this._checkpoints.read(reader);
 		if (checkpoints.length < 2 || currentEpoch <= checkpoints[1].epoch) {
-			return false;
+			return undefined;
 		}
 
 		const operations = this._operations.read(reader);
