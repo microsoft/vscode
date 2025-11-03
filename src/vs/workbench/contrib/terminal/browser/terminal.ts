@@ -134,6 +134,13 @@ export interface ITerminalChatService {
 	 */
 	getToolSessionTerminalInstances(): readonly ITerminalInstance[];
 
+	/**
+	 * Returns the tool session ID for a given terminal instance, if it has been registered.
+	 * @param instance The terminal instance to look up
+	 * @returns The tool session ID if found, undefined otherwise
+	 */
+	getToolSessionIdForInstance(instance: ITerminalInstance): string | undefined;
+
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
 }
 

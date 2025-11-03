@@ -108,6 +108,15 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		return Array.from(new Set(this._terminalInstancesByToolSessionId.values()));
 	}
 
+	getToolSessionIdForInstance(instance: ITerminalInstance): string | undefined {
+		for (const [toolSessionId, terminalInstance] of this._terminalInstancesByToolSessionId.entries()) {
+			if (terminalInstance === instance) {
+				return toolSessionId;
+			}
+		}
+		return undefined;
+	}
+
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean {
 		if (!terminalToolSessionId) {
 			return false;
