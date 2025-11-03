@@ -2423,7 +2423,6 @@ export class SCMViewPane extends ViewPane {
 					return (viewState?.expanded ?? []).indexOf(getSCMResourceId(e as TreeElement)) === -1;
 				},
 				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider),
-				enableStickyScroll: true,
 				stickyScrollDelegate: new SCMStickyScrollDelegate()
 			}) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 

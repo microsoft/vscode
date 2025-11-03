@@ -1425,8 +1425,9 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		let firstVisibleNodeUnderWidget: ITreeNode<T, TFilterData> | undefined = firstVisibleNode;
 		let stickyNodesHeight = 0;
 		let previousStickyNode: ITreeNode<T, TFilterData> | undefined = undefined;
+		const processedShouldStickNodes = new Set<ITreeNode<T, TFilterData>>();
 
-		let nextStickyNodeResult = this.getNextStickyNode(firstVisibleNodeUnderWidget, previousStickyNode, stickyNodesHeight);
+		let nextStickyNodeResult = this.getNextStickyNode(firstVisibleNodeUnderWidget, previousStickyNode, stickyNodesHeight, processedShouldStickNodes);
 		while (nextStickyNodeResult) {
 
 			stickyNodes.push(nextStickyNodeResult.stickyNode);
@@ -1439,12 +1440,14 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 				}
 			}
 
-			// Only update previousStickyNode if this was a parent node, not a shouldStick node
-			if (!nextStickyNodeResult.isShouldStickNode) {
+			// Track shouldStick nodes and only update previousStickyNode for parent nodes
+			if (nextStickyNodeResult.isShouldStickNode) {
+				processedShouldStickNodes.add(nextStickyNodeResult.stickyNode.node);
+			} else {
 				previousStickyNode = nextStickyNodeResult.stickyNode.node;
 			}
 
-			nextStickyNodeResult = this.getNextStickyNode(firstVisibleNodeUnderWidget, previousStickyNode, stickyNodesHeight);
+			nextStickyNodeResult = this.getNextStickyNode(firstVisibleNodeUnderWidget, previousStickyNode, stickyNodesHeight, processedShouldStickNodes);
 		}
 
 		const contrainedStickyNodes = this.constrainStickyNodes(stickyNodes);
@@ -1455,9 +1458,9 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		return this.getNodeAtHeight(previousStickyNode.position + previousStickyNode.height);
 	}
 
-	private getNextStickyNode(firstVisibleNodeUnderWidget: ITreeNode<T, TFilterData>, previousStickyNode: ITreeNode<T, TFilterData> | undefined, stickyNodesHeight: number): { stickyNode: StickyScrollNode<T, TFilterData>; isShouldStickNode: boolean } | undefined {
+	private getNextStickyNode(firstVisibleNodeUnderWidget: ITreeNode<T, TFilterData>, previousStickyNode: ITreeNode<T, TFilterData> | undefined, stickyNodesHeight: number, processedShouldStickNodes: Set<ITreeNode<T, TFilterData>>): { stickyNode: StickyScrollNode<T, TFilterData>; isShouldStickNode: boolean } | undefined {
 		// Check for nodes that should stick even though they are not parents
-		const shouldStickNode = this.getShouldStickNode(firstVisibleNodeUnderWidget, previousStickyNode, stickyNodesHeight);
+		const shouldStickNode = this.getShouldStickNode(firstVisibleNodeUnderWidget, previousStickyNode, stickyNodesHeight, processedShouldStickNodes);
 
 		// Get the ancestor node (parent) that would normally stick
 		const nextStickyNode = this.getAncestorUnderPrevious(firstVisibleNodeUnderWidget, previousStickyNode);
@@ -1487,48 +1490,36 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		return { stickyNode: this.createStickyScrollNode(nextStickyNode, stickyNodesHeight), isShouldStickNode: false };
 	}
 
-	private getShouldStickNode(firstVisibleNodeUnderWidget: ITreeNode<T, TFilterData>, previousStickyNode: ITreeNode<T, TFilterData> | undefined, stickyNodesHeight: number): StickyScrollNode<T, TFilterData> | undefined {
+	private getShouldStickNode(firstVisibleNodeUnderWidget: ITreeNode<T, TFilterData>, previousStickyNode: ITreeNode<T, TFilterData> | undefined, stickyNodesHeight: number, processedShouldStickNodes: Set<ITreeNode<T, TFilterData>>): StickyScrollNode<T, TFilterData> | undefined {
 		if (!this.stickyScrollDelegate.shouldStick) {
 			return undefined;
 		}
 
-		// Get the parent node whose children we should check
-		// This is either the previous sticky node (if it exists) or the root
 		const parentNode = previousStickyNode ?? this.model.getNode();
+		const scrollTop = this.view.scrollTop;
+		const firstVisibleIndex = this.getNodeIndex(firstVisibleNodeUnderWidget);
 
-		// Find the first child that should stick and is scrolled past
-		let candidateNode: ITreeNode<T, TFilterData> | undefined = undefined;
-		let candidateIndex = Number.MAX_SAFE_INTEGER;
-
-		// Check all direct children of the parent node
+		// Find the first unprocessed child that should stick
 		for (const childNode of parentNode.children) {
+			// Skip already processed nodes
+			if (processedShouldStickNodes.has(childNode)) {
+				continue;
+			}
+
 			// Check if this child should stick
 			if (!this.stickyScrollDelegate.shouldStick(childNode)) {
 				continue;
 			}
 
-			// Get the index of this child in the tree
 			const childIndex = this.getNodeIndex(childNode);
 			if (childIndex < 0) {
-				continue; // Node not in the visible tree
+				continue;
 			}
 
-			// Check if the node is visible
+			// Check if scrolled past and visible
 			const childTop = this.view.getElementTop(childIndex);
-			const scrollTop = this.view.scrollTop;
-
-			// The node should stick if the scroll position is past the node's top
-			if (scrollTop > childTop && childIndex < candidateIndex) {
-				candidateNode = childNode;
-				candidateIndex = childIndex;
-			}
-		}
-
-		// If we found a candidate, check if it's at or before the first visible node
-		if (candidateNode) {
-			const firstVisibleIndex = this.getNodeIndex(firstVisibleNodeUnderWidget);
-			if (candidateIndex <= firstVisibleIndex) {
-				return this.createStickyScrollNode(candidateNode, stickyNodesHeight);
+			if (scrollTop > childTop && childIndex <= firstVisibleIndex) {
+				return this.createStickyScrollNode(childNode, stickyNodesHeight);
 			}
 		}
 
