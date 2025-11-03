@@ -11,7 +11,6 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, derived, IObservable, ObservableMap } from '../../../../base/common/observable.js';
@@ -136,7 +135,7 @@ export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
 	private readonly _sessionModels = new ChatModelStore();
-	private readonly _contentProviderSessionModels = new ResourceMap<{ readonly model: IChatModel; readonly disposables: DisposableStore }>();
+	private readonly _contentProviderSessionModels = this._register(new DisposableResourceMap<{ readonly model: IChatModel } & IDisposable>());
 	private readonly _pendingRequests = this._register(new DisposableResourceMap<CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
 
@@ -562,10 +561,10 @@ export class ChatService extends Disposable implements IChatService {
 		});
 
 		const disposables = new DisposableStore();
-		this._contentProviderSessionModels.set(chatSessionResource, { model, disposables });
+		this._contentProviderSessionModels.set(chatSessionResource, { model, dispose: () => disposables.dispose() });
 
 		disposables.add(model.onDidDispose(() => {
-			this._contentProviderSessionModels.delete(chatSessionResource);
+			this._contentProviderSessionModels.deleteAndDispose(chatSessionResource);
 			providedSession.dispose();
 		}));
 
@@ -614,7 +613,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {
 			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
 			this._pendingRequests.set(model.sessionResource, initialCancellationRequest);
-			const cancellationListener = new MutableDisposable();
+			const cancellationListener = disposables.add(new MutableDisposable());
 
 			const createCancellationListener = (token: CancellationToken) => {
 				return token.onCancellationRequested(() => {
@@ -630,7 +629,6 @@ export class ChatService extends Disposable implements IChatService {
 			};
 
 			cancellationListener.value = createCancellationListener(initialCancellationRequest.cancellationTokenSource.token);
-			disposables.add(cancellationListener);
 
 			let lastProgressLength = 0;
 			disposables.add(autorun(reader => {
