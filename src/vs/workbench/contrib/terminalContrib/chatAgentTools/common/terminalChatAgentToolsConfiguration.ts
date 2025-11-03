@@ -417,7 +417,11 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			localize('outputLocation.terminal', "Reveal the terminal when running the command."),
 			localize('outputLocation.none', "Do not reveal the terminal automatically."),
 		],
-		default: product.quality !== 'stable' ? 'none' : 'terminal'
+		default: product.quality !== 'stable' ? 'none' : 'terminal',
+		tags: ['experimental'],
+		experiment: {
+			mode: 'auto'
+		}
 	}
 };
 
