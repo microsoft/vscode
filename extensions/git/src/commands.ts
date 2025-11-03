@@ -3192,7 +3192,7 @@ export class CommandCenter {
 
 			await commands.executeCommand('_workbench.openMultiDiffEditor', {
 				multiDiffSourceUri,
-				title: `${ref1DisplayId} ↔ ${ref2DisplayId}`,
+				title: `${ref1DisplayId} \u2194 ${ref2DisplayId}`,
 				resources
 			});
 		} catch (err) {
@@ -4889,7 +4889,7 @@ export class CommandCenter {
 		else if (item.previousRef === 'HEAD' && item.ref === '~') {
 			title = l10n.t('{0} (Index)', basename);
 		} else {
-			title = l10n.t('{0} ({1}) ↔ {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
+			title = l10n.t('{0} ({1}) \u2194 {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
 		}
 
 		return {
@@ -5006,7 +5006,7 @@ export class CommandCenter {
 		}
 
 
-		const title = l10n.t('{0} ↔ {1}', leftTitle, rightTitle);
+		const title = l10n.t('{0} \u2194 {1}', leftTitle, rightTitle);
 		await commands.executeCommand('vscode.diff', selected.ref === '' ? uri : toGitUri(uri, selected.ref), item.ref === '' ? uri : toGitUri(uri, item.ref), title);
 	}
 

@@ -333,11 +333,11 @@ registerAction2(class extends Action2 {
 		let title: string, historyItemId: string, historyItemParentId: string | undefined;
 
 		if (historyItem.id === SCMIncomingHistoryItemId) {
-			title = `${historyItem.subject} - ${historyItemRef?.name} ↔ ${historyItemRemoteRef?.name}`;
+			title = `${historyItem.subject} - ${historyItemRef?.name} \u2194 ${historyItemRemoteRef?.name}`;
 			historyItemId = historyProvider!.historyItemRemoteRef.get()!.id;
 			historyItemParentId = historyItem.parentIds[0];
 		} else if (historyItem.id === SCMOutgoingHistoryItemId) {
-			title = `${historyItem.subject} - ${historyItemRemoteRef?.name} ↔ ${historyItemRef?.name}`;
+			title = `${historyItem.subject} - ${historyItemRemoteRef?.name} \u2194 ${historyItemRef?.name}`;
 			historyItemId = historyProvider!.historyItemRef.get()!.id;
 			historyItemParentId = historyItem.parentIds[0];
 		} else {
@@ -2013,7 +2013,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				const originalUriTitle = `${basename(historyItemChange.originalUri.fsPath)} (${historyItemParentDisplayId})`;
 				const modifiedUriTitle = `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItemDisplayId})`;
 
-				const title = `${originalUriTitle} ↔ ${modifiedUriTitle}`;
+				const title = `${originalUriTitle} \u2194 ${modifiedUriTitle}`;
 				await this._editorService.openEditor({
 					label: title,
 					original: { resource: historyItemChange.originalUri },
