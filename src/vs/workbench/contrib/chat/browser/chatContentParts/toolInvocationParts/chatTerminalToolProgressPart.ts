@@ -227,7 +227,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			showOutputAction = new ToggleChatTerminalOutputAction(expanded => this._toggleOutput(expanded));
 			this._showOutputAction.value = showOutputAction;
 			if (command.exitCode) {
-				this._setOutputExpanded(true);
+				this._toggleOutput(true);
 			}
 		}
 		showOutputAction.syncPresentation(this._outputContainer.classList.contains('expanded'));
