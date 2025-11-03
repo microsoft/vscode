@@ -60,10 +60,6 @@ export function removeFastWithoutKeepingOrder<T>(array: T[], index: number) {
 		throw new Error('Index out of bounds');
 	}
 
-	if (array.length === 0) {
-		throw new Error('Cannot remove from empty array');
-	}
-
 	const last = array.length - 1;
 	if (index < last) {
 		array[index] = array[last];
