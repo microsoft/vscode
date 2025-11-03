@@ -166,6 +166,11 @@ steps:
 
   - template: ../../common/install-builtin-extensions.yml@self
 
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: node build/lib/policies/policyGenerator build/lib/policies/policyData.jsonc linux
+      displayName: Generate policy definitions
+      retryCountOnTaskFailure: 3
+
   - script: |
       set -e
       npm run gulp vscode-linux-$(VSCODE_ARCH)-min-ci
