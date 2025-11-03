@@ -359,7 +359,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			const iconId = instantiationService.invokeFunction(getIconId, instance);
 			const label = `$(${iconId}) ${instance.title}`;
 			const lastCommand = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands.at(-1)?.command;
-			
+
 			// Get the chat session title
 			const toolSessionId = terminalChatService.getToolSessionIdForInstance(instance);
 			let chatSessionTitle: string | undefined;
