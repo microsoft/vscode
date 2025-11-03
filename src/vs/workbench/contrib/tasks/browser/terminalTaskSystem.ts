@@ -288,7 +288,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 	}
 
-	getTerminalsForTasks(tasks: Task | Task[]): URI[] | undefined {
+	getTerminalsForTasks(tasks: Types.SingleOrMany<Task>): URI[] | undefined {
 		const results: URI[] = [];
 		for (const t of asArray(tasks)) {
 			for (const key in this._terminals) {
@@ -1337,7 +1337,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				waitOnExit
 			};
 			if (task.command.presentation && task.command.presentation.echo) {
-				const getArgsToEcho = (args: string | string[] | undefined): string => {
+				const getArgsToEcho = (args: Types.SingleOrMany<string> | undefined): string => {
 					if (!args || args.length === 0) {
 						return '';
 					}
