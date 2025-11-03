@@ -107,7 +107,7 @@ interface IPromptPickerQuickPickItem extends IQuickPickItem {
 	promptFileUri?: URI;
 
 	/**
-	 * the id of the command to execute when this item is selected.
+	 * The command ID to execute when this item is selected.
 	 */
 	commandId?: string;
 }
@@ -211,7 +211,7 @@ const COPY_BUTTON: IQuickInputButton = {
 };
 
 /**
- * Button that set a prompt file to be visible .
+ * Button that sets a prompt file to be visible.
  */
 const MAKE_VISIBLE_BUTTON: IQuickInputButton = {
 	tooltip: localize('makeVisible', "Show in Agent Picker"),
@@ -219,7 +219,7 @@ const MAKE_VISIBLE_BUTTON: IQuickInputButton = {
 };
 
 /**
- * Button that set a prompt file to be invisible .
+ * Button that sets a prompt file to be invisible.
  */
 const MAKE_INVISIBLE_BUTTON: IQuickInputButton = {
 	tooltip: localize('makeInvisible', "Hide from Agent Picker"),
@@ -345,16 +345,16 @@ export class PromptFilePickers {
 			result.push(...this._getNewItems(options.type));
 		}
 
-		let getVisbility: (p: IPromptPath) => boolean | undefined = () => undefined;
+		let getVisibility: (p: IPromptPath) => boolean | undefined = () => undefined;
 		if (options.optionVisibility) {
 			const disabled = this._promptsService.getDisabledPromptFiles(options.type);
-			getVisbility = p => !disabled.has(p.uri);
+			getVisibility = p => !disabled.has(p.uri);
 		}
 
 		const locals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.local, token);
 		if (locals.length) {
 			result.push({ type: 'separator', label: localize('separator.workspace', "Workspace") });
-			result.push(...await Promise.all(locals.map(l => this._createPromptPickItem(l, buttons, getVisbility(l), token))));
+			result.push(...await Promise.all(locals.map(l => this._createPromptPickItem(l, buttons, getVisibility(l), token))));
 		}
 
 		// Agent instruction files (copilot-instructions.md and AGENTS.md) are added here and not included in the output of
@@ -381,7 +381,7 @@ export class PromptFilePickers {
 		if (agentInstructionFiles.length) {
 			const agentButtons = buttons.filter(b => b !== RENAME_BUTTON);
 			result.push({ type: 'separator', label: localize('separator.workspace-agent-instructions', "Agent Instructions") });
-			result.push(...await Promise.all(agentInstructionFiles.map(l => this._createPromptPickItem(l, agentButtons, getVisbility(l), token))));
+			result.push(...await Promise.all(agentInstructionFiles.map(l => this._createPromptPickItem(l, agentButtons, getVisibility(l), token))));
 		}
 
 		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, token);
@@ -394,12 +394,12 @@ export class PromptFilePickers {
 			if (options.optionCopy !== false) {
 				extButtons.push(COPY_BUTTON);
 			}
-			result.push(...await Promise.all(exts.map(e => this._createPromptPickItem(e, extButtons, getVisbility(e), token))));
+			result.push(...await Promise.all(exts.map(e => this._createPromptPickItem(e, extButtons, getVisibility(e), token))));
 		}
 		const users = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.user, token);
 		if (users.length) {
 			result.push({ type: 'separator', label: localize('separator.user', "User Data") });
-			result.push(...await Promise.all(users.map(u => this._createPromptPickItem(u, buttons, getVisbility(u), token))));
+			result.push(...await Promise.all(users.map(u => this._createPromptPickItem(u, buttons, getVisibility(u), token))));
 		}
 		return result;
 	}
@@ -592,12 +592,12 @@ export class PromptFilePickers {
 			};
 
 			const refreshItems = async () => {
-				//const active = quickPick.activeItems;
+				const active = quickPick.activeItems;
 				const disabled = getDisabled();
 				const newItems = await this._createPromptPickItems(options, CancellationToken.None);
 				quickPick.items = newItems;
 				quickPick.selectedItems = newItems.filter(i => isPromptFileItem(i)).filter(i => !disabled.has(i.promptFileUri));
-				quickPick.activeItems = [];
+				quickPick.activeItems = active;
 			};
 
 			disposables.add(quickPick.onDidAccept(async () => {
