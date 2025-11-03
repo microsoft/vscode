@@ -37,7 +37,6 @@ const SEARCH_ACTIVITY_HEADER_NAME = 'X-Market-Search-Activity-Id';
 const ACTIVITY_HEADER_NAME = 'Activityid';
 const SERVER_HEADER_NAME = 'Server';
 const END_END_ID_HEADER_NAME = 'X-Vss-E2eid';
-const REQUEST_TIME_OUT = 10_000;
 
 interface IRawGalleryExtensionFile {
 	readonly assetType: string;
@@ -607,6 +606,12 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			this.fileService,
 			storageService,
 			this.telemetryService);
+	}
+
+	private getRequestTimeout(): number {
+		const configuredTimeout = this.configurationService.getValue<number>('http.requestTimeout');
+		// Use configured timeout, or fallback to 60 seconds if not set or invalid
+		return (typeof configuredTimeout === 'number' && configuredTimeout >= 0) ? configuredTimeout : 60000;
 	}
 
 	isEnabled(): boolean {
@@ -1452,7 +1457,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				type: 'GET',
 				url: uri.toString(true),
 				headers,
-				timeout: REQUEST_TIME_OUT
+				timeout: this.getRequestTimeout()
 			}, token);
 
 			if (context.res.statusCode === 404) {
@@ -1745,7 +1750,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		const url = asset.uri;
 		const fallbackUrl = asset.fallbackUri;
-		const firstOptions = { ...options, url, timeout: REQUEST_TIME_OUT };
+		const firstOptions = { ...options, url, timeout: this.getRequestTimeout() };
 
 		let context;
 		try {
@@ -1791,7 +1796,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				endToEndId: this.getHeaderValue(context?.res.headers, END_END_ID_HEADER_NAME),
 			});
 
-			const fallbackOptions = { ...options, url: fallbackUrl, timeout: REQUEST_TIME_OUT };
+			const fallbackOptions = { ...options, url: fallbackUrl, timeout: this.getRequestTimeout() };
 			return this.requestService.request(fallbackOptions, token);
 		}
 	}
@@ -1810,7 +1815,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: this.extensionsControlUrl,
-			timeout: REQUEST_TIME_OUT
+			timeout: this.getRequestTimeout()
 		}, CancellationToken.None);
 
 		if (context.res.statusCode !== 200) {
