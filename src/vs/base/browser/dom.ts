@@ -361,7 +361,7 @@ class AnimationFrameQueueItem implements IDisposable {
 	function insertSorted(queue: AnimationFrameQueueItem[], item: AnimationFrameQueueItem): void {
 		const insertIndex = binarySearch2(
 			queue.length,
-			i => queue[i].priority - item.priority
+			i => item.priority - queue[i].priority
 		);
 		const index = insertIndex < 0 ? -(insertIndex + 1) : insertIndex;
 		queue.splice(index, 0, item);
