@@ -11,7 +11,7 @@ import { localize } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentService } from '../chatAgents.js';
-import { ChatModel } from '../chatModel.js';
+import { ChatModel, IChatRequestModeInstructions } from '../chatModel.js';
 import { IChatModeService } from '../chatModes.js';
 import { IChatProgress, IChatService } from '../chatService.js';
 import { LocalChatSessionUri } from '../chatUri.js';
@@ -87,7 +87,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 	) {
 		super();
 	}
@@ -119,6 +120,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			// Resolve mode-specific configuration if subagentId is provided
 			let modeModelId = invocation.modelId;
 			let modeTools = invocation.userSelectedTools;
+			let modeInstructions: IChatRequestModeInstructions | undefined;
 
 			if (args.subagentId) {
 				const mode = this.chatModeService.findModeByName(args.subagentId);
@@ -150,6 +152,14 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 							}
 						}
 					}
+
+					const instructions = mode.modeInstructions?.get();
+					modeInstructions = instructions && {
+						name: mode.name,
+						content: instructions.content,
+						toolReferences: this.toolsService.toToolReferences(instructions.toolReferences),
+						metadata: instructions.metadata,
+					};
 				} else {
 					this.logService.warn(`RunSubagentTool: Agent '${args.subagentId}' not found, using current configuration`);
 				}
@@ -185,7 +195,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				location: ChatAgentLocation.Chat,
 				isSubagent: true,
 				userSelectedModelId: modeModelId,
-				userSelectedTools: modeTools
+				userSelectedTools: modeTools,
+				modeInstructions,
 			};
 
 			// Invoke the agent
