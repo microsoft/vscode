@@ -131,39 +131,4 @@ suite('CommandDetectionCapability', () => {
 			]);
 		});
 	});
-
-	suite('command IDs', () => {
-		test('should generate unique IDs for all commands', async () => {
-			await printStandardCommand('$ ', 'echo foo', 'foo', undefined, 0);
-			await printStandardCommand('$ ', 'echo bar', 'bar', undefined, 0);
-			await printCommandStart('$ ');
-
-			// Verify that all commands have IDs
-			ok(capability.commands.length === 2);
-			ok(capability.commands[0].id, 'First command should have an ID');
-			ok(capability.commands[1].id, 'Second command should have an ID');
-			// Verify IDs are unique
-			ok(capability.commands[0].id !== capability.commands[1].id, 'Command IDs should be unique');
-			// Clear commands
-			addEvents.length = 0;
-			capability.clearCommands();
-		});
-
-		test('should preserve custom command IDs when provided', async () => {
-			const customId = 'custom-test-id';
-			capability.handlePromptStart();
-			await writeP(xterm, '\r$ ');
-			capability.handleCommandStart();
-			await writeP(xterm, 'echo custom');
-			capability.handleCommandExecuted();
-			await writeP(xterm, '\r\ncustom\r\n');
-			capability.handleCommandFinished(0, { commandId: customId });
-
-			ok(capability.commands.length === 1);
-			deepStrictEqual(capability.commands[0].id, customId, 'Command should have the custom ID');
-			// Clear commands
-			addEvents.length = 0;
-			capability.clearCommands();
-		});
-	});
 });

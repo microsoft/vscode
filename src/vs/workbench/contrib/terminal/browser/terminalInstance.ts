@@ -481,6 +481,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						e.capability.promptInputModel.onDidChangeInput,
 						e.capability.promptInputModel.onDidFinishInput
 					)(refreshInfo));
+					// Generate and assign IDs for manually-run commands to enable chat attachment after reload
+					this._register(e.capability.onCommandStarted(async (command) => {
+						// Only generate ID if command doesn't already have one (i.e., it's a manual command, not Copilot-initiated)
+						if (!command.id && command.command) {
+							const commandId = generateUuid();
+							// Set the ID in both renderer and ptyHost so it's persisted across reloads
+							this.xterm?.shellIntegration.setNextCommandId(command.command, commandId);
+							await this._processManager.setNextCommandId(command.command, commandId);
+						}
+					}));
 					break;
 				}
 				case TerminalCapability.PromptTypeDetection: {
