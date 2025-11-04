@@ -32,12 +32,6 @@
 	}
 }
 
-.chat-terminal-content-title.expanded {
-	border-bottom-left-radius: 0px;
-	border-bottom-right-radius: 0px;
-	border-bottom: 0;
-}
-
 .chat-terminal-content-part .chat-terminal-action-bar {
 	display: flex;
 	gap: 4px;
@@ -80,6 +74,9 @@
 
 .chat-terminal-content-title.expanded {
 	margin-right: 18px;
+	border-bottom-left-radius: 0px;
+	border-bottom-right-radius: 0px;
+	border-bottom: 0;
 }
 
 .chat-terminal-output-container.expanded { display: block; }
