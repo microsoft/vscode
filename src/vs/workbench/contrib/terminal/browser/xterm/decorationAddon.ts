@@ -538,13 +538,17 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 					widget = await showChatView(this._viewsService, this._layoutService);
 				}
 
+				if (!widget) {
+					return;
+				}
+
 				let terminalContext: TerminalContext | undefined;
 				if (this._resource) {
 					const parsedUri = parseTerminalUri(this._resource);
 					terminalContext = this._instantiationService.createInstance(TerminalContext, getTerminalUri(parsedUri.workspaceId, parsedUri.instanceId!, undefined, command.id));
 				}
 
-				if (terminalContext && widget && widget.attachmentCapabilities.supportsTerminalAttachments) {
+				if (terminalContext && widget.attachmentCapabilities.supportsTerminalAttachments) {
 					try {
 						const attachment = await terminalContext.asAttachment(widget);
 						if (attachment) {
