@@ -19,6 +19,7 @@ import { hash } from '../common/hash.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from './window.js';
 import { isPointWithinTriangle } from '../common/numbers.js';
 import { IObservable, derived, derivedOpts, IReader, observableValue } from '../common/observable.js';
+import { binarySearch2 } from '../common/arrays.js';
 
 export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
@@ -353,6 +354,19 @@ class AnimationFrameQueueItem implements IDisposable {
 	 */
 	const inAnimationFrameRunner = new Map<number /* window ID */, boolean>();
 
+	/**
+	 * Insert an item into a queue in sorted order by priority (largest to lowest).
+	 * Uses binary search to find the insertion point, achieving O(log n) search + O(n) splice.
+	 */
+	function insertSorted(queue: AnimationFrameQueueItem[], item: AnimationFrameQueueItem): void {
+		const insertIndex = binarySearch2(
+			queue.length,
+			i => queue[i].priority - item.priority
+		);
+		const index = insertIndex < 0 ? -(insertIndex + 1) : insertIndex;
+		queue.splice(index, 0, item);
+	}
+
 	const animationFrameRunner = (targetWindowId: number) => {
 		animFrameRequested.set(targetWindowId, false);
 
@@ -362,7 +376,6 @@ class AnimationFrameQueueItem implements IDisposable {
 
 		inAnimationFrameRunner.set(targetWindowId, true);
 		while (currentQueue.length > 0) {
-			currentQueue.sort(AnimationFrameQueueItem.sort);
 			const top = currentQueue.shift()!;
 			top.execute();
 		}
@@ -378,7 +391,7 @@ class AnimationFrameQueueItem implements IDisposable {
 			nextQueue = [];
 			NEXT_QUEUE.set(targetWindowId, nextQueue);
 		}
-		nextQueue.push(item);
+		insertSorted(nextQueue, item);
 
 		if (!animFrameRequested.get(targetWindowId)) {
 			animFrameRequested.set(targetWindowId, true);
@@ -397,7 +410,7 @@ class AnimationFrameQueueItem implements IDisposable {
 				currentQueue = [];
 				CURRENT_QUEUE.set(targetWindowId, currentQueue);
 			}
-			currentQueue.push(item);
+			insertSorted(currentQueue, item);
 			return item;
 		} else {
 			return scheduleAtNextAnimationFrame(targetWindow, runner, priority);
