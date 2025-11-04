@@ -7,7 +7,6 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { debounce } from '../../../../base/common/decorators.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, MandatoryMutableDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../log/common/log.js';
 import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, TerminalCapability } from './capabilities.js';
 import { ITerminalOutputMatcher } from '../terminal.js';
@@ -355,6 +354,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
 		this._ptyHeuristics.value.handleCommandExecuted(options);
 		this._currentCommand.markExecutedTime();
+		this._ensureCurrentCommandId(this._currentCommand.command ?? this._currentCommand.extractCommandLine());
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
@@ -365,7 +365,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		if (!this._currentCommand.commandExecutedMarker) {
 			this.handleCommandExecuted();
 		}
-		this._ensureCurrentCommandId(this._currentCommand.command ?? this._currentCommand.extractCommandLine());
 		this._currentCommand.markFinishedTime();
 		this._ptyHeuristics.value.preHandleCommandFinished?.();
 
@@ -414,10 +413,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			}
 			this._nextCommandId = undefined;
 			return;
-		}
-
-		if (!this._currentCommand.id) {
-			this._currentCommand.id = generateUuid();
 		}
 	}
 
