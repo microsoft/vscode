@@ -91,6 +91,20 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 			if (!isWritable) {
 				permissions |= FilePermission.Locked;
+				if (stat.uid !== selfUserInfo.uid) {
+					// The file is not writable and we are not the owner, so we won't be able to make it writable
+					permissions |= FilePermission.Readonly;
+				} else {
+					// We are the owner of the file, but it may be not chmodable by us for some other reasons (like chattr +i)
+					// So try to chmod using the same mod to check if it fails
+					try {
+						await promises.chmod(path, stat.mode);
+					} catch (err) {
+						if (err.code === 'EPERM') {
+							permissions |= FilePermission.Readonly;
+						}
+					}
+				}
 			}
 
 			return {
