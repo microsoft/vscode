@@ -527,7 +527,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		return {
 			class: undefined, tooltip: labelAttachToChat, id: 'terminal.attachToChat', label: labelAttachToChat, enabled: true,
 			run: async () => {
-				const widget = this._chatWidgetService.lastFocusedWidget ?? this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)?.[0];
+				const widget = this._chatWidgetService.lastFocusedWidget ?? this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)?.find(w => w.attachmentCapabilities.supportsTerminalAttachments);
 				let terminalContext: TerminalContext | undefined;
 				if (this._resource) {
 					const parsedUri = parseTerminalUri(this._resource);
