@@ -3116,10 +3116,14 @@ export class CommandCenter {
 
 		await this._openChangesBetweenRefs(
 			repository,
-			repository.historyProvider.currentHistoryItemRemoteRef.revision,
-			historyItem.id,
-			repository.historyProvider.currentHistoryItemRemoteRef.name,
-			getHistoryItemDisplayName(historyItem));
+			{
+				id: repository.historyProvider.currentHistoryItemRemoteRef.revision,
+				displayId: repository.historyProvider.currentHistoryItemRemoteRef.name
+			},
+			{
+				id: historyItem.id,
+				displayId: getHistoryItemDisplayName(historyItem)
+			});
 	}
 
 	@command('git.graph.compareWithMergeBase', { repository: true })
@@ -3130,10 +3134,14 @@ export class CommandCenter {
 
 		await this._openChangesBetweenRefs(
 			repository,
-			repository.historyProvider.currentHistoryItemBaseRef.name,
-			historyItem.id,
-			repository.historyProvider.currentHistoryItemBaseRef.name,
-			getHistoryItemDisplayName(historyItem));
+			{
+				id: repository.historyProvider.currentHistoryItemBaseRef.revision,
+				displayId: repository.historyProvider.currentHistoryItemBaseRef.name
+			},
+			{
+				id: historyItem.id,
+				displayId: getHistoryItemDisplayName(historyItem)
+			});
 	}
 
 	@command('git.graph.compareRef', { repository: true })
@@ -3166,35 +3174,39 @@ export class CommandCenter {
 
 		await this._openChangesBetweenRefs(
 			repository,
-			sourceRef.ref.commit,
-			historyItem.id,
-			sourceRef.ref.name,
-			getHistoryItemDisplayName(historyItem));
+			{
+				id: sourceRef.ref.commit,
+				displayId: sourceRef.ref.name
+			},
+			{
+				id: historyItem.id,
+				displayId: getHistoryItemDisplayName(historyItem)
+			});
 	}
 
-	private async _openChangesBetweenRefs(repository: Repository, ref1: string | undefined, ref2: string | undefined, ref1DisplayId: string | undefined, ref2DisplayId: string | undefined): Promise<void> {
-		if (!repository || !ref1 || !ref2) {
+	private async _openChangesBetweenRefs(repository: Repository, ref1: { id: string | undefined; displayId: string | undefined }, ref2: { id: string | undefined; displayId: string | undefined }): Promise<void> {
+		if (!repository || !ref1.id || !ref2.id) {
 			return;
 		}
 
 		try {
-			const changes = await repository.diffBetween2(ref1, ref2);
+			const changes = await repository.diffBetween2(ref1.id, ref2.id);
 
 			if (changes.length === 0) {
-				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref1DisplayId ?? ref1, ref2DisplayId ?? ref2));
+				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref1.displayId ?? ref1.id, ref2.displayId ?? ref2.id));
 				return;
 			}
 
-			const multiDiffSourceUri = Uri.from({ scheme: 'git-ref-compare', path: `${repository.root}/${ref1}..${ref2}` });
-			const resources = changes.map(change => toMultiFileDiffEditorUris(change, ref1, ref2));
+			const multiDiffSourceUri = Uri.from({ scheme: 'git-ref-compare', path: `${repository.root}/${ref1.id}..${ref2.id}` });
+			const resources = changes.map(change => toMultiFileDiffEditorUris(change, ref1.id!, ref2.id!));
 
 			await commands.executeCommand('_workbench.openMultiDiffEditor', {
 				multiDiffSourceUri,
-				title: `${ref1DisplayId} \u2194 ${ref2DisplayId}`,
+				title: `${ref1.displayId ?? ref1.id} \u2194 ${ref2.displayId ?? ref2.id}`,
 				resources
 			});
 		} catch (err) {
-			window.showErrorMessage(l10n.t('Failed to open changes between "{0}" and "{1}": {2}', ref1DisplayId ?? ref1, ref2DisplayId ?? ref2, err.message));
+			window.showErrorMessage(l10n.t('Failed to open changes between "{0}" and "{1}": {2}', ref1.displayId ?? ref1.id, ref2.displayId ?? ref2.id, err.message));
 		}
 	}
 
@@ -5330,10 +5342,14 @@ export class CommandCenter {
 
 		await this._openChangesBetweenRefs(
 			repository,
-			sourceRef.ref.commit,
-			artifact.id,
-			sourceRef.ref.name,
-			artifact.name);
+			{
+				id: sourceRef.ref.commit,
+				displayId: sourceRef.ref.name
+			},
+			{
+				id: artifact.id,
+				displayId: artifact.name
+			});
 	}
 
 	private async _createTag(repository: Repository, ref?: string): Promise<void> {
