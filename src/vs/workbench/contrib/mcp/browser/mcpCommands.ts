@@ -478,6 +478,8 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			}
 		});
 
+		const actionItemState = displayedState.map(s => s.state);
+
 		this._store.add(actionViewItemService.register(MenuId.ChatInput, McpCommandIds.ListServer, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
@@ -642,7 +644,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 				}
 			}, action, { ...options, keybindingNotRenderedWithLabel: true });
 
-		}, Event.fromObservable(displayedState)));
+		}, Event.fromObservableLight(actionItemState)));
 	}
 }
 
