@@ -25,7 +25,7 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ChatModel, isCellTextEditOperation } from '../common/chatModel.js';
+import { ChatModel, isCellTextEditOperationArray } from '../common/chatModel.js';
 import { ChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
@@ -339,16 +339,16 @@ class QuickChat extends Disposable {
 						}
 					} else if (item.kind === 'notebookEditGroup') {
 						for (const group of item.edits) {
-							if (isCellTextEditOperation(group)) {
+							if (isCellTextEditOperationArray(group)) {
 								message.push({
 									kind: 'textEdit',
-									edits: [group.edit],
-									uri: group.uri
+									edits: group.map(e => e.edit),
+									uri: group[0].uri
 								});
 							} else {
 								message.push({
 									kind: 'notebookEdit',
-									edits: [group],
+									edits: group,
 									uri: item.uri
 								});
 							}

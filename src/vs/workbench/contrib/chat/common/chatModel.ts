@@ -95,6 +95,10 @@ export function isCellTextEditOperation(value: unknown): value is ICellTextEditO
 	return !!candidate && !!candidate.edit && !!candidate.uri && URI.isUri(candidate.uri);
 }
 
+export function isCellTextEditOperationArray(value: ICellTextEditOperation[] | ICellEditOperation[]): value is ICellTextEditOperation[] {
+	return value.some(isCellTextEditOperation);
+}
+
 export interface ICellTextEditOperation {
 	edit: TextEdit;
 	uri: URI;
@@ -102,7 +106,7 @@ export interface ICellTextEditOperation {
 
 export interface IChatNotebookEditGroup {
 	uri: URI;
-	edits: (ICellTextEditOperation | ICellEditOperation)[];
+	edits: (ICellTextEditOperation[] | ICellEditOperation[])[];
 	state?: IChatTextEditGroupState;
 	kind: 'notebookEditGroup';
 	done: boolean | undefined;
