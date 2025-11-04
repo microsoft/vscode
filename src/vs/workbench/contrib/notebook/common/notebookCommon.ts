@@ -693,15 +693,15 @@ export class MimeTypeDisplayOrder {
 	) {
 		this.order = [...new Set(initialValue)].map(pattern => ({
 			pattern,
-			matches: glob.parse(normalizeSlashes(pattern))
+			matches: glob.parse(normalizeSlashes(pattern), { ignoreCase: true })
 		}));
 	}
 
 	/**
-	 * Returns a sorted array of the input mimetypes.
+	 * Returns a sorted array of the input mimeTypes.
 	 */
-	public sort(mimetypes: Iterable<string>): string[] {
-		const remaining = new Map(Iterable.map(mimetypes, m => [m, normalizeSlashes(m)]));
+	public sort(mimeTypes: Iterable<string>): string[] {
+		const remaining = new Map(Iterable.map(mimeTypes, m => [m, normalizeSlashes(m)]));
 		let sorted: string[] = [];
 
 		for (const { matches } of this.order) {
@@ -725,21 +725,21 @@ export class MimeTypeDisplayOrder {
 
 	/**
 	 * Records that the user selected the given mimetype over the other
-	 * possible mimetypes, prioritizing it for future reference.
+	 * possible mimeTypes, prioritizing it for future reference.
 	 */
-	public prioritize(chosenMimetype: string, otherMimetypes: readonly string[]) {
+	public prioritize(chosenMimetype: string, otherMimeTypes: readonly string[]) {
 		const chosenIndex = this.findIndex(chosenMimetype);
 		if (chosenIndex === -1) {
 			// always first, nothing more to do
-			this.order.unshift({ pattern: chosenMimetype, matches: glob.parse(normalizeSlashes(chosenMimetype)) });
+			this.order.unshift({ pattern: chosenMimetype, matches: glob.parse(normalizeSlashes(chosenMimetype), { ignoreCase: true }) });
 			return;
 		}
 
-		// Get the other mimetypes that are before the chosenMimetype. Then, move
+		// Get the other mimeTypes that are before the chosenMimetype. Then, move
 		// them after it, retaining order.
-		const uniqueIndicies = new Set(otherMimetypes.map(m => this.findIndex(m, chosenIndex)));
-		uniqueIndicies.delete(-1);
-		const otherIndices = Array.from(uniqueIndicies).sort();
+		const uniqueIndices = new Set(otherMimeTypes.map(m => this.findIndex(m, chosenIndex)));
+		uniqueIndices.delete(-1);
+		const otherIndices = Array.from(uniqueIndices).sort();
 		this.order.splice(chosenIndex + 1, 0, ...otherIndices.map(i => this.order[i]));
 
 		for (let oi = otherIndices.length - 1; oi >= 0; oi--) {
@@ -954,11 +954,10 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 		const filenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.include : (filter.filenamePattern as string | glob.IRelativePattern);
 		const excludeFilenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.exclude : undefined;
 
-		if (glob.match(filenamePattern, basename(resource.fsPath).toLowerCase())) {
+		if (glob.match(filenamePattern, basename(resource.fsPath), { ignoreCase: true })) {
 			if (excludeFilenamePattern) {
-				if (glob.match(excludeFilenamePattern, basename(resource.fsPath).toLowerCase())) {
+				if (glob.match(excludeFilenamePattern, basename(resource.fsPath), { ignoreCase: true })) {
 					// should exclude
-
 					return false;
 				}
 			}

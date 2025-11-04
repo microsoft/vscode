@@ -36,7 +36,7 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 	) {
 	}
 
-	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {
+	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
 		try {
 			// Ensure xterm is available
@@ -76,7 +76,7 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 
 			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
-			this._instance.runCommand(commandLine, true);
+			this._instance.runCommand(commandLine, true, commandId);
 
 			// Wait for the terminal to idle
 			this._log('Waiting for done event');

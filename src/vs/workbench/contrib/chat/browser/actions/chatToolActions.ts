@@ -171,8 +171,9 @@ class ConfigureToolsAction extends Action2 {
 				break;
 			case ToolsScope.Global:
 				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat.");
-				description = undefined;
+				description = localize('chat.tools.description.global', "The selected tools will be applied globally for all chat sessions that use the default agent.");
 				break;
+
 		}
 
 		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, () => entriesMap.get());

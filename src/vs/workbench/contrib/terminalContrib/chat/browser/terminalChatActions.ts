@@ -12,6 +12,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ChatViewId, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService.js';
+import { LocalChatSessionUri } from '../../../chat/common/chatUri.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { AbstractInline1ChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
 import { isDetachedTerminalInstance, ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
@@ -265,7 +266,7 @@ registerActiveXtermAction({
 
 		const lastRequest = model.getRequests().at(-1);
 		if (lastRequest) {
-			const widget = chatWidgetService.getWidgetBySessionId(model.sessionId);
+			const widget = chatWidgetService.getWidgetBySessionResource(model.sessionResource);
 			await chatService.resendRequest(lastRequest, {
 				noCommandDetection: false,
 				attempt: lastRequest.attempt + 1,
@@ -312,7 +313,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			precondition: ChatContextKeys.enabled,
 			menu: [{
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(TerminalContextKeys.hasToolTerminal, ContextKeyExpr.equals('view', ChatViewId)),
+				when: ContextKeyExpr.and(TerminalChatContextKeys.hasChatTerminals, ContextKeyExpr.equals('view', ChatViewId)),
 				group: 'terminal',
 				order: 0,
 				isHiddenByDefault: true
@@ -320,18 +321,19 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): Promise<void> | void {
+	run(accessor: ServicesAccessor): void {
 		const terminalService = accessor.get(ITerminalService);
 		const groupService = accessor.get(ITerminalGroupService);
 		const editorService = accessor.get(ITerminalEditorService);
 		const terminalChatService = accessor.get(ITerminalChatService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const chatService = accessor.get(IChatService);
 
 		const visible = new Set<ITerminalInstance>([...groupService.instances, ...editorService.instances]);
-		const toolInstances = new Set(terminalChatService.getToolSessionTerminalInstances());
+		const toolInstances = terminalChatService.getToolSessionTerminalInstances();
 
-		if (toolInstances.size === 0) {
+		if (toolInstances.length === 0) {
 			return;
 		}
 
@@ -357,9 +359,29 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			const iconId = instantiationService.invokeFunction(getIconId, instance);
 			const label = `$(${iconId}) ${instance.title}`;
 			const lastCommand = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands.at(-1)?.command;
+
+			// Get the chat session title
+			const chatSessionId = terminalChatService.getChatSessionIdForInstance(instance);
+			let chatSessionTitle: string | undefined;
+			if (chatSessionId) {
+				const sessionUri = LocalChatSessionUri.forSession(chatSessionId);
+				// Try to get title from active session first, then fall back to persisted title
+				chatSessionTitle = chatService.getSession(sessionUri)?.title || chatService.getPersistedSessionTitle(sessionUri);
+			}
+
+			// Build description: chat session title and/or hidden status
+			let description: string | undefined;
+			if (chatSessionTitle && isBackground) {
+				description = `${chatSessionTitle} • ${hiddenLocalized}`;
+			} else if (chatSessionTitle) {
+				description = chatSessionTitle;
+			} else if (isBackground) {
+				description = hiddenLocalized;
+			}
+
 			metas.push({
 				label,
-				description: isBackground ? hiddenLocalized : undefined,
+				description,
 				detail: lastCommand ? lastCommandLocalized(lastCommand) : undefined,
 				id: String(instance.instanceId),
 				isBackground
@@ -398,10 +420,14 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 				if (instance) {
 					terminalService.setActiveInstance(instance);
 					await terminalService.revealTerminal(instance);
+					qp.hide();
 					terminalService.focusInstance(instance);
+				} else {
+					qp.hide();
 				}
+			} else {
+				qp.hide();
 			}
-			qp.hide();
 		});
 		qp.onDidHide(() => qp.dispose());
 		qp.show();

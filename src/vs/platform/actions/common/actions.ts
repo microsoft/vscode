@@ -54,11 +54,11 @@ export interface ISubmenuItem {
 	};
 }
 
-export function isIMenuItem(item: any): item is IMenuItem {
+export function isIMenuItem(item: unknown): item is IMenuItem {
 	return (item as IMenuItem).command !== undefined;
 }
 
-export function isISubmenuItem(item: any): item is ISubmenuItem {
+export function isISubmenuItem(item: unknown): item is ISubmenuItem {
 	return (item as ISubmenuItem).submenu !== undefined;
 }
 
@@ -146,6 +146,8 @@ export class MenuId {
 	static readonly SCMHistoryItemContext = new MenuId('SCMHistoryItemContext');
 	static readonly SCMHistoryItemChangeContext = new MenuId('SCMHistoryItemChangeContext');
 	static readonly SCMHistoryItemRefContext = new MenuId('SCMHistoryItemRefContext');
+	static readonly SCMArtifactGroupContext = new MenuId('SCMArtifactGroupContext');
+	static readonly SCMArtifactContext = new MenuId('SCMArtifactContext');
 	static readonly SCMQuickDiffDecorations = new MenuId('SCMQuickDiffDecorations');
 	static readonly SCMTitle = new MenuId('SCMTitle');
 	static readonly SearchContext = new MenuId('SearchContext');
@@ -246,7 +248,7 @@ export class MenuId {
 	static readonly ChatCompareBlock = new MenuId('ChatCompareBlock');
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
 	static readonly ChatHistory = new MenuId('ChatHistory');
-	static readonly ChatWelcomeHistoryContext = new MenuId('ChatWelcomeHistoryContext');
+	static readonly ChatWelcomeContext = new MenuId('ChatWelcomeContext');
 	static readonly ChatMessageFooter = new MenuId('ChatMessageFooter');
 	static readonly ChatExecute = new MenuId('ChatExecute');
 	static readonly ChatInput = new MenuId('ChatInput');
@@ -275,6 +277,8 @@ export class MenuId {
 	static readonly ChatSessionsMenu = new MenuId('ChatSessionsMenu');
 	static readonly ChatSessionsCreateSubMenu = new MenuId('ChatSessionsCreateSubMenu');
 	static readonly ChatConfirmationMenu = new MenuId('ChatConfirmationMenu');
+	static readonly ChatEditorInlineExecute = new MenuId('ChatEditorInputExecute');
+	static readonly ChatEditorInlineInputSide = new MenuId('ChatEditorInputSide');
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
 	static readonly DiffEditorHunkToolbar = new MenuId('DiffEditorHunkToolbar');
@@ -305,7 +309,7 @@ export class MenuId {
 }
 
 export interface IMenuActionOptions {
-	arg?: any;
+	arg?: unknown;
 	shouldForwardArgs?: boolean;
 	renderShortTitle?: boolean;
 }
@@ -593,7 +597,7 @@ export class MenuItemAction implements IAction {
 	}
 
 	run(...args: unknown[]): Promise<void> {
-		let runArgs: any[] = [];
+		let runArgs: unknown[] = [];
 
 		if (this._options?.arg) {
 			runArgs = [...runArgs, this._options.arg];

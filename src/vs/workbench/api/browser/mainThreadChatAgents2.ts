@@ -27,9 +27,11 @@ import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/chatEditingService.js';
+import { IChatModel } from '../../contrib/chat/common/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { LocalChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
@@ -93,7 +95,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _chatRelatedFilesProviders = this._register(new DisposableMap<number, IDisposable>());
 
-	private readonly _pendingProgress = new Map<string, (parts: IChatProgress[]) => void>();
+	private readonly _pendingProgress = new Map<string, { progress: (parts: IChatProgress[]) => void; chatSession: IChatModel | undefined }>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
 
 	private readonly _activeTasks = new Map<string, IChatTask>();
@@ -116,7 +118,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			this._proxy.$releaseSession(e.sessionId);
+			const localSessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
+			if (localSessionId) {
+				this._proxy.$releaseSession(localSessionId);
+			}
 		}));
 		this._register(this._chatService.onDidPerformUserAction(e => {
 			if (typeof e.agentId === 'string') {
@@ -167,12 +172,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 		const impl: IChatAgentImplementation = {
 			invoke: async (request, progress, history, token) => {
-				this._pendingProgress.set(request.requestId, progress);
+				const chatSession = this._chatService.getSession(LocalChatSessionUri.forSession(request.sessionId));
+				this._pendingProgress.set(request.requestId, { progress, chatSession });
 				try {
-					const chatSessionContext = this._chatService.getChatSessionFromInternalId(request.sessionId);
 					return await this._proxy.$invokeAgent(handle, request, {
 						history,
-						chatSessionContext,
+						chatSessionContext: chatSession?.contributedChatSession,
 						chatSummary: request.chatSummary
 					}, token) ?? {};
 				} finally {
@@ -242,11 +247,29 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	async $handleProgressChunk(requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void> {
+		const pendingProgress = this._pendingProgress.get(requestId);
+		if (!pendingProgress) {
+			this._logService.warn(`MainThreadChatAgents2#$handleProgressChunk: No pending progress for requestId ${requestId}`);
+			return;
+		}
 
+		const { progress, chatSession } = pendingProgress;
 		const chatProgressParts: IChatProgress[] = [];
 
-		chunks.forEach(item => {
+		for (const item of chunks) {
 			const [progress, responsePartHandle] = Array.isArray(item) ? item : [item];
+
+			if (progress.kind === 'externalEdits') {
+				// todo@connor4312: be more specific here, pass response model through to invocation?
+				const response = chatSession?.getRequests().at(-1)?.response;
+				if (chatSession?.editingSession && responsePartHandle !== undefined && response) {
+					const parts = progress.start
+						? await chatSession.editingSession.startExternalEdits(response, responsePartHandle, revive(progress.resources))
+						: await chatSession.editingSession.stopExternalEdits(response, responsePartHandle);
+					chatProgressParts.push(...parts);
+				}
+				continue;
+			}
 
 			const revivedProgress = progress.kind === 'notebookEdit'
 				? ChatNotebookEdit.fromChatEdit(progress)
@@ -268,7 +291,6 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					const task = new MainThreadChatTask(revivedProgress.content);
 					this._activeTasks.set(responsePartId, task);
 					chatProgressParts.push(task);
-					return;
 				} else if (responsePartHandle !== undefined) {
 					const responsePartId = `${requestId}_${responsePartHandle}`;
 					const task = this._activeTasks.get(responsePartId);
@@ -280,13 +302,14 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 							} else {
 								task?.complete(undefined);
 							}
-							return;
+							break;
 						case 'warning':
 						case 'reference':
 							task?.add(revivedProgress);
-							return;
+							break;
 					}
 				}
+				continue;
 			}
 
 			if (revivedProgress.kind === 'inlineReference' && revivedProgress.resolveId) {
@@ -297,9 +320,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			}
 
 			chatProgressParts.push(revivedProgress);
-		});
+		}
 
-		this._pendingProgress.get(requestId)?.(chatProgressParts);
+		progress(chatProgressParts);
 	}
 
 	$handleAnchorResolve(requestId: string, handle: string, resolveAnchor: Dto<IChatContentInlineReference> | undefined): void {
@@ -339,7 +362,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return;
 				}
 
-				const parsedRequest = this._instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue()).parts;
+				const parsedRequest = this._instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionResource, model.getValue()).parts;
 				const agentPart = parsedRequest.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
 				const thisAgentId = this._agents.get(handle)?.id;
 				if (agentPart?.agent.id !== thisAgentId) {

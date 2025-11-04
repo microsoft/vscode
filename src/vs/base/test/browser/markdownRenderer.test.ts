@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable no-restricted-syntax */
+
 import assert from 'assert';
 import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
@@ -217,6 +219,36 @@ suite('MarkdownRenderer', () => {
 
 			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
+		});
+	});
+
+	suite('Alerts', () => {
+		test('Should render alert with data-severity attribute and icon', () => {
+			const markdown = new MarkdownString('> [!NOTE]\n> This is a note alert', { supportAlertSyntax: true });
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			const blockquote = result.querySelector('blockquote[data-severity="note"]');
+			assert.ok(blockquote, 'Should have blockquote with data-severity="note"');
+			assert.ok(result.innerHTML.includes('This is a note alert'), 'Should contain alert text');
+			assert.ok(result.innerHTML.includes('codicon-info'), 'Should contain info icon');
+		});
+
+		test('Should render regular blockquote when supportAlertSyntax is disabled', () => {
+			const markdown = new MarkdownString('> [!NOTE]\n> This should be a regular blockquote');
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			const blockquote = result.querySelector('blockquote');
+			assert.ok(blockquote, 'Should have blockquote');
+			assert.strictEqual(blockquote?.getAttribute('data-severity'), null, 'Should not have data-severity attribute');
+			assert.ok(result.innerHTML.includes('[!NOTE]'), 'Should contain literal [!NOTE] text');
+		});
+
+		test('Should not transform blockquotes without alert syntax', () => {
+			const markdown = new MarkdownString('> This is a regular blockquote', { supportAlertSyntax: true });
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			const blockquote = result.querySelector('blockquote');
+			assert.strictEqual(blockquote?.getAttribute('data-severity'), null, 'Should not have data-severity attribute');
 		});
 	});
 

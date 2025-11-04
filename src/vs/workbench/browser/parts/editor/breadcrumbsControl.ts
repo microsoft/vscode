@@ -189,7 +189,7 @@ function createBreadcrumbDndObserver(accessor: ServicesAccessor, container: HTML
 					}], event);
 				}
 
-				if (dragEditor && model.editor && model.editor?.input) {
+				if (dragEditor && model.editor?.input) {
 					const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 					editorTransfer.setData([new DraggedEditorIdentifier({ editor: model.editor.input, groupId: model.editor.group.id })], DraggedEditorIdentifier.prototype);
 				}

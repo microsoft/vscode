@@ -9,7 +9,7 @@ import { Color } from '../../../../base/common/color.js';
 import { Event, IDynamicListEventMultiplexer, type DynamicListEventMultiplexer } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeyMods } from '../../../../platform/quickinput/common/quickInput.js';
 import { IMarkProperties, ITerminalCapabilityImplMap, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -33,6 +33,8 @@ import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import type { TerminalEditorInput } from './terminalEditorInput.js';
+import type { MaybePromise } from '../../../../base/common/async.js';
+import type { SingleOrMany } from '../../../../base/common/types.js';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -52,7 +54,7 @@ export interface ITerminalContribution extends IDisposable {
 	xtermOpen?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
 	xtermReady?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
 
-	handleMouseEvent?(event: MouseEvent): Promise<{ handled: boolean } | void> | { handled: boolean } | void;
+	handleMouseEvent?(event: MouseEvent): MaybePromise<{ handled: boolean } | void>;
 }
 
 /**
@@ -124,13 +126,35 @@ export interface ITerminalChatService {
 	 * @param terminalToolSessionId The tool session id provided in toolSpecificData.
 	 * If no tool session ID is provided, we do nothing.
 	 */
-	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): ITerminalInstance | undefined;
+	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): Promise<ITerminalInstance | undefined>;
 
 	/**
 	 * Returns the list of terminal instances that have been registered with a tool session id.
 	 * This is used for surfacing tool-driven/background terminals in UI (eg. quick picks).
 	 */
 	getToolSessionTerminalInstances(): readonly ITerminalInstance[];
+
+	/**
+	 * Returns the tool session ID for a given terminal instance, if it has been registered.
+	 * @param instance The terminal instance to look up
+	 * @returns The tool session ID if found, undefined otherwise
+	 */
+	getToolSessionIdForInstance(instance: ITerminalInstance): string | undefined;
+
+	/**
+	 * Associate a chat session ID with a terminal instance. This is used to retrieve the chat
+	 * session title for display purposes.
+	 * @param chatSessionId The chat session ID
+	 * @param instance The terminal instance
+	 */
+	registerTerminalInstanceWithChatSession(chatSessionId: string, instance: ITerminalInstance): void;
+
+	/**
+	 * Returns the chat session ID for a given terminal instance, if it has been registered.
+	 * @param instance The terminal instance to look up
+	 * @returns The chat session ID if found, undefined otherwise
+	 */
+	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined;
 
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
 }
@@ -228,7 +252,7 @@ export interface ITerminalGroup {
 	attachToElement(element: HTMLElement): void;
 	addInstance(instance: ITerminalInstance): void;
 	removeInstance(instance: ITerminalInstance): void;
-	moveInstance(instances: ITerminalInstance | ITerminalInstance[], index: number, position: 'before' | 'after'): void;
+	moveInstance(instances: SingleOrMany<ITerminalInstance>, index: number, position: 'before' | 'after'): void;
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
@@ -529,7 +553,7 @@ export interface ISerializedTerminalEditorInput extends ITerminalEditorInputObje
 export interface IDeserializedTerminalEditorInput extends ITerminalEditorInputObject {
 }
 
-export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: Promise<ITerminalInstance> | ITerminalInstance } | { splitActiveTerminal: boolean };
+export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: MaybePromise<ITerminalInstance> } | { splitActiveTerminal: boolean };
 
 export interface ICreateTerminalOptions {
 	/**
@@ -599,8 +623,8 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	 * @param source The source instance to move.
 	 * @param target The target instance to move the source instance to.
 	 */
-	moveGroup(source: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance): void;
-	moveGroupToEnd(source: ITerminalInstance | ITerminalInstance[]): void;
+	moveGroup(source: SingleOrMany<ITerminalInstance>, target: ITerminalInstance): void;
+	moveGroupToEnd(source: SingleOrMany<ITerminalInstance>): void;
 
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 	unsplitInstance(instance: ITerminalInstance): void;
@@ -650,7 +674,7 @@ export interface ITerminalInstanceHost {
 	 * Gets an instance from a resource if it exists. This MUST be used instead of getInstanceFromId
 	 * when you only know about a terminal's URI. (a URI's instance ID may not be this window's instance ID)
 	 */
-	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined;
+	getInstanceFromResource(resource: UriComponents | undefined): ITerminalInstance | undefined;
 }
 
 /**
@@ -1029,7 +1053,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 */
 	sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void>;
 
-	runCommand(command: string, shouldExecute?: boolean): Promise<void>;
+	runCommand(command: string, shouldExecute?: boolean, commandId?: string): Promise<void>;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this

@@ -91,6 +91,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
 		// hack
 		if (container.classList.contains('monaco-tl-contents')) {
+			// eslint-disable-next-line no-restricted-syntax
 			(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
 		}
 

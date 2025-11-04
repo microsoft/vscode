@@ -42,7 +42,7 @@ import { IWorkbenchLayoutService, Position } from '../../../../../services/layou
 import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
 import { IChatService } from '../../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatSessionUri } from '../../../common/chatUri.js';
+import { chatSessionResourceToId } from '../../../common/chatUri.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatWidgetService } from '../../chat.js';
 import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.js';
@@ -374,12 +374,14 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 	private renderInputBox(container: HTMLElement, session: IChatSessionItem, editableData: IEditableData): DisposableStore {
 		// Hide the existing resource label element and session content
+		// eslint-disable-next-line no-restricted-syntax
 		const existingResourceLabelElement = container.querySelector('.monaco-icon-label') as HTMLElement;
 		if (existingResourceLabelElement) {
 			existingResourceLabelElement.style.display = 'none';
 		}
 
 		// Hide the session content container to avoid layout conflicts
+		// eslint-disable-next-line no-restricted-syntax
 		const sessionContentElement = container.querySelector('.session-content') as HTMLElement;
 		if (sessionContentElement) {
 			sessionContentElement.style.display = 'none';
@@ -432,6 +434,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			}
 
 			// Restore the session content container
+			// eslint-disable-next-line no-restricted-syntax
 			const sessionContentElement = container.querySelector('.session-content') as HTMLElement;
 			if (sessionContentElement) {
 				sessionContentElement.style.display = '';
@@ -581,8 +584,8 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 
 			// Create history items with provider reference and timestamps
 			const historyItems = allHistory.map((historyDetail): ChatSessionItemWithProvider => ({
-				id: historyDetail.sessionId,
-				resource: ChatSessionUri.forSession(this.provider.chatSessionType, historyDetail.sessionId),
+				id: chatSessionResourceToId(historyDetail.sessionResource),
+				resource: historyDetail.sessionResource,
 				label: historyDetail.title,
 				iconPath: Codicon.chatSparkle,
 				provider: this.provider,

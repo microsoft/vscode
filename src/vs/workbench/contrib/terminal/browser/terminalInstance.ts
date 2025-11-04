@@ -904,6 +904,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}));
 		}
 
+		if (this.xterm?.shellIntegration) {
+			this.capabilities.add(this.xterm.shellIntegration.capabilities);
+		}
+
 		this._pathService.userHome().then(userHome => {
 			this._userHome = userHome.fsPath;
 		});
@@ -915,7 +919,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return xterm;
 	}
 
-	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
+	async runCommand(commandLine: string, shouldExecute: boolean, commandId?: string): Promise<void> {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
 		const timeoutMs = getShellIntegrationTimeout(
@@ -944,6 +948,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				timeout(timeoutMs)
 			]);
 			store.dispose();
+		}
+
+		// If a command ID was provided and we have command detection, set it as the next command ID
+		// so it will be used when the shell sends the command start sequence
+		if (commandId && commandDetection) {
+			this.xterm?.shellIntegration.setNextCommandId(commandLine, commandId);
+			await this._processManager.setNextCommandId(commandLine, commandId);
 		}
 
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always
@@ -1545,9 +1556,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		if (this.isDisposed) {
 			return;
-		}
-		if (this.xterm?.shellIntegration) {
-			this.capabilities.add(this.xterm.shellIntegration.capabilities);
 		}
 		if (originalIcon !== this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
 			this._icon = this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon;

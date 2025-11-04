@@ -8,10 +8,10 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { dirname, isEqual } from '../../../../../../base/common/resources.js';
-import { type URI } from '../../../../../../base/common/uri.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
@@ -24,6 +24,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
@@ -86,6 +87,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -260,11 +262,21 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return value;
 	}
 
+	private async getPromptDetails(promptPath: IPromptPath): Promise<{ name: string; description?: string }> {
+		const parsedPromptFile = await this.parseNew(promptPath.uri, CancellationToken.None).catch(() => undefined);
+		return {
+			name: parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri),
+			description: parsedPromptFile?.header?.description ?? promptPath.description
+		};
+	}
+
 	private async getPromptPath(command: string): Promise<URI | undefined> {
 		const promptPaths = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		const result = promptPaths.find(promptPath => getCommandNameFromPromptPath(promptPath) === command);
-		if (result) {
-			return result.uri;
+		for (const promptPath of promptPaths) {
+			const details = await this.getPromptDetails(promptPath);
+			if (details.name === command) {
+				return promptPath.uri;
+			}
 		}
 		const textModel = this.modelService.getModels().find(model => model.getLanguageId() === PROMPT_LANGUAGE_ID && getCommandNameFromURI(model.uri) === command);
 		if (textModel) {
@@ -275,34 +287,36 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	public async getPromptCommandName(uri: URI): Promise<string> {
 		const promptPaths = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		const promptPath = promptPaths.find(promptPath => isEqual(promptPath.uri, uri));
+		let promptPath = promptPaths.find(promptPath => isEqual(promptPath.uri, uri));
 		if (!promptPath) {
-			return getCommandNameFromURI(uri);
+			promptPath = { uri, storage: PromptsStorage.local, type: PromptsType.prompt }; // make up a prompt path
 		}
-		return getCommandNameFromPromptPath(promptPath);
+		const { name } = await this.getPromptDetails(promptPath);
+		return name;
 	}
 
 	public async findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
 		const promptFiles = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		return promptFiles.map(promptPath => {
-			const command = getCommandNameFromPromptPath(promptPath);
+		return Promise.all(promptFiles.map(async promptPath => {
+			const { name } = await this.getPromptDetails(promptPath);
 			return {
-				command,
+				command: name,
 				detail: localize('prompt.file.detail', 'Prompt file: {0}', this.labelService.getUriLabel(promptPath.uri, { relative: true })),
 				promptPath
 			};
-		});
+		}));
 	}
 
 	public async getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]> {
-		if (!this.cachedCustomAgents) {
-			const customAgents = this.computeCustomAgents(token);
-			if (!this.onDidChangeCustomAgentsEmitter) {
-				return customAgents;
+		let customAgents = this.cachedCustomAgents;
+		if (!customAgents) {
+			customAgents = this.computeCustomAgents(token);
+			if (this.onDidChangeCustomAgentsEmitter) {
+				this.cachedCustomAgents = customAgents;
 			}
-			this.cachedCustomAgents = customAgents;
 		}
-		return this.cachedCustomAgents;
+		const disabledAgents = this.getDisabledPromptFiles(PromptsType.agent);
+		return (await customAgents).filter(agent => !disabledAgents.has(agent.uri));
 	}
 
 	private async computeCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]> {
@@ -310,7 +324,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		const customAgents = await Promise.all(
 			agentFiles.map(async (promptPath): Promise<ICustomAgent> => {
-				const { uri, name: agentName } = promptPath;
+				const uri = promptPath.uri;
 				const ast = await this.parseNew(uri, token);
 
 				let metadata: any | undefined;
@@ -342,7 +356,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					metadata,
 				} satisfies IAgentInstructions;
 
-				const name = agentName ?? getCleanPromptName(uri);
+				const name = ast.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
 
 				const source: IAgentSource = IAgentSource.fromPromptPath(promptPath);
 				if (!ast.header) {
@@ -438,10 +452,41 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.fileLocator.getAgentFileURIFromModeFile(oldURI);
 	}
 
-}
+	// --- Enabled Prompt Files -----------------------------------------------------------
 
-function getCommandNameFromPromptPath(promptPath: IPromptPath): string {
-	return promptPath.name ?? getCommandNameFromURI(promptPath.uri);
+
+	private readonly disabledPromptsStorageKeyPrefix = 'chat.disabledPromptFiles.';
+
+	public getDisabledPromptFiles(type: PromptsType): ResourceSet {
+		// Migration: if disabled key absent but legacy enabled key present, convert once.
+		const disabledKey = this.disabledPromptsStorageKeyPrefix + type;
+		const value = this.storageService.get(disabledKey, StorageScope.PROFILE, '[]');
+		const result = new ResourceSet();
+		try {
+			const arr = JSON.parse(value);
+			if (Array.isArray(arr)) {
+				for (const s of arr) {
+					try {
+						result.add(URI.revive(s));
+					} catch {
+						// ignore
+					}
+				}
+			}
+		} catch {
+			// ignore invalid storage values
+		}
+		return result;
+	}
+
+	public setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void {
+		const disabled = Array.from(uris).map(uri => uri.toJSON());
+		this.storageService.store(this.disabledPromptsStorageKeyPrefix + type, JSON.stringify(disabled), StorageScope.PROFILE, StorageTarget.USER);
+		if (type === PromptsType.agent) {
+			this.onDidChangeCustomAgentsEmitter?.fire();
+		}
+	}
+
 }
 
 function getCommandNameFromURI(uri: URI): string {

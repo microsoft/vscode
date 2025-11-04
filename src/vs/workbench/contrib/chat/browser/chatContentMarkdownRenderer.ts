@@ -108,6 +108,7 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 
 	private attachCustomHover(result: IRenderedMarkdown): IRenderedMarkdown {
 		const store = new DisposableStore();
+		// eslint-disable-next-line no-restricted-syntax
 		result.element.querySelectorAll('a').forEach((element) => {
 			if (element.title) {
 				const title = element.title;

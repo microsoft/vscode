@@ -5,7 +5,7 @@
 
 import './media/chatConfirmationWidget.css';
 import * as dom from '../../../../../base/browser/dom.js';
-import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -26,6 +26,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IChatWidgetService, showChatWidgetInViewOrEditor } from '../chat.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 export interface IChatConfirmationButton<T> {
 	label: string;
@@ -118,16 +119,17 @@ class ChatConfirmationNotifier extends Disposable {
 		super();
 	}
 
-	async notify(targetWindow: Window, title: string | IMarkdownString, sessionId: string): Promise<void> {
+	async notify(targetWindow: Window, sessionResource: URI): Promise<void> {
 
 		// Focus Window
 		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 
 		// Notify
-		const titleText = renderAsPlaintext(title);
-		const notification = await dom.triggerNotification(titleText ? localize('notificationTitle', "Chat: {0}", titleText) : localize('defaultTitle', "Chat: Confirmation Required"),
+		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
+		const title = widget?.viewModel?.model.title ? localize('chatTitle', "Chat: {0}", widget.viewModel.model.title) : localize('chat.untitledChat', "Untitled Chat");
+		const notification = await dom.triggerNotification(title,
 			{
-				detail: localize('notificationDetail', "The current chat session requires your confirmation to proceed.")
+				detail: localize('notificationDetail', "Approval needed to continue.")
 			}
 		);
 		if (notification) {
@@ -136,7 +138,7 @@ class ChatConfirmationNotifier extends Disposable {
 
 			disposables.add(Event.once(notification.onClick)(async () => {
 				await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
-				const widget = this._chatWidgetService.getWidgetBySessionId(sessionId);
+
 				if (widget) {
 					await this._instantiationService.invokeFunction(showChatWidgetInViewOrEditor, widget);
 					widget.focusInput();
@@ -174,7 +176,6 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private readonly messageElement: HTMLElement;
-	private readonly title: string | IMarkdownString;
 
 	private readonly silent: boolean;
 	private readonly notificationManager: ChatConfirmationNotifier;
@@ -191,7 +192,6 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 		super();
 
 		const { title, subtitle, message, buttons, silent } = options;
-		this.title = title;
 		this.silent = !!silent;
 
 		this.notificationManager = this._register(instantiationService.createInstance(ChatConfirmationNotifier));
@@ -286,7 +286,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation') && !this.silent) {
 			const targetWindow = dom.getWindow(listContainer);
 			if (!targetWindow.document.hasFocus()) {
-				this.notificationManager.notify(targetWindow, this.title, this.context.element.sessionId);
+				this.notificationManager.notify(targetWindow, this.context.element.sessionResource);
 			}
 		}
 	}
@@ -352,7 +352,6 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private readonly messageElement: HTMLElement;
-	private readonly title: string | IMarkdownString;
 
 	private readonly notificationManager: ChatConfirmationNotifier;
 
@@ -368,7 +367,6 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		super();
 
 		const { title, subtitle, message, buttons, icon } = options;
-		this.title = title;
 
 		this.notificationManager = this._register(instantiationService.createInstance(ChatConfirmationNotifier));
 
@@ -484,7 +482,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
 			const targetWindow = dom.getWindow(listContainer);
 			if (!targetWindow.document.hasFocus()) {
-				this.notificationManager.notify(targetWindow, this.title, this._context.element.sessionId);
+				this.notificationManager.notify(targetWindow, this._context.element.sessionResource);
 			}
 		}
 	}

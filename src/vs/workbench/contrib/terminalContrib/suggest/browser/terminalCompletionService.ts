@@ -9,7 +9,7 @@ import { basename } from '../../../../../base/common/path.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { GeneralShellType, ITerminalLogService, TerminalShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
@@ -345,7 +345,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		// Assemble completions based on the resource of lastWordFolder. Note that on Windows the
-		// path seprators are normalized to `\`.
+		// path separators are normalized to `\`.
 		if (!lastWordFolderResource) {
 			return undefined;
 		}
@@ -450,7 +450,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 			if (child.isFile && globPattern) {
 				const filePath = child.resource.fsPath;
-				const matches = match(globPattern, filePath);
+				const ignoreCase = !this._fileService.hasCapability(child.resource, FileSystemProviderCapabilities.PathCaseSensitive);
+				const matches = match(globPattern, filePath, { ignoreCase });
 				if (!matches) {
 					return;
 				}

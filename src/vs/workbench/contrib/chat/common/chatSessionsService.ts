@@ -13,6 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditableData } from '../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './chatAgents.js';
+import { IChatEditingSession } from './chatEditingService.js';
 import { IChatRequestVariableData } from './chatModel.js';
 import { IChatProgress } from './chatService.js';
 
@@ -58,7 +59,8 @@ export interface IChatSessionsExtensionPoint {
 	readonly commands?: IChatSessionCommandContribution[];
 }
 export interface IChatSessionItem {
-	id: string; // TODO: remove
+	/** @deprecated Use {@link resource} instead */
+	id: string;
 	resource: URI;
 	label: string;
 	iconPath?: ThemeIcon;
@@ -110,6 +112,11 @@ export interface IChatSession extends IDisposable {
 	readonly isCompleteObs?: IObservable<boolean>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 
+	/**
+	 * Editing session transferred from a previously-untitled chat session in `onDidCommitChatSessionItem`.
+	 */
+	initialEditingSession?: IChatEditingSession;
+
 	requestHandler?: (
 		request: IChatAgentRequest,
 		progress: (progress: IChatProgress[]) => void,
@@ -156,7 +163,6 @@ export interface IChatSessionsService {
 	getWelcomeTitleForSessionType(chatSessionType: string): string | undefined;
 	getWelcomeMessageForSessionType(chatSessionType: string): string | undefined;
 	getInputPlaceholderForSessionType(chatSessionType: string): string | undefined;
-	getWelcomeTipsForSessionType(chatSessionType: string): string | undefined;
 
 	/**
 	 * Get the list of chat session items grouped by session type.

@@ -671,27 +671,19 @@ export default tseslint.config(
 			'src/vs/editor/contrib/find/browser/findWidgetSearchHistory.ts',
 			'src/vs/editor/contrib/find/browser/replaceWidgetHistory.ts',
 			'src/vs/editor/contrib/folding/browser/folding.ts',
-			'src/vs/editor/contrib/format/browser/format.ts',
 			'src/vs/editor/contrib/gotoSymbol/browser/goToCommands.ts',
 			'src/vs/editor/contrib/gotoSymbol/browser/symbolNavigation.ts',
 			'src/vs/editor/contrib/hover/browser/hoverActions.ts',
 			'src/vs/editor/contrib/inlineCompletions/browser/structuredLogger.ts',
 			'src/vs/editor/contrib/inlineCompletions/browser/utils.ts',
 			'src/vs/editor/contrib/smartSelect/browser/smartSelect.ts',
-			'src/vs/editor/contrib/snippet/browser/snippetParser.ts',
 			'src/vs/editor/contrib/stickyScroll/browser/stickyScrollModelProvider.ts',
-			'src/vs/editor/contrib/suggest/browser/suggest.ts',
-			'src/vs/editor/contrib/suggest/browser/suggestAlternatives.ts',
-			'src/vs/editor/contrib/suggest/browser/suggestCommitCharacters.ts',
-			'src/vs/editor/contrib/suggest/browser/suggestController.ts',
 			'src/vs/editor/contrib/unicodeHighlighter/browser/unicodeHighlighter.ts',
 			'src/vs/editor/contrib/wordHighlighter/browser/wordHighlighter.ts',
 			'src/vs/editor/standalone/common/monarch/monarchCommon.ts',
 			'src/vs/editor/standalone/common/monarch/monarchCompile.ts',
 			'src/vs/editor/standalone/common/monarch/monarchLexer.ts',
 			'src/vs/editor/standalone/common/monarch/monarchTypes.ts',
-			'src/vs/editor/contrib/gotoSymbol/browser/peek/referencesController.ts',
-			'src/vs/editor/contrib/gotoSymbol/browser/peek/referencesWidget.ts',
 			'src/vs/editor/contrib/inlineCompletions/browser/controller/commands.ts',
 			'src/vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsModel.ts',
 			'src/vs/editor/contrib/inlineCompletions/browser/model/typingSpeed.ts',
@@ -741,19 +733,8 @@ export default tseslint.config(
 			'src/vs/workbench/api/common/extHostTreeViews.ts',
 			'src/vs/workbench/api/common/extHostTypeConverters.ts',
 			'src/vs/workbench/api/common/extHostTypes.ts',
-			'src/vs/workbench/api/common/extHostTypes/diagnostic.ts',
 			'src/vs/workbench/api/common/extHostTypes/es5ClassCompat.ts',
 			'src/vs/workbench/api/common/extHostTypes/location.ts',
-			'src/vs/workbench/api/common/extHostTypes/markdownString.ts',
-			'src/vs/workbench/api/common/extHostTypes/notebooks.ts',
-			'src/vs/workbench/api/common/extHostTypes/position.ts',
-			'src/vs/workbench/api/common/extHostTypes/range.ts',
-			'src/vs/workbench/api/common/extHostTypes/selection.ts',
-			'src/vs/workbench/api/common/extHostTypes/snippetString.ts',
-			'src/vs/workbench/api/common/extHostTypes/snippetTextEdit.ts',
-			'src/vs/workbench/api/common/extHostTypes/symbolInformation.ts',
-			'src/vs/workbench/api/common/extHostTypes/textEdit.ts',
-			'src/vs/workbench/api/common/extHostTypes/workspaceEdit.ts',
 			'src/vs/workbench/api/common/extHostWebview.ts',
 			'src/vs/workbench/api/common/extHostWebviewMessaging.ts',
 			'src/vs/workbench/api/common/extHostWebviewPanels.ts',
@@ -824,9 +805,6 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/customEditor/browser/customEditorInputFactory.ts',
 			'src/vs/workbench/contrib/customEditor/browser/customEditors.ts',
 			'src/vs/workbench/contrib/customEditor/common/customEditor.ts',
-			'src/vs/workbench/contrib/debug/browser/breakpointWidget.ts',
-			'src/vs/workbench/contrib/debug/browser/breakpointsView.ts',
-			'src/vs/workbench/contrib/debug/browser/callStackView.ts',
 			'src/vs/workbench/contrib/debug/browser/debugActionViewItems.ts',
 			'src/vs/workbench/contrib/debug/browser/debugAdapterManager.ts',
 			'src/vs/workbench/contrib/debug/browser/debugCommands.ts',
@@ -842,8 +820,6 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/debug/browser/variablesView.ts',
 			'src/vs/workbench/contrib/debug/browser/watchExpressionsView.ts',
 			'src/vs/workbench/contrib/debug/common/abstractDebugAdapter.ts',
-			'src/vs/workbench/contrib/debug/common/debug.ts',
-			'src/vs/workbench/contrib/debug/common/debugModel.ts',
 			'src/vs/workbench/contrib/debug/common/debugger.ts',
 			'src/vs/workbench/contrib/debug/common/replModel.ts',
 			'src/vs/workbench/contrib/debug/test/common/mockDebug.ts',
@@ -1108,6 +1084,7 @@ export default tseslint.config(
 			'local': pluginLocal,
 		},
 		rules: {
+			'local/code-no-dangerous-type-assertions': 'off',
 			'local/code-must-use-super-dispose': 'off',
 			'local/code-no-test-only': 'error',
 			'local/code-no-test-async-suite': 'warn',
@@ -1484,6 +1461,34 @@ export default tseslint.config(
 				{
 					'selector': `MemberExpression[object.name='document'][property.name='execCommand']`,
 					'message': 'Use <targetWindow>.document.execCommand to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant.'
+				},
+				{
+					'selector': 'CallExpression[callee.property.name=\'querySelector\']',
+					'message': 'querySelector should not be used as relying on selectors is very fragile. Use dom.ts h() to build your elements and access them directly.'
+				},
+				{
+					'selector': 'CallExpression[callee.property.name=\'querySelectorAll\']',
+					'message': 'querySelectorAll should not be used as relying on selectors is very fragile. Use dom.ts h() to build your elements and access them directly.'
+				},
+				{
+					'selector': 'CallExpression[callee.property.name=\'getElementById\']',
+					'message': 'getElementById should not be used as relying on selectors is very fragile. Use dom.ts h() to build your elements and access them directly.'
+				},
+				{
+					'selector': 'CallExpression[callee.property.name=\'getElementsByClassName\']',
+					'message': 'getElementsByClassName should not be used as relying on selectors is very fragile. Use dom.ts h() to build your elements and access them directly.'
+				},
+				{
+					'selector': 'CallExpression[callee.property.name=\'getElementsByTagName\']',
+					'message': 'getElementsByTagName should not be used as relying on selectors is very fragile. Use dom.ts h() to build your elements and access them directly.'
+				},
+				{
+					'selector': 'CallExpression[callee.property.name=\'getElementsByName\']',
+					'message': 'getElementsByName should not be used as relying on selectors is very fragile. Use dom.ts h() to build your elements and access them directly.'
+				},
+				{
+					'selector': 'CallExpression[callee.property.name=\'getElementsByTagNameNS\']',
+					'message': 'getElementsByTagNameNS should not be used as relying on selectors is very fragile. Use dom.ts h() to build your elements and access them directly.'
 				}
 			],
 			'no-restricted-globals': [
