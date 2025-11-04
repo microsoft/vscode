@@ -1584,10 +1584,15 @@ class HistoryItemRefPicker extends Disposable {
 
 export class SCMHistoryViewPane extends ViewPane {
 
+	// here
 	private _treeContainer!: HTMLElement;
+	// here
 	private _tree!: WorkbenchCompressibleAsyncDataTree<SCMHistoryViewModel, TreeElement, FuzzyScore>;
+	// here
 	private _treeViewModel!: SCMHistoryViewModel;
+	// here
 	private _treeDataSource!: SCMHistoryTreeDataSource;
+	// here
 	private _treeIdentityProvider!: SCMHistoryTreeIdentityProvider;
 
 	private readonly _repositoryIsLoadingMore = observableValue(this, false);

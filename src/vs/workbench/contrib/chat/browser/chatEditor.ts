@@ -42,10 +42,12 @@ export interface IChatEditorOptions extends IEditorOptions {
 }
 
 export class ChatEditor extends EditorPane {
+	// here
 	private _widget!: ChatWidget;
 	public get widget(): ChatWidget {
 		return this._widget;
 	}
+	// here
 	private _scopedContextKeyService!: IScopedContextKeyService;
 	override get scopedContextKeyService() {
 		return this._scopedContextKeyService;

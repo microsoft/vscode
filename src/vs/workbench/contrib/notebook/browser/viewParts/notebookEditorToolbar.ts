@@ -216,11 +216,17 @@ class WorkbenchDynamicLabelStrategy implements IActionLayoutStrategy {
 }
 
 export class NotebookEditorWorkbenchToolbar extends Disposable {
+	// here
 	private _leftToolbarScrollable!: DomScrollableElement;
+	// here
 	private _notebookTopLeftToolbarContainer!: HTMLElement;
+	// here
 	private _notebookTopRightToolbarContainer!: HTMLElement;
+	// here
 	private _notebookGlobalActionsMenu!: IMenu;
+	// here
 	private _executeGoToActionsMenu!: IMenu;
+	// here
 	private _notebookLeftToolbar!: WorkbenchToolBar;
 	private _primaryActions: IActionModel[];
 	get primaryActions(): IActionModel[] {
@@ -230,8 +236,10 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 	get secondaryActions(): IAction[] {
 		return this._secondaryActions;
 	}
+	// here
 	private _notebookRightToolbar!: ToolBar;
 	private _useGlobalToolbar: boolean = false;
+	// here
 	private _strategy!: IActionLayoutStrategy;
 	private _renderLabel: RenderLabel = RenderLabel.Always;
 

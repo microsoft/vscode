@@ -48,6 +48,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 	private fileChanges: readonly IChatFileChangesSummary[];
 	private fileChangesDiffsObservable: IObservableWithChange<Map<string, IEditSessionEntryDiff>, void>;
 
+	// here
 	private list!: WorkbenchList<IChatFileChangesSummaryItem>;
 	private isCollapsed: boolean = true;
 

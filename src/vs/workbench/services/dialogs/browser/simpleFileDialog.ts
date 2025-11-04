@@ -110,8 +110,11 @@ export interface ISimpleFileDialog extends IDisposable {
 }
 
 export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
+	// here
 	private options!: IOpenDialogOptions;
+	// here
 	private currentFolder!: URI;
+	// here
 	private filePickBox!: IQuickPick<FileQuickPickItem>;
 	private hidden: boolean = false;
 	private allowFileSelection: boolean = true;
@@ -124,7 +127,9 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	private userEnteredPathSegment: string = '';
 	private autoCompletePathSegment: string = '';
 	private activeItem: FileQuickPickItem | undefined;
+	// here
 	private userHome!: URI;
+	// here
 	private trueHome!: URI;
 	private isWindows: boolean = false;
 	private badPath: string | undefined;

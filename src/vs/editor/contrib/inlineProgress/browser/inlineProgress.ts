@@ -37,6 +37,7 @@ class InlineProgressWidget extends Disposable implements IContentWidget {
 	allowEditorOverflow = false;
 	suppressMouseDown = true;
 
+	// here
 	private domNode!: HTMLElement;
 
 	constructor(

@@ -284,6 +284,7 @@ class CellStatusBarItem extends Disposable {
 		this.container.style.maxWidth = v + 'px';
 	}
 
+	// here
 	private _currentItem!: INotebookCellStatusBarItem;
 	private readonly _itemDisposables = this._register(new DisposableStore());
 

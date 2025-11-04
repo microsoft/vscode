@@ -527,7 +527,9 @@ function createSettingMatchRegExp(pattern: string): RegExp {
 }
 
 export class SettingsTreeModel implements IDisposable {
+	// here
 	protected _root!: SettingsTreeGroupElement;
+	// here
 	private _tocRoot!: ITOCEntry<ISetting>;
 	private readonly _treeElementsBySettingName = new Map<string, SettingsTreeSettingElement[]>();
 

@@ -102,6 +102,7 @@ export function isMouseUpEventMatchMouseDown(mouseDownInfo: { lineNumber: number
 }
 
 export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget {
+	// here
 	private _commentThreadWidget!: CommentThreadWidget;
 	private readonly _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
 	private readonly _onDidCreateThread = new Emitter<ReviewZoneWidget>();

@@ -590,6 +590,7 @@ export class TestFileDialogService implements IFileDialogService {
 
 	declare readonly _serviceBrand: undefined;
 
+	// here
 	private confirmResult!: ConfirmResult;
 
 	constructor(
@@ -604,6 +605,7 @@ export class TestFileDialogService implements IFileDialogService {
 	pickFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
 	pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
 
+	// here
 	private fileToSave!: URI;
 	setPickFileToSave(path: URI): void { this.fileToSave = path; }
 	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> { return Promise.resolve(this.fileToSave); }

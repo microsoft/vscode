@@ -166,29 +166,46 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	// (!) Lots of props that are set once on the first render
+	// here
 	private defaultSettingsEditorModel!: Settings2EditorModel;
 	private readonly modelDisposables: DisposableStore;
 
+	// here
 	private rootElement!: HTMLElement;
+	// here
 	private headerContainer!: HTMLElement;
 	private searchContainer: HTMLElement | null = null;
+	// here
 	private bodyContainer!: HTMLElement;
+	// here
 	private searchWidget!: SuggestEnabledInput;
+	// here
 	private countElement!: HTMLElement;
+	// here
 	private controlsElement!: HTMLElement;
+	// here
 	private settingsTargetsWidget!: SettingsTargetsWidget;
 
+	// here
 	private splitView!: SplitView<number>;
 
+	// here
 	private settingsTreeContainer!: HTMLElement;
+	// here
 	private settingsTree!: SettingsTree;
+	// here
 	private settingRenderers!: SettingTreeRenderers;
+	// here
 	private tocTreeModel!: TOCTreeModel;
 	private readonly settingsTreeModel = this._register(new MutableDisposable<SettingsTreeModel>());
+	// here
 	private noResultsMessage!: HTMLElement;
+	// here
 	private clearFilterLinkContainer!: HTMLElement;
 
+	// here
 	private tocTreeContainer!: HTMLElement;
+	// here
 	private tocTree!: TOCTree;
 
 	private searchDelayer: Delayer<void>;
@@ -231,6 +248,7 @@ export class SettingsEditor2 extends EditorPane {
 	private tocFocusedElement: SettingsTreeGroupElement | null = null;
 	private treeFocusedElement: SettingsTreeElement | null = null;
 	private settingsTreeScrollTop = 0;
+	// here
 	private dimension!: DOM.Dimension;
 
 	private installedExtensionIds: string[] = [];
@@ -2139,7 +2157,9 @@ export class SettingsEditor2 extends EditorPane {
 }
 
 class SyncControls extends Disposable {
+	// here
 	private readonly lastSyncedLabel!: HTMLElement;
+	// here
 	private readonly turnOnSyncButton!: Button;
 
 	private readonly _onDidChangeLastSyncedLabel = this._register(new Emitter<string>());

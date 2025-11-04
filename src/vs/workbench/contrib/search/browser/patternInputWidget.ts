@@ -38,7 +38,9 @@ export class PatternInputWidget extends Widget {
 
 	private width: number;
 
+	// here
 	private domNode!: HTMLElement;
+	// here
 	protected inputBox!: HistoryInputBox;
 
 	private _onSubmit = this._register(new Emitter<boolean>());
@@ -195,6 +197,7 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 		super(parent, contextViewProvider, options, contextKeyService, configurationService, keybindingService);
 	}
 
+	// here
 	private useSearchInEditorsBox!: Toggle;
 
 	override dispose(): void {
@@ -246,6 +249,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 		super(parent, contextViewProvider, options, contextKeyService, configurationService, keybindingService);
 	}
 
+	// here
 	private useExcludesAndIgnoreFilesBox!: Toggle;
 
 	override dispose(): void {

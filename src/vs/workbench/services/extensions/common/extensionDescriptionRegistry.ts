@@ -49,8 +49,11 @@ export class ExtensionDescriptionRegistry extends Disposable implements IReadOnl
 
 	private _versionId: number = 0;
 	private _extensionDescriptions: IExtensionDescription[];
+	// here
 	private _extensionsMap!: ExtensionIdentifierMap<IExtensionDescription>;
+	// here
 	private _extensionsArr!: IExtensionDescription[];
+	// here
 	private _activationMap!: Map<string, IExtensionDescription[]>;
 
 	constructor(

@@ -154,8 +154,11 @@ export interface ICompositeBarActionViewItemOptions extends IActionViewItemOptio
 
 export class CompositeBarActionViewItem extends BaseActionViewItem {
 
+	// here
 	protected container!: HTMLElement;
+	// here
 	protected label!: HTMLElement;
+	// here
 	protected badge!: HTMLElement;
 	protected override readonly options: ICompositeBarActionViewItemOptions;
 

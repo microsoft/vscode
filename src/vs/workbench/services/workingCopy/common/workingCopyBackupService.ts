@@ -196,6 +196,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 
 	private readonly ioOperationQueues = this._register(new ResourceQueue()); // queue IO operations to ensure write/delete file order
 
+	// here
 	private ready!: Promise<WorkingCopyBackupsModel>;
 	private model: WorkingCopyBackupsModel | undefined = undefined;
 

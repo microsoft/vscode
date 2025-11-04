@@ -108,6 +108,7 @@ export class NotebookDocumentMetadataViewModel extends DiffElementViewModelBase 
 	public readonly originalMetadata: NotebookDocumentMetadataTextModel;
 	public readonly modifiedMetadata: NotebookDocumentMetadataTextModel;
 	public cellFoldingState: PropertyFoldingState;
+	// here
 	protected _layoutInfo!: IDiffElementLayoutInfo;
 	public renderOutput: boolean = false;
 	set editorHeight(height: number) {
@@ -309,6 +310,7 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 	public outputFoldingState: PropertyFoldingState;
 	protected _stateChangeEmitter = this._register(new Emitter<{ renderOutput: boolean }>());
 	onDidStateChange = this._stateChangeEmitter.event;
+	// here
 	protected _layoutInfo!: IDiffElementLayoutInfo;
 
 	public displayIconToHideUnmodifiedCells?: boolean;

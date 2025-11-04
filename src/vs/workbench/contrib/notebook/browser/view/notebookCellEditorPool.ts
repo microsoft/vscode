@@ -19,7 +19,9 @@ import { CellEditorOptions } from './cellParts/cellEditorOptions.js';
 export class NotebookCellEditorPool extends Disposable {
 	private readonly _focusedEditorDOM: HTMLElement;
 	private readonly _editorDisposable = this._register(new MutableDisposable());
+	// here
 	private _editorContextKeyService!: IScopedContextKeyService;
+	// here
 	private _editor!: CodeEditorWidget;
 	private _focusEditorCancellablePromise: CancelablePromise<void> | undefined;
 	private _isInitialized = false;

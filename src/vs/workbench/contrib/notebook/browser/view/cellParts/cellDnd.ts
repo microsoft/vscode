@@ -60,6 +60,7 @@ export class CellDragAndDropController extends Disposable {
 
 	private listInsertionIndicator: HTMLElement;
 
+	// here
 	private list!: INotebookCellList;
 
 	private isScrolling = false;

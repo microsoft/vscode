@@ -59,6 +59,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 	private smallStatSize: boolean = false;
 	private readonly: boolean = false;
 
+	// here
 	private _testCapabilities!: FileSystemProviderCapabilities;
 	override get capabilities(): FileSystemProviderCapabilities {
 		if (!this._testCapabilities) {

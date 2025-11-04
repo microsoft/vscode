@@ -221,6 +221,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private refreshContext: IContextKey<boolean> | undefined;
 
 	private focused: boolean = false;
+	// here
 	private domNode!: HTMLElement;
 	private treeContainer: HTMLElement | undefined;
 	private _messageValue: string | { element: HTMLElement; disposables: DisposableStore } | undefined;

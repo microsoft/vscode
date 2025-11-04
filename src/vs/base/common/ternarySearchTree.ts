@@ -51,8 +51,11 @@ export class StringIterator implements IKeyIterator<string> {
 
 export class ConfigKeysIterator implements IKeyIterator<string> {
 
+	// here
 	private _value!: string;
+	// here
 	private _from!: number;
+	// here
 	private _to!: number;
 
 	constructor(
@@ -102,9 +105,13 @@ export class ConfigKeysIterator implements IKeyIterator<string> {
 
 export class PathIterator implements IKeyIterator<string> {
 
+	// here
 	private _value!: string;
+	// here
 	private _valueLen!: number;
+	// here
 	private _from!: number;
+	// here
 	private _to!: number;
 
 	constructor(
@@ -167,7 +174,9 @@ const enum UriIteratorState {
 
 export class UriIterator implements IKeyIterator<URI> {
 
+	// here
 	private _pathIterator!: PathIterator;
+	// here
 	private _value!: URI;
 	private _states: UriIteratorState[] = [];
 	private _stateIdx: number = 0;

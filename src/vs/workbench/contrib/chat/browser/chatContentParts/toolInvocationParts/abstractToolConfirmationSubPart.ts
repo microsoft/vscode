@@ -35,6 +35,7 @@ type AbstractToolPrimaryAction = IChatConfirmationButton<(() => void)> | Separat
  * note that implementors MUST call render() after they construct.
  */
 export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
+	// here
 	public domNode!: HTMLElement;
 
 	constructor(

@@ -20,6 +20,7 @@ export interface IHistory<T> {
 
 export class HistoryNavigator<T> implements INavigator<T> {
 	private _limit: number;
+	// here
 	private _navigator!: ArrayNavigator<T>;
 	private _disposable: IDisposable | undefined;
 

@@ -24,6 +24,7 @@ export class NotebookEditorContextKeys {
 	private readonly _kernelRunning: IContextKey<boolean>;
 	private readonly _hasOutputs: IContextKey<boolean>;
 	private readonly _useConsolidatedOutputButton: IContextKey<boolean>;
+	// here
 	private readonly _viewType!: IContextKey<string>;
 	private readonly _missingKernelExtension: IContextKey<boolean>;
 	private readonly _cellToolbarLocation: IContextKey<'left' | 'right' | 'hidden'>;

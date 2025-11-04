@@ -248,14 +248,19 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	//#endregion
 
+	// here
 	protected rootContainer!: HTMLElement;
 	protected windowControlsContainer: HTMLElement | undefined;
 
 	protected dragRegion: HTMLElement | undefined;
+	// here
 	private title!: HTMLElement;
 
+	// here
 	private leftContent!: HTMLElement;
+	// here
 	private centerContent!: HTMLElement;
+	// here
 	private rightContent!: HTMLElement;
 
 	protected readonly customMenubar = this._register(new MutableDisposable<CustomMenubarControl>());
@@ -264,9 +269,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	protected menubar?: HTMLElement;
 	private lastLayoutDimensions: Dimension | undefined;
 
+	// here
 	private actionToolBar!: WorkbenchToolBar;
 	private readonly actionToolBarDisposable = this._register(new DisposableStore());
 	private readonly editorActionsChangeDisposable = this._register(new DisposableStore());
+	// here
 	private actionToolBarElement!: HTMLElement;
 
 	private globalToolbarMenu: IMenu | undefined;

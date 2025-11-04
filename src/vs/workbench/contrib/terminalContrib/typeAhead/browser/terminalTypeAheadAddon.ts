@@ -1133,8 +1133,11 @@ class TypeAheadStyle implements IDisposable {
 	 * we see a style coming in, we know that the PTY actually wanted to update.
 	 */
 	private _expectedIncomingStyles = 0;
+	// here
 	private _applyArgs!: ReadonlyArray<number>;
+	// here
 	private _originalUndoArgs!: ReadonlyArray<number>;
+	// here
 	private _undoArgs!: ReadonlyArray<number>;
 
 	apply!: string;

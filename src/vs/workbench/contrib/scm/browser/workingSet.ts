@@ -29,6 +29,7 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 	static readonly ID = 'workbench.contrib.scmWorkingSets';
 
 	private _enabledConfig: IObservable<boolean>;
+	// here
 	private _workingSets!: Map<string, ISCMRepositoryWorkingSet>;
 
 	private readonly _repositoryDisposables = new DisposableMap<ISCMRepository>();

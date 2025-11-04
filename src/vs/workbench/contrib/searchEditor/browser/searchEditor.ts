@@ -76,14 +76,21 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 	static readonly SEARCH_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'searchEditorViewState';
 
+	// here
 	private queryEditorWidget!: SearchWidget;
 	private get searchResultEditor() { return this.editorControl!; }
+	// here
 	private queryEditorContainer!: HTMLElement;
 	private dimension?: DOM.Dimension;
+	// here
 	private inputPatternIncludes!: IncludePatternInputWidget;
+	// here
 	private inputPatternExcludes!: ExcludePatternInputWidget;
+	// here
 	private includesExcludesContainer!: HTMLElement;
+	// here
 	private toggleQueryDetailsButton!: HTMLElement;
+	// here
 	private messageBox!: HTMLElement;
 
 	private runSearchDelayer = new Delayer(0);

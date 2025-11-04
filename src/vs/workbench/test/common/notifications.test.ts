@@ -185,11 +185,13 @@ suite('Notifications', () => {
 	test('Model', () => {
 		const model = disposables.add(new NotificationsModel());
 
+		// here
 		let lastNotificationEvent!: INotificationChangeEvent;
 		disposables.add(model.onDidChangeNotification(e => {
 			lastNotificationEvent = e;
 		}));
 
+		// here
 		let lastStatusMessageEvent!: IStatusMessageChangeEvent;
 		disposables.add(model.onDidChangeStatusMessage(e => {
 			lastStatusMessageEvent = e;

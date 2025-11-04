@@ -800,6 +800,7 @@ export class McpHTTPHandle extends Disposable {
 		}
 
 		let currentUrl = url;
+		// here
 		let response!: CommonResponse;
 		for (let redirectCount = 0; redirectCount < MAX_FOLLOW_REDIRECTS; redirectCount++) {
 			response = await this._fetchInternal(currentUrl, {

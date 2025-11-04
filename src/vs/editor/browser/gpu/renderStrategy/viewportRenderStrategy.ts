@@ -55,12 +55,14 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
 	private _cellBindBufferLineCapacity = Constants.CellBindBufferInitialCapacity;
+	// here
 	private _cellBindBuffer!: GPUBuffer;
 
 	/**
 	 * The cell value buffers, these hold the cells and their glyphs. It's double buffers such that
 	 * the thread doesn't block when one is being uploaded to the GPU.
 	 */
+	// here
 	private _cellValueBuffers!: [ArrayBuffer, ArrayBuffer];
 	private _activeDoubleBufferIndex: 0 | 1 = 0;
 

@@ -67,17 +67,25 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 
 	private readonly _editorListener = new MutableDisposable();
 
+	// here
 	private _domNode!: HTMLElement;
+	// here
 	private _message!: HTMLDivElement;
+	// here
 	private _progressBar!: ProgressBar;
+	// here
 	private _treeContainer!: HTMLElement;
 	private _tree?: WorkbenchDataTree<IOutline<unknown> | undefined, unknown, FuzzyScore>;
 	private _treeDimensions?: dom.Dimension;
 	private _treeStates = new LRUCache<string, IAbstractTreeViewState>(10);
 
+	// here
 	private _ctxFollowsCursor!: IContextKey<boolean>;
+	// here
 	private _ctxFilterOnType!: IContextKey<boolean>;
+	// here
 	private _ctxSortMode!: IContextKey<OutlineSortOrder>;
+	// here
 	private _ctxAllCollapsed!: IContextKey<boolean>;
 
 	constructor(

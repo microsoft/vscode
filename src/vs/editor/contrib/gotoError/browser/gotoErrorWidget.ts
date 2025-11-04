@@ -229,14 +229,19 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	static readonly TitleMenu = new MenuId('gotoErrorTitleMenu');
 
+	// here
 	private _parentContainer!: HTMLElement;
+	// here
 	private _container!: HTMLElement;
+	// here
 	private _icon!: HTMLElement;
+	// here
 	private _message!: MessageWidget;
 	private readonly _callOnDispose = new DisposableStore();
 	private _severity: MarkerSeverity;
 	private _backgroundColor?: Color;
 	private readonly _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
+	// here
 	private _heightInPixel!: number;
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;

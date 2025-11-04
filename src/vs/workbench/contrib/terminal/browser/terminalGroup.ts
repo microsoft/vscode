@@ -33,6 +33,7 @@ const enum Constants {
 class SplitPaneContainer extends Disposable {
 	private _height: number;
 	private _width: number;
+	// here
 	private _splitView!: SplitView;
 	private readonly _splitViewDisposables = this._register(new DisposableStore());
 	private _children: SplitPane[] = [];

@@ -201,6 +201,7 @@ class ConfigureToolsActionRendering implements IWorkbenchContribution {
 				return undefined;
 			}
 			return instantiationService.createInstance(class extends MenuEntryActionViewItem {
+				// here
 				private warningElement!: HTMLElement;
 
 				override render(container: HTMLElement): void {

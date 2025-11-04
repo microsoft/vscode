@@ -51,10 +51,14 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 
 	protected readonly _disposables = new DisposableStore();
 	protected readonly _domNode: HTMLDivElement;
+	// here
 	protected _arrow!: HTMLDivElement;
+	// here
 	protected _treeContainer!: HTMLDivElement;
+	// here
 	protected _tree!: Tree<TInput, TElement>;
 	protected _fakeEvent = new UIEvent('fakeEvent');
+	// here
 	protected _layoutInfo!: ILayoutInfo;
 
 	protected readonly _onWillPickElement = new Emitter<void>();

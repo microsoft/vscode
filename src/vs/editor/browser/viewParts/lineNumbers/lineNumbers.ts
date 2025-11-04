@@ -24,11 +24,17 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 
 	private readonly _context: ViewContext;
 
+	// here
 	private _lineHeight!: number;
+	// here
 	private _renderLineNumbers!: RenderLineNumbersType;
+	// here
 	private _renderCustomLineNumbers!: ((lineNumber: number) => string) | null;
+	// here
 	private _renderFinalNewline!: 'off' | 'on' | 'dimmed';
+	// here
 	private _lineNumbersLeft!: number;
+	// here
 	private _lineNumbersWidth!: number;
 	private _lastCursorModelPosition: Position;
 	private _renderResult: string[] | null;

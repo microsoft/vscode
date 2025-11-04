@@ -25,22 +25,39 @@ export class ViewModel implements IViewModel {
 	private readonly _onDidChangeVisualization = new Emitter<{ original: IExpression; replacement: IExpression }>();
 	private readonly visualized = new WeakMap<IExpression, IExpression>();
 	private readonly preferredVisualizers = new Map</** cache key */ string, /* tree ID */ string>();
+	// here
 	private expressionSelectedContextKey!: IContextKey<boolean>;
+	// here
 	private loadedScriptsSupportedContextKey!: IContextKey<boolean>;
+	// here
 	private stepBackSupportedContextKey!: IContextKey<boolean>;
+	// here
 	private focusedSessionIsAttach!: IContextKey<boolean>;
+	// here
 	private focusedSessionIsNoDebug!: IContextKey<boolean>;
+	// here
 	private restartFrameSupportedContextKey!: IContextKey<boolean>;
+	// here
 	private stepIntoTargetsSupported!: IContextKey<boolean>;
+	// here
 	private jumpToCursorSupported!: IContextKey<boolean>;
+	// here
 	private setVariableSupported!: IContextKey<boolean>;
+	// here
 	private setDataBreakpointAtByteSupported!: IContextKey<boolean>;
+	// here
 	private setExpressionSupported!: IContextKey<boolean>;
+	// here
 	private multiSessionDebug!: IContextKey<boolean>;
+	// here
 	private terminateDebuggeeSupported!: IContextKey<boolean>;
+	// here
 	private suspendDebuggeeSupported!: IContextKey<boolean>;
+	// here
 	private terminateThreadsSupported!: IContextKey<boolean>;
+	// here
 	private disassembleRequestSupported!: IContextKey<boolean>;
+	// here
 	private focusedStackFrameHasInstructionPointerReference!: IContextKey<boolean>;
 
 	constructor(private contextKeyService: IContextKeyService) {

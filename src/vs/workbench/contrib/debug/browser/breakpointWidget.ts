@@ -82,10 +82,15 @@ function createDecorations(theme: IColorTheme, placeHolder: string): IDecoration
 export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWidgetService {
 	declare readonly _serviceBrand: undefined;
 
+	// here
 	private selectContainer!: HTMLElement;
+	// here
 	private inputContainer!: HTMLElement;
+	// here
 	private selectBreakpointContainer!: HTMLElement;
+	// here
 	private input!: IActiveCodeEditor;
+	// here
 	private selectBreakpointBox!: SelectBox;
 	private selectModeBox?: SelectBox;
 	private store: lifecycle.DisposableStore;

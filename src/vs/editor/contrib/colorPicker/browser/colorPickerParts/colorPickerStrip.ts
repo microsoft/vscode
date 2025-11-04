@@ -18,6 +18,7 @@ export abstract class Strip extends Disposable {
 	protected domNode: HTMLElement;
 	protected overlay: HTMLElement;
 	protected slider: HTMLElement;
+	// here
 	private height!: number;
 
 	private readonly _onDidChange = new Emitter<number>();

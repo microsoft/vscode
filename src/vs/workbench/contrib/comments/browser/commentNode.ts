@@ -68,6 +68,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _editAction: Action | null = null;
 	private _commentEditContainer: HTMLElement | null = null;
 	private _commentDetailsContainer: HTMLElement;
+	// here
 	private _actionsToolbarContainer!: HTMLElement;
 	private readonly _reactionsActionBar: MutableDisposable<ActionBar> = this._register(new MutableDisposable());
 	private readonly _reactionActions: DisposableStore = this._register(new DisposableStore());
@@ -76,6 +77,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _commentEditorModel: IReference<IResolvedTextEditorModel> | null = null;
 	private _editorHeight = MIN_EDITOR_HEIGHT;
 
+	// here
 	private _isPendingLabel!: HTMLElement;
 	private _timestamp: HTMLElement | undefined;
 	private _timestampWidget: TimestampWidget | undefined;
@@ -83,7 +85,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _commentContextValue: IContextKey<string>;
 	private _commentMenus: CommentMenus;
 
+	// here
 	private _scrollable!: Scrollable;
+	// here
 	private _scrollableElement!: SmoothScrollableElement;
 
 	private readonly _actionRunner: CommentsActionRunner = this._register(new CommentsActionRunner());

@@ -1045,6 +1045,7 @@ export class GridView implements IDisposable {
 
 	private styles: IGridViewStyles;
 	private proportionalLayout: boolean;
+	// here
 	private _root!: BranchNode;
 	private onDidSashResetRelay = new Relay<GridLocation>();
 	private _onDidScroll = new Relay<void>();

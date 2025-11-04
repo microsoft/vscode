@@ -73,9 +73,12 @@ function createResourceCommentsIterator(model: ICommentsModel): Iterable<ITreeEl
 }
 
 export class CommentsPanel extends FilterViewPane implements ICommentsView {
+	// here
 	private treeLabels!: ResourceLabels;
 	private tree: CommentsList | undefined;
+	// here
 	private treeContainer!: HTMLElement;
+	// here
 	private messageBoxContainer!: HTMLElement;
 	private totalComments: number = 0;
 	private readonly hasCommentsContextKey: IContextKey<boolean>;

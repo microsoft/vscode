@@ -163,6 +163,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _taskSystemInfoResolver: ITaskSystemInfoResolver;
 	private _lastTask: VerifiedTask | undefined;
 	// Should always be set in run
+	// here
 	private _currentTask!: VerifiedTask;
 	private _isRerun: boolean = false;
 	private _previousPanelId: string | undefined;

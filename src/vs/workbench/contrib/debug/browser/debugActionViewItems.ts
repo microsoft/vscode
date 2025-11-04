@@ -36,7 +36,9 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 
 	private static readonly SEPARATOR = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 
+	// here
 	private container!: HTMLElement;
+	// here
 	private start!: HTMLElement;
 	private selectBox: SelectBox;
 	private debugOptions: { label: string; handler: (() => Promise<boolean>) }[] = [];

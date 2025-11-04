@@ -294,16 +294,23 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private readonly _focusTracker: dom.IFocusTracker;
 	private readonly _findInputFocusTracker: dom.IFocusTracker;
 	private readonly _updateFindHistoryDelayer: Delayer<void>;
+	// here
 	protected readonly _matchesCount!: HTMLElement;
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
 
+	// here
 	protected readonly _replaceInput!: ReplaceInput;
+	// here
 	private readonly _innerReplaceDomNode!: HTMLElement;
+	// here
 	private _toggleReplaceBtn!: SimpleButton;
+	// here
 	private readonly _replaceInputFocusTracker!: dom.IFocusTracker;
 	private readonly _updateReplaceHistoryDelayer: Delayer<void>;
+	// here
 	protected _replaceBtn!: SimpleButton;
+	// here
 	protected _replaceAllBtn!: SimpleButton;
 
 	private readonly _resizeSash: Sash;
@@ -313,6 +320,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private _isReplaceVisible: boolean = false;
 	private foundMatch: boolean = false;
 
+	// here
 	protected _progressBar!: ProgressBar;
 	protected _scopedContextKeyService: IContextKeyService;
 

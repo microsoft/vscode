@@ -167,6 +167,7 @@ suite('Workbench - TextModelResolverService', () => {
 	});
 
 	test('even loading documents should be refcounted', async () => {
+		// here
 		let resolveModel!: Function;
 		const waitForIt = new Promise(resolve => resolveModel = resolve);
 

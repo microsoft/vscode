@@ -72,7 +72,9 @@ class ViewPaneDropOverlay extends Themable {
 
 	private static readonly OVERLAY_ID = 'monaco-pane-drop-overlay';
 
+	// here
 	private container!: HTMLElement;
+	// here
 	private overlay!: HTMLElement;
 
 	private _currentDropOperation: DropDirection | undefined;

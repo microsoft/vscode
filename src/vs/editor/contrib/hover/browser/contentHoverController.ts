@@ -52,6 +52,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	private _mouseMoveEvent: IEditorMouseEvent | undefined;
 	private _reactToEditorMouseMoveRunner: RunOnceScheduler;
 
+	// here
 	private _hoverSettings!: IHoverSettings;
 	private _isMouseDown: boolean = false;
 

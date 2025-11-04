@@ -38,6 +38,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	}
 
 	private readonly _allocator: ITextureAtlasAllocator;
+	// here
 	private _colorMap!: string[];
 
 	constructor(

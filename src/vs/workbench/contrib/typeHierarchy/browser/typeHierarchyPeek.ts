@@ -69,13 +69,20 @@ export class TypeHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 
 	static readonly TitleMenu = new MenuId('typehierarchy/title');
 
+	// here
 	private _parent!: HTMLElement;
+	// here
 	private _message!: HTMLElement;
+	// here
 	private _splitView!: SplitView;
+	// here
 	private _tree!: TypeHierarchyTree;
 	private _treeViewStates = new Map<TypeHierarchyDirection, IAsyncDataTreeViewState>();
+	// here
 	private _editor!: EmbeddedCodeEditorWidget;
+	// here
 	private _dim!: Dimension;
+	// here
 	private _layoutInfo!: LayoutInfo;
 
 	private readonly _previewDisposable = new DisposableStore();

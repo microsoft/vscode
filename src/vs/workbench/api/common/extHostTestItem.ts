@@ -125,18 +125,30 @@ export const toItemFromContext = (context: ITestItemContext): TestItemImpl => {
 };
 
 export class TestItemImpl implements vscode.TestItem {
+	// here
 	public readonly id!: string;
+	// here
 	public readonly uri!: vscode.Uri | undefined;
+	// here
 	public readonly children!: ITestItemChildren<vscode.TestItem>;
+	// here
 	public readonly parent!: TestItemImpl | undefined;
 
+	// here
 	public range!: vscode.Range | undefined;
+	// here
 	public description!: string | undefined;
+	// here
 	public sortText!: string | undefined;
+	// here
 	public label!: string;
+	// here
 	public error!: string | vscode.MarkdownString;
+	// here
 	public busy!: boolean;
+	// here
 	public canResolveChildren!: boolean;
+	// here
 	public tags!: readonly vscode.TestTag[];
 
 	/**

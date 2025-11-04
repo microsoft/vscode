@@ -897,6 +897,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const intervalLogger = new IntervalTimer();
 		intervalLogger.cancelAndSet(() => logInfo('waiting...'), 1000);
 
+		// here
 		let result!: vscode.ResolverResult;
 		let execServer: vscode.ExecServer | undefined;
 		for (const [i, { authorityPrefix, resolver, remoteAuthority }] of resolvers.entries()) {

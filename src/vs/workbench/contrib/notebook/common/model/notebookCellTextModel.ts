@@ -110,6 +110,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._onDidChangeContent.fire('mime');
 	}
 
+	// here
 	private _textBuffer!: model.ITextBuffer;
 
 	get textBuffer() {

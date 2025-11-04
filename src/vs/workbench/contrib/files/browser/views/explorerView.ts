@@ -153,8 +153,11 @@ export interface IExplorerViewPaneOptions extends IViewPaneOptions {
 export class ExplorerView extends ViewPane implements IExplorerView {
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
+	// here
 	private tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
+	// here
 	private filter!: FilesFilter;
+	// here
 	private findProvider!: ExplorerFindProvider;
 
 	private resourceContext: ResourceContextKey;
@@ -166,9 +169,12 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private rootContext: IContextKey<boolean>;
 	private resourceMoveableToTrash: IContextKey<boolean>;
 
+	// here
 	private renderer!: FilesRenderer;
 
+	// here
 	private treeContainer!: HTMLElement;
+	// here
 	private container!: HTMLElement;
 	private compressedFocusContext: IContextKey<boolean>;
 	private compressedFocusFirstContext: IContextKey<boolean>;
@@ -180,6 +186,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private setTreeInputPromise: Promise<void> | undefined;
 	private horizontalScrolling: boolean | undefined;
 
+	// here
 	private dragHandler!: DelayedDragHandler;
 	private _autoReveal: boolean | 'force' | 'focusNoScroll' = false;
 	private decorationsProvider: ExplorerDecorationsProvider | undefined;

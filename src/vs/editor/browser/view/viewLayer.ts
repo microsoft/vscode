@@ -41,7 +41,9 @@ export interface ILineFactory<T extends ILine> {
 }
 
 export class RenderedLinesCollection<T extends ILine> {
+	// here
 	private _lines!: T[];
+	// here
 	private _rendLineNumberStart!: number;
 
 	constructor(

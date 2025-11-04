@@ -98,13 +98,19 @@ export class ChatManagementEditor extends EditorPane {
 	private container: HTMLElement | undefined;
 	private splitView: SplitView<number> | undefined;
 	private sectionsList: WorkbenchList<SectionItem> | undefined;
+	// here
 	private headerContainer!: HTMLElement;
+	// here
 	private contentsContainer!: HTMLElement;
 
+	// here
 	private planBadge!: HTMLElement;
+	// here
 	private actionButton!: Button;
 
+	// here
 	private chatUsageWidget!: ChatUsageWidget;
+	// here
 	private modelsWidget!: ChatModelsWidget;
 
 	private dimension: Dimension | undefined;

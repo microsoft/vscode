@@ -41,13 +41,20 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	private _container: HTMLElement;
 	private _form: HTMLElement;
 	commentEditorIsEmpty: IContextKey<boolean>;
+	// here
 	private avatar!: HTMLElement;
+	// here
 	private _error!: HTMLElement;
+	// here
 	private _formActions!: HTMLElement;
+	// here
 	private _editorActions!: HTMLElement;
 	private _commentThreadDisposables: IDisposable[] = [];
+	// here
 	private _commentFormActions!: CommentFormActions;
+	// here
 	private _commentEditorActions!: CommentFormActions;
+	// here
 	private _reviewThreadReplyButton!: HTMLElement;
 	private _editorHeight = MIN_EDITOR_HEIGHT;
 

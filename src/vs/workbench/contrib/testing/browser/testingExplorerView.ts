@@ -90,9 +90,12 @@ const enum LastFocusState {
 }
 
 export class TestingExplorerView extends ViewPane {
+	// here
 	public viewModel!: TestingExplorerViewModel;
 	private readonly filterActionBar = this._register(new MutableDisposable());
+	// here
 	private container!: HTMLElement;
+	// here
 	private treeHeader!: HTMLElement;
 	private readonly discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
 	private readonly filter = this._register(new MutableDisposable<TestingExplorerFilter>());

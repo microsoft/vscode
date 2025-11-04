@@ -131,6 +131,7 @@ export abstract class Marker {
 
 	readonly _markerBrand: undefined;
 
+	// here
 	public parent!: Marker;
 	protected _children: Marker[] = [];
 

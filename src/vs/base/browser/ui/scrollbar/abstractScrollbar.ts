@@ -52,6 +52,7 @@ export abstract class AbstractScrollbar extends Widget {
 	private _pointerMoveMonitor: GlobalPointerMoveMonitor;
 
 	public domNode: FastDomNode<HTMLElement>;
+	// here
 	public slider!: FastDomNode<HTMLElement>;
 
 	protected _shouldRender: boolean;

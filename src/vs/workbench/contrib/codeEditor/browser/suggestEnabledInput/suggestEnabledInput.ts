@@ -428,6 +428,7 @@ export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implemen
 }
 
 export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledInputWithHistory {
+	// here
 	private historyContext!: IHistoryNavigationContext;
 
 	constructor(

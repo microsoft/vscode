@@ -89,17 +89,24 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 
 	private keybindingsEditorModel: KeybindingsEditorModel | null = null;
 
+	// here
 	private headerContainer!: HTMLElement;
+	// here
 	private actionsContainer!: HTMLElement;
+	// here
 	private searchWidget!: KeybindingsSearchWidget;
 	private searchHistoryDelayer: Delayer<void>;
 
+	// here
 	private overlayContainer!: HTMLElement;
+	// here
 	private defineKeybindingWidget!: DefineKeybindingWidget;
 
 	private unAssignedKeybindingItemToRevealAndFocus: IKeybindingItemEntry | null = null;
 	private tableEntries: IKeybindingItemEntry[] = [];
+	// here
 	private keybindingsTableContainer!: HTMLElement;
+	// here
 	private keybindingsTable!: WorkbenchTable<IKeybindingItemEntry>;
 
 	private dimension: DOM.Dimension | null = null;
@@ -112,6 +119,7 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 	private readonly sortByPrecedenceAction: Action;
 	private readonly recordKeysAction: Action;
 
+	// here
 	private ariaLabelElement!: HTMLElement;
 	readonly overflowWidgetsDomNode: HTMLElement;
 

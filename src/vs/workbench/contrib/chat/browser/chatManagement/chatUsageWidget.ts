@@ -20,6 +20,7 @@ export class ChatUsageWidget extends Disposable {
 	readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
 
 	readonly element: HTMLElement;
+	// here
 	private usageSection!: HTMLElement;
 
 	private readonly dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });

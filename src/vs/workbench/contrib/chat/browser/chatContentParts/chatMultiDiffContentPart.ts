@@ -49,6 +49,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
+	// here
 	private list!: WorkbenchList<IChatMultiDiffItem>;
 	private isCollapsed: boolean = false;
 	private readonly readOnly: boolean;

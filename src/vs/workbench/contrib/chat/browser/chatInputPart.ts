@@ -230,24 +230,32 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private readonly inputEditorMaxHeight: number;
 	private inputEditorHeight: number = 0;
+	// here
 	private container!: HTMLElement;
 
 	private inputSideToolbarContainer?: HTMLElement;
 
+	// here
 	private followupsContainer!: HTMLElement;
 	private readonly followupsDisposables: DisposableStore = this._register(new DisposableStore());
 
+	// here
 	private attachmentsContainer!: HTMLElement;
 
+	// here
 	private chatInputOverlay!: HTMLElement;
 	private readonly overlayClickListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
 
+	// here
 	private attachedContextContainer!: HTMLElement;
 	private readonly attachedContextDisposables: MutableDisposable<DisposableStore> = this._register(new MutableDisposable<DisposableStore>());
 
+	// here
 	private relatedFilesContainer!: HTMLElement;
 
+	// here
 	private chatEditingSessionWidgetContainer!: HTMLElement;
+	// here
 	private chatInputTodoListWidgetContainer!: HTMLElement;
 
 	private _inputPartHeight: number = 0;
@@ -273,10 +281,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this.attachmentsContainer.offsetHeight + (this.attachmentsContainer.checkVisibility() ? 6 : 0);
 	}
 
+	// here
 	private _inputEditor!: CodeEditorWidget;
+	// here
 	private _inputEditorElement!: HTMLElement;
 
+	// here
 	private executeToolbar!: MenuWorkbenchToolBar;
+	// here
 	private inputActionsToolbar!: MenuWorkbenchToolBar;
 
 	private addFilesToolbar: MenuWorkbenchToolBar | undefined;
@@ -289,12 +301,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	readonly dnd: ChatDragAndDrop;
 
 	private history: HistoryNavigator2<IChatHistoryEntry>;
+	// here
 	private historyNavigationBackwardsEnablement!: IContextKey<boolean>;
+	// here
 	private historyNavigationForewardsEnablement!: IContextKey<boolean>;
 	private inputModel: ITextModel | undefined;
 	private inputEditorHasText: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
+	// here
 	private currentlyEditingInputKey!: IContextKey<boolean>;
 	/**
 	 * Context key is set when prompt instructions are attached.

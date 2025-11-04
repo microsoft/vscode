@@ -23,7 +23,9 @@ export class ChatSuggestNextWidget extends Disposable {
 	private readonly _onDidSelectPrompt = this._register(new Emitter<INextPromptSelection>());
 	public readonly onDidSelectPrompt: Event<INextPromptSelection> = this._onDidSelectPrompt.event;
 
+	// here
 	private promptsContainer!: HTMLElement;
+	// here
 	private titleElement!: HTMLElement;
 	private _currentMode: IChatMode | undefined;
 

@@ -350,8 +350,11 @@ class RepositoriesTreeCompressionDelegate implements ITreeCompressionDelegate<Tr
 
 export class SCMRepositoriesViewPane extends ViewPane {
 
+	// here
 	private tree!: WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement>;
+	// here
 	private treeDataSource!: RepositoryTreeDataSource;
+	// here
 	private treeIdentityProvider!: RepositoryTreeIdentityProvider;
 	private readonly treeOperationSequencer = new Sequencer();
 

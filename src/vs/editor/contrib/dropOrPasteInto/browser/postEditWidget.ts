@@ -47,7 +47,9 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = true;
 
+	// here
 	private domNode!: HTMLElement;
+	// here
 	private button!: Button;
 
 	private readonly visibleContext: IContextKey<boolean>;

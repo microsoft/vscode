@@ -1844,7 +1844,9 @@ export class OpenCoverage extends Action2 {
 }
 
 abstract class TestNavigationAction extends SymbolNavigationAction {
+	// here
 	protected testService!: ITestService; // little hack...
+	// here
 	protected uriIdentityService!: IUriIdentityService;
 
 	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]) {

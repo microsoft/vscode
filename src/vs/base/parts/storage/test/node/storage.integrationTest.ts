@@ -362,6 +362,7 @@ flakySuite('SQLite Storage Library', function () {
 	});
 
 	async function testDBBasics(path: string, logError?: (error: Error | string) => void) {
+		// here
 		let options!: ISQLiteStorageDatabaseOptions;
 		if (logError) {
 			options = {

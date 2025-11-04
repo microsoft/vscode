@@ -57,9 +57,12 @@ export class BulkEditPane extends ViewPane {
 
 	private static readonly _memGroupByFile = `${this.ID}.groupByFile`;
 
+	// here
 	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
+	// here
 	private _treeDataSource!: BulkEditDataSource;
 	private _treeViewStates = new Map<boolean, IAsyncDataTreeViewState>();
+	// here
 	private _message!: HTMLSpanElement;
 
 	private readonly _ctxHasCategories: IContextKey<boolean>;

@@ -59,6 +59,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane, I
 	private readonly _groupListener = this._register(new DisposableStore());
 	private readonly _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	private _widget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
+	// here
 	private _rootElement!: HTMLElement;
 	private _pagePosition?: { readonly dimension: DOM.Dimension; readonly position: DOM.IDomPosition };
 

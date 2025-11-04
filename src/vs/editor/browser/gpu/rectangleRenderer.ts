@@ -30,16 +30,24 @@ export type RectangleRendererEntrySpec = [
 
 export class RectangleRenderer extends ViewEventHandler {
 
+	// here
 	private _device!: GPUDevice;
+	// here
 	private _renderPassDescriptor!: GPURenderPassDescriptor;
+	// here
 	private _renderPassColorAttachment!: GPURenderPassColorAttachment;
+	// here
 	private _bindGroup!: GPUBindGroup;
+	// here
 	private _pipeline!: GPURenderPipeline;
 
+	// here
 	private _vertexBuffer!: GPUBuffer;
 	private readonly _shapeBindBuffer: MutableDisposable<IReference<GPUBuffer>> = this._register(new MutableDisposable());
 
+	// here
 	private _scrollOffsetBindBuffer!: GPUBuffer;
+	// here
 	private _scrollOffsetValueBuffer!: Float32Array;
 
 	private _initialized: boolean = false;

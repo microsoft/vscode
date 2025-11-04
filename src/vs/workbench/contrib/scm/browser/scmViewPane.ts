@@ -2134,11 +2134,16 @@ export class SCMViewPane extends ViewPane {
 	private layoutCache: ISCMLayout;
 
 	private treeScrollTop: number | undefined;
+	// here
 	private treeContainer!: HTMLElement;
+	// here
 	private tree!: WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 
+	// here
 	private listLabels!: ResourceLabels;
+	// here
 	private inputRenderer!: InputRenderer;
+	// here
 	private actionButtonRenderer!: ActionButtonRenderer;
 
 	private _viewMode: ViewMode;

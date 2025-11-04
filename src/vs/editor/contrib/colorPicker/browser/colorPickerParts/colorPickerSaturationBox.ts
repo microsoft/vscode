@@ -17,7 +17,9 @@ export class SaturationBox extends Disposable {
 	private readonly _domNode: HTMLElement;
 	private readonly selection: HTMLElement;
 	private readonly _canvas: HTMLCanvasElement;
+	// here
 	private width!: number;
+	// here
 	private height!: number;
 
 	private monitor: GlobalPointerMoveMonitor | null;

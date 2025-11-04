@@ -50,6 +50,7 @@ const ON_DEBUG_DYNAMIC_CONFIGURATIONS_NAME = 'onDebugDynamicConfigurations';
 interface IDynamicPickItem { label: string; launch: ILaunch; config: IConfig }
 
 export class ConfigurationManager implements IConfigurationManager {
+	// here
 	private launches!: ILaunch[];
 	private selectedName: string | undefined;
 	private selectedLaunch: ILaunch | undefined;

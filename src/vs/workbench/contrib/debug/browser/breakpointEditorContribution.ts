@@ -210,12 +210,14 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 
 	private breakpointHintDecoration: string | null = null;
 	private breakpointWidget: BreakpointWidget | undefined;
+	// here
 	private breakpointWidgetVisible!: IContextKey<boolean>;
 	private toDispose: IDisposable[] = [];
 	private ignoreDecorationsChangedEvent = false;
 	private ignoreBreakpointsChangeEvent = false;
 	private breakpointDecorations: IBreakpointDecoration[] = [];
 	private candidateDecorations: { decorationId: string; inlineWidget: InlineBreakpointWidget }[] = [];
+	// here
 	private setDecorationsScheduler!: RunOnceScheduler;
 
 	constructor(
@@ -696,6 +698,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 	allowEditorOverflow = false;
 	suppressMouseDown = true;
 
+	// here
 	private domNode!: HTMLElement;
 	private range: Range | null;
 	private toDispose: IDisposable[] = [];

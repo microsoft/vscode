@@ -251,13 +251,21 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 	private readonly _onDidSelectReference = new Emitter<SelectionEvent>();
 	readonly onDidSelectReference = this._onDidSelectReference.event;
 
+	// here
 	private _tree!: ReferencesTree;
+	// here
 	private _treeContainer!: HTMLElement;
+	// here
 	private _splitView!: SplitView;
+	// here
 	private _preview!: ICodeEditor;
+	// here
 	private _previewModelReference!: IReference<ITextEditorModel>;
+	// here
 	private _previewNotAvailableMessage!: TextModel;
+	// here
 	private _previewContainer!: HTMLElement;
+	// here
 	private _messageContainer!: HTMLElement;
 	private _dim = new dom.Dimension(0, 0);
 	private _isClosing = false; // whether or not a dispose is already in progress

@@ -64,6 +64,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	public _serviceBrand: undefined;
 
+	// here
 	private workspace!: Workspace;
 	private initRemoteUserConfigurationBarrier: Barrier;
 	private completeWorkspaceBarrier: Barrier;

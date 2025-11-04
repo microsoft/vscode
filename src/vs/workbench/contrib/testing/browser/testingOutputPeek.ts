@@ -682,7 +682,9 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 class TestResultsPeek extends PeekViewWidget {
 	public readonly current = observableValue<InspectSubject | undefined>('testPeekCurrent', undefined);
 	private resizeOnNextContentHeightUpdate = false;
+	// here
 	private content!: TestResultsViewContent;
+	// here
 	private scopedContextKeyService!: IContextKeyService;
 	private dimension?: dom.Dimension;
 

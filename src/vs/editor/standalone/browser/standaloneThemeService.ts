@@ -231,6 +231,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 	private _globalStyleElement: HTMLStyleElement | null;
 	private _styleElements: HTMLStyleElement[];
 	private _colorMapOverride: Color[] | null;
+	// here
 	private _theme!: IStandaloneTheme;
 
 	private _builtInProductIconTheme = new UnthemedProductIconTheme();

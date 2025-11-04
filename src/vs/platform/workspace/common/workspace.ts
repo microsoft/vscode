@@ -331,6 +331,7 @@ export class Workspace implements IWorkspace {
 
 	private foldersMap: TernarySearchTree<URI, WorkspaceFolder>;
 
+	// here
 	private _folders!: WorkspaceFolder[];
 	get folders(): WorkspaceFolder[] { return this._folders; }
 	set folders(folders: WorkspaceFolder[]) {

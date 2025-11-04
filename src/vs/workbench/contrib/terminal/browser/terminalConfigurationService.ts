@@ -21,6 +21,7 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 
 	protected _fontMetrics: TerminalFontMetrics;
 
+	// here
 	protected _config!: Readonly<ITerminalConfiguration>;
 	get config() { return this._config; }
 

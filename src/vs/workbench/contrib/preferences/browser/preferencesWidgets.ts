@@ -44,11 +44,17 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 	private _folder: IWorkspaceFolder | null;
 	private _folderSettingCounts = new Map<string, number>();
 
+	// here
 	private container!: HTMLElement;
+	// here
 	private anchorElement!: HTMLElement;
+	// here
 	private anchorElementHover!: IManagedHover;
+	// here
 	private labelElement!: HTMLElement;
+	// here
 	private detailsElement!: HTMLElement;
+	// here
 	private dropDownElement!: HTMLElement;
 
 	constructor(
@@ -218,11 +224,17 @@ export interface ISettingsTargetsWidgetOptions {
 
 export class SettingsTargetsWidget extends Widget {
 
+	// here
 	private settingsSwitcherBar!: ActionBar;
+	// here
 	private userLocalSettings!: Action;
+	// here
 	private userRemoteSettings!: Action;
+	// here
 	private workspaceSettings!: Action;
+	// here
 	private folderSettingsAction!: Action;
+	// here
 	private folderSettings!: FolderSettingsActionViewItem;
 	private options: ISettingsTargetsWidgetOptions;
 
@@ -381,9 +393,12 @@ export class SearchWidget extends Widget {
 
 	domNode!: HTMLElement;
 
+	// here
 	private countElement!: HTMLElement;
+	// here
 	private searchContainer!: HTMLElement;
 	inputBox!: HistoryInputBox;
+	// here
 	private controlsDiv!: HTMLElement;
 
 	private readonly _onDidChange: Emitter<string> = this._register(new Emitter<string>());

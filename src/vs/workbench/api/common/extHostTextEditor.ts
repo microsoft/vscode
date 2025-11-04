@@ -142,11 +142,17 @@ export class ExtHostTextEditorOptions {
 	private _id: string;
 	private _logService: ILogService;
 
+	// here
 	private _tabSize!: number;
+	// here
 	private _indentSize!: number;
+	// here
 	private _originalIndentSize!: number | 'tabSize';
+	// here
 	private _insertSpaces!: boolean;
+	// here
 	private _cursorStyle!: TextEditorCursorStyle;
+	// here
 	private _lineNumbers!: TextEditorLineNumbersStyle;
 
 	readonly value: vscode.TextEditorOptions;

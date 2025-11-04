@@ -413,12 +413,17 @@ function asTreeElement(item: BaseTreeItem, viewState?: IViewState): ITreeElement
 
 export class LoadedScriptsView extends ViewPane {
 
+	// here
 	private treeContainer!: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
+	// here
 	private tree!: WorkbenchCompressibleObjectTree<LoadedScriptsItem, FuzzyScore>;
+	// here
 	private treeLabels!: ResourceLabels;
+	// here
 	private changeScheduler!: RunOnceScheduler;
 	private treeNeedsRefreshOnVisible = false;
+	// here
 	private filter!: LoadedScriptsFilter;
 
 	constructor(

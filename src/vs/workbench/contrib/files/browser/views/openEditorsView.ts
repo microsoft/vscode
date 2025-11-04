@@ -66,6 +66,7 @@ export class OpenEditorsView extends ViewPane {
 	static readonly ID = 'workbench.explorer.openEditorsView';
 	static readonly NAME: ILocalizedString = nls.localize2({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
+	// here
 	private dirtyCountElement!: HTMLElement;
 	private listRefreshScheduler: RunOnceScheduler | undefined;
 	private structuralRefreshDelay: number;

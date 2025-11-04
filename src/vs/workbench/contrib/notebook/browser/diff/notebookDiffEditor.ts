@@ -93,13 +93,19 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	creationOptions: INotebookEditorCreationOptions = getDefaultNotebookCreationOptions();
 	static readonly ID: string = NOTEBOOK_DIFF_EDITOR_ID;
 
+	// here
 	private _rootElement!: HTMLElement;
+	// here
 	private _listViewContainer!: HTMLElement;
+	// here
 	private _overflowContainer!: HTMLElement;
+	// here
 	private _overviewRulerContainer!: HTMLElement;
+	// here
 	private _overviewRuler!: NotebookDiffOverviewRuler;
 	private _dimension: DOM.Dimension | undefined = undefined;
 	private notebookDiffViewModel?: INotebookDiffViewModel;
+	// here
 	private _list!: NotebookTextDiffList;
 	private _modifiedWebview: BackLayerWebView<IDiffCellInfo> | null = null;
 	private _originalWebview: BackLayerWebView<IDiffCellInfo> | null = null;
@@ -114,6 +120,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	readonly onDidScroll: Event<void> = this._onDidScroll.event;
 	readonly onDidChangeScroll: Event<void> = this._onDidScroll.event;
 	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
+	// here
 	protected _scopeContextKeyService!: IContextKeyService;
 	private _model: INotebookDiffEditorModel | null = null;
 	private readonly diffEditorCalcuator: IDiffEditorHeightCalculatorService;

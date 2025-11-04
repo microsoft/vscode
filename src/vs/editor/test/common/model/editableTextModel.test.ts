@@ -989,6 +989,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	test('change while emitting events 1', () => {
+		// here
 		let disposable!: IDisposable;
 		assertSyncedModels('Hello', (model, assertMirrorModels) => {
 			model.applyEdits([{
@@ -1018,6 +1019,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	test('change while emitting events 2', () => {
+		// here
 		let disposable!: IDisposable;
 		assertSyncedModels('Hello', (model, assertMirrorModels) => {
 			model.applyEdits([{

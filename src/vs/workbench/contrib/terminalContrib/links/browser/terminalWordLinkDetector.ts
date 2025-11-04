@@ -35,6 +35,7 @@ export class TerminalWordLinkDetector extends Disposable implements ITerminalLin
 	// quite small.
 	readonly maxLinkLength = 100;
 
+	// here
 	private _separatorRegex!: RegExp;
 
 	constructor(

@@ -62,6 +62,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	private settingHighlighter: SettingHighlighter;
 	private editSettingActionRenderer: EditSettingRenderer;
 	private modelChangeDelayer: Delayer<void> = new Delayer<void>(200);
+	// here
 	private associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
 
 	private unsupportedSettingsRenderer: UnsupportedSettingsRenderer;

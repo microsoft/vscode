@@ -290,6 +290,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	private viewDescriptorsState: ViewDescriptorsState;
 
 	// Container Info
+	// here
 	private _title!: string;
 	get title(): string { return this._title; }
 

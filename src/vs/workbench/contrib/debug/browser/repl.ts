@@ -104,14 +104,21 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	private tree?: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
 	private replOptions: ReplOptions;
 	private previousTreeScrollHeight: number = 0;
+	// here
 	private replDelegate!: ReplDelegate;
+	// here
 	private container!: HTMLElement;
+	// here
 	private treeContainer!: HTMLElement;
+	// here
 	private replInput!: CodeEditorWidget;
+	// here
 	private replInputContainer!: HTMLElement;
 	private bodyContentDimension: dom.Dimension | undefined;
 	private model: ITextModel | undefined;
+	// here
 	private setHistoryNavigationEnablement!: (enabled: boolean) => void;
+	// here
 	private scopedInstantiationService!: IInstantiationService;
 	private replElementsChangeListener: IDisposable | undefined;
 	private styleElement: HTMLStyleElement | undefined;
@@ -864,6 +871,7 @@ class ReplOptions extends Disposable implements IReplOptions {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
+	// here
 	private _replConfig!: IReplConfiguration;
 	public get replConfiguration(): IReplConfiguration {
 		return this._replConfig;

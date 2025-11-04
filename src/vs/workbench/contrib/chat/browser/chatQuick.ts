@@ -149,7 +149,9 @@ class QuickChat extends Disposable {
 	static DEFAULT_MIN_HEIGHT = 200;
 	private static readonly DEFAULT_HEIGHT_OFFSET = 100;
 
+	// here
 	private widget!: ChatWidget;
+	// here
 	private sash!: Sash;
 	private model: ChatModel | undefined;
 	private _currentQuery: string | undefined;

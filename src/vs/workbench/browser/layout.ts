@@ -209,6 +209,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return this.containerStylesLoaded.get(window.vscodeWindowId);
 	}
 
+	// here
 	private _mainContainerDimension!: IDimension;
 	get mainContainerDimension(): IDimension { return this._mainContainerDimension; }
 
@@ -262,37 +263,66 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly parts = new Map<string, Part>();
 
 	private initialized = false;
+	// here
 	private workbenchGrid!: SerializableGrid<ISerializableView>;
 
+	// here
 	private titleBarPartView!: ISerializableView;
+	// here
 	private bannerPartView!: ISerializableView;
+	// here
 	private activityBarPartView!: ISerializableView;
+	// here
 	private sideBarPartView!: ISerializableView;
+	// here
 	private panelPartView!: ISerializableView;
+	// here
 	private auxiliaryBarPartView!: ISerializableView;
+	// here
 	private editorPartView!: ISerializableView;
+	// here
 	private statusBarPartView!: ISerializableView;
 
+	// here
 	private environmentService!: IBrowserWorkbenchEnvironmentService;
+	// here
 	private extensionService!: IExtensionService;
+	// here
 	private configurationService!: IConfigurationService;
+	// here
 	private storageService!: IStorageService;
+	// here
 	private hostService!: IHostService;
+	// here
 	private editorService!: IEditorService;
+	// here
 	private mainPartEditorService!: IEditorService;
+	// here
 	private editorGroupService!: IEditorGroupsService;
+	// here
 	private paneCompositeService!: IPaneCompositePartService;
+	// here
 	private titleService!: ITitleService;
+	// here
 	private viewDescriptorService!: IViewDescriptorService;
+	// here
 	private contextService!: IWorkspaceContextService;
+	// here
 	private notificationService!: INotificationService;
+	// here
 	private themeService!: IThemeService;
+	// here
 	private statusBarService!: IStatusbarService;
+	// here
 	private logService!: ILogService;
+	// here
 	private telemetryService!: ITelemetryService;
+	// here
 	private auxiliaryWindowService!: IAuxiliaryWindowService;
 
+	// here
 	private state!: ILayoutState;
+	// here
 	private stateModel!: LayoutStateModel;
 
 	private disposed = false;

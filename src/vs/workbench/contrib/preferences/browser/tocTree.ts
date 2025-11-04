@@ -29,6 +29,7 @@ const $ = DOM.$;
 export class TOCTreeModel {
 
 	private _currentSearchModel: SearchResultModel | null = null;
+	// here
 	private _settingsTreeRoot!: SettingsTreeGroupElement;
 
 	constructor(

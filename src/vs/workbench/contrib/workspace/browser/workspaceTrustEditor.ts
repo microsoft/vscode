@@ -668,24 +668,36 @@ class TrustedUriHostColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 
 export class WorkspaceTrustEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.workspaceTrust';
+	// here
 	private rootElement!: HTMLElement;
 
 	// Header Section
+	// here
 	private headerContainer!: HTMLElement;
+	// here
 	private headerTitleContainer!: HTMLElement;
+	// here
 	private headerTitleIcon!: HTMLElement;
+	// here
 	private headerTitleText!: HTMLElement;
+	// here
 	private headerDescription!: HTMLElement;
 
+	// here
 	private bodyScrollBar!: DomScrollableElement;
 
 	// Affected Features Section
+	// here
 	private affectedFeaturesContainer!: HTMLElement;
+	// here
 	private trustedContainer!: HTMLElement;
+	// here
 	private untrustedContainer!: HTMLElement;
 
 	// Settings Section
+	// here
 	private configurationContainer!: HTMLElement;
+	// here
 	private workspaceTrustedUrisTable!: WorkspaceTrustedUrisTable;
 
 	constructor(

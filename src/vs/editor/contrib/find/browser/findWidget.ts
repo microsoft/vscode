@@ -127,18 +127,29 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private readonly _keybindingService: IKeybindingService;
 	private readonly _contextKeyService: IContextKeyService;
 
+	// here
 	private _domNode!: HTMLElement;
 	private _cachedHeight: number | null = null;
+	// here
 	private _findInput!: FindInput;
+	// here
 	private _replaceInput!: ReplaceInput;
 
+	// here
 	private _toggleReplaceBtn!: SimpleButton;
+	// here
 	private _matchesCount!: HTMLElement;
+	// here
 	private _prevBtn!: SimpleButton;
+	// here
 	private _nextBtn!: SimpleButton;
+	// here
 	private _toggleSelectionFind!: Toggle;
+	// here
 	private _closeBtn!: SimpleButton;
+	// here
 	private _replaceBtn!: SimpleButton;
+	// here
 	private _replaceAllBtn!: SimpleButton;
 
 	private _isVisible: boolean;
@@ -152,7 +163,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _viewZone?: FindWidgetViewZone;
 	private _viewZoneId?: string;
 
+	// here
 	private _resizeSash!: Sash;
+	// here
 	private _resized!: boolean;
 	private readonly _updateHistoryDelayer: Delayer<void>;
 

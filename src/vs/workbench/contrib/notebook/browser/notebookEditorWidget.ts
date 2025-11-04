@@ -189,25 +189,38 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onDidResizeOutput = this._onDidResizeOutputEmitter.event;
 
 	//#endregion
+	// here
 	private _overlayContainer!: HTMLElement;
+	// here
 	private _notebookTopToolbarContainer!: HTMLElement;
+	// here
 	private _notebookTopToolbar!: NotebookEditorWorkbenchToolbar;
+	// here
 	private _notebookStickyScrollContainer!: HTMLElement;
+	// here
 	private _notebookStickyScroll!: NotebookStickyScroll;
+	// here
 	private _notebookOverviewRulerContainer!: HTMLElement;
+	// here
 	private _notebookOverviewRuler!: NotebookOverviewRuler;
+	// here
 	private _body!: HTMLElement;
+	// here
 	private _styleElement!: HTMLStyleElement;
+	// here
 	private _overflowContainer!: HTMLElement;
 	private _webview: BackLayerWebView<ICommonCellInfo> | null = null;
 	private _webviewResolvePromise: Promise<BackLayerWebView<ICommonCellInfo> | null> | null = null;
 	private _webviewTransparentCover: HTMLElement | null = null;
 	private _listDelegate: NotebookCellListDelegate | null = null;
+	// here
 	private _list!: INotebookCellList;
+	// here
 	private _listViewInfoAccessor!: ListViewInfoAccessor;
 	private _dndController: CellDragAndDropController | null = null;
 	private _listTopCellToolbar: ListTopCellToolbar | null = null;
 	private _renderedEditors: Map<ICellViewModel, ICodeEditor> = new Map();
+	// here
 	private _editorPool!: NotebookCellEditorPool;
 	private _viewContext: ViewContext;
 	private _notebookViewModel: NotebookViewModel | undefined;
@@ -230,6 +243,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
 	private _cellContextKeyManager: CellContextKeyManager | null = null;
 	private readonly _uuid = generateUuid();
+	// here
 	private _focusTracker!: DOM.IFocusTracker;
 	private _webviewFocused: boolean = false;
 	private _isVisible = false;

@@ -35,19 +35,32 @@ export class CellContextKeyPart extends CellContentPart {
 
 export class CellContextKeyManager extends Disposable {
 
+	// here
 	private cellType!: IContextKey<'code' | 'markup'>;
+	// here
 	private cellEditable!: IContextKey<boolean>;
+	// here
 	private cellFocused!: IContextKey<boolean>;
+	// here
 	private cellEditorFocused!: IContextKey<boolean>;
+	// here
 	private cellRunState!: IContextKey<NotebookCellExecutionStateContext>;
+	// here
 	private cellExecuting!: IContextKey<boolean>;
+	// here
 	private cellHasOutputs!: IContextKey<boolean>;
+	// here
 	private cellContentCollapsed!: IContextKey<boolean>;
+	// here
 	private cellOutputCollapsed!: IContextKey<boolean>;
+	// here
 	private cellLineNumbers!: IContextKey<'on' | 'off' | 'inherit'>;
+	// here
 	private cellResource!: IContextKey<string>;
+	// here
 	private cellHasErrorDiagnostics!: IContextKey<boolean>;
 
+	// here
 	private markdownEditMode!: IContextKey<boolean>;
 
 	private readonly elementDisposables = this._register(new DisposableStore());

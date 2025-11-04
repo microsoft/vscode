@@ -86,6 +86,7 @@ function getModeKindForBreakpoint(breakpoint: IBreakpoint) {
 
 export class BreakpointsView extends ViewPane {
 
+	// here
 	private list!: WorkbenchList<BreakpointItem>;
 	private needsRefresh = false;
 	private needsStateChange = false;

@@ -21,6 +21,7 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { LayoutableEditor } from './simpleCommentEditor.js';
 
 export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends Disposable {
+	// here
 	private _commentsElement!: HTMLElement;
 	private _commentElements: CommentNode<T>[] = [];
 	private _resizeObserver: MutationObserver | null = null;

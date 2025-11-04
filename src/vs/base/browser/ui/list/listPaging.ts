@@ -123,6 +123,7 @@ function fromPagedListOptions<T>(modelProvider: () => IPagedModel<T>, options: I
 export class PagedList<T> implements IDisposable {
 
 	private readonly list: List<number>;
+	// here
 	private _model!: IPagedModel<T>;
 	private readonly modelDisposables = new DisposableStore();
 

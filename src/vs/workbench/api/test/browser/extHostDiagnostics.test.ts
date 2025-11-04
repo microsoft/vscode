@@ -177,6 +177,7 @@ suite('ExtHostDiagnostics', () => {
 
 	test('diagnostics collection, set tuple overrides, #11547', function () {
 
+		// here
 		let lastEntries!: [UriComponents, IMarkerData[]][];
 		const collection = new DiagnosticCollection('test', 'test', 100, 100, versionProvider, extUri, new class extends DiagnosticsShape {
 			override $changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
@@ -277,6 +278,7 @@ suite('ExtHostDiagnostics', () => {
 
 	test('diagnostic capping (max per file)', function () {
 
+		// here
 		let lastEntries!: [UriComponents, IMarkerData[]][];
 		const collection = new DiagnosticCollection('test', 'test', 100, 250, versionProvider, extUri, new class extends DiagnosticsShape {
 			override $changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
@@ -304,6 +306,7 @@ suite('ExtHostDiagnostics', () => {
 
 	test('diagnostic capping (max files)', function () {
 
+		// here
 		let lastEntries!: [UriComponents, IMarkerData[]][];
 		const collection = new DiagnosticCollection('test', 'test', 2, 1, versionProvider, extUri, new class extends DiagnosticsShape {
 			override $changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {

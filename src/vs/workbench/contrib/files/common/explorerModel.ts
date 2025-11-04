@@ -25,6 +25,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
 export class ExplorerModel implements IDisposable {
 
+	// here
 	private _roots!: ExplorerItem[];
 	private _listener: IDisposable;
 	private readonly _onDidChangeRoots = new Emitter<void>();

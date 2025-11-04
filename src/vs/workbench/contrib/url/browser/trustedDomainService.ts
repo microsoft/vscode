@@ -24,6 +24,7 @@ export interface ITrustedDomainService {
 export class TrustedDomainService extends Disposable implements ITrustedDomainService {
 	_serviceBrand: undefined;
 
+	// here
 	private _staticTrustedDomainsResult!: WindowIdleValue<string[]>;
 
 	private _onDidChangeTrustedDomains: Emitter<void> = this._register(new Emitter<void>());

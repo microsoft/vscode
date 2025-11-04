@@ -145,15 +145,20 @@ async function expandTo(session: IDebugSession, tree: WorkbenchCompressibleAsync
 }
 
 export class CallStackView extends ViewPane {
+	// here
 	private stateMessage!: HTMLSpanElement;
+	// here
 	private stateMessageLabel!: HTMLSpanElement;
+	// here
 	private stateMessageLabelHover!: IManagedHover;
 	private onCallStackChangeScheduler: RunOnceScheduler;
 	private needsRefresh = false;
 	private ignoreSelectionChangedEvent = false;
 	private ignoreFocusStackFrameEvent = false;
 
+	// here
 	private dataSource!: CallStackDataSource;
+	// here
 	private tree!: WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>;
 	private autoExpandedSessions = new Set<IDebugSession>();
 	private selectionNeedsUpdate = false;

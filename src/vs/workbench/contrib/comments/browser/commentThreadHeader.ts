@@ -35,8 +35,11 @@ function threadHasComments(comments: ReadonlyArray<languages.Comment> | undefine
 
 export class CommentThreadHeader<T = IRange> extends Disposable {
 	private _headElement: HTMLElement;
+	// here
 	private _headingLabel!: HTMLElement;
+	// here
 	private _actionbarWidget!: ActionBar;
+	// here
 	private _collapseAction!: Action;
 	private _contextMenuActionRunner: ActionRunner | undefined;
 

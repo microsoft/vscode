@@ -43,8 +43,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private currentThinkingValue: string;
 	private currentTitle: string;
 	private defaultTitle = localize('chat.thinking.header', 'Thinking...');
+	// here
 	private textContainer!: HTMLElement;
 	private markdownResult: IRenderedMarkdown | undefined;
+	// here
 	private wrapper!: HTMLElement;
 	private perItemCollapsedMode: boolean = false;
 	private fixedScrollingMode: boolean = false;

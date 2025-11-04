@@ -21,6 +21,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 export class CommentThreadAdditionalActions<T extends IRange | ICellRange> extends Disposable {
 	private _container: HTMLElement | null;
 	private _buttonBar: HTMLElement | null;
+	// here
 	private _commentFormActions!: CommentFormActions;
 
 	constructor(

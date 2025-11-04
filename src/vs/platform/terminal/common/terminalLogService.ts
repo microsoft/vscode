@@ -18,6 +18,7 @@ export class TerminalLogService extends Disposable implements ITerminalLogServic
 
 	private readonly _logger: ILogger;
 
+	// here
 	private _workspaceId!: string;
 
 	get onDidChangeLogLevel(): Event<LogLevel> { return this._logger.onDidChangeLogLevel; }

@@ -155,8 +155,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	readonly scopedInstantiationService: IInstantiationService;
 	private readonly scopedContextKeyService: IContextKeyService;
 
+	// here
 	private centeredLayoutWidget!: CenteredViewLayout;
 
+	// here
 	private gridWidget!: SerializableGrid<IEditorGroupView>;
 	private readonly gridWidgetDisposables = this._register(new DisposableStore());
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
@@ -228,9 +230,11 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 	private top = 0;
 	private left = 0;
+	// here
 	private _contentDimension!: Dimension;
 	get contentDimension(): Dimension { return this._contentDimension; }
 
+	// here
 	private _activeGroup!: IEditorGroupView;
 	get activeGroup(): IEditorGroupView {
 		return this._activeGroup;

@@ -129,11 +129,17 @@ export class ChatTodoListWidget extends Disposable {
 
 	private _isExpanded: boolean = false;
 	private _userManuallyExpanded: boolean = false;
+	// here
 	private expandoButton!: Button;
+	// here
 	private expandIcon!: HTMLElement;
+	// here
 	private titleElement!: HTMLElement;
+	// here
 	private todoListContainer!: HTMLElement;
+	// here
 	private clearButtonContainer!: HTMLElement;
+	// here
 	private clearButton!: Button;
 	private _currentSessionResource: URI | undefined;
 	private _todoList: WorkbenchList<IChatTodo> | undefined;

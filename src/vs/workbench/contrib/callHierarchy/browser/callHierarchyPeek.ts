@@ -68,13 +68,20 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 
 	static readonly TitleMenu = new MenuId('callhierarchy/title');
 
+	// here
 	private _parent!: HTMLElement;
+	// here
 	private _message!: HTMLElement;
+	// here
 	private _splitView!: SplitView;
+	// here
 	private _tree!: CallHierarchyTree;
 	private _treeViewStates = new Map<CallHierarchyDirection, IAsyncDataTreeViewState>();
+	// here
 	private _editor!: EmbeddedCodeEditorWidget;
+	// here
 	private _dim!: Dimension;
+	// here
 	private _layoutInfo!: LayoutInfo;
 
 	private readonly _previewDisposable = new DisposableStore();

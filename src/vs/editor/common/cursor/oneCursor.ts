@@ -15,7 +15,9 @@ import { PositionAffinity, TrackedRangeStickiness } from '../model.js';
 */
 export class Cursor {
 
+	// here
 	public modelState!: SingleCursorState;
+	// here
 	public viewState!: SingleCursorState;
 
 	private _selTrackedRange: string | null;

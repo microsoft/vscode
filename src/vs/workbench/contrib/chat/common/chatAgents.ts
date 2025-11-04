@@ -658,6 +658,7 @@ export class ChatAgentNameService implements IChatAgentNameService {
 
 	declare _serviceBrand: undefined;
 
+	// here
 	private readonly url!: string;
 	private registry = observableValue<IChatParticipantRegistry>(this, Object.create(null));
 	private disposed = false;

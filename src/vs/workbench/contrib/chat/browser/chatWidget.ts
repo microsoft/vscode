@@ -334,7 +334,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private contribs: ReadonlyArray<IChatWidgetContrib> = [];
 
+	// here
 	private tree!: WorkbenchObjectTree<ChatTreeItem, FuzzyScore>;
+	// here
 	private renderer!: ChatListItemRenderer;
 	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
 	private lastItem: ChatTreeItem | undefined;
@@ -342,21 +344,28 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly inputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
 	private readonly inlineInputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
 	private readonly timeoutDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	// here
 	private inputContainer!: HTMLElement;
+	// here
 	private focusedInputDOM!: HTMLElement;
+	// here
 	private editorOptions!: ChatEditorOptions;
 
 	private recentlyRestoredCheckpoint: boolean = false;
 
 	private settingChangeCounter = 0;
 
+	// here
 	private listContainer!: HTMLElement;
+	// here
 	private container!: HTMLElement;
+	// here
 	private historyListContainer!: HTMLElement;
 	get domNode() {
 		return this.container;
 	}
 
+	// here
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 	private readonly welcomeContextMenuDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());

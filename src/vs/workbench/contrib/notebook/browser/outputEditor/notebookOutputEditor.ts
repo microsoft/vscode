@@ -84,6 +84,7 @@ export class NotebookOutputEditor extends EditorPane implements INotebookDelegat
 
 	creationOptions: INotebookEditorCreationOptions = getDefaultNotebookCreationOptions();
 
+	// here
 	private _rootElement!: HTMLElement;
 	private _outputWebview: BackLayerWebView<ICommonCellInfo> | null = null;
 

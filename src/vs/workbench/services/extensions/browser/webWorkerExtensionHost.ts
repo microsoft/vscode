@@ -143,6 +143,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		iframe.setAttribute('src', `${webWorkerExtensionHostIframeSrc}&vscodeWebWorkerExtHostId=${vscodeWebWorkerExtHostId}`);
 
 		const barrier = new Barrier();
+		// here
 		let port!: MessagePort;
 		let barrierError: Error | null = null;
 		let barrierHasError = false;

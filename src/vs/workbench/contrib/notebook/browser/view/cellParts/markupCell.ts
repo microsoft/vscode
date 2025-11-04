@@ -36,6 +36,7 @@ export class MarkupCell extends Disposable {
 
 	private editor: CodeEditorWidget | null = null;
 
+	// here
 	private markdownAccessibilityContainer!: HTMLElement;
 	private editorPart: HTMLElement;
 

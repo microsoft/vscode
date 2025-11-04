@@ -48,6 +48,7 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 
 	private watchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private needsRefresh = false;
+	// here
 	private tree!: WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>;
 	private watchExpressionsExist: IContextKey<boolean>;
 	private expressionRenderer: DebugExpressionRenderer;

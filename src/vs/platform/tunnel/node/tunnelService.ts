@@ -37,8 +37,10 @@ async function createRemoteTunnel(options: IConnectionOptions, defaultTunnelHost
 export class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 	public readonly tunnelRemotePort: number;
+	// here
 	public tunnelLocalPort!: number;
 	public tunnelRemoteHost: string;
+	// here
 	public localAddress!: string;
 	public readonly privacy = TunnelPrivacyId.Private;
 

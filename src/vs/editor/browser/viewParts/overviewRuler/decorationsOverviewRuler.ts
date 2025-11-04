@@ -238,6 +238,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	private readonly _tokensColorTrackerListener: IDisposable;
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
+	// here
 	private _settings!: Settings;
 	private _cursorPositions: Cursor[];
 

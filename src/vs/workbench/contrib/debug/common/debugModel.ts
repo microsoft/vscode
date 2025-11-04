@@ -1457,10 +1457,15 @@ export class DebugModel extends Disposable implements IDebugModel {
 	private readonly _onDidChangeWatchExpressions = this._register(new Emitter<IExpression | undefined>());
 	private readonly _onDidChangeWatchExpressionValue = this._register(new Emitter<IExpression | undefined>());
 	private readonly _breakpointModes = new Map<string, IBreakpointModeInternal>();
+	// here
 	private breakpoints!: Breakpoint[];
+	// here
 	private functionBreakpoints!: FunctionBreakpoint[];
+	// here
 	private exceptionBreakpoints!: ExceptionBreakpoint[];
+	// here
 	private dataBreakpoints!: DataBreakpoint[];
+	// here
 	private watchExpressions!: Expression[];
 	private instructionBreakpoints: InstructionBreakpoint[];
 

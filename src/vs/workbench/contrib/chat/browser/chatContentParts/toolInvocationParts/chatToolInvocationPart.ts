@@ -44,6 +44,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		return this.subPart?.codeblocksPartId;
 	}
 
+	// here
 	private subPart!: BaseChatToolInvocationSubPart;
 
 	constructor(

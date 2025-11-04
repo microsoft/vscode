@@ -47,7 +47,9 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	private debuggers: Debugger[];
 	private adapterDescriptorFactories: IDebugAdapterDescriptorFactory[];
 	private debugAdapterFactories = new Map<string, IDebugAdapterFactory>();
+	// here
 	private debuggersAvailable!: IContextKey<boolean>;
+	// here
 	private debugExtensionsAvailable!: IContextKey<boolean>;
 	private readonly _onDidRegisterDebugger = new Emitter<void>();
 	private readonly _onDidDebuggersExtPointRead = new Emitter<void>();

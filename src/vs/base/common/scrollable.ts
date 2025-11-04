@@ -436,7 +436,9 @@ export class SmoothScrollingOperation {
 	public readonly startTime: number;
 	public animationFrameDisposable: IDisposable | null;
 
+	// here
 	private scrollLeft!: IAnimation;
+	// here
 	private scrollTop!: IAnimation;
 
 	constructor(from: ISmoothScrollPosition, to: ISmoothScrollPosition, startTime: number, duration: number) {

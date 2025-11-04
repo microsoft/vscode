@@ -575,6 +575,7 @@ export class NotebookService extends Disposable implements INotebookService {
 	private _cutItems: NotebookCellTextModel[] | undefined;
 	private _lastClipboardIsCopy: boolean;
 
+	// here
 	private _displayOrder!: MimeTypeDisplayOrder;
 
 	constructor(

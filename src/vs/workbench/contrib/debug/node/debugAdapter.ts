@@ -26,6 +26,7 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 	private static readonly HEADER_LINESEPARATOR = /\r?\n/;	// allow for non-RFC 2822 conforming line separators
 	private static readonly HEADER_FIELDSEPARATOR = /: */;
 
+	// here
 	private outputStream!: stream.Writable;
 	private rawData = Buffer.allocUnsafe(0);
 	private contentLength = -1;

@@ -54,6 +54,7 @@ export class ChatEditorOptions extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
+	// here
 	private _config!: IChatEditorConfiguration;
 	public get configuration(): IChatEditorConfiguration {
 		return this._config;

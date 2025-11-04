@@ -732,6 +732,7 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 	static ID = 0;
 
 	private _index: number;
+	// here
 	private _labels!: HTMLElement[];
 	private _updateLabelDisposable: IDisposable;
 

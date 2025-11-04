@@ -516,8 +516,11 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	readonly config: IOutlineListConfig<OutlineEntry>;
 	private _outlineDataSourceReference: IReference<NotebookCellOutlineDataSource> | undefined;
 	// These three fields will always be set via setDataSources() on L475
+	// here
 	private _treeDataSource!: IDataSource<NotebookCellOutline, OutlineEntry>;
+	// here
 	private _quickPickDataSource!: IQuickPickDataSource<OutlineEntry>;
+	// here
 	private _breadcrumbsDataSource!: IBreadcrumbsDataSource<OutlineEntry>;
 
 	// view settings

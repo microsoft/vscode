@@ -33,7 +33,9 @@ const testFilterDescriptions: { [K in TestFilterTerm]: string } = {
 };
 
 export class TestingExplorerFilter extends BaseActionViewItem {
+	// here
 	private input!: SuggestEnabledInputWithHistory;
+	// here
 	private wrapper!: HTMLDivElement;
 	private readonly focusEmitter = this._register(new Emitter<void>());
 	public readonly onDidFocus = this.focusEmitter.event;

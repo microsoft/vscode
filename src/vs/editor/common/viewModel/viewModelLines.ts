@@ -74,13 +74,16 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private wrappingStrategy: 'simple' | 'advanced';
 	private wrapOnEscapedLineFeeds: boolean;
 
+	// here
 	private modelLineProjections!: IModelLineProjection[];
 
 	/**
 	 * Reflects the sum of the line counts of all projected model lines.
 	*/
+	// here
 	private projectedModelLineLineCounts!: ConstantTimePrefixSumComputer;
 
+	// here
 	private hiddenAreasDecorationIds!: string[];
 
 	constructor(

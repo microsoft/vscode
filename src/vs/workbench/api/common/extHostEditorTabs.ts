@@ -25,6 +25,7 @@ type AnyTabInput = TextTabInput | TextDiffTabInput | TextMultiDiffTabInput | Cus
 
 class ExtHostEditorTab {
 	private _apiObject: vscode.Tab | undefined;
+	// here
 	private _dto!: IEditorTabDto;
 	private _input: AnyTabInput | undefined;
 	private _parentGroup: ExtHostEditorTabGroup;
@@ -225,6 +226,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	private readonly _onDidChangeTabGroups = new Emitter<vscode.TabGroupChangeEvent>();
 
 	// Have to use ! because this gets initialized via an RPC proxy
+	// here
 	private _activeGroupId!: number;
 
 	private _extHostTabGroups: ExtHostEditorTabGroup[] = [];

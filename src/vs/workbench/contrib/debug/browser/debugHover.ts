@@ -90,16 +90,23 @@ export class DebugHoverWidget implements IContentWidget {
 	};
 	private safeTriangle?: dom.SafeTriangle;
 	private showCancellationSource?: CancellationTokenSource;
+	// here
 	private domNode!: HTMLElement;
+	// here
 	private tree!: AsyncDataTree<IExpression, IExpression, any>;
 	private showAtPosition: Position | null;
 	private positionPreference: ContentWidgetPositionPreference[];
 	private readonly highlightDecorations: IEditorDecorationsCollection;
+	// here
 	private complexValueContainer!: HTMLElement;
+	// here
 	private complexValueTitle!: HTMLElement;
+	// here
 	private valueContainer!: HTMLElement;
+	// here
 	private treeContainer!: HTMLElement;
 	private toDispose: lifecycle.IDisposable[];
+	// here
 	private scrollbar!: DomScrollableElement;
 	private debugHoverComputer: DebugHoverComputer;
 	private expressionRenderer: DebugExpressionRenderer;

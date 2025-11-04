@@ -491,6 +491,7 @@ export class ThrottledDelayer<T> {
 export class Barrier {
 	private _isOpen: boolean;
 	private _promise: Promise<boolean>;
+	// here
 	private _completePromise!: (v: boolean) => void;
 
 	constructor() {
@@ -1736,7 +1737,9 @@ export class DeferredPromise<T> {
 		return deferred;
 	}
 
+	// here
 	private completeCallback!: ValueCallback<T>;
+	// here
 	private errorCallback!: (err: unknown) => void;
 	private outcome?: { outcome: DeferredOutcome.Rejected; value: unknown } | { outcome: DeferredOutcome.Resolved; value: T };
 

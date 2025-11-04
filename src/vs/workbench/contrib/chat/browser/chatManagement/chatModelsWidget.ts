@@ -686,11 +686,17 @@ export class ChatModelsWidget extends Disposable {
 	private static NUM_INSTANCES: number = 0;
 
 	readonly element: HTMLElement;
+	// here
 	private searchWidget!: SuggestEnabledInput;
+	// here
 	private searchActionsContainer!: HTMLElement;
+	// here
 	private table!: WorkbenchTable<TableEntry>;
+	// here
 	private tableContainer!: HTMLElement;
+	// here
 	private addButtonContainer!: HTMLElement;
+	// here
 	private addButton!: Button;
 	private dropdownActions: IAction[] = [];
 	private viewModel: ChatModelsViewModel;

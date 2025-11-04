@@ -89,10 +89,15 @@ export class CellDiffPlaceholderElement extends Disposable {
 }
 
 class PropertyHeader extends Disposable {
+	// here
 	protected _foldingIndicator!: HTMLElement;
+	// here
 	protected _statusSpan!: HTMLElement;
+	// here
 	protected _description!: HTMLElement;
+	// here
 	protected _toolbar!: WorkbenchToolBar;
+	// here
 	protected _menu!: IMenu;
 	protected _propertyExpanded?: IContextKey<boolean>;
 	protected _propertyChanged?: IContextKey<boolean>;
@@ -231,10 +236,13 @@ interface IDiffElementLayoutState {
 export class NotebookDocumentMetadataElement extends Disposable {
 	private readonly _editor: DiffEditorWidget;
 	private _editorViewStateChanged: boolean;
+	// here
 	private _toolbar!: ToolBar;
 	private readonly _cellHeaderContainer: HTMLElement;
 	private readonly _editorContainer: HTMLElement;
+	// here
 	private _cellHeader!: PropertyHeader;
+	// here
 	private _diffEditorContainer!: HTMLElement;
 
 	constructor(
@@ -499,18 +507,28 @@ abstract class AbstractElementRenderer extends Disposable {
 	protected readonly _outputLocalDisposable = this._register(new DisposableStore());
 	protected _ignoreMetadata: boolean = false;
 	protected _ignoreOutputs: boolean = false;
+	// here
 	protected _cellHeaderContainer!: HTMLElement;
+	// here
 	protected _editorContainer!: HTMLElement;
+	// here
 	protected _cellHeader!: PropertyHeader;
+	// here
 	protected _metadataHeaderContainer!: HTMLElement;
+	// here
 	protected _metadataHeader!: PropertyHeader;
+	// here
 	protected _metadataInfoContainer!: HTMLElement;
 	protected _metadataEditorContainer?: HTMLElement;
+	// here
 	protected readonly _metadataEditorDisposeStore!: DisposableStore;
 	protected _metadataEditor?: CodeEditorWidget | DiffEditorWidget;
 
+	// here
 	protected _outputHeaderContainer!: HTMLElement;
+	// here
 	protected _outputHeader!: PropertyHeader;
+	// here
 	protected _outputInfoContainer!: HTMLElement;
 	protected _outputEditorContainer?: HTMLElement;
 	protected _outputViewContainer?: HTMLElement;
@@ -520,10 +538,12 @@ abstract class AbstractElementRenderer extends Disposable {
 	protected _outputEmptyElement?: HTMLElement;
 	protected _outputLeftView?: OutputContainer;
 	protected _outputRightView?: OutputContainer;
+	// here
 	protected readonly _outputEditorDisposeStore!: DisposableStore;
 	protected _outputEditor?: CodeEditorWidget | DiffEditorWidget;
 	protected _outputMetadataEditor?: DiffEditorWidget;
 
+	// here
 	protected _diffEditorContainer!: HTMLElement;
 	protected _diagonalFill?: HTMLElement;
 	protected _isDisposed: boolean;
@@ -1017,6 +1037,7 @@ abstract class AbstractElementRenderer extends Disposable {
 }
 
 abstract class SingleSideDiffElement extends AbstractElementRenderer {
+	// here
 	protected _editor!: CodeEditorWidget;
 	override readonly cell: SingleSideDiffElementViewModel;
 	override readonly templateData: CellDiffSingleSideRenderTemplate;
@@ -1577,7 +1598,9 @@ export class InsertElement extends SingleSideDiffElement {
 export class ModifiedElement extends AbstractElementRenderer {
 	private _editor?: DiffEditorWidget;
 	private _editorViewStateChanged: boolean;
+	// here
 	protected _toolbar!: ToolBar;
+	// here
 	protected _menu!: IMenu;
 
 	override readonly cell: SideBySideDiffElementViewModel;

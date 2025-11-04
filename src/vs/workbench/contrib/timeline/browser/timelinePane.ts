@@ -241,9 +241,13 @@ interface IPendingRequest extends IDisposable {
 export class TimelinePane extends ViewPane {
 	static readonly TITLE: ILocalizedString = localize2('timeline', "Timeline");
 
+	// here
 	private $container!: HTMLElement;
+	// here
 	private $message!: HTMLDivElement;
+	// here
 	private $tree!: HTMLDivElement;
+	// here
 	private tree!: WorkbenchObjectTree<TreeElement, FuzzyScore>;
 	private treeRenderer: TimelineTreeRenderer | undefined;
 	private commands: TimelinePaneCommands;

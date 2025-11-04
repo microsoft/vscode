@@ -631,6 +631,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!request) {
 			throw new Error('No request');
 		}
+		// here
 		let part!: ChatElicitationRequestPart;
 		const promise = new Promise<T | undefined>(resolve => {
 			const thePart = part = this._register(new ChatElicitationRequestPart(

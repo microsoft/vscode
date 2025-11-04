@@ -525,6 +525,7 @@ export class TestFileService implements IFileService {
 	readonly onDidWatchError = Event.None;
 
 	protected content = 'Hello Html';
+	// here
 	protected lastReadFileUri!: URI;
 
 	readonly = false;

@@ -60,6 +60,7 @@ export class MenuBar extends Disposable {
 
 	private menus: MenuBarMenuWithElements[];
 
+	// here
 	private overflowMenu!: MenuBarMenuWithElements & { titleElement: HTMLElement; buttonElement: HTMLElement };
 
 	private focusedMenu: {

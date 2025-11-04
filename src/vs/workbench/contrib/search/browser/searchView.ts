@@ -130,6 +130,7 @@ export class SearchView extends ViewPane {
 
 	private isDisposed = false;
 
+	// here
 	private container!: HTMLElement;
 	private queryBuilder: QueryBuilder;
 	private viewModel: ISearchModel;
@@ -158,18 +159,29 @@ export class SearchView extends ViewPane {
 	private hasFilePatternKey: IContextKey<boolean>;
 	private hasSomeCollapsibleResultKey: IContextKey<boolean>;
 
+	// here
 	private tree!: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch>;
+	// here
 	private treeLabels!: ResourceLabels;
 	private viewletState: ISearchViewState;
+	// here
 	private messagesElement!: HTMLElement;
 	private readonly messageDisposables: DisposableStore = new DisposableStore();
+	// here
 	private searchWidgetsContainerElement!: HTMLElement;
+	// here
 	private searchWidget!: SearchWidget;
+	// here
 	private size!: dom.Dimension;
+	// here
 	private queryDetails!: HTMLElement;
+	// here
 	private toggleQueryDetailsButton!: HTMLElement;
+	// here
 	private inputPatternExcludes!: ExcludePatternInputWidget;
+	// here
 	private inputPatternIncludes!: IncludePatternInputWidget;
+	// here
 	private resultsElement!: HTMLElement;
 
 	private currentSelectedFileMatch: ISearchTreeFileMatch | undefined;

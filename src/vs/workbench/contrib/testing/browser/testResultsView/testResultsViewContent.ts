@@ -174,18 +174,27 @@ export class TestResultsViewContent extends Disposable {
 	private readonly didReveal = this._register(new Emitter<{ subject: InspectSubject; preserveFocus: boolean }>());
 	private readonly currentSubjectStore = this._register(new DisposableStore());
 	private readonly onCloseEmitter = this._register(new Relay<void>());
+	// here
 	private followupWidget!: FollowupActionWidget;
+	// here
 	private messageContextKeyService!: IContextKeyService;
+	// here
 	private contextKeyTestMessage!: IContextKey<string>;
+	// here
 	private contextKeyResultOutdated!: IContextKey<boolean>;
+	// here
 	private stackContainer!: HTMLElement;
+	// here
 	private callStackWidget!: CallStackWidget;
 	private currentTopFrame?: MessageStackFrame;
 	private isDoingLayoutUpdate?: boolean;
 
 	private dimension?: dom.Dimension;
+	// here
 	private splitView!: SplitView;
+	// here
 	private messageContainer!: HTMLElement;
+	// here
 	private contentProviders!: IPeekOutputRenderer[];
 	private contentProvidersUpdateLimiter = this._register(new Limiter(1));
 	private isTreeLeft = false; // Track layout setting
@@ -193,6 +202,7 @@ export class TestResultsViewContent extends Disposable {
 	public current?: InspectSubject;
 
 	/** Fired when a tree item is selected. Populated only on .fillBody() */
+	// here
 	public onDidRequestReveal!: Event<InspectSubject>;
 
 	public readonly onClose = this.onCloseEmitter.event;

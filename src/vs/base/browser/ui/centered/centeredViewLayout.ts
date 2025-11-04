@@ -62,6 +62,7 @@ export class CenteredViewLayout implements IDisposable {
 
 	private splitView?: SplitView<{ top: number; left: number }>;
 	private lastLayoutPosition: IDomNodePagePosition = { width: 0, height: 0, left: 0, top: 0 };
+	// here
 	private style!: ICenteredViewStyles;
 	private didLayout = false;
 	private emptyViews: ISplitViewView<{ top: number; left: number }>[] | undefined;

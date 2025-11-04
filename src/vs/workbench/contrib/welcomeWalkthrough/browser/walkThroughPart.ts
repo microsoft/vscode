@@ -59,7 +59,9 @@ export class WalkThroughPart extends EditorPane {
 
 	private readonly disposables = new DisposableStore();
 	private contentDisposables: IDisposable[] = [];
+	// here
 	private content!: HTMLDivElement;
+	// here
 	private scrollbar!: DomScrollableElement;
 	private editorFocus: IContextKey<boolean>;
 	private lastFocus: HTMLElement | undefined;
