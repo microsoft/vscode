@@ -94,6 +94,12 @@
 	font-size: 12px;
 }
 
+.chat-terminal-output div,
+.chat-terminal-output span {
+	height: auto;
+	line-height: normal;
+}
+
 .chat-terminal-output pre {
 	margin: 0;
 }
