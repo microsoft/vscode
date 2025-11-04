@@ -82,7 +82,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const index = document.getText().lastIndexOf(' from \'');
 			if (index < 0 || document.positionAt(index).line < position.line) {
 				// line after last import is before position
-				// -> no completion, safe a parse call
+				// -> no completion, save a parse call
 				return undefined;
 			}
 
@@ -185,6 +185,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					result.edit.set(uri, edits);
 				}
 			}
+			// Debug: uncomment to inspect generated edits for "Fix All" action
 			// console.log(result.edit.get(document.uri));
 			return [result];
 		}
