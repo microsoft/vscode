@@ -31,26 +31,6 @@ import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { SessionsViewPane } from './sessionsViewPane.js';
 
-export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
-	static readonly ID = 'workbench.contrib.chatSessionsView';
-	constructor() {
-		super();
-		this.registerViewContainer();
-	}
-	private registerViewContainer(): void {
-		Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
-			{
-				id: AGENT_SESSIONS_VIEWLET_ID,
-				title: nls.localize2('chat.agent.sessions', "Agent Sessions"),
-				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer),
-				hideIfEmpty: true,
-				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View'),
-				order: 6
-			}, ViewContainerLocation.Sidebar);
-	}
-
-}
-
 export class ChatSessionsViewContrib extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatSessions';
 
@@ -283,3 +263,13 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		return title;
 	}
 }
+
+Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+	{
+		id: AGENT_SESSIONS_VIEWLET_ID,
+		title: nls.localize2('chat.agent.sessions', "Agent Sessions"),
+		ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer),
+		hideIfEmpty: true,
+		icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View'),
+		order: 6
+	}, ViewContainerLocation.Sidebar);
