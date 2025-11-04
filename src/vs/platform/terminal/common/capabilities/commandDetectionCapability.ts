@@ -365,7 +365,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		if (!this._currentCommand.commandExecutedMarker) {
 			this.handleCommandExecuted();
 		}
-		this._ensureCurrentCommandId(this._currentCommand.command ?? this._currentCommand.extractCommandLine(), options?.commandId);
+		this._ensureCurrentCommandId(this._currentCommand.command ?? this._currentCommand.extractCommandLine());
 		this._currentCommand.markFinishedTime();
 		this._ptyHeuristics.value.preHandleCommandFinished?.();
 
@@ -413,13 +413,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				this._currentCommand.id = explicitCommandId;
 			}
 			this._nextCommandId = undefined;
-			return;
-		}
-
-		if (this._handleCommandStartOptions?.commandId) {
-			if (this._currentCommand.id !== this._handleCommandStartOptions.commandId) {
-				this._currentCommand.id = this._handleCommandStartOptions.commandId;
-			}
 			return;
 		}
 
