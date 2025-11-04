@@ -62,6 +62,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private _outputScrollbar: DomScrollableElement | undefined;
 	private _outputContent: HTMLElement | undefined;
 	private _outputResizeObserver: ResizeObserver | undefined;
+	private _renderedOutputHeight: number | undefined;
 
 	private readonly _showOutputAction = this._register(new MutableDisposable<ToggleChatTerminalOutputAction>());
 	private _showOutputActionAdded = false;
@@ -313,6 +314,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (!expanded) {
 			this._layoutOutput();
 			this._showOutputAction.value?.syncPresentation(false);
+			this._renderedOutputHeight = undefined;
+			this._onDidChangeHeight.fire();
 			return true;
 		}
 
@@ -374,6 +377,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._outputContainer.appendChild(scrollableDomNode);
 			this._ensureOutputResizeObserver();
 			this._outputContent = undefined;
+			this._renderedOutputHeight = undefined;
 		} else {
 			this._ensureOutputResizeObserver();
 		}
@@ -404,6 +408,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const viewportHeight = Math.min(this._outputBody.scrollHeight, MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT);
 		scrollableDomNode.style.height = `${viewportHeight}px`;
 		this._outputScrollbar.scanDomNode();
+		if (this._renderedOutputHeight !== viewportHeight) {
+			this._renderedOutputHeight = viewportHeight;
+			this._onDidChangeHeight.fire();
+		}
 	}
 
 	private _ensureOutputResizeObserver(): void {
