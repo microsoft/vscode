@@ -355,8 +355,11 @@ class AnimationFrameQueueItem implements IDisposable {
 	const inAnimationFrameRunner = new Map<number /* window ID */, boolean>();
 
 	/**
-	 * Insert an item into a queue in sorted order by priority (largest to lowest).
-	 * Uses binary search to find the insertion point, achieving O(log n) search + O(n) splice.
+	 * Inserts an item into the queue keeping descending priority order (largest to lowest).
+	 * Uses binarySearch2 to find the insertion point.
+	 * Complexity: O(log n) search + O(n) splice per insertion (worst-case O(n²) per frame).
+	 * @param queue The queue sorted in descending priority (mutated in place).
+	 * @param item The item to insert (its `priority` is used for ordering).
 	 */
 	function insertSorted(queue: AnimationFrameQueueItem[], item: AnimationFrameQueueItem): void {
 		const insertIndex = binarySearch2(
