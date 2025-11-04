@@ -97,7 +97,7 @@ export function applySettingsTools(server: McpServer, appService: ApplicationSer
 	// 	}
 	// );
 
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_settings_search_ui',
 		'Search for settings in the settings UI',
 		{
@@ -114,7 +114,7 @@ export function applySettingsTools(server: McpServer, appService: ApplicationSer
 				}]
 			};
 		}
-	);
+	));
 
 	return tools;
 }
