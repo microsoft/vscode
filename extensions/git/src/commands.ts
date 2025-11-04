@@ -2973,13 +2973,11 @@ export class CommandCenter {
 		inputBox.placeholder = l10n.t('Branch name');
 		inputBox.prompt = l10n.t('Please provide a new branch name');
 
-		inputBox.buttons = branchRandomNameEnabled ? [
-			{
-				iconPath: new ThemeIcon('refresh'),
-				tooltip: l10n.t('Regenerate Branch Name'),
-				location: QuickInputButtonLocation.Inline
-			}
-		] : [];
+		inputBox.buttons = branchRandomNameEnabled ? [{
+			iconPath: new ThemeIcon('refresh'),
+			tooltip: l10n.t('Regenerate Branch Name'),
+			location: QuickInputButtonLocation.Input
+		}] : [];
 
 		inputBox.value = initialValue ?? await getBranchName();
 		inputBox.valueSelection = getValueSelection(inputBox.value);
