@@ -126,6 +126,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			if (this.currentThinkingValue) {
 				this.renderMarkdown(this.currentThinkingValue);
 			}
+			this.updateDropdownClickability();
 			return this.wrapper;
 		} else if (this.fixedScrollingMode) {
 			this.fixedContainer = $('.chat-thinking-fixed-height-controller');
@@ -151,6 +152,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				this.renderMarkdown(this.currentThinkingValue);
 			}
 			this.setFixedCollapsedState(this.fixedCollapsed);
+			this.updateDropdownClickability();
 			return this.fixedContainer;
 		} else {
 			this.textContainer = $('.chat-thinking-item.markdown-content');
@@ -158,6 +160,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			if (this.currentThinkingValue) {
 				this.renderMarkdown(this.currentThinkingValue);
 			}
+			this.updateDropdownClickability();
 			return this.wrapper;
 		}
 	}
@@ -170,7 +173,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.fixedCollapsed = collapsed;
 		this.fixedContainer.classList.toggle('collapsed', collapsed);
 		if (this.fixedContainer.classList.contains('finished') && this.headerButton) {
-			this.headerButton.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
+			this.headerButton.icon = Codicon.check;
 		}
 		if (this.fixedCollapsed && userInitiated) {
 			const fixedScrollViewport = this.fixedScrollViewport ?? this.wrapper;
@@ -226,6 +229,35 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.textContainer.appendChild(this.markdownResult.element);
 	}
 
+	private setDropdownClickable(clickable: boolean): void {
+		if (this._collapseButton) {
+			this._collapseButton.element.style.pointerEvents = clickable ? 'auto' : 'none';
+		}
+
+		if (this.headerButton) {
+			this.headerButton.element.style.pointerEvents = clickable ? 'auto' : 'none';
+		}
+	}
+
+	private updateDropdownClickability(): void {
+		if (this.wrapper && this.wrapper.children.length > 1) {
+			this.setDropdownClickable(true);
+			return;
+		}
+
+		const contentWithoutTitle = this.currentThinkingValue.trim();
+		const titleToCompare = this.lastExtractedTitle ?? this.currentTitle;
+
+		const stripMarkdown = (text: string) => {
+			return text
+				.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').replace(/`(.+?)`/g, '$1').trim();
+		};
+
+		const strippedContent = stripMarkdown(contentWithoutTitle);
+		const shouldDisable = !strippedContent || strippedContent === titleToCompare;
+		this.setDropdownClickable(!shouldDisable);
+	}
+
 	public resetId(): void {
 		this.id = undefined;
 	}
@@ -267,6 +299,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.setTitle(this.lastExtractedTitle);
 			this.currentTitle = this.lastExtractedTitle;
 		}
+
+		this.updateDropdownClickability();
 	}
 
 	public finalizeTitleIfDefault(): void {
@@ -279,7 +313,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 			if (this.headerButton) {
 				this.headerButton.label = finalLabel;
-				this.headerButton.icon = this.fixedCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
+				this.headerButton.icon = Codicon.check;
 			}
 			if (this.fixedContainer) {
 				this.fixedContainer.classList.add('finished');
@@ -291,6 +325,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				this.fixedContainer.classList.toggle('finished', true);
 				this.setFixedCollapsedState(true);
 			}
+			this.updateDropdownClickability();
 			return;
 		}
 
@@ -299,6 +334,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.setTitle(suffix);
 			this.currentTitle = suffix;
 		}
+		this.updateDropdownClickability();
 	}
 
 	public appendItem(content: HTMLElement): void {
@@ -309,6 +345,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				container.scrollTop = container.scrollHeight;
 			}
 		}
+		this.setDropdownClickable(true);
 	}
 
 	// makes a new text container. when we update, we now update this container.
@@ -322,6 +359,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.id = content?.id;
 		this.updateThinking(content);
+		this.updateDropdownClickability();
 	}
 
 	protected override setTitle(title: string): void {
