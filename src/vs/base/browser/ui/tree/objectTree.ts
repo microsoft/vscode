@@ -241,21 +241,19 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 	}
 
 	shouldStick(node: ITreeNode<T, TFilterData>): boolean {
-		// Delegate to the base delegate if provided
 		if (!this.baseDelegate?.shouldStick) {
 			return false;
 		}
 
-		// The node is a compressed node which needs to be unwrapped
+		// Get the compressed node structure which contains ICompressedTreeNode<T>
 		const compressionModel = this.modelProvider();
 		const compressedNode = compressionModel.getCompressedTreeNode(node.element);
 		
-		// Check if any of the compressed elements should stick
+		// Check if any of the unwrapped elements should stick
 		if (compressedNode.element) {
 			for (const element of compressedNode.element.elements) {
-				// Create a temporary node with the unwrapped element to check
-				const unwrappedNode: ITreeNode<T, TFilterData> = { ...node, element };
-				if (this.baseDelegate.shouldStick(unwrappedNode)) {
+				// Create a node with the unwrapped element for the base delegate
+				if (this.baseDelegate.shouldStick({ ...compressedNode, element })) {
 					return true;
 				}
 			}
