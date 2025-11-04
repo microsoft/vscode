@@ -10,7 +10,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
-import { AuxiliaryBarMaximizedContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
+import { AuxiliaryBarMaximizedContext, AuxiliaryBarVisibleContext } from '../../../common/contextkeys.js';
 import { ViewContainerLocation, ViewContainerLocationToString } from '../../../common/views.js';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
@@ -22,11 +22,6 @@ import { closeIcon as panelCloseIcon } from '../panel/panelActions.js';
 
 const maximizeIcon = registerIcon('auxiliarybar-maximize', Codicon.screenFull, localize('maximizeIcon', 'Icon to maximize the secondary side bar.'));
 const closeIcon = registerIcon('auxiliarybar-close', panelCloseIcon, localize('closeIcon', 'Icon to close the secondary side bar.'));
-
-const auxiliaryBarRightIcon = registerIcon('auxiliarybar-right-layout-icon', Codicon.layoutSidebarRight, localize('toggleAuxiliaryIconRight', 'Icon to toggle the secondary side bar off in its right position.'));
-const auxiliaryBarRightOffIcon = registerIcon('auxiliarybar-right-off-layout-icon', Codicon.layoutSidebarRightOff, localize('toggleAuxiliaryIconRightOn', 'Icon to toggle the secondary side bar on in its right position.'));
-const auxiliaryBarLeftIcon = registerIcon('auxiliarybar-left-layout-icon', Codicon.layoutSidebarLeft, localize('toggleAuxiliaryIconLeft', 'Icon to toggle the secondary side bar in its left position.'));
-const auxiliaryBarLeftOffIcon = registerIcon('auxiliarybar-left-off-layout-icon', Codicon.layoutSidebarLeftOff, localize('toggleAuxiliaryIconLeftOn', 'Icon to toggle the secondary side bar on in its left position.'));
 
 export class ToggleAuxiliaryBarAction extends Action2 {
 
