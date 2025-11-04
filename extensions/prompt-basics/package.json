@@ -81,6 +81,9 @@
     ],
     "configurationDefaults": {
       "[prompt]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced",
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false,
@@ -92,6 +95,9 @@
         }
       },
       "[instructions]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced",
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false,
@@ -103,6 +109,9 @@
         }
       },
       "[chatagent]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced",
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false,
