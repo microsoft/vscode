@@ -365,10 +365,6 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	public toBaseEntries(): IChatRequestVariableEntry[] {
-		if (!this.value) {
-			return [];
-		}
-
 		if (isStringImplicitContextValue(this.value)) {
 			return [
 				{
