@@ -403,7 +403,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._onCommandFinished.fire(newCommand);
 		}
 		// Create new command for next execution
-		this._currentCommand = new PartialTerminalCommand(this._terminal, this._currentCommand.id);
+		this._currentCommand = new PartialTerminalCommand(this._terminal);
 		this._handleCommandStartOptions = undefined;
 	}
 
