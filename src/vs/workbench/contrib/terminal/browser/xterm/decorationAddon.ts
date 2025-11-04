@@ -533,7 +533,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 			run: async () => {
 				let widget = this._chatWidgetService.lastFocusedWidget ?? this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)?.find(w => w.attachmentCapabilities.supportsTerminalAttachments);
 				
-				// If no widget found, try to open chat view
+				// If no widget found (e.g., after window reload when chat hasn't been focused), open chat view
 				if (!widget) {
 					widget = await showChatView(this._viewsService, this._layoutService);
 				}
