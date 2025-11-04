@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Stats, promises } from 'fs';
+import { Stats, promises, constants } from 'fs';
+import * as os from 'os';
 import { Barrier, retry } from '../../../base/common/async.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -71,14 +72,33 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	async stat(resource: URI): Promise<IStat> {
 		try {
-			const { stat, symbolicLink } = await SymlinkSupport.stat(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
+			const path = this.toFilePath(resource);
+			const { stat, symbolicLink } = await SymlinkSupport.stat(path); // cannot use fs.stat() here to support links properly
+
+			let permissions = 0;
+
+			let isWritable = false;
+			const selfUserInfo = os.userInfo();
+			if (stat.uid === selfUserInfo.uid) {
+				// We are the owner of the file
+				isWritable = (stat.mode & constants.S_IWUSR) !== 0;
+			} else if (stat.gid === selfUserInfo.gid) {
+				// We are in the same group as the file
+				isWritable = (stat.mode & constants.S_IWGRP) !== 0;
+			} else {
+				isWritable = (stat.mode & constants.S_IWOTH) !== 0;
+			}
+
+			if (!isWritable) {
+				permissions |= FilePermission.Locked;
+			}
 
 			return {
 				type: this.toType(stat, symbolicLink),
 				ctime: stat.birthtime.getTime(), // intentionally not using ctime here, we want the creation time
 				mtime: stat.mtime.getTime(),
 				size: stat.size,
-				permissions: (stat.mode & 0o200) === 0 ? FilePermission.Locked : undefined
+				permissions
 			};
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
