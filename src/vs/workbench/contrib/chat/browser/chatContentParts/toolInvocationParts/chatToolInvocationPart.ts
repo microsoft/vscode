@@ -28,7 +28,7 @@ import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfir
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
-import { markdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { createMarkdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -117,7 +117,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		let md: string;
 		switch (reason.type) {
 			case ToolConfirmKind.Setting:
-				md = localize('chat.autoapprove.setting', 'Auto approved by {0}', markdownCommandLink({ title: '`' + reason.id + '`', id: 'workbench.action.openSettings', arguments: [reason.id] }, false));
+				md = localize('chat.autoapprove.setting', 'Auto approved by {0}', createMarkdownCommandLink({ title: '`' + reason.id + '`', id: 'workbench.action.openSettings', arguments: [reason.id] }, false));
 				break;
 			case ToolConfirmKind.LmServicePerTool:
 				md = reason.scope === 'session'
@@ -125,7 +125,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 					: reason.scope === 'workspace'
 						? localize('chat.autoapprove.lmServicePerTool.workspace', 'Auto approved for this workspace')
 						: localize('chat.autoapprove.lmServicePerTool.profile', 'Auto approved for this profile');
-				md += ' (' + markdownCommandLink({ title: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [reason.scope] }) + ')';
+				md += ' (' + createMarkdownCommandLink({ title: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [reason.scope] }) + ')';
 				break;
 			case ToolConfirmKind.UserAction:
 			case ToolConfirmKind.Denied:
