@@ -619,7 +619,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 						telemetryInfo: entry.telemetryInfo,
 					});
 				} else {
-					edits = await entry.computeEditsFromSnapshots(beforeSnapshot ?? '', afterSnapshot);
+					edits = await entry.computeEditsFromSnapshots(beforeSnapshot, afterSnapshot);
 					this._recordEditOperations(entry, resource, edits, responseModel);
 				}
 
