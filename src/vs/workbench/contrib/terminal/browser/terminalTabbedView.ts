@@ -135,7 +135,7 @@ export class TerminalTabbedView extends Disposable {
 			this._updateChatTerminalsEntry();
 		}));
 
-		this._register(Event.any(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession, this._terminalService.onDidDisposeInstance)(() => {
+		this._register(Event.any(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession, this._terminalService.onDidDisposeInstance, this._terminalService.onDidChangeInstances)(() => {
 			this._refreshShowTabs();
 			this._updateChatTerminalsEntry();
 		}));
