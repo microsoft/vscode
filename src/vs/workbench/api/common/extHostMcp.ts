@@ -11,7 +11,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { AUTH_SCOPE_SEPARATOR, fetchAuthorizationServerMetadata, fetchResourceMetadata, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, parseWWWAuthenticateHeader, scopesMatch } from '../../../base/common/oauth.js';
 import { SSEParser } from '../../../base/common/sseParser.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { ValidatorType, vArray, vNumber, vObj, vObjAny, vOptionalProp, vString } from '../../../base/common/validation.js';
+import { vArray, vNumber, vObj, vObjAny, vOptionalProp, vString } from '../../../base/common/validation.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
