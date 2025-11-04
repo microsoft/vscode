@@ -1749,7 +1749,7 @@ export default tseslint.config(
 						'readline',
 						'stream',
 						'string_decoder',
-						'tas-client-umd',
+						'tas-client',
 						'tls',
 						'undici',
 						'undici-types',
@@ -1838,7 +1838,7 @@ export default tseslint.config(
 						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
-						'tas-client-umd', // node module allowed even in /common/
+						'tas-client', // node module allowed even in /common/
 						'@microsoft/1ds-core-js', // node module allowed even in /common/
 						'@microsoft/1ds-post-js', // node module allowed even in /common/
 						'@xterm/headless' // node module allowed even in /common/
@@ -1956,7 +1956,7 @@ export default tseslint.config(
 							'when': 'test',
 							'pattern': 'vs/workbench/contrib/*/~'
 						}, // TODO@layers
-						'tas-client-umd', // node module allowed even in /common/
+						'tas-client', // node module allowed even in /common/
 						'vscode-textmate', // node module allowed even in /common/
 						'@vscode/vscode-languagedetection', // node module allowed even in /common/
 						'@vscode/tree-sitter-wasm', // type import
