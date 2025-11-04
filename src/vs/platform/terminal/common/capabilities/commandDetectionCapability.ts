@@ -14,6 +14,7 @@ import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from 
 import { PromptInputModel, type IPromptInputModel } from './commandDetection/promptInputModel.js';
 import type { IBuffer, IDisposable, IMarker, Terminal } from '@xterm/headless';
 import { isString } from '../../../../base/common/types.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 
 interface ITerminalDimensions {
 	cols: number;
@@ -378,6 +379,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		) {
 			this._currentCommand.id = this._nextCommandId.commandId;
 			this._nextCommandId = undefined; // Clear after use
+		}
+		// If the command still doesn't have an ID, generate one
+		// This ensures all commands have IDs for serialization and attachment to chat
+		if (!this._currentCommand.id) {
+			this._currentCommand.id = generateUuid();
 		}
 		this._currentCommand.markFinishedTime();
 		this._ptyHeuristics.value.preHandleCommandFinished?.();
