@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isNumber } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
@@ -18,7 +18,7 @@ import { IWorkbenchLayoutService } from '../../../../services/layout/browser/lay
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatWidgetService, showChatView } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
-import { ILanguageModelToolsService, ToolDataSource } from '../../../chat/common/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolDataSource, type ToolSet } from '../../../chat/common/languageModelToolsService.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
@@ -32,6 +32,8 @@ import { RunInTerminalTool, createRunInTerminalToolData } from './tools/runInTer
 import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/createAndRunTaskTool.js';
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
+import { Event } from '../../../../../base/common/event.js';
+import { debounce } from '../../../../../base/common/decorators.js';
 
 class ShellIntegrationTimeoutMigrationContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'terminal.shellIntegrationTimeoutMigration';
@@ -56,9 +58,13 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 
 	static readonly ID = 'terminal.chatAgentTools';
 
+	private _runInTerminalToolRegistration = this._register(new MutableDisposable());
+	private _runCommandsToolSet: ToolSet;
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -69,17 +75,17 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
 		this._register(toolsService.registerTool(GetTerminalOutputToolData, getTerminalOutputTool));
 
-		const runCommandsToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'runCommands', 'runCommands', {
+		this._runCommandsToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'runCommands', 'runCommands', {
 			icon: ThemeIcon.fromId(Codicon.terminal.id),
 			description: localize('toolset.runCommands', 'Runs commands in the terminal')
 		}));
-		runCommandsToolSet.addTool(GetTerminalOutputToolData);
+		this._runCommandsToolSet.addTool(GetTerminalOutputToolData);
 
-		instantiationService.invokeFunction(createRunInTerminalToolData).then(runInTerminalToolData => {
-			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
-			this._register(toolsService.registerTool(runInTerminalToolData, runInTerminalTool));
-			runCommandsToolSet.addTool(runInTerminalToolData);
-		});
+		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
+			if (!e || this._isTerminalProfileSettingChange(e)) {
+				this._registerRunInTerminalTool(instantiationService, toolsService);
+			}
+		}));
 
 		const getTerminalSelectionTool = instantiationService.createInstance(GetTerminalSelectionTool);
 		this._register(toolsService.registerTool(GetTerminalSelectionToolData, getTerminalSelectionTool));
@@ -87,8 +93,8 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		const getTerminalLastCommandTool = instantiationService.createInstance(GetTerminalLastCommandTool);
 		this._register(toolsService.registerTool(GetTerminalLastCommandToolData, getTerminalLastCommandTool));
 
-		runCommandsToolSet.addTool(GetTerminalSelectionToolData);
-		runCommandsToolSet.addTool(GetTerminalLastCommandToolData);
+		this._runCommandsToolSet.addTool(GetTerminalSelectionToolData);
+		this._runCommandsToolSet.addTool(GetTerminalLastCommandToolData);
 
 		// #endregion
 
@@ -111,6 +117,30 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		runTasksToolSet.addTool(CreateAndRunTaskToolData);
 
 		// #endregion
+	}
+
+	@debounce(200)
+	private async _registerRunInTerminalTool(instantiationService: IInstantiationService, toolsService: ILanguageModelToolsService): Promise<void> {
+		const store = new DisposableStore();
+		this._runInTerminalToolRegistration.value = store;
+		const runInTerminalTool = store.add(instantiationService.createInstance(RunInTerminalTool));
+		const runInTerminalToolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
+		store.add(toolsService.registerTool(runInTerminalToolData, runInTerminalTool));
+		store.add(this._runCommandsToolSet.addTool(runInTerminalToolData));
+	}
+
+	private _isTerminalProfileSettingChange(e: IConfigurationChangeEvent): boolean {
+		return [
+			TerminalSettingId.ProfilesLinux,
+			TerminalSettingId.ProfilesMacOs,
+			TerminalSettingId.ProfilesWindows,
+			TerminalSettingId.DefaultProfileLinux,
+			TerminalSettingId.DefaultProfileMacOs,
+			TerminalSettingId.DefaultProfileWindows,
+			TerminalChatAgentToolsSettingId.TerminalProfileLinux,
+			TerminalChatAgentToolsSettingId.TerminalProfileMacOs,
+			TerminalChatAgentToolsSettingId.TerminalProfileWindows,
+		].some(config => e.affectsConfiguration(config));
 	}
 }
 registerWorkbenchContribution2(ChatAgentToolsContribution.ID, ChatAgentToolsContribution, WorkbenchPhase.AfterRestored);
