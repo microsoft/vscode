@@ -6,6 +6,7 @@
 import { IMarkProperties, ISerializedTerminalCommand, ITerminalCommand } from '../capabilities.js';
 import { ITerminalOutputMatcher, ITerminalOutputMatch } from '../../terminal.js';
 import type { IBuffer, IBufferLine, IMarker, Terminal } from '@xterm/headless';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 export interface ITerminalCommandProperties {
 	command: string;
@@ -284,7 +285,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 		private readonly _xterm: Terminal,
 		id?: string
 	) {
-		this.id = id;
+		this.id = id ?? generateUuid();
 	}
 
 	serialize(cwd: string | undefined): ISerializedTerminalCommand | undefined {

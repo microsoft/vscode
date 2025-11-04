@@ -697,7 +697,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agent.thinking.collapsedTools.all', "All tool calls are added into the collapsible thinking section."),
 				nls.localize('chat.agent.thinking.collapsedTools.readOnly', "Only read-only tool calls are added into the collapsible thinking section."),
 			],
-			markdownDescription: nls.localize('chat.agent.thinking.collapsedTools', "When enabled, tool calls are added into the collapsible thinking section according to the selected mode. This setting only applies when `#chat.agent.thinkingStyle#` is set to `fixedScrolling`."),
+			markdownDescription: nls.localize('chat.agent.thinking.collapsedTools', "When enabled, tool calls are added into the collapsible thinking section according to the selected mode."),
 			tags: ['experimental'],
 		},
 		'chat.disableAIFeatures': {
