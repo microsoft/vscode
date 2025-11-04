@@ -21,7 +21,6 @@ export interface IChatContextPickerPickItem extends Partial<IQuickItem> {
 	description?: string;
 	detail?: string;
 	disabled?: boolean;
-	validateForAttachment?(): Promise<boolean>;
 	asAttachment(): ChatContextPickAttachment | Promise<ChatContextPickAttachment>;
 }
 

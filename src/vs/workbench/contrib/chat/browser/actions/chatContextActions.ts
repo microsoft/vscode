@@ -638,21 +638,14 @@ export class AttachContextAction extends Action2 {
 		store.add(qp.onDidAccept(async e => {
 			const [selected] = qp.selectedItems;
 			if (isChatContextPickerPickItem(selected)) {
-				qp.busy = true;
-				const isValidForAttachment = await selected.validateForAttachment?.().finally(() => {
-					qp.busy = false;
-				});
-				if (isValidForAttachment) {
-					const attachment = selected.asAttachment();
-					if (attachment !== 'noop') {
-						if (isThenable(attachment)) {
-							addPromises.push(attachment.then(v => widget.attachmentModel.addContext(v as IChatRequestVariableEntry)));
-						} else {
-							widget.attachmentModel.addContext(attachment);
-						}
-					}
+				const attachment = selected.asAttachment();
+				if (!attachment || attachment === 'noop') {
+					return;
+				}
+				if (isThenable(attachment)) {
+					addPromises.push(attachment.then(v => widget.attachmentModel.addContext(v as IChatRequestVariableEntry)));
 				} else {
-					return; // stay in picker
+					widget.attachmentModel.addContext(attachment as IChatRequestVariableEntry);
 				}
 			}
 			if (selected === goBackItem) {
