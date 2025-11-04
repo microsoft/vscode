@@ -257,6 +257,47 @@ suite('EditorWebWorker', () => {
 		);
 	});
 
+	async function testDiffsIdentical(originalLines: string[], originalEOL: string, modifiedLines: string[], modifiedEOL: string, ignoreTrimWhitespace: boolean): Promise<boolean | undefined> {
+		const originalModel = worker.addModel(originalLines, originalEOL);
+		await new Promise(resolve => setTimeout(resolve, 1));
+		const modifiedModel = worker.addModel(modifiedLines, modifiedEOL);
+
+		const diffs = await worker.$computeDiff(
+			originalModel.uri.toString(),
+			modifiedModel.uri.toString(),
+			{ ignoreTrimWhitespace, maxComputationTimeMs: 0, computeMoves: false }
+		);
+
+		assert.notDeepEqual(diffs, null);
+		return diffs?.identical;
+	}
+
+	test('computeDiff ignores EOL changes with ignoreTrimWhitespace', async () => {
+		assert.strictEqual(
+			await testDiffsIdentical(
+				['windows', 'how to'],
+				'\r\n',
+				['windows', 'how to'],
+				'\n',
+				true
+			),
+			true
+		);
+	});
+
+	test('computeDiff detects EOL changes when browser is not ignoring whitespace', async () => {
+		assert.strictEqual(
+			await testDiffsIdentical(
+				['windows', 'how to'],
+				'\r\n',
+				['windows', 'how to'],
+				'\n',
+				false
+			),
+			false
+		);
+	});
+
 	test('[Bug] Getting Message "Overlapping ranges are not allowed" and nothing happens with Inline-Chat ', async function () {
 		await testEdits(('const API = require(\'../src/api\');\n\ndescribe(\'API\', () => {\n  let api;\n  let database;\n\n  beforeAll(() => {\n    database = {\n      getAllBooks: jest.fn(),\n      getBooksByAuthor: jest.fn(),\n      getBooksByTitle: jest.fn(),\n    };\n    api = new API(database);\n  });\n\n  describe(\'GET /books\', () => {\n    it(\'should return all books\', async () => {\n      const mockBooks = [{ title: \'Book 1\' }, { title: \'Book 2\' }];\n      database.getAllBooks.mockResolvedValue(mockBooks);\n\n      const req = {};\n      const res = {\n        json: jest.fn(),\n      };\n\n      await api.register({\n        get: (path, handler) => {\n          if (path === \'/books\') {\n            handler(req, res);\n          }\n        },\n      });\n\n      expect(database.getAllBooks).toHaveBeenCalled();\n      expect(res.json).toHaveBeenCalledWith(mockBooks);\n    });\n  });\n\n  describe(\'GET /books/author/:author\', () => {\n    it(\'should return books by author\', async () => {\n      const mockAuthor = \'John Doe\';\n      const mockBooks = [{ title: \'Book 1\', author: mockAuthor }, { title: \'Book 2\', author: mockAuthor }];\n      database.getBooksByAuthor.mockResolvedValue(mockBooks);\n\n      const req = {\n        params: {\n          author: mockAuthor,\n        },\n      };\n      const res = {\n        json: jest.fn(),\n      };\n\n      await api.register({\n        get: (path, handler) => {\n          if (path === `/books/author/${mockAuthor}`) {\n            handler(req, res);\n          }\n        },\n      });\n\n      expect(database.getBooksByAuthor).toHaveBeenCalledWith(mockAuthor);\n      expect(res.json).toHaveBeenCalledWith(mockBooks);\n    });\n  });\n\n  describe(\'GET /books/title/:title\', () => {\n    it(\'should return books by title\', async () => {\n      const mockTitle = \'Book 1\';\n      const mockBooks = [{ title: mockTitle, author: \'John Doe\' }];\n      database.getBooksByTitle.mockResolvedValue(mockBooks);\n\n      const req = {\n        params: {\n          title: mockTitle,\n        },\n      };\n      const res = {\n        json: jest.fn(),\n      };\n\n      await api.register({\n        get: (path, handler) => {\n          if (path === `/books/title/${mockTitle}`) {\n            handler(req, res);\n          }\n        },\n      });\n\n      expect(database.getBooksByTitle).toHaveBeenCalledWith(mockTitle);\n      expect(res.json).toHaveBeenCalledWith(mockBooks);\n    });\n  });\n});\n').split('\n'),
 			[{

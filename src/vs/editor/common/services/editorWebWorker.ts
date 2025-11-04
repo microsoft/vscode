@@ -135,8 +135,9 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): IDiffComputationResult {
 		const diffAlgorithm: ILinesDiffComputer = algorithm === 'advanced' ? linesDiffComputers.getDefault() : linesDiffComputers.getLegacy();
 
-		const originalLines = originalTextModel.getLinesContent();
-		const modifiedLines = modifiedTextModel.getLinesContent();
+		const considerEOL = !options.ignoreTrimWhitespace;
+		const originalLines = originalTextModel.getLinesContent(considerEOL);
+		const modifiedLines = modifiedTextModel.getLinesContent(considerEOL);
 
 		const result = diffAlgorithm.computeDiff(originalLines, modifiedLines, options);
 
