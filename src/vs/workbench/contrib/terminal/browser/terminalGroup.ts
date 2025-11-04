@@ -212,6 +212,7 @@ class SplitPane implements IView {
 	get onDidChange(): Event<number | undefined> { return this._onDidChange; }
 
 	readonly element: HTMLElement;
+	private _size: number = 0;
 
 	constructor(
 		readonly instance: ITerminalInstance,
@@ -223,6 +224,7 @@ class SplitPane implements IView {
 	}
 
 	layout(size: number): void {
+		this._size = size;
 		// Only layout when both sizes are known
 		if (!size || !this.orthogonalSize) {
 			return;
@@ -237,6 +239,10 @@ class SplitPane implements IView {
 
 	orthogonalLayout(size: number): void {
 		this.orthogonalSize = size;
+		// If we now have both dimensions, trigger a layout
+		if (size && this._size) {
+			this.layout(this._size);
+		}
 	}
 }
 
