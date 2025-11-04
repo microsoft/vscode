@@ -285,7 +285,7 @@ suite('EditorWebWorker', () => {
 		);
 	});
 
-	test('computeDiff detects EOL changes when browser is not ignoring whitespace', async () => {
+	test('computeDiff detects EOL changes when not ignoring whitespace', async () => {
 		assert.strictEqual(
 			await testDiffsIdentical(
 				['windows', 'how to'],
