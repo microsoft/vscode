@@ -2304,28 +2304,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-top: 2px;
 }
 
-.chat-attached-context-hover .chat-terminal-command-block,
-.chat-attached-context-hover .chat-terminal-command-output {
-	font-family: var(--monaco-monospace-font);
-	white-space: pre-wrap;
-	word-break: break-word;
-	margin: 4px 0;
-}
-
-.chat-attached-context-hover .chat-terminal-command-output {
-	max-height: 200px;
-	overflow: auto;
-}
-
-.chat-terminal-output-container {
-	max-height: 100%;
-	max-width: 100%;
-	margin-right: 20px;
-}
-
-.chat-terminal-content-title.expanded {
-	margin-right: 20px;
-}
 
 .chat-attached-context-attachment .chat-attached-context-pill {
 	font-size: 12px;
