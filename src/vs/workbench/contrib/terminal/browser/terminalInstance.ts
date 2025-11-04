@@ -483,6 +483,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					)(refreshInfo));
 					this._register(e.capability.onCommandExecuted(async (command) => {
 						// Only generate ID if command doesn't already have one (i.e., it's a manual command, not Copilot-initiated)
+						// The tool terminal sets the command ID before command start, so this won't override it
 						if (!command.id && command.command) {
 							const commandId = generateUuid();
 							this.xterm?.shellIntegration.setNextCommandId(command.command, commandId);
