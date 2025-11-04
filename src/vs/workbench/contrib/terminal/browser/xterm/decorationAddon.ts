@@ -33,6 +33,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { TerminalContext } from '../../../chat/browser/actions/chatContext.js';
 import { getTerminalUri, parseTerminalUri } from '../terminalUri.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 
@@ -526,12 +527,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		return {
 			class: undefined, tooltip: labelAttachToChat, id: 'terminal.attachToChat', label: labelAttachToChat, enabled: true,
 			run: async () => {
-				const widget = this._chatWidgetService.lastFocusedWidget;
+				const widget = this._chatWidgetService.lastFocusedWidget ?? this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)?.find(w => w.attachmentCapabilities.supportsTerminalAttachments);
 				let terminalContext: TerminalContext | undefined;
 				if (this._resource) {
 					const parsedUri = parseTerminalUri(this._resource);
 					terminalContext = this._instantiationService.createInstance(TerminalContext, getTerminalUri(parsedUri.workspaceId, parsedUri.instanceId!, undefined, command.id));
 				}
+
 				if (terminalContext && widget && widget.attachmentCapabilities.supportsTerminalAttachments) {
 					try {
 						const attachment = await terminalContext.asAttachment(widget);
