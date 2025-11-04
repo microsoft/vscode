@@ -476,7 +476,7 @@ export abstract class AbstractMcpResourceAccessPick {
 		picker.busy = true;
 		picker.keepScrollPosition = true;
 		const store = new DisposableStore();
-		const goBackId = "_goback_";
+		const goBackId = '_goback_';
 
 		type ResourceQuickPickItem = IQuickPickItem & { resource: IMcpResource | IMcpResourceTemplate; server: IMcpServer };
 
