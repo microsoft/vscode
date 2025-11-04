@@ -407,15 +407,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._handleCommandStartOptions = undefined;
 	}
 
-	private _ensureCurrentCommandId(commandLine: string | undefined, explicitCommandId?: string): void {
-		if (explicitCommandId) {
-			if (this._currentCommand.id !== explicitCommandId) {
-				this._currentCommand.id = explicitCommandId;
-			}
-			this._nextCommandId = undefined;
-			return;
-		}
-
+	private _ensureCurrentCommandId(commandLine: string | undefined): void {
 		if (this._nextCommandId?.commandId && typeof commandLine === 'string' && commandLine.trim() === this._nextCommandId.command.trim()) {
 			if (this._currentCommand.id !== this._nextCommandId.commandId) {
 				this._currentCommand.id = this._nextCommandId.commandId;
