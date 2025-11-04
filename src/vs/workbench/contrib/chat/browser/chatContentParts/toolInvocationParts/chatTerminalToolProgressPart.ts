@@ -316,12 +316,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return true;
 		}
 
-		const didCreate = await this._renderOutputIfNeeded();
+		await this._renderOutputIfNeeded();
 		this._layoutOutput();
 		this._scrollOutputToBottom();
-		if (didCreate) {
-			this._scheduleOutputRelayout();
-		}
+		// Always schedule a relayout when expanding to ensure proper dimensions,
+		// especially after window reload when initial dimensions may be incorrect
+		this._scheduleOutputRelayout();
 		this._showOutputAction.value?.syncPresentation(expanded);
 		return true;
 	}
@@ -373,7 +373,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			scrollableDomNode.style.maxHeight = `${MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT}px`;
 			this._outputContainer.appendChild(scrollableDomNode);
 			this._ensureOutputResizeObserver();
-			this._outputContent = undefined;
 		} else {
 			this._ensureOutputResizeObserver();
 		}
