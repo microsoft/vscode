@@ -482,7 +482,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						e.capability.promptInputModel.onDidFinishInput
 					)(refreshInfo));
 					// Generate and assign IDs for manually-run commands to enable chat attachment after reload
-					this._register(e.capability.onCommandStarted(async (command) => {
+					this._register(e.capability.onCommandExecuted(async (command) => {
 						// Only generate ID if command doesn't already have one (i.e., it's a manual command, not Copilot-initiated)
 						if (!command.id && command.command) {
 							const commandId = generateUuid();
