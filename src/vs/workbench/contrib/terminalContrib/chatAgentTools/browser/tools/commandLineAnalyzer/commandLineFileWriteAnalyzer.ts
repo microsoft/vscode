@@ -14,12 +14,14 @@ import { type TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
 import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
 import { OperatingSystem } from '../../../../../../../base/common/platform.js';
 import { isString } from '../../../../../../../base/common/types.js';
+import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 
 export class CommandLineFileWriteAnalyzer extends Disposable implements ICommandLineAnalyzer {
 	constructor(
 		private readonly _treeSitterCommandParser: TreeSitterCommandParser,
 		private readonly _log: (message: string, ...args: unknown[]) => void,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
@@ -118,7 +120,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 
 		const disclaimers: string[] = [];
 		if (fileWrites.length > 0) {
-			const fileWritesList = fileWrites.map(fw => `\`${URI.isUri(fw) ? fw.fsPath : fw}\``).join(', ');
+			const fileWritesList = fileWrites.map(fw => `\`${URI.isUri(fw) ? this._labelService.getUriLabel(fw) : fw}\``).join(', ');
 			if (!isAutoApproveAllowed) {
 				disclaimers.push(localize('runInTerminal.fileWriteBlockedDisclaimer', 'File write operations detected that cannot be auto approved: {0}', fileWritesList));
 			} else {
