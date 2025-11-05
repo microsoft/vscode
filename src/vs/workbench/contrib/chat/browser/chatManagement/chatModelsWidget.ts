@@ -971,11 +971,8 @@ export class ChatModelsWidget extends Disposable {
 		const modelItems = this.viewModel.fetch(searchValue);
 
 		const vendors = this.viewModel.getVendors();
-		const vendorsWithModels = new Set(modelItems
-			.filter((item): item is IModelItemEntry => !isVendorEntry(item))
-			.map(item => item.modelEntry.vendor)
-		);
-		const vendorsWithoutModels = vendors.filter(v => !vendorsWithModels.has(v.vendor));
+		const configuredVendors = new Set(this.viewModel.getConfiguredVendors().map(cv => cv.vendorEntry.vendor));
+		const vendorsWithoutModels = vendors.filter(v => !configuredVendors.has(v.vendor));
 
 		this.table.splice(0, this.table.length, modelItems);
 
