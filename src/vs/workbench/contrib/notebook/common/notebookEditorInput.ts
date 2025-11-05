@@ -260,7 +260,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 
 		const defaultFilePath = await this._fileDialogService.defaultFilePath();
-		return defaultFilePath.with({ path: defaultFilePath.path + '/' + resource.path });
+		return URI.joinPath(defaultFilePath, resource.path);
 	}
 
 	private ensureProviderExtension(provider: NotebookProviderInfo) {
