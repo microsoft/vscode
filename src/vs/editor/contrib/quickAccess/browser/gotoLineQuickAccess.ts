@@ -41,7 +41,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		this.storageService.store(
 			AbstractGotoLineQuickAccessProvider.ZERO_BASED_OFFSET_STORAGE_KEY,
 			value,
-			StorageScope.WORKSPACE,
+			StorageScope.APPLICATION,
 			StorageTarget.USER);
 	}
 
