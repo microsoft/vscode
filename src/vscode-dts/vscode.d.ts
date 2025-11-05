@@ -8205,7 +8205,7 @@ declare module 'vscode' {
 	 * 	}
 	 * });
 	 */
-	export interface TerminalCompletionProvider<T extends TerminalCompletionItem> {
+	export interface TerminalCompletionProvider<T extends TerminalCompletionItem = TerminalCompletionItem> {
 		/**
 		 * Provide completions for the given terminal and context.
 		 * @param terminal The terminal for which completions are being provided.
