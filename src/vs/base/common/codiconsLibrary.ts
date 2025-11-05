@@ -637,5 +637,5 @@ export const codiconsLibrary = {
 	gitBranchCreate: register('git-branch-create', 0xec6f),
 	gitBranchDelete: register('git-branch-delete', 0xec6f),
 	searchLarge: register('search-large', 0xec70),
-	gitTerminalBash: register('git-terminal-bash', 0xec71),
+	terminalGitBash: register('terminal-git-bash', 0xec71),
 } as const;
