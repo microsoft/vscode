@@ -161,18 +161,20 @@ export class AgentSessionsView extends ViewPane {
 			return;
 		}
 
+		const sessionWithId = {
+			id: session.resource.toString(),
+			...session
+		};
+
 		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService.createOverlay(getSessionItemContextOverlay(
-			{
-				id: session.resource.toString(),
-				...session
-			},
+			sessionWithId,
 			session.provider,
 			this.chatWidgetService,
 			this.chatService,
 			this.editorGroupsService
 		)));
 
-		const marshalledSession = { session, $mid: MarshalledId.ChatSessionContext };
+		const marshalledSession = { session: sessionWithId, $mid: MarshalledId.ChatSessionContext };
 		const { secondary } = getActionBarActions(menu.getActions({ arg: marshalledSession, shouldForwardArgs: true }), 'inline'); this.contextMenuService.showContextMenu({
 			getActions: () => secondary,
 			getAnchor: () => anchor,
