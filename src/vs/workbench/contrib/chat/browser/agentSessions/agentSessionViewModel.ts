@@ -150,23 +150,21 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 					continue; // TODO@bpasero this needs to be fixed at the provider level
 				}
 
-				let description;
-				if (session.description) {
-					description = session.description;
-				} else {
-					switch (session.status) {
-						case ChatSessionStatus.InProgress:
-							description = localize('chat.session.status.inProgress', 'Working...');
-							break;
-						case ChatSessionStatus.Failed:
-							description = localize('chat.session.status.error', 'Failed');
-							break;
-						case ChatSessionStatus.Completed:
-							description = localize('chat.session.status.completed', 'Finished');
-							break;
-						default:
-							description = AgentSessionsViewModel.NO_DESCRIPTION_LABEL;
-					}
+				// Always use status-based description for consistency
+				let description: string | IMarkdownString;
+				switch (session.status) {
+					case ChatSessionStatus.InProgress:
+						description = localize('chat.session.status.inProgress', 'Working...');
+						break;
+					case ChatSessionStatus.Failed:
+						description = localize('chat.session.status.error', 'Failed');
+						break;
+					case ChatSessionStatus.Completed:
+						description = localize('chat.session.status.completed', 'Finished');
+						break;
+					default:
+						// If no status, use provider description or fallback
+						description = session.description ?? AgentSessionsViewModel.NO_DESCRIPTION_LABEL;
 				}
 
 				newSessions.push({

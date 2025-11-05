@@ -112,9 +112,12 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	renderElement(session: ITreeNode<IAgentSessionViewModel, FuzzyScore>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
 		template.elementDisposable.clear();
 
-		const icon = this.statusToIcon(session.element.status) ?? session.element.icon;
+		// Only show status icon, not provider-specific icons
+		const icon = this.statusToIcon(session.element.status);
 		if (icon) {
 			template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(icon)}`;
+		} else {
+			template.icon.className = 'agent-session-icon';
 		}
 
 		template.title.setLabel(session.element.label, undefined, { matches: createMatches(session.filterData) });

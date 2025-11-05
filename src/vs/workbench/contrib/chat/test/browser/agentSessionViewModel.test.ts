@@ -183,7 +183,7 @@ suite('AgentSessionsViewModel', () => {
 		assert.strictEqual(sessionsChangedFired, true, 'onDidChangeSessions should have fired');
 	});
 
-	test('should handle session with all properties', async () => {
+	test('should use status-based description when status is present', async () => {
 		const startTime = Date.now();
 		const endTime = startTime + 1000;
 
@@ -217,10 +217,8 @@ suite('AgentSessionsViewModel', () => {
 		const session = viewModel.sessions[0];
 		assert.strictEqual(session.resource.toString(), 'test://session-1');
 		assert.strictEqual(session.label, 'Test Session');
-		assert.ok(session.description instanceof MarkdownString);
-		if (session.description instanceof MarkdownString) {
-			assert.strictEqual(session.description.value, '**Bold** description');
-		}
+		// Status-based description takes precedence over provider description
+		assert.strictEqual(session.description, 'Finished');
 		assert.strictEqual(session.status, ChatSessionStatus.Completed);
 		assert.strictEqual(session.timing.startTime, startTime);
 		assert.strictEqual(session.timing.endTime, endTime);
@@ -251,6 +249,33 @@ suite('AgentSessionsViewModel', () => {
 
 		assert.strictEqual(viewModel.sessions.length, 1);
 		assert.ok(viewModel.sessions[0].description instanceof MarkdownString);
+	});
+
+	test('should use provider description when no status is present', async () => {
+		const provider: IChatSessionItemProvider = {
+			chatSessionType: 'test-type',
+			onDidChangeChatSessionItems: Event.None,
+			provideChatSessionItems: async () => [
+				{
+					id: 'session-1',
+					resource: URI.parse('test://session-1'),
+					label: 'Test Session',
+					description: 'Custom description',
+					timing: { startTime: Date.now() }
+				}
+			]
+		};
+
+		mockChatSessionsService.registerChatSessionItemProvider(provider);
+		viewModel = disposables.add(new AgentSessionsViewModel(
+			mockChatSessionsService,
+			mockChatService
+		));
+
+		await viewModel.resolve(undefined);
+
+		assert.strictEqual(viewModel.sessions.length, 1);
+		assert.strictEqual(viewModel.sessions[0].description, 'Custom description');
 	});
 
 	test('should filter out special session IDs', async () => {
