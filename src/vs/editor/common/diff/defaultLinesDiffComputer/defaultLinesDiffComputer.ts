@@ -157,7 +157,7 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 			function validatePosition(pos: Position, lines: string[]): boolean {
 				if (pos.lineNumber < 1 || pos.lineNumber > lines.length) { return false; }
 				const line = lines[pos.lineNumber - 1];
-				if (pos.column < 1 || pos.column > line.length + 1) { return false; }
+				if (pos.column < 1 || pos.column > line.length + 1 + (considerEOL ? 1 : 0)) { return false; }
 				return true;
 			}
 
