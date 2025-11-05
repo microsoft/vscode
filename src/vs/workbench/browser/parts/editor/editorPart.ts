@@ -161,6 +161,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private readonly gridWidgetDisposables = this._register(new DisposableStore());
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
 
+	// Track visibility state before maximizing to restore later
+	private readonly partsVisibilityBeforeMaximize = new Map<Parts, boolean>();
+
 	constructor(
 		protected readonly editorPartsView: IEditorPartsView,
 		id: string,
@@ -415,6 +418,20 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 				if (this.groups.length < 2) {
 					return; // need at least 2 groups to be maximized
 				}
+				// Store current visibility state of all parts before maximizing (only if not already maximized)
+				if (!this.hasMaximizedGroup()) {
+					this.partsVisibilityBeforeMaximize.set(Parts.SIDEBAR_PART, this.layoutService.isVisible(Parts.SIDEBAR_PART));
+					this.partsVisibilityBeforeMaximize.set(Parts.PANEL_PART, this.layoutService.isVisible(Parts.PANEL_PART));
+					this.partsVisibilityBeforeMaximize.set(Parts.AUXILIARYBAR_PART, this.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+					this.partsVisibilityBeforeMaximize.set(Parts.ACTIVITYBAR_PART, this.layoutService.isVisible(Parts.ACTIVITYBAR_PART));
+					this.partsVisibilityBeforeMaximize.set(Parts.STATUSBAR_PART, this.layoutService.isVisible(Parts.STATUSBAR_PART));
+					// Hide all parts except editor to maximize to the full window
+					this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+					this.layoutService.setPartHidden(true, Parts.PANEL_PART);
+					this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+					this.layoutService.setPartHidden(true, Parts.ACTIVITYBAR_PART);
+					this.layoutService.setPartHidden(true, Parts.STATUSBAR_PART);
+				}
 				this.gridWidget.maximizeView(groupView);
 				groupView.focus();
 				break;
@@ -442,6 +459,20 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 	private unmaximizeGroup(): void {
 		this.gridWidget.exitMaximizedView();
+		// Restore parts visibility to their state before maximizing
+		const restorePart = (part: Parts) => {
+			const wasVisible = this.partsVisibilityBeforeMaximize.get(part);
+			if (wasVisible !== undefined) {
+				this.layoutService.setPartHidden(!wasVisible, part);
+			}
+		};
+		restorePart(Parts.SIDEBAR_PART);
+		restorePart(Parts.PANEL_PART);
+		restorePart(Parts.AUXILIARYBAR_PART);
+		restorePart(Parts.ACTIVITYBAR_PART);
+		restorePart(Parts.STATUSBAR_PART);
+		// Clear the stored visibility state
+		this.partsVisibilityBeforeMaximize.clear();
 		this._activeGroup.focus(); // When making views visible the focus can be affected, so restore it
 	}
 
