@@ -551,7 +551,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				return;
 			}
 
-			reader.store.add(runOnChange(historyProvider.historyItemRef, async ref => {
+			reader.store.add(runOnChange(historyProvider.historyItemRef, async () => {
 				await this.updateRepository(repository);
 			}));
 		}));
