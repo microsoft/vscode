@@ -951,7 +951,6 @@ export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	constructor(label: string | CompletionItemLabel, replacementRange: readonly [number, number], kind?: TerminalCompletionItemKind, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean) {
 		this.label = label;
 		this.replacementRange = replacementRange;
-		this.kind = undefined;
 		this.kind = kind;
 		this.detail = detail;
 		this.documentation = documentation;
