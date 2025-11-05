@@ -26,9 +26,11 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 	static readonly PREFIX = ':';
 	private static readonly ZERO_BASED_OFFSET_STORAGE_KEY = 'gotoLine.useZeroBasedOffset';
 
-	constructor(private storageService: IStorageService) {
+	constructor() {
 		super({ canAcceptInBackground: true });
 	}
+
+	protected abstract readonly storageService: IStorageService;
 
 	private get useZeroBasedOffset() {
 		return this.storageService.getBoolean(

@@ -30,9 +30,9 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService protected override readonly storageService: IStorageService
 	) {
-		super(storageService);
+		super();
 		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 	}
 

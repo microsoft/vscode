@@ -14,12 +14,14 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 class TestGotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 	protected override onDidActiveTextEditorControlChange = Event.None;
 	protected override activeTextEditorControl: IEditor | undefined;
-	constructor(zeroBased: boolean) {
-		super({
-			getBoolean: () => zeroBased,
-			store: () => { }
-		} as unknown as IStorageService);
+	constructor(private zeroBased: boolean) {
+		super();
 	}
+	protected override readonly storageService = {
+		getBoolean: () => this.zeroBased,
+		store: () => { }
+	} as unknown as IStorageService;
+
 	public parsePositionTest(editor: IEditor, value: string) {
 		return super.parsePosition(editor, value);
 	}
