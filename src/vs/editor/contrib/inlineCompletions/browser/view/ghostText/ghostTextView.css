@@ -75,4 +75,10 @@
 		opacity: var(--animation-opacity, 1);
 		background-color: var(--vscode-inlineEdit-modifiedChangedTextBackground);
 	}
+
+	.ghost-text-whitespaces-only {
+		background-color: var(--vscode-inlineEdit-modifiedChangedTextBackground);
+		border-bottom: 1px dashed var(--vscode-inlineEdit-modifiedBorder);
+		padding-bottom: 1px;
+	}
 }
