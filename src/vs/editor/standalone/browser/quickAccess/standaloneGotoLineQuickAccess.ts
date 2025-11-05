@@ -22,7 +22,7 @@ export class StandaloneGotoLineQuickAccessProvider extends AbstractGotoLineQuick
 
 	constructor(
 		@ICodeEditorService private readonly editorService: ICodeEditorService,
-		@IStorageService storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(storageService);
 	}
