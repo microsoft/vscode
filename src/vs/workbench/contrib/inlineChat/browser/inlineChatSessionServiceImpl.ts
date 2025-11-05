@@ -535,7 +535,7 @@ export class InlineChatEscapeToolContribution extends Disposable {
 
 				let result: { confirmed: boolean; checkboxChecked?: boolean };
 				if (dontAskAgain !== undefined) {
-					// Use previously stored user preference: true = 'Rephrase', false = 'Continue in Chat'
+					// Use previously stored user preference: true = 'Continue in Chat', false = 'Rephrase' (Cancel)
 					result = { confirmed: dontAskAgain, checkboxChecked: false };
 				} else {
 					result = await dialogService.confirm({
@@ -543,15 +543,15 @@ export class InlineChatEscapeToolContribution extends Disposable {
 						title: localize('confirm.title', "Continue in Panel Chat?"),
 						message: localize('confirm', "Do you want to continue in panel chat or rephrase your prompt?"),
 						detail: localize('confirm.detail', "This task is too complex for Inline Chat. You can rephrase your prompt or continue in the panel chat."),
-						primaryButton: localize('confirm.yes', "Rephrase"),
-						cancelButton: localize('confirm.no', "Continue in Chat"),
+						primaryButton: localize('confirm.yes', "Continue in Chat"),
+						cancelButton: localize('confirm.no', "Cancel"),
 						checkbox: { label: localize('chat.remove.confirmation.checkbox', "Don't ask again"), checked: false },
 					});
 				}
 
 				const editor = codeEditorService.getFocusedCodeEditor();
 
-				if (!result.confirmed || !editor) {
+				if (result.confirmed && editor) {
 					logService.trace('InlineChatEscapeToolContribution: moving session to panel chat');
 					await instaService.invokeFunction(moveToPanelChat, session.chatModel, true);
 					session.dispose();
