@@ -289,6 +289,11 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	}
 
 	private _applyEdits(edits: ISingleEditOperation[], source: TextModelEditSource) {
+
+		if (edits.length === 0) {
+			return [];
+		}
+
 		try {
 			this._isEditFromUs = true;
 			// make the actual edit
