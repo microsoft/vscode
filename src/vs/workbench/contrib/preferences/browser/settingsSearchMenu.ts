@@ -86,7 +86,7 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 					this.searchWidget.setValue(newQuery);
 				} else {
 					const queryWithRemovedTags = this.searchWidget.getValue().split(' ')
-						.filter(word => word !== queryToAppend).join(' ');
+						.filter(word => word !== queryToAppend).join(' ').trim();
 					this.searchWidget.setValue(queryWithRemovedTags);
 				}
 				this.searchWidget.focus();
@@ -123,7 +123,7 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 				} else {
 					// Just remove this filter
 					const queryWithRemovedTags = this.searchWidget.getValue().split(' ')
-						.filter(word => word !== queryToAppend).join(' ');
+						.filter(word => word !== queryToAppend).join(' ').trim();
 					this.searchWidget.setValue(queryWithRemovedTags);
 				}
 				this.searchWidget.focus();
