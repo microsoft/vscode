@@ -1267,30 +1267,38 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
 		try {
 
-			const collapsedTools = this.configService.getValue<string>('chat.agent.thinking.collapsedTools');
-			// if we get an empty thinking part, mark thinking as finished
-			if (content.kind === 'thinking' && (Array.isArray(content.value) ? content.value.length === 0 : !content.value)) {
-				this._currentThinkingPart?.resetId();
-				this._streamingThinking = false;
-				return this.renderNoContent(other => content.kind === other.kind);
-			}
+			// TODO @justschen: when locked to CLI, have the same rendering as normal thinking.
+			// If coming from CLI, we have a much more naive rendering strategy for thinking since we don't get the special metadata from extension.
+			if (this.rendererOptions.fromCodingAgent === true) {
+				if (content.kind !== 'thinking') {
+					this.finalizeCurrentThinkingPart();
+				}
+			} else {
+				const collapsedTools = this.configService.getValue<string>('chat.agent.thinking.collapsedTools');
+				// if we get an empty thinking part, mark thinking as finished
+				if (content.kind === 'thinking' && (Array.isArray(content.value) ? content.value.length === 0 : !content.value)) {
+					this._currentThinkingPart?.resetId();
+					this._streamingThinking = false;
+					return this.renderNoContent(other => content.kind === other.kind);
+				}
 
-			const lastRenderedPart = context.preceedingContentParts.length ? context.preceedingContentParts[context.preceedingContentParts.length - 1] : undefined;
-			const previousContent = context.contentIndex > 0 ? context.content[context.contentIndex - 1] : undefined;
+				const lastRenderedPart = context.preceedingContentParts.length ? context.preceedingContentParts[context.preceedingContentParts.length - 1] : undefined;
+				const previousContent = context.contentIndex > 0 ? context.content[context.contentIndex - 1] : undefined;
 
-			// Special handling for "create" tool invocations- do not end thinking if previous part is a create tool invocation and config is set.
-			const shouldKeepThinkingForCreateTool = collapsedTools !== 'none' && lastRenderedPart instanceof ChatToolInvocationPart && this.isCreateToolInvocationContent(previousContent);
+				// Special handling for "create" tool invocations- do not end thinking if previous part is a create tool invocation and config is set.
+				const shouldKeepThinkingForCreateTool = collapsedTools !== 'none' && lastRenderedPart instanceof ChatToolInvocationPart && this.isCreateToolInvocationContent(previousContent);
 
-			if (!shouldKeepThinkingForCreateTool && this._currentThinkingPart && !this._streamingThinking) {
-				const isResponseElement = isResponseVM(context.element);
-				const isThinkingContent = content.kind === 'working' || content.kind === 'thinking';
-				const isToolStreamingContent = isResponseElement && this.shouldPinPart(content, isResponseElement ? context.element : undefined);
+				if (!shouldKeepThinkingForCreateTool && this._currentThinkingPart && !this._streamingThinking) {
+					const isResponseElement = isResponseVM(context.element);
+					const isThinkingContent = content.kind === 'working' || content.kind === 'thinking';
+					const isToolStreamingContent = isResponseElement && this.shouldPinPart(content, isResponseElement ? context.element : undefined);
 
-				if (!isThinkingContent && !isToolStreamingContent) {
-					const followsThinkingPart = previousContent?.kind === 'thinking' || previousContent?.kind === 'toolInvocation' || previousContent?.kind === 'prepareToolInvocation' || previousContent?.kind === 'toolInvocationSerialized';
+					if (!isThinkingContent && !isToolStreamingContent) {
+						const followsThinkingPart = previousContent?.kind === 'thinking' || previousContent?.kind === 'toolInvocation' || previousContent?.kind === 'prepareToolInvocation' || previousContent?.kind === 'toolInvocationSerialized';
 
-					if (context.element.isComplete || followsThinkingPart) {
-						this.finalizeCurrentThinkingPart();
+						if (context.element.isComplete || followsThinkingPart) {
+							this.finalizeCurrentThinkingPart();
+						}
 					}
 				}
 			}
