@@ -882,3 +882,193 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 		assert.strictEqual(isAgentSessionsViewModel(session), false);
 	});
 });
+
+suite('AgentSessionsKeyboardNavigationLabelProvider', () => {
+	const disposables = new DisposableStore();
+
+	teardown(() => {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createMockProvider(): any {
+		return {
+			chatSessionType: 'test',
+			onDidChangeChatSessionItems: Event.None,
+			provideChatSessionItems: async () => []
+		};
+	}
+
+	test('should return label as a searchable field', () => {
+		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
+		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
+
+		const session: IAgentSessionViewModel = {
+			provider: createMockProvider(),
+			resource: URI.parse('test://test-1'),
+			label: 'Test Session Label',
+			description: 'Test description',
+			timing: { startTime: Date.now() }
+		};
+
+		const labels = provider.getKeyboardNavigationLabel(session);
+
+		assert.ok(Array.isArray(labels));
+		assert.ok(labels.length > 0);
+		assert.strictEqual(labels[0].toString(), 'Test Session Label');
+	});
+
+	test('should return string description as a searchable field', () => {
+		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
+		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
+
+		const session: IAgentSessionViewModel = {
+			provider: createMockProvider(),
+			resource: URI.parse('test://test-1'),
+			label: 'Test Label',
+			description: 'String description text',
+			timing: { startTime: Date.now() }
+		};
+
+		const labels = provider.getKeyboardNavigationLabel(session);
+
+		assert.ok(labels.some((l: { toString(): string | undefined }) => l.toString() === 'String description text'));
+	});
+
+	test('should return markdown description as a searchable field', () => {
+		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
+		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
+
+		const session: IAgentSessionViewModel = {
+			provider: createMockProvider(),
+			resource: URI.parse('test://test-1'),
+			label: 'Test Label',
+			description: new MarkdownString('**Bold** description'),
+			timing: { startTime: Date.now() }
+		};
+
+		const labels = provider.getKeyboardNavigationLabel(session);
+
+		// Should include the markdown as a string
+		assert.ok(labels.some((l: { toString(): string | undefined }) => l.toString()?.includes('Bold')));
+	});
+
+	test('should return status as searchable field for InProgress', () => {
+		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
+		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
+
+		const session: IAgentSessionViewModel = {
+			provider: createMockProvider(),
+			resource: URI.parse('test://test-1'),
+			label: 'Test Label',
+			description: 'Test description',
+			status: ChatSessionStatus.InProgress,
+			timing: { startTime: Date.now() }
+		};
+
+		const labels = provider.getKeyboardNavigationLabel(session);
+
+		// Should include status text
+		const statusLabel = labels.find((l: { toString(): string | undefined }) => l.toString()?.includes('progress') || l.toString()?.includes('working'));
+		assert.ok(statusLabel);
+	});
+
+	test('should return status as searchable field for Completed', () => {
+		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
+		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
+
+		const session: IAgentSessionViewModel = {
+			provider: createMockProvider(),
+			resource: URI.parse('test://test-1'),
+			label: 'Test Label',
+			description: 'Test description',
+			status: ChatSessionStatus.Completed,
+			timing: { startTime: Date.now() }
+		};
+
+		const labels = provider.getKeyboardNavigationLabel(session);
+
+		// Should include status text
+		const statusLabel = labels.find((l: { toString(): string | undefined }) => l.toString()?.includes('completed') || l.toString()?.includes('finished'));
+		assert.ok(statusLabel);
+	});
+
+	test('should return status as searchable field for Failed', () => {
+		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
+		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
+
+		const session: IAgentSessionViewModel = {
+			provider: createMockProvider(),
+			resource: URI.parse('test://test-1'),
+			label: 'Test Label',
+			description: 'Test description',
+			status: ChatSessionStatus.Failed,
+			timing: { startTime: Date.now() }
+		};
+
+		const labels = provider.getKeyboardNavigationLabel(session);
+
+		// Should include status text
+		const statusLabel = labels.find((l: { toString(): string | undefined }) => l.toString()?.includes('failed') || l.toString()?.includes('error'));
+		assert.ok(statusLabel);
+	});
+
+	test('should return multiple searchable fields together', () => {
+		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
+		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
+
+		const session: IAgentSessionViewModel = {
+			provider: createMockProvider(),
+			resource: URI.parse('test://test-1'),
+			label: 'My Session',
+			description: 'Important work',
+			status: ChatSessionStatus.Completed,
+			timing: { startTime: Date.now() }
+		};
+
+		const labels = provider.getKeyboardNavigationLabel(session);
+
+		assert.ok(labels.length >= 3); // label, description, and status
+		assert.ok(labels.some((l: { toString(): string | undefined }) => l.toString() === 'My Session'));
+		assert.ok(labels.some((l: { toString(): string | undefined }) => l.toString() === 'Important work'));
+		assert.ok(labels.some((l: { toString(): string | undefined }) => l.toString()?.includes('completed')));
+	});
+
+	test('should handle session without status', () => {
+		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
+		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
+
+		const session: IAgentSessionViewModel = {
+			provider: createMockProvider(),
+			resource: URI.parse('test://test-1'),
+			label: 'Test Label',
+			description: 'Test description',
+			timing: { startTime: Date.now() }
+		};
+
+		const labels = provider.getKeyboardNavigationLabel(session);
+
+		assert.ok(labels.length >= 2); // Just label and description
+		assert.ok(labels.some((l: { toString(): string | undefined }) => l.toString() === 'Test Label'));
+		assert.ok(labels.some((l: { toString(): string | undefined }) => l.toString() === 'Test description'));
+	});
+
+	test('should handle session with empty description', () => {
+		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
+		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
+
+		const session: IAgentSessionViewModel = {
+			provider: createMockProvider(),
+			resource: URI.parse('test://test-1'),
+			label: 'Test Label',
+			description: '',
+			timing: { startTime: Date.now() }
+		};
+
+		const labels = provider.getKeyboardNavigationLabel(session);
+
+		assert.ok(labels.length >= 1); // At least the label
+		assert.ok(labels.some((l: { toString(): string | undefined }) => l.toString() === 'Test Label'));
+	});
+});

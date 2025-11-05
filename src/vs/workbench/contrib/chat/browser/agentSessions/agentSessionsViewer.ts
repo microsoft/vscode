@@ -271,8 +271,39 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSessionViewModel> 
 
 export class AgentSessionsKeyboardNavigationLabelProvider implements ICompressibleKeyboardNavigationLabelProvider<IAgentSessionViewModel> {
 
-	getKeyboardNavigationLabel(element: IAgentSessionViewModel): string {
-		return element.label;
+	getKeyboardNavigationLabel(element: IAgentSessionViewModel): { toString(): string | undefined }[] {
+		const labels: { toString(): string | undefined }[] = [];
+
+		// Add the session label
+		labels.push({ toString: () => element.label });
+
+		// Add the description text (extract from markdown if needed)
+		if (typeof element.description === 'string') {
+			labels.push({ toString: () => element.description as string });
+		} else if (element.description) {
+			// For markdown strings, use the plain text value
+			labels.push({ toString: () => element.description.toString() });
+		}
+
+		// Add the status as a searchable string
+		if (element.status !== undefined) {
+			labels.push({ toString: () => this.statusToString(element.status!) });
+		}
+
+		return labels;
+	}
+
+	private statusToString(status: ChatSessionStatus): string {
+		switch (status) {
+			case ChatSessionStatus.InProgress:
+				return 'in progress working';
+			case ChatSessionStatus.Completed:
+				return 'completed finished';
+			case ChatSessionStatus.Failed:
+				return 'failed error';
+			default:
+				return '';
+		}
 	}
 
 	getCompressedNodeKeyboardNavigationLabel(elements: IAgentSessionViewModel[]): { toString(): string | undefined } | undefined {
