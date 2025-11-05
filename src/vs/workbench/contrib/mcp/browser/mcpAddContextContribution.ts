@@ -79,23 +79,20 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 
 			const pickItems = picksObservable.read(reader);
 			const picks: ChatContextPick[] = [];
-			try {
-				for (const [server, resources] of pickItems.picks) {
-					if (resources.length === 0) {
-						continue;
-					}
-					picks.push(McpResourcePickHelper.sep(server));
-					for (const resource of resources) {
-						picks.push({
-							...McpResourcePickHelper.item(resource),
-							asAttachment: () => helper.toAttachment(resource, server)
-						});
-					}
+
+			for (const [server, resources] of pickItems.picks) {
+				if (resources.length === 0) {
+					continue;
 				}
-				return { picks, busy: pickItems.isBusy };
-			} catch {
-				return { picks, busy: false };
+				picks.push(McpResourcePickHelper.sep(server));
+				for (const resource of resources) {
+					picks.push({
+						...McpResourcePickHelper.item(resource),
+						asAttachment: () => helper.toAttachment(resource, server)
+					});
+				}
 			}
+			return { picks, busy: pickItems.isBusy };
 		});
 	}
 }

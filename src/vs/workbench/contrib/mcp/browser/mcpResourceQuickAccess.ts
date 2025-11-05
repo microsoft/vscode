@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { ByteSize, IFileService } from '../../../../platform/files/common/files.js';
+import { ByteSize, IFileService, IFileStat } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { DefaultQuickAccessFilterValue, IQuickAccessProvider, IQuickAccessProviderRunOptions } from '../../../../platform/quickinput/common/quickAccess.js';
@@ -124,39 +124,40 @@ export class McpResourcePickHelper extends Disposable {
 	 * When returning true, statefully updates the picker state to display directory contents.
 	 */
 	public async navigate(resource: IMcpResource | IMcpResourceTemplate, server: IMcpServer): Promise<boolean> {
+		const uri = await this.toURI(resource);
+		if (!uri) {
+			return false;
+		}
+		let stat: IFileStat | undefined = undefined;
 		try {
-			const uri = await this.toURI(resource);
-			if (!uri) {
-				return false;
-			}
-			const stat = await this._fileService.resolve(uri, { resolveMetadata: false });
+			stat = await this._fileService.resolve(uri, { resolveMetadata: false });
+		} catch (e) {
+			return false;
+		}
 
-			if (this._isDirectoryResource(resource) && (stat.children?.length ?? 0) > 0) {
-				// Save current state to stack before navigating
-				const currentResources = this._resources.get().picks.get(server);
-				if (currentResources) {
-					this.addCurrentMCPQuickPickItemLevel(server, currentResources);
-				}
-
-				// Convert all the children to IMcpResource objects
-				const childResources: IMcpResource[] = stat.children!.map(child => {
-					const mcpUri = McpResourceURI.fromServer(server.definition, child.resource.toString());
-					return {
-						uri: mcpUri,
-						mcpUri: child.resource.path,
-						name: child.name,
-						title: child.name,
-						description: resource.description,
-						mimeType: undefined,
-						sizeInBytes: child.size,
-						icons: McpIcons.fromParsed(undefined)
-					};
-				});
-				this._inDirectory.set({ server, resources: childResources }, undefined);
-				return true;
+		if (stat && this._isDirectoryResource(resource) && (stat.children?.length ?? 0) > 0) {
+			// Save current state to stack before navigating
+			const currentResources = this._resources.get().picks.get(server);
+			if (currentResources) {
+				this.addCurrentMCPQuickPickItemLevel(server, currentResources);
 			}
-		} catch (error) {
-			// If resolution fails, treat as a leaf (file)
+
+			// Convert all the children to IMcpResource objects
+			const childResources: IMcpResource[] = stat.children!.map(child => {
+				const mcpUri = McpResourceURI.fromServer(server.definition, child.resource.toString());
+				return {
+					uri: mcpUri,
+					mcpUri: child.resource.path,
+					name: child.name,
+					title: child.name,
+					description: resource.description,
+					mimeType: undefined,
+					sizeInBytes: child.size,
+					icons: McpIcons.fromParsed(undefined)
+				};
+			});
+			this._inDirectory.set({ server, resources: childResources }, undefined);
+			return true;
 		}
 		return false;
 	}
@@ -532,22 +533,16 @@ export abstract class AbstractMcpResourceAccessPick {
 				// Check if go back item was selected
 				if (item.id === goBackId) {
 					helper.navigateBack();
-					picker.show();
 					picker.busy = false;
 					return;
 				}
 
 				const resourceItem = item as ResourceQuickPickItem;
 				const resource = resourceItem.resource;
-				let uri: URI | undefined;
-
 				// Try to navigate into the resource if it's a directory
 				const isNested = await helper.navigate(resource, resourceItem.server);
-				if (isNested) {
-					// Navigation succeeded, picker will be updated by getPicks() observing _inDirectory changes
-					picker.show();
-				} else {
-					uri = await helper.toURI((item as ResourceQuickPickItem).resource);
+				if (!isNested) {
+					const uri = await helper.toURI(resource);
 					if (uri) {
 						picker.hide();
 						this._editorService.openEditor({ resource: uri, options: { preserveFocus: event.inBackground } });
@@ -577,7 +572,7 @@ export class McpResourceQuickPick extends AbstractMcpResourceAccessPick {
 		const store = new DisposableStore();
 		const qp = store.add(this._quickInputService.createQuickPick({ useSeparators: true }));
 		qp.placeholder = localize('mcp.quickaccess.placeholder', "Search for resources");
-		this.applyToPick(qp, token);
+		store.add(this.applyToPick(qp, token));
 		store.add(qp.onDidHide(() => store.dispose()));
 		qp.show();
 		await Event.toPromise(qp.onDidHide);

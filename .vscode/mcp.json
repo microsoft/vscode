@@ -1,12 +1,29 @@
-{
-	"servers": {
-		"vscode-playwright-mcp": {
-			"type": "stdio",
-			"command": "npm",
-			// Look at the [README](../test/mcp/README.md) to see what arguments are supported
-			"args": ["run", "start-stdio"],
-			"cwd": "${workspaceFolder}/test/mcp"
-		}
-	},
-	"inputs": []
+	{
+	    "servers": {
+	        "vscode-playwright-mcp": {
+	            "type": "stdio",
+	            "command": "npm",
+	            "args": [
+	                "run",
+	                "start-stdio"
+	            ],
+	            "cwd": "${workspaceFolder}/test/mcp"
+	        },
+	        "everything-server": {
+	            "type": "stdio",
+	            "command": "node",
+	            "args": [
+	                "C:\\Users\\dileepy\\servers\\src\\everything\\dist\\index.js"
+	            ],
+	            "env": {}
+	        },
+	        "my-mcp-server-612a332c": {
+	            "type": "stdio",
+	            "command": "node",
+	            "args": [
+	                "C:\\\\Users\\\\dileepy\\\\servers\\\\src\\\\everything\\\\dist\\\\index.js"
+	            ]
+	        }
+	    },
+	    "inputs": []
 }
