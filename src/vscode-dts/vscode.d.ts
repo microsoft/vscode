@@ -8199,7 +8199,7 @@ declare module 'vscode' {
 	 * {@link TerminalCompletionList} describing completions for the current command line.
 	 *
 	 * @example <caption>Simple provider returning a single completion</caption>
-	 * window.registerTerminalCompletionProvider('extension-provider-id', {
+	 * window.registerTerminalCompletionProvider({
 	 * 	provideTerminalCompletions(terminal, context) {
 	 * 		return [{ label: '--help', replacementRange: [Math.max(0, context.cursorPosition - 2), context.cursorPosition] }];
 	 * 	}
@@ -12021,16 +12021,28 @@ declare module 'vscode' {
 		/**
 		 * Register a completion provider for terminals.
 		 * @param provider The completion provider.
+		 * @param triggerCharacters Optional characters that trigger completion. When any of these characters is typed,
+		 * the completion provider will be invoked. For example, passing `['-']` would cause the provider to be invoked
+		 * whenever the user types a dash character.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 *
 		 * @example <caption>Register a provider for an extension</caption>
-		 * window.registerTerminalCompletionProvider('extension-provider-id', {
+		 * window.registerTerminalCompletionProvider({
 		 * 	provideTerminalCompletions(terminal, context) {
 		 * 		return new TerminalCompletionList([
 		 * 			{ label: '--version', replacementRange: [Math.max(0, context.cursorPosition - 2), 2] }
 		 * 		]);
 		 * 	}
 		 * });
+		 *
+		 * @example <caption>Register a provider with trigger characters</caption>
+		 * window.registerTerminalCompletionProvider({
+		 * 	provideTerminalCompletions(terminal, context) {
+		 * 		return new TerminalCompletionList([
+		 * 			{ label: '--help', replacementRange: [Math.max(0, context.cursorPosition - 2), 2] }
+		 * 		]);
+		 * 	}
+		 * }, '-');
 		 */
 		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
 		/**
