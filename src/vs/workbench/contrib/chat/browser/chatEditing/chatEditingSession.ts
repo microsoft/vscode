@@ -907,7 +907,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 			// this file does not exist yet, create it and try again
 			await this._bulkEditService.apply({ edits: [{ newResource: resource }] });
-			this._editorService.openEditor({ resource, options: { inactive: true, preserveFocus: true, pinned: true } });
+			// Note: We don't open the editor here because the file will be displayed in the multi-diff editor.
+			// Opening it separately would create unnecessary editor tabs and clutter the UI.
 
 			// Record file creation operation
 			this._timeline.recordFileOperation({
