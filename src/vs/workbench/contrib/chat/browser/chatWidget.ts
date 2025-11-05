@@ -2224,6 +2224,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
 			return;
+		} else {
+			this.inputPart.clearTodoListWidget(model.sessionResource, false);
+			this.chatSuggestNextWidget.hide();
 		}
 
 		if (this.historyList) {
