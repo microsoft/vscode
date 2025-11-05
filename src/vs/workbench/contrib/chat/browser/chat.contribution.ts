@@ -785,13 +785,13 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
  */
 class ChatSessionTextModelContentProvider extends Disposable implements ITextModelContentProvider {
 	constructor(
-		private readonly scheme: string,
+		_scheme: string,
 		@ITextModelService textModelService: ITextModelService,
 		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService
+		@ILanguageService _languageService: ILanguageService
 	) {
 		super();
-		this._register(textModelService.registerTextModelContentProvider(scheme, this));
+		this._register(textModelService.registerTextModelContentProvider(_scheme, this));
 	}
 
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
