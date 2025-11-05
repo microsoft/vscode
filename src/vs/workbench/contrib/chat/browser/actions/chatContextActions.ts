@@ -38,22 +38,20 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
+import { CTX_INLINE_CHAT_V2_ENABLED } from '../../../inlineChat/common/inlineChat.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
 import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browser/searchTreeModel/searchTreeCommon.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { isSupportedChatFileScheme, ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
 import { isQuickChat } from '../chatWidget.js';
 import { resizeImage } from '../imageUtils.js';
 import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-
-// Schemes that should not be available for chat context attach
-const UNSUPPORTED_CONTEXT_SCHEMES = new Set(['webview-panel', 'walkThrough', 'vscode-settings']);
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -409,7 +407,10 @@ export class AttachContextAction extends Action2 {
 			},
 			menu: {
 				when: ContextKeyExpr.and(
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					ContextKeyExpr.or(
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+						ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditorInline), CTX_INLINE_CHAT_V2_ENABLED)
+					),
 					ContextKeyExpr.or(
 						ChatContextKeys.lockedToCodingAgent.negate(),
 						ChatContextKeys.agentSupportsAttachments
@@ -419,6 +420,7 @@ export class AttachContextAction extends Action2 {
 				group: 'navigation',
 				order: 3
 			},
+
 		});
 	}
 
@@ -465,7 +467,7 @@ export class AttachContextAction extends Action2 {
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
 			filter: (pick) => {
 				if (isIQuickPickItemWithResource(pick) && pick.resource) {
-					return !UNSUPPORTED_CONTEXT_SCHEMES.has(pick.resource.scheme);
+					return instantiationService.invokeFunction(accessor => isSupportedChatFileScheme(accessor, pick.resource!.scheme));
 				}
 				return true;
 			},

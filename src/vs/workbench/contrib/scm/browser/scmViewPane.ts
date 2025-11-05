@@ -192,6 +192,7 @@ export class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActio
 
 	renderTemplate(container: HTMLElement): ActionButtonTemplate {
 		// hack
+		// eslint-disable-next-line no-restricted-syntax
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		// Use default cursor & disable hover for list item
@@ -316,6 +317,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 	renderTemplate(container: HTMLElement): InputTemplate {
 		// hack
+		// eslint-disable-next-line no-restricted-syntax
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		// Disable hover for list item
@@ -448,6 +450,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
 		// hack
+		// eslint-disable-next-line no-restricted-syntax
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
 
 		const element = append(container, $('.resource-group'));
@@ -986,6 +989,7 @@ export const ContextKeys = {
 	SCMHistoryItemCount: new RawContextKey<number>('scmHistoryItemCount', 0),
 	SCMHistoryViewMode: new RawContextKey<ViewMode>('scmHistoryViewMode', ViewMode.List),
 	SCMCurrentHistoryItemRefHasRemote: new RawContextKey<boolean>('scmCurrentHistoryItemRefHasRemote', false),
+	SCMCurrentHistoryItemRefHasBase: new RawContextKey<boolean>('scmCurrentHistoryItemRefHasBase', false),
 	SCMCurrentHistoryItemRefInFilter: new RawContextKey<boolean>('scmCurrentHistoryItemRefInFilter', false),
 	RepositoryCount: new RawContextKey<number>('scmRepositoryCount', 0),
 	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),

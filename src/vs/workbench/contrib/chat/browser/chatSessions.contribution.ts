@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import * as resources from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -29,7 +29,7 @@ import { ExtensionsRegistry } from '../../../services/extensions/common/extensio
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
 import { AGENT_SESSIONS_VIEWLET_ID, ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
@@ -189,8 +189,7 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 	}
 });
 
-class ContributedChatSessionData implements IDisposable {
-	private readonly _disposableStore: DisposableStore;
+class ContributedChatSessionData extends Disposable {
 
 	private readonly _optionsCache: Map<string /* 'models' */, string>;
 	public getOption(optionId: string): string | undefined {
@@ -201,26 +200,24 @@ class ContributedChatSessionData implements IDisposable {
 	}
 
 	constructor(
-		readonly session: ChatSession,
+		readonly session: IChatSession,
 		readonly chatSessionType: string,
 		readonly resource: URI,
 		readonly options: Record<string, string> | undefined,
 		private readonly onWillDispose: (resource: URI) => void
 	) {
+		super();
+
 		this._optionsCache = new Map<string, string>();
 		if (options) {
 			for (const [key, value] of Object.entries(options)) {
 				this._optionsCache.set(key, value);
 			}
 		}
-		this._disposableStore = new DisposableStore();
-		this._disposableStore.add(this.session.onWillDispose(() => {
+
+		this._register(this.session.onWillDispose(() => {
 			this.onWillDispose(this.resource);
 		}));
-	}
-
-	dispose(): void {
-		this._disposableStore.dispose();
 	}
 }
 
@@ -228,11 +225,13 @@ class ContributedChatSessionData implements IDisposable {
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
 
-	private readonly _itemsProviders: Map<string, IChatSessionItemProvider> = new Map();
+	private readonly _itemsProviders: Map</* type */ string, IChatSessionItemProvider> = new Map();
+
 	private readonly _contributions: Map</* type */ string, { readonly contribution: IChatSessionsExtensionPoint; readonly extension: IRelaxedExtensionDescription }> = new Map();
+	private readonly _contributionDisposables = this._register(new DisposableMap</* type */ string>());
+
 	private readonly _contentProviders: Map</* scheme */ string, IChatSessionContentProvider> = new Map();
 	private readonly _alternativeIdMap: Map</* alternativeId */ string, /* primaryType */ string> = new Map();
-	private readonly _disposableStores: Map<string, DisposableStore> = new Map();
 	private readonly _contextKeys = new Set<string>();
 
 	private readonly _onDidChangeItemsProviders = this._register(new Emitter<IChatSessionItemProvider>());
@@ -267,7 +266,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
@@ -281,10 +279,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					continue;
 				}
 				for (const contribution of ext.value) {
-					if (contribution.type === 'openai-codex' && !this._configurationService.getValue<boolean>('chat.experimental.codex.enabled')) {
-						continue;
-					}
-
 					this._register(this.registerContribution(contribution, ext.description));
 				}
 			}
@@ -305,7 +299,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public reportInProgress(chatSessionType: string, count: number): void {
 		let displayName: string | undefined;
 
-		if (chatSessionType === 'local') {
+		if (chatSessionType === localChatSessionType) {
 			displayName = 'Local Chat Agent';
 		} else {
 			displayName = this._contributions.get(chatSessionType)?.contribution.displayName;
@@ -412,11 +406,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._sessionTypeWelcomeMessages.delete(contribution.type);
 				this._sessionTypeWelcomeTips.delete(contribution.type);
 				this._sessionTypeInputPlaceholders.delete(contribution.type);
-				const store = this._disposableStores.get(contribution.type);
-				if (store) {
-					store.dispose();
-					this._disposableStores.delete(contribution.type);
-				}
+				this._contributionDisposables.deleteAndDispose(contribution.type);
 			}
 		};
 	}
@@ -464,18 +454,37 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			['chatSessionType', contribution.type]
 		]);
 
-		const menuActions = this._menuService.getMenuActions(MenuId.ChatSessionsCreateSubMenu, contextKeyService);
-		if (menuActions?.length) {
+		const rawMenuActions = this._menuService.getMenuActions(MenuId.ChatSessionsCreateSubMenu, contextKeyService);
+		const menuActions = rawMenuActions.map(value => value[1]).flat();
+
+		const whenClause = ContextKeyExpr.and(
+			ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.${contribution.type}`)
+		);
+
+		// If there's exactly one action, inline it
+		if (menuActions.length === 1) {
+			const first = menuActions[0];
+			if (first instanceof MenuItemAction) {
+				return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+					group: 'navigation',
+					title: first.label,
+					icon: Codicon.plus,
+					order: 1,
+					when: whenClause,
+					command: first.item,
+				});
+			}
+		}
+
+		if (menuActions.length) {
 			return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 				group: 'navigation',
 				title: localize('interactiveSession.chatSessionSubMenuTitle', "Create chat session"),
 				icon: Codicon.plus,
 				order: 1,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.${contribution.type}`)
-				),
+				when: whenClause,
 				submenu: MenuId.ChatSessionsCreateSubMenu,
-				isSplitButton: true
+				isSplitButton: menuActions.length > 1
 			});
 		} else {
 			// We control creation instead
@@ -491,9 +500,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				},
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.${contribution.type}`)
-				),
+				when: whenClause,
 			});
 		}
 	}
@@ -540,15 +547,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private _evaluateAvailability(): void {
 		let hasChanges = false;
 		for (const { contribution, extension } of this._contributions.values()) {
-			const isCurrentlyRegistered = this._disposableStores.has(contribution.type);
+			const isCurrentlyRegistered = this._contributionDisposables.has(contribution.type);
 			const shouldBeRegistered = this._isContributionAvailable(contribution);
 			if (isCurrentlyRegistered && !shouldBeRegistered) {
 				// Disable the contribution by disposing its disposable store
-				const store = this._disposableStores.get(contribution.type);
-				if (store) {
-					store.dispose();
-					this._disposableStores.delete(contribution.type);
-				}
+				this._contributionDisposables.deleteAndDispose(contribution.type);
+
 				// Also dispose any cached sessions for this contribution
 				this._disposeSessionsForContribution(contribution.type);
 				hasChanges = true;
@@ -571,7 +575,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
 		const disposableStore = new DisposableStore();
-		this._disposableStores.set(contribution.type, disposableStore);
+		this._contributionDisposables.set(contribution.type, disposableStore);
 
 		disposableStore.add(this._registerAgent(contribution, ext));
 		disposableStore.add(this._registerCommands(contribution));
@@ -677,7 +681,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._contentProviders.has(chatSessionResource.scheme);
 	}
 
-	public async getChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
+	async getAllChatSessionItems(token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>> {
+		return Promise.all(Array.from(this.getAllChatSessionContributions(), async contrib => {
+			return {
+				chatSessionType: contrib.type,
+				items: await this.getChatSessionItems(contrib.type, token)
+			};
+		}));
+	}
+
+	private async getChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
 		if (!(await this.hasChatSessionItemProvider(chatSessionType))) {
 			return [];
 		}
@@ -778,32 +791,33 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return chatSessionItem;
 	}
 
-	public async getChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
-		if (!(await this.canResolveChatSession(sessionResource))) {
+	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
+		const existingSessionData = this._sessions.get(sessionResource);
+		if (existingSessionData) {
+			return existingSessionData.session;
+		}
+
+		if (!(await raceCancellationError(this.canResolveChatSession(sessionResource), token))) {
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}
+
 		const resolvedType = this._resolveToPrimaryType(sessionResource.scheme) || sessionResource.scheme;
 		const provider = this._contentProviders.get(resolvedType);
 		if (!provider) {
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}
 
-		const existingSessionData = this._sessions.get(sessionResource);
-		if (existingSessionData) {
-			return existingSessionData.session;
-		}
-
-		const session = await provider.provideChatSessionContent(sessionResource, token);
-		const sessionData = new ContributedChatSessionData(session, sessionResource.scheme, sessionResource, session.options, this._onWillDisposeSession.bind(this));
+		const session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+		const sessionData = new ContributedChatSessionData(session, sessionResource.scheme, sessionResource, session.options, resource => {
+			sessionData.dispose();
+			this._sessions.delete(resource);
+		});
 
 		this._sessions.set(sessionResource, sessionData);
 
 		return session;
 	}
 
-	private _onWillDisposeSession(sessionResource: URI): void {
-		this._sessions.delete(sessionResource);
-	}
 
 	public hasAnySessionOptions(sessionResource: URI): boolean {
 		const session = this._sessions.get(sessionResource);
@@ -828,7 +842,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			this._editableSessions.set(sessionResource, data);
 		}
 		// Trigger refresh of the session views that might need to update their rendering
-		this._onDidChangeSessionItems.fire('local');
+		this._onDidChangeSessionItems.fire(localChatSessionType);
 	}
 
 	public getEditableData(sessionResource: URI): IEditableData | undefined {
@@ -929,13 +943,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined {
 		const contribution = this._contributions.get(chatSessionType)?.contribution;
 		return contribution?.capabilities;
-	}
-
-	/**
-	 * Get the welcome tips for a specific session type
-	 */
-	public getWelcomeTipsForSessionType(chatSessionType: string): string | undefined {
-		return this._sessionTypeWelcomeTips.get(chatSessionType);
 	}
 
 	public getContentProviderSchemes(): string[] {

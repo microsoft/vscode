@@ -52,6 +52,7 @@ export class EditorMarkdownCodeBlockRenderer implements IMarkdownCodeBlockRender
 
 		const root = document.createElement('span');
 		root.innerHTML = content as string;
+		// eslint-disable-next-line no-restricted-syntax
 		const codeElement = root.querySelector('.monaco-tokenized-source');
 		if (!isHTMLElement(codeElement)) {
 			return document.createElement('span');

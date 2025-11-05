@@ -3165,6 +3165,20 @@ export class ChatResponseMultiDiffPart {
 	}
 }
 
+export class ChatResponseExternalEditPart {
+	applied: Thenable<void>;
+	didGetApplied!: () => void;
+
+	constructor(
+		public uris: vscode.Uri[],
+		public callback: () => Thenable<unknown>,
+	) {
+		this.applied = new Promise<void>((resolve) => {
+			this.didGetApplied = resolve;
+		});
+	}
+}
+
 export class ChatResponseAnchorPart implements vscode.ChatResponseAnchorPart {
 	value: vscode.Uri | vscode.Location;
 	title?: string;

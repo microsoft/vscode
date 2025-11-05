@@ -23,6 +23,7 @@ import { hotClassGetOriginalInstance } from '../../../../../platform/observable/
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
+import { TriggerInlineEditCommandsRegistry } from '../../../../browser/triggerInlineEditCommandsRegistry.js';
 import { getOuterEditor } from '../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Position } from '../../../../common/core/position.js';
@@ -226,6 +227,7 @@ export class InlineCompletionsController extends Disposable {
 			InsertLineAfterAction.ID,
 			InsertLineBeforeAction.ID,
 			FIND_IDS.NextMatchFindAction,
+			...TriggerInlineEditCommandsRegistry.getRegisteredCommands(),
 		]);
 		this._register(this._commandService.onDidExecuteCommand((e) => {
 			if (triggerCommands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {

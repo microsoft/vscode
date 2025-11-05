@@ -11,22 +11,24 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../.
 import { ResourceMap } from '../../../base/common/map.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { autorun, IObservable, observableValue } from '../../../base/common/observable.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { IChatEditorOptions } from '../../contrib/chat/browser/chatEditor.js';
+import { ChatEditorInput } from '../../contrib/chat/browser/chatEditorInput.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
 import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/common/chatService.js';
-import { ChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
-import { IEditorGroup, IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
+import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
-import { IChatEditorOptions } from '../../contrib/chat/browser/chatEditor.js';
 
-export class ObservableChatSession extends Disposable implements ChatSession {
+export class ObservableChatSession extends Disposable implements IChatSession {
 
 	readonly sessionResource: URI;
 	readonly providerHandle: number;
@@ -372,7 +374,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._itemProvidersRegistrations.get(handle)?.onDidChangeItems.fire();
 	}
 
-	$onDidCommitChatSessionItem(handle: number, originalComponents: UriComponents, modifiedCompoennts: UriComponents): void {
+	async $onDidCommitChatSessionItem(handle: number, originalComponents: UriComponents, modifiedCompoennts: UriComponents): Promise<void> {
 		const originalResource = URI.revive(originalComponents);
 		const modifiedResource = URI.revive(modifiedCompoennts);
 
@@ -387,16 +389,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		const contribution = this._chatSessionsService.getAllChatSessionContributions().find(c => c.type === chatSessionType);
 
 		// Find the group containing the original editor
-		let originalGroup: IEditorGroup | undefined;
-		for (const group of this.editorGroupService.groups) {
-			if (group.editors.some(editor => editor.resource?.toString() === originalResource.toString())) {
-				originalGroup = group;
-				break;
-			}
-		}
-		if (!originalGroup) {
-			originalGroup = this.editorGroupService.activeGroup;
-		}
+		const originalGroup =
+			this.editorGroupService.groups.find(group => group.editors.some(editor => isEqual(editor.resource, originalResource)))
+			?? this.editorGroupService.activeGroup;
 
 		const options: IChatEditorOptions = {
 			title: {
@@ -407,18 +402,22 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		if (originalEditor) {
 			// Prefetch the chat session content to make the subsequent editor swap quick
-			this._chatSessionsService.getChatSessionContent(
+			const newSession = await this._chatSessionsService.getOrCreateChatSession(
 				URI.revive(modifiedResource),
 				CancellationToken.None,
-			).then(() => {
-				this._editorService.replaceEditors([{
-					editor: originalEditor,
-					replacement: {
-						resource: modifiedResource,
-						options,
-					},
-				}], originalGroup);
-			});
+			);
+
+			newSession.initialEditingSession = originalEditor instanceof ChatEditorInput
+				? originalEditor.transferOutEditingSession()
+				: undefined;
+
+			this._editorService.replaceEditors([{
+				editor: originalEditor,
+				replacement: {
+					resource: modifiedResource,
+					options,
+				},
+			}], originalGroup);
 		} else {
 			this._logService.warn(`Original chat session editor not found for resource ${originalResource.toString()}`);
 			this._editorService.openEditor({ resource: modifiedResource }, originalGroup);
@@ -461,7 +460,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		}
 	}
 
-	private async _provideChatSessionContent(providerHandle: number, sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
+	private async _provideChatSessionContent(providerHandle: number, sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		let session = this._activeSessions.get(sessionResource);
 
 		if (!session) {

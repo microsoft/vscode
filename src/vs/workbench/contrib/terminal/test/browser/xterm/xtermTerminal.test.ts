@@ -33,6 +33,8 @@ class TestWebglAddon implements WebglAddon {
 	readonly onAddTextureAtlasCanvas = new Emitter().event as IEvent<HTMLCanvasElement>;
 	readonly onRemoveTextureAtlasCanvas = new Emitter().event as IEvent<HTMLCanvasElement, void>;
 	readonly onContextLoss = new Emitter().event as IEvent<void>;
+	constructor(preserveDrawingBuffer?: boolean) {
+	}
 	activate() {
 		TestWebglAddon.isEnabled = !TestWebglAddon.shouldThrow;
 		if (TestWebglAddon.shouldThrow) {
@@ -48,8 +50,7 @@ class TestWebglAddon implements WebglAddon {
 class TestXtermAddonImporter extends XtermAddonImporter {
 	override async importAddon<T extends keyof IXtermAddonNameToCtor>(name: T): Promise<IXtermAddonNameToCtor[T]> {
 		if (name === 'webgl') {
-			// eslint-disable-next-line local/code-no-any-casts
-			return Promise.resolve(TestWebglAddon) as any;
+			return TestWebglAddon as unknown as IXtermAddonNameToCtor[T];
 		}
 		return super.importAddon(name);
 	}
@@ -67,8 +68,7 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 		this._location = to;
 		this._onDidChangeLocation.fire({
 			views: [
-				// eslint-disable-next-line local/code-no-any-casts
-				{ id: TERMINAL_VIEW_ID } as any
+				{ id: TERMINAL_VIEW_ID } as unknown as IViewDescriptor
 			],
 			from: oldLocation,
 			to

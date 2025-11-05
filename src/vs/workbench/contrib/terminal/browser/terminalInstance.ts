@@ -481,6 +481,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						e.capability.promptInputModel.onDidChangeInput,
 						e.capability.promptInputModel.onDidFinishInput
 					)(refreshInfo));
+					this._register(e.capability.onCommandExecuted(async (command) => {
+						// Only generate ID if command doesn't already have one (i.e., it's a manual command, not Copilot-initiated)
+						// The tool terminal sets the command ID before command start, so this won't override it
+						if (!command.id && command.command) {
+							const commandId = generateUuid();
+							this.xterm?.shellIntegration.setNextCommandId(command.command, commandId);
+							await this._processManager.setNextCommandId(command.command, commandId);
+						}
+					}));
 					break;
 				}
 				case TerminalCapability.PromptTypeDetection: {
@@ -802,15 +811,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			() => this._isVisible,
 			() => xterm,
 			async (cols, rows) => {
-				xterm.raw.resize(cols, rows);
+				xterm.resize(cols, rows);
 				await this._updatePtyDimensions(xterm.raw);
 			},
 			async (cols) => {
-				xterm.raw.resize(cols, xterm.raw.rows);
+				xterm.resize(cols, xterm.raw.rows);
 				await this._updatePtyDimensions(xterm.raw);
 			},
 			async (rows) => {
-				xterm.raw.resize(xterm.raw.cols, rows);
+				xterm.resize(xterm.raw.cols, rows);
 				await this._updatePtyDimensions(xterm.raw);
 			}
 		));
@@ -904,6 +913,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}));
 		}
 
+		if (this.xterm?.shellIntegration) {
+			this.capabilities.add(this.xterm.shellIntegration.capabilities);
+		}
+
 		this._pathService.userHome().then(userHome => {
 			this._userHome = userHome.fsPath;
 		});
@@ -915,7 +928,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return xterm;
 	}
 
-	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
+	async runCommand(commandLine: string, shouldExecute: boolean, commandId?: string): Promise<void> {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
 		const timeoutMs = getShellIntegrationTimeout(
@@ -944,6 +957,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				timeout(timeoutMs)
 			]);
 			store.dispose();
+		}
+
+		// If a command ID was provided and we have command detection, set it as the next command ID
+		// so it will be used when the shell sends the command start sequence
+		if (commandId && commandDetection) {
+			this.xterm?.shellIntegration.setNextCommandId(commandLine, commandId);
+			await this._processManager.setNextCommandId(commandLine, commandId);
 		}
 
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always
@@ -1531,7 +1551,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Re-evaluate dimensions if the container has been set since the xterm instance was created
 		if (this._container && this._cols === 0 && this._rows === 0) {
 			this._initDimensions();
-			this.xterm?.raw.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
+			this.xterm?.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
 		}
 		const originalIcon = this.shellLaunchConfig.icon;
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows).then(result => {
@@ -1545,9 +1565,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		if (this.isDisposed) {
 			return;
-		}
-		if (this.xterm?.shellIntegration) {
-			this.capabilities.add(this.xterm.shellIntegration.capabilities);
 		}
 		if (originalIcon !== this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
 			this._icon = this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon;

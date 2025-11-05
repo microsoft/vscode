@@ -13,6 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditableData } from '../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './chatAgents.js';
+import { IChatEditingSession } from './chatEditingService.js';
 import { IChatRequestVariableData } from './chatModel.js';
 import { IChatProgress } from './chatService.js';
 
@@ -58,7 +59,8 @@ export interface IChatSessionsExtensionPoint {
 	readonly commands?: IChatSessionCommandContribution[];
 }
 export interface IChatSessionItem {
-	id: string; // TODO: remove
+	/** @deprecated Use {@link resource} instead */
+	id: string;
 	resource: URI;
 	label: string;
 	iconPath?: ThemeIcon;
@@ -88,19 +90,32 @@ export type IChatSessionHistoryItem = {
 	participant: string;
 };
 
-export interface ChatSession extends IDisposable {
-	readonly sessionResource: URI;
+/**
+ * The session type used for local agent chat sessions.
+ */
+export const localChatSessionType = 'local';
+
+export interface IChatSession extends IDisposable {
 	readonly onWillDispose: Event<void>;
-	history: Array<IChatSessionHistoryItem>;
+
+	readonly sessionResource: URI;
+
+	readonly history: readonly IChatSessionHistoryItem[];
+
 	/**
 	 * Session options as key-value pairs. Keys correspond to option group IDs (e.g., 'models', 'subagents')
 	 * and values are the selected option item IDs.
 	 */
-	options?: Record<string, string>;
+	readonly options?: Record<string, string>;
 
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
+
+	/**
+	 * Editing session transferred from a previously-untitled chat session in `onDidCommitChatSessionItem`.
+	 */
+	initialEditingSession?: IChatEditingSession;
 
 	requestHandler?: (
 		request: IChatAgentRequest,
@@ -121,7 +136,7 @@ export interface IChatSessionItemProvider {
 }
 
 export interface IChatSessionContentProvider {
-	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
+	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 }
 
 export type SessionOptionsChangedCallback = (sessionResource: URI, updates: ReadonlyArray<{
@@ -148,12 +163,11 @@ export interface IChatSessionsService {
 	getWelcomeTitleForSessionType(chatSessionType: string): string | undefined;
 	getWelcomeMessageForSessionType(chatSessionType: string): string | undefined;
 	getInputPlaceholderForSessionType(chatSessionType: string): string | undefined;
-	getWelcomeTipsForSessionType(chatSessionType: string): string | undefined;
 
 	/**
-	 * Get the list of chat session items for a specific session type.
+	 * Get the list of chat session items grouped by session type.
 	 */
-	getChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;
+	getAllChatSessionItems(token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>>;
 
 	getNewChatSessionItem(chatSessionType: string, options: {
 		request: IChatAgentRequest;
@@ -174,7 +188,7 @@ export interface IChatSessionsService {
 
 	registerChatSessionContentProvider(scheme: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveChatSession(sessionResource: URI): Promise<boolean>;
-	getChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
+	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
 	hasAnySessionOptions(sessionResource: URI): boolean;
 	getSessionOption(sessionResource: URI, optionId: string): string | undefined;

@@ -165,11 +165,15 @@
 	height: 22px;
 }
 
-.scm-view .monaco-list-row .history-item > .graph-container.current > .graph > circle:last-child {
+.scm-view .monaco-list-row .history-item > .graph-container.current > .graph > circle:last-child,
+.scm-view .monaco-list-row .history-item > .graph-container.incoming-changes > .graph > circle:last-child,
+.scm-view .monaco-list-row .history-item > .graph-container.outgoing-changes > .graph > circle:last-child {
 	fill: var(--vscode-sideBar-background);
 }
 
-.scm-view .monaco-list-row:hover .history-item > .graph-container.current > .graph > circle:last-child {
+.scm-view .monaco-list-row:hover .history-item > .graph-container.current > .graph > circle:last-child,
+.scm-view .monaco-list-row:hover .history-item > .graph-container.incoming-changes > .graph > circle:last-child,
+.scm-view .monaco-list-row:hover .history-item > .graph-container.outgoing-changes > .graph > circle:last-child {
 	fill: var(--vscode-list-hoverBackground);
 }
 
@@ -179,6 +183,32 @@
 
 .scm-view .monaco-list-row:hover .history-item > .graph-container > .graph > circle:first-of-type {
 	stroke: transparent;
+}
+
+.scm-view .monaco-list-row:hover .history-item > .graph-container > .graph > circle:nth-of-type(2) {
+	stroke: var(--vscode-list-hoverBackground);
+}
+
+.scm-view .monaco-list-row.focused.selected .history-item > .graph-container > .graph > circle:first-of-type {
+	stroke: transparent !important;
+}
+
+.scm-view.scm-history-view > .monaco-list:focus .monaco-list-row.selected .history-item > .graph-container > .graph > circle:nth-of-type(2) {
+	stroke: var(--vscode-list-activeSelectionBackground);
+}
+
+.scm-view.scm-history-view > .monaco-list:focus .monaco-list-row.selected .history-item > .graph-container.incoming-changes > .graph > circle:last-child,
+.scm-view.scm-history-view > .monaco-list:focus .monaco-list-row.selected .history-item > .graph-container.outgoing-changes > .graph > circle:last-child {
+	fill: var(--vscode-list-activeSelectionBackground);
+}
+
+.scm-view.scm-history-view > .monaco-list .monaco-list-row.focused .history-item > .graph-container > .graph > circle:nth-of-type(2) {
+	stroke: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.scm-view.scm-history-view > .monaco-list .monaco-list-row.focused .history-item > .graph-container.incoming-changes > .graph > circle:last-child,
+.scm-view.scm-history-view > .monaco-list .monaco-list-row.focused .history-item > .graph-container.outgoing-changes > .graph > circle:last-child {
+	fill: var(--vscode-list-inactiveSelectionBackground);
 }
 
 .scm-view .monaco-list-row .history-item > .label-container {
@@ -514,8 +544,49 @@
 
 /* Repositories */
 
+.scm-repositories-view .monaco-list .monaco-list-row .scm-artifact-group > .actions,
+.scm-repositories-view .monaco-list .monaco-list-row .scm-artifact > .actions {
+	display: none;
+	max-width: fit-content;
+}
+
+.scm-repositories-view .monaco-list .monaco-list-row:hover .scm-artifact-group > .actions,
+.scm-repositories-view .monaco-list .monaco-list-row.focused .scm-artifact-group > .actions,
+.scm-repositories-view .monaco-list .monaco-list-row:hover .scm-artifact > .actions,
+.scm-repositories-view .monaco-list .monaco-list-row.focused .scm-artifact > .actions {
+	display: block;
+}
+
 .scm-view.scm-repositories-view .monaco-highlighted-label {
 	font-weight: normal;
+}
+
+.scm-repositories-view .scm-artifact-group,
+.scm-repositories-view .scm-artifact {
+	display: flex;
+	align-items: center;
+
+	.icon {
+		margin-right: 2px;
+	}
+}
+
+.scm-repositories-view .scm-artifact-group .monaco-icon-label,
+.scm-repositories-view .scm-artifact .monaco-icon-label {
+	flex-grow: 1;
+}
+
+.scm-repositories-view .scm-artifact-group .monaco-highlighted-label,
+.scm-repositories-view .scm-artifact .monaco-highlighted-label {
+	display: flex;
+	align-items: center;
+}
+
+.scm-repositories-view .scm-artifact .monaco-icon-description-container {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /* History item hover */

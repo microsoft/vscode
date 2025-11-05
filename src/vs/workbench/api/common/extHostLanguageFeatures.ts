@@ -1426,7 +1426,7 @@ class InlineCompletionAdapter {
 
 				const insertText = item.insertText;
 				return ({
-					insertText: insertText ? (typeof insertText === 'string' ? insertText : { snippet: insertText.value }) : undefined,
+					insertText: insertText === undefined ? undefined : (typeof insertText === 'string' ? insertText : { snippet: insertText.value }),
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					showRange: (this._isAdditionsProposedApiEnabled && item.showRange) ? typeConvert.Range.from(item.showRange) : undefined,
 					command,
@@ -2137,6 +2137,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 		this._inlineCompletionsUnificationState = {
 			codeUnification: false,
 			modelUnification: false,
+			extensionUnification: false,
 			expAssignments: []
 		};
 	}

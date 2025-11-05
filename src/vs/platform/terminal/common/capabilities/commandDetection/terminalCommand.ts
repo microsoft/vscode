@@ -14,7 +14,7 @@ export interface ITerminalCommandProperties {
 	isTrusted: boolean;
 	timestamp: number;
 	duration: number;
-	id: string;
+	id: string | undefined;
 	marker: IMarker | undefined;
 	cwd: string | undefined;
 	exitCode: number | undefined;
@@ -276,15 +276,16 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 	cwd?: string;
 	command?: string;
 	commandLineConfidence?: 'low' | 'medium' | 'high';
-	id: string;
+	id: string | undefined;
 
 	isTrusted?: boolean;
 	isInvalid?: boolean;
 
 	constructor(
 		private readonly _xterm: Terminal,
+		id?: string
 	) {
-		this.id = generateUuid();
+		this.id = id ?? generateUuid();
 	}
 
 	serialize(cwd: string | undefined): ISerializedTerminalCommand | undefined {

@@ -20,26 +20,29 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IQuickAccessTextEditorContext } from '../../../../../editor/contrib/quickAccess/browser/editorNavigationQuickAccess.js';
 import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
-	private static zeroBasedOffsetSetting = 'workbench.quickOpen.useZeroBasedOffset';
+	private static readonly ZERO_BASED_OFFSET_STORAGE_KEY = 'gotoLine.useZeroBasedOffset';
 	protected readonly onDidActiveTextEditorControlChange: Event<void>;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super({
 			get value() {
-				return configurationService.getValue<boolean>(GotoLineQuickAccessProvider.zeroBasedOffsetSetting);
+				return storageService.getBoolean(GotoLineQuickAccessProvider.ZERO_BASED_OFFSET_STORAGE_KEY, StorageScope.WORKSPACE, false);
 			},
 			set value(value: boolean) {
-				configurationService.updateValue(GotoLineQuickAccessProvider.zeroBasedOffsetSetting, value);
+				storageService.store(GotoLineQuickAccessProvider.ZERO_BASED_OFFSET_STORAGE_KEY, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 		});
 		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
+		void this.storageService; // workaround for unused variable warning
 	}
 
 	private get configuration() {
@@ -104,6 +107,6 @@ registerAction2(GotoLineAction);
 Registry.as<IQuickAccessRegistry>(QuickaccesExtensions.Quickaccess).registerQuickAccessProvider({
 	ctor: GotoLineQuickAccessProvider,
 	prefix: AbstractGotoLineQuickAccessProvider.PREFIX,
-	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. 42:5 for line 42 and column 5)."),
+	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. :42:5 for line 42, column 5). Type :: to go to a character offset (e.g. ::1024 for character 1024 from the start of the file). Use negative values to navigate backwards."),
 	helpEntries: [{ description: localize('gotoLineQuickAccess', "Go to Line/Column"), commandId: GotoLineAction.ID }]
 });

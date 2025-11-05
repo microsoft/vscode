@@ -110,7 +110,7 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 
 		const provider = validatedArgs?.providerId ?
 			languageFeaturesService.inlineCompletionsProvider.all(editor.getModel()!)
-				.find(p => inlineCompletionProviderGetMatcher(p).some(m => m === validatedArgs!.providerId))
+				.find(p => inlineCompletionProviderGetMatcher(p).some(m => m === validatedArgs.providerId))
 			: undefined;
 
 		await asyncTransaction(async tx => {

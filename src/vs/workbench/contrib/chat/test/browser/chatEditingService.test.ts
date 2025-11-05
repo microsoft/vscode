@@ -174,7 +174,7 @@ suite('ChatEditingService', function () {
 		assert.ok(isEqual(entry.modifiedURI, uri));
 
 		await waitForState(entry.isCurrentlyBeingModifiedBy.map(value => value === chatRequest.response));
-		assert.ok(entry.isCurrentlyBeingModifiedBy.get() === chatRequest.response);
+		assert.ok(entry.isCurrentlyBeingModifiedBy.get()?.responseModel === chatRequest.response);
 
 		const unset = waitForState(entry.isCurrentlyBeingModifiedBy.map(res => res === undefined));
 
@@ -300,6 +300,27 @@ suite('ChatEditingService', function () {
 
 		assert.ok(modified.getValue().includes('FooBar'));
 		assert.ok(original.getValue().includes('FooBar'));
+	});
+
+	test('ChatEditingService merges text edits it shouldn\'t merge, #272679', async function () {
+		assert.ok(editingService);
+
+		const uri = URI.from({ scheme: 'test', path: 'abc' });
+
+		const modified = store.add(await textModelService.createModelReference(uri)).object.textEditorModel;
+
+		const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
+		const session = await model.editingSessionObs?.promise;
+		assertType(session, 'session not created');
+
+		modified.setValue('');
+		await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'a' }, { range: new Range(1, 1, 1, 1), text: 'b' }]);
+		assert.strictEqual(modified.getValue(), 'ab');
+
+		modified.setValue('');
+		await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'a' }]);
+		await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'b' }]);
+		assert.strictEqual(modified.getValue(), 'ba');
 	});
 
 });

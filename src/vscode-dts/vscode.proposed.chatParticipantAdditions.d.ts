@@ -167,7 +167,14 @@ declare module 'vscode' {
 		constructor(value: ChatResponseDiffEntry[], title: string, readOnly?: boolean);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart;
+	export class ChatResponseExternalEditPart {
+		uris: Uri[];
+		callback: () => Thenable<unknown>;
+		applied: Thenable<void>;
+		constructor(uris: Uri[], callback: () => Thenable<unknown>);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart;
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -300,6 +307,14 @@ declare module 'vscode' {
 		notebookEdit(target: Uri, edits: NotebookEdit | NotebookEdit[]): void;
 
 		notebookEdit(target: Uri, isDone: true): void;
+
+		/**
+		 * Makes an external edit to one or more resources. Changes to the
+		 * resources made within the `callback` and before it resolves will be
+		 * tracked as agent edits. This can be used to track edits made from
+		 * external tools that don't generate simple {@link textEdit textEdits}.
+		 */
+		externalEdit<T>(target: Uri | Uri[], callback: () => Thenable<T>): Thenable<T>;
 
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
 		codeblockUri(uri: Uri, isEdit?: boolean): void;

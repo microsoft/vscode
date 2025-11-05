@@ -26,6 +26,15 @@ export class RepositoryCache {
 	private static readonly MAX_REPO_ENTRIES = 30; // Max repositories tracked
 	private static readonly MAX_FOLDER_ENTRIES = 10; // Max folders per repository
 
+	private normalizeRepoUrl(url: string): string {
+		try {
+			const trimmed = url.trim();
+			return trimmed.replace(/(?:\.git)?\/*$/i, '');
+		} catch {
+			return url;
+		}
+	}
+
 	// Outer LRU: repoUrl -> inner LRU (folderPathOrWorkspaceFile -> RepositoryCacheInfo).
 	private readonly lru = new LRUCache<string, LRUCache<string, RepositoryCacheInfo>>(RepositoryCache.MAX_REPO_ENTRIES);
 
@@ -50,7 +59,8 @@ export class RepositoryCache {
 	 * @param rootPath Root path of the local repo clone.
 	 */
 	set(repoUrl: string, rootPath: string): void {
-		let foldersLru = this.lru.get(repoUrl);
+		const key = this.normalizeRepoUrl(repoUrl);
+		let foldersLru = this.lru.get(key);
 		if (!foldersLru) {
 			foldersLru = new LRUCache<string, RepositoryCacheInfo>(RepositoryCache.MAX_FOLDER_ENTRIES);
 		}
@@ -62,7 +72,7 @@ export class RepositoryCache {
 		foldersLru.set(folderPathOrWorkspaceFile, {
 			workspacePath: folderPathOrWorkspaceFile
 		}); // touch entry
-		this.lru.set(repoUrl, foldersLru);
+		this.lru.set(key, foldersLru);
 		this.save();
 	}
 
@@ -114,12 +124,14 @@ export class RepositoryCache {
 	 * We should possibly support converting between ssh remotes and http remotes.
 	 */
 	get(repoUrl: string): RepositoryCacheInfo[] | undefined {
-		const inner = this.lru.get(repoUrl);
+		const key = this.normalizeRepoUrl(repoUrl);
+		const inner = this.lru.get(key);
 		return inner ? Array.from(inner.values()) : undefined;
 	}
 
 	delete(repoUrl: string, folderPathOrWorkspaceFile: string) {
-		const inner = this.lru.get(repoUrl);
+		const key = this.normalizeRepoUrl(repoUrl);
+		const inner = this.lru.get(key);
 		if (!inner) {
 			return;
 		}
@@ -127,10 +139,10 @@ export class RepositoryCache {
 			return;
 		}
 		if (inner.size === 0) {
-			this.lru.remove(repoUrl);
+			this.lru.remove(key);
 		} else {
 			// Re-set to bump outer LRU recency after modification
-			this.lru.set(repoUrl, inner);
+			this.lru.set(key, inner);
 		}
 		this.save();
 	}

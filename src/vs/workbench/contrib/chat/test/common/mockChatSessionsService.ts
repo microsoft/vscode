@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditableData } from '../../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from '../../common/chatAgents.js';
-import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../../common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../../common/chatSessionsService.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
 	_serviceBrand: undefined;
@@ -98,10 +98,6 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contributions.find(c => c.type === chatSessionType)?.inputPlaceholder;
 	}
 
-	getWelcomeTipsForSessionType(chatSessionType: string): string | undefined {
-		return this.contributions.find(c => c.type === chatSessionType)?.welcomeTips;
-	}
-
 	async getNewChatSessionItem(chatSessionType: string, options: { request: IChatAgentRequest; metadata?: unknown }, token: CancellationToken): Promise<IChatSessionItem> {
 		const provider = this.sessionItemProviders.get(chatSessionType);
 		if (!provider?.provideNewChatSessionItem) {
@@ -110,12 +106,13 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return provider.provideNewChatSessionItem(options, token);
 	}
 
-	async getChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
-		const provider = this.sessionItemProviders.get(chatSessionType);
-		if (!provider) {
-			return [];
-		}
-		return provider.provideChatSessionItems(token);
+	getAllChatSessionItems(token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>> {
+		return Promise.all(Array.from(this.sessionItemProviders.values(), async provider => {
+			return {
+				chatSessionType: provider.chatSessionType,
+				items: await provider.provideChatSessionItems(token),
+			};
+		}));
 	}
 
 	reportInProgress(chatSessionType: string, count: number): void {
@@ -141,7 +138,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contentProviders.has(chatSessionType);
 	}
 
-	async getChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
+	async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		const provider = this.contentProviders.get(sessionResource.scheme);
 		if (!provider) {
 			throw new Error(`No content provider for ${sessionResource.scheme}`);
