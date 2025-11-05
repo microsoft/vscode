@@ -27,7 +27,6 @@
     "terminal": {
       "completionProviders": [
         {
-          "id": "terminal-suggest",
           "description": "Show suggestions for commands, arguments, flags, and file paths based upon the Fig spec."
         }
       ]

@@ -6,7 +6,7 @@
 import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable } from 'vscode';
 import { dispose, fromNow, IDisposable } from './util';
 import { Repository } from './repository';
-import { Ref } from './api/git';
+import { Ref, RefType } from './api/git';
 
 function getArtifactDescription(ref: Ref, shortCommitLength: number): string {
 	const segments: string[] = [];
@@ -71,7 +71,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 					id: `refs/heads/${r.name}`,
 					name: r.name ?? r.commit ?? '',
 					description: getArtifactDescription(r, shortCommitLength),
-					icon: r.name === this.repository.HEAD?.name
+					icon: this.repository.HEAD?.type === RefType.Head && r.name === this.repository.HEAD?.name
 						? new ThemeIcon('target')
 						: new ThemeIcon('git-branch')
 				}));
@@ -83,7 +83,9 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 					id: `refs/tags/${r.name}`,
 					name: r.name ?? r.commit ?? '',
 					description: getArtifactDescription(r, shortCommitLength),
-					icon: new ThemeIcon('tag')
+					icon: this.repository.HEAD?.type === RefType.Tag && r.name === this.repository.HEAD?.name
+						? new ThemeIcon('target')
+						: new ThemeIcon('tag')
 				}));
 			}
 		} catch (err) {

@@ -404,7 +404,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		let emptyLinesFromStart = 0;
 		for (let i = startLine; i <= endLine; i++) {
 			const line = this.raw.buffer.active.getLine(i);
-			if (line && line.translateToString(true).trim() === '') {
+			if (line && line.translateToString(true, i === startLine ? startCol : undefined).trim() === '') {
+				if (i === startLine) {
+					startCol = 0;
+				}
 				emptyLinesFromStart++;
 			} else {
 				break;

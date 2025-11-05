@@ -118,7 +118,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			// Register so that we can load this from file system.
 			disposables.add(ChatEditingNotebookFileSystemProvider.registerFile(originalUri, buffer));
 			const originalRef = await resolver.resolve(originalUri, notebook.viewType);
-			if (initialContent) {
+			if (initialContent !== undefined) {
 				try {
 					restoreSnapshot(originalRef.object.notebook, initialContent);
 				} catch (ex) {

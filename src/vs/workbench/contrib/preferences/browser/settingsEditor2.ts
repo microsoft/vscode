@@ -369,7 +369,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (this.viewState.idFilters?.has(setting.key)) {
 			return true;
 		}
-		if (this.viewState.query?.includes(setting.key)) {
+		if (this.viewState.query?.toLowerCase().includes(setting.key.toLowerCase())) {
 			return true;
 		}
 		return false;

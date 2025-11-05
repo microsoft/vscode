@@ -1244,7 +1244,6 @@ export class InlineChatController2 implements IEditorContribution {
 	}
 
 	private readonly _store = new DisposableStore();
-	private readonly _showWidgetOverrideObs = observableValue(this, false);
 	private readonly _isActiveController = observableValue(this, false);
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
 
@@ -1291,7 +1290,7 @@ export class InlineChatController2 implements IEditorContribution {
 						selection: this._editor.getSelection(),
 						document,
 						wholeRange,
-						close: () => this._showWidgetOverrideObs.set(false, undefined),
+						close: () => { /* TODO@jrieken */ },
 						delegateSessionResource: chatService.editingSessions.find(session =>
 							session.entries.get().some(e => e.hasModificationAt({
 								range: wholeRange,
@@ -1382,17 +1381,8 @@ export class InlineChatController2 implements IEditorContribution {
 
 			if (!session || !isActive || !model) {
 				visibleSessionObs.set(undefined, undefined);
-				return;
-			}
-
-			const { chatModel } = session;
-			const showShowUntil = this._showWidgetOverrideObs.read(r);
-			const hasNoRequests = chatModel.getRequests().length === 0;
-
-			if (showShowUntil || hasNoRequests) {
-				visibleSessionObs.set(session, undefined);
 			} else {
-				visibleSessionObs.set(undefined, undefined);
+				visibleSessionObs.set(session, undefined);
 			}
 		}));
 
@@ -1465,11 +1455,6 @@ export class InlineChatController2 implements IEditorContribution {
 		this._store.dispose();
 	}
 
-	toggleWidgetUntilNextRequest() {
-		const value = this._showWidgetOverrideObs.get();
-		this._showWidgetOverrideObs.set(!value, undefined);
-	}
-
 	getWidgetPosition(): Position | undefined {
 		return this._zone.rawValue?.position;
 	}
@@ -1485,11 +1470,18 @@ export class InlineChatController2 implements IEditorContribution {
 	async run(arg?: InlineChatRunOptions): Promise<boolean> {
 		assertType(this._editor.hasModel());
 
-		this.markActiveController();
 
 		const uri = this._editor.getModel().uri;
-		const session = this._inlineChatSessions.getSession2(uri)
-			?? await this._inlineChatSessions.createSession2(this._editor, uri, CancellationToken.None);
+
+		const existingSession = this._inlineChatSessions.getSession2(uri);
+		if (existingSession) {
+			await existingSession.editingSession.accept();
+			existingSession.dispose();
+		}
+
+		this.markActiveController();
+
+		const session = await this._inlineChatSessions.createSession2(this._editor, uri, CancellationToken.None);
 
 		// ADD diagnostics
 		const entries: IChatRequestVariableEntry[] = [];
