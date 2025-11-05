@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, dispose, IDisposable } from '../../../../b
 import { Event } from '../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITerminalChatService, ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from './terminal.js';
+import { ITerminalChatService, ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState, TerminalDataTransfers } from './terminal.js';
 import { TerminalTabsListSizes, TerminalTabList } from './terminalTabsList.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
@@ -24,6 +24,9 @@ import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { getInstanceHoverInfo } from './terminalTooltip.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { TerminalTabsChatEntry } from './terminalTabsChatEntry.js';
+import { containsDragType } from '../../../../platform/dnd/browser/dnd.js';
+import { getTerminalResourcesFromDragEvent, parseTerminalUri } from './terminalUri.js';
+import type { IProcessDetails } from '../../../../platform/terminal/common/terminalProcess.js';
 
 const $ = dom.$;
 
@@ -363,6 +366,21 @@ export class TerminalTabbedView extends Disposable {
 			this._terminalTabsMouseContextKey.set(true);
 			event.stopPropagation();
 		}));
+		this._register(dom.addDisposableListener(this._tabContainer, 'dragover', (event: DragEvent) => {
+			if (!this._shouldHandleEmptyAreaDrop(event)) {
+				return;
+			}
+			event.preventDefault();
+			if (event.dataTransfer) {
+				event.dataTransfer.dropEffect = 'move';
+			}
+		}));
+		this._register(dom.addDisposableListener(this._tabContainer, 'drop', (event: DragEvent) => {
+			if (!this._shouldHandleEmptyAreaDrop(event)) {
+				return;
+			}
+			void this._handleContainerDrop(event);
+		}));
 		this._register(dom.addDisposableListener(terminalContainer, 'mousedown', async (event: MouseEvent) => {
 			const terminal = this._terminalGroupService.activeInstance;
 			if (this._terminalGroupService.instances.length > 0 && terminal) {
@@ -428,6 +446,67 @@ export class TerminalTabbedView extends Disposable {
 		this._register(dom.addDisposableListener(this._tabContainer, dom.EventType.FOCUS_OUT, () => {
 			this._terminalTabsFocusContextKey.set(false);
 		}));
+	}
+
+	private _shouldHandleEmptyAreaDrop(event: DragEvent): boolean {
+		const targetNode = event.target as Node | null;
+		if (targetNode && this._tabListElement.contains(targetNode)) {
+			return false;
+		}
+		return !!event.dataTransfer && containsDragType(event, TerminalDataTransfers.Terminals);
+	}
+
+	private async _handleContainerDrop(event: DragEvent): Promise<void> {
+		event.preventDefault();
+		event.stopPropagation();
+		const primaryBackend = this._terminalService.getPrimaryBackend();
+		const resources = getTerminalResourcesFromDragEvent(event);
+		let sourceInstances: ITerminalInstance[] | undefined;
+		const promises: Promise<IProcessDetails | undefined>[] = [];
+		if (resources) {
+			for (const uri of resources) {
+				const instance = this._terminalService.getInstanceFromResource(uri);
+				if (instance) {
+					if (sourceInstances) {
+						sourceInstances.push(instance);
+					} else {
+						sourceInstances = [instance];
+					}
+					this._terminalService.moveToTerminalView(instance);
+				} else if (primaryBackend) {
+					const terminalIdentifier = parseTerminalUri(uri);
+					if (terminalIdentifier.instanceId) {
+						promises.push(primaryBackend.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId));
+					}
+				}
+			}
+		}
+		if (promises.length) {
+			const processes = (await Promise.all(promises)).filter((process): process is IProcessDetails => !!process);
+			let lastInstance: ITerminalInstance | undefined;
+			for (const attachPersistentProcess of processes) {
+				lastInstance = await this._terminalService.createTerminal({ config: { attachPersistentProcess } });
+			}
+			if (lastInstance) {
+				this._terminalService.setActiveInstance(lastInstance);
+			}
+			return;
+		}
+		if (!sourceInstances || !sourceInstances.length) {
+			sourceInstances = this._tabList.getSelectedElements();
+			if (!sourceInstances.length) {
+				return;
+			}
+		}
+		this._terminalGroupService.moveGroupToEnd(sourceInstances);
+		this._terminalService.setActiveInstance(sourceInstances[0]);
+		const indexes = sourceInstances
+			.map(instance => this._terminalGroupService.instances.indexOf(instance))
+			.filter(index => index >= 0);
+		if (indexes.length) {
+			this._tabList.setSelection(indexes);
+			this._tabList.setFocus([indexes[0]]);
+		}
 	}
 
 	private _getTabActions(): IAction[] {
