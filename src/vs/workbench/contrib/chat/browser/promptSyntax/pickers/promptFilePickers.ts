@@ -215,15 +215,16 @@ const COPY_BUTTON: IQuickInputButton = {
  * Button that sets a prompt file to be visible.
  */
 const MAKE_VISIBLE_BUTTON: IQuickInputButton = {
-	tooltip: localize('makeVisible', "Show in Agent Picker"),
-	iconClass: ThemeIcon.asClassName(Codicon.eye),
+	tooltip: localize('makeVisible', "Hidden from chat view agent picker. Click to show."),
+	iconClass: ThemeIcon.asClassName(Codicon.eyeClosed),
+	alwaysVisible: true,
 };
 
 /**
  * Button that sets a prompt file to be invisible.
  */
 const MAKE_INVISIBLE_BUTTON: IQuickInputButton = {
-	tooltip: localize('makeInvisible', "Hide from Agent Picker"),
+	tooltip: localize('makeInvisible', "Hide from agent picker"),
 	iconClass: ThemeIcon.asClassName(Codicon.eyeClosed),
 };
 
@@ -420,7 +421,7 @@ export class PromptFilePickers {
 
 	private async _createPromptPickItem(promptFile: IPromptPath, buttons: IQuickInputButton[] | undefined, visibility: boolean | undefined, token: CancellationToken): Promise<IPromptPickerQuickPickItem> {
 		const parsedPromptFile = await this._promptsService.parseNew(promptFile.uri, token).catch(() => undefined);
-		const promptName = parsedPromptFile?.header?.name ?? promptFile.name ?? getCleanPromptName(promptFile.uri);
+		let promptName = parsedPromptFile?.header?.name ?? promptFile.name ?? getCleanPromptName(promptFile.uri);
 		const promptDescription = parsedPromptFile?.header?.description ?? promptFile.description;
 
 		let tooltip: string | undefined;
@@ -439,8 +440,9 @@ export class PromptFilePickers {
 		let iconClass: string | undefined;
 		if (visibility === false) {
 			buttons = (buttons ?? []).concat(MAKE_VISIBLE_BUTTON);
+			promptName = localize('hiddenLabelInfo', "{0} (hidden)", promptName);
 			tooltip = localize('hiddenInAgentPicker', "Hidden from chat view agent picker");
-			iconClass = ThemeIcon.asClassName(Codicon.eyeClosed);
+			//iconClass = ThemeIcon.asClassName(Codicon.eyeClosed);
 		} else if (visibility === true) {
 			buttons = (buttons ?? []).concat(MAKE_INVISIBLE_BUTTON);
 		}
