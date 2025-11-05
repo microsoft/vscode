@@ -23,6 +23,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../pla
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
@@ -68,7 +69,8 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
-		@IMenuService private readonly menuService: IMenuService
+		@IMenuService private readonly menuService: IMenuService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -221,7 +223,7 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 
 		const selection = this.tree.getSelection();
 
-		const contextKeyService = element && await getContextForWatchExpressionMenuWithDataAccess(this.contextKeyService, element, this.debugService);
+		const contextKeyService = element && await getContextForWatchExpressionMenuWithDataAccess(this.contextKeyService, element, this.debugService, this.logService);
 		const menu = this.menuService.getMenuActions(MenuId.DebugWatchContext, contextKeyService, { arg: element, shouldForwardArgs: false });
 		const { secondary } = getContextMenuActions(menu, 'inline');
 
@@ -408,63 +410,22 @@ function getContextForWatchExpressionMenu(parentContext: IContextKeyService, exp
 /**
  * Gets a context key overlay that has context for the given expression, including data access info.
  */
-async function getContextForWatchExpressionMenuWithDataAccess(parentContext: IContextKeyService, expression: IExpression, debugService: IDebugService) {
+async function getContextForWatchExpressionMenuWithDataAccess(parentContext: IContextKeyService, expression: IExpression, debugService: IDebugService, logService: ILogService) {
 	const session = expression.getSession();
 	if (!session || !session.capabilities.supportsDataBreakpoints) {
 		return getContextForWatchExpressionMenu(parentContext, expression);
 	}
 
 	const contextKeys: [string, unknown][] = [];
-
-	// Ensure variables are fetched from their container so the debug adapter knows about them.
-	// For Variables (nested items like s.x), the container is the parent expression.
-	// For Expressions (top-level items like s), the container is the local scope.
 	const stackFrame = debugService.getViewModel().focusedStackFrame;
 	let dataBreakpointInfoResponse;
 
 	try {
-		if (expression instanceof Variable) {
-			// For nested variables, ensure the parent's children have been fetched
-			if ('getChildren' in expression.parent && typeof expression.parent.getChildren === 'function') {
-				await expression.parent.getChildren();
-			}
-
-			dataBreakpointInfoResponse = await session.dataBreakpointInfo(expression.name, expression.parent.reference);
-		} else {
-			const expressionName = 'evaluateName' in expression ? expression.evaluateName as string : expression.name;
-
-			// For simple expressions (variable names), use the local scope reference
-			// For complex expressions (like s.x), pass frameId and let the adapter parse it
-			if (expressionName.includes('.') || expressionName.includes('[')) {
-				// Complex expression - pass frameId for context, adapter may parse the expression
-				dataBreakpointInfoResponse = await session.dataBreakpointInfo(
-					expressionName,
-					undefined,
-					stackFrame?.frameId
-				);
-			} else {
-				// Simple variable name - get it from the local scope
-				let scopeReference = 0;
-				if (stackFrame) {
-					const scopes = await stackFrame.getScopes();
-					const localScope = scopes.find(s => !s.expensive); // Local scope is typically not expensive
-					if (localScope) {
-						// Fetch the variables from the scope to ensure the debug adapter knows about them.
-						// getChildren() is cached, so this won't make duplicate requests if already fetched.
-						await localScope.getChildren();
-						scopeReference = localScope.reference || 0;
-					}
-				}
-
-				dataBreakpointInfoResponse = await session.dataBreakpointInfo(
-					expressionName,
-					scopeReference
-				);
-			}
-		}
+		const expressionName = 'evaluateName' in expression ? expression.evaluateName as string : expression.name;
+		dataBreakpointInfoResponse = await session.dataBreakpointInfo(expressionName, undefined, stackFrame?.frameId);
 	} catch (error) {
-		// If dataBreakpointInfo fails (e.g., expression not found, invalid expression),
 		// silently continue without data breakpoint support for this item
+		logService.error('Failed to get data breakpoint info for watch expression:', error);
 	}
 
 	const dataBreakpointId = dataBreakpointInfoResponse?.dataId;
