@@ -179,15 +179,15 @@ class LineSequence implements ISequence {
 		let len = 0;
 		for (let index = startIndex; index <= endIndex; index++) {
 			const lineContent = this.lines[index];
-			const startColumn = (shouldIgnoreTrimWhitespace ? this._startColumns[index] : 1);
-			const endColumn = (shouldIgnoreTrimWhitespace ? this._endColumns[index] : lineContent.length + 1);
+			const startColumn = (shouldIgnoreTrimWhitespace || shouldIgnoreEOL ? this._startColumns[index] : 1);
+			const endColumn = (shouldIgnoreTrimWhitespace || shouldIgnoreEOL ? this._endColumns[index] : lineContent.length + 1);
 			for (let col = startColumn; col < endColumn; col++) {
 				charCodes[len] = lineContent.charCodeAt(col - 1);
 				lineNumbers[len] = index + 1;
 				columns[len] = col;
 				len++;
 			}
-			if (!shouldIgnoreTrimWhitespace && index < endIndex) {
+			if ((!shouldIgnoreTrimWhitespace || !shouldIgnoreEOL) && index < endIndex) {
 				// Add \n if trim whitespace is not ignored
 				charCodes[len] = CharCode.LineFeed;
 				lineNumbers[len] = index + 1;

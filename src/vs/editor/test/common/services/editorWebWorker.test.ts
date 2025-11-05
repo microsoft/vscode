@@ -10,6 +10,7 @@ import { IRange, Range } from '../../../common/core/range.js';
 import { TextEdit } from '../../../common/languages.js';
 import { EditorWorker } from '../../../common/services/editorWebWorker.js';
 import { ICommonModel } from '../../../common/services/textModelSync/textModelSync.impl.js';
+import { DiffAlgorithmName } from '../../../common/services/editorWorker.js';
 
 suite('EditorWebWorker', () => {
 
@@ -257,46 +258,51 @@ suite('EditorWebWorker', () => {
 		);
 	});
 
-	async function testDiffsIdentical(originalLines: string[], originalEOL: string, modifiedLines: string[], modifiedEOL: string, ignoreEOL: boolean): Promise<boolean | undefined> {
+	async function testDiffsIdentical(originalLines: string[], originalEOL: string, modifiedLines: string[], modifiedEOL: string, ignoreTrimWhitespace: boolean, ignoreEOL: boolean): Promise<boolean | undefined> {
 		const originalModel = worker.addModel(originalLines, originalEOL);
 		await new Promise(resolve => setTimeout(resolve, 1));
 		const modifiedModel = worker.addModel(modifiedLines, modifiedEOL);
 
-		const diffs = await worker.$computeDiff(
+		const diffsLegacy = await worker.$computeDiff(
 			originalModel.uri.toString(),
 			modifiedModel.uri.toString(),
-			{ ignoreTrimWhitespace: true, ignoreEOL, maxComputationTimeMs: 0, computeMoves: false },
-			'advanced'
+			{ ignoreTrimWhitespace, ignoreEOL, maxComputationTimeMs: 0, computeMoves: false },
+			'legacy' as DiffAlgorithmName
 		);
 
-		assert.notDeepEqual(diffs, null);
-		return diffs?.identical;
+		const diffsAdvanced = await worker.$computeDiff(
+			originalModel.uri.toString(),
+			modifiedModel.uri.toString(),
+			{ ignoreTrimWhitespace, ignoreEOL, maxComputationTimeMs: 0, computeMoves: false },
+			'advanced' as DiffAlgorithmName
+		);
+
+		assert.notDeepEqual(diffsLegacy, null);
+		assert.notDeepEqual(diffsAdvanced, null);
+		assert.deepStrictEqual(diffsLegacy?.identical, diffsAdvanced?.identical);
+
+		return diffsLegacy?.identical;
 	}
 
-	test('computeDiff ignores EOL changes by default', async () => {
-		assert.strictEqual(
-			await testDiffsIdentical(
-				['windows', 'how to'],
-				'\r\n',
-				['windows', 'how to'],
-				'\n',
-				true
-			),
-			true
-		);
-	});
-
-	test('computeDiff detects EOL changes when not ignoring EOL', async () => {
-		assert.strictEqual(
-			await testDiffsIdentical(
-				['windows', 'how to'],
-				'\r\n',
-				['windows', 'how to'],
-				'\n',
-				false
-			),
-			false
-		);
+	test('computeDiff handles all ignoreEOL and ignoreTrimWhitespace options for different EOL types', async () => {
+		const eolTypes = ['\r\n', '\n'];
+		for (const ignoreWhitespace of [true, false]) {
+			for (const ignoreEOL of [true, false]) {
+				for (const originalEOL of eolTypes) {
+					for (const modifiedEOL of eolTypes) {
+						const areIdentical = ignoreEOL || (originalEOL === modifiedEOL);
+						assert.strictEqual(areIdentical, await testDiffsIdentical(
+							['windows', 'how to'],
+							originalEOL,
+							['windows', 'how to'],
+							modifiedEOL,
+							ignoreWhitespace,
+							ignoreEOL,
+						));
+					}
+				}
+			}
+		}
 	});
 
 	test('[Bug] Getting Message "Overlapping ranges are not allowed" and nothing happens with Inline-Chat ', async function () {
