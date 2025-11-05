@@ -213,7 +213,8 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			data.detailsLabel.textContent = stripNewLines(completion.detail || '');
 			data.root.classList.add('string-label');
 		} else {
-			data.parametersLabel.textContent = stripNewLines(completion.label.detail || '');
+			const labelDetail = stripNewLines(completion.label.detail || '');
+			data.parametersLabel.textContent = normalizeLabelDetail(labelDetail);
 			data.detailsLabel.textContent = stripNewLines(completion.label.description || '');
 			data.root.classList.remove('string-label');
 		}
@@ -251,4 +252,12 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 
 function stripNewLines(str: string): string {
 	return str.replace(/\r\n|\r|\n/g, '');
+}
+
+const LEADING_PUNCTUATION_OR_SPACE = /^[\s()[\]{}<>"'`~!@#$%^&*+=,.:;?/\\|-]/;
+function normalizeLabelDetail(detail: string): string {
+	if (!detail) {
+		return '';
+	}
+	return LEADING_PUNCTUATION_OR_SPACE.test(detail) ? detail : ` ${detail}`;
 }
