@@ -307,13 +307,13 @@ class AnimationFrameQueueItem implements IDisposable {
 
 	private _runner: () => void;
 	public priority: number;
-	public seq: number;
+	private _seq: number;
 	private _canceled: boolean;
 
 	constructor(runner: () => void, priority: number = 0) {
 		this._runner = runner;
 		this.priority = priority;
-		this.seq = _animationFrameQueueItemSeq++;
+		this._seq = _animationFrameQueueItemSeq++;
 		this._canceled = false;
 	}
 
@@ -335,7 +335,7 @@ class AnimationFrameQueueItem implements IDisposable {
 
 	// Sort by priority (largest to lowest), then by sequence (oldest first)
 	static sort(a: AnimationFrameQueueItem, b: AnimationFrameQueueItem): number {
-		return (b.priority - a.priority) || (a.seq - b.seq);
+		return (b.priority - a.priority) || (a._seq - b._seq);
 	}
 }
 
