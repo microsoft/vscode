@@ -568,8 +568,6 @@ export class McpResourceQuickPick extends AbstractMcpResourceAccessPick {
 		@IEditorService editorService: IEditorService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IViewsService viewsService: IViewsService,
-		@IFileService fileService: IFileService,
-		@INotificationService notificationService: INotificationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 	) {
 		super(scopeTo, instantiationService, editorService, chatWidgetService, viewsService);
