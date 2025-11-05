@@ -98,6 +98,12 @@
 	font-size: 12px;
 }
 
+.chat-terminal-output-empty {
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+	line-height: normal;
+}
+
 .chat-terminal-output div,
 .chat-terminal-output span {
 	height: auto;

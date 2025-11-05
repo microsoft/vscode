@@ -354,7 +354,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 		const content = this._renderOutput(output);
 		const theme = this._terminalInstance?.xterm?.getXtermTheme();
-		if (theme) {
+		if (theme && !content.classList.contains('chat-terminal-output-content-empty')) {
 			// eslint-disable-next-line no-restricted-syntax
 			const inlineTerminal = content.querySelector('div');
 			if (inlineTerminal) {
@@ -446,10 +446,18 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const container = document.createElement('div');
 		container.classList.add('chat-terminal-output-content');
 
-		const pre = document.createElement('pre');
-		pre.classList.add('chat-terminal-output');
-		domSanitize.safeSetInnerHtml(pre, result.text, sanitizerConfig);
-		container.appendChild(pre);
+		if (result.text.trim() === '') {
+			container.classList.add('chat-terminal-output-content-empty');
+			const empty = document.createElement('div');
+			empty.classList.add('chat-terminal-output-empty');
+			empty.textContent = localize('chat.terminalOutputEmpty', 'No output was produced by the command.');
+			container.appendChild(empty);
+		} else {
+			const pre = document.createElement('pre');
+			pre.classList.add('chat-terminal-output');
+			domSanitize.safeSetInnerHtml(pre, result.text, sanitizerConfig);
+			container.appendChild(pre);
+		}
 
 		if (result.truncated) {
 			const note = document.createElement('div');
