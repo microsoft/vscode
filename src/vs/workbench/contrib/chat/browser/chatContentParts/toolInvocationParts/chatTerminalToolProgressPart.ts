@@ -405,13 +405,26 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return;
 		}
 		const scrollableDomNode = this._outputScrollbar.getDomNode();
-		const viewportHeight = Math.min(this._outputBody.scrollHeight, MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT);
+		const viewportHeight = Math.min(this._getOutputContentHeight(), MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT);
 		scrollableDomNode.style.height = `${viewportHeight}px`;
 		this._outputScrollbar.scanDomNode();
 		if (this._renderedOutputHeight !== viewportHeight) {
 			this._renderedOutputHeight = viewportHeight;
 			this._onDidChangeHeight.fire();
 		}
+	}
+
+	private _getOutputContentHeight(): number {
+		const firstChild = this._outputBody.firstElementChild as HTMLElement | null;
+		if (!firstChild) {
+			return this._outputBody.scrollHeight;
+		}
+		const style = dom.getComputedStyle(this._outputBody);
+		const paddingTop = Number.parseFloat(style.paddingTop || '0');
+		const paddingBottom = Number.parseFloat(style.paddingBottom || '0');
+		const padding = paddingTop + paddingBottom;
+
+		return firstChild.scrollHeight + padding;
 	}
 
 	private _ensureOutputResizeObserver(): void {
