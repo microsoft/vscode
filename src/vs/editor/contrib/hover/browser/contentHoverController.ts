@@ -319,7 +319,10 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			return true;
 		}
 
-		if (resolvedKeyboardEvent.kind === ResultKind.KbFound && this._contentWidget.isVisible && resolvedKeyboardEvent.commandId) {
+		if (resolvedKeyboardEvent.kind === ResultKind.KbFound 
+			&& this._contentWidget.isVisible 
+			&& resolvedKeyboardEvent.commandId !== null 
+			&& resolvedKeyboardEvent.commandId !== undefined) {
 			return this._isHoverActionCommand(resolvedKeyboardEvent.commandId);
 		}
 
