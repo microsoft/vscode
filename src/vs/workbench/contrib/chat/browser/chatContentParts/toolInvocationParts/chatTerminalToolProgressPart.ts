@@ -420,8 +420,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return this._outputBody.scrollHeight;
 		}
 		const style = dom.getComputedStyle(this._outputBody);
-		const paddingTop = Number.parseFloat(style?.paddingTop || '0');
-		const paddingBottom = Number.parseFloat(style?.paddingBottom || '0');
+		const paddingTop = Number.parseFloat(style.paddingTop || '0');
+		const paddingBottom = Number.parseFloat(style.paddingBottom || '0');
 		const padding = paddingTop + paddingBottom;
 
 		return firstChild.scrollHeight + padding;
