@@ -2626,7 +2626,7 @@ export class TerminalLabelComputer extends Disposable {
 		// Replace "$HOME" with "~"
 		let cwd = instance.cwd || instance.initialCwd || '';
 		cwd = tildify(cwd, instance.userHome || '', instance.os ?? OS);
-		// Edge case: Handle "$HOME" with no suffix, because tildify() only handles "$HOME/..." when it's followed by "/"
+		// Edge case: Handle user home with no suffix, because tildify() only handles user home paths when they're followed by "/"
 		if (cwd && instance.userHome && cwd === instance.userHome) {
 			cwd = '~';
 		}
