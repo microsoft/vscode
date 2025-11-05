@@ -586,6 +586,10 @@ export class InputBox extends Widget {
 
 	public layout(): void {
 		if (!this.mirror) {
+			// Trigger layout on message context view if it's currently showing, even for non-flexible inputs
+			if (this.state === 'open' && this.contextViewProvider) {
+				this.contextViewProvider.layout();
+			}
 			return;
 		}
 
@@ -596,6 +600,11 @@ export class InputBox extends Widget {
 			this.cachedHeight = Math.min(this.cachedContentHeight, this.maxHeight);
 			this.input.style.height = this.cachedHeight + 'px';
 			this._onDidHeightChange.fire(this.cachedContentHeight);
+		}
+
+		// Trigger layout on message context view if it's currently showing
+		if (this.state === 'open' && this.contextViewProvider) {
+			this.contextViewProvider.layout();
 		}
 	}
 
