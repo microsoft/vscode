@@ -8256,7 +8256,7 @@ declare module 'vscode' {
 		documentation?: string | MarkdownString;
 
 		/**
-		 * The completion's kind. Note that this will map to an icon.
+		 * The completion's kind. Note that this will map to an icon. If no kind is provided, a generic icon representing plaintext will be provided.
 		 */
 		kind?: TerminalCompletionItemKind;
 
