@@ -1072,6 +1072,79 @@ suite('PromptsService', () => {
 				'Must get custom agents with target attribute.',
 			);
 		});
+
+		test('agents with .md extension (no .agent.md)', async () => {
+			const rootFolderName = 'custom-agents-md-extension';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/agents',
+							children: [
+								{
+									name: 'demonstrate.md',
+									contents: [
+										'---',
+										'description: \'Demonstrate agent.\'',
+										'tools: [ demo-tool ]',
+										'---',
+										'This is a demonstration agent using .md extension.',
+									],
+								},
+								{
+									name: 'test.md',
+									contents: [
+										'Test agent without header.',
+									],
+								}
+							],
+
+						},
+					],
+				}])).mock();
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
+				{
+					name: 'demonstrate',
+					description: 'Demonstrate agent.',
+					tools: ['demo-tool'],
+					agentInstructions: {
+						content: 'This is a demonstration agent using .md extension.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					argumentHint: undefined,
+					target: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
+					source: { storage: PromptsStorage.local },
+				},
+				{
+					name: 'test',
+					agentInstructions: {
+						content: 'Test agent without header.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					uri: URI.joinPath(rootFolderUri, '.github/agents/test.md'),
+					source: { storage: PromptsStorage.local },
+				}
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Must get custom agents with .md extension from .github/agents/ folder.',
+			);
+		});
 	});
 
 	suite('listPromptFiles - extensions', () => {
