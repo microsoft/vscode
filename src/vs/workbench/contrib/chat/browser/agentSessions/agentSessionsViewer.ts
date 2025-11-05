@@ -279,15 +279,18 @@ export class AgentSessionsKeyboardNavigationLabelProvider implements ICompressib
 
 		// Add the description text (extract from markdown if needed)
 		if (typeof element.description === 'string') {
-			labels.push({ toString: () => element.description as string });
+			const desc = element.description;
+			labels.push({ toString: () => desc });
 		} else if (element.description) {
 			// For markdown strings, use the plain text value
-			labels.push({ toString: () => element.description.toString() });
+			const desc = element.description;
+			labels.push({ toString: () => desc.toString() });
 		}
 
 		// Add the status as a searchable string
-		if (element.status !== undefined) {
-			labels.push({ toString: () => this.statusToString(element.status!) });
+		const status = element.status;
+		if (status !== undefined) {
+			labels.push({ toString: () => this.statusToString(status) });
 		}
 
 		return labels;

@@ -11,6 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentSessionsViewModel, IAgentSessionViewModel, isAgentSession, isAgentSessionsViewModel, isLocalAgentSessionItem } from '../../browser/agentSessions/agentSessionViewModel.js';
+import { AgentSessionsKeyboardNavigationLabelProvider } from '../../browser/agentSessions/agentSessionsViewer.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, localChatSessionType } from '../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { MockChatService } from '../common/mockChatService.js';
@@ -901,7 +902,6 @@ suite('AgentSessionsKeyboardNavigationLabelProvider', () => {
 	}
 
 	test('should return label as a searchable field', () => {
-		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
 		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
 
 		const session: IAgentSessionViewModel = {
@@ -920,7 +920,6 @@ suite('AgentSessionsKeyboardNavigationLabelProvider', () => {
 	});
 
 	test('should return string description as a searchable field', () => {
-		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
 		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
 
 		const session: IAgentSessionViewModel = {
@@ -937,7 +936,6 @@ suite('AgentSessionsKeyboardNavigationLabelProvider', () => {
 	});
 
 	test('should return markdown description as a searchable field', () => {
-		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
 		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
 
 		const session: IAgentSessionViewModel = {
@@ -955,7 +953,6 @@ suite('AgentSessionsKeyboardNavigationLabelProvider', () => {
 	});
 
 	test('should return status as searchable field for InProgress', () => {
-		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
 		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
 
 		const session: IAgentSessionViewModel = {
@@ -975,7 +972,6 @@ suite('AgentSessionsKeyboardNavigationLabelProvider', () => {
 	});
 
 	test('should return status as searchable field for Completed', () => {
-		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
 		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
 
 		const session: IAgentSessionViewModel = {
@@ -995,7 +991,6 @@ suite('AgentSessionsKeyboardNavigationLabelProvider', () => {
 	});
 
 	test('should return status as searchable field for Failed', () => {
-		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
 		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
 
 		const session: IAgentSessionViewModel = {
@@ -1015,7 +1010,6 @@ suite('AgentSessionsKeyboardNavigationLabelProvider', () => {
 	});
 
 	test('should return multiple searchable fields together', () => {
-		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
 		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
 
 		const session: IAgentSessionViewModel = {
@@ -1036,7 +1030,6 @@ suite('AgentSessionsKeyboardNavigationLabelProvider', () => {
 	});
 
 	test('should handle session without status', () => {
-		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
 		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
 
 		const session: IAgentSessionViewModel = {
@@ -1055,7 +1048,6 @@ suite('AgentSessionsKeyboardNavigationLabelProvider', () => {
 	});
 
 	test('should handle session with empty description', () => {
-		const { AgentSessionsKeyboardNavigationLabelProvider } = require('../../browser/agentSessions/agentSessionsViewer.js');
 		const provider = new AgentSessionsKeyboardNavigationLabelProvider();
 
 		const session: IAgentSessionViewModel = {
