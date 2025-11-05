@@ -155,7 +155,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 					const instructions = mode.modeInstructions?.get();
 					modeInstructions = instructions && {
-						name: mode.name,
+						name: mode.name.get(),
 						content: instructions.content,
 						toolReferences: this.toolsService.toToolReferences(instructions.toolReferences),
 						metadata: instructions.metadata,
