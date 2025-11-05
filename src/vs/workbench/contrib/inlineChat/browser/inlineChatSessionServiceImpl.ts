@@ -43,7 +43,7 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ILanguageModelToolsService, ToolDataSource, IToolData } from '../../chat/common/languageModelToolsService.js';
 import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession.js';
-import { IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer, moveToPanelChat } from './inlineChatSessionService.js';
+import { askInPanelChat, IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService.js';
 
 
 type SessionData = {
@@ -553,7 +553,7 @@ export class InlineChatEscapeToolContribution extends Disposable {
 
 				if (!result.confirmed || !editor) {
 					logService.trace('InlineChatEscapeToolContribution: moving session to panel chat');
-					await instaService.invokeFunction(moveToPanelChat, session.chatModel, true);
+					await instaService.invokeFunction(askInPanelChat, session.chatModel.getRequests().at(-1)!);
 					session.dispose();
 
 				} else {
