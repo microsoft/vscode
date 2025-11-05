@@ -35,7 +35,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 	private get useZeroBasedOffset() {
 		return this.storageService.getBoolean(
 			AbstractGotoLineQuickAccessProvider.ZERO_BASED_OFFSET_STORAGE_KEY,
-			StorageScope.WORKSPACE,
+			StorageScope.APPLICATION,
 			false);
 	}
 
