@@ -94,6 +94,43 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 		};
 	}
 
+	/**
+	 * The created action appends a query to the search widget search string, if the query does not exist.
+	 * Otherwise, it removes the query from the search widget search string.
+	 * This action is mutually exclusive with other filters specified in the excludeFilters array.
+	 * When this filter is added, all filters in excludeFilters are removed.
+	 */
+	private createMutuallyExclusiveToggleAction(id: string, label: string, tooltip: string, queryToAppend: string, excludeFilters: string[]): IAction {
+		const splitCurrentQuery = this.searchWidget.getValue().split(' ');
+		const queryContainsQueryToAppend = splitCurrentQuery.includes(queryToAppend);
+		return {
+			id,
+			label,
+			tooltip,
+			class: undefined,
+			enabled: true,
+			checked: queryContainsQueryToAppend,
+			run: () => {
+				if (!queryContainsQueryToAppend) {
+					// Remove all mutually exclusive filters first
+					let newQuery = this.searchWidget.getValue().split(' ')
+						.filter(word => !excludeFilters.includes(word) && word !== queryToAppend)
+						.join(' ')
+						.trimEnd();
+					// Add the new filter
+					newQuery = newQuery ? newQuery + ' ' + queryToAppend : queryToAppend;
+					this.searchWidget.setValue(newQuery);
+				} else {
+					// Just remove this filter
+					const queryWithRemovedTags = this.searchWidget.getValue().split(' ')
+						.filter(word => word !== queryToAppend).join(' ');
+					this.searchWidget.setValue(queryWithRemovedTags);
+				}
+				this.searchWidget.focus();
+			}
+		};
+	}
+
 	getActions(): IAction[] {
 		return [
 			this.createToggleAction(
@@ -152,23 +189,26 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 				`@${POLICY_SETTING_TAG}`
 			),
 			new Separator(),
-			this.createToggleAction(
+			this.createMutuallyExclusiveToggleAction(
 				'stableSettingsSearch',
 				localize('stableSettings', "Stable"),
 				localize('stableSettingsSearchTooltip', "Show stable settings"),
 				`@stable`,
+				['@tag:preview', '@tag:experimental']
 			),
-			this.createToggleAction(
+			this.createMutuallyExclusiveToggleAction(
 				'previewSettingsSearch',
 				localize('previewSettings', "Preview"),
 				localize('previewSettingsSearchTooltip', "Show preview settings"),
 				`@tag:preview`,
+				['@stable', '@tag:experimental']
 			),
-			this.createToggleAction(
+			this.createMutuallyExclusiveToggleAction(
 				'experimentalSettingsSearch',
 				localize('experimental', "Experimental"),
 				localize('experimentalSettingsSearchTooltip', "Show experimental settings"),
 				`@tag:experimental`,
+				['@stable', '@tag:preview']
 			),
 			new Separator(),
 			this.createToggleAction(
