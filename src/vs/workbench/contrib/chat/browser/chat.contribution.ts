@@ -10,7 +10,12 @@ import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js'
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
+import { URI } from '../../../../base/common/uri.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -774,11 +779,38 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 	},
 ]);
 
+/**
+ * Text model content provider for custom chat session schemes.
+ * This allows the text model resolver service to resolve resources for custom chat session types.
+ */
+class ChatSessionTextModelContentProvider extends Disposable implements ITextModelContentProvider {
+	constructor(
+		private readonly scheme: string,
+		@ITextModelService textModelService: ITextModelService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService
+	) {
+		super();
+		this._register(textModelService.registerTextModelContentProvider(scheme, this));
+	}
+
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this.modelService.getModel(resource);
+		if (existing) {
+			return existing;
+		}
+		// Create an empty model for chat session resources
+		// The actual chat content is rendered by the ChatEditorInput, not through the text model
+		return this.modelService.createModel('', null, resource);
+	}
+}
+
 class ChatResolverContribution extends Disposable {
 
 	static readonly ID = 'workbench.contrib.chatResolver';
 
 	private readonly _editorRegistrations = this._register(new DisposableMap<string>());
+	private readonly _textModelProviderRegistrations = this._register(new DisposableMap<string>());
 
 	constructor(
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
@@ -796,6 +828,7 @@ class ChatResolverContribution extends Disposable {
 			}
 			for (const scheme of e.removed) {
 				this._editorRegistrations.deleteAndDispose(scheme);
+				this._textModelProviderRegistrations.deleteAndDispose(scheme);
 			}
 		}));
 
@@ -824,6 +857,12 @@ class ChatResolverContribution extends Disposable {
 				}
 			}
 		));
+
+		// Register text model content provider for custom chat session schemes
+		// This is needed so the text model resolver service can resolve resources for these schemes
+		if (scheme !== Schemas.vscodeChatEditor && scheme !== Schemas.vscodeLocalChatSession) {
+			this._textModelProviderRegistrations.set(scheme, this.instantiationService.createInstance(ChatSessionTextModelContentProvider, scheme));
+		}
 	}
 }
 
