@@ -551,7 +551,7 @@ export class InlineChatEscapeToolContribution extends Disposable {
 
 				const editor = codeEditorService.getFocusedCodeEditor();
 
-				if (result.confirmed && editor) {
+				if (!editor || result.confirmed) {
 					logService.trace('InlineChatEscapeToolContribution: moving session to panel chat');
 					await instaService.invokeFunction(moveToPanelChat, session.chatModel, true);
 					session.dispose();
