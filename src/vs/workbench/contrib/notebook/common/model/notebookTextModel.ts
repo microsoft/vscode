@@ -692,7 +692,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					return null;
 				}
 			} else if (edit.editType !== CellEditType.DocumentMetadata) {
-				throw new Error('Invalid cell edit: ' + JSON.stringify(rawEdits[0]));
+				throw new Error('Invalid cell edit: ' + JSON.stringify(edit));
 			}
 
 			return {
