@@ -100,11 +100,11 @@
 	}
 
 	.interactive-session .chat-input-container {
-		border-color: var(--vscode-input-border);
+		border-color: var(--vscode-input-border, transparent);
 	}
 
 	.interactive-session .chat-input-container:focus-within {
-		border-color: var(--vscode-input-border);
+		border-color: var(--vscode-input-border, transparent);
 	}
 
 	.chat-attachments-container > .chat-input-toolbar {
