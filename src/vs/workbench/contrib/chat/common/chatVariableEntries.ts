@@ -163,7 +163,7 @@ export namespace IDiagnosticVariableEntryFilterData {
 	}
 
 	export function id(data: IDiagnosticVariableEntryFilterData) {
-		return [data.filterUri, data.owner, data.filterSeverity, data.filterRange?.startLineNumber].join(':');
+		return [data.filterUri, data.owner, data.filterSeverity, data.filterRange?.startLineNumber, data.filterRange?.startColumn].join(':');
 	}
 
 	export function label(data: IDiagnosticVariableEntryFilterData) {
@@ -471,4 +471,3 @@ export class ChatRequestVariableSet {
 		return this._entries.length;
 	}
 }
-
