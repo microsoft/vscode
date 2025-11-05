@@ -20,29 +20,20 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IQuickAccessTextEditorContext } from '../../../../../editor/contrib/quickAccess/browser/editorNavigationQuickAccess.js';
 import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
-	private static readonly ZERO_BASED_OFFSET_STORAGE_KEY = 'gotoLine.useZeroBasedOffset';
 	protected readonly onDidActiveTextEditorControlChange: Event<void>;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService storageService: IStorageService
 	) {
-		super({
-			get value() {
-				return storageService.getBoolean(GotoLineQuickAccessProvider.ZERO_BASED_OFFSET_STORAGE_KEY, StorageScope.WORKSPACE, false);
-			},
-			set value(value: boolean) {
-				storageService.store(GotoLineQuickAccessProvider.ZERO_BASED_OFFSET_STORAGE_KEY, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			}
-		});
+		super(storageService);
 		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
-		void this.storageService; // workaround for unused variable warning
 	}
 
 	private get configuration() {

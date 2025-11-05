@@ -9,6 +9,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../../platform/theme/common/colors/inputColors.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { getCodeEditor } from '../../../browser/editorBrowser.js';
@@ -22,10 +23,26 @@ interface IGotoLineQuickPickItem extends IQuickPickItem, Partial<IPosition> { }
 
 export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
 
-	static PREFIX = ':';
+	static readonly PREFIX = ':';
+	private static readonly ZERO_BASED_OFFSET_STORAGE_KEY = 'gotoLine.useZeroBasedOffset';
 
-	constructor(private useZeroBasedOffset = { value: false }) {
+	constructor(private storageService: IStorageService) {
 		super({ canAcceptInBackground: true });
+	}
+
+	private get useZeroBasedOffset() {
+		return this.storageService.getBoolean(
+			AbstractGotoLineQuickAccessProvider.ZERO_BASED_OFFSET_STORAGE_KEY,
+			StorageScope.WORKSPACE,
+			false);
+	}
+
+	private set useZeroBasedOffset(value: boolean) {
+		this.storageService.store(
+			AbstractGotoLineQuickAccessProvider.ZERO_BASED_OFFSET_STORAGE_KEY,
+			value,
+			StorageScope.WORKSPACE,
+			StorageTarget.MACHINE);
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>): IDisposable {
@@ -93,7 +110,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		const toggle = new Toggle({
 			title: localize('gotoLineToggle', "Use Zero-Based Offset"),
 			icon: Codicon.indexZero,
-			isChecked: this.useZeroBasedOffset.value,
+			isChecked: this.useZeroBasedOffset,
 			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
 			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
 			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
@@ -101,7 +118,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		disposables.add(
 			toggle.onChange(() => {
-				this.useZeroBasedOffset.value = !this.useZeroBasedOffset.value;
+				this.useZeroBasedOffset = !this.useZeroBasedOffset;
 				updatePickerAndEditor();
 			}));
 
@@ -150,13 +167,13 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 				// No valid offset specified.
 				return {
 					inOffsetMode: true,
-					label: this.useZeroBasedOffset.value ?
+					label: this.useZeroBasedOffset ?
 						localize('gotoLine.offsetPromptZero', "Type a character position to go to (from 0 to {0}).", maxOffset - 1) :
 						localize('gotoLine.offsetPrompt', "Type a character position to go to (from 1 to {0}).", maxOffset)
 				};
 			} else {
 				const reverse = offset < 0;
-				if (!this.useZeroBasedOffset.value) {
+				if (!this.useZeroBasedOffset) {
 					// Convert 1-based offset to model's 0-based.
 					offset -= Math.sign(offset);
 				}
