@@ -144,14 +144,14 @@ export class CloneManager {
 		}
 
 		if (action === undefined) {
-			let message = l10n.t('Would you like to open the cloned repository?');
+			let message = l10n.t('Would you like to open the repository?');
 			const open = l10n.t('Open');
 			const openNewWindow = l10n.t('Open in New Window');
 			const choices = [open, openNewWindow];
 
 			const addToWorkspace = l10n.t('Add to Workspace');
 			if (workspace.workspaceFolders) {
-				message = l10n.t('Would you like to open the cloned repository, or add it to the current workspace?');
+				message = l10n.t('Would you like to open the repository, or add it to the current workspace?');
 				choices.push(addToWorkspace);
 			}
 

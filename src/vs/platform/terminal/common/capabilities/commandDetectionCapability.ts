@@ -354,6 +354,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
 		this._ptyHeuristics.value.handleCommandExecuted(options);
 		this._currentCommand.markExecutedTime();
+		this._ensureCurrentCommandId(this._currentCommand.command ?? this._currentCommand.extractCommandLine());
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
@@ -363,20 +364,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// therefore cannot be trusted anyway.
 		if (!this._currentCommand.commandExecutedMarker) {
 			this.handleCommandExecuted();
-		}
-		// If a custom command ID is provided, use it for the current command
-		// Otherwise, check if there's a pending next command ID
-		if (options?.commandId) {
-			this._currentCommand.id = options.commandId;
-			this._nextCommandId = undefined; // Clear the pending ID
-		} else if (
-			this._nextCommandId &&
-			typeof this.currentCommand.command === 'string' &&
-			typeof this._nextCommandId.command === 'string' &&
-			this.currentCommand.command.trim() === this._nextCommandId.command.trim()
-		) {
-			this._currentCommand.id = this._nextCommandId.commandId;
-			this._nextCommandId = undefined; // Clear after use
 		}
 		this._currentCommand.markFinishedTime();
 		this._ptyHeuristics.value.preHandleCommandFinished?.();
@@ -414,10 +401,19 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
 		}
-		// Create new command for next execution, preserving command ID if one was specified
-		const nextCommandId = this._handleCommandStartOptions?.commandId;
-		this._currentCommand = new PartialTerminalCommand(this._terminal, nextCommandId);
+		// Create new command for next execution
+		this._currentCommand = new PartialTerminalCommand(this._terminal);
 		this._handleCommandStartOptions = undefined;
+	}
+
+	private _ensureCurrentCommandId(commandLine: string | undefined): void {
+		if (this._nextCommandId?.commandId && typeof commandLine === 'string' && commandLine.trim() === this._nextCommandId.command.trim()) {
+			if (this._currentCommand.id !== this._nextCommandId.commandId) {
+				this._currentCommand.id = this._nextCommandId.commandId;
+			}
+			this._nextCommandId = undefined;
+			return;
+		}
 	}
 
 	setCommandLine(commandLine: string, isTrusted: boolean) {

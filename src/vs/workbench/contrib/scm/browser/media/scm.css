@@ -193,13 +193,22 @@
 	stroke: transparent !important;
 }
 
-.scm-view .monaco-list-row.focused.selected .history-item > .graph-container > .graph > circle:nth-of-type(2) {
-	stroke: var(--vscode-list-inactiveSelectionBackground) !important;
+.scm-view.scm-history-view > .monaco-list:focus .monaco-list-row.selected .history-item > .graph-container > .graph > circle:nth-of-type(2) {
+	stroke: var(--vscode-list-activeSelectionBackground);
 }
 
-.scm-view .monaco-list-row.focused.selected .history-item > .graph-container.incoming-changes > .graph > circle:last-child,
-.scm-view .monaco-list-row.focused.selected .history-item > .graph-container.outgoing-changes > .graph > circle:last-child {
-	fill: var(--vscode-list-inactiveSelectionBackground) !important;
+.scm-view.scm-history-view > .monaco-list:focus .monaco-list-row.selected .history-item > .graph-container.incoming-changes > .graph > circle:last-child,
+.scm-view.scm-history-view > .monaco-list:focus .monaco-list-row.selected .history-item > .graph-container.outgoing-changes > .graph > circle:last-child {
+	fill: var(--vscode-list-activeSelectionBackground);
+}
+
+.scm-view.scm-history-view > .monaco-list .monaco-list-row.focused .history-item > .graph-container > .graph > circle:nth-of-type(2) {
+	stroke: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.scm-view.scm-history-view > .monaco-list .monaco-list-row.focused .history-item > .graph-container.incoming-changes > .graph > circle:last-child,
+.scm-view.scm-history-view > .monaco-list .monaco-list-row.focused .history-item > .graph-container.outgoing-changes > .graph > circle:last-child {
+	fill: var(--vscode-list-inactiveSelectionBackground);
 }
 
 .scm-view .monaco-list-row .history-item > .label-container {
@@ -680,15 +689,6 @@
 	max-width: 100px;
 	overflow: hidden;
 	text-overflow: ellipsis;
-}
-
-.scm-history-view .monaco-list-row.focused.selected {
-	background-color: var(--vscode-list-inactiveSelectionBackground) !important;
-	color: var(--vscode-list-inactiveSelectionForeground) !important;
-}
-
-.scm-history-view .monaco-list-row.focused.selected .codicon {
-	color: var(--vscode-list-inactiveSelectionIconForeground) !important;
 }
 
 .scm-history-view .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie.force-no-twistie {

@@ -135,7 +135,7 @@ export class TerminalTabbedView extends Disposable {
 			this._updateChatTerminalsEntry();
 		}));
 
-		this._register(Event.any(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession, this._terminalService.onDidDisposeInstance)(() => {
+		this._register(Event.any(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession, this._terminalService.onDidChangeInstances)(() => {
 			this._refreshShowTabs();
 			this._updateChatTerminalsEntry();
 		}));
@@ -342,7 +342,8 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	layout(width: number, height: number): void {
-		this._height = height;
+		const chatItemHeight = this._chatEntry?.element.style.display === 'none' ? 0 : this._chatEntry?.element.clientHeight;
+		this._height = height - (chatItemHeight ?? 0);
 		this._width = width;
 		this._splitView.layout(width);
 		if (this._shouldShowTabs()) {

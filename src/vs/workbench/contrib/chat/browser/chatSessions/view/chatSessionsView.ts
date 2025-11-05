@@ -258,7 +258,6 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@ILogService logService: ILogService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super(
 			AGENT_SESSIONS_VIEWLET_ID,
@@ -277,30 +276,10 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 			viewDescriptorService,
 			logService
 		);
-
-		// Listen for session items changes and refresh the appropriate provider tree
-		this._register(this.chatSessionsService.onDidChangeSessionItems((chatSessionType) => {
-			this.refreshProviderTree(chatSessionType);
-		}));
 	}
 
 	override getTitle(): string {
 		const title = nls.localize('chat.agent.sessions.title', "Agent Sessions");
 		return title;
-	}
-
-	private refreshProviderTree(chatSessionType: string): void {
-		// Find the provider with the matching chatSessionType
-		const providers = Array.from(this.chatSessionsService.getAllChatSessionItemProviders());
-		const targetProvider = providers.find(provider => provider.chatSessionType === chatSessionType);
-
-		if (targetProvider) {
-			// Find the corresponding view and refresh its tree
-			const viewId = `${AGENT_SESSIONS_VIEWLET_ID}.${chatSessionType}`;
-			const view = this.getView(viewId) as SessionsViewPane | undefined;
-			if (view) {
-				view.refreshTree();
-			}
-		}
 	}
 }

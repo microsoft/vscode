@@ -1225,7 +1225,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				'copilot_getChangedFiles',
 			]);
 			const isSpecialTool = specialToolIds.has(part.toolId);
-			return isSpecialTool;
+			return isSpecialTool || part.presentation === 'hidden';
 		}
 
 		return part.kind === 'prepareToolInvocation';
@@ -1281,13 +1281,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Special handling for "create" tool invocations- do not end thinking if previous part is a create tool invocation and config is set.
 			const shouldKeepThinkingForCreateTool = collapsedTools !== 'none' && lastRenderedPart instanceof ChatToolInvocationPart && this.isCreateToolInvocationContent(previousContent);
 
-			if (!shouldKeepThinkingForCreateTool) {
+			if (!shouldKeepThinkingForCreateTool && this._currentThinkingPart && !this._streamingThinking) {
 				const isResponseElement = isResponseVM(context.element);
 				const isThinkingContent = content.kind === 'working' || content.kind === 'thinking';
-				const toolInvocationContext = isResponseElement ? context.element : undefined;
-				const isToolStreamingContent = isResponseElement && this.shouldPinPart(content, toolInvocationContext);
-				if (this._currentThinkingPart && !this._streamingThinking && !isThinkingContent && !isToolStreamingContent) {
-					this.finalizeCurrentThinkingPart();
+				const isToolStreamingContent = isResponseElement && this.shouldPinPart(content, isResponseElement ? context.element : undefined);
+
+				if (!isThinkingContent && !isToolStreamingContent) {
+					const followsThinkingPart = previousContent?.kind === 'thinking' || previousContent?.kind === 'toolInvocation' || previousContent?.kind === 'prepareToolInvocation' || previousContent?.kind === 'toolInvocationSerialized';
+
+					if (context.element.isComplete || followsThinkingPart) {
+						this.finalizeCurrentThinkingPart();
+					}
 				}
 			}
 
@@ -1498,7 +1502,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// handling for when we want to put tool invocations inside a thinking part
 		if (isResponseVM(context.element) && this.configService.getValue<string>('chat.agent.thinking.collapsedTools') !== 'none') {
 			if (this.shouldPinPart(toolInvocation, context.element)) {
-				if (this._currentThinkingPart && part?.domNode) {
+				if (this._currentThinkingPart && part?.domNode && toolInvocation.presentation !== 'hidden') {
 					this._currentThinkingPart.appendItem(part?.domNode);
 				}
 			} else {

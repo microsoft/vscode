@@ -773,6 +773,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	openResource(resource: URI): void {
 		const instance = this.getInstanceFromResource(resource);
 		if (instance) {
+			this.setActiveInstance(instance);
 			this.revealTerminal(instance);
 			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 			const params = new URLSearchParams(resource.query);

@@ -706,10 +706,6 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 						}
 					}],
 					properties: {
-						id: {
-							description: nls.localize('vscode.extension.contributes.terminal.completionProviders.id', "The ID of the terminal completion provider."),
-							type: 'string',
-						},
 						description: {
 							description: nls.localize('vscode.extension.contributes.terminal.completionProviders.description', "A description of what the completion provider does. This will be shown in the settings UI."),
 							type: 'string',

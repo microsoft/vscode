@@ -2307,6 +2307,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			// Show next steps widget when response completes (not when request starts)
 			if (e.kind === 'completedRequest') {
+				const lastRequest = this.viewModel?.model.getRequests().at(-1);
+				const wasCancelled = lastRequest?.response?.isCanceled ?? false;
+				if (wasCancelled) {
+					// Clear todo list when request is cancelled
+					this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
+				}
 				// Only show if response wasn't canceled
 				this.renderChatSuggestNextWidget();
 			}
@@ -2837,7 +2843,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const currentAgent = this.input.currentModeObs.get();
 
 		// switch to appropriate agent if needed
-		if (agentName !== currentAgent.name) {
+		if (agentName !== currentAgent.name.get()) {
 			// Find the mode object to get its kind
 			const agent = this.chatModeService.findModeByName(agentName);
 			if (agent) {
@@ -2858,7 +2864,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private async _applyPromptMetadata({ agent, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
 
 		if (tools !== undefined && !agent && this.input.currentModeKind !== ChatModeKind.Agent) {
-			agent = ChatMode.Agent.name;
+			agent = ChatMode.Agent.name.get();
 		}
 		// switch to appropriate agent if needed
 		if (agent) {

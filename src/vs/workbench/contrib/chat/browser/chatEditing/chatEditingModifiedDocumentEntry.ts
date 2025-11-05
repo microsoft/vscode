@@ -122,7 +122,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this.initialContent = initialContent ?? this.modifiedModel.getValue();
 		const docSnapshot = this.originalModel = this._register(
 			modelService.createModel(
-				createTextBufferFactoryFromSnapshot(initialContent ? stringToSnapshot(initialContent) : this.modifiedModel.createSnapshot()),
+				createTextBufferFactoryFromSnapshot(initialContent !== undefined ? stringToSnapshot(initialContent) : this.modifiedModel.createSnapshot()),
 				languageService.createById(this.modifiedModel.getLanguageId()),
 				this.originalURI,
 				false

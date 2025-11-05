@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals as arraysEqual } from '../../../../../base/common/arrays.js';
-import { findLast, findLastIdx } from '../../../../../base/common/arraysFind.js';
+import { findFirst, findLast, findLastIdx } from '../../../../../base/common/arraysFind.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -73,25 +73,34 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 	/** Gets the checkpoint, if any, we can 'undo' to. */
 	private readonly _willUndoToCheckpoint = derived(reader => {
 		const currentEpoch = this._currentEpoch.read(reader);
-		const operations = this._operations.read(reader);
 		const checkpoints = this._checkpoints.read(reader);
-
-		const previousOperationEpoch = findLast(operations, op => op.epoch < currentEpoch)?.epoch || 0;
-		const previousCheckpointIdx = findLastIdx(checkpoints, cp => cp.epoch < previousOperationEpoch);
-		if (previousCheckpointIdx === -1) {
+		if (checkpoints.length < 2 || currentEpoch <= checkpoints[1].epoch) {
 			return undefined;
 		}
 
-		// If we're backing up to a checkpoint and there are no other operations between
-		// that checkpoint at the checkpoint marking the start of the request, undo the
-		// entire request.
-		const previousCheckpoint = checkpoints[previousCheckpointIdx];
-		const startOfRequest = findLast(checkpoints, cp => cp.undoStopId === undefined, previousCheckpointIdx);
-		if (startOfRequest && !operations.some(op => op.epoch > startOfRequest.epoch && op.epoch < previousCheckpoint.epoch)) {
+		const operations = this._operations.read(reader);
+
+		// Undo either to right before the current request...
+		const currentCheckpointIdx = findLastIdx(checkpoints, cp => cp.epoch < currentEpoch);
+		const startOfRequest = currentCheckpointIdx === -1 ? undefined : findLast(checkpoints, cp => cp.undoStopId === undefined, currentCheckpointIdx);
+
+		// Or to the checkpoint before the last operation in this request
+		const previousOperation = findLast(operations, op => op.epoch < currentEpoch);
+		const previousCheckpoint = previousOperation && findLast(checkpoints, cp => cp.epoch < previousOperation.epoch);
+
+		if (!startOfRequest) {
+			return previousCheckpoint;
+		}
+		if (!previousCheckpoint) {
 			return startOfRequest;
 		}
 
-		return previousCheckpoint;
+		// Special case: if we're undoing the first edit operation, undo the entire request
+		if (!operations.some(op => op.epoch > startOfRequest.epoch && op.epoch < previousCheckpoint!.epoch)) {
+			return startOfRequest;
+		}
+
+		return previousCheckpoint.epoch > startOfRequest.epoch ? previousCheckpoint : startOfRequest;
 	});
 
 	public readonly canUndo: IObservable<boolean> = this._willUndoToCheckpoint.map(cp => !!cp);
@@ -110,11 +119,32 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			return undefined;
 		}
 
-		// Find either the first checkpoint that would apply operations, or just
-		// use the last checkpoint.
-		const minEpoch = operations.find(op => op.epoch >= currentEpoch)?.epoch;
-		const checkpointEpoch = minEpoch && checkpoints.find(op => op.epoch > minEpoch)?.epoch;
-		return checkpointEpoch || (maxEncounteredEpoch + 1);
+		// Find the next edit operation that would be applied...
+		const nextOperation = operations.find(op => op.epoch >= currentEpoch);
+		const nextCheckpoint = nextOperation && checkpoints.find(op => op.epoch > nextOperation.epoch);
+
+		// And figure out where we're going if we're navigating across request
+		// 1. If there is no next request or if the next target checkpoint is in
+		//    the next request, navigate there.
+		// 2. Otherwise, navigate to the end of the next request.
+		const currentCheckpoint = findLast(checkpoints, cp => cp.epoch < currentEpoch);
+		if (currentCheckpoint && nextOperation && currentCheckpoint.requestId !== nextOperation.requestId) {
+			const startOfNextRequestIdx = findLastIdx(checkpoints, (cp, i) =>
+				cp.undoStopId === undefined && (checkpoints[i - 1]?.requestId === currentCheckpoint.requestId));
+			const startOfNextRequest = startOfNextRequestIdx === -1 ? undefined : checkpoints[startOfNextRequestIdx];
+
+			if (startOfNextRequest && nextOperation.requestId !== startOfNextRequest.requestId) {
+				const requestAfterTheNext = findFirst(checkpoints, op => op.undoStopId === undefined, startOfNextRequestIdx + 1);
+				if (requestAfterTheNext) {
+					return requestAfterTheNext.epoch;
+				}
+			}
+		}
+
+		return Math.min(
+			nextCheckpoint?.epoch || Infinity,
+			(maxEncounteredEpoch + 1),
+		);
 	});
 
 	public readonly canRedo: IObservable<boolean> = this._willRedoToEpoch.map(e => !!e);
@@ -124,13 +154,17 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		reader => {
 			const currentEpoch = this._currentEpoch.read(reader);
 			const operations = this._operations.read(reader);
-			const firstUnappliedOperationIdx = operations.findIndex(op => op.epoch >= currentEpoch);
-			if (firstUnappliedOperationIdx === -1) {
-				return [];
+			const checkpoints = this._checkpoints.read(reader);
+
+			const maxEncounteredEpoch = Math.max(operations.at(-1)?.epoch || 0, checkpoints.at(-1)?.epoch || 0);
+			if (currentEpoch > maxEncounteredEpoch) {
+				return []; // common case -- nothing undone
 			}
 
-			const lastAppliedOperation = firstUnappliedOperationIdx > 0 ? operations[firstUnappliedOperationIdx - 1].epoch : 0;
-			const checkpoints = this._checkpoints.read(reader);
+			const lastAppliedOperation = findLast(operations, op => op.epoch < currentEpoch)?.epoch || 0;
+			const lastAppliedRequest = findLast(checkpoints, cp => cp.epoch < currentEpoch && cp.undoStopId === undefined)?.epoch || 0;
+			const stopDisablingAtEpoch = Math.max(lastAppliedOperation, lastAppliedRequest);
+
 			const disablement = new Map<string, string | undefined>();
 
 			// Go through the checkpoints and disable any until the one that contains the last applied operation.
@@ -139,7 +173,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			// we reach that checkpoint.
 			for (let i = checkpoints.length - 1; i >= 0; i--) {
 				const { undoStopId, requestId, epoch } = checkpoints[i];
-				if (epoch < lastAppliedOperation) {
+				if (epoch <= stopDisablingAtEpoch) {
 					break;
 				}
 
@@ -204,7 +238,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 	public async redoToNextCheckpoint(): Promise<void> {
 		const targetEpoch = this._willRedoToEpoch.get();
 		if (targetEpoch) {
-			await this._navigateToEpoch(targetEpoch + 1);
+			await this._navigateToEpoch(targetEpoch);
 		}
 	}
 
@@ -233,14 +267,12 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 
 	private async _navigateToEpoch(restoreToEpoch: number, navigateToEpoch = restoreToEpoch): Promise<void> {
 		const currentEpoch = this._currentEpoch.get();
-		if (currentEpoch === restoreToEpoch) {
-			return; // Already at target epoch
+		if (currentEpoch !== restoreToEpoch) {
+			const urisToRestore = await this._applyFileSystemOperations(currentEpoch, restoreToEpoch);
+
+			// Reconstruct content for files affected by operations in the range
+			await this._reconstructAllFileContents(restoreToEpoch, urisToRestore);
 		}
-
-		const urisToRestore = await this._applyFileSystemOperations(currentEpoch, restoreToEpoch);
-
-		// Reconstruct content for files affected by operations in the range
-		await this._reconstructAllFileContents(restoreToEpoch, urisToRestore);
 
 		// Update current epoch
 		this._currentEpoch.set(navigateToEpoch, undefined);
@@ -716,7 +748,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			const checkpoints = this._checkpoints.read(reader);
 			const startIndex = checkpoints.findIndex(c => c.requestId === startRequestId);
 			const start = startIndex === -1 ? checkpoints[0] : checkpoints[startIndex];
-			const end = checkpoints.find(c => c.requestId === stopRequestId) || checkpoints.find(c => c.requestId !== startRequestId, startIndex) || checkpoints[checkpoints.length - 1];
+			const end = checkpoints.find(c => c.requestId === stopRequestId) || findFirst(checkpoints, c => c.requestId !== startRequestId, startIndex) || checkpoints[checkpoints.length - 1];
 			return { start, end };
 		});
 

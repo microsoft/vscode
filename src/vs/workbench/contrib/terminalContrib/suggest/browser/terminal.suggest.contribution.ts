@@ -488,7 +488,7 @@ class TerminalSuggestProvidersConfigurationManager extends Disposable {
 	private _updateConfiguration(): void {
 		// Add statically declared providers from package.json contributions
 		const providers = new Map<string, ITerminalSuggestProviderInfo>();
-		this._terminalContributionService.terminalCompletionProviders.forEach(o => providers.set(o.id, o));
+		this._terminalContributionService.terminalCompletionProviders.forEach(o => providers.set(o.extensionIdentifier, { ...o, id: o.extensionIdentifier }));
 
 		// Add dynamically registered providers (that aren't already declared statically)
 		for (const { id } of this._terminalCompletionService.providers) {

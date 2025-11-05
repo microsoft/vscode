@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -93,4 +94,30 @@ export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatMo
 
 		widget.focusResponseItem();
 	}
+}
+
+export async function askInPanelChat(accessor: ServicesAccessor, model: IChatRequestModel) {
+
+	const viewsService = accessor.get(IViewsService);
+	const layoutService = accessor.get(IWorkbenchLayoutService);
+
+	const widget = await showChatView(viewsService, layoutService);
+
+	if (!widget) {
+		return;
+	}
+
+	if (!widget.viewModel) {
+		await raceTimeout(Event.toPromise(widget.onDidChangeViewModel), 1000);
+	}
+
+	if (model.attachedContext) {
+		widget.attachmentModel.addContext(...model.attachedContext);
+	}
+
+	widget.acceptInput(model.message.text, {
+		enableImplicitContext: true,
+		isVoiceInput: false,
+		noCommandDetection: true
+	});
 }
