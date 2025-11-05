@@ -288,7 +288,7 @@ export class FindModel extends Disposable {
 			findMatch.cell.isInputCollapsed = false;
 			this._notebookEditor.focusElement(findMatch.cell);
 			this._notebookEditor.setCellEditorSelection(findMatch.cell, match.range);
-			// First ensure the cell is visible in the notebook viewport with minimal scrolling
+			// First ensure the cell is visible in the notebook viewport
 			await this._notebookEditor.revealInView(findMatch.cell);
 			// Then reveal the specific range within the cell editor
 			this._notebookEditor.revealRangeInCenterIfOutsideViewportAsync(findMatch.cell, match.range);
