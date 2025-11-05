@@ -103,6 +103,7 @@
 
 .monaco-editor .monaco-hover .hover-copy-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
+	cursor: pointer;
 }
 
 .monaco-editor .monaco-hover .hover-copy-button:focus {
