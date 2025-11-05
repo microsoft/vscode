@@ -2539,6 +2539,7 @@ export interface ITerminalCompletionItemDto {
 	detail?: string;
 	documentation?: string | IMarkdownString;
 	icon?: ThemeIcon | undefined;
+	kind?: number | undefined;
 	isFile?: boolean | undefined;
 	isDirectory?: boolean | undefined;
 	isKeyword?: boolean | undefined;
