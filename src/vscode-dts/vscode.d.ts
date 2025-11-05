@@ -8372,8 +8372,7 @@ declare module 'vscode' {
 	/**
 	 * Context information passed to {@link TerminalCompletionProvider.provideTerminalCompletions}.
 	 *
-	 * It contains the full command line, the current cursor position, and a flag indicating whether
-	 * completions were explicitly invoked.
+	 * It contains the full command line and the current cursor position
 	 */
 	export interface TerminalCompletionContext {
 		/**
