@@ -154,7 +154,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		}
 
 		const title = repository.provider.rootUri
-			? `${repository.provider.label}: ${repository.provider.rootUri.fsPath}`
+			? `${repository.provider.label}: ${this.labelService.getUriLabel(repository.provider.rootUri)}`
 			: repository.provider.label;
 
 		templateData.label.setLabel(repository.provider.name, description, { title });
