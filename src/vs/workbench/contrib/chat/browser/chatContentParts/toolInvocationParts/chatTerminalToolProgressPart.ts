@@ -174,7 +174,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 
 		const attachInstance = async (instance: ITerminalInstance | undefined) => {
-			if (!instance || this._terminalInstance === instance) {
+			if (!instance || this._terminalInstance === instance || this._store.isDisposed) {
 				return;
 			}
 			this._terminalInstance = instance;
