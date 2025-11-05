@@ -249,9 +249,18 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	private async _suggestName(provider: NotebookProviderInfo) {
-		const resource = this.ensureProviderExtension(provider);
+		const resource = await this.ensureAbsolutePath(this.ensureProviderExtension(provider));
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		return toLocalResource(resource, remoteAuthority, this.pathService.defaultUriScheme);
+	}
+
+	private async ensureAbsolutePath(resource: URI): Promise<URI> {
+		if (resource.scheme !== Schemas.untitled || resource.path.startsWith('/')) {
+			return resource;
+		}
+
+		const defaultFilePath = await this._fileDialogService.defaultFilePath();
+		return defaultFilePath.with({ path: defaultFilePath.path + '/' + resource.path });
 	}
 
 	private ensureProviderExtension(provider: NotebookProviderInfo) {
