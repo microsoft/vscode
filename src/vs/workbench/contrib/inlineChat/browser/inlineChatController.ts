@@ -1244,7 +1244,6 @@ export class InlineChatController2 implements IEditorContribution {
 	}
 
 	private readonly _store = new DisposableStore();
-	private readonly _showWidgetOverrideObs = observableValue(this, false);
 	private readonly _isActiveController = observableValue(this, false);
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
 
@@ -1291,7 +1290,7 @@ export class InlineChatController2 implements IEditorContribution {
 						selection: this._editor.getSelection(),
 						document,
 						wholeRange,
-						close: () => this._showWidgetOverrideObs.set(false, undefined),
+						close: () => { /* TODO@jrieken */ },
 						delegateSessionResource: chatService.editingSessions.find(session =>
 							session.entries.get().some(e => e.hasModificationAt({
 								range: wholeRange,
@@ -1382,17 +1381,8 @@ export class InlineChatController2 implements IEditorContribution {
 
 			if (!session || !isActive || !model) {
 				visibleSessionObs.set(undefined, undefined);
-				return;
-			}
-
-			const { chatModel } = session;
-			const showShowUntil = this._showWidgetOverrideObs.read(r);
-			const hasNoRequests = chatModel.getRequests().length === 0;
-
-			if (showShowUntil || hasNoRequests) {
-				visibleSessionObs.set(session, undefined);
 			} else {
-				visibleSessionObs.set(undefined, undefined);
+				visibleSessionObs.set(session, undefined);
 			}
 		}));
 
