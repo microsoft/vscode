@@ -8,7 +8,7 @@ import * as objects from '../../../base/common/objects.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import { ExtensionsRegistry, IExtensionPointUser } from '../../services/extensions/common/extensionsRegistry.js';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue, getAllConfigurationProperties, parseScope, CODE_UNIFICATION_DUPLICATE_SETTINGS } from '../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue, getAllConfigurationProperties, parseScope, EXTENSION_UNIFICATION_EXTENSION_IDS } from '../../../platform/configuration/common/configurationRegistry.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId, mcpSchemaId } from '../../services/configuration/common/configuration.js';
 import { isObject, isUndefined } from '../../../base/common/types.js';
@@ -268,13 +268,13 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 			}
 			for (const key in properties) {
 				const propertyConfiguration = properties[key];
-				const message = validateProperty(key, propertyConfiguration);
+				const message = validateProperty(key, propertyConfiguration, extension.description.identifier.value);
 				if (message) {
 					delete properties[key];
 					extension.collector.warn(message);
 					continue;
 				}
-				if (seenProperties.has(key) && !CODE_UNIFICATION_DUPLICATE_SETTINGS.has(key)) {
+				if (seenProperties.has(key) && !EXTENSION_UNIFICATION_EXTENSION_IDS.has(extension.description.identifier.value.toLowerCase())) {
 					delete properties[key];
 					extension.collector.warn(nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", key));
 					continue;
