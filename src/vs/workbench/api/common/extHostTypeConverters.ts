@@ -3467,7 +3467,6 @@ export namespace TerminalCompletionItemDto {
 	export function from(item: vscode.TerminalCompletionItem): extHostProtocol.ITerminalCompletionItemDto {
 		return {
 			...item,
-			kind: item.kind,
 			documentation: MarkdownString.fromStrict(item.documentation),
 		};
 	}
