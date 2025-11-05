@@ -259,7 +259,27 @@ class RepositoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 
 		// Explorer mode
 		if (inputOrElement instanceof SCMViewService) {
-			return this.scmViewService.repositories;
+			// Get all top level repositories
+			const repositories = this.scmViewService.repositories
+				.filter(r => r.provider.parentId === undefined);
+
+			// Check whether there are any child repositories
+			if (repositories.length !== this.scmViewService.repositories.length) {
+				for (const repository of repositories) {
+					const childRepositories = this.scmViewService.repositories
+						.filter(r => r.provider.parentId === repository.provider.id);
+
+					if (childRepositories.length === 0) {
+						continue;
+					}
+
+					// Insert child repositories right after the parent
+					const repositoryIndex = repositories.indexOf(repository);
+					repositories.splice(repositoryIndex + 1, 0, ...childRepositories);
+				}
+			}
+
+			return repositories;
 		} else if (isSCMRepository(inputOrElement)) {
 			const artifactGroups = await inputOrElement.provider.artifactProvider.get()?.provideArtifactGroups() ?? [];
 			return artifactGroups.map(group => ({
