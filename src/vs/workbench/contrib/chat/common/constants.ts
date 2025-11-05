@@ -6,6 +6,7 @@
 import { Schemas } from '../../../../base/common/network.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export enum ChatConfiguration {
 	AgentEnabled = 'chat.agent.enabled',
@@ -118,3 +119,5 @@ export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
 export const ChatEditorTitleMaxLength = 30;
 
 export const CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES = 1000;
+export const CONTEXT_MODELS_EDITOR = new RawContextKey<boolean>('inModelsEditor', false);
+export const CONTEXT_MODELS_SEARCH_FOCUS = new RawContextKey<boolean>('inModelsSearch', false);
