@@ -14,7 +14,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -454,16 +454,35 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			['chatSessionType', contribution.type]
 		]);
 
-		const menuActions = this._menuService.getMenuActions(MenuId.ChatSessionsCreateSubMenu, contextKeyService);
-		if (menuActions?.length) {
+		const rawMenuActions = this._menuService.getMenuActions(MenuId.ChatSessionsCreateSubMenu, contextKeyService);
+		const menuActions = rawMenuActions.map(value => value[1]).flat();
+
+		const whenClause = ContextKeyExpr.and(
+			ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.${contribution.type}`)
+		);
+
+		// If there's exactly one action, inline it
+		if (menuActions.length === 1) {
+			const first = menuActions[0];
+			if (first instanceof MenuItemAction) {
+				return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+					group: 'navigation',
+					title: first.label,
+					icon: Codicon.plus,
+					order: 1,
+					when: whenClause,
+					command: first.item,
+				});
+			}
+		}
+
+		if (menuActions.length) {
 			return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 				group: 'navigation',
 				title: localize('interactiveSession.chatSessionSubMenuTitle', "Create chat session"),
 				icon: Codicon.plus,
 				order: 1,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.${contribution.type}`)
-				),
+				when: whenClause,
 				submenu: MenuId.ChatSessionsCreateSubMenu,
 				isSplitButton: menuActions.length > 1
 			});
@@ -481,9 +500,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				},
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.${contribution.type}`)
-				),
+				when: whenClause,
 			});
 		}
 	}
