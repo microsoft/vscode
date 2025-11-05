@@ -69,6 +69,8 @@
 
 		.agent-session-timestamp {
 			font-size: 11px;
+			flex-shrink: 0;
+			margin-left: auto;
 		}
 
 		/* #region Diff Styling */

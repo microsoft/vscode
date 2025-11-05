@@ -79,8 +79,8 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			[
 				h('div.agent-session-main-col', [
 					h('div.agent-session-title-row', [
-						h('div.agent-session-title@titleContainer'),
 						h('div.agent-session-icon@icon'),
+						h('div.agent-session-title@titleContainer'),
 						h('div.agent-session-timestamp@timestamp')
 					]),
 					h('div.agent-session-details-row', [
