@@ -153,11 +153,23 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			}
 		}
 
+		let label: string;
+		if (this.scmViewService.explorerEnabledConfig.get() === false) {
+			label = repository.provider.name;
+		} else {
+			const parentRepository = this.scmViewService.repositories
+				.find(r => r.provider.id === repository.provider.parentId);
+
+			label = parentRepository
+				? `${parentRepository.provider.name} / ${repository.provider.name}`
+				: repository.provider.name;
+		}
+
 		const title = repository.provider.rootUri
-			? `${repository.provider.label}: ${repository.provider.rootUri.fsPath}`
+			? `${repository.provider.label}: ${this.labelService.getUriLabel(repository.provider.rootUri)}`
 			: repository.provider.label;
 
-		templateData.label.setLabel(repository.provider.name, description, { title });
+		templateData.label.setLabel(label, description, { title });
 
 		let statusPrimaryActions: IAction[] = [];
 		let menuPrimaryActions: IAction[] = [];

@@ -6,7 +6,7 @@
 import { $, clearNode } from '../../../../../base/browser/dom.js';
 import { IChatThinkingPart } from '../../common/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
-import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
 import { ThinkingDisplayMode } from '../../common/constants.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -31,7 +31,6 @@ function extractTitleFromThinkingContent(content: string): string | undefined {
 	return headerMatch ? headerMatch[1] : undefined;
 }
 
-
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
 	public readonly codeblocks: undefined;
 	public readonly codeblocksPartId: undefined;
@@ -50,6 +49,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private headerButton: ButtonWithIcon | undefined;
 	private lastExtractedTitle: string | undefined;
 	private hasMultipleItems: boolean = false;
+	private modelId: string | undefined;
 
 	constructor(
 		content: IChatThinkingPart,
@@ -65,6 +65,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		super(extractedTitle, context);
 
 		this.id = content.id;
+
+		if (isResponseVM(context.element) && context.element.model.request?.modelId) {
+			this.modelId = context.element.model.request.modelId;
+		}
 
 		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
 
@@ -165,13 +169,20 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
+		let contentToRender = cleanedContent;
+		if (this.modelId?.includes('codex')) {
+			if (cleanedContent.startsWith('**') && cleanedContent.endsWith('**')) {
+				contentToRender = cleanedContent.slice(2, -2);
+			}
+		}
+
 		const target = reuseExisting ? this.markdownResult?.element : undefined;
 		if (this.markdownResult) {
 			this.markdownResult.dispose();
 			this.markdownResult = undefined;
 		}
 
-		const rendered = this._register(this.markdownRendererService.render(new MarkdownString(cleanedContent), undefined, target));
+		const rendered = this._register(this.markdownRendererService.render(new MarkdownString(contentToRender), undefined, target));
 		this.markdownResult = rendered;
 		if (!target) {
 			clearNode(this.textContainer);
