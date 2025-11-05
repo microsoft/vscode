@@ -187,7 +187,7 @@ suite('EditorWebWorker', () => {
 		const smallerEdits = await worker.$computeHumanReadableDiff(
 			model.uri.toString(),
 			edits,
-			{ ignoreTrimWhitespace: false, maxComputationTimeMs: 0, computeMoves: false }
+			{ ignoreTrimWhitespace: false, ignoreEOL: true, maxComputationTimeMs: 0, computeMoves: false }
 		);
 
 		const t1 = applyEdits(model.getValue(), edits);
@@ -257,7 +257,7 @@ suite('EditorWebWorker', () => {
 		);
 	});
 
-	async function testDiffsIdentical(originalLines: string[], originalEOL: string, modifiedLines: string[], modifiedEOL: string, ignoreTrimWhitespace: boolean): Promise<boolean | undefined> {
+	async function testDiffsIdentical(originalLines: string[], originalEOL: string, modifiedLines: string[], modifiedEOL: string, ignoreEOL: boolean): Promise<boolean | undefined> {
 		const originalModel = worker.addModel(originalLines, originalEOL);
 		await new Promise(resolve => setTimeout(resolve, 1));
 		const modifiedModel = worker.addModel(modifiedLines, modifiedEOL);
@@ -265,14 +265,15 @@ suite('EditorWebWorker', () => {
 		const diffs = await worker.$computeDiff(
 			originalModel.uri.toString(),
 			modifiedModel.uri.toString(),
-			{ ignoreTrimWhitespace, maxComputationTimeMs: 0, computeMoves: false }
+			{ ignoreTrimWhitespace: true, ignoreEOL, maxComputationTimeMs: 0, computeMoves: false },
+			'advanced'
 		);
 
 		assert.notDeepEqual(diffs, null);
 		return diffs?.identical;
 	}
 
-	test('computeDiff ignores EOL changes with ignoreTrimWhitespace', async () => {
+	test('computeDiff ignores EOL changes by default', async () => {
 		assert.strictEqual(
 			await testDiffsIdentical(
 				['windows', 'how to'],
@@ -285,7 +286,7 @@ suite('EditorWebWorker', () => {
 		);
 	});
 
-	test('computeDiff detects EOL changes when not ignoring whitespace', async () => {
+	test('computeDiff detects EOL changes when not ignoring EOL', async () => {
 		assert.strictEqual(
 			await testDiffsIdentical(
 				['windows', 'how to'],

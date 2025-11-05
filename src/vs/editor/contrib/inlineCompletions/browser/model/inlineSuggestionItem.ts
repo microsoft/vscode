@@ -475,6 +475,7 @@ function getStringEdit(textModel: ITextModel, editRange: Range, replaceText: str
 		splitLines(editReplaceText),
 		{
 			ignoreTrimWhitespace: false,
+			ignoreEOL: true,
 			computeMoves: false,
 			extendToSubwords: true,
 			maxComputationTimeMs: 500,

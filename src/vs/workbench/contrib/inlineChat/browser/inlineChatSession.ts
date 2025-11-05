@@ -447,7 +447,7 @@ export class HunkData {
 
 	async recompute(editState: IChatTextEditGroupState, diff?: IDocumentDiff | null) {
 
-		diff ??= await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
+		diff ??= await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, ignoreEOL: true, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
 
 		let mergedChanges: DetailedLineRangeMapping[] = [];
 

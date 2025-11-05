@@ -10,11 +10,12 @@ import { DiffComputer, ICharChange, ILineChange } from '../../../common/diff/leg
 import { IIdentifiedSingleEditOperation, ITextModel } from '../../../common/model.js';
 import { createTextModel } from '../testTextModel.js';
 
-function assertDiff(originalLines: string[], modifiedLines: string[], expectedChanges: ILineChange[], shouldComputeCharChanges: boolean = true, shouldPostProcessCharChanges: boolean = false, shouldIgnoreTrimWhitespace: boolean = false) {
+function assertDiff(originalLines: string[], modifiedLines: string[], expectedChanges: ILineChange[], shouldComputeCharChanges: boolean = true, shouldPostProcessCharChanges: boolean = false, shouldIgnoreTrimWhitespace: boolean = false, shouldIgnoreEOL: boolean = true) {
 	const diffComputer = new DiffComputer(originalLines, modifiedLines, {
 		shouldComputeCharChanges,
 		shouldPostProcessCharChanges,
 		shouldIgnoreTrimWhitespace,
+		shouldIgnoreEOL,
 		shouldMakePrettyDiff: true,
 		maxComputationTime: 0
 	});

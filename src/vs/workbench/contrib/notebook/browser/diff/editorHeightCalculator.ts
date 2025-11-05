@@ -29,6 +29,7 @@ export class DiffEditorHeightCalculatorService {
 		try {
 			const diffChanges = await this.editorWorkerService.computeDiff(original, modified, {
 				ignoreTrimWhitespace: true,
+				ignoreEOL: true,
 				maxComputationTimeMs: 0,
 				computeMoves: false
 			}, 'advanced').then(diff => diff?.changes || []);

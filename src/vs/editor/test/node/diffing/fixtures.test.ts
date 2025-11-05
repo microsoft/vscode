@@ -48,7 +48,9 @@ suite('diffing fixtures', () => {
 		const diffingAlgo = diffingAlgoName === 'legacy' ? new LegacyLinesDiffComputer() : new DefaultLinesDiffComputer();
 
 		const ignoreTrimWhitespace = folder.indexOf('trimws') >= 0;
-		const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: true });
+		const ignoreEOL = true;
+
+		const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace, ignoreEOL, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: true });
 
 		if (diffingAlgoName === 'advanced' && !ignoreTrimWhitespace) {
 			assertDiffCorrectness(diff, firstContentLines, secondContentLines);

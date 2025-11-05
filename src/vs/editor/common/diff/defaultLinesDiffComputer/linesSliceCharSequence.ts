@@ -17,7 +17,7 @@ export class LinesSliceCharSequence implements ISequence {
 	private readonly lineStartOffsets: number[] = [];
 	private readonly trimmedWsLengthsByLineIdx: number[] = [];
 
-	constructor(public readonly lines: string[], private readonly range: Range, public readonly considerWhitespaceChanges: boolean) {
+	constructor(public readonly lines: string[], private readonly range: Range, public readonly considerWhitespaceChanges: boolean, public readonly considerEOL: boolean) {
 		this.firstElementOffsetByLineIdx.push(0);
 		for (let lineNumber = this.range.startLineNumber; lineNumber <= this.range.endLineNumber; lineNumber++) {
 			let line = lines[lineNumber - 1];
@@ -28,15 +28,24 @@ export class LinesSliceCharSequence implements ISequence {
 			}
 			this.lineStartOffsets.push(lineStartOffset);
 
+			let eol = '';
+			let eolLength = 0;
+			if (considerEOL) {
+				eolLength = line.length - line.replace(/\r\n|\n|\r/g, '').length;
+				if (eolLength > 0) {
+					eol = line.slice(-eolLength);
+				}
+			}
+
 			let trimmedWsLength = 0;
 			if (!considerWhitespaceChanges) {
 				const trimmedStartLine = line.trimStart();
-				trimmedWsLength = line.length - trimmedStartLine.length;
-				line = trimmedStartLine.trimEnd();
+				trimmedWsLength = Math.max(line.length - trimmedStartLine.length, eolLength);
+				line = `${trimmedStartLine.trimEnd()}${eol}`;
 			}
 			this.trimmedWsLengthsByLineIdx.push(trimmedWsLength);
 
-			const lineLength = lineNumber === this.range.endLineNumber ? Math.min(this.range.endColumn - 1 - lineStartOffset - trimmedWsLength, line.length) : line.length;
+			const lineLength = lineNumber === this.range.endLineNumber ? Math.min(this.range.endColumn - 1 - lineStartOffset - Math.max(trimmedWsLength, eolLength), line.length) : line.length;
 			for (let i = 0; i < lineLength; i++) {
 				this.elements.push(line.charCodeAt(i));
 			}

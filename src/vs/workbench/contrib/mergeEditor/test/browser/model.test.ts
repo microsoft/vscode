@@ -286,7 +286,7 @@ class MergeModelInterface extends Disposable {
 				const result = await linesDiffComputers.getLegacy().computeDiff(
 					textModel1.getLinesContent(),
 					textModel2.getLinesContent(),
-					{ ignoreTrimWhitespace: false, maxComputationTimeMs: 10000, computeMoves: false }
+					{ ignoreTrimWhitespace: false, ignoreEOL: true, maxComputationTimeMs: 10000, computeMoves: false }
 				);
 				const changes = result.changes.map(c =>
 					new DetailedLineRangeMapping(

@@ -386,6 +386,7 @@ class QuickDiffWidget extends PeekViewWidget {
 			diffAlgorithm: 'advanced',
 			fixedOverflowWidgets: true,
 			ignoreTrimWhitespace: false,
+			ignoreEOL: true,
 			minimap: { enabled: false },
 			readOnly: false,
 			renderGutterMenu: false,

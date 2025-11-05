@@ -138,9 +138,9 @@ export abstract class EditorWorkerService extends Disposable implements IEditorW
 		return (canSyncModel(this._modelService, original) && canSyncModel(this._modelService, modified));
 	}
 
-	public async computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
+	public async computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, ignoreEOL: boolean): Promise<IChange[] | null> {
 		const worker = await this._workerWithResources([original, modified]);
-		return worker.$computeDirtyDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
+		return worker.$computeDirtyDiff(original.toString(), modified.toString(), ignoreTrimWhitespace, ignoreEOL);
 	}
 
 	public async computeMoreMinimalEdits(resource: URI, edits: languages.TextEdit[] | null | undefined, pretty: boolean = false): Promise<languages.TextEdit[] | undefined> {
@@ -164,7 +164,7 @@ export abstract class EditorWorkerService extends Disposable implements IEditorW
 				return Promise.resolve(edits); // File too large
 			}
 			const sw = StopWatch.create();
-			const opts: ILinesDiffComputerOptions = { ignoreTrimWhitespace: false, maxComputationTimeMs: 1000, computeMoves: false };
+			const opts: ILinesDiffComputerOptions = { ignoreTrimWhitespace: false, ignoreEOL: true, maxComputationTimeMs: 1000, computeMoves: false };
 			const result = (
 				this._workerWithResources([resource])
 					.then(worker => worker.$computeHumanReadableDiff(resource.toString(), edits, opts))
