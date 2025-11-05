@@ -253,10 +253,8 @@ suite('AgentSessionsViewModel', () => {
 		const description = viewModel.sessions[0].description;
 		assert.ok(description instanceof MarkdownString);
 		// Verify the description is not wrapped in italic markdown (no underscores around the text)
-		if (description instanceof MarkdownString) {
-			assert.ok(!description.value.startsWith('_'), 'Description should not start with underscore (italic markdown)');
-			assert.ok(!description.value.endsWith('_'), 'Description should not end with underscore (italic markdown)');
-		}
+		assert.ok(!(description as MarkdownString).value.startsWith('_'), 'Description should not start with underscore (italic markdown)');
+		assert.ok(!(description as MarkdownString).value.endsWith('_'), 'Description should not end with underscore (italic markdown)');
 	});
 
 	test('should filter out special session IDs', async () => {
