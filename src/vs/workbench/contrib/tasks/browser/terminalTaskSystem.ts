@@ -59,6 +59,7 @@ interface ITerminalData {
 	terminal: ITerminalInstance;
 	lastTask: string;
 	group?: string;
+	shellIntegrationNonce?: string;
 }
 
 interface IInstanceCount {
@@ -78,6 +79,7 @@ export interface IReconnectionTaskData {
 	id: string;
 	lastTask: string;
 	group?: string;
+	shellIntegrationNonce?: string;
 }
 
 const TaskTerminalType = 'Task';
@@ -1450,7 +1452,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			for (const terminal of reconnectedInstances) {
 				const data = getReconnectionData(terminal) as IReconnectionTaskData | undefined;
 				if (data) {
-					const terminalData = { lastTask: data.lastTask, group: data.group, terminal };
+					const terminalData = { lastTask: data.lastTask, group: data.group, terminal, shellIntegrationNonce: data.shellIntegrationNonce };
 					this._terminals[terminal.instanceId] = terminalData;
 					this._logService.trace('Reconnecting to task terminal', terminalData.lastTask, terminal.instanceId);
 				}
@@ -1551,6 +1553,13 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			if (task.configurationProperties.isBackground) {
 				launchConfigs.reconnectionProperties = { ownerId: TaskTerminalType, data: { lastTask: task.getCommonTaskId(), group, label: task._label, id: task._id } };
 			}
+			// HACK: Rewrite the nonce in initialText only for reused terminals, this ensures the
+			// command line sequence reports the correct nonce and becomes trusted as a result.
+			if (terminalToReuse.shellIntegrationNonce) {
+				if (Types.isString(launchConfigs.initialText) && launchConfigs.shellIntegrationNonce) {
+					launchConfigs.initialText = launchConfigs.initialText.replace(launchConfigs.shellIntegrationNonce, terminalToReuse.shellIntegrationNonce);
+				}
+			}
 			await terminalToReuse.terminal.reuseTerminal(launchConfigs);
 
 			if (task.command.presentation && task.command.presentation.clear) {
@@ -1566,7 +1575,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			terminal.shellLaunchConfig.reconnectionProperties = { ownerId: TaskTerminalType, data: { lastTask: task.getCommonTaskId(), group, label: task._label, id: task._id } };
 		}
 		const terminalKey = terminal.instanceId.toString();
-		const terminalData = { terminal: terminal, lastTask: taskKey, group };
+		const terminalData = { terminal: terminal, lastTask: taskKey, group, shellIntegrationNonce: terminal.shellLaunchConfig.shellIntegrationNonce };
 		const onDisposedListener = this._register(terminal.onDisposed(() => {
 			this._deleteTaskAndTerminal(terminal, terminalData);
 			onDisposedListener.dispose();
