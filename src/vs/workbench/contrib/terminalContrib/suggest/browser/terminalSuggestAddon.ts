@@ -257,6 +257,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._lastUserDataTimestamp = Date.now();
 		}));
 		this._register(xterm.onScroll(() => this.hideSuggestWidget(true)));
+		this._register(xterm.onResize(() => this.hideSuggestWidget(true)));
 	}
 
 	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {
