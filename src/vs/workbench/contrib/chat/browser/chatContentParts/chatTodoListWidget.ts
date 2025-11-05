@@ -425,7 +425,7 @@ export class ChatTodoListWidget extends Disposable {
 			// Show "Done" when all tasks are completed
 			else if (completedCount > 0 && completedCount === totalCount) {
 				const doneText = dom.$('span');
-				doneText.textContent = localize('chat.todoList.allDone', 'Done');
+				doneText.textContent = localize('chat.todoList.titleWithCount', 'Todos ({0}/{1})', totalCount, totalCount);
 				doneText.style.verticalAlign = 'middle';
 				titleElement.appendChild(doneText);
 			}

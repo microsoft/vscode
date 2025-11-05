@@ -20977,9 +20977,11 @@ declare module 'vscode' {
 		 * 	}
 		 * ```
 		 *
-		 * When a new McpServerDefinitionProvider is available, the editor will present a 'refresh'
-		 * action to the user to discover new servers. To enable this flow, extensions should
-		 * call `registerMcpServerDefinitionProvider` during activation.
+		 * When a new McpServerDefinitionProvider is available, the editor will, by default,
+		 * automatically invoke it to discover new servers and tools when a chat message is
+		 * submitted. To enable this flow, extensions should call
+		 * `registerMcpServerDefinitionProvider` during activation.
+		 *
 		 * @param id The ID of the provider, which is unique to the extension.
 		 * @param provider The provider to register
 		 * @returns A disposable that unregisters the provider when disposed.
