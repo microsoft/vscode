@@ -48,6 +48,8 @@ export class TerminalTabbedView extends Disposable {
 	private _tabContainer: HTMLElement;
 
 	private _tabList: TerminalTabList;
+	private _tabListContainer: HTMLElement;
+	private _tabListDomElement: HTMLElement;
 	private _sashDisposables: IDisposable[] | undefined;
 
 	private _plusButton: HTMLElement | undefined;
@@ -69,6 +71,7 @@ export class TerminalTabbedView extends Disposable {
 	private _terminalTabsMouseContextKey: IContextKey<boolean>;
 
 	private _panelOrientation: Orientation | undefined;
+	private _emptyAreaDropTargetCount = 0;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -88,6 +91,7 @@ export class TerminalTabbedView extends Disposable {
 
 		this._tabContainer = $('.tabs-container');
 		const tabListContainer = $('.tabs-list-container');
+		this._tabListContainer = tabListContainer;
 		this._tabListElement = $('.tabs-list');
 		tabListContainer.appendChild(this._tabListElement);
 		this._tabContainer.appendChild(tabListContainer);
@@ -103,6 +107,7 @@ export class TerminalTabbedView extends Disposable {
 		this._tabsListEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
 
 		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement, this._register(new DisposableStore())));
+		this._tabListDomElement = this._tabList.getHTMLElement();
 		this._chatEntry = this._register(this._instantiationService.createInstance(TerminalTabsChatEntry, tabListContainer, this._tabContainer));
 
 		const terminalOuterContainer = $('.terminal-outer-container');
@@ -366,13 +371,38 @@ export class TerminalTabbedView extends Disposable {
 			this._terminalTabsMouseContextKey.set(true);
 			event.stopPropagation();
 		}));
+		this._register(dom.addDisposableListener(this._tabContainer, 'dragenter', (event: DragEvent) => {
+			if (!this._shouldHandleEmptyAreaDrop(event)) {
+				this._resetEmptyAreaDropState();
+				return;
+			}
+			this._emptyAreaDropTargetCount++;
+			this._setEmptyAreaDropState(true);
+		}));
 		this._register(dom.addDisposableListener(this._tabContainer, 'dragover', (event: DragEvent) => {
 			if (!this._shouldHandleEmptyAreaDrop(event)) {
+				this._resetEmptyAreaDropState();
 				return;
 			}
 			event.preventDefault();
+			this._setEmptyAreaDropState(true);
 			if (event.dataTransfer) {
 				event.dataTransfer.dropEffect = 'move';
+			}
+		}));
+		this._register(dom.addDisposableListener(this._tabContainer, 'dragleave', (event: DragEvent) => {
+			if (!this._shouldHandleEmptyAreaDrop(event)) {
+				if (!this._tabContainer.contains(event.relatedTarget as Node | null)) {
+					this._resetEmptyAreaDropState();
+				}
+				return;
+			}
+			if (this._tabContainer.contains(event.relatedTarget as Node | null)) {
+				return;
+			}
+			this._emptyAreaDropTargetCount = Math.max(0, this._emptyAreaDropTargetCount - 1);
+			if (this._emptyAreaDropTargetCount === 0) {
+				this._resetEmptyAreaDropState();
 			}
 		}));
 		this._register(dom.addDisposableListener(this._tabContainer, 'drop', (event: DragEvent) => {
@@ -450,15 +480,27 @@ export class TerminalTabbedView extends Disposable {
 
 	private _shouldHandleEmptyAreaDrop(event: DragEvent): boolean {
 		const targetNode = event.target as Node | null;
-		if (targetNode && this._tabListElement.contains(targetNode)) {
+		if (targetNode && (this._tabListDomElement.contains(targetNode) || this._tabListElement.contains(targetNode))) {
 			return false;
 		}
 		return !!event.dataTransfer && containsDragType(event, TerminalDataTransfers.Terminals);
 	}
 
+	private _setEmptyAreaDropState(active: boolean): void {
+		this._tabListContainer.classList.toggle('drop-target', active);
+		this._tabContainer.classList.toggle('drop-target', active);
+		this._chatEntry?.element.classList.toggle('drop-target', active);
+	}
+
+	private _resetEmptyAreaDropState(): void {
+		this._emptyAreaDropTargetCount = 0;
+		this._setEmptyAreaDropState(false);
+	}
+
 	private async _handleContainerDrop(event: DragEvent): Promise<void> {
 		event.preventDefault();
 		event.stopPropagation();
+		this._resetEmptyAreaDropState();
 		const primaryBackend = this._terminalService.getPrimaryBackend();
 		const resources = getTerminalResourcesFromDragEvent(event);
 		let sourceInstances: ITerminalInstance[] | undefined;
