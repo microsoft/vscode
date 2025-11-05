@@ -12030,7 +12030,7 @@ declare module 'vscode' {
 		 * window.registerTerminalCompletionProvider({
 		 * 	provideTerminalCompletions(terminal, context) {
 		 * 		return new TerminalCompletionList([
-		 * 			{ label: '--version', replacementRange: [Math.max(0, context.cursorPosition - 2), 2] }
+		 * 			{ label: '--version', replacementRange: [Math.max(0, context.cursorPosition - 2), context.cursorPosition] }
 		 * 		]);
 		 * 	}
 		 * });
@@ -12039,7 +12039,7 @@ declare module 'vscode' {
 		 * window.registerTerminalCompletionProvider({
 		 * 	provideTerminalCompletions(terminal, context) {
 		 * 		return new TerminalCompletionList([
-		 * 			{ label: '--help', replacementRange: [Math.max(0, context.cursorPosition - 2), 2] }
+		 * 			{ label: '--help', replacementRange: [Math.max(0, context.cursorPosition - 2), context.cursorPosition] }
 		 * 		]);
 		 * 	}
 		 * }, '-');
