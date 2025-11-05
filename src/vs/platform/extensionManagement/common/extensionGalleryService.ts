@@ -11,12 +11,12 @@ import { CancellationError, getErrorMessage, isCancellationError } from '../../.
 import { IPager } from '../../../base/common/paging.js';
 import { isWeb, platform } from '../../../base/common/platform.js';
 import { arch } from '../../../base/common/process.js';
-import { isBoolean, isString } from '../../../base/common/types.js';
+import { isBoolean, isNumber, isString } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { IHeaders, IRequestContext, IRequestOptions, isOfflineError } from '../../../base/parts/request/common/request.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo } from './extensionManagement.js';
+import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo, ExtensionRequestsTimeoutConfigKey } from './extensionManagement.js';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from './extensionManagementUtil.js';
 import { IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
 import { areApiProposalsCompatible, isEngineValid } from '../../extensions/common/extensionValidator.js';
@@ -37,7 +37,6 @@ const SEARCH_ACTIVITY_HEADER_NAME = 'X-Market-Search-Activity-Id';
 const ACTIVITY_HEADER_NAME = 'Activityid';
 const SERVER_HEADER_NAME = 'Server';
 const END_END_ID_HEADER_NAME = 'X-Vss-E2eid';
-const DEFAULT_REQUEST_TIMEOUT = 60000;
 
 interface IRawGalleryExtensionFile {
 	readonly assetType: string;
@@ -607,12 +606,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			this.fileService,
 			storageService,
 			this.telemetryService);
-	}
-
-	private getRequestTimeout(): number {
-		const configuredTimeout = this.configurationService.getValue<number>('extensions.requestTimeout');
-		// Use configured timeout, or fallback to default if not set or invalid
-		return (typeof configuredTimeout === 'number' && configuredTimeout >= 0) ? configuredTimeout : DEFAULT_REQUEST_TIMEOUT;
 	}
 
 	isEnabled(): boolean {
@@ -1866,6 +1859,11 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		}
 
 		return { malicious, deprecated, search, autoUpdate };
+	}
+
+	private getRequestTimeout(): number {
+		const configuredTimeout = this.configurationService.getValue<number>(ExtensionRequestsTimeoutConfigKey);
+		return isNumber(configuredTimeout) && configuredTimeout >= 0 ? configuredTimeout : 60_000;
 	}
 
 }
