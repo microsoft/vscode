@@ -8257,7 +8257,7 @@ declare module 'vscode' {
 		documentation?: string | MarkdownString;
 
 		/**
-		 * The completion's kind. Note that this will map to an icon. If none is provided, will default to {@link TerminalCompletionItemKind.Method method}.
+		 * The completion's kind. Note that this will map to an icon.
 		 */
 		kind?: TerminalCompletionItemKind;
 

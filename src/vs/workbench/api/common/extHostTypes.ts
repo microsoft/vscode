@@ -952,7 +952,7 @@ export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 		this.label = label;
 		this.replacementRange = replacementRange;
 		this.kind = undefined;
-		this.kind = kind ?? TerminalCompletionItemKind.Method;
+		this.kind = kind;
 		this.detail = detail;
 		this.documentation = documentation;
 		this.isFile = isFile;
