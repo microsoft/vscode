@@ -13,6 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionTracker } from '../chatSessions/chatSessionTracker.js';
 
 //#region Interfaces, Types
 
@@ -90,15 +91,20 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 	private readonly providersToResolve = new Set<string | undefined>();
 
 	constructor(
+		sessionTracker: ChatSessionTracker,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
+		this.sessionTracker = sessionTracker;
+
 		this.registerListeners();
 
 		this.resolve(undefined);
 	}
+
+	private readonly sessionTracker: ChatSessionTracker;
 
 	private registerListeners(): void {
 		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType: provider }) => this.resolve(provider)));
@@ -143,6 +149,18 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 			const sessions = await provider.provideChatSessionItems(token);
 			if (token.isCancellationRequested) {
 				return;
+			}
+
+			// For non-local providers, also add hybrid local editor sessions
+			if (provider.chatSessionType !== localChatSessionType) {
+				const hybridSessions = await this.sessionTracker.getHybridSessionsForProvider(provider);
+				// Merge hybrid sessions, avoiding duplicates
+				const existingResources = new Set(sessions.map(s => s.resource.toString()));
+				for (const hybridSession of hybridSessions) {
+					if (!existingResources.has(hybridSession.resource.toString())) {
+						sessions.push(hybridSession);
+					}
+				}
 			}
 
 			for (const session of sessions) {

@@ -15,17 +15,27 @@ import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, localCha
 import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { MockChatSessionsService } from '../common/mockChatSessionsService.js';
+import { ChatSessionTracker } from '../../browser/chatSessions/chatSessionTracker.js';
+
+// Mock ChatSessionTracker for tests
+class MockChatSessionTracker {
+	async getHybridSessionsForProvider(provider: IChatSessionItemProvider): Promise<IChatSessionItem[]> {
+		return [];
+	}
+}
 
 suite('AgentSessionsViewModel', () => {
 
 	const disposables = new DisposableStore();
 	let mockChatSessionsService: MockChatSessionsService;
 	let mockChatService: MockChatService;
+	let mockSessionTracker: MockChatSessionTracker;
 	let viewModel: AgentSessionsViewModel;
 
 	setup(() => {
 		mockChatSessionsService = new MockChatSessionsService();
 		mockChatService = new MockChatService();
+		mockSessionTracker = new MockChatSessionTracker();
 	});
 
 	teardown(() => {
@@ -36,6 +46,7 @@ suite('AgentSessionsViewModel', () => {
 
 	test('should initialize with empty sessions', () => {
 		viewModel = disposables.add(new AgentSessionsViewModel(
+			mockSessionTracker as any as ChatSessionTracker,
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -65,7 +76,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -109,7 +120,7 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider1);
 		mockChatSessionsService.registerChatSessionItemProvider(provider2);
 
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -129,7 +140,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -168,7 +179,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -206,7 +217,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -242,7 +253,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -280,7 +291,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -321,7 +332,7 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider1);
 		mockChatSessionsService.registerChatSessionItemProvider(provider2);
 
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -366,7 +377,7 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider1);
 		mockChatSessionsService.registerChatSessionItemProvider(provider2);
 
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -391,7 +402,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -422,7 +433,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -453,7 +464,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -484,7 +495,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -504,7 +515,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -544,7 +555,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -578,7 +589,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -606,7 +617,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -634,7 +645,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -665,7 +676,7 @@ suite('AgentSessionsViewModel', () => {
 		};
 
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -723,7 +734,7 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider1);
 		mockChatSessionsService.registerChatSessionItemProvider(provider2);
 
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -785,7 +796,7 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider1);
 		mockChatSessionsService.registerChatSessionItemProvider(provider2);
 
-		viewModel = disposables.add(new AgentSessionsViewModel(
+		viewModel = disposables.add(new AgentSessionsViewModel(mockSessionTracker as any as ChatSessionTracker, 
 			mockChatSessionsService,
 			mockChatService
 		));
@@ -874,7 +885,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 		};
 
 		// Test with actual view model
-		const actualViewModel = new AgentSessionsViewModel(new MockChatSessionsService(), new MockChatService());
+		const actualViewModel = new AgentSessionsViewModel(new MockChatSessionTracker() as any as ChatSessionTracker, new MockChatSessionsService(), new MockChatService());
 		disposables.add(actualViewModel);
 		assert.strictEqual(isAgentSessionsViewModel(actualViewModel), true);
 

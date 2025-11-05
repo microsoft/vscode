@@ -50,10 +50,12 @@ import { getActionBarActions } from '../../../../../platform/actions/browser/men
 import { IChatService } from '../../common/chatService.js';
 import { IChatWidgetService } from '../chat.js';
 import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID } from './agentSessions.js';
+import { ChatSessionTracker } from '../chatSessions/chatSessionTracker.js';
 
 export class AgentSessionsView extends ViewPane {
 
 	private sessionsViewModel: IAgentSessionsViewModel | undefined;
+	private readonly sessionTracker: ChatSessionTracker;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -76,6 +78,8 @@ export class AgentSessionsView extends ViewPane {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+
+		this.sessionTracker = this._register(instantiationService.createInstance(ChatSessionTracker));
 
 		this.registerActions();
 	}
@@ -325,7 +329,7 @@ export class AgentSessionsView extends ViewPane {
 	}
 
 	private createViewModel(): void {
-		const sessionsViewModel = this.sessionsViewModel = this._register(this.instantiationService.createInstance(AgentSessionsViewModel));
+		const sessionsViewModel = this.sessionsViewModel = this._register(this.instantiationService.createInstance(AgentSessionsViewModel, this.sessionTracker));
 		this.list?.setInput(sessionsViewModel);
 
 		this._register(sessionsViewModel.onDidChangeSessions(() => {
