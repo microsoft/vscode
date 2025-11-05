@@ -1279,7 +1279,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					if (!foundAgent) {
 						// if not, check if the given param is a valid mode name, note the parameter as name is case insensitive
 						const nameLower = agentParam.toLowerCase();
-						foundAgent = allAgents.find(agent => agent.name.toLowerCase() === nameLower);
+						foundAgent = allAgents.find(agent => agent.name.get().toLowerCase() === nameLower);
 					}
 					// execute the command to change the mode in panel, note that the command only supports mode IDs, not names
 					await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, foundAgent?.id);

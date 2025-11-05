@@ -49,7 +49,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
 			...action,
 			id: getOpenChatActionIdForMode(mode),
-			label: mode.label,
+			label: mode.label.get(),
 			class: undefined,
 			enabled: true,
 			checked: currentMode.id === mode.id,
@@ -108,7 +108,10 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		// Listen to changes in the current mode and its properties
 		this._register(autorun(reader => {
-			this.renderLabel(this.element!, this.delegate.currentMode.read(reader));
+			this.delegate.currentMode.read(reader).label.read(reader); // use the reader so autorun tracks it
+			if (this.element) {
+				this.renderLabel(this.element);
+			}
 		}));
 	}
 
@@ -120,12 +123,9 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		return menuContributions;
 	}
 
-	protected override renderLabel(element: HTMLElement, mode: IChatMode = this.delegate.currentMode.get()): IDisposable | null {
-		if (!this.element) {
-			return null;
-		}
+	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		this.setAriaLabelAttributes(element);
-		const state = this.delegate.currentMode.get().label;
+		const state = this.delegate.currentMode.get().label.get();
 		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
 		return null;
 	}
