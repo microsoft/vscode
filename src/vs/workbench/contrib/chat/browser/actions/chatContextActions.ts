@@ -634,6 +634,7 @@ export class AttachContextAction extends Action2 {
 		}
 
 		if (cts.token.isCancellationRequested) {
+			pickerConfig.dispose?.();
 			return true; // picker got hidden already
 		}
 
@@ -641,16 +642,21 @@ export class AttachContextAction extends Action2 {
 		const addPromises: Promise<void>[] = [];
 
 		store.add(qp.onDidAccept(async e => {
+			const noop = 'noop';
 			const [selected] = qp.selectedItems;
 			if (isChatContextPickerPickItem(selected)) {
 				const attachment = selected.asAttachment();
-				if (!attachment || attachment === 'noop') {
+				if (!attachment || attachment === noop) {
 					return;
 				}
 				if (isThenable(attachment)) {
-					addPromises.push(attachment.then(v => widget.attachmentModel.addContext(v as IChatRequestVariableEntry)));
+					addPromises.push(attachment.then(v => {
+						if (v !== noop) {
+							widget.attachmentModel.addContext(v);
+						}
+					}));
 				} else {
-					widget.attachmentModel.addContext(attachment as IChatRequestVariableEntry);
+					widget.attachmentModel.addContext(attachment);
 				}
 			}
 			if (selected === goBackItem) {

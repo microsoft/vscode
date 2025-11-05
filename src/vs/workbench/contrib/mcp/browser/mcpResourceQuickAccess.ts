@@ -31,7 +31,7 @@ import { LinkedList } from '../../../../base/common/linkedList.js';
 import { ChatContextPickAttachment } from '../../chat/browser/chatContextPickService.js';
 
 export class McpResourcePickHelper extends Disposable {
-	private _resources = observableValue<Map<IMcpServer, (IMcpResourceTemplate | IMcpResource)[]>>(this, new Map());
+	private _resources = observableValue<{ picks: Map<IMcpServer, (IMcpResourceTemplate | IMcpResource)[]>; isBusy: boolean }>(this, { picks: new Map(), isBusy: false });
 	private _pickItemsStack: LinkedList<{ server: IMcpServer; resources: (IMcpResource | IMcpResourceTemplate)[] }> = new LinkedList();
 	private _inDirectory = observableValue<undefined | { server: IMcpServer; resources: (IMcpResource | IMcpResourceTemplate)[] }>(this, undefined);
 	public static sep(server: IMcpServer): IQuickPickSeparator {
@@ -133,16 +133,16 @@ export class McpResourcePickHelper extends Disposable {
 
 			if (this._isDirectoryResource(resource) && (stat.children?.length ?? 0) > 0) {
 				// Save current state to stack before navigating
-				const currentResources = this._resources.get().get(server);
+				const currentResources = this._resources.get().picks.get(server);
 				if (currentResources) {
 					this.addCurrentMCPQuickPickItemLevel(server, currentResources);
 				}
 
 				// Convert all the children to IMcpResource objects
 				const childResources: IMcpResource[] = stat.children!.map(child => {
-					// const mcpUri = McpResourceURI.fromServer(server.definition, child.resource.toString());
+					const mcpUri = McpResourceURI.fromServer(server.definition, child.resource.toString());
 					return {
-						uri: child.resource,
+						uri: mcpUri,
 						mcpUri: child.resource.path,
 						name: child.name,
 						title: child.name,
@@ -163,27 +163,16 @@ export class McpResourcePickHelper extends Disposable {
 
 	public toAttachment(resource: IMcpResource | IMcpResourceTemplate, server: IMcpServer): Promise<ChatContextPickAttachment> | 'noop' {
 		const noop = 'noop';
-		let attachmentResult: ChatContextPickAttachment = noop;
-
-		const deferred = new DeferredPromise<ChatContextPickAttachment>();
 		if (this._isDirectoryResource(resource)) {
 			//Check if directory
 			this.checkIfDirectoryAndPopulate(resource, server);
 			return noop;
 		}
-
 		if (isMcpResourceTemplate(resource)) {
-			this._resourceTemplateToAttachment(resource).then(val => {
-				attachmentResult = (val as IChatRequestVariableEntry) || noop;
-				deferred.complete(attachmentResult);
-			});
+			return this._resourceTemplateToAttachment(resource).then(val => val || noop);
 		} else {
-			this._resourceToAttachment(resource).then(val => {
-				attachmentResult = (val as IChatRequestVariableEntry) || noop;
-				deferred.complete(attachmentResult);
-			});
+			return this._resourceToAttachment(resource).then(val => val || noop);
 		}
-		return deferred.p;
 	}
 
 	public async checkIfDirectoryAndPopulate(resource: IMcpResource | IMcpResourceTemplate, server: IMcpServer): Promise<boolean> {
@@ -373,8 +362,9 @@ export class McpResourcePickHelper extends Disposable {
 		}
 	}
 
-	public getPicks(token?: CancellationToken): IObservable<Map<IMcpServer, (IMcpResourceTemplate | IMcpResource)[]>> {
+	public getPicks(token?: CancellationToken): IObservable<{ picks: Map<IMcpServer, (IMcpResourceTemplate | IMcpResource)[]>; isBusy: boolean }> {
 		const cts = new CancellationTokenSource(token);
+		let isBusyLoadingPicks = true;
 		this._register(toDisposable(() => cts.dispose(true)));
 		// We try to show everything in-sequence to avoid flickering (#250411) as long as
 		// it loads within 5 seconds. Otherwise we just show things as the load in parallel.
@@ -400,8 +390,7 @@ export class McpResourcePickHelper extends Disposable {
 					break;
 				}
 			}
-
-			this._resources.set(output, undefined);
+			this._resources.set({ picks: output, isBusy: isBusyLoadingPicks }, undefined);
 		};
 
 		type Rec = { templates: DeferredPromise<IMcpResourceTemplate[]>; resourcesSoFar: IMcpResource[]; resources: DeferredPromise<unknown> };
@@ -448,14 +437,16 @@ export class McpResourcePickHelper extends Disposable {
 				rec.templates.complete([]);
 				rec.resources.complete([]);
 			}
+		})).finally(() => {
+			isBusyLoadingPicks = false;
 			publish();
-		}));
+		});
 
 		// Use derived to compute the appropriate resource map based on directory navigation state
 		return derived(this, reader => {
 			const directoryResource = this._inDirectory.read(reader);
 			return directoryResource
-				? new Map([[directoryResource.server, directoryResource.resources]])
+				? { picks: new Map([[directoryResource.server, directoryResource.resources]]), isBusy: false }
 				: this._resources.read(reader);
 		});
 	}
@@ -488,9 +479,10 @@ export abstract class AbstractMcpResourceAccessPick {
 		}
 		const picksObservable = helper.getPicks(token);
 		store.add(autorun(reader => {
-			const servers = picksObservable.read(reader);
+			const pickItems = picksObservable.read(reader);
+			const isBusy = pickItems.isBusy;
 			const items: (ResourceQuickPickItem | IQuickPickSeparator | IQuickPickItem)[] = [];
-			for (const [server, resources] of servers) {
+			for (const [server, resources] of pickItems.picks) {
 				items.push(McpResourcePickHelper.sep(server));
 				for (const resource of resources) {
 					const pickItem = McpResourcePickHelper.item(resource);
@@ -508,7 +500,7 @@ export abstract class AbstractMcpResourceAccessPick {
 				items.push(goBackItem);
 			}
 			picker.items = items;
-			picker.busy = false;
+			picker.busy = isBusy;
 		}));
 
 		store.add(picker.onDidTriggerItemButton(event => {
@@ -530,10 +522,9 @@ export abstract class AbstractMcpResourceAccessPick {
 
 		store.add(picker.onDidHide(() => {
 			helper.dispose();
-			store.dispose();
 		}));
 
-		picker.onDidAccept(async event => {
+		store.add(picker.onDidAccept(async event => {
 			try {
 				picker.busy = true;
 				const [item] = picker.selectedItems;
@@ -565,8 +556,8 @@ export abstract class AbstractMcpResourceAccessPick {
 			} finally {
 				picker.busy = false;
 			}
-		});
-		return Disposable.None;
+		}));
+		return store;
 	}
 }
 
