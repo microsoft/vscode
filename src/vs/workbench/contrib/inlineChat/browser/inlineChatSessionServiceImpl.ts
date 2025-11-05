@@ -544,7 +544,7 @@ export class InlineChatEscapeToolContribution extends Disposable {
 						message: localize('confirm', "Do you want to continue in panel chat or rephrase your prompt?"),
 						detail: localize('confirm.detail', "This task is too complex for Inline Chat. You can rephrase your prompt or continue in the panel chat."),
 						primaryButton: localize('confirm.yes', "Continue in Chat"),
-						cancelButton: localize('confirm.no', "Cancel"),
+						cancelButton: localize('confirm.cancel', "Cancel"),
 						checkbox: { label: localize('chat.remove.confirmation.checkbox', "Don't ask again"), checked: false },
 					});
 				}
