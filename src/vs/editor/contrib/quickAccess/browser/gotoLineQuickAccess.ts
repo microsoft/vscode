@@ -42,7 +42,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			AbstractGotoLineQuickAccessProvider.ZERO_BASED_OFFSET_STORAGE_KEY,
 			value,
 			StorageScope.WORKSPACE,
-			StorageTarget.MACHINE);
+			StorageTarget.USER);
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>): IDisposable {
