@@ -12022,7 +12022,7 @@ declare module 'vscode' {
 		 * Register a completion provider for terminals.
 		 * @param provider The completion provider.
 		 * @param triggerCharacters Optional characters that trigger completion. When any of these characters is typed,
-		 * the completion provider will be invoked. For example, passing `['-']` would cause the provider to be invoked
+		 * the completion provider will be invoked. For example, passing `'-'` would cause the provider to be invoked
 		 * whenever the user types a dash character.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 *
