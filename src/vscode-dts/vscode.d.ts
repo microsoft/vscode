@@ -8386,7 +8386,8 @@ declare module 'vscode' {
 
 	/**
 	 * Represents a collection of {@link TerminalCompletionItem completion items} to be presented
-	 * in the terminal.
+	 * in the terminal plus {@link TerminalCompletionList.resourceOptions} which indicate
+	 * which file and folder resources should be requested for the terminal's cwd.
 	 *
 	 * @example <caption>Create a completion list that requests files for the terminal cwd</caption>
 	 * const list = new TerminalCompletionList([
