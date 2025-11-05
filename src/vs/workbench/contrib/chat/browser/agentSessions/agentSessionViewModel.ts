@@ -73,7 +73,7 @@ export function isAgentSessionsViewModel(obj: IAgentSessionsViewModel | IAgentSe
 const INCLUDE_HISTORY = false;
 export class AgentSessionsViewModel extends Disposable implements IAgentSessionsViewModel {
 
-	private static NO_DESCRIPTION_LABEL = new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`);
+	private static NO_DESCRIPTION_LABEL = new MarkdownString(`<${localize('chat.session.noDescription', 'No description')}>`);
 
 	readonly sessions: IAgentSessionViewModel[] = [];
 

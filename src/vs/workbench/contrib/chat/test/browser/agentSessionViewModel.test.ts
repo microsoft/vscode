@@ -250,7 +250,13 @@ suite('AgentSessionsViewModel', () => {
 		await viewModel.resolve(undefined);
 
 		assert.strictEqual(viewModel.sessions.length, 1);
-		assert.ok(viewModel.sessions[0].description instanceof MarkdownString);
+		const description = viewModel.sessions[0].description;
+		assert.ok(description instanceof MarkdownString);
+		// Verify the description is not wrapped in italic markdown (no underscores around the text)
+		if (description instanceof MarkdownString) {
+			assert.ok(!description.value.startsWith('_'), 'Description should not start with underscore (italic markdown)');
+			assert.ok(!description.value.endsWith('_'), 'Description should not end with underscore (italic markdown)');
+		}
 	});
 
 	test('should filter out special session IDs', async () => {
@@ -555,6 +561,10 @@ suite('AgentSessionsViewModel', () => {
 		assert.strictEqual(viewModel.sessions[0].status, ChatSessionStatus.Failed);
 		assert.strictEqual(viewModel.sessions[1].status, ChatSessionStatus.Completed);
 		assert.strictEqual(viewModel.sessions[2].status, ChatSessionStatus.InProgress);
+		// Verify status descriptions are plain strings (not markdown)
+		assert.strictEqual(typeof viewModel.sessions[0].description, 'string', 'Failed status description should be a plain string');
+		assert.strictEqual(typeof viewModel.sessions[1].description, 'string', 'Completed status description should be a plain string');
+		assert.strictEqual(typeof viewModel.sessions[2].description, 'string', 'InProgress status description should be a plain string');
 	});
 
 	test('should replace sessions on re-resolve', async () => {
