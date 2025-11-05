@@ -239,7 +239,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (!LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
 					return false;
 				}
-				return session.initialLocation === ChatAgentLocation.Chat || session.initialLocation === ChatAgentLocation.EditorInline;
+				return session.initialLocation === ChatAgentLocation.Chat;
 			});
 
 		this._chatSessionStore.storeSessions(liveChats);
@@ -1109,6 +1109,11 @@ export class ChatService extends Disposable implements IChatService {
 				continue;
 			}
 
+			// Do not save to history inline completions
+			if (location === ChatAgentLocation.EditorInline) {
+				continue;
+			}
+
 			const promptTextResult = getPromptText(request.message);
 			const historyRequest: IChatAgentRequest = {
 				sessionId: sessionId,
@@ -1203,7 +1208,7 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		const localSessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
-		if (localSessionId && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.EditorInline)) {
+		if (localSessionId && (model.initialLocation === ChatAgentLocation.Chat)) {
 			// Always preserve sessions that have custom titles, even if empty
 			if (model.getRequests().length === 0 && !model.customTitle) {
 				await this._chatSessionStore.deleteSession(localSessionId);
