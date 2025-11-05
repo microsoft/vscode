@@ -1269,7 +1269,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			// TODO @justschen: when locked to CLI, have the same rendering as normal thinking.
 			// If coming from CLI, we have a much more naive rendering strategy for thinking since we don't get the special metadata from extension.
-			if (this.rendererOptions.fromCodingAgent === true) {
+			if (this.rendererOptions.fromCodingAgent) {
 				if (content.kind !== 'thinking') {
 					this.finalizeCurrentThinkingPart();
 				}
