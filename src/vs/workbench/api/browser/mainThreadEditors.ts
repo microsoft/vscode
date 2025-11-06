@@ -14,7 +14,6 @@ import { IDecorationOptions, IDecorationRenderOptions } from '../../../editor/co
 import { ISingleEditOperation } from '../../../editor/common/core/editOperation.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution, ITextEditorDiffInformation, isTextEditorDiffInformationEqual, ITextEditorChange } from '../../../platform/editor/common/editor.js';
-import { extractSelection } from '../../../platform/opener/common/opener.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { MainThreadTextEditor } from './mainThreadEditor.js';
 import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType } from '../common/extHost.protocol.js';
