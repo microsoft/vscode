@@ -28,6 +28,7 @@ import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { mockService } from './mock.js';
 import { TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
 import { PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 
 /**
  * Mocked instance of {@link IConfigurationService}.
@@ -68,6 +69,14 @@ function mockWorkspaceService(folders: IWorkspaceFolder[]): IWorkspaceContextSer
 		}
 
 	});
+}
+
+function wrapTest(fs: () => Promise<void>): () => Promise<void> {
+	return () => runWithFakedTimers({ useFakeTimers: true }, fs);
+}
+
+function test(name: string, fn: (this: unknown) => Promise<void>): void {
+	global.test(name, wrapTest(fn));
 }
 
 suite('PromptFilesLocator', () => {
@@ -2346,7 +2355,7 @@ suite('PromptFilesLocator', () => {
 	});
 
 	suite('isValidGlob', () => {
-		test('valid patterns', () => {
+		test('valid patterns', async () => {
 			const globs = [
 				'**',
 				'\*',
@@ -2382,7 +2391,7 @@ suite('PromptFilesLocator', () => {
 			}
 		});
 
-		test('invalid patterns', () => {
+		test('invalid patterns', async () => {
 			const globs = [
 				'.',
 				'\\*',
