@@ -77,7 +77,7 @@ import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatRequestModeInfo } from '../common/chatModel.js';
-import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
+import { ChatMode, IChatMode, IChatModeService, isAgentModePolicyDisabled } from '../common/chatModes.js';
 import { IChatFollowup, IChatService } from '../common/chatService.js';
 import { IChatSessionProviderOptionItem, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry } from '../common/chatVariableEntries.js';
@@ -1073,8 +1073,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	validateAgentMode(): void {
-		if (!this.agentService.hasToolsAgent && this._currentModeObservable.get().kind === ChatModeKind.Agent) {
-			this.setChatMode(ChatModeKind.Edit);
+		const currentMode = this._currentModeObservable.get();
+		const isCurrentlyAgentMode = currentMode.kind === ChatModeKind.Agent;
+		
+		// Switch away from agent mode if:
+		// 1. Tools agent is not available AND we're in agent mode, OR
+		// 2. Agent mode is policy-disabled AND we're in agent mode
+		if (isCurrentlyAgentMode && (!this.agentService.hasToolsAgent || isAgentModePolicyDisabled(this.configurationService))) {
+			// Fall back to Edit mode, or Ask mode if Edit is not available
+			const editsEnabled = this.configurationService.getValue(ChatConfiguration.Edits2Enabled);
+			this.setChatMode(editsEnabled ? ChatModeKind.Edit : ChatModeKind.Ask);
 		}
 	}
 

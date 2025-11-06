@@ -31,7 +31,7 @@ import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../../../remoteC
 import { IChatAgent, IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatModel, IChatRequestModel, toChatHistoryContent } from '../../common/chatModel.js';
-import { IChatMode, IChatModeService } from '../../common/chatModes.js';
+import { IChatMode, IChatModeService, isAgentModePolicyDisabled } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatPullRequestContent, IChatService } from '../../common/chatService.js';
@@ -365,7 +365,15 @@ class ToggleChatModeAction extends Action2 {
 		const modes = modeService.getModes();
 		const flat = [
 			...modes.builtin.filter(mode => {
-				return mode.kind !== ChatModeKind.Edit || configurationService.getValue(ChatConfiguration.Edits2Enabled) || requestCount === 0;
+				// Filter out Edit mode if not enabled and there are requests
+				if (mode.kind === ChatModeKind.Edit && !configurationService.getValue(ChatConfiguration.Edits2Enabled) && requestCount > 0) {
+					return false;
+				}
+				// Filter out Agent mode if it's policy-disabled
+				if (mode.kind === ChatModeKind.Agent && isAgentModePolicyDisabled(configurationService)) {
+					return false;
+				}
+				return true;
 			}),
 			...(modes.custom ?? []),
 		];

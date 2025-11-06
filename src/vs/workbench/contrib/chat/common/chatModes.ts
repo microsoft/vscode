@@ -10,6 +10,7 @@ import { constObservable, IObservable, ISettableObservable, observableValue, tra
 import { URI } from '../../../../base/common/uri.js';
 import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -17,7 +18,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatAgentService } from './chatAgents.js';
 import { ChatContextKeys } from './chatContextKeys.js';
-import { ChatModeKind } from './constants.js';
+import { ChatConfiguration, ChatModeKind } from './constants.js';
 import { IHandOff } from './promptSyntax/promptFileParser.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
 
@@ -183,12 +184,10 @@ export class ChatModeService extends Disposable implements IChatModeService {
 
 	private getBuiltinModes(): IChatMode[] {
 		const builtinModes: IChatMode[] = [
+			ChatMode.Agent,
 			ChatMode.Ask,
 		];
 
-		if (this.chatAgentService.hasToolsAgent) {
-			builtinModes.unshift(ChatMode.Agent);
-		}
 		builtinModes.push(ChatMode.Edit);
 		return builtinModes;
 	}
@@ -464,4 +463,16 @@ export function isBuiltinChatMode(mode: IChatMode): boolean {
 	return mode.id === ChatMode.Ask.id ||
 		mode.id === ChatMode.Edit.id ||
 		mode.id === ChatMode.Agent.id;
+}
+
+/**
+ * Check if agent mode is disabled by organization policy.
+ * Returns true if the setting is both false AND managed by organization policy.
+ */
+export function isAgentModePolicyDisabled(configurationService: IConfigurationService): boolean {
+	const inspection = configurationService.inspect<boolean>(ChatConfiguration.AgentEnabled);
+	// Agent mode is policy-disabled if:
+	// 1. There is a policy value set (organization-managed)
+	// 2. The policy value is false
+	return inspection.policyValue !== undefined && inspection.policyValue === false;
 }
