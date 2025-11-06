@@ -10,6 +10,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
@@ -26,10 +27,12 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	protected readonly hasFollowingContent: boolean;
 	protected _isExpanded = observableValue<boolean>(this, false);
 	protected _collapseButton: ButtonWithIcon | undefined;
+	private _statusIconElement?: HTMLElement;
 
 	constructor(
 		private title: IMarkdownString | string,
 		protected readonly context: IChatContentPartRenderContext,
+		protected readonly statusIcon?: ThemeIcon,
 	) {
 		super();
 		this.hasFollowingContent = this.context.contentIndex + 1 < this.context.content.length;
@@ -59,6 +62,13 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		this._collapseButton = collapseButton;
 		this._domNode = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
+
+		// Add status icon if provided
+		if (this.statusIcon) {
+			this._statusIconElement = $('span' + ThemeIcon.asCSSSelector(this.statusIcon));
+			this._statusIconElement.classList.add('chat-used-context-status-icon');
+			collapseButton.element.appendChild(this._statusIconElement);
+		}
 
 		this._register(collapseButton.onDidClick(() => {
 			const value = this._isExpanded.get();

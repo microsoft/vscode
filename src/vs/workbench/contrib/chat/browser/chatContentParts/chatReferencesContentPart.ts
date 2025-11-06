@@ -65,6 +65,7 @@ export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 		labelOverride: IMarkdownString | string | undefined,
 		context: IChatContentPartRenderContext,
 		private readonly contentReferencesListPool: CollapsibleListPool,
+		statusIcon: ThemeIcon | undefined,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -72,7 +73,7 @@ export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 	) {
 		super(labelOverride ?? (data.length > 1 ?
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
-			localize('usedReferencesSingular', "Used {0} reference", 1)), context);
+			localize('usedReferencesSingular', "Used {0} reference", 1)), context, statusIcon);
 	}
 
 	protected override initContent(): HTMLElement {
@@ -151,12 +152,13 @@ export class ChatUsedReferencesListContentPart extends ChatCollapsibleListConten
 		context: IChatContentPartRenderContext,
 		contentReferencesListPool: CollapsibleListPool,
 		private readonly options: IChatUsedReferencesListOptions,
+		statusIcon: ThemeIcon | undefined,
 		@IOpenerService openerService: IOpenerService,
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
-		super(data, labelOverride, context, contentReferencesListPool, openerService, menuService, instantiationService, contextMenuService);
+		super(data, labelOverride, context, contentReferencesListPool, statusIcon, openerService, menuService, instantiationService, contextMenuService);
 		if (data.length === 0) {
 			dom.hide(this.domNode);
 		}

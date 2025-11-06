@@ -22,6 +22,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly source: ToolDataSource;
 	public readonly fromSubAgent: boolean | undefined;
 	public readonly parameters: unknown;
+	public toolMetadata: unknown | undefined;
 
 	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 
@@ -85,6 +86,11 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			this.pastTenseMessage = this._progress.get().message;
 		}
 
+		// Store tool metadata for later access
+		if (result?.toolMetadata) {
+			this.toolMetadata = result.toolMetadata;
+		}
+
 		if (this.confirmationMessages?.confirmResults && !result?.toolResultError && result?.confirmResults !== false && !final) {
 			this._state.set({
 				type: IChatToolInvocation.StateKind.WaitingForPostApproval,
@@ -129,6 +135,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			toolCallId: this.toolCallId,
 			toolId: this.toolId,
 			fromSubAgent: this.fromSubAgent,
+			toolMetadata: this.toolMetadata,
 		};
 	}
 }

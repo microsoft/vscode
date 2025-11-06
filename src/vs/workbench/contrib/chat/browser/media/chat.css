@@ -2175,6 +2175,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-chat-font-size-body-s);
 }
 
+.interactive-session .chat-used-context-label .chat-used-context-status-icon {
+	margin-left: 4px;
+	color: var(--vscode-problemsWarningIcon-foreground);
+}
+
 .interactive-item-container .progress-container {
 	display: flex;
 	align-items: center;

@@ -363,6 +363,7 @@ export interface IChatToolInvocation {
 	readonly parameters: unknown;
 	readonly fromSubAgent?: boolean;
 	readonly state: IObservable<IChatToolInvocation.State>;
+	readonly toolMetadata?: unknown;
 
 	kind: 'toolInvocation';
 }
@@ -563,6 +564,7 @@ export interface IChatToolInvocationSerialized {
 	toolId: string;
 	source: ToolDataSource;
 	readonly fromSubAgent?: boolean;
+	readonly toolMetadata?: unknown;
 	kind: 'toolInvocationSerialized';
 }
 

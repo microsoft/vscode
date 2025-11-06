@@ -177,7 +177,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		const resultDetails = IChatToolInvocation.resultDetails(this.toolInvocation);
 		if (Array.isArray(resultDetails) && resultDetails.length) {
-			return this.instantiationService.createInstance(ChatResultListSubPart, this.toolInvocation, this.context, this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage, resultDetails, this.listPool);
+			const metadata = this.toolInvocation.toolMetadata as { hasError?: boolean } | undefined;
+			const hasError = metadata?.hasError === true;
+			return this.instantiationService.createInstance(ChatResultListSubPart, this.toolInvocation, this.context, this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage, resultDetails, this.listPool, hasError);
 		}
 
 		if (isToolResultOutputDetails(resultDetails)) {

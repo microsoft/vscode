@@ -126,6 +126,7 @@ export class FetchWebPageTool implements IToolImpl {
 
 		// Skip confirming any results if every web content we got was an error or redirect
 		let confirmResults: undefined | boolean;
+		const hasError = webContents.some(e => e.status === 'error' || e.status === 'redirect');
 		if (webContents.every(e => e.status === 'error' || e.status === 'redirect')) {
 			confirmResults = false;
 		}
@@ -138,6 +139,7 @@ export class FetchWebPageTool implements IToolImpl {
 			content: this._getPromptPartsForResults(results),
 			toolResultDetails: actuallyValidUris,
 			confirmResults,
+			toolMetadata: { hasError },
 		};
 	}
 

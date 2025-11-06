@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Location } from '../../../../../../editor/common/languages.js';
@@ -23,6 +24,7 @@ export class ChatResultListSubPart extends BaseChatToolInvocationSubPart {
 		message: string | IMarkdownString,
 		toolDetails: Array<URI | Location>,
 		listPool: CollapsibleListPool,
+		hasError: boolean,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(toolInvocation);
@@ -36,6 +38,7 @@ export class ChatResultListSubPart extends BaseChatToolInvocationSubPart {
 			message,
 			context,
 			listPool,
+			hasError ? Codicon.warning : undefined,
 		));
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this.domNode = collapsibleListPart.domNode;
