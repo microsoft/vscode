@@ -105,7 +105,12 @@ export class QuickInputBox extends Disposable {
 	}
 
 	set ariaLabel(ariaLabel: string) {
-		this.findInput.inputBox.inputElement.setAttribute('aria-label', ariaLabel);
+		// Only update the attribute if the value has actually changed to prevent
+		// unnecessary DOM manipulation that could trigger screen reader announcements
+		// See: https://github.com/microsoft/vscode/issues/144801
+		if (this.ariaLabel !== ariaLabel) {
+			this.findInput.inputBox.inputElement.setAttribute('aria-label', ariaLabel);
+		}
 	}
 
 	hasFocus(): boolean {
