@@ -111,7 +111,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					}
 					responseContent += `\n${message}\n`;
 				} else if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-					return localize('toolPostApprovalA11yView', "Approve results of {0}? Result: ", toolInvocation.toolId) + toolContentToA11yString(state.contentForModel);
+					responseContent += localize('toolPostApprovalA11yView', "Approve results of {0}? Result: ", toolInvocation.toolId) + toolContentToA11yString(state.contentForModel) + '\n';
 				} else {
 					const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 					if (resultDetails && 'input' in resultDetails) {

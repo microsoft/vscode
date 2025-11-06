@@ -61,7 +61,7 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 
 	let message = acceptKb && cancelKb
 		? localize('toolInvocationsHintKb', "Chat confirmation required: {0}. Press {1} to accept or {2} to cancel.", text.map(t => t.title).join(', '), acceptKb, cancelKb)
-		: localize('toolInvocationsHint', "Chat confirmation required: {0}", text.join(', '));
+		: localize('toolInvocationsHint', "Chat confirmation required: {0}", text.map(t => t.title).join(', '));
 
 	if (text.some(t => t.detail)) {
 		message += ' ' + localize('toolInvocationsHintDetails', "Details: {0}", text.map(t => t.detail ? t.detail : '').join(' '));
