@@ -14,6 +14,7 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../j
 import { Registry } from '../../registry/common/platform.js';
 import { IPolicy, PolicyName } from '../../../base/common/policy.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import product from '../../product/common/product.js';
 
 export enum EditPresentationTypes {
 	Multiline = 'multilineText',
@@ -673,7 +674,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 					order: configuration.order,
 					extensionInfo: configuration.extensionInfo
 				};
-				if (validate && validateProperty(key, property)) {
+				if (validate && validateProperty(key, property, extensionInfo?.id)) {
 					delete properties[key];
 					continue;
 				}
@@ -918,7 +919,7 @@ export function keyFromOverrideIdentifiers(overrideIdentifiers: string[]): strin
 }
 
 export function getDefaultValue(type: string | string[] | undefined) {
-	const t = Array.isArray(type) ? (<string[]>type)[0] : <string>type;
+	const t = Array.isArray(type) ? type[0] : <string>type;
 	switch (t) {
 		case 'boolean':
 			return false;
@@ -939,14 +940,14 @@ export function getDefaultValue(type: string | string[] | undefined) {
 const configurationRegistry = new ConfigurationRegistry();
 Registry.add(Extensions.Configuration, configurationRegistry);
 
-export function validateProperty(property: string, schema: IRegisteredConfigurationPropertySchema): string | null {
+export function validateProperty(property: string, schema: IRegisteredConfigurationPropertySchema, extensionId?: string): string | null {
 	if (!property.trim()) {
 		return nls.localize('config.property.empty', "Cannot register an empty property");
 	}
 	if (OVERRIDE_PROPERTY_REGEX.test(property)) {
 		return nls.localize('config.property.languageDefault', "Cannot register '{0}'. This matches property pattern '\\\\[.*\\\\]$' for describing language specific editor settings. Use 'configurationDefaults' contribution.", property);
 	}
-	if (configurationRegistry.getConfigurationProperties()[property] !== undefined) {
+	if (configurationRegistry.getConfigurationProperties()[property] !== undefined && (!extensionId || !EXTENSION_UNIFICATION_EXTENSION_IDS.has(extensionId.toLowerCase()))) {
 		return nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", property);
 	}
 	if (schema.policy?.name && configurationRegistry.getPolicyConfigurations().get(schema.policy?.name) !== undefined) {
@@ -998,3 +999,6 @@ export function parseScope(scope: string): ConfigurationScope {
 			return ConfigurationScope.WINDOW;
 	}
 }
+
+// Used for extension unification. Should be removed when complete.
+export const EXTENSION_UNIFICATION_EXTENSION_IDS: Set<string> = new Set(product.defaultChatAgent ? [product.defaultChatAgent.extensionId, product.defaultChatAgent.chatExtensionId].map(id => id.toLowerCase()) : []);

@@ -8,6 +8,7 @@ import { isUriComponents, URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalIcon } from './terminal.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import type { SingleOrMany } from '../../../base/common/types.js';
 
 export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[], extensionProfiles?: readonly IExtensionTerminalProfile[]): {
 	values: (string | null)[] | undefined;
@@ -64,7 +65,7 @@ function createExtensionProfileDescription(profile: IExtensionTerminalProfile): 
 }
 
 
-export function terminalProfileArgsMatch(args1: string | string[] | undefined, args2: string | string[] | undefined): boolean {
+export function terminalProfileArgsMatch(args1: SingleOrMany<string> | undefined, args2: SingleOrMany<string> | undefined): boolean {
 	if (!args1 && !args2) {
 		return true;
 	} else if (typeof args1 === 'string' && typeof args2 === 'string') {

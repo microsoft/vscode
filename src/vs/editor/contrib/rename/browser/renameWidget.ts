@@ -346,7 +346,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 			totalHeightAvailable = this._nPxAvailableAbove;
 		}
 
-		this._renameCandidateListView!.layout({
+		this._renameCandidateListView.layout({
 			height: totalHeightAvailable - labelHeight - inputBoxHeight,
 			width: dom.getTotalWidth(this._inputWithButton.domNode),
 		});

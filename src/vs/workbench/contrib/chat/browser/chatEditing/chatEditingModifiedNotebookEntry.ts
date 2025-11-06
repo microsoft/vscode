@@ -118,7 +118,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			// Register so that we can load this from file system.
 			disposables.add(ChatEditingNotebookFileSystemProvider.registerFile(originalUri, buffer));
 			const originalRef = await resolver.resolve(originalUri, notebook.viewType);
-			if (initialContent) {
+			if (initialContent !== undefined) {
 				try {
 					restoreSnapshot(originalRef.object.notebook, initialContent);
 				} catch (ex) {
@@ -260,7 +260,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	mirrorNotebookEdits(e: NotebookTextModelChangedEvent) {
-		if (this._isEditFromUs || Array.from(this.cellEntryMap.values()).some(entry => entry.isEditFromUs)) {
+		if (this._isEditFromUs || this._isExternalEditInProgress || Array.from(this.cellEntryMap.values()).some(entry => entry.isEditFromUs)) {
 			return;
 		}
 
@@ -928,11 +928,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		return createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
 	}
 
-	override createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
+	override createSnapshot(sessionId: string, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
 		return {
 			resource: this.modifiedURI,
 			languageId: SnapshotLanguageId,
-			snapshotUri: getNotebookSnapshotFileURI(this._telemetryInfo.sessionId, requestId, undoStop, this.modifiedURI.path, this.modifiedModel.viewType),
+			snapshotUri: getNotebookSnapshotFileURI(sessionId, requestId, undoStop, this.modifiedURI.path, this.modifiedModel.viewType),
 			original: createSnapshot(this.originalModel, this.transientOptions, this.configurationService),
 			current: createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService),
 			state: this.state.get(),
@@ -1011,7 +1011,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			return;
 		}
 		const disposables = new DisposableStore();
-		cellEntry = this._register(this._instantiationService.createInstance(ChatEditingNotebookCellEntry, this.modifiedResourceRef.object.resource, cell, modifiedCellModel, originalCellModel, disposables));
+		cellEntry = this._register(this._instantiationService.createInstance(ChatEditingNotebookCellEntry, this.modifiedResourceRef.object.resource, cell, modifiedCellModel, originalCellModel, () => this._isExternalEditInProgress, disposables));
 		this.cellEntryMap.set(cell.uri, cellEntry);
 		disposables.add(autorun(r => {
 			if (this.modifiedModel.cells.indexOf(cell) === -1) {
@@ -1059,6 +1059,59 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}));
 
 		return cellEntry;
+	}
+
+	async computeEditsFromSnapshots(beforeSnapshot: string, afterSnapshot: string): Promise<(TextEdit | ICellEditOperation)[]> {
+		// For notebooks, we restore the snapshot and compute the cell-level edits
+		// This is a simplified approach that replaces cells as needed
+
+		const beforeData = deserializeSnapshot(beforeSnapshot);
+		const afterData = deserializeSnapshot(afterSnapshot);
+
+		const edits: ICellEditOperation[] = [];
+
+		// Simple approach: replace all cells
+		// A more sophisticated approach would diff individual cells
+		if (beforeData.data.cells.length > 0) {
+			edits.push({
+				editType: CellEditType.Replace,
+				index: 0,
+				count: beforeData.data.cells.length,
+				cells: afterData.data.cells
+			});
+		} else if (afterData.data.cells.length > 0) {
+			edits.push({
+				editType: CellEditType.Replace,
+				index: 0,
+				count: 0,
+				cells: afterData.data.cells
+			});
+		}
+
+		return edits;
+	}
+
+	async save(): Promise<void> {
+		if (this.modifiedModel.uri.scheme === Schemas.untitled) {
+			return;
+		}
+
+		// Save the notebook if dirty
+		if (this.notebookResolver.isDirty(this.modifiedModel.uri)) {
+			await this.modifiedResourceRef.object.save({
+				reason: SaveReason.EXPLICIT,
+				skipSaveParticipants: true
+			});
+		}
+	}
+
+	async revertToDisk(): Promise<void> {
+		if (this.modifiedModel.uri.scheme === Schemas.untitled) {
+			return;
+		}
+
+		// Revert to reload from disk
+		await this.modifiedResourceRef.object.revert({ soft: false });
 	}
 }
 

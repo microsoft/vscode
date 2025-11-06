@@ -158,7 +158,6 @@ const apiMenus: IAPIMenu[] = [
 		key: 'scm/repository',
 		id: MenuId.SCMSourceControlInline,
 		description: localize('menus.scmSourceControlInline', "The Source Control repository menu"),
-		proposed: 'contribSourceControlTitleMenu'
 	},
 	{
 		key: 'scm/resourceState/context',
@@ -203,6 +202,18 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.SCMHistoryItemRefContext,
 		description: localize('menus.historyItemRefContext', "The Source Control history item reference context menu"),
 		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/artifactGroup/context',
+		id: MenuId.SCMArtifactGroupContext,
+		description: localize('menus.artifactGroupContext', "The Source Control artifact group context menu"),
+		proposed: 'contribSourceControlArtifactGroupMenu'
+	},
+	{
+		key: 'scm/artifact/context',
+		id: MenuId.SCMArtifactContext,
+		description: localize('menus.artifactContext', "The Source Control artifact context menu"),
+		proposed: 'contribSourceControlArtifactMenu'
 	},
 	{
 		key: 'statusBar/remoteIndicator',

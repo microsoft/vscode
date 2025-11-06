@@ -53,6 +53,7 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 		public readonly cell: NotebookCellTextModel,
 		private readonly modifiedModel: ITextModel,
 		private readonly originalModel: ITextModel,
+		isExternalEditInProgress: (() => boolean) | undefined,
 		disposables: DisposableStore,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
@@ -60,7 +61,7 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 		super();
 		this.initialContent = this.originalModel.getValue();
 		this._register(disposables);
-		this._textModelChangeService = this._register(this.instantiationService.createInstance(ChatEditingTextModelChangeService, this.originalModel, this.modifiedModel, this.state));
+		this._textModelChangeService = this._register(this.instantiationService.createInstance(ChatEditingTextModelChangeService, this.originalModel, this.modifiedModel, this.state, isExternalEditInProgress));
 
 		this._register(this._textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
 			this.revertMarkdownPreviewState();

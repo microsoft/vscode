@@ -929,6 +929,12 @@ export class ResourceQueue implements IDisposable {
 export type Task<T = void> = () => (Promise<T> | T);
 
 /**
+ * Wrap a type in an optional promise. This can be useful to avoid the runtime
+ * overhead of creating a promise.
+ */
+export type MaybePromise<T> = Promise<T> | T;
+
+/**
  * Processes tasks in the order they were scheduled.
 */
 export class TaskQueue {
@@ -1651,8 +1657,8 @@ export class TaskSequentializer {
 			this._queued = {
 				run,
 				promise,
-				promiseResolve: promiseResolve!,
-				promiseReject: promiseReject!
+				promiseResolve,
+				promiseReject
 			};
 		}
 

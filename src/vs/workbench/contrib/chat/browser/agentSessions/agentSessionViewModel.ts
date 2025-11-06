@@ -6,14 +6,13 @@
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IChatService } from '../../common/chatService.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
 
 //#region Interfaces, Types
 
@@ -33,14 +32,14 @@ export interface IAgentSessionViewModel {
 
 	readonly provider: IChatSessionItemProvider;
 
-	readonly id: string;
 	readonly resource: URI;
 
 	readonly status?: ChatSessionStatus;
+	readonly tooltip?: string | IMarkdownString;
 
 	readonly label: string;
 	readonly description: string | IMarkdownString;
-	readonly icon?: ThemeIcon; // TODO@bpasero support
+	readonly icon?: ThemeIcon;
 
 	readonly timing: {
 		readonly startTime: number;
@@ -60,7 +59,7 @@ export function isLocalAgentSessionItem(session: IAgentSessionViewModel): boolea
 export function isAgentSession(obj: IAgentSessionsViewModel | IAgentSessionViewModel): obj is IAgentSessionViewModel {
 	const session = obj as IAgentSessionViewModel | undefined;
 
-	return typeof session?.id === 'string';
+	return URI.isUri(session?.resource);
 }
 
 export function isAgentSessionsViewModel(obj: IAgentSessionsViewModel | IAgentSessionViewModel): obj is IAgentSessionsViewModel {
@@ -71,7 +70,6 @@ export function isAgentSessionsViewModel(obj: IAgentSessionsViewModel | IAgentSe
 
 //#endregion
 
-const INCLUDE_HISTORY = false;
 export class AgentSessionsViewModel extends Disposable implements IAgentSessionsViewModel {
 
 	readonly sessions: IAgentSessionViewModel[] = [];
@@ -90,7 +88,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 
 	constructor(
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IChatService private readonly chatService: IChatService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -106,6 +104,10 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 	}
 
 	async resolve(provider: string | string[] | undefined): Promise<void> {
+		if (this.lifecycleService.willShutdown) {
+			return;
+		}
+
 		if (Array.isArray(provider)) {
 			for (const p of provider) {
 				this.providersToResolve.add(p);
@@ -149,13 +151,30 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 					continue; // TODO@bpasero this needs to be fixed at the provider level
 				}
 
+				let description;
+				if (session.description) {
+					description = session.description;
+				} else {
+					switch (session.status) {
+						case ChatSessionStatus.InProgress:
+							description = localize('chat.session.status.inProgress', 'Working...');
+							break;
+						case ChatSessionStatus.Failed:
+							description = localize('chat.session.status.error', 'Failed');
+							break;
+						default:
+							description = localize('chat.session.status.completed', 'Finished');
+							break;
+					}
+				}
+
 				newSessions.push({
 					provider,
-					id: session.id,
 					resource: session.resource,
 					label: session.label,
-					description: session.description || new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`),
+					description,
 					icon: session.iconPath,
+					tooltip: session.tooltip,
 					status: session.status,
 					timing: {
 						startTime: session.timing.startTime,
@@ -163,24 +182,6 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 					},
 					statistics: session.statistics
 				});
-			}
-
-			if (INCLUDE_HISTORY && provider.chatSessionType === localChatSessionType) {
-				// TODO@bpasero this needs to come from the local provider:
-				// - do we want to show history or not and how
-				// - can we support all properties including `startTime` properly
-				for (const history of await this.chatService.getLocalSessionHistory()) {
-					newSessions.push({
-						id: history.sessionId,
-						resource: LocalChatSessionUri.forSession(history.sessionId),
-						label: history.title,
-						provider: provider,
-						timing: {
-							startTime: history.lastMessageDate ?? Date.now()
-						},
-						description: new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`),
-					});
-				}
 			}
 		}
 

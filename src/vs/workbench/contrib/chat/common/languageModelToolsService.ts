@@ -21,6 +21,7 @@ import { ContextKeyExpression } from '../../../../platform/contextkey/common/con
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
+import { UserSelectedTools } from './chatAgents.js';
 import { IVariableReference } from './chatModes.js';
 import { IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, type IChatTerminalToolInvocationData } from './chatService.js';
 import { ChatRequestToolReferenceEntry } from './chatVariableEntries.js';
@@ -45,6 +46,10 @@ export interface IToolData {
 	 */
 	runsInWorkspace?: boolean;
 	alwaysDisplayInputOutput?: boolean;
+	/** True if this tool might ask for pre-approval */
+	canRequestPreApproval?: boolean;
+	/** True if this tool might ask for post-approval */
+	canRequestPostApproval?: boolean;
 }
 
 export interface IToolProgressStep {
@@ -130,6 +135,7 @@ export interface IToolInvocation {
 	fromSubAgent?: boolean;
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 	modelId?: string;
+	userSelectedTools?: UserSelectedTools;
 }
 
 export interface IToolInvocationContext {
@@ -323,7 +329,7 @@ export type CountTokensCallback = (input: string, token: CancellationToken) => P
 export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	readonly onDidChangeTools: Event<void>;
-	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ sessionId: string; toolData: IToolData }>;
+	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ readonly sessionId: string; readonly toolData: IToolData }>;
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
@@ -331,10 +337,6 @@ export interface ILanguageModelToolsService {
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
-	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'session' | 'never'): void;
-	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never';
-	resetToolAutoConfirmation(): void;
-	getToolPostExecutionAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never';
 	cancelToolCallsForRequest(requestId: string): void;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;

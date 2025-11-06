@@ -12,7 +12,9 @@ import { TextAreaWrapper } from '../../../browser/controller/editContext/textAre
 
 (() => {
 
+	// eslint-disable-next-line no-restricted-syntax
 	const startButton = <HTMLButtonElement>mainWindow.document.getElementById('startRecording')!;
+	// eslint-disable-next-line no-restricted-syntax
 	const endButton = <HTMLButtonElement>mainWindow.document.getElementById('endRecording')!;
 
 	let inputarea: HTMLTextAreaElement;

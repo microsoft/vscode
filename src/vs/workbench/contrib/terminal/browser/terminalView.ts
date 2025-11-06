@@ -106,10 +106,7 @@ export class TerminalViewPane extends ViewPane {
 			if (!this._terminalTabbedView) {
 				this._createTabsView();
 			}
-			// If we just opened our first terminal, layout
-			if (this._terminalGroupService.instances.length === 1) {
-				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
-			}
+			this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 		}));
 		this._dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalNewDropdownContext, this._contextKeyService));
 		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalTabContext, this._contextKeyService));

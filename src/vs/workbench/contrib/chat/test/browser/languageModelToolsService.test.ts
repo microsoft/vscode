@@ -27,6 +27,10 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { ChatToolInvocation } from '../../common/chatProgressTypes/chatToolInvocation.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
+import { ILanguageModelToolsConfirmationService } from '../../common/languageModelToolsConfirmationService.js';
+import { MockLanguageModelToolsConfirmationService } from '../common/mockLanguageModelToolsConfirmationService.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -80,6 +84,7 @@ function stubGetSession(chatService: MockChatService, sessionId: string, options
 	const capture = options?.capture;
 	const fakeModel = {
 		sessionId,
+		sessionResource: LocalChatSessionUri.forSession(sessionId),
 		getRequests: () => [{ id: requestId, modelId: 'test-model' }],
 		acceptResponseProgress: (_req: any, progress: any) => { if (capture) { capture.invocation = progress; } },
 	} as IChatModel;
@@ -112,6 +117,7 @@ suite('LanguageModelToolsService', () => {
 		contextKeyService = instaService.get(IContextKeyService);
 		chatService = new MockChatService();
 		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		service = store.add(instaService.createInstance(LanguageModelToolsService));
 	});
 
@@ -778,6 +784,7 @@ suite('LanguageModelToolsService', () => {
 		instaService.stub(IChatService, chatService);
 		instaService.stub(IAccessibilityService, testAccessibilityService);
 		instaService.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		const toolData: IToolData = {
@@ -839,6 +846,7 @@ suite('LanguageModelToolsService', () => {
 		instaService.stub(IChatService, chatService);
 		instaService.stub(IAccessibilityService, testAccessibilityService);
 		instaService.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		const toolData: IToolData = {
@@ -877,6 +885,7 @@ suite('LanguageModelToolsService', () => {
 			configurationService: () => testConfigService
 		}, store);
 		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Register a tool that should be auto-approved
@@ -910,6 +919,7 @@ suite('LanguageModelToolsService', () => {
 			configurationService: () => testConfigService
 		}, store);
 		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Tool explicitly approved
@@ -1011,6 +1021,7 @@ suite('LanguageModelToolsService', () => {
 		}, store);
 		instaService.stub(IChatService, chatService);
 		instaService.stub(ITelemetryService, testTelemetryService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Test successful invocation telemetry
@@ -1100,6 +1111,7 @@ suite('LanguageModelToolsService', () => {
 		instaService1.stub(IChatService, chatService);
 		instaService1.stub(IAccessibilityService, testAccessibilityService1);
 		instaService1.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		instaService1.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService1 = store.add(instaService1.createInstance(LanguageModelToolsService));
 
 		const tool1 = registerToolForTest(testService1, store, 'soundOnlyTool', {
@@ -1140,6 +1152,7 @@ suite('LanguageModelToolsService', () => {
 		instaService2.stub(IChatService, chatService);
 		instaService2.stub(IAccessibilityService, testAccessibilityService2);
 		instaService2.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		instaService2.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService2 = store.add(instaService2.createInstance(LanguageModelToolsService));
 
 		const tool2 = registerToolForTest(testService2, store, 'autoScreenReaderTool', {
@@ -1181,6 +1194,7 @@ suite('LanguageModelToolsService', () => {
 		instaService3.stub(IChatService, chatService);
 		instaService3.stub(IAccessibilityService, testAccessibilityService3);
 		instaService3.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		instaService3.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService3 = store.add(instaService3.createInstance(LanguageModelToolsService));
 
 		const tool3 = registerToolForTest(testService3, store, 'offTool', {
@@ -1464,26 +1478,28 @@ suite('LanguageModelToolsService', () => {
 	});
 
 	test('configuration changes trigger tool updates', async () => {
-		let changeEventFired = false;
-		const disposable = service.onDidChangeTools(() => {
-			changeEventFired = true;
+		return runWithFakedTimers({}, async () => {
+			let changeEventFired = false;
+			const disposable = service.onDidChangeTools(() => {
+				changeEventFired = true;
+			});
+			store.add(disposable);
+
+			// Change the correct configuration key
+			configurationService.setUserConfiguration('chat.extensionTools.enabled', false);
+			// Fire the configuration change event manually
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: () => true,
+				affectedKeys: new Set(['chat.extensionTools.enabled']),
+				change: null!,
+				source: ConfigurationTarget.USER
+			} satisfies IConfigurationChangeEvent);
+
+			// Wait a bit for the scheduler
+			await new Promise(resolve => setTimeout(resolve, 800));
+
+			assert.strictEqual(changeEventFired, true, 'onDidChangeTools should fire when configuration changes');
 		});
-		store.add(disposable);
-
-		// Change the correct configuration key
-		configurationService.setUserConfiguration('chat.extensionTools.enabled', false);
-		// Fire the configuration change event manually
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: () => true,
-			affectedKeys: new Set(['chat.extensionTools.enabled']),
-			change: null!,
-			source: ConfigurationTarget.USER
-		} satisfies IConfigurationChangeEvent);
-
-		// Wait a bit for the scheduler
-		await new Promise(resolve => setTimeout(resolve, 800));
-
-		assert.strictEqual(changeEventFired, true, 'onDidChangeTools should fire when configuration changes');
 	});
 
 	test('toToolAndToolSetEnablementMap with MCP toolset enables contained tools', () => {
@@ -1541,6 +1557,7 @@ suite('LanguageModelToolsService', () => {
 			configurationService: () => testConfigService
 		}, store);
 		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		const workspaceTool = registerToolForTest(testService, store, 'workspaceTool', {

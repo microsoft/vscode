@@ -15,6 +15,7 @@ import esbuild from 'esbuild';
 import sourcemaps from 'gulp-sourcemaps';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
+import { getTargetStringFromTsConfig } from './tsconfigUtils';
 
 declare module 'gulp-sourcemaps' {
 	interface WriteOptions {
@@ -63,6 +64,8 @@ const DEFAULT_FILE_HEADER = [
 function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 	const resourcesStream = es.through(); // this stream will contain the resources
 	const bundlesStream = es.through(); // this stream will contain the bundled files
+
+	const target = getBuildTarget();
 
 	const entryPoints = opts.entryPoints.map(entryPoint => {
 		if (typeof entryPoint === 'string') {
@@ -137,7 +140,7 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 				format: 'esm',
 				sourcemap: 'external',
 				plugins: [contentsMapper, externalOverride],
-				target: ['es2022'],
+				target: [target],
 				loader: {
 					'.ttf': 'file',
 					'.svg': 'file',
@@ -221,6 +224,7 @@ export function bundleTask(opts: IBundleESMTaskOpts): () => NodeJS.ReadWriteStre
 
 export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) => void {
 	const sourceMappingURL = sourceMapBaseUrl ? ((f: any) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
+	const target = getBuildTarget();
 
 	return cb => {
 		const svgmin = require('gulp-svgmin') as typeof import('gulp-svgmin');
@@ -240,7 +244,7 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 					outdir: '.',
 					packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
 					platform: 'neutral', // makes esm
-					target: ['es2022'],
+					target: [target],
 					write: false,
 				}).then(res => {
 					const jsOrCSSFile = res.outputFiles.find(f => /\.(js|css)$/.test(f.path))!;
@@ -272,3 +276,9 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 			(err: any) => cb(err));
 	};
 }
+
+function getBuildTarget() {
+	const tsconfigPath = path.join(REPO_ROOT_PATH, 'src', 'tsconfig.base.json');
+	return getTargetStringFromTsConfig(tsconfigPath);
+}
+

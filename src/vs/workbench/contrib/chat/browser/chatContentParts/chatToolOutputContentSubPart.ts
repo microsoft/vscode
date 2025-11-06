@@ -156,7 +156,7 @@ export class ChatToolOutputContentSubPart extends Disposable {
 			element: this.context.element,
 			parentContextKeyService: this.contextKeyService,
 			renderOptions: part.options,
-			chatSessionId: this.context.element.sessionId,
+			chatSessionResource: this.context.element.sessionResource,
 		};
 		const editorReference = this._register(this.editorPool.get());
 		editorReference.object.render(data, this._currentWidth || 300);

@@ -158,6 +158,7 @@ export interface IChatAgentRequest {
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+	isSubagent?: boolean;
 
 	/**
 	 * Summary data for chat sessions context

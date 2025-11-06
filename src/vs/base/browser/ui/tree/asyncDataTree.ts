@@ -429,10 +429,12 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 		dnd: options.dnd && new AsyncDataTreeNodeListDragAndDrop(options.dnd),
 		multipleSelectionController: options.multipleSelectionController && {
 			isSelectionSingleChangeEvent(e) {
-				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element }! as IListMouseEvent<T> | IListTouchEvent<T>);
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
+				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element } as IListMouseEvent<T> | IListTouchEvent<T>);
 			},
 			isSelectionRangeChangeEvent(e) {
-				return options.multipleSelectionController!.isSelectionRangeChangeEvent({ ...e, element: e.element }! as IListMouseEvent<T> | IListTouchEvent<T>);
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
+				return options.multipleSelectionController!.isSelectionRangeChangeEvent({ ...e, element: e.element } as IListMouseEvent<T> | IListTouchEvent<T>);
 			}
 		},
 		accessibilityProvider: options.accessibilityProvider && {
@@ -638,9 +640,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			this.findController = this.disposables.add(new AsyncFindController(this.tree, options.findProvider!, findFilter!, this.tree.options.contextViewProvider!, findOptions));
 
 			this.focusNavigationFilter = node => this.findController!.shouldFocusWhenNavigating(node);
-			this.onDidChangeFindOpenState = this.findController!.onDidChangeOpenState;
-			this.onDidChangeFindMode = this.findController!.onDidChangeMode;
-			this.onDidChangeFindMatchType = this.findController!.onDidChangeMatchType;
+			this.onDidChangeFindOpenState = this.findController.onDidChangeOpenState;
+			this.onDidChangeFindMode = this.findController.onDidChangeMode;
+			this.onDidChangeFindMatchType = this.findController.onDidChangeMatchType;
 		} else {
 			this.onDidChangeFindOpenState = this.tree.onDidChangeFindOpenState;
 			this.onDidChangeFindMode = this.tree.onDidChangeFindMode;

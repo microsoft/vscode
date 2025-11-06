@@ -8,6 +8,7 @@ import ts from 'typescript';
 import threads from 'node:worker_threads';
 import Vinyl from 'vinyl';
 import { cpus } from 'node:os';
+import { getTargetStringFromTsConfig } from '../tsconfigUtils';
 
 interface TranspileReq {
 	readonly tsSrcs: string[];
@@ -311,8 +312,10 @@ export class ESBuildTranspiler implements ITranspiler {
 
 		const isExtension = configFilePath.includes('extensions');
 
+		const target = getTargetStringFromTsConfig(configFilePath);
+
 		this._transformOpts = {
-			target: ['es2022'],
+			target: [target],
 			format: isExtension ? 'cjs' : 'esm',
 			platform: isExtension ? 'node' : undefined,
 			loader: 'ts',

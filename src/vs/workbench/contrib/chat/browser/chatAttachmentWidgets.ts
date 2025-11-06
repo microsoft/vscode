@@ -291,7 +291,10 @@ export class TerminalCommandAttachmentWidget extends AbstractChatAttachmentWidge
 	}
 }
 
-const MAX_TERMINAL_ATTACHMENT_OUTPUT_LENGTH = 2000;
+const enum TerminalConstants {
+	MaxAttachmentOutputLineCount = 5,
+	MaxAttachmentOutputLineLength = 80,
+}
 
 function createTerminalCommandElements(
 	element: HTMLElement,
@@ -312,7 +315,9 @@ function createTerminalCommandElements(
 	element.appendChild(textLabel);
 
 	disposable.add(dom.addDisposableListener(element, dom.EventType.CLICK, e => {
-		void clickHandler();
+		e.preventDefault();
+		e.stopPropagation();
+		clickHandler();
 	}));
 
 	const hoverElement = dom.$('div.chat-attached-context-hover');
@@ -326,23 +331,28 @@ function createTerminalCommandElements(
 	hoverElement.append(commandTitle, commandBlock);
 
 	if (attachment.output && attachment.output.trim().length > 0) {
-		const outputTitle = dom.$('div', {}, localize('chat.terminalCommandHoverOutputTitle', "Output"));
+		const outputTitle = dom.$('div', {}, localize('chat.terminalCommandHoverOutputTitle', "Output:"));
 		outputTitle.classList.add('attachment-additional-info');
 		const outputBlock = dom.$('pre.chat-terminal-command-output');
-		let outputText = attachment.output;
-		let truncated = false;
-		if (outputText.length > MAX_TERMINAL_ATTACHMENT_OUTPUT_LENGTH) {
-			outputText = `${outputText.slice(0, MAX_TERMINAL_ATTACHMENT_OUTPUT_LENGTH)}...`;
-			truncated = true;
+		const fullOutputLines = attachment.output.split('\n');
+		const hoverOutputLines = [];
+		for (const line of fullOutputLines) {
+			if (hoverOutputLines.length >= TerminalConstants.MaxAttachmentOutputLineCount) {
+				hoverOutputLines.push('...');
+				break;
+			}
+			const trimmed = line.trim();
+			if (trimmed.length === 0) {
+				continue;
+			}
+			if (trimmed.length > TerminalConstants.MaxAttachmentOutputLineLength) {
+				hoverOutputLines.push(`${trimmed.slice(0, TerminalConstants.MaxAttachmentOutputLineLength)}...`);
+			} else {
+				hoverOutputLines.push(trimmed);
+			}
 		}
-		outputBlock.textContent = outputText;
+		outputBlock.textContent = hoverOutputLines.join('\n');
 		hoverElement.append(outputTitle, outputBlock);
-
-		if (truncated) {
-			const truncatedInfo = dom.$('div', {}, localize('chat.terminalCommandHoverOutputTruncated', "Output truncated to first {0} characters.", MAX_TERMINAL_ATTACHMENT_OUTPUT_LENGTH));
-			truncatedInfo.classList.add('attachment-additional-info');
-			hoverElement.appendChild(truncatedInfo);
-		}
 	}
 
 	const hint = dom.$('div', {}, localize('chat.terminalCommandHoverHint', "Click to focus this command in the terminal."));
@@ -465,6 +475,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
 		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
 
+		// eslint-disable-next-line no-restricted-syntax
 		const existingPill = element.querySelector('.chat-attached-context-pill');
 		if (existingPill) {
 			existingPill.replaceWith(pill);
@@ -486,6 +497,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			// reset to original icon on error or invalid image
 			const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
 			const pill = dom.$('div.chat-attached-context-pill', {}, pillIcon);
+			// eslint-disable-next-line no-restricted-syntax
 			const existingPill = element.querySelector('.chat-attached-context-pill');
 			if (existingPill) {
 				existingPill.replaceWith(pill);
