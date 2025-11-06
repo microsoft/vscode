@@ -171,6 +171,11 @@ export class FindInput extends Widget {
 		// This will be set up after additional toggles are added
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
 			if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
+				// Only handle navigation if we have toggles
+				if (this.allTogglesDomNodes.length === 0) {
+					return;
+				}
+
 				const index = this.allTogglesDomNodes.indexOf(<HTMLElement>this.domNode.ownerDocument.activeElement);
 				if (index >= 0) {
 					let newIndex: number = -1;
