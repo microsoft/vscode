@@ -132,4 +132,57 @@ suite('CommandDetectionCapability', () => {
 			]);
 		});
 	});
+
+	suite('serialization', () => {
+		test('should preserve command id when deserializing partial commands', async () => {
+			// Start a command but don't finish it
+			await printCommandStart('$ ');
+			await writeP(xterm, 'echo foo');
+			capability.handleCommandExecuted();
+
+			// Get the current command's id
+			const originalId = capability.currentCommand.id;
+			ok(originalId, 'Expected partial command to have an id');
+
+			// Serialize the capability
+			const serialized = capability.serialize();
+			ok(serialized.commands.length > 0, 'Expected at least one command to be serialized');
+			const serializedCommand = serialized.commands[serialized.commands.length - 1];
+			deepStrictEqual(serializedCommand.id, originalId, 'Expected serialized command to have the same id');
+
+			// Create a new capability and deserialize
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const newCapability = store.add(instantiationService.createInstance(TestCommandDetectionCapability, xterm));
+			newCapability.deserialize(serialized);
+
+			// Verify the id was restored
+			deepStrictEqual(newCapability.currentCommand.id, originalId, 'Expected deserialized partial command to have the same id');
+		});
+
+		test('should preserve command id when deserializing full commands', async () => {
+			// Execute a complete command
+			await printStandardCommand('$ ', 'echo foo', 'foo', undefined, 0);
+
+			// Get the command's id
+			const commands = capability.commands;
+			ok(commands.length > 0, 'Expected at least one command');
+			const originalId = commands[0].id;
+			ok(originalId, 'Expected command to have an id');
+
+			// Serialize the capability
+			const serialized = capability.serialize();
+			ok(serialized.commands.length > 0, 'Expected at least one command to be serialized');
+			deepStrictEqual(serialized.commands[0].id, originalId, 'Expected serialized command to have the same id');
+
+			// Create a new capability and deserialize
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const newCapability = store.add(instantiationService.createInstance(TestCommandDetectionCapability, xterm));
+			newCapability.deserialize(serialized);
+
+			// Verify the id was restored
+			const deserializedCommands = newCapability.commands;
+			ok(deserializedCommands.length > 0, 'Expected at least one deserialized command');
+			deepStrictEqual(deserializedCommands[0].id, originalId, 'Expected deserialized command to have the same id');
+		});
+	});
 });

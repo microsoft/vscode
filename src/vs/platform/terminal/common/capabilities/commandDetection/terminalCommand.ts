@@ -236,6 +236,11 @@ export interface ICurrentPartialCommand {
 	command?: string;
 
 	/**
+	 * The unique identifier for the command.
+	 */
+	id?: string;
+
+	/**
 	 * Whether the command line is trusted via a nonce.
 	 */
 	isTrusted?: boolean;
