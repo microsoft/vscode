@@ -292,10 +292,10 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.attributeMustBeNonEmpty', "The '{0}' attribute must be a non-empty string.", attribute.key), attribute.value.range, MarkerSeverity.Error));
 			return undefined;
 		}
-		return this.validatAgentValue(attribute.value, report);
+		return this.validateAgentValue(attribute.value, report);
 	}
 
-	private validatAgentValue(value: IStringValue, report: (markers: IMarkerData) => void): IChatMode | undefined {
+	private validateAgentValue(value: IStringValue, report: (markers: IMarkerData) => void): IChatMode | undefined {
 		const agents = this.chatModeService.getModes();
 		const availableAgents = [];
 
@@ -418,7 +418,7 @@ export class PromptValidator {
 						if (prop.value.type !== 'string' || prop.value.value.trim().length === 0) {
 							report(toMarker(localize('promptValidator.handoffAgentMustBeNonEmptyString', "The 'agent' property in a handoff must be a non-empty string."), prop.value.range, MarkerSeverity.Error));
 						} else {
-							this.validatAgentValue(prop.value, report);
+							this.validateAgentValue(prop.value, report);
 						}
 						break;
 					case 'prompt':
