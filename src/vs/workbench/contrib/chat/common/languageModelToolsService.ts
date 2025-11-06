@@ -351,7 +351,7 @@ export interface ILanguageModelToolsService {
 	getQualifiedToolName(tool: IToolData, toolSet?: ToolSet): string;
 	getDeprecatedQualifiedToolNames(): Map<string, string>;
 
-	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap;
+	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap;
 	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
@@ -368,4 +368,16 @@ export function createToolSchemaUri(toolOrId: IToolData | string): URI {
 		toolOrId = toolOrId.id;
 	}
 	return URI.from({ scheme: Schemas.vscode, authority: 'schemas', path: `/lm/tool/${toolOrId}` });
+}
+
+export namespace GithubCopilotToolReference {
+	export const shell = 'shell';
+	export const edit = 'edit';
+	export const search = 'search';
+	export const customAgent = 'custom-agent';
+}
+
+export namespace VSCodeToolReference {
+	export const runCommands = 'runCommands';
+	export const runSubagent = 'runSubagent';
 }

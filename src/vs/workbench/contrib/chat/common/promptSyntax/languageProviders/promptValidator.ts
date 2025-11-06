@@ -16,7 +16,7 @@ import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { GithubPromptHeaderAttributes, IArrayValue, IHeaderAttribute, IStringValue, ParsedPromptFile, PROMPT_NAME_REGEXP, PromptHeaderAttributes } from '../promptFileParser.js';
+import { GithubPromptHeaderAttributes, IArrayValue, IHeaderAttribute, IStringValue, ParsedPromptFile, PROMPT_NAME_REGEXP, PromptHeaderAttributes, Target } from '../promptFileParser.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
@@ -91,7 +91,8 @@ export class PromptValidator {
 		// Validate variable references (tool or toolset names)
 		if (body.variableReferences.length && !isGitHubTarget) {
 			const headerTools = promptAST.header?.tools;
-			const headerToolsMap = headerTools ? this.languageModelToolsService.toToolAndToolSetEnablementMap(headerTools) : undefined;
+			const headerTarget = promptAST.header?.target;
+			const headerToolsMap = headerTools ? this.languageModelToolsService.toToolAndToolSetEnablementMap(headerTools, headerTarget) : undefined;
 
 			const available = new Set<string>(this.languageModelToolsService.getQualifiedToolNames());
 			const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
@@ -494,7 +495,7 @@ export const knownGithubCopilotTools: Record<string, string> = {
 	'custom-agent': localize('githubCopilotTools.customAgent', 'Call custom agents')
 };
 export function isGithubTarget(promptType: PromptsType, target: string | undefined): boolean {
-	return promptType === PromptsType.agent && target === 'github-copilot';
+	return promptType === PromptsType.agent && target === Target.GitHubCopilot;
 }
 
 function toMarker(message: string, range: Range, severity = MarkerSeverity.Error): IMarkerData {
