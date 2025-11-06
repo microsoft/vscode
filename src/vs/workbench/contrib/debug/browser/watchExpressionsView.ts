@@ -448,9 +448,8 @@ async function getContextForWatchExpressionMenuWithDataAccess(parentContext: ICo
 			);
 		}
 	} catch (error) {
-		// If dataBreakpointInfo fails (e.g., expression not found, invalid expression),
 		// silently continue without data breakpoint support for this item
-		logService.trace('Failed to get data breakpoint info for watch expression:', error);
+		logService.error('Failed to get data breakpoint info for watch expression:', error);
 	}
 
 	const dataBreakpointId = dataBreakpointInfoResponse?.dataId;
