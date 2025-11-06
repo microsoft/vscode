@@ -75,7 +75,7 @@ function wrapTest(fs: () => Promise<void>): () => Promise<void> {
 	return () => runWithFakedTimers({ useFakeTimers: true }, fs);
 }
 
-function test(name: string, fn: (this: unknown) => Promise<void>): void {
+function test(name: string, fn: () => Promise<void>): void {
 	global.test(name, wrapTest(fn));
 }
 
