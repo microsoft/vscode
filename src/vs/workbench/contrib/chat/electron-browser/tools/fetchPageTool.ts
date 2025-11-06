@@ -14,7 +14,7 @@ import { IWebContentExtractorService, WebContentExtractResult } from '../../../.
 import { detectEncodingFromBuffer } from '../../../../services/textfile/common/encoding.js';
 import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
 import { ChatImageMimeType } from '../../common/languageModels.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultReference, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
 
 export const FetchWebPageToolData: IToolData = {
@@ -106,6 +106,17 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		}
 
+		// Build references with titles for web URIs
+		const webReferences: IToolResultReference[] = [];
+		let webRefIndex = 0;
+		for (const uri of webUris.values()) {
+			const content = webContents[webRefIndex];
+			if (content && content.status === 'ok') {
+				webReferences.push({ uri, title: content.title });
+			}
+			webRefIndex++;
+		}
+
 		// Build results array in original order
 		const results: ResultType[] = [];
 		let webIndex = 0;
@@ -131,8 +142,8 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 
-		// Only include URIs that actually had content successfully fetched
-		const actuallyValidUris = [...webUris.values(), ...successfulFileUris];
+		// Build the toolResultDetails with references and titles
+		const actuallyValidUris: Array<URI | IToolResultReference> = [...webReferences, ...successfulFileUris];
 
 		return {
 			content: this._getPromptPartsForResults(results),

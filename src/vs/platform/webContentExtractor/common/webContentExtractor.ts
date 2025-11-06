@@ -20,7 +20,7 @@ export interface IWebContentExtractorOptions {
 }
 
 export type WebContentExtractResult =
-	| { status: 'ok'; result: string }
+	| { status: 'ok'; result: string; title?: string }
 	| { status: 'error'; error: string }
 	| { status: 'redirect'; toURI: URI };
 
