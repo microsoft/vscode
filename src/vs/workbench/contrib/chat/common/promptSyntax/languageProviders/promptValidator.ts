@@ -351,7 +351,7 @@ export class PromptValidator {
 							const currentName = deprecatedNames.get(toolName);
 							report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", toolName, currentName), item.range, MarkerSeverity.Info));
 						} else {
-							report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", item.value), item.range, MarkerSeverity.Warning));
+							report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", toolName), item.range, MarkerSeverity.Warning));
 						}
 					}
 				}
