@@ -71,12 +71,8 @@ function mockWorkspaceService(folders: IWorkspaceFolder[]): IWorkspaceContextSer
 	});
 }
 
-function wrapTest(fs: () => Promise<void>): () => Promise<void> {
-	return () => runWithFakedTimers({ useFakeTimers: true }, fs);
-}
-
 function test(name: string, fn: () => Promise<void>): void {
-	global.test(name, wrapTest(fn));
+	global.test(name, () => runWithFakedTimers({ useFakeTimers: true }, fn));
 }
 
 suite('PromptFilesLocator', () => {
