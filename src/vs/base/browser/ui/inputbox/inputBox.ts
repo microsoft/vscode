@@ -537,7 +537,7 @@ export class InputBox extends Widget {
 	}
 
 	private layoutMessage(): void {
-		if (this.message && this.contextViewProvider) {
+		if (this.state === 'open' && this.contextViewProvider) {
 			this.contextViewProvider.layout();
 		}
 	}
