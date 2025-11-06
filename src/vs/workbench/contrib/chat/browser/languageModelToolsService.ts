@@ -805,8 +805,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 		return getToolReferenceName(tool, toolSet);
 	}
-
-
 }
 
 function getToolReferenceName(tool: IToolData, toolSet?: ToolSet) {
