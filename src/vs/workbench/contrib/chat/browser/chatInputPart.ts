@@ -502,7 +502,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.initSelectedModel();
 
-		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
+		this._register(this.languageModelsService.onDidChangeLanguageModels((vendor) => {
+			// Remove vendor from cache since the models changed and what is stored is no longer valid
+			// TODO @lramos15 - The cache should be less confusing since we have the LM Service cache + the view cache interacting weirdly
+			this.storageService.store(
+				'chat.cachedLanguageModels',
+				this.storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>('chat.cachedLanguageModels', StorageScope.APPLICATION, []).filter(m => !m.identifier.startsWith(vendor)),
+				StorageScope.APPLICATION,
+				StorageTarget.MACHINE
+			);
+
 			// We've changed models and the current one is no longer available. Select a new one
 			const selectedModel = this._currentLanguageModel ? this.getModels().find(m => m.identifier === this._currentLanguageModel?.identifier) : undefined;
 			const selectedModelNotAvailable = this._currentLanguageModel && (!selectedModel?.metadata.isUserSelectable);
