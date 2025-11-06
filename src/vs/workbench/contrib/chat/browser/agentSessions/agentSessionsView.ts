@@ -263,21 +263,21 @@ export class AgentSessionsView extends ViewPane {
 		// Default action
 		actions.push(toAction({
 			id: 'newChatSession.default',
-			label: localize('newChatSessionDefault', "New Local Agent Session"),
+			label: localize('newChatSessionDefault', "New Local Session"),
 			run: () => this.commandService.executeCommand(ACTION_ID_OPEN_CHAT)
 		}));
 
 		// Background (CLI)
 		actions.push(toAction({
 			id: 'newChatSessionFromProvider.background',
-			label: localize('newBackgroundSession', "New Background Agent Session"),
+			label: localize('newBackgroundSession', "New Background Session"),
 			run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Background}`)
 		}));
 
 		// Cloud
 		actions.push(toAction({
 			id: 'newChatSessionFromProvider.cloud',
-			label: localize('newCloudSession', "New Cloud Agent Session"),
+			label: localize('newCloudSession', "New Cloud Session"),
 			run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Cloud}`)
 		}));
 
