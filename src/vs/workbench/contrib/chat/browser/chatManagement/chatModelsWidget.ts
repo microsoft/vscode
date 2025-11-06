@@ -485,7 +485,7 @@ class MultiplierColumnRenderer extends ModelsTableColumnRenderer<IMultiplierColu
 			const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 			markdown.appendMarkdown(localize('models.multiplier.description', 'Every chat request using this model counts {0} towards your premium model request quota.', multiplierText));
 
-			templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
+			templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.multiplierElement, () => ({
 				content: markdown,
 				appearance: {
 					compact: true,
