@@ -15,6 +15,7 @@ Review user's request and update code documentation comments in appropriate loca
 
 - **Important** Do not, under any circumstances, change any of the public API naming or signatures.
 - **Important** Fetch and review relevant code context (i.e. implementation source code) before making changes or adding comments.
+- **Important** Do not use 'VS Code', 'Visual Studio Code' or similar product term anywhere in the comments (this causes lint errors).
 - Follow American English grammar, orthography, and punctuation.
 - Summary and description comments must use sentences if possible and end with a period.
 - Use {@link \<symbol\>} where possible **and reasonable** to refer to code symbols.
