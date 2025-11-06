@@ -49,6 +49,7 @@ import { IShowNotebookFindWidgetOptions } from './notebookFindWidget.js';
 import { ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, INotebookDeltaDecoration, INotebookEditor } from '../../notebookBrowser.js';
 import { NotebookFindScopeType, NotebookSetting } from '../../../common/notebookCommon.js';
 import { ICellRange } from '../../../common/notebookRange.js';
+import type { IHoverLifecycleOptions } from '../../../../../../base/browser/ui/hover/hover.js';
 
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
@@ -375,10 +376,14 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._domNode.appendChild(progressContainer);
 
 		const isInteractiveWindow = contextKeyService.getContextKeyValue('notebookType') === 'interactive';
+
+		const hoverLifecycleOptions: IHoverLifecycleOptions = { groupId: 'simple-find-widget' };
+
 		// Toggle replace button
 		this._toggleReplaceBtn = this._register(new SimpleButton({
 			label: NLS_TOGGLE_REPLACE_MODE_BTN_LABEL,
 			className: 'codicon toggle left',
+			hoverLifecycleOptions,
 			onTrigger: isInteractiveWindow ? () => { } :
 				() => {
 					this._isReplaceVisible = !this._isReplaceVisible;
@@ -466,6 +471,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this.prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
 			icon: findPreviousMatchIcon,
+			hoverLifecycleOptions,
 			onTrigger: () => {
 				this.find(true);
 			}
@@ -474,6 +480,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this.nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL,
 			icon: findNextMatchIcon,
+			hoverLifecycleOptions,
 			onTrigger: () => {
 				this.find(false);
 			}
@@ -483,6 +490,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			icon: findSelectionIcon,
 			title: NLS_TOGGLE_SELECTION_FIND_TITLE,
 			isChecked: false,
+			hoverLifecycleOptions,
 			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground),
 			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
 			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
@@ -535,6 +543,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,
 			icon: widgetClose,
+			hoverLifecycleOptions,
 			onTrigger: () => {
 				this.hide();
 			}
@@ -579,7 +588,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
 			history: replaceHistoryConfig === 'workspace' ? this._replaceWidgetHistory : new Set([]),
 			inputBoxStyles: defaultInputBoxStyles,
-			toggleStyles: defaultToggleStyles
+			toggleStyles: defaultToggleStyles,
+			hoverLifecycleOptions,
 		}, contextKeyService, false));
 		this._innerReplaceDomNode.appendChild(this._replaceInput.domNode);
 		this._replaceInputFocusTracker = this._register(dom.trackFocus(this._replaceInput.domNode));
@@ -604,6 +614,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_BTN_LABEL,
 			icon: findReplaceIcon,
+			hoverLifecycleOptions,
 			onTrigger: () => {
 				this.replaceOne();
 			}
@@ -613,6 +624,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceAllBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_ALL_BTN_LABEL,
 			icon: findReplaceAllIcon,
+			hoverLifecycleOptions,
 			onTrigger: () => {
 				this.replaceAll();
 			}

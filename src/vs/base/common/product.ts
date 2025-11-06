@@ -218,6 +218,7 @@ export interface IProductConfiguration {
 		readonly chatEntitlementUrl: string;
 		readonly mcpRegistryDataUrl: string;
 	};
+	readonly authClientIdMetadataUrl?: string;
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 

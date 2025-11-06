@@ -439,6 +439,18 @@ export interface ITaskSourceConfigElement {
 	element: any;
 }
 
+export interface ITaskConfig {
+	label: string;
+	task?: CommandString;
+	type?: string;
+	command?: string | CommandString;
+	args?: string[] | CommandString[];
+	presentation?: IPresentationOptions;
+	isBackground?: boolean;
+	problemMatcher?: Types.SingleOrMany<string>;
+	group?: string | TaskGroup;
+}
+
 interface IBaseTaskSource {
 	readonly kind: string;
 	readonly label: string;
@@ -652,6 +664,7 @@ export abstract class CommonTask {
 	}
 
 	public clone(): Task {
+		// eslint-disable-next-line local/code-no-any-casts
 		return this.fromObject(Object.assign({}, <any>this));
 	}
 
@@ -692,6 +705,7 @@ export abstract class CommonTask {
 	public getTaskExecution(): ITaskExecution {
 		const result: ITaskExecution = {
 			id: this._id,
+			// eslint-disable-next-line local/code-no-any-casts
 			task: <any>this
 		};
 		return result;

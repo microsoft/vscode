@@ -53,7 +53,7 @@ export function create(workerServer: IWebWorkerServer): IWebWorkerServerRequestH
 }
 
 export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorkerServerRequestHandler {
-	_requestHandlerBrand: any;
+	_requestHandlerBrand: void = undefined;
 
 	private readonly host: LocalFileSearchWorkerHost;
 	cancellationTokens: Map<number, CancellationTokenSource> = new Map();

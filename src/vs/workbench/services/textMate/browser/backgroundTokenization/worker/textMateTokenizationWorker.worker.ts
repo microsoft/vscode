@@ -42,7 +42,7 @@ export interface StateDeltas {
 }
 
 export class TextMateTokenizationWorker implements IWebWorkerServerRequestHandler {
-	_requestHandlerBrand: any;
+	_requestHandlerBrand: void = undefined;
 
 	private readonly _host: TextMateWorkerHost;
 	private readonly _models = new Map</* controllerId */ number, TextMateWorkerTokenizer>();

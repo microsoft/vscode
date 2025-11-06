@@ -1190,6 +1190,7 @@ export class DebugSession implements IDebugSession {
 
 					resolved.forEach((child) => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
+						// eslint-disable-next-line local/code-no-any-casts
 						(<any>child).name = null;
 						this.appendToRepl({ output: '', expression: child, sev: outputSeverity, source }, event.body.category === 'important');
 					});

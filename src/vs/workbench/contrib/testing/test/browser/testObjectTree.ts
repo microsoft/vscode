@@ -58,6 +58,7 @@ class TestObjectTree<T> extends ObjectTree<T, any> {
 	}
 
 	public getRendered(getProperty?: string) {
+		// eslint-disable-next-line no-restricted-syntax
 		const elements = element.querySelectorAll<HTMLElement>('.monaco-tl-contents');
 		const sorted = [...elements].sort((a, b) => pos(a) - pos(b));
 		const chain: SerializedTree[] = [{ e: '', children: [] }];
@@ -119,6 +120,7 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 		});
 		this._register(this.onDiff.event(diff => collection.apply(diff)));
 
+		// eslint-disable-next-line local/code-no-any-casts
 		this.projection = this._register(makeTree({
 			collection,
 			onDidProcessDiff: this.onDiff.event,

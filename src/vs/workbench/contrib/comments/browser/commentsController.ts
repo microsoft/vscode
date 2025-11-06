@@ -1208,7 +1208,7 @@ export class CommentController implements IEditorContribution {
 				});
 			}
 		} else {
-			const { ownerId } = newCommentInfos[0]!.action;
+			const { ownerId } = newCommentInfos[0].action;
 			const clippedRange = range && newCommentInfos[0].range ? this.clipUserRangeToCommentRange(range, newCommentInfos[0].range) : range;
 			this.addCommentAtLine2(clippedRange, ownerId);
 		}
@@ -1380,7 +1380,7 @@ export class CommentController implements IEditorContribution {
 				await this.displayCommentThread(info.uniqueOwner, thread, false, pendingComment, pendingEdits);
 			}
 			for (const thread of info.pendingCommentThreads ?? []) {
-				this.resumePendingComment(this.editor!.getModel()!.uri, thread);
+				this.resumePendingComment(this.editor.getModel()!.uri, thread);
 			}
 		}
 

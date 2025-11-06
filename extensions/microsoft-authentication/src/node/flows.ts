@@ -22,12 +22,15 @@ export const enum ExtensionHost {
 interface IMsalFlowOptions {
 	supportsRemoteExtensionHost: boolean;
 	supportsWebWorkerExtensionHost: boolean;
+	supportsUnsupportedClient: boolean;
+	supportsBroker: boolean;
 }
 
 interface IMsalFlowTriggerOptions {
 	cachedPca: ICachedPublicClientApplication;
 	authority: string;
 	scopes: string[];
+	callbackUri: Uri;
 	loginHint?: string;
 	windowHandle?: Buffer;
 	logger: LogOutputChannel;
@@ -45,7 +48,9 @@ class DefaultLoopbackFlow implements IMsalFlow {
 	label = 'default';
 	options: IMsalFlowOptions = {
 		supportsRemoteExtensionHost: false,
-		supportsWebWorkerExtensionHost: false
+		supportsWebWorkerExtensionHost: false,
+		supportsUnsupportedClient: true,
+		supportsBroker: true
 	};
 
 	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
@@ -73,12 +78,14 @@ class UrlHandlerFlow implements IMsalFlow {
 	label = 'protocol handler';
 	options: IMsalFlowOptions = {
 		supportsRemoteExtensionHost: true,
-		supportsWebWorkerExtensionHost: false
+		supportsWebWorkerExtensionHost: false,
+		supportsUnsupportedClient: false,
+		supportsBroker: false
 	};
 
-	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger, uriHandler }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
+	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger, uriHandler, callbackUri }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
 		logger.info('Trying protocol handler flow...');
-		const loopbackClient = new UriHandlerLoopbackClient(uriHandler, DEFAULT_REDIRECT_URI, logger);
+		const loopbackClient = new UriHandlerLoopbackClient(uriHandler, DEFAULT_REDIRECT_URI, callbackUri, logger);
 		let redirectUri: string | undefined;
 		if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
 			redirectUri = Config.macOSBrokerRedirectUri;
@@ -97,13 +104,34 @@ class UrlHandlerFlow implements IMsalFlow {
 	}
 }
 
+class DeviceCodeFlow implements IMsalFlow {
+	label = 'device code';
+	options: IMsalFlowOptions = {
+		supportsRemoteExtensionHost: true,
+		supportsWebWorkerExtensionHost: false,
+		supportsUnsupportedClient: true,
+		supportsBroker: false
+	};
+
+	async trigger({ cachedPca, authority, scopes, claims, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
+		logger.info('Trying device code flow...');
+		const result = await cachedPca.acquireTokenByDeviceCode({ scopes, authority, claims });
+		if (!result) {
+			throw new Error('Device code flow did not return a result');
+		}
+		return result;
+	}
+}
+
 const allFlows: IMsalFlow[] = [
 	new DefaultLoopbackFlow(),
-	new UrlHandlerFlow()
+	new UrlHandlerFlow(),
+	new DeviceCodeFlow()
 ];
 
 export interface IMsalFlowQuery {
 	extensionHost: ExtensionHost;
+	supportedClient: boolean;
 	isBrokerSupported: boolean;
 }
 
@@ -119,12 +147,10 @@ export function getMsalFlows(query: IMsalFlowQuery): IMsalFlow[] {
 				useFlow &&= flow.options.supportsWebWorkerExtensionHost;
 				break;
 		}
+		useFlow &&= flow.options.supportsBroker || !query.isBrokerSupported;
+		useFlow &&= flow.options.supportsUnsupportedClient || query.supportedClient;
 		if (useFlow) {
 			flows.push(flow);
-			if (query.isBrokerSupported) {
-				// If broker is supported, only use the first valid flow
-				return flows;
-			}
 		}
 	}
 	return flows;

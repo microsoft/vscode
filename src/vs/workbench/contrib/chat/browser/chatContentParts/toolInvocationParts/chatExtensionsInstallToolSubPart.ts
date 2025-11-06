@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionManagementService } from '../../../../../../platform/extensionManagement/common/extensionManagement.js';
@@ -16,7 +17,7 @@ import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../../
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
-import { IChatConfirmationButton, ChatConfirmationWidget } from '../chatConfirmationWidget.js';
+import { ChatConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatExtensionsContentPart } from '../chatExtensionsContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
@@ -46,7 +47,7 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 		this._register(chatExtensionsContentPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		dom.append(this.domNode, chatExtensionsContentPart.domNode);
 
-		if (toolInvocation.isConfirmed === undefined) {
+		if (toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 			const allowLabel = localize('allow', "Allow");
 			const allowKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
 			const allowTooltip = allowKeybinding ? `${allowLabel} (${allowKeybinding})` : allowLabel;
@@ -74,7 +75,7 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 
 			const confirmWidget = this._register(instantiationService.createInstance(
 				ChatConfirmationWidget<ConfirmedReason>,
-				context.container,
+				context,
 				{
 					title: toolInvocation.confirmationMessages?.title ?? localize('installExtensions', "Install Extensions"),
 					message: toolInvocation.confirmationMessages?.message ?? localize('installExtensionsConfirmation', "Click the Install button on the extension and then press Allow when finished."),
@@ -84,13 +85,12 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 			this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			dom.append(this.domNode, confirmWidget.domNode);
 			this._register(confirmWidget.onDidClick(button => {
-				toolInvocation.confirmed.complete(button.data);
-				chatWidgetService.getWidgetBySessionId(context.element.sessionId)?.focusInput();
+				IChatToolInvocation.confirmWith(toolInvocation, button.data);
+				chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput();
 			}));
-			toolInvocation.confirmed.p.then(() => {
-				ChatContextKeys.Editing.hasToolConfirmation.bindTo(contextKeyService).set(false);
-				this._onNeedsRerender.fire();
-			});
+			const hasToolConfirmationKey = ChatContextKeys.Editing.hasToolConfirmation.bindTo(contextKeyService);
+			hasToolConfirmationKey.set(true);
+			this._register(toDisposable(() => hasToolConfirmationKey.reset()));
 			const disposable = this._register(extensionManagementService.onInstallExtension(e => {
 				if (extensionsContent.extensions.some(id => areSameExtensions({ id }, e.identifier))) {
 					disposable.dispose();

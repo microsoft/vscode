@@ -1,0 +1,93 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-viewer {
+
+	.monaco-list-row > .monaco-tl-row > .monaco-tl-twistie.force-no-twistie {
+		display: none !important;
+	}
+
+	.monaco-list-row.selected .agent-session-details-row,
+	.monaco-list-row.selected span.agent-session-diff-added,
+	.monaco-list-row.selected span.agent-session-diff-removed {
+		color: unset;
+	}
+
+	.agent-session-item {
+		display: flex;
+		flex-direction: row;
+		padding: 0 6px;
+
+		.agent-session-main-col,
+		.agent-session-title-row,
+		.agent-session-details-row {
+			flex: 1;
+			min-width: 0;
+		}
+
+		.agent-session-title-row,
+		.agent-session-details-row {
+			display: flex;
+			align-items: center;
+			line-height: 22px;
+			gap: 6px;
+			padding: 0 6px;
+		}
+
+		.agent-session-details-row {
+			color: var(--vscode-descriptionForeground);
+
+			.rendered-markdown {
+				p {
+					margin: 0;
+				}
+
+				a {
+					color: var(--vscode-descriptionForeground);
+				}
+			}
+		}
+
+		.agent-session-title {
+			flex: 1;
+		}
+
+		.agent-session-title,
+		.agent-session-description {
+			text-overflow: ellipsis;
+			overflow: hidden;
+		}
+
+		.agent-session-icon {
+			flex-shrink: 0;
+			width: 16px;
+			height: 16px;
+			font-size: 16px;
+		}
+
+		.agent-session-timestamp {
+			font-size: 11px;
+		}
+
+		/* #region Diff Styling */
+
+		.agent-session-diff {
+			font-size: 11px;
+			font-weight: 700;
+			display: flex;
+			gap: 4px;
+		}
+
+		span.agent-session-diff-added {
+			color: var(--vscode-chat-linesAddedForeground);
+		}
+
+		span.agent-session-diff-removed {
+			color: var(--vscode-chat-linesRemovedForeground);
+		}
+
+		/* #endregion */
+	}
+}

@@ -12,6 +12,7 @@ export function sumByCategory<T, TCategory extends string>(items: readonly T[], 
 		const category = getCategory(item);
 		acc[category] = (acc[category] || 0) + getValue(item);
 		return acc;
+		// eslint-disable-next-line local/code-no-any-casts
 	}, {} as any as Record<TCategory, number>);
 }
 

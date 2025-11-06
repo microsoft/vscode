@@ -28,24 +28,19 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 		protected readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 	) {
 		super();
-
-		if (toolInvocation.kind === 'toolInvocation' && !toolInvocation.isComplete) {
-			toolInvocation.isCompletePromise.then(() => this._onNeedsRerender.fire());
-		}
 	}
 
 	protected getIcon() {
 		const toolInvocation = this.toolInvocation;
-		const isSkipped = typeof toolInvocation.isConfirmed !== 'boolean' && toolInvocation.isConfirmed?.type === ToolConfirmKind.Skipped;
+		const confirmState = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation);
+		const isSkipped = confirmState?.type === ToolConfirmKind.Skipped;
 		if (isSkipped) {
 			return Codicon.circleSlash;
 		}
-		const isConfirmed = typeof toolInvocation.isConfirmed === 'boolean'
-			? toolInvocation.isConfirmed
-			: toolInvocation.isConfirmed?.type !== ToolConfirmKind.Denied;
-		return !isConfirmed ?
+
+		return confirmState?.type === ToolConfirmKind.Denied ?
 			Codicon.error :
-			toolInvocation.isComplete ?
+			IChatToolInvocation.isComplete(toolInvocation) ?
 				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
 	}
 }

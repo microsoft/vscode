@@ -542,6 +542,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		const object = this._writeQueue.shift()!;
 		this._logService.trace('node-pty.IPty#write', object.data);
 		if (object.isBinary) {
+			// TODO: node-pty's write should accept a Buffer
+			// eslint-disable-next-line local/code-no-any-casts
 			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
 		} else {
 			this._ptyProcess!.write(object.data);
@@ -610,6 +612,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
 		// No-op
+	}
+
+	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
+		// No-op: command IDs are tracked on the renderer and serializer only.
 	}
 
 	getInitialCwd(): Promise<string> {

@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 const { dirs } = require('../../npm/dirs') as { dirs: string[] };
 
-function log(...args: any[]): void {
+function log(...args: unknown[]): void {
 	console.log(`[${new Date().toLocaleTimeString('en', { hour12: false })}]`, '[distro]', ...args);
 }
 

@@ -105,7 +105,7 @@ export async function getCwdForSplit(
 					const options: IPickOptions<IQuickPickItem> = {
 						placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
 					};
-					const workspace = await commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
+					const workspace = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
 					if (!workspace) {
 						// Don't split the instance if the workspace picker was canceled
 						return undefined;
@@ -596,7 +596,7 @@ export function registerTerminalActions() {
 			}
 
 			const instance = await c.service.getActiveOrCreateInstance({ acceptsInput: true });
-			const isRemote = instance ? instance.isRemote : (workbenchEnvironmentService.remoteAuthority ? true : false);
+			const isRemote = instance ? instance.hasRemoteAuthority : (workbenchEnvironmentService.remoteAuthority ? true : false);
 			const uri = editor.getModel().uri;
 			if ((!isRemote && uri.scheme !== Schemas.file && uri.scheme !== Schemas.vscodeUserData) || (isRemote && uri.scheme !== Schemas.vscodeRemote)) {
 				notificationService.warn(localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
@@ -1608,7 +1608,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]): ID
 				const options: IPickOptions<IQuickPickItem> = {
 					placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
 				};
-				const workspace = await commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
+				const workspace = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
 				if (!workspace) {
 					// Don't create the instance if the workspace picker was canceled
 					return;

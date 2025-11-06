@@ -45,7 +45,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		// onDidChangeTerminalShellIntegration via command detection
 		const onDidAddCommandDetection = this._store.add(this._terminalService.createOnInstanceEvent(instance => {
 			return Event.map(
-				Event.filter(instance.capabilities.onDidAddCapabilityType, e => e === TerminalCapability.CommandDetection),
+				instance.capabilities.onDidAddCommandDetectionCapability,
 				() => instance
 			);
 		})).event;

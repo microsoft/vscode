@@ -69,10 +69,11 @@ class ChatCommandLineHandler extends Disposable {
 	}
 
 	private registerListeners() {
-		ipcRenderer.on('vscode:handleChatRequest', (_, args: typeof this.environmentService.args.chat) => {
-			this.logService.trace('vscode:handleChatRequest', args);
+		ipcRenderer.on('vscode:handleChatRequest', (_, ...args: unknown[]) => {
+			const chatArgs = args[0] as typeof this.environmentService.args.chat;
+			this.logService.trace('vscode:handleChatRequest', chatArgs);
 
-			this.prompt(args);
+			this.prompt(chatArgs);
 		});
 	}
 
@@ -95,7 +96,7 @@ class ChatCommandLineHandler extends Disposable {
 			attachFiles: args['add-file']?.map(file => URI.file(resolve(file))), // use `resolve` to deal with relative paths properly
 		};
 
-		const chatWidget = await showChatView(this.viewsService);
+		const chatWidget = await showChatView(this.viewsService, this.layoutService);
 
 		if (args.maximize) {
 			const location = this.contextKeyService.getContextKeyValue<ViewContainerLocation>(ChatContextKeys.panelLocation.key);
@@ -144,6 +145,7 @@ class ChatLifecycleHandler extends Disposable {
 		@IViewsService private readonly viewsService: IViewsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -171,7 +173,7 @@ class ChatLifecycleHandler extends Disposable {
 
 	private async doShouldVetoShutdown(reason: ShutdownReason): Promise<boolean> {
 
-		showChatView(this.viewsService);
+		showChatView(this.viewsService, this.layoutService);
 
 		let message: string;
 		let detail: string;

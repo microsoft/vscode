@@ -42,11 +42,13 @@ type SelectedToolClassification = {
 
 export const AcceptToolConfirmationActionId = 'workbench.action.chat.acceptTool';
 export const SkipToolConfirmationActionId = 'workbench.action.chat.skipTool';
+export const AcceptToolPostConfirmationActionId = 'workbench.action.chat.acceptToolPostExecution';
+export const SkipToolPostConfirmationActionId = 'workbench.action.chat.skipToolPostExecution';
 
 abstract class ToolConfirmationAction extends Action2 {
 	protected abstract getReason(): ConfirmedReason;
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const widget = chatWidgetService.lastFocusedWidget;
 		const lastItem = widget?.viewModel?.getItems().at(-1);
@@ -54,9 +56,12 @@ abstract class ToolConfirmationAction extends Action2 {
 			return;
 		}
 
-		const unconfirmedToolInvocation = lastItem.model.response.value.find((item): item is IChatToolInvocation => item.kind === 'toolInvocation' && item.isConfirmed === undefined);
-		if (unconfirmedToolInvocation) {
-			unconfirmedToolInvocation.confirmed.complete(this.getReason());
+		for (const item of lastItem.model.response.value) {
+			const state = item.kind === 'toolInvocation' ? item.state.get() : undefined;
+			if (state?.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state?.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				state.confirm(this.getReason());
+				break;
+			}
 		}
 
 		// Return focus to the chat input, in case it was in the tool confirmation editor
@@ -119,14 +124,14 @@ class ConfigureToolsAction extends Action2 {
 			precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			menu: [{
 				when: ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ChatContextKeys.lockedToCodingAgent.negate()),
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 1,
+				order: 100,
 			}]
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 
 		const instaService = accessor.get(IInstantiationService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
@@ -154,16 +159,21 @@ class ConfigureToolsAction extends Action2 {
 		switch (entriesScope) {
 			case ToolsScope.Session:
 				placeholder = localize('chat.tools.placeholder.session', "Select tools for this chat session");
-				description = localize('chat.tools.description.session', "The selected tools were configured by a prompt command and only apply to this chat session.");
+				description = localize('chat.tools.description.session', "The selected tools were configured only for this chat session.");
 				break;
-			case ToolsScope.Mode:
-				placeholder = localize('chat.tools.placeholder.mode', "Select tools for this chat mode");
-				description = localize('chat.tools.description.mode', "The selected tools are configured by the '{0}' chat mode. Changes to the tools will be applied to the mode file as well.", widget.input.currentModeObs.get().label);
+			case ToolsScope.Agent:
+				placeholder = localize('chat.tools.placeholder.agent', "Select tools for this custom agent");
+				description = localize('chat.tools.description.agent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will be applied to the custom agent file as well.", widget.input.currentModeObs.get().label.get());
+				break;
+			case ToolsScope.Agent_ReadOnly:
+				placeholder = localize('chat.tools.placeholder.readOnlyAgent', "Select tools for this custom agent");
+				description = localize('chat.tools.description.readOnlyAgent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will only be used for this session and will not change the '{0}' custom agent.", widget.input.currentModeObs.get().label.get());
 				break;
 			case ToolsScope.Global:
 				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat.");
-				description = undefined;
+				description = localize('chat.tools.description.global', "The selected tools will be applied globally for all chat sessions that use the default agent.");
 				break;
+
 		}
 
 		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, () => entriesMap.get());
@@ -186,7 +196,7 @@ class ConfigureToolsActionRendering implements IWorkbenchContribution {
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 	) {
-		const disposable = actionViewItemService.register(MenuId.ChatExecute, ConfigureToolsAction.ID, (action, _opts, instantiationService) => {
+		const disposable = actionViewItemService.register(MenuId.ChatInput, ConfigureToolsAction.ID, (action, _opts, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}

@@ -269,6 +269,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 		for (let i = 1, len = model.getLineCount(); i <= len; i++) {
 			const line = model.getLineContent(i);
 			for (let j = 1, lenJ = line.length + 1; j <= lenJ; j++) {
+				// eslint-disable-next-line local/code-no-any-casts
 				if (!isABracket[i].hasOwnProperty(<any>j)) {
 					assertIsNotBracket(model, i, j);
 				}

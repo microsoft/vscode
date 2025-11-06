@@ -18,6 +18,7 @@ import { EndOfLineSequence, ITextModel } from '../../../../../common/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { enableCopySelection } from './copySelection.js';
 
 export class InlineDiffDeletedCodeMargin extends Disposable {
 	private readonly _diffActions: HTMLElement;
@@ -38,6 +39,7 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 	constructor(
 		private readonly _getViewZoneId: () => string,
 		private readonly _marginDomNode: HTMLElement,
+		private readonly _deletedCodeDomNode: HTMLElement,
 		private readonly _modifiedEditor: CodeEditorWidget,
 		private readonly _diff: DetailedLineRangeMapping,
 		private readonly _editor: DiffEditorWidget,
@@ -64,12 +66,13 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 		let currentLineNumberOffset = 0;
 
 		const useShadowDOM = _modifiedEditor.getOption(EditorOption.useShadowDOM) && !isIOS; // Do not use shadow dom on IOS #122035
-		const showContextMenu = (x: number, y: number) => {
+		const showContextMenu = (anchor: { x: number; y: number }, baseActions?: Action[], onHide?: () => void) => {
 			this._contextMenuService.showContextMenu({
 				domForShadowRoot: useShadowDOM ? _modifiedEditor.getDomNode() ?? undefined : undefined,
-				getAnchor: () => ({ x, y }),
+				getAnchor: () => anchor,
+				onHide,
 				getActions: () => {
-					const actions: Action[] = [];
+					const actions: Action[] = baseActions ?? [];
 					const isDeletion = _diff.modified.isEmpty;
 
 					// default action
@@ -135,7 +138,7 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 			const { top, height } = getDomNodePagePosition(this._diffActions);
 			const pad = Math.floor(lineHeight / 3);
 			e.preventDefault();
-			showContextMenu(e.posx, top + height + pad);
+			showContextMenu({ x: e.posx, y: top + height + pad });
 		}));
 
 		this._register(_modifiedEditor.onMouseMove((e: IEditorMouseEvent) => {
@@ -147,18 +150,16 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 			}
 		}));
 
-		this._register(_modifiedEditor.onMouseDown((e: IEditorMouseEvent) => {
-			if (!e.event.leftButton) { return; }
-
-			if (e.target.type === MouseTargetType.CONTENT_VIEW_ZONE || e.target.type === MouseTargetType.GUTTER_VIEW_ZONE) {
-				const viewZoneId = e.target.detail.viewZoneId;
-
-				if (viewZoneId === this._getViewZoneId()) {
-					e.event.preventDefault();
-					currentLineNumberOffset = this._updateLightBulbPosition(this._marginDomNode, e.event.browserEvent.y, lineHeight);
-					showContextMenu(e.event.posx, e.event.posy + lineHeight);
-				}
-			}
+		this._register(enableCopySelection({
+			domNode: this._deletedCodeDomNode,
+			getViewZoneId: () => this._getViewZoneId(),
+			diffEntry: _diff,
+			originalModel: this._originalTextModel,
+			editorLineHeight: lineHeight,
+			viewLineCounts: this._viewLineCounts,
+			editor: _modifiedEditor,
+			showContextMenu,
+			clipboardService: _clipboardService,
 		}));
 	}
 

@@ -7,15 +7,15 @@ import { deepStrictEqual, strictEqual } from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { isWindows } from '../../../../../base/common/platform.js';
+import { isWindows, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, TitleEventSource } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService } from '../../browser/terminal.js';
@@ -36,18 +36,18 @@ const ROOT_2 = fixPath(root2);
 class MockTerminalProfileResolverService extends TestTerminalProfileResolverService {
 	override async getDefaultProfile(): Promise<ITerminalProfile> {
 		return {
-			profileName: "my-sh",
-			path: "/usr/bin/zsh",
+			profileName: 'my-sh',
+			path: '/usr/bin/zsh',
 			env: {
-				TEST: "TEST",
+				TEST: 'TEST',
 			},
 			isDefault: true,
 			isUnsafePath: false,
 			isFromPath: true,
 			icon: {
-				id: "terminal-linux",
+				id: 'terminal-linux',
 			},
-			color: "terminal.ansiYellow",
+			color: 'terminal.ansiYellow',
 		};
 	}
 }
@@ -70,9 +70,9 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 		throw new Error('Method not implemented.');
 	}
 
-	onProcessOverrideDimensions?: Event<any> | undefined;
-	onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
-	onDidChangeHasChildProcesses?: Event<any> | undefined;
+	readonly onProcessOverrideDimensions?: Event<any> | undefined;
+	readonly onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
+	readonly onDidChangeHasChildProcesses?: Event<any> | undefined;
 
 	onDidChangeProperty = Event.None;
 	onProcessData = Event.None;
@@ -88,6 +88,7 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 	clearBuffer(): void { }
 	acknowledgeDataEvent(charCount: number): void { }
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> { }
+	async setNextCommandId(commandLine: string, commandId: string): Promise<void> { }
 	async getInitialCwd(): Promise<string> { return ''; }
 	async getCwd(): Promise<string> { return ''; }
 	async processBinary(data: string): Promise<void> { }
@@ -95,7 +96,7 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 }
 
 class TestTerminalInstanceService extends Disposable implements Partial<ITerminalInstanceService> {
-	getBackend() {
+	async getBackend() {
 		return {
 			onPtyHostExit: Event.None,
 			onPtyHostUnresponsive: Event.None,
@@ -103,18 +104,18 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 			onPtyHostRestart: Event.None,
 			onDidMoveWindowInstance: Event.None,
 			onDidRequestDetach: Event.None,
-			createProcess: (
-				shellLaunchConfig: any,
+			createProcess: async (
+				shellLaunchConfig: IShellLaunchConfig,
 				cwd: string,
 				cols: number,
 				rows: number,
 				unicodeVersion: '6' | '11',
-				env: any,
-				windowsEnableConpty: boolean,
+				env: IProcessEnvironment,
+				options: ITerminalProcessOptions,
 				shouldPersist: boolean
 			) => this._register(new TestTerminalChildProcess(shouldPersist)),
 			getLatency: () => Promise.resolve([])
-		} as any;
+		} as unknown as ITerminalBackend;
 	}
 }
 
@@ -441,7 +442,7 @@ suite('Workbench - TerminalInstance', () => {
 				const mockCwdDetection = {
 					getCwd: () => options.cwd
 				};
-				capabilities.add(TerminalCapability.CwdDetection, mockCwdDetection as any);
+				capabilities.add(TerminalCapability.CwdDetection, mockCwdDetection as unknown as ICwdDetectionCapability);
 			}
 
 			// Mock file service

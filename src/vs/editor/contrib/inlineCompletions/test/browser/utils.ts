@@ -237,6 +237,7 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					options.serviceCollection = new ServiceCollection();
 				}
 				options.serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
+				// eslint-disable-next-line local/code-no-any-casts
 				options.serviceCollection.set(IAccessibilitySignalService, {
 					playSignal: async () => { },
 					isSoundEnabled(signal: unknown) { return false; },

@@ -18,13 +18,22 @@ const mcpAllowableContentTypes: readonly string[] = [
 	'image/gif'
 ];
 
+const enum IconTheme {
+	Light,
+	Dark,
+	Any,
+}
+
 interface IIcon {
 	/** URI the image can be loaded from */
 	src: URI;
+	/** Theme for this icon. */
+	theme: IconTheme;
 	/** Sizes of the icon in ascending order. */
 	sizes: { width: number; height: number }[];
 }
 
+export type ParsedMcpIcons = IIcon[];
 export type StoredMcpIcons = Dto<IIcon>[];
 
 
@@ -68,8 +77,8 @@ function validateIcon(icon: MCP.Icon, launch: McpServerLaunch, logger: ILogger):
 	return;
 }
 
-export function parseAndValidateMcpIcon(icons: MCP.Icons, launch: McpServerLaunch, logger: ILogger): StoredMcpIcons {
-	const result: StoredMcpIcons = [];
+export function parseAndValidateMcpIcon(icons: MCP.Icons, launch: McpServerLaunch, logger: ILogger): ParsedMcpIcons {
+	const result: ParsedMcpIcons = [];
 	for (const icon of icons.icons || []) {
 		const uri = validateIcon(icon, launch, logger);
 		if (!uri) {
@@ -79,6 +88,7 @@ export function parseAndValidateMcpIcon(icons: MCP.Icons, launch: McpServerLaunc
 		const sizesArr = typeof icon.sizes === 'string' ? icon.sizes.split(' ') : Array.isArray(icon.sizes) ? icon.sizes : [];
 		result.push({
 			src: uri,
+			theme: icon.theme === 'light' ? IconTheme.Light : icon.theme === 'dark' ? IconTheme.Dark : IconTheme.Any,
 			sizes: sizesArr.map(size => {
 				const [widthStr, heightStr] = size.toLowerCase().split('x');
 				return { width: Number(widthStr) || 0, height: Number(heightStr) || 0 };
@@ -92,21 +102,43 @@ export function parseAndValidateMcpIcon(icons: MCP.Icons, launch: McpServerLaunc
 }
 
 export class McpIcons implements IMcpIcons {
-
 	public static fromStored(icons: StoredMcpIcons | undefined) {
-		return new McpIcons(icons?.map(i => ({ src: URI.revive(i.src), sizes: i.sizes })) || []);
+		return McpIcons.fromParsed(icons?.map(i => ({ src: URI.revive(i.src), theme: i.theme, sizes: i.sizes })));
+	}
+
+	public static fromParsed(icons: ParsedMcpIcons | undefined) {
+		return new McpIcons(icons || []);
 	}
 
 	protected constructor(private readonly _icons: IIcon[]) { }
 
-	getUrl(size: number): URI | undefined {
-		for (const icon of this._icons) {
-			const firstWidth = icon.sizes[0]?.width ?? 0;
-			if (firstWidth > size) {
-				return icon.src;
-			}
+	getUrl(size: number): { dark: URI; light?: URI } | undefined {
+		const dark = this.getSizeWithTheme(size, IconTheme.Dark);
+		if (dark?.theme === IconTheme.Any) {
+			return { dark: dark.src };
 		}
 
-		return this._icons.at(-1)?.src;
+		const light = this.getSizeWithTheme(size, IconTheme.Light);
+		if (!light && !dark) {
+			return undefined;
+		}
+
+		return { dark: (dark || light)!.src, light: light?.src };
+	}
+
+	private getSizeWithTheme(size: number, theme: IconTheme): IIcon | undefined {
+		let bestOfAnySize: IIcon | undefined;
+
+		for (const icon of this._icons) {
+			if (icon.theme === theme || icon.theme === IconTheme.Any || icon.theme === undefined) { // undefined check for back compat
+				bestOfAnySize = icon;
+
+				const matchingSize = icon.sizes.find(s => s.width >= size);
+				if (matchingSize) {
+					return { ...icon, sizes: [matchingSize] };
+				}
+			}
+		}
+		return bestOfAnySize;
 	}
 }

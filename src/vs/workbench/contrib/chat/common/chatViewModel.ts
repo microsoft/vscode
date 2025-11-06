@@ -17,7 +17,7 @@ import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameS
 import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatChangesSummary, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersInteractionRequired, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatChangesSummary, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
 import { countWords } from './chatWordCounter.js';
 import { CodeBlockModelCollection } from './codeBlockModelCollection.js';
 
@@ -63,7 +63,9 @@ export interface IChatSetCheckpointEvent {
 
 export interface IChatViewModel {
 	readonly model: IChatModel;
+	/** @deprecated Use {@link sessionResource} instead */
 	readonly sessionId: string;
+	readonly sessionResource: URI;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
 	readonly requestInProgress: boolean;
@@ -77,7 +79,9 @@ export interface IChatViewModel {
 
 export interface IChatRequestViewModel {
 	readonly id: string;
+	/** @deprecated */
 	readonly sessionId: string;
+	readonly sessionResource: URI;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	readonly username: string;
@@ -180,7 +184,7 @@ export interface IChatChangesSummaryPart {
 /**
  * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersInteractionRequired;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting;
 
 export interface IChatLiveUpdateData {
 	totalTime: number;
@@ -193,7 +197,9 @@ export interface IChatResponseViewModel {
 	readonly model: IChatResponseModel;
 	readonly id: string;
 	readonly session: IChatViewModel;
+	/** @deprecated */
 	readonly sessionId: string;
+	readonly sessionResource: URI;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	/** The ID of the associated IChatRequestViewModel */
@@ -258,8 +264,13 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._onDidChange.fire({ kind: 'changePlaceholder' });
 	}
 
+	/** @deprecated Use {@link sessionResource} instead */
 	get sessionId() {
 		return this._model.sessionId;
+	}
+
+	get sessionResource(): URI {
+		return this._model.sessionResource;
 	}
 
 	get requestInProgress(): boolean {
@@ -368,7 +379,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			if (token.type === 'code') {
 				const lang = token.lang || '';
 				const text = token.text;
-				this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text, languageId: lang, isComplete: true });
+				this.codeBlockModelCollection.update(this._model.sessionResource, model, codeBlockIndex++, { text, languageId: lang, isComplete: true });
 			}
 		});
 	}
@@ -383,8 +394,13 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this.id + `_${hash(this.variables)}_${hash(this.isComplete)}`;
 	}
 
+	/** @deprecated */
 	get sessionId() {
 		return this._model.session.sessionId;
+	}
+
+	get sessionResource() {
+		return this._model.session.sessionResource;
 	}
 
 	get username() {
@@ -474,8 +490,13 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			(this.isLast ? '_last' : '');
 	}
 
+	/** @deprecated */
 	get sessionId() {
 		return this._model.session.sessionId;
+	}
+
+	get sessionResource(): URI {
+		return this._model.session.sessionResource;
 	}
 
 	get username() {

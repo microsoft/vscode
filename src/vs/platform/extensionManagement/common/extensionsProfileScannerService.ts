@@ -402,6 +402,8 @@ function isUriComponents(thing: unknown): thing is UriComponents {
 	if (!thing) {
 		return false;
 	}
+	// eslint-disable-next-line local/code-no-any-casts
 	return isString((<any>thing).path) &&
+		// eslint-disable-next-line local/code-no-any-casts
 		isString((<any>thing).scheme);
 }

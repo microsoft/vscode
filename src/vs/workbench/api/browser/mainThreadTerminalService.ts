@@ -277,19 +277,19 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $registerCompletionProvider(id: string, extensionIdentifier: string, ...triggerCharacters: string[]): void {
 		this._completionProviders.set(id, this._terminalCompletionService.registerTerminalCompletionProvider(extensionIdentifier, id, {
 			id,
-			provideCompletions: async (commandLine, cursorPosition, allowFallbackCompletions, token) => {
-				const completions = await this._proxy.$provideTerminalCompletions(id, { commandLine, cursorPosition, allowFallbackCompletions }, token);
+			provideCompletions: async (commandLine, cursorIndex, token) => {
+				const completions = await this._proxy.$provideTerminalCompletions(id, { commandLine, cursorIndex }, token);
 				if (!completions) {
 					return undefined;
 				}
-				if (completions.resourceRequestConfig) {
-					const { cwd, globPattern, ...rest } = completions.resourceRequestConfig;
+				if (completions.resourceOptions) {
+					const { cwd, globPattern, ...rest } = completions.resourceOptions;
 					return {
 						items: completions.items?.map(c => ({
 							provider: `ext:${id}`,
 							...c,
 						})),
-						resourceRequestConfig: {
+						resourceOptions: {
 							...rest,
 							cwd,
 							globPattern

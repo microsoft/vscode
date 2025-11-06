@@ -138,7 +138,7 @@ export class LabelService extends Disposable implements ILabelService {
 	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400 }));
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
 
-	private readonly storedFormattersMemento: Memento;
+	private readonly storedFormattersMemento: Memento<IStoredFormatters>;
 	private readonly storedFormatters: IStoredFormatters;
 	private os: OperatingSystem;
 	private userHome: URI | undefined;
@@ -192,11 +192,9 @@ export class LabelService extends Disposable implements ILabelService {
 					continue;
 				}
 
-				if (
-					match(formatter.authority.toLowerCase(), resource.authority.toLowerCase()) &&
+				if (match(formatter.authority, resource.authority, { ignoreCase: true }) &&
 					(
-						!bestResult ||
-						!bestResult.authority ||
+						!bestResult?.authority ||
 						formatter.authority.length > bestResult.authority.length ||
 						((formatter.authority.length === bestResult.authority.length) && formatter.priority)
 					)

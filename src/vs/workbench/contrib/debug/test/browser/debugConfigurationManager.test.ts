@@ -89,6 +89,7 @@ suite('debugConfigurationManager', () => {
 		};
 
 		const resultConfig = await _debugConfigurationManager.resolveConfigurationByProviders(undefined, configurationProviderType, initialConfig, CancellationToken.None);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((resultConfig as any).configurationResolved, true, 'Configuration should be updated by test provider');
 	});
 
@@ -125,6 +126,7 @@ suite('debugConfigurationManager', () => {
 
 		const resultConfig = await _debugConfigurationManager.resolveConfigurationByProviders(undefined, configurationProviderType, initialConfig, CancellationToken.None);
 		assert.strictEqual(resultConfig!.type, secondProviderType);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((resultConfig as any).configurationResolved, true, 'Configuration should be updated by test provider');
 	});
 

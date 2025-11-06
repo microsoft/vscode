@@ -8,7 +8,7 @@ import cdSpec from '../../completions/cd';
 import { testPaths, type ISuiteSpec } from '../helpers';
 
 const expectedCompletions = ['-'];
-const cdExpectedCompletions = [{ label: 'cd', description: (cdSpec as any).description }];
+const cdExpectedCompletions = [{ label: 'cd', description: (cdSpec as Fig.Subcommand).description }];
 export const cdTestSuiteSpec: ISuiteSpec = {
 	name: 'cd',
 	completionSpecs: cdSpec,

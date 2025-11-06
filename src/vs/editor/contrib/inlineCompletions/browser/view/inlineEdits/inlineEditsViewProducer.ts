@@ -21,7 +21,7 @@ import { InlineEditsView } from './inlineEditsView.js';
 import { InlineEditTabAction } from './inlineEditsViewInterface.js';
 
 export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This class is no longer a diff producer. Rename it or get rid of it
-	public static readonly hot = createHotClass(InlineEditsViewAndDiffProducer);
+	public static readonly hot = createHotClass(this);
 
 	private readonly _editorObs: ObservableCodeEditor;
 
@@ -47,7 +47,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const diffEdits = new TextEdit(edits);
 		const text = new TextModelText(textModel);
 
-		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.read(undefined), inlineEdit.commands, inlineEdit.inlineCompletion);
+		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.read(undefined), model.allPositions.read(undefined), inlineEdit.commands, inlineEdit.inlineCompletion);
 	});
 
 	private readonly _inlineEditModel = derived<InlineEditModel | undefined>(this, reader => {

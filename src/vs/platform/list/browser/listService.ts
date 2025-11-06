@@ -874,6 +874,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const { options: treeOptions, getTypeNavigationMode, disposable } = instantiationService.invokeFunction(workbenchTreeDataPreamble, options as any);
 		super(user, container, delegate, renderers, treeOptions);
 		this.disposables.add(disposable);
@@ -914,6 +915,7 @@ export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilter
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const { options: treeOptions, getTypeNavigationMode, disposable } = instantiationService.invokeFunction(workbenchTreeDataPreamble, options as any);
 		super(user, container, delegate, renderers, treeOptions);
 		this.disposables.add(disposable);
@@ -960,6 +962,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const { options: treeOptions, getTypeNavigationMode, disposable } = instantiationService.invokeFunction(workbenchTreeDataPreamble, options as any);
 		super(user, container, delegate, renderers, dataSource, treeOptions);
 		this.disposables.add(disposable);
@@ -1006,6 +1009,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const { options: treeOptions, getTypeNavigationMode, disposable } = instantiationService.invokeFunction(workbenchTreeDataPreamble, options as any);
 		super(user, container, delegate, renderers, dataSource, treeOptions);
 		this.disposables.add(disposable);
@@ -1050,6 +1054,7 @@ export class WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData = void> e
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const { options: treeOptions, getTypeNavigationMode, disposable } = instantiationService.invokeFunction(workbenchTreeDataPreamble, options as any);
 		super(user, container, virtualDelegate, compressionDelegate, renderers, dataSource, treeOptions);
 		this.disposables.add(disposable);

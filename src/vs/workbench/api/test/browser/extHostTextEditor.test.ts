@@ -262,6 +262,7 @@ suite('ExtHostTextEditorOptions', () => {
 	});
 
 	test('can change indentSize to a string number', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		opts.value.indentSize = <any>'2';
 		assertState(opts, {
 			tabSize: 4,
@@ -286,6 +287,7 @@ suite('ExtHostTextEditorOptions', () => {
 	});
 
 	test('indentSize cannot request indentation detection', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		opts.value.indentSize = <any>'auto';
 		assertState(opts, {
 			tabSize: 4,
@@ -322,6 +324,7 @@ suite('ExtHostTextEditorOptions', () => {
 	});
 
 	test('ignores invalid indentSize 3', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		opts.value.indentSize = <any>'hello';
 		assertState(opts, {
 			tabSize: 4,
@@ -334,6 +337,7 @@ suite('ExtHostTextEditorOptions', () => {
 	});
 
 	test('ignores invalid indentSize 4', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		opts.value.indentSize = <any>'-17';
 		assertState(opts, {
 			tabSize: 4,

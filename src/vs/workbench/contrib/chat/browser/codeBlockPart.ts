@@ -22,7 +22,8 @@ import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExten
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
-import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { EditorOption, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
@@ -79,7 +80,7 @@ export interface ICodeBlockData {
 	readonly codeBlockPartIndex: number;
 	readonly element: unknown;
 
-	readonly textModel: Promise<ITextModel>;
+	readonly textModel: Promise<ITextModel> | undefined;
 	readonly languageId: string;
 
 	readonly codemapperUri?: URI;
@@ -90,7 +91,7 @@ export interface ICodeBlockData {
 	readonly parentContextKeyService?: IContextKeyService;
 	readonly renderOptions?: ICodeBlockRenderOptions;
 
-	readonly chatSessionId: string;
+	readonly chatSessionResource: URI;
 }
 
 /**
@@ -138,7 +139,7 @@ export interface ICodeBlockActionContext {
 	readonly codeBlockIndex: number;
 	readonly element: unknown;
 
-	readonly chatSessionId: string | undefined;
+	readonly chatSessionResource: URI | undefined;
 }
 
 export interface ICodeBlockRenderOptions {
@@ -458,7 +459,7 @@ export class CodeBlockPart extends Disposable {
 
 	private async updateEditor(data: ICodeBlockData): Promise<boolean> {
 		const textModel = await data.textModel;
-		if (this.isDisposed || this.currentCodeBlockData !== data || textModel.isDisposed()) {
+		if (this.isDisposed || this.currentCodeBlockData !== data || !textModel || textModel.isDisposed()) {
 			return false;
 		}
 
@@ -497,7 +498,7 @@ export class CodeBlockPart extends Disposable {
 			element: data.element,
 			languageId: textModel.getLanguageId(),
 			codemapperUri: data.codemapperUri,
-			chatSessionId: data.chatSessionId
+			chatSessionResource: data.chatSessionResource
 		} satisfies ICodeBlockActionContext;
 		this.resourceContextKey.set(textModel.uri);
 	}

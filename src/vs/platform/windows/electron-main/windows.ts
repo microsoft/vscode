@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron, { Display, Rectangle } from 'electron';
-import { release } from 'os';
 import { Color } from '../../../base/common/color.js';
 import { Event } from '../../../base/common/event.js';
 import { join } from '../../../base/common/path.js';
-import { IProcessEnvironment, isLinux, isMacintosh, isTahoe, isWindows } from '../../../base/common/platform.js';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -43,9 +42,9 @@ export interface IWindowsMainService {
 
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
 
-	sendToFocused(channel: string, ...args: any[]): void;
-	sendToOpeningWindow(channel: string, ...args: any[]): void;
-	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
+	sendToFocused(channel: string, ...args: unknown[]): void;
+	sendToOpeningWindow(channel: string, ...args: unknown[]): void;
+	sendToAll(channel: string, payload?: unknown, windowIdsToIgnore?: number[]): void;
 
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;
@@ -186,14 +185,6 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 		if (windowSettings?.clickThroughInactive === false) {
 			options.acceptFirstMouse = false;
-		}
-
-		// Mac OS 26.?.? has a `WindowServer` bug that causes (some?) windows with shadows
-		// to cause 80%+ GPU load.
-		// See: https://github.com/electron/electron/issues/48311
-		// TODO: once the bug is fixed in the OS, lock this into a specific version.
-		if (isTahoe(release())) {
-			options.hasShadow = false;
 		}
 	}
 

@@ -209,7 +209,7 @@ export class AddDynamicVariableAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const context = args[0];
 		if (!isAddDynamicVariableContext(context)) {
 			return;

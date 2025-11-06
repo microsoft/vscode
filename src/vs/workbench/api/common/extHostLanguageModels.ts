@@ -114,6 +114,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	private readonly _onDidChangeModelAccess = new Emitter<{ from: ExtensionIdentifier; to: ExtensionIdentifier }>();
 	private readonly _onDidChangeProviders = new Emitter<void>();
 	readonly onDidChangeProviders = this._onDidChangeProviders.event;
+	private readonly _onDidChangeModelProxyAvailability = new Emitter<void>();
+	readonly onDidChangeModelProxyAvailability = this._onDidChangeModelProxyAvailability.event;
 
 	private readonly _languageModelProviders = new Map<string, LanguageModelProviderData>();
 	// TODO @lramos15 - Remove the need for both info and metadata as it's a lot of redundancy. Should just need one
@@ -121,6 +123,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
 	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
 	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
+	private _languageModelProxyProvider: vscode.LanguageModelProxyProvider | undefined;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -133,6 +136,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	dispose(): void {
 		this._onDidChangeModelAccess.dispose();
 		this._onDidChangeProviders.dispose();
+		this._onDidChangeModelProxyAvailability.dispose();
 	}
 
 	registerLanguageModelChatProvider(extension: IExtensionDescription, vendor: string, provider: vscode.LanguageModelChatProvider): IDisposable {
@@ -169,9 +173,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (!data) {
 			return [];
 		}
-		this._clearModelCache(vendor);
-		// TODO @lramos15 - Remove this old prepare method support in debt week
-		const modelInformation: vscode.LanguageModelChatInformation[] = (data.provider.provideLanguageModelChatInformation ? await data.provider.provideLanguageModelChatInformation(options, token) : await (data.provider as any).prepareLanguageModelChatInformation(options, token)) ?? [];
+		const modelInformation: vscode.LanguageModelChatInformation[] = await data.provider.provideLanguageModelChatInformation(options, token) ?? [];
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map((m): ILanguageModelChatMetadataAndIdentifier => {
 			let auth;
 			if (m.requiresAuthorization && isProposedApiEnabled(data.extension, 'chatProvider')) {
@@ -212,8 +214,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			};
 		});
 
+		this._clearModelCache(vendor);
 		for (let i = 0; i < modelMetadataAndIdentifier.length; i++) {
-
 			this._localModels.set(modelMetadataAndIdentifier[i].identifier, {
 				metadata: modelMetadataAndIdentifier[i].metadata,
 				info: modelInformation[i]
@@ -333,19 +335,22 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				break;
 			}
 		}
-		if (!defaultModelId) {
+		if (!defaultModelId && !forceResolveModels) {
 			// Maybe the default wasn't cached so we will try again with resolving the models too
 			return this.getDefaultLanguageModel(extension, true);
 		}
 		return this.getLanguageModelByIdentifier(extension, defaultModelId);
 	}
 
-	async getLanguageModelByIdentifier(extension: IExtensionDescription, modelId: string): Promise<vscode.LanguageModelChat | undefined> {
+	async getLanguageModelByIdentifier(extension: IExtensionDescription, modelId: string | undefined): Promise<vscode.LanguageModelChat | undefined> {
+		if (!modelId) {
+			return undefined;
+		}
 
 		const model = this._localModels.get(modelId);
 		if (!model) {
-			// model gone? is this an error on us?
-			return;
+			// model gone? is this an error on us? Try to resolve model again
+			return (await this.selectLanguageModels(extension, { id: modelId }))[0];
 		}
 
 		// make sure auth information is correct
@@ -606,6 +611,32 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return this._proxy.$fileIsIgnored(uri, token);
 	}
 
+	get isModelProxyAvailable(): boolean {
+		return !!this._languageModelProxyProvider;
+	}
+
+	async getModelProxy(extension: IExtensionDescription): Promise<vscode.LanguageModelProxy> {
+		checkProposedApiEnabled(extension, 'languageModelProxy');
+
+		if (!this._languageModelProxyProvider) {
+			this._logService.trace('[LanguageModelProxy] No LanguageModelProxyProvider registered');
+			throw new Error('No language model proxy provider is registered.');
+		}
+
+		const requestingExtensionId = ExtensionIdentifier.toKey(extension.identifier);
+		try {
+			const result = await Promise.resolve(this._languageModelProxyProvider.provideModelProxy(requestingExtensionId, CancellationToken.None));
+			if (!result) {
+				this._logService.warn(`[LanguageModelProxy] Provider returned no proxy for ${requestingExtensionId}`);
+				throw new Error('Language model proxy is not available.');
+			}
+			return result;
+		} catch (err) {
+			this._logService.error(`[LanguageModelProxy] Provider failed to return proxy for ${requestingExtensionId}`, err);
+			throw err;
+		}
+	}
+
 	async $isFileIgnored(handle: number, uri: UriComponents, token: CancellationToken): Promise<boolean> {
 		const provider = this._ignoredFileProviders.get(handle);
 		if (!provider) {
@@ -624,6 +655,19 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return toDisposable(() => {
 			this._proxy.$unregisterFileIgnoreProvider(handle);
 			this._ignoredFileProviders.delete(handle);
+		});
+	}
+
+	registerLanguageModelProxyProvider(extension: IExtensionDescription, provider: vscode.LanguageModelProxyProvider): vscode.Disposable {
+		checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+
+		this._languageModelProxyProvider = provider;
+		this._onDidChangeModelProxyAvailability.fire();
+		return toDisposable(() => {
+			if (this._languageModelProxyProvider === provider) {
+				this._languageModelProxyProvider = undefined;
+				this._onDidChangeModelProxyAvailability.fire();
+			}
 		});
 	}
 }

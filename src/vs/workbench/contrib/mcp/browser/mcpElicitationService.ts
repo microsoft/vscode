@@ -13,6 +13,7 @@ import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../plat
 import { ChatElicitationRequestPart } from '../../chat/browser/chatElicitationRequestPart.js';
 import { ChatModel } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
+import { LocalChatSessionUri } from '../../chat/common/chatUri.js';
 import { IMcpElicitationService, IMcpServer, IMcpToolCallContext } from '../common/mcpTypes.js';
 import { mcpServerToSourceData } from '../common/mcpTypesUtils.js';
 import { MCP } from '../common/modelContextProtocol.js';
@@ -31,7 +32,7 @@ export class McpElicitationService implements IMcpElicitationService {
 	public elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<MCP.ElicitResult> {
 		const store = new DisposableStore();
 		return new Promise<MCP.ElicitResult>(resolve => {
-			const chatModel = context?.chatSessionId && this._chatService.getSession(context.chatSessionId);
+			const chatModel = context?.chatSessionId && this._chatService.getSession(LocalChatSessionUri.forSession(context.chatSessionId));
 			if (chatModel instanceof ChatModel) {
 				const request = chatModel.getRequests().at(-1);
 				if (request) {

@@ -6,7 +6,7 @@
 import { localize, localize2 } from '../../../nls.js';
 import { IWindowOpenable } from '../../../platform/window/common/window.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
-import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from '../../../platform/actions/common/actions.js';
+import { MenuRegistry, MenuId, Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { IsMainWindowFullscreenContext } from '../../common/contextkeys.js';
 import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from '../../../platform/contextkey/common/contextkeys.js';
@@ -61,10 +61,6 @@ abstract class BaseOpenRecentAction extends Action2 {
 		...this.dirtyRecentlyOpenedFolder,
 		tooltip: localize('dirtyRecentlyOpenedWorkspace', "Workspace With Unsaved Files"),
 	};
-
-	constructor(desc: Readonly<IAction2Options>) {
-		super(desc);
-	}
 
 	protected abstract isQuickNavigate(): boolean;
 
@@ -142,6 +138,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 			activeItem: [...workspacePicks, ...filePicks][autoFocusSecondEntry ? 1 : 0],
 			placeHolder: isMacintosh ? localize('openRecentPlaceholderMac', "Select to open (hold Cmd-key to force new window or Option-key for same window)") : localize('openRecentPlaceholder', "Select to open (hold Ctrl-key to force new window or Alt-key for same window)"),
 			matchOnDescription: true,
+			sortByLabel: false,
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
 			hideInput: this.isQuickNavigate(),

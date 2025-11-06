@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/1381bedfb087c18aca67af8278050d11bc9d9349",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/c32388ec18690abefb37cbaffa687a338c87d016",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -3423,7 +3423,7 @@
 			]
 		},
 		"interpolation": {
-			"name": "meta.interpolation.cs",
+			"name": "meta.embedded.interpolation.cs",
 			"begin": "(?<=[^\\{]|^)((?:\\{\\{)*)(\\{)(?=[^\\{])",
 			"beginCaptures": {
 				"1": {
@@ -3578,7 +3578,7 @@
 			}
 		},
 		"raw-interpolation": {
-			"name": "meta.interpolation.cs",
+			"name": "meta.embedded.interpolation.cs",
 			"begin": "(?<=[^\\{]|^)((?:\\{)*)(\\{)(?=[^\\{])",
 			"beginCaptures": {
 				"1": {
@@ -3601,7 +3601,7 @@
 			]
 		},
 		"double-raw-interpolation": {
-			"name": "meta.interpolation.cs",
+			"name": "meta.embedded.interpolation.cs",
 			"begin": "(?<=[^\\{][^\\{]|^)((?:\\{)*)(\\{\\{)(?=[^\\{])",
 			"beginCaptures": {
 				"1": {

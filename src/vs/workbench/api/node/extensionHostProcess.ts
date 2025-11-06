@@ -104,6 +104,7 @@ function patchProcess(allowExit: boolean) {
 	} as (code?: number) => never;
 
 	// override Electron's process.crash() method
+	// eslint-disable-next-line local/code-no-any-casts
 	(process as any /* bypass layer checker */).crash = function () {
 		const err = new Error('An extension called process.crash() and this was prevented.');
 		console.warn(err.stack);
@@ -115,10 +116,11 @@ function patchProcess(allowExit: boolean) {
 	// Refs https://github.com/microsoft/vscode/issues/151012#issuecomment-1156593228
 	process.env['ELECTRON_RUN_AS_NODE'] = '1';
 
+	// eslint-disable-next-line local/code-no-any-casts
 	process.on = <any>function (event: string, listener: (...args: any[]) => void) {
 		if (event === 'uncaughtException') {
 			const actualListener = listener;
-			listener = function (...args: any[]) {
+			listener = function (...args: unknown[]) {
 				try {
 					return actualListener.apply(undefined, args);
 				} catch {
@@ -167,7 +169,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 			const withPorts = (ports: MessagePortMain[]) => {
 				const port = ports[0];
 				const onMessage = new BufferedEmitter<VSBuffer>();
-				port.on('message', (e) => onMessage.fire(VSBuffer.wrap(e.data)));
+				port.on('message', (e) => onMessage.fire(VSBuffer.wrap(e.data as Uint8Array)));
 				port.on('close', () => {
 					onTerminate('renderer closed the MessagePort');
 				});

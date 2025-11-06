@@ -178,7 +178,12 @@ suite('chat', () => {
 
 		await commands.executeCommand('workbench.action.chat.newChat');
 		const result = await commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
-		assert.strictEqual((result as any).errorDetails.code, 'rate_limited');
+		type PartialChatAgentResult = {
+			errorDetails: {
+				code: string;
+			};
+		};
+		assert.strictEqual((<PartialChatAgentResult>result).errorDetails.code, 'rate_limited');
 	});
 
 	test('title provider is called for first request', async () => {

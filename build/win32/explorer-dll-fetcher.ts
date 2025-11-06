@@ -9,7 +9,14 @@ import fs from 'fs';
 import debug from 'debug';
 import path from 'path';
 import { downloadArtifact } from '@electron/get';
-import product from '../../product.json';
+import productJson from '../../product.json';
+
+interface ProductConfiguration {
+	quality?: string;
+	[key: string]: unknown;
+}
+
+const product: ProductConfiguration = productJson;
 
 const d = debug('explorer-dll-fetcher');
 
@@ -60,7 +67,7 @@ async function main(outputDir?: string): Promise<void> {
 		throw new Error('Required build env not set');
 	}
 
-	await downloadExplorerDll(outputDir, (product as any).quality, arch);
+	await downloadExplorerDll(outputDir, product.quality, arch);
 }
 
 if (require.main === module) {

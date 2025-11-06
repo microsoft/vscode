@@ -101,7 +101,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 
 			copilotExtensionVersion = copilotExtension?.version;
 			copilotChatExtensionVersion = copilotChatExtension?.version;
-			copilotCompletionsVersion = (copilotChatExtension as any)?.completionsCoreVersion;
+			copilotCompletionsVersion = (copilotChatExtension as typeof copilotChatExtension & { completionsCoreVersion?: string })?.completionsCoreVersion;
 		} catch (error) {
 			this._logService.error('Failed to update extension version assignments', error);
 		}

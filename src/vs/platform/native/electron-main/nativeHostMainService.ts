@@ -1101,7 +1101,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async profileRenderer(windowId: number | undefined, session: string, duration: number): Promise<IV8Profile> {
 		const window = this.codeWindowById(windowId);
-		if (!window || !window.win) {
+		if (!window?.win) {
 			throw new Error();
 		}
 

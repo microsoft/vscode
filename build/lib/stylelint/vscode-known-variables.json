@@ -383,6 +383,7 @@
 		"--vscode-inlineChat-background",
 		"--vscode-inlineChat-border",
 		"--vscode-inlineChat-foreground",
+		"--vscode-inlineChat-regionHighlight",
 		"--vscode-inlineChat-shadow",
 		"--vscode-inlineChatDiff-inserted",
 		"--vscode-inlineChatDiff-removed",
@@ -463,6 +464,11 @@
 		"--vscode-listFilterWidget-noMatchesOutline",
 		"--vscode-listFilterWidget-outline",
 		"--vscode-listFilterWidget-shadow",
+		"--vscode-markdownAlert-caution-foreground",
+		"--vscode-markdownAlert-important-foreground",
+		"--vscode-markdownAlert-note-foreground",
+		"--vscode-markdownAlert-tip-foreground",
+		"--vscode-markdownAlert-warning-foreground",
 		"--vscode-mcpIcon-starForeground",
 		"--vscode-menu-background",
 		"--vscode-menu-border",
@@ -621,6 +627,7 @@
 		"--vscode-scmGraph-historyItemHoverLabelForeground",
 		"--vscode-scmGraph-historyItemRefColor",
 		"--vscode-scmGraph-historyItemRemoteRefColor",
+		"--vscode-scrollbar-background",
 		"--vscode-scrollbar-shadow",
 		"--vscode-scrollbarSlider-activeBackground",
 		"--vscode-scrollbarSlider-background",
@@ -978,6 +985,13 @@
 		"--vscode-action-item-auto-timeout",
 		"--monaco-editor-warning-decoration",
 		"--animation-opacity",
-		"--chat-setup-dialog-glow-angle"
+		"--chat-setup-dialog-glow-angle",
+		"--vscode-chat-font-family",
+		"--vscode-chat-font-size-body-l",
+		"--vscode-chat-font-size-body-m",
+		"--vscode-chat-font-size-body-s",
+		"--vscode-chat-font-size-body-xl",
+		"--vscode-chat-font-size-body-xs",
+		"--vscode-chat-font-size-body-xxl"
 	]
 }

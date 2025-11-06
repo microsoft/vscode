@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { IDimension } from '../../../base/browser/dom.js';
 import { Direction, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../base/browser/window.js';
@@ -15,7 +16,6 @@ import { isValidBasename } from '../../../base/common/extpath.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
-import { observableValue } from '../../../base/common/observable.js';
 import { posix, win32 } from '../../../base/common/path.js';
 import { IProcessEnvironment, isWindows, OperatingSystem } from '../../../base/common/platform.js';
 import { env } from '../../../base/common/process.js';
@@ -26,6 +26,7 @@ import { assertReturnsDefined, upcast } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ICodeEditor } from '../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../platform/markdown/browser/markdownRenderer.js';
 import { Position as EditorPosition, IPosition } from '../../../editor/common/core/position.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { Selection } from '../../../editor/common/core/selection.js';
@@ -58,7 +59,7 @@ import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from 
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyValue, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { ContextMenuService } from '../../../platform/contextview/browser/contextMenuService.js';
-import { IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
+import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../platform/contextview/browser/contextViewService.js';
 import { IDiagnosticInfo, IDiagnosticInfoOptions } from '../../../platform/diagnostics/common/diagnostics.js';
 import { ConfirmResult, IDialogService, IFileDialogService, IOpenDialogOptions, IPickAndOpenOptions, ISaveDialogOptions } from '../../../platform/dialogs/common/dialogs.js';
@@ -138,7 +139,7 @@ import { TerminalEditorInput } from '../../contrib/terminal/browser/terminalEdit
 import { IEnvironmentVariableService } from '../../contrib/terminal/common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../contrib/terminal/common/environmentVariableService.js';
 import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from '../../contrib/terminal/common/terminal.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
 import { IDecoration, IDecorationData, IDecorationsProvider, IDecorationsService, IResourceDecorationChangeEvent } from '../../services/decorations/common/decorations.js';
 import { CodeEditorService } from '../../services/editor/browser/codeEditorService.js';
 import { EditorPaneService } from '../../services/editor/browser/editorPaneService.js';
@@ -184,7 +185,7 @@ import { InMemoryWorkingCopyBackupService } from '../../services/workingCopy/com
 import { IWorkingCopyEditorService, WorkingCopyEditorService } from '../../services/workingCopy/common/workingCopyEditorService.js';
 import { IWorkingCopyFileService, WorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { IWorkingCopyService, WorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
-import { TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
+import { TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
 
 // Backcompat export
 export { TestFileService };
@@ -301,6 +302,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IDialogService, new TestDialogService());
 	const accessibilityService = new TestAccessibilityService();
 	instantiationService.stub(IAccessibilityService, accessibilityService);
+	// eslint-disable-next-line local/code-no-any-casts
 	instantiationService.stub(IAccessibilitySignalService, {
 		playSignal: async () => { },
 		isSoundEnabled(signal: unknown) { return false; },
@@ -371,6 +373,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ICustomEditorLabelService, disposables.add(new CustomEditorLabelService(configService, workspaceContextService)));
 	instantiationService.stub(IHoverService, NullHoverService);
 	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
+	instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
 
 	return instantiationService;
 }
@@ -552,7 +555,7 @@ export class TestDecorationsService implements IDecorationsService {
 
 	declare readonly _serviceBrand: undefined;
 
-	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
+	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
 
 	registerDecorationsProvider(_provider: IDecorationsProvider): IDisposable { return Disposable.None; }
 	getDecoration(_uri: URI, _includeChildren: boolean, _overwrite?: IDecorationData): IDecoration | undefined { return undefined; }
@@ -627,12 +630,12 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	containers = [mainWindow.document.body];
 	activeContainer: HTMLElement = mainWindow.document.body;
 
-	onDidChangeZenMode: Event<boolean> = Event.None;
-	onDidChangeMainEditorCenteredLayout: Event<boolean> = Event.None;
-	onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }> = Event.None;
-	onDidChangePanelPosition: Event<string> = Event.None;
-	onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
-	onDidChangePartVisibility: Event<void> = Event.None;
+	readonly onDidChangeZenMode: Event<boolean> = Event.None;
+	readonly onDidChangeMainEditorCenteredLayout: Event<boolean> = Event.None;
+	readonly onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }> = Event.None;
+	readonly onDidChangePanelPosition: Event<string> = Event.None;
+	readonly onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
+	readonly onDidChangePartVisibility: Event<void> = Event.None;
 	onDidLayoutMainContainer = Event.None;
 	onDidLayoutActiveContainer = Event.None;
 	onDidLayoutContainer = Event.None;
@@ -692,13 +695,14 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	focus() { }
 }
 
+// eslint-disable-next-line local/code-no-any-casts
 const activeViewlet: PaneComposite = {} as any;
 
 export class TestPaneCompositeService extends Disposable implements IPaneCompositePartService {
 	declare readonly _serviceBrand: undefined;
 
-	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
-	onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
+	readonly onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
+	readonly onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
 
 	private parts = new Map<ViewContainerLocation, IPaneCompositePart>();
 
@@ -849,17 +853,17 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	windowId = mainWindow.vscodeWindowId;
 
-	onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart> = Event.None;
-	onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
-	onDidActivateGroup: Event<IEditorGroup> = Event.None;
-	onDidAddGroup: Event<IEditorGroup> = Event.None;
-	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
-	onDidMoveGroup: Event<IEditorGroup> = Event.None;
-	onDidChangeGroupIndex: Event<IEditorGroup> = Event.None;
-	onDidChangeGroupLabel: Event<IEditorGroup> = Event.None;
-	onDidChangeGroupLocked: Event<IEditorGroup> = Event.None;
-	onDidChangeGroupMaximized: Event<boolean> = Event.None;
-	onDidLayout: Event<IDimension> = Event.None;
+	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart> = Event.None;
+	readonly onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
+	readonly onDidActivateGroup: Event<IEditorGroup> = Event.None;
+	readonly onDidAddGroup: Event<IEditorGroup> = Event.None;
+	readonly onDidRemoveGroup: Event<IEditorGroup> = Event.None;
+	readonly onDidMoveGroup: Event<IEditorGroup> = Event.None;
+	readonly onDidChangeGroupIndex: Event<IEditorGroup> = Event.None;
+	readonly onDidChangeGroupLabel: Event<IEditorGroup> = Event.None;
+	readonly onDidChangeGroupLocked: Event<IEditorGroup> = Event.None;
+	readonly onDidChangeGroupMaximized: Event<boolean> = Event.None;
+	readonly onDidLayout: Event<IDimension> = Event.None;
 	onDidChangeEditorPartOptions = Event.None;
 	onDidScroll = Event.None;
 	onWillDispose = Event.None;
@@ -945,16 +949,16 @@ export class TestEditorGroupView implements IEditorGroupView {
 
 	isEmpty = true;
 
-	onWillDispose: Event<void> = Event.None;
-	onDidModelChange: Event<IGroupModelChangeEvent> = Event.None;
-	onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
-	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
-	onDidOpenEditorFail: Event<EditorInput> = Event.None;
-	onDidFocus: Event<void> = Event.None;
-	onDidChange: Event<{ width: number; height: number }> = Event.None;
-	onWillMoveEditor: Event<IEditorWillMoveEvent> = Event.None;
-	onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
-	onDidActiveEditorChange: Event<IActiveEditorChangeEvent> = Event.None;
+	readonly onWillDispose: Event<void> = Event.None;
+	readonly onDidModelChange: Event<IGroupModelChangeEvent> = Event.None;
+	readonly onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
+	readonly onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
+	readonly onDidOpenEditorFail: Event<EditorInput> = Event.None;
+	readonly onDidFocus: Event<void> = Event.None;
+	readonly onDidChange: Event<{ width: number; height: number }> = Event.None;
+	readonly onWillMoveEditor: Event<IEditorWillMoveEvent> = Event.None;
+	readonly onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
+	readonly onDidActiveEditorChange: Event<IActiveEditorChangeEvent> = Event.None;
 
 	getEditors(_order?: EditorsOrder): readonly EditorInput[] { return []; }
 	findEditors(_resource: URI): readonly EditorInput[] { return []; }
@@ -1026,13 +1030,13 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 
 	declare readonly _serviceBrand: undefined;
 
-	onDidActiveEditorChange: Event<void> = Event.None;
-	onDidVisibleEditorsChange: Event<void> = Event.None;
-	onDidEditorsChange: Event<IEditorsChangeEvent> = Event.None;
-	onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
-	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
-	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
-	onDidMostRecentlyActiveEditorsChange: Event<void> = Event.None;
+	readonly onDidActiveEditorChange: Event<void> = Event.None;
+	readonly onDidVisibleEditorsChange: Event<void> = Event.None;
+	readonly onDidEditorsChange: Event<IEditorsChangeEvent> = Event.None;
+	readonly onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
+	readonly onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
+	readonly onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
+	readonly onDidMostRecentlyActiveEditorsChange: Event<void> = Event.None;
 
 	private _activeTextEditorControl: ICodeEditor | IDiffEditor | undefined;
 	public get activeTextEditorControl(): ICodeEditor | IDiffEditor | undefined { return this._activeTextEditorControl; }
@@ -1058,6 +1062,7 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	}
 	createScoped(editorGroupsContainer: IEditorGroupsContainer): IEditorService { return this; }
 	getEditors() { return []; }
+	// eslint-disable-next-line local/code-no-any-casts
 	findEditors() { return [] as any; }
 	openEditor(editor: EditorInput, options?: IEditorOptions, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
@@ -1711,12 +1716,12 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	}
 
 	clearState(): void {
-		const workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as Record<string, unknown>;
 		for (const key of Object.keys(workspaceMemento)) {
 			delete workspaceMemento[key];
 		}
 
-		const profileMemento = this.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+		const profileMemento = this.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE) as Record<string, unknown>;
 		for (const key of Object.keys(profileMemento)) {
 			delete profileMemento[key];
 		}
@@ -1960,6 +1965,7 @@ export class TestTerminalProfileResolverService implements ITerminalProfileResol
 
 export class TestTerminalConfigurationService extends TerminalConfigurationService {
 	get fontMetrics() { return this._fontMetrics; }
+	// eslint-disable-next-line local/code-no-any-casts
 	setConfig(config: Partial<ITerminalConfiguration>) { this._config = config as any; }
 }
 
@@ -1977,6 +1983,7 @@ export class TestQuickInputService implements IQuickInputService {
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
 	async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
 		if (Array.isArray(picks)) {
+			// eslint-disable-next-line local/code-no-any-casts
 			return <any>{ label: 'selectedPick', description: 'pick description', value: 'selectedPick' };
 		} else {
 			return undefined;
@@ -2168,31 +2175,14 @@ export async function workbenchTeardown(instantiationService: IInstantiationServ
 	});
 }
 
-export class TestChatEntitlementService implements IChatEntitlementService {
+export class TestContextMenuService implements IContextMenuService {
 
 	_serviceBrand: undefined;
 
-	readonly organisations: undefined;
-	readonly isInternal = false;
-	readonly sku = undefined;
+	readonly onDidShowContextMenu = Event.None;
+	readonly onDidHideContextMenu = Event.None;
 
-	readonly onDidChangeQuotaExceeded = Event.None;
-	readonly onDidChangeQuotaRemaining = Event.None;
-	readonly quotas = {};
-
-	update(token: CancellationToken): Promise<void> {
+	showContextMenu(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
 		throw new Error('Method not implemented.');
 	}
-
-	readonly onDidChangeSentiment = Event.None;
-	readonly sentimentObs = observableValue({}, {});
-	readonly sentiment = {};
-
-	readonly onDidChangeEntitlement = Event.None;
-	entitlement: ChatEntitlement = ChatEntitlement.Unknown;
-	readonly entitlementObs = observableValue({}, ChatEntitlement.Unknown);
-
-	readonly anonymous = false;
-	onDidChangeAnonymous = Event.None;
-	readonly anonymousObs = observableValue({}, false);
 }

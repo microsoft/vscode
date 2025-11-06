@@ -9,6 +9,11 @@
 			"ES2024",
 			"DOM",
 			"DOM.Iterable"
-		]
+		],
+		"types": [],
+		"typeRoots": [
+			"../node_modules/@types"
+		],
+		"skipLibCheck": true
 	}
 }

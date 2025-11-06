@@ -117,7 +117,7 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 				path: filePath,
 				stat: fs.statSync(filePath),
 				base: extensionPath,
-				contents: fs.createReadStream(filePath) as any
+				contents: fs.createReadStream(filePath)
 			}));
 
 		// check for a webpack configuration files, then invoke webpack
@@ -215,7 +215,7 @@ function fromLocalNormal(extensionPath: string): Stream {
 					path: filePath,
 					stat: fs.statSync(filePath),
 					base: extensionPath,
-					contents: fs.createReadStream(filePath) as any
+					contents: fs.createReadStream(filePath)
 				}));
 
 			es.readArray(files).pipe(result);

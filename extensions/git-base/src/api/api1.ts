@@ -14,6 +14,7 @@ export class ApiImpl implements API {
 	constructor(private _model: Model) { }
 
 	pickRemoteSource(options: PickRemoteSourceOptions): Promise<PickRemoteSourceResult | string | undefined> {
+		// eslint-disable-next-line local/code-no-any-casts
 		return pickRemoteSource(this._model, options as any);
 	}
 
@@ -34,6 +35,7 @@ export function registerAPICommands(extension: GitBaseExtensionImpl): Disposable
 			return;
 		}
 
+		// eslint-disable-next-line local/code-no-any-casts
 		return pickRemoteSource(extension.model, opts as any);
 	}));
 

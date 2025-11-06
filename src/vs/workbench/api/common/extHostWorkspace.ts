@@ -552,7 +552,20 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			token).then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : [])
 		) ?? []);
 
-		return result.flat();
+		const flatResult = result.flat();
+
+		// Dedupe entries in a flat array
+		const extUri = new ExtUri(uri => ignorePathCasing(uri, this._extHostFileSystemInfo));
+		const uriMap = new Map<string, vscode.Uri>();
+
+		for (const uri of flatResult) {
+			const key = extUri.getComparisonKey(uri);
+			if (!uriMap.has(key)) {
+				uriMap.set(key, uri);
+			}
+		}
+
+		return Array.from(uriMap.values());
 	}
 
 	findTextInFiles2(query: vscode.TextSearchQuery2, options: vscode.FindTextInFilesOptions2 | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): vscode.FindTextInFilesResponse {

@@ -266,7 +266,7 @@ class WatchExpressionsDataSource extends AbstractExpressionDataSource<IDebugServ
 
 	protected override doGetChildren(element: IDebugService | IExpression): Promise<Array<IExpression>> {
 		if (isDebugService(element)) {
-			const debugService = element as IDebugService;
+			const debugService = element;
 			const watchExpressions = debugService.getModel().getWatchExpressions();
 			const viewModel = debugService.getViewModel();
 			return Promise.all(watchExpressions.map(we => !!we.name && !useCachedEvaluation
@@ -451,11 +451,11 @@ class WatchExpressionsAccessibilityProvider implements IListAccessibilityProvide
 
 	getAriaLabel(element: IExpression): string {
 		if (element instanceof Expression) {
-			return localize('watchExpressionAriaLabel', "{0}, value {1}", (<Expression>element).name, (<Expression>element).value);
+			return localize('watchExpressionAriaLabel', "{0}, value {1}", element.name, element.value);
 		}
 
 		// Variable
-		return localize('watchVariableAriaLabel', "{0}, value {1}", (<Variable>element).name, (<Variable>element).value);
+		return localize('watchVariableAriaLabel', "{0}, value {1}", element.name, element.value);
 	}
 }
 

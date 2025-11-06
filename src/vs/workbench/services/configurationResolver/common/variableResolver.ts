@@ -90,7 +90,7 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 			}
 		}
 
-		return expr.toObject() as any;
+		return expr.toObject() as (T extends ConfigurationResolverExpression<infer R> ? R : T);
 	}
 
 	public resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: any): Promise<any> {

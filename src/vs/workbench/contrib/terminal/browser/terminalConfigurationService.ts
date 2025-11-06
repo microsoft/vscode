@@ -5,7 +5,8 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { EDITOR_FONT_DEFAULTS, type IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { type IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ITerminalConfigurationService, LinuxDistro } from './terminal.js';
 import type { IXtermCore } from './xterm-private.js';

@@ -69,6 +69,7 @@ suite('Notebook Outline', function () {
 			};
 
 
+			// eslint-disable-next-line local/code-no-any-casts
 			const testOutlineEntryFactory = instantiationService.createInstance(NotebookOutlineEntryFactory) as any;
 			testOutlineEntryFactory.cacheSymbols = async () => { symbolsCached = true; };
 			instantiationService.stub(INotebookOutlineEntryFactory, testOutlineEntryFactory);

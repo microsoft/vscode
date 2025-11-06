@@ -709,5 +709,20 @@
 			"SOFTWARE.",
 			""
 		]
+	},
+	{
+		// Reason: mono-repo
+		"name": "@jridgewell/gen-mapping",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/jridgewell/sourcemaps/refs/heads/main/packages/gen-mapping/LICENSE"
+	},
+	{
+		// Reason: mono-repo
+		"name": "@jridgewell/sourcemap-codec",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/jridgewell/sourcemaps/refs/heads/main/packages/sourcemap-codec/LICENSE"
+	},
+	{
+		// Reason: mono-repo
+		"name": "@jridgewell/trace-mapping",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/jridgewell/sourcemaps/refs/heads/main/packages/trace-mapping/LICENSE"
 	}
 ]

@@ -177,6 +177,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 					// scrolling horizontally in a pager
 					this._xterm.raw.onCursorMove,
 				)(() => this._refresh()),
+				// eslint-disable-next-line no-restricted-syntax
 				addStandardDisposableListener(this._xterm.raw.element!.querySelector('.xterm-viewport')!, 'scroll', () => this._refresh()),
 			);
 		}
@@ -406,7 +407,10 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 		hoverOverlay.title = hoverTitle;
 
-		const scrollBarWidth = (this._xterm.raw as any as { _core: IXtermCore })._core.viewport?.scrollBarWidth;
+		interface XtermWithCore extends XTermTerminal {
+			_core: IXtermCore;
+		}
+		const scrollBarWidth = (this._xterm.raw as XtermWithCore)._core.viewport?.scrollBarWidth;
 		if (scrollBarWidth !== undefined) {
 			this._element.style.right = `${scrollBarWidth}px`;
 		}

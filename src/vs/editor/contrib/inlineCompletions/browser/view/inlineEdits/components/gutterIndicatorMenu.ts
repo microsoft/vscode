@@ -105,6 +105,13 @@ export class GutterIndicatorMenuContent {
 			}))
 		);
 
+		const snooze = option(createOptionArgs({
+			id: 'snooze',
+			title: localize('snooze', "Snooze"),
+			icon: Codicon.bellSlash,
+			commandId: 'editor.action.inlineSuggest.snooze'
+		}));
+
 		const settings = option(createOptionArgs({
 			id: 'settings',
 			title: localize('settings', "Settings"),
@@ -132,6 +139,7 @@ export class GutterIndicatorMenuContent {
 			reject,
 			toggleCollapsedMode,
 			extensionCommands.length ? separator() : undefined,
+			snooze,
 			settings,
 
 			...extensionCommands,

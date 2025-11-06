@@ -62,6 +62,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 					break;
 				}
 				const document = this._documents.getDocument(resource);
+				// eslint-disable-next-line local/code-no-any-casts
 				const success = await this._deliverEventAsyncAndBlameBadListeners(listener, <any>{ document, reason: TextDocumentSaveReason.to(reason) });
 				results.push(success);
 			}

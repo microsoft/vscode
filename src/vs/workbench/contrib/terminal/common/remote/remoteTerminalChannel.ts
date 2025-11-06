@@ -225,6 +225,9 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
 		return this._channel.call(RemoteTerminalChannelRequest.SetUnicodeVersion, [id, version]);
 	}
+	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.SetNextCommandId, [id, commandLine, commandId]);
+	}
 	shutdown(id: number, immediate: boolean): Promise<void> {
 		return this._channel.call(RemoteTerminalChannelRequest.Shutdown, [id, immediate]);
 	}
@@ -271,7 +274,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		const workspace = this._workspaceContextService.getWorkspace();
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: workspace.id,
-			tabs: layout ? layout.tabs : []
+			tabs: layout ? layout.tabs : [],
+			background: layout ? layout.background : null
 		};
 		return this._channel.call<void>(RemoteTerminalChannelRequest.SetTerminalLayoutInfo, args);
 	}
