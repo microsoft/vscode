@@ -106,6 +106,8 @@ steps:
         fi
         echo "Npm install failed $i, trying again..."
       done
+
+      node npm/preinstall.js
     workingDirectory: build
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
