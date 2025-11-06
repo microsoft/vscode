@@ -283,12 +283,12 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	test('radio group accessibility - items with radiogroup separator are properly configured', async () => {
 		const quickpick = store.add(controller.createQuickPick());
 
-		// Create items with radio group separator using proper types
-		quickpick.items = [
+		// Create items with radio group separator - need to cast to any to include separator types
+		(quickpick as any).items = [
 			{ type: 'separator', label: 'Options', role: 'radiogroup' },
-			{ type: 'item', label: 'Option 1', checked: true },
-			{ type: 'item', label: 'Option 2', checked: false },
-			{ type: 'item', label: 'Option 3', checked: false }
+			{ label: 'Option 1', checked: true },
+			{ label: 'Option 2', checked: false },
+			{ label: 'Option 3', checked: false }
 		];
 
 		quickpick.show();
@@ -300,10 +300,11 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		// This is automatically applied when the items are rendered in the DOM.
 		
 		// Verify items are set correctly (public API test)
-		assert.strictEqual(quickpick.items.length, 4, 'Should have 4 items (1 separator + 3 options)');
-		assert.strictEqual(quickpick.items[0].type, 'separator', 'First item should be separator');
-		assert.strictEqual((quickpick.items[0] as any).role, 'radiogroup', 'Separator should have radiogroup role');
-		assert.strictEqual((quickpick.items[1] as IQuickPickItem).checked, true, 'First option should be checked');
-		assert.strictEqual((quickpick.items[2] as IQuickPickItem).checked, false, 'Second option should not be checked');
+		const items = (quickpick as any).items;
+		assert.strictEqual(items.length, 4, 'Should have 4 items (1 separator + 3 options)');
+		assert.strictEqual(items[0].type, 'separator', 'First item should be separator');
+		assert.strictEqual(items[0].role, 'radiogroup', 'Separator should have radiogroup role');
+		assert.strictEqual(items[1].checked, true, 'First option should be checked');
+		assert.strictEqual(items[2].checked, false, 'Second option should not be checked');
 	});
 });
