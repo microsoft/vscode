@@ -815,7 +815,7 @@ suite('LanguageModelToolsService', () => {
 		store.add(service.registerToolData(playwrightMcpTool1));
 
 		const playwrightMcpToolSet = store.add(service.createToolSet(
-			githubMcpDataSource,
+			playwrightMcpDataSource,
 			'playwrightMcpToolSet',
 			'microsoft/playwright-mcp',
 			{ description: 'playwright MCP Test ToolSet' }
