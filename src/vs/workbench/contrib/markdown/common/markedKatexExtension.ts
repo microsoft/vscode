@@ -11,7 +11,6 @@ export const katexContainerLatexAttributeName = 'data-latex';
 
 const inlineRule = new RegExp('^' + mathInlineRegExp.source);
 
-
 export namespace MarkedKatexExtension {
 	type KatexOptions = import('katex').KatexOptions;
 
