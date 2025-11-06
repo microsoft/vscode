@@ -433,7 +433,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// No analyzer denies auto approval
 			commandLineAnalyzerResults.every(e => e.isAutoApproved !== false) &&
 			// All analyzers allow auto approval
-			commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed)
+			analyzersIsAutoApproveAllowed
 		);
 
 		if (isFinalAutoApproved) {
