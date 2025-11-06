@@ -863,4 +863,92 @@ suite('FetchWebPageTool', () => {
 			}
 		});
 	});
+
+	test('should set hasError metadata when web content extraction fails or redirects', async () => {
+		class TestWebContentExtractorServiceWithErrors implements IWebContentExtractorService {
+			_serviceBrand: undefined;
+
+			async extract(uris: URI[]): Promise<WebContentExtractResult[]> {
+				return uris.map(uri => {
+					if (uri.toString() === 'https://error.com') {
+						return { status: 'error', error: '404 Not Found' };
+					} else if (uri.toString() === 'https://redirect.com') {
+						return { status: 'redirect', toURI: URI.parse('https://redirected.com') };
+					} else {
+						return { status: 'ok', result: 'Success content' };
+					}
+				});
+			}
+		}
+
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorServiceWithErrors(),
+			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+			new MockTrustedDomainService(),
+		);
+
+		// Test with error URL
+		const errorResult = await tool.invoke(
+			{
+				callId: 'test-call-error',
+				toolId: 'fetch-page',
+				parameters: { urls: ['https://error.com'] },
+				context: undefined
+			},
+			() => Promise.resolve(0),
+			{ report: () => { } },
+			CancellationToken.None
+		);
+
+		assert.ok(errorResult.toolMetadata, 'Should have toolMetadata');
+		assert.strictEqual((errorResult.toolMetadata as any).hasError, true, 'Should have hasError set to true for error status');
+
+		// Test with redirect URL
+		const redirectResult = await tool.invoke(
+			{
+				callId: 'test-call-redirect',
+				toolId: 'fetch-page',
+				parameters: { urls: ['https://redirect.com'] },
+				context: undefined
+			},
+			() => Promise.resolve(0),
+			{ report: () => { } },
+			CancellationToken.None
+		);
+
+		assert.ok(redirectResult.toolMetadata, 'Should have toolMetadata');
+		assert.strictEqual((redirectResult.toolMetadata as any).hasError, true, 'Should have hasError set to true for redirect status');
+
+		// Test with mix of success and error
+		const mixedResult = await tool.invoke(
+			{
+				callId: 'test-call-mixed',
+				toolId: 'fetch-page',
+				parameters: { urls: ['https://success.com', 'https://error.com'] },
+				context: undefined
+			},
+			() => Promise.resolve(0),
+			{ report: () => { } },
+			CancellationToken.None
+		);
+
+		assert.ok(mixedResult.toolMetadata, 'Should have toolMetadata');
+		assert.strictEqual((mixedResult.toolMetadata as any).hasError, true, 'Should have hasError set to true when any URL has error');
+
+		// Test with only success
+		const successResult = await tool.invoke(
+			{
+				callId: 'test-call-success',
+				toolId: 'fetch-page',
+				parameters: { urls: ['https://success.com'] },
+				context: undefined
+			},
+			() => Promise.resolve(0),
+			{ report: () => { } },
+			CancellationToken.None
+		);
+
+		assert.ok(successResult.toolMetadata, 'Should have toolMetadata');
+		assert.strictEqual((successResult.toolMetadata as any).hasError, false, 'Should have hasError set to false for all success');
+	});
 });
