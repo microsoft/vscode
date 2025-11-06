@@ -53,6 +53,7 @@ type ContentRefData =
 	};
 
 export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore) {
+	// eslint-disable-next-line no-restricted-syntax
 	const links = element.querySelectorAll('a');
 	links.forEach(a => {
 		// Empty link text -> render file widget
@@ -431,7 +432,7 @@ registerAction2(class GoToTypeDefinitionsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToTypeDefinition', location);
+		await runGoToCommand(accessor, 'editor.action.goToTypeDefinition', location);
 	}
 });
 
@@ -456,7 +457,7 @@ registerAction2(class GoToImplementations extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToImplementation', location);
+		await runGoToCommand(accessor, 'editor.action.goToImplementation', location);
 	}
 });
 
@@ -481,7 +482,7 @@ registerAction2(class GoToReferencesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToReferences', location);
+		await runGoToCommand(accessor, 'editor.action.goToReferences', location);
 	}
 });
 

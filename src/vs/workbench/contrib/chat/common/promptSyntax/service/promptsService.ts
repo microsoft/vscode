@@ -13,6 +13,7 @@ import { createDecorator } from '../../../../../../platform/instantiation/common
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
 import { PromptsType } from '../promptTypes.js';
 import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 
 /**
  * Provides prompt services.
@@ -251,6 +252,16 @@ export interface IPromptsService extends IDisposable {
 	 * @param oldURI
 	 */
 	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined;
+
+	/**
+	 * Returns the list of disabled prompt file URIs for a given type. By default no prompt files are disabled.
+	 */
+	getDisabledPromptFiles(type: PromptsType): ResourceSet;
+
+	/**
+	 * Persists the set of disabled prompt file URIs for the given type.
+	 */
+	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
 }
 
 export interface IChatPromptSlashCommand {

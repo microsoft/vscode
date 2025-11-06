@@ -62,7 +62,7 @@ export class EditorState {
 		if (!(other instanceof EditorState)) {
 			return false;
 		}
-		const state = <EditorState>other;
+		const state = other;
 
 		if (this.modelVersionId !== state.modelVersionId) {
 			return false;

@@ -339,6 +339,7 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IChatFileCh
 			title: data.reference.path
 		});
 		const labelElement = label.element;
+		// eslint-disable-next-line no-restricted-syntax
 		labelElement.querySelector(`.${CollapsibleChangesSummaryListRenderer.CHANGES_SUMMARY_CLASS_NAME}`)?.remove();
 		if (!data.additionalLabels) {
 			return;

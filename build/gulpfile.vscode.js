@@ -354,7 +354,9 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'resources/win32/code_150x150.png'
 			], { base: '.' }));
 		} else if (platform === 'linux') {
-			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }));
+			const policyDest = gulp.src('.build/policies/linux/**', { base: '.build/policies/linux' })
+				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
+			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }), policyDest);
 		} else if (platform === 'darwin') {
 			const shortcut = gulp.src('resources/darwin/bin/code.sh')
 				.pipe(replace('@@APPNAME@@', product.applicationName))

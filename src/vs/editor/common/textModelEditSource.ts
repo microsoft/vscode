@@ -251,8 +251,8 @@ export namespace EditSuggestionId {
 	/**
 	 * Use AiEditTelemetryServiceImpl to create a new id!
 	*/
-	export function newId(): EditSuggestionId {
-		const id = prefixedUuid('sgt');
+	export function newId(genPrefixedUuid?: (ns: string) => string): EditSuggestionId {
+		const id = genPrefixedUuid ? genPrefixedUuid('sgt') : prefixedUuid('sgt');
 		return toEditIdentity(id);
 	}
 }

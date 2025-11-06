@@ -50,6 +50,7 @@ import { getActionBarActions } from '../../../../../platform/actions/browser/men
 import { IChatService } from '../../common/chatService.js';
 import { IChatWidgetService } from '../chat.js';
 import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID } from './agentSessions.js';
+import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 
 export class AgentSessionsView extends ViewPane {
 
@@ -317,6 +318,7 @@ export class AgentSessionsView extends ViewPane {
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
 				findWidgetEnabled: true,
+				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				sorter: new AgentSessionsSorter(),
 				paddingBottom: AgentSessionsListDelegate.ITEM_HEIGHT

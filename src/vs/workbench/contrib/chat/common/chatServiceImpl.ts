@@ -11,7 +11,6 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, derived, IObservable, ObservableMap } from '../../../../base/common/observable.js';
@@ -29,6 +28,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
+import { IChatEditingSession } from './chatEditingService.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
@@ -136,7 +136,7 @@ export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
 	private readonly _sessionModels = new ChatModelStore();
-	private readonly _contentProviderSessionModels = new ResourceMap<{ readonly model: IChatModel; readonly disposables: DisposableStore }>();
+	private readonly _contentProviderSessionModels = this._register(new DisposableResourceMap<{ readonly model: IChatModel } & IDisposable>());
 	private readonly _pendingRequests = this._register(new DisposableResourceMap<CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
 
@@ -145,7 +145,7 @@ export class ChatService extends Disposable implements IChatService {
 		return this._transferredSessionData;
 	}
 
-	private readonly _onDidSubmitRequest = this._register(new Emitter<{ readonly chatSessionId: string }>());
+	private readonly _onDidSubmitRequest = this._register(new Emitter<{ readonly chatSessionResource: URI }>());
 	public readonly onDidSubmitRequest = this._onDidSubmitRequest.event;
 
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
@@ -371,7 +371,6 @@ export class ChatService extends Disposable implements IChatService {
 			.map((session): IChatDetail => {
 				const title = session.title || localize('newChat', "New Chat");
 				return {
-					sessionId: session.sessionId,
 					sessionResource: session.sessionResource,
 					title,
 					lastMessageDate: session.lastMessageDate,
@@ -406,10 +405,10 @@ export class ChatService extends Disposable implements IChatService {
 		return this._startSession(undefined, location, isGlobalEditingSession, token, options);
 	}
 
-	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken, options?: { sessionResource?: URI; canUseTools?: boolean }): ChatModel {
+	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken, options?: { sessionResource?: URI; canUseTools?: boolean }, transferEditingSession?: IChatEditingSession): ChatModel {
 		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, { initialLocation: location, canUseTools: options?.canUseTools ?? true });
 		if (location === ChatAgentLocation.Chat) {
-			model.startEditingSession(isGlobalEditingSession);
+			model.startEditingSession(isGlobalEditingSession, transferEditingSession);
 		}
 
 		this._sessionModels.set(model.sessionResource, model);
@@ -462,7 +461,7 @@ export class ChatService extends Disposable implements IChatService {
 			return model;
 		}
 
-		const sessionId = LocalChatSessionUri.parse(sessionResource)?.sessionId;
+		const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
 		if (!sessionId) {
 			throw new Error(`Cannot restore non-local session ${sessionResource}`);
 		}
@@ -492,7 +491,7 @@ export class ChatService extends Disposable implements IChatService {
 	 * This is really just for migrating data from the edit session location to the panel.
 	 */
 	isPersistedSessionEmpty(sessionResource: URI): boolean {
-		const sessionId = LocalChatSessionUri.parse(sessionResource)?.sessionId;
+		const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
 		if (!sessionId) {
 			throw new Error(`Cannot restore non-local session ${sessionResource}`);
 		}
@@ -506,7 +505,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	getPersistedSessionTitle(sessionResource: URI): string | undefined {
-		const sessionId = LocalChatSessionUri.parse(sessionResource)?.sessionId;
+		const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
 		if (!sessionId) {
 			throw new Error(`Cannot restore non-local session ${sessionResource}`);
 		}
@@ -555,7 +554,7 @@ export class ChatService extends Disposable implements IChatService {
 		const chatSessionType = chatSessionResource.scheme;
 
 		// Contributed sessions do not use UI tools
-		const model = this._startSession(undefined, location, true, CancellationToken.None, { sessionResource: chatSessionResource, canUseTools: false });
+		const model = this._startSession(undefined, location, true, CancellationToken.None, { sessionResource: chatSessionResource, canUseTools: false }, providedSession.initialEditingSession);
 		model.setContributedChatSession({
 			chatSessionResource,
 			chatSessionType,
@@ -563,10 +562,10 @@ export class ChatService extends Disposable implements IChatService {
 		});
 
 		const disposables = new DisposableStore();
-		this._contentProviderSessionModels.set(chatSessionResource, { model, disposables });
+		this._contentProviderSessionModels.set(chatSessionResource, { model, dispose: () => disposables.dispose() });
 
 		disposables.add(model.onDidDispose(() => {
-			this._contentProviderSessionModels.delete(chatSessionResource);
+			this._contentProviderSessionModels.deleteAndDispose(chatSessionResource);
 			providedSession.dispose();
 		}));
 
@@ -615,7 +614,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {
 			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
 			this._pendingRequests.set(model.sessionResource, initialCancellationRequest);
-			const cancellationListener = new MutableDisposable();
+			const cancellationListener = disposables.add(new MutableDisposable());
 
 			const createCancellationListener = (token: CancellationToken) => {
 				return token.onCancellationRequested(() => {
@@ -631,7 +630,6 @@ export class ChatService extends Disposable implements IChatService {
 			};
 
 			cancellationListener.value = createCancellationListener(initialCancellationRequest.cancellationTokenSource.token);
-			disposables.add(cancellationListener);
 
 			let lastProgressLength = 0;
 			disposables.add(autorun(reader => {
@@ -778,7 +776,7 @@ export class ChatService extends Disposable implements IChatService {
 		const commandPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
 		const requests = [...model.getRequests()];
 		const requestTelemetry = this.instantiationService.createInstance(ChatRequestTelemetry, {
-			agentPart,
+			agent: agentPart?.agent ?? defaultAgent,
 			agentSlashCommandPart,
 			commandPart,
 			sessionId: model.sessionId,
@@ -856,7 +854,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const prepareChatAgentRequest = (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): IChatAgentRequest => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
-						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId);
+						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get());
 
 						let variableData: IChatRequestVariableData;
 						let message: string;
@@ -1069,7 +1067,7 @@ export class ChatService extends Disposable implements IChatService {
 		rawResponsePromise.finally(() => {
 			this._pendingRequests.deleteAndDispose(model.sessionResource);
 		});
-		this._onDidSubmitRequest.fire({ chatSessionId: model.sessionId });
+		this._onDidSubmitRequest.fire({ chatSessionResource: model.sessionResource });
 		return {
 			responseCreatedPromise: responseCreated.p,
 			responseCompletePromise: rawResponsePromise,
@@ -1204,11 +1202,11 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionResource}`);
 		}
 
-		const localSession = LocalChatSessionUri.parse(sessionResource);
-		if (localSession && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.EditorInline)) {
+		const localSessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
+		if (localSessionId && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.EditorInline)) {
 			// Always preserve sessions that have custom titles, even if empty
 			if (model.getRequests().length === 0 && !model.customTitle) {
-				await this._chatSessionStore.deleteSession(localSession.sessionId);
+				await this._chatSessionStore.deleteSession(localSessionId);
 			} else {
 				await this._chatSessionStore.storeSessions([model]);
 			}
@@ -1255,14 +1253,10 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private toLocalSessionId(sessionResource: URI) {
-		const parsed = LocalChatSessionUri.parse(sessionResource);
-		if (!parsed) {
-			throw new Error(`Invalid local chat session resource: ${sessionResource.toString()}`);
+		const localSessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
+		if (!localSessionId) {
+			throw new Error(`Invalid local chat session resource: ${sessionResource}`);
 		}
-		if (parsed.chatSessionType !== 'local') {
-			throw new Error(`Can only delete local chat sessions, got: ${parsed.chatSessionType}`);
-		}
-
-		return parsed.sessionId;
+		return localSessionId;
 	}
 }

@@ -77,14 +77,13 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 			command: {
 				title: localize('configure-tools.capitalized.ellipsis', "Configure Tools..."),
 				id: this.cmdId,
-				arguments: [model, toolsAttr.range, selectedTools]
+				arguments: [model, toolsAttr.value.range, selectedTools]
 			}
 		};
 		return { lenses: [codeLens] };
 	}
 
 	private async updateTools(model: ITextModel, range: Range, selectedTools: readonly string[]) {
-
 		const selectedToolsNow = () => this.languageModelToolsService.toToolAndToolSetEnablementMap(selectedTools);
 		const newSelectedAfter = await this.instantiationService.invokeFunction(showToolsPicker, localize('placeholder', "Select tools"), undefined, selectedToolsNow);
 		if (!newSelectedAfter) {

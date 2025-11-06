@@ -14,12 +14,16 @@ import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 export class StandaloneGotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
 	protected readonly onDidActiveTextEditorControlChange = Event.None;
 
-	constructor(@ICodeEditorService private readonly editorService: ICodeEditorService) {
+	constructor(
+		@ICodeEditorService private readonly editorService: ICodeEditorService,
+		@IStorageService protected override readonly storageService: IStorageService
+	) {
 		super();
 	}
 

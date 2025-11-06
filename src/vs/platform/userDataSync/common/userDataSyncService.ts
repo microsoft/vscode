@@ -849,7 +849,7 @@ class ProfileSynchronizer extends Disposable {
 		const local = this.getLocalUserDataSyncConfiguration();
 		const settingsSynchronizer = this.enabled.find(synchronizer => synchronizer instanceof SettingsSynchroniser);
 		if (settingsSynchronizer) {
-			const remote = await (<SettingsSynchroniser>settingsSynchronizer).getRemoteUserDataSyncConfiguration(getRefOrUserData(manifestOrLatestData, this.collection, SyncResource.Settings) ?? null);
+			const remote = await settingsSynchronizer.getRemoteUserDataSyncConfiguration(getRefOrUserData(manifestOrLatestData, this.collection, SyncResource.Settings) ?? null);
 			return { ...local, ...remote };
 		}
 		return local;

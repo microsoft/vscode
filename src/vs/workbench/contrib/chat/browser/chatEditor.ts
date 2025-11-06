@@ -143,6 +143,7 @@ export class ChatEditor extends EditorPane {
 
 		// If already showing, just update text
 		if (this._loadingContainer) {
+			// eslint-disable-next-line no-restricted-syntax
 			const existingText = this._loadingContainer.querySelector('.chat-loading-content span');
 			if (existingText) {
 				existingText.textContent = message;

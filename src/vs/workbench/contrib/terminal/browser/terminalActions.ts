@@ -105,7 +105,7 @@ export async function getCwdForSplit(
 					const options: IPickOptions<IQuickPickItem> = {
 						placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
 					};
-					const workspace = await commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
+					const workspace = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
 					if (!workspace) {
 						// Don't split the instance if the workspace picker was canceled
 						return undefined;
@@ -1608,7 +1608,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]): ID
 				const options: IPickOptions<IQuickPickItem> = {
 					placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
 				};
-				const workspace = await commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
+				const workspace = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
 				if (!workspace) {
 					// Don't create the instance if the workspace picker was canceled
 					return;

@@ -1149,7 +1149,7 @@ function applyUpdate<T>(value: T | undefined, update: T): ApplyUpdateResult<T> {
 	}
 	let didChange = false;
 	for (const key in update) {
-		if ((update as T & object).hasOwnProperty(key)) {
+		if (update.hasOwnProperty(key)) {
 			const result = applyUpdate(value[key], update[key]);
 			if (result.didChange) {
 				value[key] = result.newValue;

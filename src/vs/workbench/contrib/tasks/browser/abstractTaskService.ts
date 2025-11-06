@@ -2571,7 +2571,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return folder;
 	}
 
-	getTerminalsForTasks(task: (Task | Task[])): URI[] | undefined {
+	getTerminalsForTasks(task: Types.SingleOrMany<Task>): URI[] | undefined {
 		return this._taskSystem?.getTerminalsForTasks(task);
 	}
 
@@ -3377,7 +3377,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						const globGroupTasks = await this._findWorkspaceTasks((task) => {
 							const currentTaskGroup = task.configurationProperties.group;
 							if (currentTaskGroup && typeof currentTaskGroup !== 'string' && typeof currentTaskGroup.isDefault === 'string') {
-								return (currentTaskGroup._id === taskGroupId && glob.match(currentTaskGroup.isDefault, relativePath));
+								return (currentTaskGroup._id === taskGroupId && glob.match(currentTaskGroup.isDefault, relativePath, { ignoreCase: true }));
 							}
 
 							globTasksDetected = false;

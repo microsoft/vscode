@@ -52,6 +52,7 @@ class AnnounceChatConfirmationAction extends Action2 {
 
 		const lastResponse = viewModel.getItems()[viewModel.getItems().length - 1];
 		if (isResponseVM(lastResponse)) {
+			// eslint-disable-next-line no-restricted-syntax
 			const confirmationWidgets = lastFocusedWidget.domNode.querySelectorAll('.chat-confirmation-widget-container');
 			if (confirmationWidgets.length > 0) {
 				firstConfirmationElement = confirmationWidgets[0] as HTMLElement;

@@ -19,6 +19,7 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { IEnvironmentVariableInfo } from './environmentVariable.js';
 import { IExtensionPointDescriptor } from '../../../services/extensions/common/extensionsRegistry.js';
 import { defaultTerminalContribCommandsToSkipShell } from '../terminalContribExports.js';
+import type { SingleOrMany } from '../../../../base/common/types.js';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -54,7 +55,7 @@ export interface ITerminalProfileResolverService {
 	resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void>;
 	getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile>;
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
-	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
+	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<SingleOrMany<string>>;
 	getDefaultIcon(): TerminalIcon & ThemeIcon;
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
 }
@@ -302,6 +303,7 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	setDimensions(cols: number, rows: number, sync: true): void;
 	clearBuffer(): Promise<void>;
 	setUnicodeVersion(version: '6' | '11'): Promise<void>;
+	setNextCommandId(commandLine: string, commandId: string): Promise<void>;
 	acknowledgeDataEvent(charCount: number): void;
 	processBinary(data: string): void;
 
@@ -704,10 +706,6 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 						}
 					}],
 					properties: {
-						id: {
-							description: nls.localize('vscode.extension.contributes.terminal.completionProviders.id', "The ID of the terminal completion provider."),
-							type: 'string',
-						},
 						description: {
 							description: nls.localize('vscode.extension.contributes.terminal.completionProviders.description', "A description of what the completion provider does. This will be shown in the settings UI."),
 							type: 'string',

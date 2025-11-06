@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { isObject, isString } from '../../../../../base/common/types.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -10,13 +11,15 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ProductQualityContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
+import { CONTEXT_MODELS_EDITOR, CONTEXT_MODELS_SEARCH_FOCUS, MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatManagementEditor, ModelsManagementEditor } from './chatManagementEditor.js';
 import { ChatManagementEditorInput, ModelsManagementEditorInput } from './chatManagementEditorInput.js';
@@ -117,5 +120,28 @@ registerAction2(class extends Action2 {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		args = sanitizeOpenManageCopilotEditorArgs(args);
 		return editorGroupsService.activeGroup.openEditor(new ModelsManagementEditorInput());
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'chat.models.action.clearSearchResults',
+			precondition: CONTEXT_MODELS_EDITOR,
+			keybinding: {
+				primary: KeyCode.Escape,
+				weight: KeybindingWeight.EditorContrib,
+				when: CONTEXT_MODELS_SEARCH_FOCUS
+			},
+			title: localize2('models.clearResults', "Clear Models Search Results")
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+		if (activeEditorPane instanceof ModelsManagementEditor) {
+			activeEditorPane.clearSearch();
+		}
+		return null;
 	}
 });

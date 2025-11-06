@@ -23,7 +23,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ctxHasEditorModification, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
+import { ctxCursorInChangeRange, ctxHasEditorModification, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 
 
 abstract class ChatEditingEditorAction extends Action2 {
@@ -237,7 +237,7 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 				precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
 				f1: true,
 				keybinding: {
-					when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED),
+					when: ContextKeyExpr.and(ctxCursorInChangeRange, ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED)),
 					weight: KeybindingWeight.WorkbenchContrib + 1,
 					primary: _accept
 						? KeyMod.CtrlCmd | KeyCode.KeyY
@@ -381,7 +381,7 @@ export class AcceptAllEditsAction extends ChatEditingEditorAction {
 		});
 	}
 
-	override async runChatEditingCommand(_accessor: ServicesAccessor, session: IChatEditingSession, _entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: any[]): Promise<void> {
+	override async runChatEditingCommand(_accessor: ServicesAccessor, session: IChatEditingSession, _entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: unknown[]): Promise<void> {
 		await session.accept();
 	}
 }
