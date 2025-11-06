@@ -326,7 +326,7 @@ export class PromptValidator {
 
 		switch (attribute.value.type) {
 			case 'array':
-				if (target === 'github-copilot') {
+				if (target === Target.GitHubCopilot) {
 					// no validation for github-copilot target
 				} else {
 					this.validateVSCodeTools(attribute.value, target, report);
