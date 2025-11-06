@@ -106,7 +106,7 @@ enum ChatSetupAnonymous {
 
 //#region Contribution
 
-const ToolsAgentContextKey = ContextKeyExpr.and(
+const AgentContextKey = ContextKeyExpr.and(
 	ContextKeyExpr.equals(`config.${ChatConfiguration.AgentEnabled}`, true),
 	ContextKeyExpr.not(`previewFeaturesDisabled`) // Set by extension
 );
@@ -174,7 +174,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 				userDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
 				canBeReferencedInPrompt: true,
 				toolReferenceName: 'new',
-				when: ContextKeyExpr.true(),
+				when: ChatContextKeys.extensionParticipantRegistered.negate(),
 			}));
 
 			return disposables;
@@ -189,7 +189,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 			isDefault,
 			isCore: true,
 			modes: mode ? [mode] : [ChatModeKind.Ask],
-			when: mode === ChatModeKind.Agent ? ToolsAgentContextKey?.serialize() : undefined,
+			when: (mode === ChatModeKind.Agent ? ContextKeyExpr.and(AgentContextKey, ChatContextKeys.extensionParticipantRegistered.negate()) : ChatContextKeys.extensionParticipantRegistered.negate())?.serialize(),
 			slashCommands: [],
 			disambiguation: [],
 			locations: [location],
