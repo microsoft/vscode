@@ -305,10 +305,30 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<IQui
 	}
 
 	getRole(element: IQuickPickElement) {
+		// Check if the element itself is a separator with radiogroup role
+		if (element instanceof QuickPickSeparatorElement && element.separator.role === 'radiogroup') {
+			return 'radiogroup';
+		}
+		// Check if element is in a radio group (separator has role='radiogroup')
+		if (element instanceof QuickPickItemElement && element.separator?.role === 'radiogroup') {
+			return 'radio';
+		}
 		return element.hasCheckbox ? 'checkbox' : 'option';
 	}
 
 	isChecked(element: IQuickPickElement): IValueWithChangeEvent<boolean> | undefined {
+		// Handle radio items
+		if (element instanceof QuickPickItemElement && element.separator?.role === 'radiogroup') {
+			// For radio items, use the checked property from the IQuickPickItem
+			return {
+				get value() {
+					return element.item.checked ?? false;
+				},
+				onDidChange: () => { },
+			};
+		}
+
+		// Handle checkbox items
 		if (!element.hasCheckbox || !(element instanceof QuickPickItemElement)) {
 			return undefined;
 		}

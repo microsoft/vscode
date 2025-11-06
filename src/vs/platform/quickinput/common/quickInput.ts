@@ -97,6 +97,11 @@ export interface IQuickPickItem extends IQuickItem {
 	 * Defaults to true with `IQuickPick.canSelectMany`, can be false to disable picks for a single item
 	 */
 	pickable?: boolean;
+	/**
+	 * For items under a radiogroup separator, indicates whether this radio option is currently selected.
+	 * This is used for accessibility to properly announce the checked state to screen readers.
+	 */
+	checked?: boolean;
 }
 
 export interface IQuickPickSeparator {
@@ -110,6 +115,11 @@ export interface IQuickPickSeparator {
 	ariaLabel?: string;
 	buttons?: readonly IQuickInputButton[];
 	tooltip?: string | IMarkdownString;
+	/**
+	 * The role of the separator. When set to 'radiogroup', items under this separator
+	 * will be treated as radio buttons in a radio group for accessibility purposes.
+	 */
+	role?: 'radiogroup';
 }
 
 export interface IKeyMods {

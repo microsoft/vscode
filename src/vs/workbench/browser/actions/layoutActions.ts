@@ -1492,6 +1492,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				id: item.id,
 				label,
 				ariaLabel,
+				checked: toggled,
 				keybinding: keybindingService.lookupKeybinding(item.id, contextKeyService),
 				buttons: !item.useButtons ? undefined : [
 					{
@@ -1510,17 +1511,20 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 			...ToggleVisibilityActions.map(toQuickPickItem),
 			{
 				type: 'separator',
-				label: localize('sideBarPosition', "Primary Side Bar Position")
+				label: localize('sideBarPosition', "Primary Side Bar Position"),
+				role: 'radiogroup'
 			},
 			...MoveSideBarActions.map(toQuickPickItem),
 			{
 				type: 'separator',
-				label: localize('panelAlignment', "Panel Alignment")
+				label: localize('panelAlignment', "Panel Alignment"),
+				role: 'radiogroup'
 			},
 			...AlignPanelActions.map(toQuickPickItem),
 			{
 				type: 'separator',
-				label: localize('quickOpen', "Quick Input Position")
+				label: localize('quickOpen', "Quick Input Position"),
+				role: 'radiogroup'
 			},
 			...QuickInputActions.map(toQuickPickItem),
 			{
