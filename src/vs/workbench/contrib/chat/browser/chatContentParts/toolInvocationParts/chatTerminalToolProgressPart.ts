@@ -181,16 +181,21 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._registerInstanceListener(instance);
 		};
 
-		await attachInstance(await this._terminalChatService.getTerminalInstanceByToolSessionId(terminalToolSessionId));
+		const initialInstance = await this._terminalChatService.getTerminalInstanceByToolSessionId(terminalToolSessionId);
+		await attachInstance(initialInstance);
 
-		const listener = this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(async instance => {
-			if (instance !== await this._terminalChatService.getTerminalInstanceByToolSessionId(terminalToolSessionId)) {
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		const listener = this._store.add(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(async instance => {
+			const registeredInstance = await this._terminalChatService.getTerminalInstanceByToolSessionId(terminalToolSessionId);
+			if (instance !== registeredInstance) {
 				return;
 			}
-			attachInstance(instance);
-			listener.dispose();
-		});
-		this._register(listener);
+			this._store.delete(listener);
+			await attachInstance(instance);
+		}));
 	}
 
 	private async _addActions(terminalInstance: ITerminalInstance, terminalToolSessionId: string) {
