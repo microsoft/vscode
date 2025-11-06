@@ -439,10 +439,11 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			// Only update element's checked state if it's focused in the tree
 			// If not focused, revert the checkbox's state to match the element
 			// This ensures that when Space is pressed, only the focused items are toggled by the tree's handler
-			if (this.isElementFocused && this.isElementFocused(data.element)) {
+			if (this.isElementFocused && data.element && this.isElementFocused(data.element)) {
 				element.checked = checkbox.checked;
 			} else {
-				// Revert checkbox to match element's state (without triggering onChange again)
+				// Revert checkbox state to match element's state
+				// Setting checked property doesn't trigger onChange, so no recursion
 				checkbox.checked = element.checked;
 			}
 		}));
