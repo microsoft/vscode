@@ -8,15 +8,17 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { ChatMode, ChatModeService } from '../../common/chatModes.js';
-import { ChatModeKind } from '../../common/constants.js';
+import { ChatMode, ChatModeService, isAgentModePolicyDisabled } from '../../common/chatModes.js';
+import { ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from './mockPromptsService.js';
 
@@ -78,20 +80,23 @@ suite('ChatModeService', () => {
 		assert.strictEqual(askMode.kind, ChatModeKind.Ask);
 	});
 
-	test('should adjust builtin modes based on tools agent availability', () => {
-		// With tools agent
+	test('should always include all builtin modes regardless of tools agent availability', () => {
+		// With tools agent - all modes should be present
 		chatAgentService.setHasToolsAgent(true);
-		let agents = chatModeService.getModes();
-		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Agent));
+		let modes = chatModeService.getModes();
+		assert.strictEqual(modes.builtin.length, 3);
+		assert.ok(modes.builtin.find(mode => mode.id === ChatModeKind.Agent));
+		assert.ok(modes.builtin.find(mode => mode.id === ChatModeKind.Ask));
+		assert.ok(modes.builtin.find(mode => mode.id === ChatModeKind.Edit));
 
-		// Without tools agent - Agent mode should not be present
+		// Without tools agent - Agent mode should still be present
+		// (but it will be shown as disabled in the UI when appropriate)
 		chatAgentService.setHasToolsAgent(false);
-		agents = chatModeService.getModes();
-		assert.strictEqual(agents.builtin.find(agent => agent.id === ChatModeKind.Agent), undefined);
-
-		// But Ask and Edit modes should always be present
-		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Ask));
-		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Edit));
+		modes = chatModeService.getModes();
+		assert.strictEqual(modes.builtin.length, 3);
+		assert.ok(modes.builtin.find(mode => mode.id === ChatModeKind.Agent));
+		assert.ok(modes.builtin.find(mode => mode.id === ChatModeKind.Ask));
+		assert.ok(modes.builtin.find(mode => mode.id === ChatModeKind.Edit));
 	});
 
 	test('should find builtin modes by id', () => {
@@ -260,5 +265,54 @@ suite('ChatModeService', () => {
 		modes = chatModeService.getModes();
 		assert.strictEqual(modes.custom.length, 1);
 		assert.strictEqual(modes.custom[0].id, mode1.uri.toString());
+	});
+
+	test('isAgentModePolicyDisabled should return true when agent mode is disabled by policy', () => {
+		const configService = new TestConfigurationService();
+
+		// Set up policy value to false (disabled by admin)
+		configService.setUserConfiguration(ChatConfiguration.AgentEnabled, false);
+		const inspectResult = {
+			policyValue: false,
+			defaultValue: true,
+			userValue: undefined,
+			workspaceValue: undefined,
+			value: false
+		};
+		configService.inspect = () => inspectResult;
+
+		assert.strictEqual(isAgentModePolicyDisabled(configService), true);
+	});
+
+	test('isAgentModePolicyDisabled should return false when agent mode is enabled by policy', () => {
+		const configService = new TestConfigurationService();
+
+		// Set up policy value to true (enabled by admin)
+		const inspectResult = {
+			policyValue: true,
+			defaultValue: true,
+			userValue: undefined,
+			workspaceValue: undefined,
+			value: true
+		};
+		configService.inspect = () => inspectResult;
+
+		assert.strictEqual(isAgentModePolicyDisabled(configService), false);
+	});
+
+	test('isAgentModePolicyDisabled should return false when there is no policy', () => {
+		const configService = new TestConfigurationService();
+
+		// No policy value set - user can control the setting
+		const inspectResult = {
+			policyValue: undefined,
+			defaultValue: true,
+			userValue: false, // User disabled it themselves
+			workspaceValue: undefined,
+			value: false
+		};
+		configService.inspect = () => inspectResult;
+
+		assert.strictEqual(isAgentModePolicyDisabled(configService), false);
 	});
 });
