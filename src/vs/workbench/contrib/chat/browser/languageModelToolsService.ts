@@ -168,6 +168,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
+	flushToolUpdates(): void {
+		this._onDidChangeToolsScheduler.flush();
+	}
+
 	private _refreshAllToolContextKeys() {
 		this._toolContextKeys.clear();
 		for (const tool of this._tools.values()) {
