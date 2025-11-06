@@ -190,7 +190,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			attachInstance(instance);
 			listener.dispose();
 		});
-		this._register(listener);
+		if (!(this._store.isDisposed)) {
+			this._register(listener);
+		}
 	}
 
 	private async _addActions(terminalInstance: ITerminalInstance, terminalToolSessionId: string) {
