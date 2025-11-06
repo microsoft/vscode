@@ -24,7 +24,15 @@ export interface ICommandLineAnalyzerOptions {
 }
 
 export interface ICommandLineAnalyzerResult {
+	/**
+	 * Whether auto approval is allowed based on the analysis, when false this
+	 * will block auto approval.
+	*/
 	readonly isAutoApproveAllowed: boolean;
+	/**
+	 * Whether the command line was explicitly auto approved.
+	 */
+	readonly isAutoApproved?: boolean;
 	readonly disclaimers?: readonly string[];
 	readonly autoApproveInfo?: IMarkdownString;
 	readonly customActions?: ToolConfirmationAction[];

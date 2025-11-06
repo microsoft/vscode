@@ -417,15 +417,29 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimersRaw.join(' '), { supportThemeIcons: true });
 		}
 
-		const customActions = commandLineAnalyzerResults.map(e => e.customActions ?? []).flat();
-		toolSpecificData.autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
+		const analyzersIsAutoApproveAllowed = commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
+		const customActions = analyzersIsAutoApproveAllowed ? commandLineAnalyzerResults.map(e => e.customActions ?? []).flat() : undefined;
 
 		let shellType = basename(shell, '.exe');
 		if (shellType === 'powershell') {
 			shellType = 'pwsh';
 		}
 
-		const isFinalAutoApproved = isAutoApproveAllowed && commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
+		const isFinalAutoApproved = (
+			// Is the setting enabled and the user has opted-in
+			isAutoApproveAllowed &&
+			// Does at least one analyzer auto approve
+			commandLineAnalyzerResults.some(e => e.isAutoApproved) &&
+			// No analyzer denies auto approval
+			commandLineAnalyzerResults.every(e => e.isAutoApproved !== false) &&
+			// All analyzers allow auto approval
+			commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed)
+		);
+
+		if (isFinalAutoApproved) {
+			toolSpecificData.autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
+		}
+
 		const confirmationMessages = isFinalAutoApproved ? undefined : {
 			title: args.isBackground
 				? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)

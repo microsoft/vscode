@@ -155,7 +155,8 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		}
 
 		return {
-			isAutoApproveAllowed: isAutoApproved,
+			isAutoApproved,
+			isAutoApproveAllowed: !isDenied,
 			disclaimers,
 			autoApproveInfo,
 			customActions,
