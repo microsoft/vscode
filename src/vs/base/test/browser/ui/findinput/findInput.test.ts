@@ -101,7 +101,7 @@ suite('FindInput Toggle Focus', () => {
 		document.body.appendChild(container);
 		store.add({ dispose: () => container.remove() });
 
-		store.add(new FindInput(container, undefined, {
+		const findInput = store.add(new FindInput(container, undefined, {
 			label: 'test',
 			inputBoxStyles: unthemedInboxStyles,
 			toggleStyles: unthemedToggleStyles,
@@ -109,14 +109,14 @@ suite('FindInput Toggle Focus', () => {
 			// No additionalToggles provided
 		}));
 
-		// Get the common toggles
-		const caseSensitive = container.querySelector('[role="checkbox"][aria-label*="Match Case"]') as HTMLElement;
-		const wholeWords = container.querySelector('[role="checkbox"][aria-label*="Match Whole Word"]') as HTMLElement;
-		const regex = container.querySelector('[role="checkbox"][aria-label*="Use Regular Expression"]') as HTMLElement;
+		// Get the common toggles from the findInput instance
+		const caseSensitive = (findInput as any).caseSensitive;
+		const wholeWords = (findInput as any).wholeWords;
+		const regex = (findInput as any).regex;
 
 		// Verify that only the first toggle is tabbable
-		assert.strictEqual(caseSensitive?.tabIndex, 0, 'Case sensitive toggle should have tabIndex 0');
-		assert.strictEqual(wholeWords?.tabIndex, -1, 'Whole words toggle should have tabIndex -1');
-		assert.strictEqual(regex?.tabIndex, -1, 'Regex toggle should have tabIndex -1');
+		assert.strictEqual(caseSensitive.domNode.tabIndex, 0, 'Case sensitive toggle should have tabIndex 0');
+		assert.strictEqual(wholeWords.domNode.tabIndex, -1, 'Whole words toggle should have tabIndex -1');
+		assert.strictEqual(regex.domNode.tabIndex, -1, 'Regex toggle should have tabIndex -1');
 	});
 });
