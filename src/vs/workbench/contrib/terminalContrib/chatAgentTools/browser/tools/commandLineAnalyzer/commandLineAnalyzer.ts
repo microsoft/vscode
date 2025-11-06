@@ -30,7 +30,10 @@ export interface ICommandLineAnalyzerResult {
 	*/
 	readonly isAutoApproveAllowed: boolean;
 	/**
-	 * Whether the command line was explicitly auto approved.
+	 * Whether the command line was explicitly auto approved by this analyzer.
+	 * - `true`: This analyzer explicitly approves auto-execution
+	 * - `false`: This analyzer explicitly denies auto-execution
+	 * - `undefined`: This analyzer does not make an approval/denial decision
 	 */
 	readonly isAutoApproved?: boolean;
 	readonly disclaimers?: readonly string[];
