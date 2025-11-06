@@ -394,7 +394,7 @@ suite('PromptValidator', () => {
 			]);
 		});
 
-		test('undefined target  with mcp-servers and github-tools', async () => {
+		test('undefined target with mcp-servers and github-tools', async () => {
 			const content = [
 				'---',
 				'description: "VS Code agent"',
