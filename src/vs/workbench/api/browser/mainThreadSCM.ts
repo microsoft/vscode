@@ -173,7 +173,14 @@ class MainThreadSCMResource implements ISCMResource {
 }
 
 class MainThreadSCMArtifactProvider implements ISCMArtifactProvider {
-	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
+	private readonly _onDidChangeArtifacts = new Emitter<string[]>();
+	readonly onDidChangeArtifacts = this._onDidChangeArtifacts.event;
+
+	private readonly _disposables = new DisposableStore();
+
+	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) {
+		this._disposables.add(this._onDidChangeArtifacts);
+	}
 
 	async provideArtifactGroups(token?: CancellationToken): Promise<ISCMArtifactGroup[] | undefined> {
 		const artifactGroups = await this.proxy.$provideArtifactGroups(this.handle, token ?? CancellationToken.None);
@@ -181,11 +188,16 @@ class MainThreadSCMArtifactProvider implements ISCMArtifactProvider {
 	}
 
 	async provideArtifacts(group: string, token?: CancellationToken): Promise<ISCMArtifact[] | undefined> {
-		return this.proxy.$provideArtifacts(this.handle, group, token ?? CancellationToken.None);
+		const artifacts = await this.proxy.$provideArtifacts(this.handle, group, token ?? CancellationToken.None);
+		return artifacts?.map(artifact => ({ ...artifact, icon: getIconFromIconDto(artifact.icon) }));
 	}
 
-	$onDidChangeArtifacts(group: string): void {
-		throw new Error('Method not implemented.');
+	$onDidChangeArtifacts(groups: string[]): void {
+		this._onDidChangeArtifacts.fire(groups);
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
 	}
 }
 
@@ -564,13 +576,13 @@ class MainThreadSCMProvider implements ISCMProvider {
 		provider.$onDidChangeHistoryItemRefs(historyItemRefs);
 	}
 
-	$onDidChangeArtifacts(group: string): void {
+	$onDidChangeArtifacts(groups: string[]): void {
 		const provider = this.artifactProvider.get();
 		if (!provider) {
 			return;
 		}
 
-		provider.$onDidChangeArtifacts(group);
+		provider.$onDidChangeArtifacts(groups);
 	}
 
 	toJSON() {
@@ -831,7 +843,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		provider.$onDidChangeHistoryProviderHistoryItemRefs(historyItemRefs);
 	}
 
-	async $onDidChangeArtifacts(sourceControlHandle: number, group: string): Promise<void> {
+	async $onDidChangeArtifacts(sourceControlHandle: number, groups: string[]): Promise<void> {
 		await this._repositoryBarriers.get(sourceControlHandle)?.wait();
 		const repository = this._repositories.get(sourceControlHandle);
 
@@ -840,6 +852,6 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$onDidChangeArtifacts(group);
+		provider.$onDidChangeArtifacts(groups);
 	}
 }

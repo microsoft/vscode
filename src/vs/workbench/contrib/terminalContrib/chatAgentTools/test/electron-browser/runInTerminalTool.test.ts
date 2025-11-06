@@ -34,6 +34,7 @@ import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/
 import { arch } from '../../../../../../base/common/process.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
+import type { SingleOrMany } from '../../../../../../base/common/types.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -46,8 +47,8 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	}
 }
 
-// TODO: The powershell grammar can cause an OOM crash on arm https://github.com/microsoft/vscode/issues/273177
-(arch === 'arm' || arch === 'arm64' ? suite.skip : suite)('RunInTerminalTool', () => {
+// TODO: The powershell grammar can cause an OOM crash on Windows/arm https://github.com/microsoft/vscode/issues/273177
+(isWindows && (arch === 'arm' || arch === 'arm64') ? suite.skip : suite)('RunInTerminalTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
@@ -461,7 +462,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 	suite('prepareToolInvocation - custom actions for dropdown', () => {
 
-		function assertDropdownActions(result: IPreparedToolInvocation | undefined, items: ({ subCommand: string | string[] } | 'commandLine' | '---' | 'configure')[]) {
+		function assertDropdownActions(result: IPreparedToolInvocation | undefined, items: ({ subCommand: SingleOrMany<string> } | 'commandLine' | '---' | 'configure')[]) {
 			const actions = result?.confirmationMessages?.terminalCustomActions!;
 			ok(actions, 'Expected custom actions to be defined');
 

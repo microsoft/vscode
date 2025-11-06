@@ -331,6 +331,7 @@ export class ActionList<T> extends Disposable {
 		} else {
 			// For finding width dynamically (not using resize observer)
 			const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
+				// eslint-disable-next-line no-restricted-syntax
 				const element = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
 				if (element) {
 					element.style.width = 'auto';

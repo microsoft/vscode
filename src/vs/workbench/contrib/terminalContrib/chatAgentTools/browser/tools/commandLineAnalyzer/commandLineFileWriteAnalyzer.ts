@@ -5,43 +5,57 @@
 
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { win32, posix } from '../../../../../../../base/common/path.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
-import { IHistoryService } from '../../../../../../services/history/common/history.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
-import type { TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
+import { type TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
 import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
+import { OperatingSystem } from '../../../../../../../base/common/platform.js';
+import { isString } from '../../../../../../../base/common/types.js';
+import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 
 export class CommandLineFileWriteAnalyzer extends Disposable implements ICommandLineAnalyzer {
 	constructor(
 		private readonly _treeSitterCommandParser: TreeSitterCommandParser,
 		private readonly _log: (message: string, ...args: unknown[]) => void,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IHistoryService private readonly _historyService: IHistoryService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 	}
 
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
-		return this._getResult(await this._getFileWrites(options));
+		let fileWrites: URI[] | string[];
+		try {
+			fileWrites = await this._getFileWrites(options);
+		} catch (e) {
+			console.error(e);
+			this._log('Failed to get file writes via grammar', options.treeSitterLanguage);
+			return {
+				isAutoApproveAllowed: false
+			};
+		}
+		return this._getResult(options, fileWrites);
 	}
 
 	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<URI[] | string[]> {
 		let fileWrites: URI[] | string[] = [];
 		const capturedFileWrites = await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine);
-		// TODO: Handle environment variables https://github.com/microsoft/vscode/issues/274166
-		// TODO: Handle command substitions/complex destinations https://github.com/microsoft/vscode/issues/274167
 		if (capturedFileWrites.length) {
-			let cwd = await options.instance?.getCwdResource();
-			if (!cwd) {
-				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-				const workspaceFolder = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
-				cwd = workspaceFolder?.uri;
-			}
+			const cwd = options.cwd;
 			if (cwd) {
-				fileWrites = capturedFileWrites.map(e => URI.joinPath(cwd, e));
+				this._log('Detected cwd', cwd.toString());
+				fileWrites = capturedFileWrites.map(e => {
+					const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(e) : posix.isAbsolute(e);
+					if (isAbsolute) {
+						return URI.file(e);
+					} else {
+						return URI.joinPath(cwd, e);
+					}
+				});
 			} else {
 				this._log('Cwd could not be detected');
 				fileWrites = capturedFileWrites;
@@ -51,7 +65,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		return fileWrites;
 	}
 
-	private _getResult(fileWrites: URI[] | string[]): ICommandLineAnalyzerResult {
+	private _getResult(options: ICommandLineAnalyzerOptions, fileWrites: URI[] | string[]): ICommandLineAnalyzerResult {
 		let isAutoApproveAllowed = true;
 		if (fileWrites.length > 0) {
 			const blockDetectedFileWrites = this._configurationService.getValue<string>(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites);
@@ -65,14 +79,29 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 					const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
 					if (workspaceFolders.length > 0) {
 						for (const fileWrite of fileWrites) {
+							if (isString(fileWrite)) {
+								const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(fileWrite) : posix.isAbsolute(fileWrite);
+								if (!isAbsolute) {
+									isAutoApproveAllowed = false;
+									this._log('File write blocked due to unknown terminal cwd', fileWrite);
+									break;
+								}
+							}
 							const fileUri = URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite);
+							// TODO: Handle command substitutions/complex destinations properly https://github.com/microsoft/vscode/issues/274167
+							// TODO: Handle environment variables properly https://github.com/microsoft/vscode/issues/274166
+							if (fileUri.fsPath.match(/[$\(\){}]/)) {
+								isAutoApproveAllowed = false;
+								this._log('File write blocked due to likely containing a variable', fileUri.toString());
+								break;
+							}
 							const isInsideWorkspace = workspaceFolders.some(folder =>
 								folder.uri.scheme === fileUri.scheme &&
 								(fileUri.path.startsWith(folder.uri.path + '/') || fileUri.path === folder.uri.path)
 							);
 							if (!isInsideWorkspace) {
 								isAutoApproveAllowed = false;
-								this._log(`File write blocked outside workspace: ${fileUri.toString()}`);
+								this._log('File write blocked outside workspace', fileUri.toString());
 								break;
 							}
 						}
@@ -92,7 +121,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 
 		const disclaimers: string[] = [];
 		if (fileWrites.length > 0) {
-			const fileWritesList = fileWrites.map(fw => `\`${URI.isUri(fw) ? fw.fsPath : fw}\``).join(', ');
+			const fileWritesList = fileWrites.map(fw => `\`${URI.isUri(fw) ? this._labelService.getUriLabel(fw) : fw}\``).join(', ');
 			if (!isAutoApproveAllowed) {
 				disclaimers.push(localize('runInTerminal.fileWriteBlockedDisclaimer', 'File write operations detected that cannot be auto approved: {0}', fileWritesList));
 			} else {

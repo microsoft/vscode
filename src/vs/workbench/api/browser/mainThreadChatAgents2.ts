@@ -118,9 +118,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			const local = LocalChatSessionUri.parse(e.sessionResource);
-			if (local) {
-				this._proxy.$releaseSession(local.sessionId);
+			const localSessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
+			if (localSessionId) {
+				this._proxy.$releaseSession(localSessionId);
 			}
 		}));
 		this._register(this._chatService.onDidPerformUserAction(e => {

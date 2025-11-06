@@ -17,6 +17,7 @@ import type * as performance from '../../../base/common/performance.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IAction } from '../../../base/common/actions.js';
 import type { IDisposable } from '../../../base/common/lifecycle.js';
+import type { SingleOrMany } from '../../../base/common/types.js';
 
 export const enum TerminalSettingPrefix {
 	AutomationProfile = 'terminal.integrated.automationProfile.',
@@ -339,6 +340,7 @@ export interface IPtyService {
 	getInitialCwd(id: number): Promise<string>;
 	getCwd(id: number): Promise<string>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
+	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void>;
 	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void>;
 	processBinary(id: number, data: string): Promise<void>;
 	/** Confirm the process is _not_ an orphan. */
@@ -817,6 +819,12 @@ export interface ITerminalChildProcess {
 	acknowledgeDataEvent(charCount: number): void;
 
 	/**
+	 * Pre-assigns the command identifier that should be associated with the next command detected by
+	 * shell integration. This keeps the pty host and renderer command stores aligned.
+	 */
+	setNextCommandId(commandLine: string, commandId: string): Promise<void>;
+
+	/**
 	 * Sets the unicode version for the process, this drives the size of some characters in the
 	 * xterm-headless instance.
 	 */
@@ -910,7 +918,7 @@ export interface ITerminalProfile {
 	 * cleaner to display this profile in the UI using only `basename(path)`.
 	 */
 	isFromPath?: boolean;
-	args?: string | string[] | undefined;
+	args?: SingleOrMany<string> | undefined;
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;
 	color?: string;
@@ -930,7 +938,7 @@ export const enum ProfileSource {
 }
 
 export interface IBaseUnresolvedTerminalProfile {
-	args?: string | string[] | undefined;
+	args?: SingleOrMany<string> | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
 	icon?: string | ThemeIcon | URI | { light: URI; dark: URI };
@@ -939,15 +947,13 @@ export interface IBaseUnresolvedTerminalProfile {
 	requiresPath?: string | ITerminalUnsafePath;
 }
 
-type OneOrN<T> = T | T[];
-
 export interface ITerminalUnsafePath {
 	path: string;
 	isUnsafe: true;
 }
 
 export interface ITerminalExecutable extends IBaseUnresolvedTerminalProfile {
-	path: OneOrN<string | ITerminalUnsafePath>;
+	path: SingleOrMany<string | ITerminalUnsafePath>;
 }
 
 export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
@@ -976,6 +982,8 @@ export interface IShellIntegration {
 	readonly onDidChangeSeenSequences: Event<ReadonlySet<string>>;
 
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+
+	setNextCommandId(command: string, commandId: string): void;
 }
 
 export interface IDecorationAddon {
@@ -983,7 +991,6 @@ export interface IDecorationAddon {
 }
 
 export interface ITerminalCompletionProviderContribution {
-	id: string;
 	description?: string;
 }
 

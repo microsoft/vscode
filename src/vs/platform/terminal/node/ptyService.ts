@@ -455,6 +455,11 @@ export class PtyService extends Disposable implements IPtyService {
 	async setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
 		return this._throwIfNoPty(id).setUnicodeVersion(version);
 	}
+
+	@traceRpc
+	async setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
+		return this._throwIfNoPty(id).setNextCommandId(commandLine, commandId);
+	}
 	@traceRpc
 	async getLatency(): Promise<IPtyHostLatencyMeasurement[]> {
 		return [];
@@ -892,6 +897,11 @@ class PersistentTerminalProcess extends Disposable {
 		this._serializer.setUnicodeVersion?.(version);
 		// TODO: Pass in unicode version in ctor
 	}
+
+	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
+		this._serializer.setNextCommandId?.(commandLine, commandId);
+	}
+
 	acknowledgeDataEvent(charCount: number): void {
 		if (this._inReplay) {
 			return;
@@ -1039,6 +1049,10 @@ class XtermSerializer implements ITerminalSerializer {
 		this._xterm.clear();
 	}
 
+	setNextCommandId(commandLine: string, commandId: string): void {
+		this._shellIntegrationAddon.setNextCommandId(commandLine, commandId);
+	}
+
 	async generateReplayEvent(normalBufferOnly?: boolean, restoreToLastReviveBuffer?: boolean): Promise<IPtyHostProcessReplayEvent> {
 		const serialize = new (await this._getSerializeConstructor());
 		this._xterm.loadAddon(serialize);
@@ -1126,4 +1140,5 @@ interface ITerminalSerializer {
 	clearBuffer(): void;
 	generateReplayEvent(normalBufferOnly?: boolean, restoreToLastReviveBuffer?: boolean): Promise<IPtyHostProcessReplayEvent>;
 	setUnicodeVersion?(version: '6' | '11'): void;
+	setNextCommandId?(commandLine: string, commandId: string): void;
 }

@@ -30,6 +30,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { mock, TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
 import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -375,6 +376,13 @@ suite('MainThreadChatSessions', function () {
 		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
 			override async confirm() {
 				return { confirmed: true };
+			}
+		});
+		instantiationService.stub(ILabelService, new class extends mock<ILabelService>() {
+			override registerFormatter() {
+				return {
+					dispose: () => { }
+				};
 			}
 		});
 

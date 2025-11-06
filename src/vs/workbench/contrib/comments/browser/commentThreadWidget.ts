@@ -99,7 +99,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		this._header.updateCommentThread(this._commentThread);
 
-		const bodyElement = <HTMLDivElement>dom.$('.body');
+		const bodyElement = dom.$('.body');
 		container.appendChild(bodyElement);
 		this._register(toDisposable(() => bodyElement.remove()));
 

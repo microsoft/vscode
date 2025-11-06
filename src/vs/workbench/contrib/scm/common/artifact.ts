@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ISCMRepository } from './scm.js';
 
 export interface ISCMArtifactProvider {
+	readonly onDidChangeArtifacts: Event<string[]>;
 	provideArtifactGroups(): Promise<ISCMArtifactGroup[] | undefined>;
 	provideArtifacts(group: string): Promise<ISCMArtifact[] | undefined>;
 }
@@ -22,6 +24,7 @@ export interface ISCMArtifact {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 }
 
 export interface SCMArtifactGroupTreeElement {

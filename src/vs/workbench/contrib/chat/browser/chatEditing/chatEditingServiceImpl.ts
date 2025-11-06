@@ -6,6 +6,7 @@
 import { coalesce, compareBy, delta } from '../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { groupBy } from '../../../../../base/common/collections.js';
 import { ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
@@ -34,10 +35,10 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { CellUri } from '../../../notebook/common/notebookCommon.js';
+import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/chatEditingService.js';
-import { ChatModel, IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
+import { ChatModel, ICellTextEditOperation, IChatResponseModel, isCellTextEditOperationArray } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
@@ -170,11 +171,19 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 
 	async createEditingSession(chatModel: ChatModel, global: boolean = false): Promise<IChatEditingSession> {
+		return this._createEditingSession(chatModel, global, undefined);
+	}
+
+	async transferEditingSession(chatModel: ChatModel, session: IChatEditingSession): Promise<IChatEditingSession> {
+		return this._createEditingSession(chatModel, session.isGlobalEditingSession, session);
+	}
+
+	private async _createEditingSession(chatModel: ChatModel, global: boolean, initFrom: IChatEditingSession | undefined): Promise<IChatEditingSession> {
 
 		assertType(this.getEditingSession(chatModel.sessionResource) === undefined, 'CANNOT have more than one editing session per chat session');
 
 		const session = this._instantiationService.createInstance(ChatEditingSession, chatModel.sessionId, chatModel.sessionResource, global, this._lookupEntry.bind(this));
-		await session.init();
+		await session.init(initFrom);
 
 		const list = this._sessionsObs.get();
 		const removeSession = list.unshift(session);
@@ -292,24 +301,25 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				}
 
 				const isFirst = entry.seen === 0;
-				const newEdits = part.edits.slice(entry.seen).flat();
+				const newEdits = part.edits.slice(entry.seen);
 				entry.seen = part.edits.length;
 
 				if (newEdits.length > 0 || isFirst) {
-					if (part.kind === 'notebookEditGroup') {
-						newEdits.forEach((edit, idx) => {
-							const done = part.done ? idx === newEdits.length - 1 : false;
-							if (TextEdit.isTextEdit(edit)) {
-								// Not possible, as Notebooks would have a different type.
-								return;
-							} else if (isCellTextEditOperation(edit)) {
-								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit], done);
-							} else {
-								entry.streaming.pushNotebook([edit], done);
+					for (let i = 0; i < newEdits.length; i++) {
+						const edit = newEdits[i];
+						const done = part.done ? i === newEdits.length - 1 : false;
+
+						if (isTextEditOperationArray(edit)) {
+							entry.streaming.pushText(edit, done);
+						} else if (isCellTextEditOperationArray(edit)) {
+							for (const edits of Object.values(groupBy(edit, e => e.uri.toString()))) {
+								if (edits) {
+									entry.streaming.pushNotebookCellText(edits[0].uri, edits.map(e => e.edit), done);
+								}
 							}
-						});
-					} else if (part.kind === 'textEditGroup') {
-						entry.streaming.pushText(newEdits as TextEdit[], part.done ?? false);
+						} else {
+							entry.streaming.pushNotebook(edit, done);
+						}
 					}
 				}
 
@@ -350,7 +360,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		});
 	}
 
-	async getRelatedFiles(chatSessionId: string, prompt: string, files: URI[], token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined> {
+	async getRelatedFiles(chatSessionResource: URI, prompt: string, files: URI[], token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined> {
 		const providers = Array.from(this._chatRelatedFilesProviders.values());
 		const result = await Promise.all(providers.map(async provider => {
 			try {
@@ -512,4 +522,8 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 		private readonly _currentSession: IObservable<IChatEditingSession | undefined>,
 		private readonly _showPreviousChanges: boolean
 	) { }
+}
+
+function isTextEditOperationArray(value: TextEdit[] | ICellTextEditOperation[] | ICellEditOperation[]): value is TextEdit[] {
+	return value.some(e => TextEdit.isTextEdit(e));
 }

@@ -54,16 +54,16 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	public get sessionId(): string | undefined { return this._sessionInfo?.sessionId; }
 
 	private hasCustomTitle: boolean = false;
+	private didTransferOutEditingSession = false;
 	private cachedIcon: ThemeIcon | URI | undefined;
 
 	private model: IChatModel | undefined;
 
 	static getNewEditorUri(): URI {
-		const handle = Math.floor(Math.random() * 1e9);
-		return ChatEditorUri.forHandle(handle);
+		return ChatEditorUri.getNewEditorUri();
 	}
 
-	static getNextCount(inputName: string): number {
+	private static getNextCount(inputName: string): number {
 		let count = 0;
 		while (ChatEditorInput.countsInUseMap.get(inputName)?.has(count)) {
 			count++;
@@ -87,14 +87,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				throw new Error('Invalid chat URI');
 			}
 		} else if (resource.scheme === Schemas.vscodeLocalChatSession) {
-			const parsed = LocalChatSessionUri.parse(resource);
-			if (!parsed?.sessionId) {
-				throw new Error('Invalid chat session URI');
+			const localSessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+			if (!localSessionId) {
+				throw new Error('Invalid local chat session URI');
 			}
-			if (parsed.chatSessionType !== localChatSessionType) {
-				throw new Error('Chat session URI must be of local chat session type');
-			}
-			this._sessionInfo = { resource, sessionId: parsed.sessionId };
+			this._sessionInfo = { resource, sessionId: localSessionId };
 		} else {
 			this._sessionInfo = { resource, sessionId: undefined };
 		}
@@ -137,8 +134,13 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return this.model?.editingSession ? shouldShowClearEditingSessionConfirmation(this.model.editingSession) : false;
 	}
 
+	transferOutEditingSession(): IChatEditingSession | undefined {
+		this.didTransferOutEditingSession = true;
+		return this.model?.editingSession;
+	}
+
 	async confirm(editors: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
-		if (!this.model?.editingSession) {
+		if (!this.model?.editingSession || this.didTransferOutEditingSession) {
 			return ConfirmResult.SAVE;
 		}
 
@@ -349,11 +351,12 @@ export class ChatEditorModel extends Disposable {
 }
 
 
-export namespace ChatEditorUri {
+namespace ChatEditorUri {
 
-	export const scheme = Schemas.vscodeChatEditor;
+	const scheme = Schemas.vscodeChatEditor;
 
-	export function forHandle(handle: number): URI {
+	export function getNewEditorUri(): URI {
+		const handle = Math.floor(Math.random() * 1e9);
 		return URI.from({ scheme, path: `chat-${handle}` });
 	}
 

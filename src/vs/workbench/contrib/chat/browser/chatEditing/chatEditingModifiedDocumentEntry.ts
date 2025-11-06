@@ -122,7 +122,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this.initialContent = initialContent ?? this.modifiedModel.getValue();
 		const docSnapshot = this.originalModel = this._register(
 			modelService.createModel(
-				createTextBufferFactoryFromSnapshot(initialContent ? stringToSnapshot(initialContent) : this.modifiedModel.createSnapshot()),
+				createTextBufferFactoryFromSnapshot(initialContent !== undefined ? stringToSnapshot(initialContent) : this.modifiedModel.createSnapshot()),
 				languageService.createById(this.modifiedModel.getLanguageId()),
 				this.originalURI,
 				false
@@ -188,11 +188,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			this.state.get() === snapshot.state;
 	}
 
-	createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
+	createSnapshot(sessionId: string, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
 		return {
 			resource: this.modifiedURI,
 			languageId: this.modifiedModel.getLanguageId(),
-			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this._telemetryInfo.sessionId, requestId, undoStop, this.modifiedURI.path),
+			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionId, requestId, undoStop, this.modifiedURI.path),
 			original: this.originalModel.getValue(),
 			current: this.modifiedModel.getValue(),
 			state: this.state.get(),

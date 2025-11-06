@@ -78,7 +78,7 @@ import { registerMoveActions } from './actions/chatMoveActions.js';
 import { registerNewChatActions } from './actions/chatNewActions.js';
 import { registerChatPromptNavigationActions } from './actions/chatPromptNavigationActions.js';
 import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
-import { ChatSessionsGettingStartedAction, DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInNewWindowAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
+import { ChatSessionsGettingStartedAction, DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInNewWindowAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleAgentSessionsViewLocationAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
@@ -126,6 +126,8 @@ import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import './chatManagement/chatManagement.contribution.js';
+import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
+import { LanguageModelToolsConfirmationService } from './languageModelToolsConfirmationService.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -266,7 +268,7 @@ configurationRegistry.registerConfiguration({
 				'**/.vscode/*.json': false,
 				'**/.git/**': false,
 				'**/{package.json,package-lock.json,server.xml,build.rs,web.config,.gitattributes,.env}': false,
-				'**/*.{csproj,fsproj,vbproj}': false,
+				'**/*.{csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
 			},
 			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by chat are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintended side-effects, such as `**/.vscode/*.json`.\n\nSet to `true` to automatically approve edits to matching files, `false` to always require explicit approval. The last pattern matching a given file will determine whether the edit is automatically approved."),
 			type: 'object',
@@ -303,15 +305,6 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
-		},
-		'chat.emptyChatState.enabled': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.emptyChatState', "Shows a modified empty chat state with hints in the input placeholder text."),
-			tags: ['experimental'],
-			experiment: {
-				mode: 'startup'
-			}
 		},
 		[ChatConfiguration.EmptyStateHistoryEnabled]: {
 			type: 'boolean',
@@ -652,16 +645,6 @@ configurationRegistry.registerConfiguration({
 				}
 			],
 		},
-		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
-			type: 'string',
-			enum: ['default', 'apple'],
-			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
-			default: 'default',
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
 		[ChatConfiguration.TodosShowWidget]: {
 			type: 'boolean',
 			default: true,
@@ -675,35 +658,42 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			description: nls.localize('chat.todoListTool.writeOnly', "When enabled, the todo tool operates in write-only mode, requiring the agent to remember todos in context."),
-			tags: ['experimental']
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		'chat.todoListTool.descriptionField': {
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.todoListTool.descriptionField', "When enabled, todo items include detailed descriptions for implementation context. This provides more information but uses additional tokens and may slow down responses."),
-			tags: ['experimental']
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		[ChatConfiguration.ThinkingStyle]: {
 			type: 'string',
-			default: 'default',
-			enum: ['default', 'collapsed', 'collapsedPreview', 'expanded', 'none', 'collapsedPerItem', 'fixedScrolling', 'fixedScrollingTools'],
+			default: 'fixedScrolling',
+			enum: ['collapsed', 'collapsedPreview', 'fixedScrolling'],
 			enumDescriptions: [
-				nls.localize('chat.agent.thinkingMode.default', "Let VS Code choose a thinking style for each model."),
 				nls.localize('chat.agent.thinkingMode.collapsed', "Thinking parts will be collapsed by default."),
 				nls.localize('chat.agent.thinkingMode.collapsedPreview', "Thinking parts will be expanded first, then collapse once we reach a part that is not thinking."),
-				nls.localize('chat.agent.thinkingMode.expanded', "Thinking parts will be expanded by default."),
-				nls.localize('chat.agent.thinkingMode.none', "Do not show the thinking"),
-				nls.localize('chat.agent.thinkingMode.collapsedPerItem', "Each thinking subsection is individually collapsible and collapsed by default inside the thinking block."),
 				nls.localize('chat.agent.thinkingMode.fixedScrolling', "Show thinking in a fixed-height streaming panel that auto-scrolls; click header to expand to full height."),
-				nls.localize('chat.agent.thinkingMode.fixedScrollingTools', "Show thinking and certain tool calls in a fixed-height streaming panel that auto-scrolls; click header to expand to full height."),
 			],
 			description: nls.localize('chat.agent.thinkingStyle', "Controls how thinking is rendered."),
 			tags: ['experimental'],
 		},
 		'chat.agent.thinking.collapsedTools': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('chat.agent.thinking.collapsedTools', "When enabled, tool calls will be added by default inside the thinking block."),
+			type: 'string',
+			default: 'readOnly',
+			enum: ['none', 'all', 'readOnly'],
+			enumDescriptions: [
+				nls.localize('chat.agent.thinking.collapsedTools.none', "No tool calls are added into the collapsible thinking section."),
+				nls.localize('chat.agent.thinking.collapsedTools.all', "All tool calls are added into the collapsible thinking section."),
+				nls.localize('chat.agent.thinking.collapsedTools.readOnly', "Only read-only tool calls are added into the collapsible thinking section."),
+			],
+			markdownDescription: nls.localize('chat.agent.thinking.collapsedTools', "When enabled, tool calls are added into the collapsible thinking section according to the selected mode."),
 			tags: ['experimental'],
 		},
 		'chat.disableAIFeatures': {
@@ -1021,6 +1011,7 @@ registerSingleton(IChatAgentService, ChatAgentService, InstantiationType.Delayed
 registerSingleton(IChatAgentNameService, ChatAgentNameService, InstantiationType.Delayed);
 registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelToolsService, LanguageModelToolsService, InstantiationType.Delayed);
+registerSingleton(ILanguageModelToolsConfirmationService, LanguageModelToolsConfirmationService, InstantiationType.Delayed);
 registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);
 registerSingleton(IChatCodeBlockContextProviderService, ChatCodeBlockContextProviderService, InstantiationType.Delayed);
 registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delayed);
@@ -1043,5 +1034,6 @@ registerAction2(OpenChatSessionInNewEditorGroupAction);
 registerAction2(OpenChatSessionInSidebarAction);
 registerAction2(ToggleChatSessionsDescriptionDisplayAction);
 registerAction2(ChatSessionsGettingStartedAction);
+registerAction2(ToggleAgentSessionsViewLocationAction);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

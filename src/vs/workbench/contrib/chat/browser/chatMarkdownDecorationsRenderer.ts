@@ -123,6 +123,7 @@ export class ChatMarkdownDecorationsRenderer {
 
 	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement): IDisposable {
 		const store = new DisposableStore();
+		// eslint-disable-next-line no-restricted-syntax
 		element.querySelectorAll('a').forEach(a => {
 			const href = a.getAttribute('data-href');
 			if (href) {

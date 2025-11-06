@@ -368,7 +368,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		return this._serializeAddon.serializeAsHTML();
 	}
 
-	async getCommandOutputAsHtml(command: ITerminalCommand, maxLines: number): Promise<string> {
+	async getCommandOutputAsHtml(command: ITerminalCommand, maxLines: number): Promise<{ text: string; truncated?: boolean }> {
 		if (!this._serializeAddon) {
 			const Addon = await this._xtermAddonLoader.importAddon('serialize');
 			this._serializeAddon = new Addon();
@@ -386,7 +386,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		let endLine = command.endMarker?.line !== undefined ? command.endMarker.line - 1 : this.raw.buffer.active.length - 1;
 		if (endLine < startLine) {
-			return '';
+			return { text: '', truncated: false };
 		}
 		// Trim empty lines from the end
 		let emptyLinesFromEnd = 0;
@@ -404,7 +404,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		let emptyLinesFromStart = 0;
 		for (let i = startLine; i <= endLine; i++) {
 			const line = this.raw.buffer.active.getLine(i);
-			if (line && line.translateToString(true).trim() === '') {
+			if (line && line.translateToString(true, i === startLine ? startCol : undefined).trim() === '') {
+				if (i === startLine) {
+					startCol = 0;
+				}
 				emptyLinesFromStart++;
 			} else {
 				break;
@@ -424,7 +427,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		const range = { startLine, endLine, startCol };
 		const result = this._serializeAddon.serializeAsHTML({ range });
-		return result;
+		return { text: result, truncated: (endLine - startLine) >= maxLines };
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
@@ -487,6 +490,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		this._attached = { container, options };
 		// Screen must be created at this point as xterm.open is called
+		// eslint-disable-next-line no-restricted-syntax
 		return this._attached?.container.querySelector('.xterm-screen')!;
 	}
 

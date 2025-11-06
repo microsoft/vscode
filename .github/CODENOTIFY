@@ -70,6 +70,7 @@ src/vs/workbench/services/chat/** @bpasero
 src/vs/workbench/services/contextmenu/** @bpasero
 src/vs/workbench/services/dialogs/** @alexr00 @bpasero
 src/vs/workbench/services/editor/** @bpasero
+src/vs/workbench/services/editor/common/customEditorLabelService.ts @benibenj
 src/vs/workbench/services/environment/** @bpasero
 src/vs/workbench/services/files/** @bpasero
 src/vs/workbench/services/filesConfiguration/** @bpasero
@@ -102,14 +103,23 @@ src/vs/workbench/contrib/files/** @bpasero
 src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
 src/vs/workbench/contrib/chat/browser/chatSetup.ts @bpasero
 src/vs/workbench/contrib/chat/browser/chatStatus.ts @bpasero
+src/vs/workbench/contrib/chat/browser/chatInputPart.ts @bpasero
+src/vs/workbench/contrib/chat/browser/chatWidget.ts @bpasero
+src/vs/workbench/contrib/chat/browser/chatManagement/chatUsageWidget.ts @bpasero
+src/vs/workbench/contrib/chat/browser/chatManagement/media/chatUsageWidget.css @bpasero
 src/vs/workbench/contrib/chat/browser/agentSessions/** @bpasero
 src/vs/workbench/contrib/chat/browser/chatSessions/** @bpasero
 src/vs/workbench/contrib/localization/** @TylerLeonhardt
 src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts @TylerLeonhardt
+src/vs/workbench/contrib/scm/** @lszomoru
 src/vs/workbench/contrib/update/browser/releaseNotesEditor.ts @alexr00 @joaomoreno
+src/vs/workbench/contrib/preferences/** @rzhao271
 
 # Build
+build/azure-pipelines/** @lszomoru
 build/lib/i18n.ts @TylerLeonhardt
+resources/linux/debian/** @rzhao271
+resources/linux/rpm/** @rzhao271
 
 # Editor contrib
 src/vs/editor/standalone/browser/quickInput/** @TylerLeonhardt
@@ -127,3 +137,9 @@ src/vs/workbench/api/browser/mainThreadSecretState.ts @TylerLeonhardt
 # Extensions
 extensions/microsoft-authentication/** @TylerLeonhardt
 extensions/github-authentication/** @TylerLeonhardt
+extensions/git/** @lszomoru
+extensions/git-base/** @lszomoru
+extensions/github/** @lszomoru
+
+# Chat Editing
+src/vs/workbench/contrib/chat/browser/chatEditing/** @jrieken

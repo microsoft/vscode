@@ -23,10 +23,8 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
-import { Position } from '../../../../../editor/common/core/position.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
@@ -64,7 +62,6 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
@@ -74,6 +71,7 @@ import { AGENT_SESSIONS_VIEWLET_ID, ChatAgentLocation, ChatConfiguration, ChatMo
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsConfirmationService } from '../../common/languageModelToolsConfirmationService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
@@ -427,14 +425,14 @@ class PrimaryOpenChatGlobalAction extends OpenChatGlobalAction {
 }
 
 export function getOpenChatActionIdForMode(mode: IChatMode): string {
-	return `workbench.action.chat.open${mode.name}`;
+	return `workbench.action.chat.open${mode.name.get()}`;
 }
 
 abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 	constructor(mode: IChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
 		super({
 			id: getOpenChatActionIdForMode(mode),
-			title: localize2('openChatMode', "Open Chat ({0})", mode.label),
+			title: localize2('openChatMode', "Open Chat ({0})", mode.label.get()),
 			keybinding
 		}, mode);
 	}
@@ -764,7 +762,6 @@ export function registerChatActions() {
 										description: '',
 										session: { providerType: chatSessionType, session: session },
 										chat: {
-											sessionId: session.id,
 											sessionResource: session.resource,
 											title: session.label,
 											isActive: false,
@@ -1052,7 +1049,7 @@ export function registerChatActions() {
 			super({
 				id: ACTION_ID_OPEN_CHAT,
 				title: localize2('interactiveSession.open', "New Chat Editor"),
-				icon: Codicon.newFile,
+				icon: Codicon.plus,
 				f1: true,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
@@ -1069,6 +1066,11 @@ export function registerChatActions() {
 					id: MenuId.ChatNewMenu,
 					group: '2_new',
 					order: 2
+				}, {
+					id: MenuId.EditorTitle,
+					group: 'navigation',
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.lockedToCodingAgent.negate()),
+					order: 1
 				}],
 			});
 		}
@@ -1201,54 +1203,6 @@ export function registerChatActions() {
 				{ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } },
 				newGroup.id
 			);
-		}
-	});
-
-	registerAction2(class ChatAddAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.addParticipant',
-				title: localize2('chatWith', "Chat with Extension"),
-				icon: Codicon.mention,
-				f1: false,
-				category: CHAT_CATEGORY,
-				menu: [{
-					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
-						ContextKeyExpr.not('config.chat.emptyChatState.enabled'),
-						ChatContextKeys.lockedToCodingAgent.negate()
-					),
-					group: 'navigation',
-					order: 1
-				}]
-			});
-		}
-
-		override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-			const widgetService = accessor.get(IChatWidgetService);
-			const context = args[0] as { widget?: IChatWidget } | undefined;
-			const widget = context?.widget ?? widgetService.lastFocusedWidget;
-			if (!widget) {
-				return;
-			}
-
-			const hasAgentOrCommand = extractAgentAndCommand(widget.parsedInput);
-			if (hasAgentOrCommand?.agentPart || hasAgentOrCommand?.commandPart) {
-				return;
-			}
-
-			const suggestCtrl = SuggestController.get(widget.inputEditor);
-			if (suggestCtrl) {
-				const curText = widget.inputEditor.getValue();
-				const newValue = curText ? `@ ${curText}` : '@';
-				if (!curText.startsWith('@')) {
-					widget.inputEditor.setValue(newValue);
-				}
-
-				widget.inputEditor.setPosition(new Position(1, 2));
-				suggestCtrl.triggerSuggest(undefined, true);
-			}
 		}
 	});
 
@@ -1552,7 +1506,7 @@ export function registerChatActions() {
 			});
 		}
 		override run(accessor: ServicesAccessor): void {
-			accessor.get(ILanguageModelToolsService).resetToolAutoConfirmation();
+			accessor.get(ILanguageModelToolsConfirmationService).resetToolAutoConfirmation();
 			accessor.get(INotificationService).info(localize('resetTrustedToolsSuccess', "Tool confirmation preferences have been reset."));
 		}
 	});
@@ -1658,9 +1612,7 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 // --- Title Bar Chat Controls
 
 const defaultChat = {
-	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
-	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
 	provider: product.defaultChatAgent?.provider ?? { enterprise: { id: '' } },
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 	completionsMenuCommand: product.defaultChatAgent?.completionsMenuCommand ?? '',
@@ -1980,59 +1932,20 @@ registerAction2(class EditToolApproval extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.editToolApproval',
-			title: localize2('chat.editToolApproval.label', "Edit Tool Approval"),
-			f1: false
+			title: localize2('chat.editToolApproval.label', "Manage Tool Approval"),
+			metadata: {
+				description: localize2('chat.editToolApproval.description', "Edit/manage the tool approval and confirmation preferences for AI chat agents."),
+			},
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+			category: CHAT_CATEGORY,
 		});
 	}
 
-	async run(accessor: ServicesAccessor, toolId: string): Promise<void> {
-		if (!toolId) {
-			return;
-		}
-
-		const quickInputService = accessor.get(IQuickInputService);
+	async run(accessor: ServicesAccessor, scope?: 'workspace' | 'profile' | 'session'): Promise<void> {
+		const confirmationService = accessor.get(ILanguageModelToolsConfirmationService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
-		const tool = toolsService.getTool(toolId);
-		if (!tool) {
-			return;
-		}
-
-		const currentState = toolsService.getToolAutoConfirmation(toolId);
-
-		interface TItem extends IQuickPickItem {
-			id: 'session' | 'workspace' | 'profile' | 'never';
-		}
-
-		const items: TItem[] = [
-			{ id: 'never', label: localize('chat.toolApproval.manual', "Always require manual approval") },
-			{ id: 'session', label: localize('chat.toolApproval.session', "Auto-approve for this session") },
-			{ id: 'workspace', label: localize('chat.toolApproval.workspace', "Auto-approve for this workspace") },
-			{ id: 'profile', label: localize('chat.toolApproval.profile', "Auto-approve globally") }
-		];
-
-		const quickPick = quickInputService.createQuickPick<TItem>();
-		quickPick.placeholder = localize('chat.editToolApproval.title', "Approval setting for {0}", tool.displayName ?? tool.id);
-		quickPick.items = items;
-		quickPick.canSelectMany = false;
-		quickPick.activeItems = items.filter(item => item.id === currentState);
-
-		const selection = await new Promise<TItem | undefined>((resolve) => {
-			quickPick.onDidAccept(() => {
-				const selected = quickPick.selectedItems[0];
-				resolve(selected);
-			});
-			quickPick.onDidHide(() => {
-				resolve(undefined);
-
-			});
-			quickPick.show();
-		});
-
-		quickPick.dispose();
-
-		if (selection) {
-			toolsService.setToolAutoConfirmation(toolId, selection.id);
-		}
+		confirmationService.manageConfirmationPreferences([...toolsService.getTools()], scope ? { defaultScope: scope } : undefined);
 	}
 });
 

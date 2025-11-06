@@ -65,7 +65,7 @@ export class ChatSuggestNextWidget extends Disposable {
 		this._currentMode = mode;
 
 		// Update title with mode name: "Proceed from {Mode}"
-		const modeName = mode.name || mode.label || localize('chat.currentMode', 'current mode');
+		const modeName = mode.name.get() || mode.label.get() || localize('chat.currentMode', 'current mode');
 		this.titleElement.textContent = localize('chat.proceedFrom', 'Proceed from {0}', modeName);
 
 		// Clear existing prompt buttons (keep title which is first child)

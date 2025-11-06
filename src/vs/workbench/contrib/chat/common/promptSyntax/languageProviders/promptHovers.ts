@@ -199,7 +199,7 @@ export class PromptHoverProvider implements HoverProvider {
 			const agent = this.chatModeService.findModeByName(value.value);
 			if (agent) {
 				const description = agent.description.get() || (isBuiltinChatMode(agent) ? localize('promptHeader.prompt.agent.builtInDesc', 'Built-in agent') : localize('promptHeader.prompt.agent.customDesc', 'Custom agent'));
-				lines.push(`\`${agent.name}\`: ${description}`);
+				lines.push(`\`${agent.name.get()}\`: ${description}`);
 			}
 		} else {
 			const agents = this.chatModeService.getModes();
@@ -209,7 +209,7 @@ export class PromptHoverProvider implements HoverProvider {
 			// Built-in agents
 			lines.push(localize('promptHeader.prompt.agent.builtin', '**Built-in agents:**'));
 			for (const agent of agents.builtin) {
-				lines.push(`- \`${agent.name}\`: ${agent.description.get() || agent.label}`);
+				lines.push(`- \`${agent.name.get()}\`: ${agent.description.get() || agent.label.get()}`);
 			}
 
 			// Custom agents
@@ -218,7 +218,7 @@ export class PromptHoverProvider implements HoverProvider {
 				lines.push(localize('promptHeader.prompt.agent.custom', '**Custom agents:**'));
 				for (const agent of agents.custom) {
 					const description = agent.description.get();
-					lines.push(`- \`${agent.name}\`: ${description || localize('promptHeader.prompt.agent.customDesc', 'Custom agent')}`);
+					lines.push(`- \`${agent.name.get()}\`: ${description || localize('promptHeader.prompt.agent.customDesc', 'Custom agent')}`);
 				}
 			}
 		}
