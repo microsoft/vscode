@@ -745,5 +745,61 @@ ${indent}- Item 1a
 		assert.strictEqual(result.trim(), expected.trim());
 	});
 
+	test('table with gridcell role', () => {
+		const nodes: AXNode[] = [
+			{
+				nodeId: 'table1',
+				ignored: false,
+				role: createAXValue('role', 'table'),
+				childIds: ['row1', 'row2']
+			},
+			{
+				nodeId: 'row1',
+				ignored: false,
+				role: createAXValue('role', 'row'),
+				childIds: ['cell1', 'cell2']
+			},
+			{
+				nodeId: 'row2',
+				ignored: false,
+				role: createAXValue('role', 'row'),
+				childIds: ['cell3', 'cell4']
+			},
+			{
+				nodeId: 'cell1',
+				ignored: false,
+				role: createAXValue('role', 'gridcell'),
+				name: createAXValue('string', 'Header 1')
+			},
+			{
+				nodeId: 'cell2',
+				ignored: false,
+				role: createAXValue('role', 'gridcell'),
+				name: createAXValue('string', 'Header 2')
+			},
+			{
+				nodeId: 'cell3',
+				ignored: false,
+				role: createAXValue('role', 'gridcell'),
+				name: createAXValue('string', 'Data 1')
+			},
+			{
+				nodeId: 'cell4',
+				ignored: false,
+				role: createAXValue('role', 'gridcell'),
+				name: createAXValue('string', 'Data 2')
+			}
+		];
+
+		const result = convertAXTreeToMarkdown(testUri, nodes);
+		const expected =
+			`
+| Header 1 | Header 2 |
+| --- | --- |
+| Data 1 | Data 2 |
+`;
+		assert.strictEqual(result.trim(), expected.trim());
+	});
+
 	//#endregion
 });

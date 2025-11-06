@@ -406,8 +406,8 @@ function processDescriptionListNode(uri: URI, node: AXNodeTree, buffer: string[]
 }
 
 function isTableCell(role: string): boolean {
-	// Match cell, columnheader, rowheader roles
-	return role === 'cell' || role === 'columnheader' || role === 'rowheader';
+	// Match cell, gridcell, columnheader, rowheader roles
+	return role === 'cell' || role === 'gridcell' || role === 'columnheader' || role === 'rowheader';
 }
 
 function processTableNode(node: AXNodeTree, buffer: string[]): void {
