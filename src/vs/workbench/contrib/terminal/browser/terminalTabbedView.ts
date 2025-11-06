@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, dispose, IDisposable } from '../../../../b
 import { Event } from '../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITerminalChatService, ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from './terminal.js';
+import { ITerminalChatService, ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState, TerminalDataTransfers } from './terminal.js';
 import { TerminalTabsListSizes, TerminalTabList } from './terminalTabsList.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
@@ -24,6 +24,9 @@ import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { getInstanceHoverInfo } from './terminalTooltip.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { TerminalTabsChatEntry } from './terminalTabsChatEntry.js';
+import { containsDragType } from '../../../../platform/dnd/browser/dnd.js';
+import { getTerminalResourcesFromDragEvent, parseTerminalUri } from './terminalUri.js';
+import type { IProcessDetails } from '../../../../platform/terminal/common/terminalProcess.js';
 
 const $ = dom.$;
 
@@ -45,6 +48,8 @@ export class TerminalTabbedView extends Disposable {
 	private _tabContainer: HTMLElement;
 
 	private _tabList: TerminalTabList;
+	private _tabListContainer: HTMLElement;
+	private _tabListDomElement: HTMLElement;
 	private _sashDisposables: IDisposable[] | undefined;
 
 	private _plusButton: HTMLElement | undefined;
@@ -66,6 +71,7 @@ export class TerminalTabbedView extends Disposable {
 	private _terminalTabsMouseContextKey: IContextKey<boolean>;
 
 	private _panelOrientation: Orientation | undefined;
+	private _emptyAreaDropTargetCount = 0;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -85,6 +91,7 @@ export class TerminalTabbedView extends Disposable {
 
 		this._tabContainer = $('.tabs-container');
 		const tabListContainer = $('.tabs-list-container');
+		this._tabListContainer = tabListContainer;
 		this._tabListElement = $('.tabs-list');
 		tabListContainer.appendChild(this._tabListElement);
 		this._tabContainer.appendChild(tabListContainer);
@@ -100,6 +107,7 @@ export class TerminalTabbedView extends Disposable {
 		this._tabsListEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
 
 		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement, this._register(new DisposableStore())));
+		this._tabListDomElement = this._tabList.getHTMLElement();
 		this._chatEntry = this._register(this._instantiationService.createInstance(TerminalTabsChatEntry, tabListContainer, this._tabContainer));
 
 		const terminalOuterContainer = $('.terminal-outer-container');
@@ -135,7 +143,7 @@ export class TerminalTabbedView extends Disposable {
 			this._updateChatTerminalsEntry();
 		}));
 
-		this._register(Event.any(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession, this._terminalService.onDidDisposeInstance)(() => {
+		this._register(Event.any(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession, this._terminalService.onDidChangeInstances)(() => {
 			this._refreshShowTabs();
 			this._updateChatTerminalsEntry();
 		}));
@@ -363,6 +371,46 @@ export class TerminalTabbedView extends Disposable {
 			this._terminalTabsMouseContextKey.set(true);
 			event.stopPropagation();
 		}));
+		this._register(dom.addDisposableListener(this._tabContainer, 'dragenter', (event: DragEvent) => {
+			if (!this._shouldHandleEmptyAreaDrop(event)) {
+				this._resetEmptyAreaDropState();
+				return;
+			}
+			this._emptyAreaDropTargetCount++;
+			this._setEmptyAreaDropState(true);
+		}));
+		this._register(dom.addDisposableListener(this._tabContainer, 'dragover', (event: DragEvent) => {
+			if (!this._shouldHandleEmptyAreaDrop(event)) {
+				this._resetEmptyAreaDropState();
+				return;
+			}
+			event.preventDefault();
+			this._setEmptyAreaDropState(true);
+			if (event.dataTransfer) {
+				event.dataTransfer.dropEffect = 'move';
+			}
+		}));
+		this._register(dom.addDisposableListener(this._tabContainer, 'dragleave', (event: DragEvent) => {
+			if (!this._shouldHandleEmptyAreaDrop(event)) {
+				if (!this._tabContainer.contains(event.relatedTarget as Node | null)) {
+					this._resetEmptyAreaDropState();
+				}
+				return;
+			}
+			if (this._tabContainer.contains(event.relatedTarget as Node | null)) {
+				return;
+			}
+			this._emptyAreaDropTargetCount = Math.max(0, this._emptyAreaDropTargetCount - 1);
+			if (this._emptyAreaDropTargetCount === 0) {
+				this._resetEmptyAreaDropState();
+			}
+		}));
+		this._register(dom.addDisposableListener(this._tabContainer, 'drop', (event: DragEvent) => {
+			if (!this._shouldHandleEmptyAreaDrop(event)) {
+				return;
+			}
+			void this._handleContainerDrop(event);
+		}));
 		this._register(dom.addDisposableListener(terminalContainer, 'mousedown', async (event: MouseEvent) => {
 			const terminal = this._terminalGroupService.activeInstance;
 			if (this._terminalGroupService.instances.length > 0 && terminal) {
@@ -428,6 +476,79 @@ export class TerminalTabbedView extends Disposable {
 		this._register(dom.addDisposableListener(this._tabContainer, dom.EventType.FOCUS_OUT, () => {
 			this._terminalTabsFocusContextKey.set(false);
 		}));
+	}
+
+	private _shouldHandleEmptyAreaDrop(event: DragEvent): boolean {
+		const targetNode = event.target as Node | null;
+		if (targetNode && (this._tabListDomElement.contains(targetNode) || this._tabListElement.contains(targetNode))) {
+			return false;
+		}
+		return !!event.dataTransfer && containsDragType(event, TerminalDataTransfers.Terminals);
+	}
+
+	private _setEmptyAreaDropState(active: boolean): void {
+		this._tabListContainer.classList.toggle('drop-target', active);
+		this._tabContainer.classList.toggle('drop-target', active);
+		this._chatEntry?.element.classList.toggle('drop-target', active);
+	}
+
+	private _resetEmptyAreaDropState(): void {
+		this._emptyAreaDropTargetCount = 0;
+		this._setEmptyAreaDropState(false);
+	}
+
+	private async _handleContainerDrop(event: DragEvent): Promise<void> {
+		event.preventDefault();
+		event.stopPropagation();
+		this._resetEmptyAreaDropState();
+		const primaryBackend = this._terminalService.getPrimaryBackend();
+		const resources = getTerminalResourcesFromDragEvent(event);
+		let sourceInstances: ITerminalInstance[] | undefined;
+		const promises: Promise<IProcessDetails | undefined>[] = [];
+		if (resources) {
+			for (const uri of resources) {
+				const instance = this._terminalService.getInstanceFromResource(uri);
+				if (instance) {
+					if (sourceInstances) {
+						sourceInstances.push(instance);
+					} else {
+						sourceInstances = [instance];
+					}
+					this._terminalService.moveToTerminalView(instance);
+				} else if (primaryBackend) {
+					const terminalIdentifier = parseTerminalUri(uri);
+					if (terminalIdentifier.instanceId) {
+						promises.push(primaryBackend.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId));
+					}
+				}
+			}
+		}
+		if (promises.length) {
+			const processes = (await Promise.all(promises)).filter((process): process is IProcessDetails => !!process);
+			let lastInstance: ITerminalInstance | undefined;
+			for (const attachPersistentProcess of processes) {
+				lastInstance = await this._terminalService.createTerminal({ config: { attachPersistentProcess } });
+			}
+			if (lastInstance) {
+				this._terminalService.setActiveInstance(lastInstance);
+			}
+			return;
+		}
+		if (!sourceInstances || !sourceInstances.length) {
+			sourceInstances = this._tabList.getSelectedElements();
+			if (!sourceInstances.length) {
+				return;
+			}
+		}
+		this._terminalGroupService.moveGroupToEnd(sourceInstances);
+		this._terminalService.setActiveInstance(sourceInstances[0]);
+		const indexes = sourceInstances
+			.map(instance => this._terminalGroupService.instances.indexOf(instance))
+			.filter(index => index >= 0);
+		if (indexes.length) {
+			this._tabList.setSelection(indexes);
+			this._tabList.setFocus([indexes[0]]);
+		}
 	}
 
 	private _getTabActions(): IAction[] {

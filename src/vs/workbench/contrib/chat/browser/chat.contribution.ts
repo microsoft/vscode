@@ -645,16 +645,6 @@ configurationRegistry.registerConfiguration({
 				}
 			],
 		},
-		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
-			type: 'string',
-			enum: ['default', 'apple'],
-			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
-			default: 'default',
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
 		[ChatConfiguration.TodosShowWidget]: {
 			type: 'boolean',
 			default: true,
@@ -727,6 +717,15 @@ configurationRegistry.registerConfiguration({
 		'chat.allowAnonymousAccess': { // TODO@bpasero remove me eventually
 			type: 'boolean',
 			description: nls.localize('chat.allowAnonymousAccess', "Controls whether anonymous access is allowed in chat."),
+			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
+		'chat.signInWithAlternateScopes': { // TODO@bpasero remove me eventually
+			type: 'boolean',
+			description: nls.localize('chat.signInWithAlternateScopes', "Controls whether sign-in with alternate scopes is used."),
 			default: false,
 			tags: ['experimental'],
 			experiment: {

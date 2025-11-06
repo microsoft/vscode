@@ -8,7 +8,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentService } from '../chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../chatModel.js';
@@ -28,11 +27,12 @@ import {
 	IToolResult,
 	ToolDataSource,
 	ToolProgress,
-	ToolSet
+	ToolSet,
+	VSCodeToolReference
 } from '../languageModelToolsService.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';
 
-export const RunSubagentToolId = 'runSubagent2';
+export const RunSubagentToolId = 'runSubagent';
 
 const modelDescription = `Launch a new agent to handle complex, multi-step tasks autonomously. This tool is good at researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use this agent to perform the search for you.
 
@@ -45,14 +45,13 @@ const modelDescription = `Launch a new agent to handle complex, multi-step tasks
 
 export const RunSubagentToolData: IToolData = {
 	id: RunSubagentToolId,
-	toolReferenceName: 'runSubagent2',
+	toolReferenceName: VSCodeToolReference.runSubagent,
 	canBeReferencedInPrompt: true,
 	icon: ThemeIcon.fromId(Codicon.organization.id),
 	displayName: localize('tool.runSubagent.displayName', 'Run Subagent'),
 	userDescription: localize('tool.runSubagent.userDescription', 'Runs a task within an isolated subagent context. Enables efficient organization of tasks and context window management.'),
 	modelDescription,
 	source: ToolDataSource.Internal,
-	when: ContextKeyExpr.has('config.chat.experimental.runSubagent2'),
 	inputSchema: {
 		type: 'object',
 		properties: {
@@ -143,7 +142,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					const modeCustomTools = mode.customTools?.get();
 					if (modeCustomTools) {
 						// Convert the mode's custom tools (array of qualified names) to UserSelectedTools format
-						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools);
+						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools, mode.target?.get());
 						// Convert enablement map to UserSelectedTools (Record<string, boolean>)
 						modeTools = {};
 						for (const [tool, enabled] of enablementMap) {
@@ -155,7 +154,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 					const instructions = mode.modeInstructions?.get();
 					modeInstructions = instructions && {
-						name: mode.name,
+						name: mode.name.get(),
 						content: instructions.content,
 						toolReferences: this.toolsService.toToolReferences(instructions.toolReferences),
 						metadata: instructions.metadata,

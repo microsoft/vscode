@@ -180,12 +180,12 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 					// View a single JSON line by default until they 'see more'
 					rawJsonInput.replace(/\n */g, ' '),
 					this.languageService.createById(langId),
-					createToolInputUri(toolInvocation.toolId),
+					createToolInputUri(toolInvocation.toolCallId),
 					true
 				));
 
 				const markerOwner = generateUuid();
-				const schemaUri = createToolSchemaUri(toolInvocation.toolId);
+				const schemaUri = createToolSchemaUri(toolInvocation.toolCallId);
 				const validator = new RunOnceScheduler(async () => {
 
 					const newMarker: IMarkerData[] = [];

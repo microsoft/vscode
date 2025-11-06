@@ -7791,6 +7791,8 @@ declare module 'vscode' {
 		 * @param commandLine The command line to execute, this is the exact text that will be sent
 		 * to the terminal.
 		 *
+		 * @throws When run on a terminal doesn't support this API, such as task terminals.
+		 *
 		 * @example
 		 * // Execute a command in a terminal immediately after being created
 		 * const myTerm = window.createTerminal();
@@ -8199,13 +8201,13 @@ declare module 'vscode' {
 	 * {@link TerminalCompletionList} describing completions for the current command line.
 	 *
 	 * @example <caption>Simple provider returning a single completion</caption>
-	 * window.registerTerminalCompletionProvider('extension-provider-id', {
+	 * window.registerTerminalCompletionProvider({
 	 * 	provideTerminalCompletions(terminal, context) {
 	 * 		return [{ label: '--help', replacementRange: [Math.max(0, context.cursorPosition - 2), context.cursorPosition] }];
 	 * 	}
 	 * });
 	 */
-	export interface TerminalCompletionProvider<T extends TerminalCompletionItem> {
+	export interface TerminalCompletionProvider<T extends TerminalCompletionItem = TerminalCompletionItem> {
 		/**
 		 * Provide completions for the given terminal and context.
 		 * @param terminal The terminal for which completions are being provided.
@@ -8240,8 +8242,7 @@ declare module 'vscode' {
 		/**
 		 * The range in the command line to replace when the completion is accepted. Defined
 		 * as a tuple where the first entry is the inclusive start index and the second entry is the
-		 * exclusive end index. When `undefined` the completion will be inserted at the cursor
-		 * position. When the two numbers are equal only the cursor position changes (insertion).
+		 * exclusive end index.
 		 *
 		 */
 		replacementRange: readonly [number, number];
@@ -8257,7 +8258,7 @@ declare module 'vscode' {
 		documentation?: string | MarkdownString;
 
 		/**
-		 * The completion's kind. Note that this will map to an icon.
+		 * The completion's kind. Note that this will map to an icon. If no kind is provided, a generic icon representing plaintext will be provided.
 		 */
 		kind?: TerminalCompletionItemKind;
 
@@ -8372,8 +8373,7 @@ declare module 'vscode' {
 	/**
 	 * Context information passed to {@link TerminalCompletionProvider.provideTerminalCompletions}.
 	 *
-	 * It contains the full command line, the current cursor position, and a flag indicating whether
-	 * completions were explicitly invoked.
+	 * It contains the full command line and the current cursor position
 	 */
 	export interface TerminalCompletionContext {
 		/**
@@ -8388,7 +8388,8 @@ declare module 'vscode' {
 
 	/**
 	 * Represents a collection of {@link TerminalCompletionItem completion items} to be presented
-	 * in the terminal.
+	 * in the terminal plus {@link TerminalCompletionList.resourceOptions} which indicate
+	 * which file and folder resources should be requested for the terminal's cwd.
 	 *
 	 * @example <caption>Create a completion list that requests files for the terminal cwd</caption>
 	 * const list = new TerminalCompletionList([
@@ -12021,16 +12022,28 @@ declare module 'vscode' {
 		/**
 		 * Register a completion provider for terminals.
 		 * @param provider The completion provider.
+		 * @param triggerCharacters Optional characters that trigger completion. When any of these characters is typed,
+		 * the completion provider will be invoked. For example, passing `'-'` would cause the provider to be invoked
+		 * whenever the user types a dash character.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 *
 		 * @example <caption>Register a provider for an extension</caption>
-		 * window.registerTerminalCompletionProvider('extension-provider-id', {
+		 * window.registerTerminalCompletionProvider({
 		 * 	provideTerminalCompletions(terminal, context) {
 		 * 		return new TerminalCompletionList([
-		 * 			{ label: '--version', replacementRange: [Math.max(0, context.cursorPosition - 2), 2] }
+		 * 			{ label: '--version', replacementRange: [Math.max(0, context.cursorPosition - 2), context.cursorPosition] }
 		 * 		]);
 		 * 	}
 		 * });
+		 *
+		 * @example <caption>Register a provider with trigger characters</caption>
+		 * window.registerTerminalCompletionProvider({
+		 * 	provideTerminalCompletions(terminal, context) {
+		 * 		return new TerminalCompletionList([
+		 * 			{ label: '--help', replacementRange: [Math.max(0, context.cursorPosition - 2), context.cursorPosition] }
+		 * 		]);
+		 * 	}
+		 * }, '-');
 		 */
 		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
 		/**

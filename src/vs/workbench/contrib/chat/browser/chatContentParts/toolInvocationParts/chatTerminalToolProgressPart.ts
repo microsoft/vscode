@@ -174,7 +174,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 
 		const attachInstance = async (instance: ITerminalInstance | undefined) => {
-			if (!instance || this._terminalInstance === instance) {
+			if (!instance || this._terminalInstance === instance || this._store.isDisposed) {
 				return;
 			}
 			this._terminalInstance = instance;
@@ -354,7 +354,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 		const content = this._renderOutput(output);
 		const theme = this._terminalInstance?.xterm?.getXtermTheme();
-		if (theme) {
+		if (theme && !content.classList.contains('chat-terminal-output-content-empty')) {
 			// eslint-disable-next-line no-restricted-syntax
 			const inlineTerminal = content.querySelector('div');
 			if (inlineTerminal) {
@@ -405,13 +405,26 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return;
 		}
 		const scrollableDomNode = this._outputScrollbar.getDomNode();
-		const viewportHeight = Math.min(this._outputBody.scrollHeight, MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT);
+		const viewportHeight = Math.min(this._getOutputContentHeight(), MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT);
 		scrollableDomNode.style.height = `${viewportHeight}px`;
 		this._outputScrollbar.scanDomNode();
 		if (this._renderedOutputHeight !== viewportHeight) {
 			this._renderedOutputHeight = viewportHeight;
 			this._onDidChangeHeight.fire();
 		}
+	}
+
+	private _getOutputContentHeight(): number {
+		const firstChild = this._outputBody.firstElementChild as HTMLElement | null;
+		if (!firstChild) {
+			return this._outputBody.scrollHeight;
+		}
+		const style = dom.getComputedStyle(this._outputBody);
+		const paddingTop = Number.parseFloat(style.paddingTop || '0');
+		const paddingBottom = Number.parseFloat(style.paddingBottom || '0');
+		const padding = paddingTop + paddingBottom;
+
+		return firstChild.scrollHeight + padding;
 	}
 
 	private _ensureOutputResizeObserver(): void {
@@ -446,10 +459,18 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const container = document.createElement('div');
 		container.classList.add('chat-terminal-output-content');
 
-		const pre = document.createElement('pre');
-		pre.classList.add('chat-terminal-output');
-		domSanitize.safeSetInnerHtml(pre, result.text, sanitizerConfig);
-		container.appendChild(pre);
+		if (result.text.trim() === '') {
+			container.classList.add('chat-terminal-output-content-empty');
+			const empty = document.createElement('div');
+			empty.classList.add('chat-terminal-output-empty');
+			empty.textContent = localize('chat.terminalOutputEmpty', 'No output was produced by the command.');
+			container.appendChild(empty);
+		} else {
+			const pre = document.createElement('pre');
+			pre.classList.add('chat-terminal-output');
+			domSanitize.safeSetInnerHtml(pre, result.text, sanitizerConfig);
+			container.appendChild(pre);
+		}
 
 		if (result.truncated) {
 			const note = document.createElement('div');

@@ -650,6 +650,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			try {
 				this._doApplyEdits(rawEdits, synchronous, computeUndoRedo, beginSelectionState, undoRedoGroup);
 				return true;
+			} catch (err) {
+				this._notebookLoggingService.error('textModelEdits', `Error while applying edits: ${err}`);
+				throw err;
 			} finally {
 				if (!this._pauseableEmitter.isEmpty) {
 					// Update selection and versionId after applying edits.
@@ -689,7 +692,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					return null;
 				}
 			} else if (edit.editType !== CellEditType.DocumentMetadata) {
-				throw new Error('Invalid cell edit');
+				throw new Error('Invalid cell edit: ' + JSON.stringify(edit));
 			}
 
 			return {

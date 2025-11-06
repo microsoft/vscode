@@ -16,6 +16,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { AllowedMcpServer } from '../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IAuthenticationQueryService, IAccountQuery } from '../../../../services/authentication/common/authenticationQuery.js';
+import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 
 export class ManageTrustedMcpServersForAccountAction extends Action2 {
@@ -24,7 +25,8 @@ export class ManageTrustedMcpServersForAccountAction extends Action2 {
 			id: '_manageTrustedMCPServersForAccount',
 			title: localize2('manageTrustedMcpServersForAccount', "Manage Trusted MCP Servers For Account"),
 			category: localize2('accounts', "Accounts"),
-			f1: true
+			f1: true,
+			precondition: ChatContextKeys.Setup.hidden.negate()
 		});
 	}
 
