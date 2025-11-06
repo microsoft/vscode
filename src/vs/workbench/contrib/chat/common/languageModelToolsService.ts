@@ -356,11 +356,8 @@ export interface ILanguageModelToolsService {
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
 
-export function createToolInputUri(toolOrId: IToolData | string): URI {
-	if (typeof toolOrId !== 'string') {
-		toolOrId = toolOrId.id;
-	}
-	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolOrId}/tool_input.json` });
+export function createToolInputUri(toolCallId: string): URI {
+	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolCallId}/tool_input.json` });
 }
 
 export function createToolSchemaUri(toolOrId: IToolData | string): URI {
