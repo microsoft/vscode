@@ -269,25 +269,25 @@ export class AgentSessionsView extends ViewPane {
 		actions.push(new Separator());
 
 		for (const provider of this.chatSessionsService.getAllChatSessionContributions()) {
+			const menuActions = this.menuService.getMenuActions(MenuId.ChatSessionsCreateSubMenu, this.scopedContextKeyService.createOverlay([
+				[ChatContextKeys.sessionType.key, provider.type]
+			]));
 
-			// Generic action to create new provider specific session
-			actions.push(toAction({
-				id: `newChatSessionFromProvider.${provider.type}`,
-				label: localize('newChatSessionFromProvider', "New {0}", provider.displayName),
-				run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${provider.type}`)
-			}));
+			const primaryActions = getActionBarActions(menuActions, () => true).primary;
 
-			// Collect provider specific additional actions
-			const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.scopedContextKeyService.createOverlay([[ChatContextKeys.sessionType.key, provider.type]]));
-			const primaryActions = getActionBarActions(
-				menu.getActions({ shouldForwardArgs: true }),
-				'submenu',
-			).primary;
+			// Prefer provider creation actions...
 			if (primaryActions.length > 0) {
 				actions.push(...primaryActions);
-				actions.push(new Separator());
 			}
-			menu.dispose();
+
+			// ...over our generic one
+			else {
+				actions.push(toAction({
+					id: `newChatSessionFromProvider.${provider.type}`,
+					label: localize('newChatSessionFromProvider', "New {0}", provider.displayName),
+					run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${provider.type}`)
+				}));
+			}
 		}
 
 		// Install more
