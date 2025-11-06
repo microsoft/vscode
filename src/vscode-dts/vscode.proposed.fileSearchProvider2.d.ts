@@ -76,7 +76,12 @@ declare module 'vscode' {
 	export interface FileSearchProvider2 {
 		/**
 		 * Provide the set of files that match a certain file path pattern.
-		 * @param pattern The search pattern to match against file paths.
+		 *
+		 * @param pattern The search pattern to match against file paths. The `pattern` should be interpreted in a
+		 * *relaxed way* as the editor will apply its own highlighting and scoring on the results. A good rule of
+		 * thumb is to match case-insensitive and to simply check that the characters of `pattern` appear in their
+		 * order in a candidate file path. Don't use prefix, substring, or similar strict matching. When `pattern`
+		 * is empty, all files in the folder should be returned.
 		 * @param options A set of options to consider while searching files.
 		 * @param token A cancellation token.
 		 */
