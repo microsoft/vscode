@@ -100,7 +100,6 @@ registerColor('gauge.errorBackground', {
 //#endregion
 
 const defaultChat = {
-	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	completionsEnablementSetting: product.defaultChatAgent?.completionsEnablementSetting ?? '',
 	nextEditSuggestionsSetting: product.defaultChatAgent?.nextEditSuggestionsSetting ?? '',
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
