@@ -423,15 +423,6 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			checkbox = new Checkbox(element.saneLabel, element.checked, { ...defaultCheckboxStyles, size: 15 });
 			data.checkbox.value = checkbox;
 			data.outerLabel.prepend(checkbox.domNode);
-			
-			// Prevent checkbox from handling Space key when element is not focused in the tree
-			// The tree's Space handler should be the only one that toggles checkboxes
-			data.toDisposeTemplate.add(dom.addStandardDisposableListener(checkbox.domNode, dom.EventType.KEY_DOWN, e => {
-				if (e.keyCode === KeyCode.Space && this.isElementFocused && !this.isElementFocused(data.element)) {
-					e.preventDefault();
-					e.stopPropagation();
-				}
-			}, true)); // Use capture phase to run before the checkbox's handler
 		} else {
 			checkbox.setTitle(element.saneLabel);
 		}
@@ -444,7 +435,17 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 
 		checkbox.checked = element.checked;
 		data.toDisposeElement.add(element.onChecked(checked => checkbox.checked = checked));
-		data.toDisposeElement.add(checkbox.onChange(() => element.checked = checkbox.checked));
+		data.toDisposeElement.add(checkbox.onChange(() => {
+			// Only update element's checked state if it's focused in the tree
+			// If not focused, revert the checkbox's state to match the element
+			// This ensures that when Space is pressed, only the focused items are toggled by the tree's handler
+			if (this.isElementFocused && this.isElementFocused(data.element)) {
+				element.checked = checkbox.checked;
+			} else {
+				// Revert checkbox to match element's state (without triggering onChange again)
+				checkbox.checked = element.checked;
+			}
+		}));
 	}
 
 	renderElement(node: ITreeNode<QuickPickItemElement, void>, index: number, data: IQuickInputItemTemplateData): void {
