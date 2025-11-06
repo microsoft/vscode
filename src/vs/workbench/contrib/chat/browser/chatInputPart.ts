@@ -325,9 +325,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public get currentModeKind(): ChatModeKind {
 		const mode = this._currentModeObservable.get();
-		return mode.kind === ChatModeKind.Agent && !this.agentService.hasToolsAgent ?
-			ChatModeKind.Edit :
-			mode.kind;
+		// If agent mode is selected but not available (either no tools agent or policy-disabled),
+		// fall back to Edit mode
+		if (mode.kind === ChatModeKind.Agent) {
+			if (!this.agentService.hasToolsAgent || isAgentModePolicyDisabled(this.configurationService)) {
+				return ChatModeKind.Edit;
+			}
+		}
+		return mode.kind;
 	}
 
 	public get currentModeObs(): IObservable<IChatMode> {
