@@ -95,4 +95,28 @@ suite('FindInput Toggle Focus', () => {
 		assert.strictEqual(newToggles[0].domNode.tabIndex, 0, 'First new toggle should have tabIndex 0');
 		assert.strictEqual(newToggles[1].domNode.tabIndex, -1, 'Second new toggle should have tabIndex -1');
 	});
+
+	test('Toggle focus group with only common toggles and no additional toggles', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add({ dispose: () => container.remove() });
+
+		store.add(new FindInput(container, undefined, {
+			label: 'test',
+			inputBoxStyles: unthemedInboxStyles,
+			toggleStyles: unthemedToggleStyles,
+			showCommonFindToggles: true
+			// No additionalToggles provided
+		}));
+
+		// Get the common toggles
+		const caseSensitive = container.querySelector('[role="checkbox"][aria-label*="Match Case"]') as HTMLElement;
+		const wholeWords = container.querySelector('[role="checkbox"][aria-label*="Match Whole Word"]') as HTMLElement;
+		const regex = container.querySelector('[role="checkbox"][aria-label*="Use Regular Expression"]') as HTMLElement;
+
+		// Verify that only the first toggle is tabbable
+		assert.strictEqual(caseSensitive?.tabIndex, 0, 'Case sensitive toggle should have tabIndex 0');
+		assert.strictEqual(wholeWords?.tabIndex, -1, 'Whole words toggle should have tabIndex -1');
+		assert.strictEqual(regex?.tabIndex, -1, 'Regex toggle should have tabIndex -1');
+	});
 });
