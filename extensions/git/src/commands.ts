@@ -5404,9 +5404,15 @@ export class CommandCenter {
 		}
 
 		const isArtifactTreeElement = (item: unknown): item is ArtifactTreeElement => {
-			return typeof item === 'object' && item !== null &&
-				'artifact' in item && typeof (item as ArtifactTreeElement).artifact === 'object' &&
-				'name' in (item as ArtifactTreeElement).artifact;
+			if (typeof item !== 'object' || item === null) {
+				return false;
+			}
+			const candidate = item as { artifact?: unknown };
+			if (typeof candidate.artifact !== 'object' || candidate.artifact === null) {
+				return false;
+			}
+			const artifact = candidate.artifact as { name?: unknown };
+			return typeof artifact.name === 'string';
 		};
 
 		const artifactElements = artifacts.filter(isArtifactTreeElement);

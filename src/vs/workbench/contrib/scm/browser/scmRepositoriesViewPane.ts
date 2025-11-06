@@ -650,6 +650,9 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 		const collectRecursive = (currentNode: IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>) => {
 			// Only add leaf nodes (actual artifacts, not folder nodes)
+			// In the resource tree structure:
+			// - Folder nodes have children but no element (e.g., "copilot" prefix folder)
+			// - Leaf nodes have an element and no children (e.g., actual branch "copilot/fix-1")
 			if (currentNode.element && currentNode.childrenCount === 0) {
 				artifacts.push(currentNode.element);
 			}
