@@ -967,7 +967,10 @@ export class OpenWorkspaceFolderMcpResourceCommand extends Action2 {
 			title: localize2('mcp.command.openWorkspaceFolderMcp', "Open Workspace Folder MCP Configuration"),
 			category,
 			f1: true,
-			precondition: WorkspaceFolderCountContext.notEqualsTo(0)
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				WorkspaceFolderCountContext.notEqualsTo(0)
+			)
 		});
 	}
 
@@ -990,7 +993,10 @@ export class OpenWorkspaceMcpResourceCommand extends Action2 {
 			title: localize2('mcp.command.openWorkspaceMcp', "Open Workspace MCP Configuration"),
 			category,
 			f1: true,
-			precondition: WorkbenchStateContext.isEqualTo('workspace')
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				WorkbenchStateContext.isEqualTo('workspace')
+			)
 		});
 	}
 
