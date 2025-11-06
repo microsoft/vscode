@@ -422,24 +422,35 @@ async function getContextForWatchExpressionMenuWithDataAccess(parentContext: ICo
 
 	try {
 		// Per DAP spec:
-		// - For Variables (children in a tree): use variable.name + parent's variablesReference
-		// - For Expressions (top-level items): use expression string (evaluateName preferred) + frameId
-		if (expression instanceof Variable) {
+		// - If evaluateName is available: use it as an expression (top-level evaluation)
+		// - Otherwise, check if it's a Variable: use name + parent reference (container-relative)
+		// - Otherwise: use name as an expression
+		if ('evaluateName' in expression && expression.evaluateName) {
+			// Use evaluateName if available (more precise for evaluation context)
+			dataBreakpointInfoResponse = await session.dataBreakpointInfo(
+				expression.evaluateName as string,
+				undefined,
+				stackFrame?.frameId
+			);
+		} else if (expression instanceof Variable) {
+			// Variable without evaluateName: use name relative to parent container
 			dataBreakpointInfoResponse = await session.dataBreakpointInfo(
 				expression.name,
 				expression.parent.reference,
 				stackFrame?.frameId
 			);
 		} else {
+			// Expression without evaluateName: use name as the expression to evaluate
 			dataBreakpointInfoResponse = await session.dataBreakpointInfo(
-				'evaluateName' in expression ? expression.evaluateName as string : expression.name,
-				undefined,  // No parent reference for top-level expressions
+				expression.name,
+				undefined,
 				stackFrame?.frameId
 			);
 		}
 	} catch (error) {
+		// If dataBreakpointInfo fails (e.g., expression not found, invalid expression),
 		// silently continue without data breakpoint support for this item
-		logService.error('Failed to get data breakpoint info for watch expression:', error);
+		logService.trace('Failed to get data breakpoint info for watch expression:', error);
 	}
 
 	const dataBreakpointId = dataBreakpointInfoResponse?.dataId;
