@@ -455,6 +455,12 @@ class MultiplierColumnRenderer extends ModelsTableColumnRenderer<IMultiplierColu
 
 	readonly templateId: string = MultiplierColumnRenderer.TEMPLATE_ID;
 
+	constructor(
+		@IHoverService private readonly hoverService: IHoverService
+	) {
+		super();
+	}
+
 	renderTemplate(container: HTMLElement): IMultiplierColumnTemplateData {
 		const disposables = new DisposableStore();
 		const elementDisposables = new DisposableStore();
@@ -472,7 +478,21 @@ class MultiplierColumnRenderer extends ModelsTableColumnRenderer<IMultiplierColu
 	}
 
 	override renderModelElement(entry: IModelItemEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
-		templateData.multiplierElement.textContent = (entry.modelEntry.metadata.detail && entry.modelEntry.metadata.detail.trim().toLowerCase() !== entry.modelEntry.vendor.trim().toLowerCase()) ? entry.modelEntry.metadata.detail : '-';
+		const multiplierText = (entry.modelEntry.metadata.detail && entry.modelEntry.metadata.detail.trim().toLowerCase() !== entry.modelEntry.vendor.trim().toLowerCase()) ? entry.modelEntry.metadata.detail : '-';
+		templateData.multiplierElement.textContent = multiplierText;
+
+		if (multiplierText !== '-') {
+			const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+			markdown.appendMarkdown(localize('models.multiplier.description', 'Every chat request using this model counts {0} towards your premium model request quota.', multiplierText));
+
+			templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
+				content: markdown,
+				appearance: {
+					compact: true,
+					skipFadeInAnimation: true,
+				}
+			})));
+		}
 	}
 }
 
