@@ -306,11 +306,11 @@ registerActiveXtermAction({
 registerAction2(class ShowChatTerminalsAction extends Action2 {
 	constructor() {
 		super({
-			id: TerminalChatCommandId.ViewChatTerminals,
-			title: localize2('viewChatTerminals', 'View Chat Terminals'),
+			id: TerminalChatCommandId.ViewHiddenChatTerminals,
+			title: localize2('viewHiddenChatTerminals', 'View Hidden Chat Terminals'),
 			category: localize2('terminalCategory2', 'Terminal'),
 			f1: true,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(TerminalChatContextKeys.hasHiddenChatTerminals, ChatContextKeys.enabled),
 			menu: [{
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.and(TerminalChatContextKeys.hasChatTerminals, ContextKeyExpr.equals('view', ChatViewId)),
@@ -337,10 +337,12 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			return;
 		}
 
-		const all = new Map<number, { instance: ITerminalInstance; isBackground: boolean }>();
+		const all = new Map<number, ITerminalInstance>();
 
 		for (const i of toolInstances) {
-			all.set(i.instanceId, { instance: i, isBackground: !visible.has(i) });
+			if (!visible.has(i)) {
+				all.set(i.instanceId, i);
+			}
 		}
 
 		const items: IQuickPickItem[] = [];
@@ -349,13 +351,11 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			description: string | undefined;
 			detail: string | undefined;
 			id: string;
-			isBackground: boolean;
 		}
-		const hiddenLocalized = localize2('chatTerminal.hidden', 'Hidden').value;
 		const lastCommandLocalized = (command: string) => localize2('chatTerminal.lastCommand', 'Last: {0}', command).value;
 
 		const metas: IItemMeta[] = [];
-		for (const { instance, isBackground } of all.values()) {
+		for (const instance of all.values()) {
 			const iconId = instantiationService.invokeFunction(getIconId, instance);
 			const label = `$(${iconId}) ${instance.title}`;
 			const lastCommand = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands.at(-1)?.command;
@@ -369,14 +369,9 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 				chatSessionTitle = chatService.getSession(sessionUri)?.title || chatService.getPersistedSessionTitle(sessionUri);
 			}
 
-			// Build description: chat session title and/or hidden status
 			let description: string | undefined;
-			if (chatSessionTitle && isBackground) {
-				description = `${chatSessionTitle} • ${hiddenLocalized}`;
-			} else if (chatSessionTitle) {
-				description = chatSessionTitle;
-			} else if (isBackground) {
-				description = hiddenLocalized;
+			if (chatSessionTitle) {
+				description = `${chatSessionTitle}`;
 			}
 
 			metas.push({
@@ -384,17 +379,8 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 				description,
 				detail: lastCommand ? lastCommandLocalized(lastCommand) : undefined,
 				id: String(instance.instanceId),
-				isBackground
 			});
 		}
-
-		// Sort: hidden first (stable by label inside each group)
-		metas.sort((a, b) => {
-			if (a.isBackground !== b.isBackground) {
-				return a.isBackground ? -1 : 1;
-			}
-			return a.label.localeCompare(b.label);
-		});
 
 		for (const m of metas) {
 			items.push({
@@ -406,7 +392,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		}
 
 		const qp = quickInputService.createQuickPick<IQuickPickItem>();
-		qp.placeholder = localize2('selectChatTerminal', 'Select a chat terminal to focus').value;
+		qp.placeholder = localize2('selectChatTerminal', 'Select a chat terminal to show and focus').value;
 		qp.items = items;
 		qp.canSelectMany = false;
 		qp.title = localize2('showChatTerminals.title', 'Chat Terminals').value;
@@ -415,8 +401,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		qp.onDidAccept(async () => {
 			const sel = qp.selectedItems[0];
 			if (sel) {
-				const target = all.get(Number(sel.id));
-				const instance = target?.instance;
+				const instance = all.get(Number(sel.id));
 				if (instance) {
 					terminalService.setActiveInstance(instance);
 					await terminalService.revealTerminal(instance);
