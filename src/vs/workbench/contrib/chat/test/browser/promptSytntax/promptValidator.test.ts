@@ -240,6 +240,21 @@ suite('PromptValidator', () => {
 				assert.strictEqual(markers.length, 1);
 				assert.deepStrictEqual(markers.map(m => m.message), [`The 'agent' property in a handoff must be a non-empty string.`]);
 			}
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`handoffs:`,
+					`  - label: '123'`,
+					`    agent: 'Cool'`,
+					`    prompt: ''`,
+					`    send: true`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.deepStrictEqual(markers.map(m => m.message), [`Unknown agent 'Cool'. Available agents: agent, ask, edit, BeastMode.`]);
+			}
 		});
 
 		test('agent with handoffs attribute', async () => {
@@ -248,10 +263,10 @@ suite('PromptValidator', () => {
 				'description: \"Test agent with handoffs\"',
 				`handoffs:`,
 				'  - label: Test Prompt',
-				'    agent: Default',
+				'    agent: agent',
 				'    prompt: Add tests for this code',
 				'  - label: Optimize Performance',
-				'    agent: Default',
+				'    agent: agent',
 				'    prompt: Optimize for performance',
 				'---',
 				'Body',

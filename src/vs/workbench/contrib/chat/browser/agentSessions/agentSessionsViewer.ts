@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentsessionsviewer.css';
-import { h } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, h } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
@@ -135,6 +135,13 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 					allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
 				},
 			}, template.description));
+
+			// TODO@bpasero this is needed so that a user can click into a link of the session
+			// without opening the session itself. Revisit this approach as we want to move
+			// away from allowing different results based on where the user clicks.
+			template.elementDisposable.add(addDisposableListener(template.description, EventType.MOUSE_DOWN, e => e.stopPropagation()));
+			template.elementDisposable.add(addDisposableListener(template.description, EventType.CLICK, e => e.stopPropagation()));
+			template.elementDisposable.add(addDisposableListener(template.description, EventType.AUXCLICK, e => e.stopPropagation()));
 		}
 
 		template.timestamp.textContent = fromNow(session.element.timing.startTime);

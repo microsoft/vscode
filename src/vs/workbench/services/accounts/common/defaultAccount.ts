@@ -20,6 +20,7 @@ import { Barrier } from '../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
+import { isString } from '../../../../base/common/types.js';
 
 export const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
 
@@ -152,20 +153,23 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			return;
 		}
 
-		const { authenticationProvider, tokenEntitlementUrl, chatEntitlementUrl, mcpRegistryDataUrl } = this.productService.defaultAccount;
-		await this.extensionService.whenInstalledExtensionsRegistered();
-
-		const declaredProvider = this.authenticationService.declaredProviders.find(provider => provider.id === authenticationProvider.id);
-		if (!declaredProvider) {
-			this.logService.info(`Default account authentication provider ${authenticationProvider} is not declared.`);
+		const defaultAccountProviderId = this.getDefaultAccountProviderId();
+		if (!defaultAccountProviderId) {
 			return;
 		}
 
-		this.registerSignInAction(authenticationProvider.id, declaredProvider.label, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes);
-		this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider.id, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes, tokenEntitlementUrl, chatEntitlementUrl, mcpRegistryDataUrl));
+		await this.extensionService.whenInstalledExtensionsRegistered();
+		const declaredProvider = this.authenticationService.declaredProviders.find(provider => provider.id === defaultAccountProviderId);
+		if (!declaredProvider) {
+			this.logService.info(`Default account authentication provider ${defaultAccountProviderId} is not declared.`);
+			return;
+		}
+
+		this.registerSignInAction(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes);
+		this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes));
 
 		this._register(this.authenticationService.onDidChangeSessions(async e => {
-			if (e.providerId !== authenticationProvider.id && e.providerId !== authenticationProvider.enterpriseProviderId) {
+			if (e.providerId !== this.getDefaultAccountProviderId()) {
 				return;
 			}
 
@@ -173,7 +177,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 				this.setDefaultAccount(null);
 				return;
 			}
-			this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider.id, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes, tokenEntitlementUrl, chatEntitlementUrl, mcpRegistryDataUrl));
+			this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount!.authenticationProvider.scopes));
 		}));
 
 	}
@@ -200,9 +204,8 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		return result;
 	}
 
-	private async getDefaultAccountFromAuthenticatedSessions(authProviderId: string, enterpriseAuthProviderId: string, enterpriseAuthProviderConfig: string, scopes: string[], tokenEntitlementUrl: string, chatEntitlementUrl: string, mcpRegistryDataUrl: string): Promise<IDefaultAccount | null> {
-		const id = this.configurationService.getValue(enterpriseAuthProviderConfig) === enterpriseAuthProviderId ? enterpriseAuthProviderId : authProviderId;
-		const sessions = await this.authenticationService.getSessions(id, undefined, undefined, true);
+	private async getDefaultAccountFromAuthenticatedSessions(authProviderId: string, scopes: string[]): Promise<IDefaultAccount | null> {
+		const sessions = await this.authenticationService.getSessions(authProviderId, undefined, undefined, true);
 		const session = sessions.find(s => this.scopesMatch(s.scopes, scopes));
 
 		if (!session) {
@@ -210,15 +213,15 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		}
 
 		const [chatEntitlements, tokenEntitlements] = await Promise.all([
-			this.getChatEntitlements(session.accessToken, chatEntitlementUrl),
-			this.getTokenEntitlements(session.accessToken, tokenEntitlementUrl),
+			this.getChatEntitlements(session.accessToken),
+			this.getTokenEntitlements(session.accessToken),
 		]);
 
-		const mcpRegistryProvider = tokenEntitlements.mcp ? await this.getMcpRegistryProvider(session.accessToken, mcpRegistryDataUrl) : undefined;
+		const mcpRegistryProvider = tokenEntitlements.mcp ? await this.getMcpRegistryProvider(session.accessToken) : undefined;
 
 		return {
 			sessionId: session.id,
-			enterprise: id === enterpriseAuthProviderId || session.account.label.includes('_'),
+			enterprise: this.isEnterpriseAuthenticationProvider(authProviderId) || session.account.label.includes('_'),
 			...chatEntitlements,
 			...tokenEntitlements,
 			mcpRegistryUrl: mcpRegistryProvider?.url,
@@ -230,7 +233,8 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		return scopes.length === expectedScopes.length && expectedScopes.every(scope => scopes.includes(scope));
 	}
 
-	private async getTokenEntitlements(accessToken: string, tokenEntitlementsUrl: string): Promise<Partial<IDefaultAccount>> {
+	private async getTokenEntitlements(accessToken: string): Promise<Partial<IDefaultAccount>> {
+		const tokenEntitlementsUrl = this.getTokenEntitlementUrl();
 		if (!tokenEntitlementsUrl) {
 			return {};
 		}
@@ -264,7 +268,8 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		return {};
 	}
 
-	private async getChatEntitlements(accessToken: string, chatEntitlementsUrl: string): Promise<Partial<IChatEntitlementsResponse>> {
+	private async getChatEntitlements(accessToken: string): Promise<Partial<IChatEntitlementsResponse>> {
+		const chatEntitlementsUrl = this.getChatEntitlementUrl();
 		if (!chatEntitlementsUrl) {
 			return {};
 		}
@@ -290,7 +295,8 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		return {};
 	}
 
-	private async getMcpRegistryProvider(accessToken: string, mcpRegistryDataUrl: string): Promise<IMcpRegistryProvider | undefined> {
+	private async getMcpRegistryProvider(accessToken: string): Promise<IMcpRegistryProvider | undefined> {
+		const mcpRegistryDataUrl = this.getMcpRegistryDataUrl();
 		if (!mcpRegistryDataUrl) {
 			return undefined;
 		}
@@ -317,18 +323,103 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		return undefined;
 	}
 
-	private registerSignInAction(authProviderId: string, authProviderLabel: string, enterpriseAuthProviderId: string, enterpriseAuthProviderConfig: string, scopes: string[]): void {
+	private getChatEntitlementUrl(): string | undefined {
+		if (!this.productService.defaultAccount) {
+			return undefined;
+		}
+
+		if (this.isEnterpriseAuthenticationProvider(this.getDefaultAccountProviderId())) {
+			try {
+				const enterpriseUrl = this.getEnterpriseUrl();
+				if (!enterpriseUrl) {
+					return undefined;
+				}
+				return `${enterpriseUrl.protocol}//api.${enterpriseUrl.hostname}${enterpriseUrl.port ? ':' + enterpriseUrl.port : ''}/copilot_internal/user`;
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
+
+		return this.productService.defaultAccount?.chatEntitlementUrl;
+	}
+
+	private getTokenEntitlementUrl(): string | undefined {
+		if (!this.productService.defaultAccount) {
+			return undefined;
+		}
+
+		if (this.isEnterpriseAuthenticationProvider(this.getDefaultAccountProviderId())) {
+			try {
+				const enterpriseUrl = this.getEnterpriseUrl();
+				if (!enterpriseUrl) {
+					return undefined;
+				}
+				return `${enterpriseUrl.protocol}//api.${enterpriseUrl.hostname}${enterpriseUrl.port ? ':' + enterpriseUrl.port : ''}/copilot_internal/v2/token`;
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
+
+		return this.productService.defaultAccount?.tokenEntitlementUrl;
+	}
+
+	private getMcpRegistryDataUrl(): string | undefined {
+		if (!this.productService.defaultAccount) {
+			return undefined;
+		}
+
+		if (this.isEnterpriseAuthenticationProvider(this.getDefaultAccountProviderId())) {
+			try {
+				const enterpriseUrl = this.getEnterpriseUrl();
+				if (!enterpriseUrl) {
+					return undefined;
+				}
+				return `${enterpriseUrl.protocol}//api.${enterpriseUrl.hostname}${enterpriseUrl.port ? ':' + enterpriseUrl.port : ''}/copilot/mcp_registry`;
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
+
+		return this.productService.defaultAccount?.mcpRegistryDataUrl;
+	}
+
+	private getDefaultAccountProviderId(): string | undefined {
+		if (this.productService.defaultAccount && this.configurationService.getValue<string | undefined>(this.productService.defaultAccount.authenticationProvider.enterpriseProviderConfig) === this.productService.defaultAccount?.authenticationProvider.enterpriseProviderId) {
+			return this.productService.defaultAccount?.authenticationProvider.enterpriseProviderId;
+		}
+		return this.productService.defaultAccount?.authenticationProvider.id;
+	}
+
+	private isEnterpriseAuthenticationProvider(providerId: string | undefined): boolean {
+		if (!providerId) {
+			return false;
+		}
+
+		return providerId === this.productService.defaultAccount?.authenticationProvider.enterpriseProviderId;
+	}
+
+	private getEnterpriseUrl(): URL | undefined {
+		if (!this.productService.defaultAccount) {
+			return undefined;
+		}
+		const value = this.configurationService.getValue(this.productService.defaultAccount.authenticationProvider.enterpriseProviderUriSetting);
+		if (!isString(value)) {
+			return undefined;
+		}
+		return new URL(value);
+	}
+
+	private registerSignInAction(authProviderId: string, scopes: string[]): void {
 		const that = this;
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: DEFAULT_ACCOUNT_SIGN_IN_COMMAND,
-					title: localize('sign in', "Sign in to {0}", authProviderLabel),
+					title: localize('sign in', "Sign in"),
 				});
 			}
 			run(): Promise<any> {
-				const id = that.configurationService.getValue(enterpriseAuthProviderConfig) === enterpriseAuthProviderId ? enterpriseAuthProviderId : authProviderId;
-				return that.authenticationService.createSession(id, scopes);
+				return that.authenticationService.createSession(authProviderId, scopes);
 			}
 		}));
 	}

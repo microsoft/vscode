@@ -86,6 +86,7 @@
 .chat-terminal-output-body {
 	padding: 4px 6px;
 	max-width: 100%;
+	height: 100%;
 }
 .chat-terminal-output-content {
 	display: flex;
@@ -96,6 +97,12 @@
 	margin: 0;
 	white-space: pre;
 	font-size: 12px;
+}
+
+.chat-terminal-output-empty {
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+	line-height: normal;
 }
 
 .chat-terminal-output div,

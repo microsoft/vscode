@@ -43,7 +43,7 @@ export class TerminalTabsChatEntry extends Disposable {
 		this._label = dom.append(entry, $('.terminal-tabs-chat-entry-label'));
 
 		const runChatTerminalsCommand = () => {
-			void this._commandService.executeCommand('workbench.action.terminal.chat.viewChatTerminals');
+			void this._commandService.executeCommand('workbench.action.terminal.chat.viewHiddenChatTerminals');
 		};
 		this._register(dom.addDisposableListener(this._entry, dom.EventType.CLICK, e => {
 			e.preventDefault();
@@ -76,15 +76,15 @@ export class TerminalTabsChatEntry extends Disposable {
 		const hasText = this._tabContainer.classList.contains('has-text');
 		if (hasText) {
 			this._label.textContent = chatTerminalCount === 1
-				? localize('terminal.tabs.chatEntryLabelSingle', "{0} Chat Terminal", chatTerminalCount)
-				: localize('terminal.tabs.chatEntryLabelPlural', "{0} Chat Terminals", chatTerminalCount);
+				? localize('terminal.tabs.chatEntryLabelSingle', "{0} Hidden Terminal", chatTerminalCount)
+				: localize('terminal.tabs.chatEntryLabelPlural', "{0} Hidden Terminals", chatTerminalCount);
 		} else {
 			this._label.textContent = `${chatTerminalCount}`;
 		}
 
 		const ariaLabel = chatTerminalCount === 1
-			? localize('terminal.tabs.chatEntryAriaLabelSingle', "Show 1 chat terminal")
-			: localize('terminal.tabs.chatEntryAriaLabelPlural', "Show {0} chat terminals", chatTerminalCount);
+			? localize('terminal.tabs.chatEntryAriaLabelSingle', "Show 1 hidden chat terminal")
+			: localize('terminal.tabs.chatEntryAriaLabelPlural', "Show {0} hidden chat terminals", chatTerminalCount);
 		this._entry.setAttribute('aria-label', ariaLabel);
 	}
 }

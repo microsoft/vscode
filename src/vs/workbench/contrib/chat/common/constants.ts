@@ -94,6 +94,8 @@ const chatAlwaysUnsupportedFileSchemes = new Set([
 	Schemas.vscodeLocalChatSession,
 	Schemas.vscodeSettings,
 	Schemas.webviewPanel,
+	Schemas.vscodeUserData,
+	Schemas.extension,
 	'ccreq',
 ]);
 

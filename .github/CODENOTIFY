@@ -140,3 +140,6 @@ extensions/github-authentication/** @TylerLeonhardt
 extensions/git/** @lszomoru
 extensions/git-base/** @lszomoru
 extensions/github/** @lszomoru
+
+# Chat Editing
+src/vs/workbench/contrib/chat/browser/chatEditing/** @jrieken
