@@ -645,16 +645,6 @@ configurationRegistry.registerConfiguration({
 				}
 			],
 		},
-		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
-			type: 'string',
-			enum: ['default', 'apple'],
-			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
-			default: 'default',
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
 		[ChatConfiguration.TodosShowWidget]: {
 			type: 'boolean',
 			default: true,

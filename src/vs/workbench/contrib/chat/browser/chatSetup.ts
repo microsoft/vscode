@@ -804,8 +804,7 @@ class ChatSetup {
 	private async showDialog(options?: { forceSignInDialog?: boolean; forceAnonymous?: ChatSetupAnonymous }): Promise<ChatSetupStrategy> {
 		const disposables = new DisposableStore();
 
-		const dialogVariant = this.configurationService.getValue<'default' | 'apple' | unknown>('chat.setup.signInDialogVariant');
-		const buttons = this.getButtons(dialogVariant, options);
+		const buttons = this.getButtons(options);
 
 		const dialog = disposables.add(new Dialog(
 			this.layoutService.activeContainer,
@@ -830,7 +829,7 @@ class ChatSetup {
 		return buttons[button]?.[1] ?? ChatSetupStrategy.Canceled;
 	}
 
-	private getButtons(variant: 'default' | 'apple' | unknown, options?: { forceSignInDialog?: boolean; forceAnonymous?: ChatSetupAnonymous }): Array<[string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined]> {
+	private getButtons(options?: { forceSignInDialog?: boolean; forceAnonymous?: ChatSetupAnonymous }): Array<[string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined]> {
 		type ContinueWithButton = [string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined];
 		const styleButton = (...classes: string[]) => ({ styleButton: (button: IButton) => button.element.classList.add(...classes) });
 
@@ -849,14 +848,14 @@ class ChatSetup {
 				buttons = coalesce([
 					defaultProviderButton,
 					googleProviderButton,
-					variant === 'apple' ? appleProviderButton : undefined,
+					appleProviderButton,
 					enterpriseProviderLink
 				]);
 			} else {
 				buttons = coalesce([
 					enterpriseProviderButton,
 					googleProviderButton,
-					variant === 'apple' ? appleProviderButton : undefined,
+					appleProviderButton,
 					defaultProviderLink
 				]);
 			}
