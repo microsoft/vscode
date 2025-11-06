@@ -259,6 +259,15 @@ export class AgentSessionsView extends ViewPane {
 
 	private getNewSessionActions(): IAction[] {
 		const actions: IAction[] = [];
+
+		// Default action
+		actions.push(toAction({
+			id: 'newChatSession.default',
+			label: localize('newChatSessionDefault', "New Agent Session"),
+			run: () => this.commandService.executeCommand(ACTION_ID_OPEN_CHAT)
+		}));
+		actions.push(new Separator());
+
 		for (const provider of this.chatSessionsService.getAllChatSessionContributions()) {
 
 			// Generic action to create new provider specific session
