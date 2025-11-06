@@ -2225,6 +2225,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
 			return;
 		}
+		this.inputPart.clearTodoListWidget(model.sessionResource, false);
+		this.chatSuggestNextWidget.hide();
 
 		if (this.historyList) {
 			this.historyList.setFocus([]);
@@ -2843,7 +2845,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const currentAgent = this.input.currentModeObs.get();
 
 		// switch to appropriate agent if needed
-		if (agentName !== currentAgent.name) {
+		if (agentName !== currentAgent.name.get()) {
 			// Find the mode object to get its kind
 			const agent = this.chatModeService.findModeByName(agentName);
 			if (agent) {
@@ -2864,7 +2866,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private async _applyPromptMetadata({ agent, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
 
 		if (tools !== undefined && !agent && this.input.currentModeKind !== ChatModeKind.Agent) {
-			agent = ChatMode.Agent.name;
+			agent = ChatMode.Agent.name.get();
 		}
 		// switch to appropriate agent if needed
 		if (agent) {

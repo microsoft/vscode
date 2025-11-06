@@ -23,6 +23,7 @@ import { IActionProvider } from '../../../../../base/browser/ui/dropdown/dropdow
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
+import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -39,8 +40,8 @@ type ChatModelChangeClassification = {
 };
 
 type ChatModelChangeEvent = {
-	fromModel: string | undefined;
-	toModel: string;
+	fromModel: string | TelemetryTrustedValue<string> | undefined;
+	toModel: string | TelemetryTrustedValue<string>;
 };
 
 
@@ -59,9 +60,10 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					tooltip: model.metadata.tooltip ?? model.metadata.name,
 					label: model.metadata.name,
 					run: () => {
+						const previousModel = delegate.getCurrentModel();
 						telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
-							fromModel: delegate.getCurrentModel()?.identifier,
-							toModel: model.identifier
+							fromModel: previousModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(previousModel.identifier) : 'unknown',
+							toModel: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(model.identifier) : 'unknown'
 						});
 						delegate.setModel(model);
 					}

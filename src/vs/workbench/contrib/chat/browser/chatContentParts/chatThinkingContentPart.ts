@@ -6,7 +6,7 @@
 import { $, clearNode } from '../../../../../base/browser/dom.js';
 import { IChatThinkingPart } from '../../common/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
-import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
+import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ThinkingDisplayMode } from '../../common/constants.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -49,7 +49,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private headerButton: ButtonWithIcon | undefined;
 	private lastExtractedTitle: string | undefined;
 	private hasMultipleItems: boolean = false;
-	private modelId: string | undefined;
 
 	constructor(
 		content: IChatThinkingPart,
@@ -65,11 +64,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		super(extractedTitle, context);
 
 		this.id = content.id;
-
-		if (isResponseVM(context.element) && context.element.model.request?.modelId) {
-			this.modelId = context.element.model.request.modelId;
-		}
-
 		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
 
 		this.fixedScrollingMode = configuredMode === ThinkingDisplayMode.FixedScrolling;
@@ -169,11 +163,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
+		// If the entire content is bolded, strip the bold markers for rendering
 		let contentToRender = cleanedContent;
-		if (this.modelId?.includes('codex')) {
-			if (cleanedContent.startsWith('**') && cleanedContent.endsWith('**')) {
-				contentToRender = cleanedContent.slice(2, -2);
-			}
+		if (cleanedContent.startsWith('**') && cleanedContent.endsWith('**')) {
+			contentToRender = cleanedContent.slice(2, -2);
 		}
 
 		const target = reuseExisting ? this.markdownResult?.element : undefined;

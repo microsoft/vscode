@@ -1159,12 +1159,11 @@ class SetTreeViewModeAction extends ViewAction<SCMViewPane> {
 registerAction2(SetListViewModeAction);
 registerAction2(SetTreeViewModeAction);
 
-abstract class RepositorySortAction extends ViewAction<SCMViewPane> {
+abstract class RepositorySortAction extends Action2 {
 	constructor(private sortKey: ISCMRepositorySortKey, title: string) {
 		super({
 			id: `workbench.scm.action.repositories.setSortKey.${sortKey}`,
 			title,
-			viewId: VIEW_PANE_ID,
 			f1: false,
 			toggled: RepositoryContextKeys.RepositorySortKey.isEqualTo(sortKey),
 			menu: [
@@ -1180,7 +1179,7 @@ abstract class RepositorySortAction extends ViewAction<SCMViewPane> {
 		});
 	}
 
-	runInView(accessor: ServicesAccessor) {
+	run(accessor: ServicesAccessor) {
 		accessor.get(ISCMViewService).toggleSortKey(this.sortKey);
 	}
 }
@@ -1208,12 +1207,11 @@ registerAction2(RepositorySortByDiscoveryTimeAction);
 registerAction2(RepositorySortByNameAction);
 registerAction2(RepositorySortByPathAction);
 
-abstract class RepositorySelectionModeAction extends ViewAction<SCMViewPane> {
+abstract class RepositorySelectionModeAction extends Action2 {
 	constructor(private readonly selectionMode: ISCMRepositorySelectionMode, title: string, order: number) {
 		super({
 			id: `workbench.scm.action.repositories.setSelectionMode.${selectionMode}`,
 			title,
-			viewId: VIEW_PANE_ID,
 			f1: false,
 			toggled: RepositoryContextKeys.RepositorySelectionMode.isEqualTo(selectionMode),
 			menu: [
@@ -1233,7 +1231,7 @@ abstract class RepositorySelectionModeAction extends ViewAction<SCMViewPane> {
 		});
 	}
 
-	override runInView(accessor: ServicesAccessor): void {
+	override run(accessor: ServicesAccessor): void {
 		accessor.get(ISCMViewService).toggleSelectionMode(this.selectionMode);
 	}
 }

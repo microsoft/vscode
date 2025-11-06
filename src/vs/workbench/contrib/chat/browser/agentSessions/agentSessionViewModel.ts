@@ -11,6 +11,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 
@@ -92,6 +93,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 	constructor(
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatService private readonly chatService: IChatService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -107,6 +109,10 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 	}
 
 	async resolve(provider: string | string[] | undefined): Promise<void> {
+		if (this.lifecycleService.willShutdown) {
+			return;
+		}
+
 		if (Array.isArray(provider)) {
 			for (const p of provider) {
 				this.providersToResolve.add(p);

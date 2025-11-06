@@ -151,6 +151,11 @@ export namespace Schemas {
 	 */
 	export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
 	export const chatEditingModel = 'chat-editing-text-model';
+
+	/**
+	 * Used for rendering multidiffs in copilot agent sessions
+	 */
+	export const copilotPr = 'copilot-pr';
 }
 
 export function matchesScheme(target: URI | string, scheme: string): boolean {

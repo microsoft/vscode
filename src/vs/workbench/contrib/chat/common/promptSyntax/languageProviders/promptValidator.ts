@@ -298,10 +298,10 @@ export class PromptValidator {
 
 		// Check if agent exists in builtin or custom agents
 		for (const agent of Iterable.concat(agents.builtin, agents.custom)) {
-			if (agent.name === agentValue) {
+			if (agent.name.get() === agentValue) {
 				return agent;
 			}
-			availableAgents.push(agent.name); // collect all available agent names
+			availableAgents.push(agent.name.get()); // collect all available agent names
 		}
 
 		const errorMessage = localize('promptValidator.agentNotFound', "Unknown agent '{0}'. Available agents: {1}.", agentValue, availableAgents.join(', '));

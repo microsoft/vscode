@@ -33,7 +33,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			fileWrites = await this._getFileWrites(options);
 		} catch (e) {
 			console.error(e);
-			this._log(`Failed to get file writes via ${options.treeSitterLanguage} grammar`);
+			this._log('Failed to get file writes via grammar', options.treeSitterLanguage);
 			return {
 				isAutoApproveAllowed: false
 			};
@@ -47,6 +47,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		if (capturedFileWrites.length) {
 			const cwd = options.cwd;
 			if (cwd) {
+				this._log('Detected cwd', cwd.toString());
 				fileWrites = capturedFileWrites.map(e => {
 					const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(e) : posix.isAbsolute(e);
 					if (isAbsolute) {
@@ -82,7 +83,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 								const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(fileWrite) : posix.isAbsolute(fileWrite);
 								if (!isAbsolute) {
 									isAutoApproveAllowed = false;
-									this._log(`File write blocked due to unknown terminal cwd: ${fileWrite}`);
+									this._log('File write blocked due to unknown terminal cwd', fileWrite);
 									break;
 								}
 							}
@@ -91,7 +92,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							// TODO: Handle environment variables properly https://github.com/microsoft/vscode/issues/274166
 							if (fileUri.fsPath.match(/[$\(\){}]/)) {
 								isAutoApproveAllowed = false;
-								this._log(`File write blocked due to likely containing a variable: ${fileUri.toString()}`);
+								this._log('File write blocked due to likely containing a variable', fileUri.toString());
 								break;
 							}
 							const isInsideWorkspace = workspaceFolders.some(folder =>
@@ -100,7 +101,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							);
 							if (!isInsideWorkspace) {
 								isAutoApproveAllowed = false;
-								this._log(`File write blocked outside workspace: ${fileUri.toString()}`);
+								this._log('File write blocked outside workspace', fileUri.toString());
 								break;
 							}
 						}

@@ -313,23 +313,3 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.findNext.enter',
-			title: localize2('notebook.findNext.enter', 'Find Next'),
-			keybinding: {
-				when: ContextKeyExpr.and(
-					NOTEBOOK_EDITOR_FOCUSED,
-					KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED
-				),
-				primary: KeyCode.Enter,
-				weight: KeybindingWeight.WorkbenchContrib + 1  // Higher priority than editor
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		return runFind(accessor, true);
-	}
-});

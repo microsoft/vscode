@@ -991,7 +991,6 @@ export interface IDecorationAddon {
 }
 
 export interface ITerminalCompletionProviderContribution {
-	id: string;
 	description?: string;
 }
 

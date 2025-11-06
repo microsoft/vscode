@@ -47,6 +47,9 @@
           ".agent.md",
           ".chatmode.md"
         ],
+        "filenamePatterns": [
+          "**/.github/agents/*.md"
+        ],
         "configuration": "./language-configuration.json"
       }
     ],

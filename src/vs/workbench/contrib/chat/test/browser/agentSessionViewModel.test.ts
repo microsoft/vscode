@@ -16,17 +16,20 @@ import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, localCha
 import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { MockChatSessionsService } from '../common/mockChatSessionsService.js';
+import { TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('AgentSessionsViewModel', () => {
 
 	const disposables = new DisposableStore();
 	let mockChatSessionsService: MockChatSessionsService;
 	let mockChatService: MockChatService;
+	let mockLifecycleService: TestLifecycleService;
 	let viewModel: AgentSessionsViewModel;
 
 	setup(() => {
 		mockChatSessionsService = new MockChatSessionsService();
 		mockChatService = new MockChatService();
+		mockLifecycleService = disposables.add(new TestLifecycleService());
 	});
 
 	teardown(() => {
@@ -38,7 +41,8 @@ suite('AgentSessionsViewModel', () => {
 	test('should initialize with empty sessions', () => {
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		assert.strictEqual(viewModel.sessions.length, 0);
@@ -68,7 +72,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		await viewModel.resolve(undefined);
@@ -112,7 +117,8 @@ suite('AgentSessionsViewModel', () => {
 
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		await viewModel.resolve(undefined);
@@ -132,7 +138,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		let willResolveFired = false;
@@ -171,7 +178,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		let sessionsChangedFired = false;
@@ -209,7 +217,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		await viewModel.resolve(undefined);
@@ -245,7 +254,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		await viewModel.resolve(undefined);
@@ -283,7 +293,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		await viewModel.resolve(undefined);
@@ -324,7 +335,8 @@ suite('AgentSessionsViewModel', () => {
 
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		// First resolve all
@@ -369,7 +381,8 @@ suite('AgentSessionsViewModel', () => {
 
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		await viewModel.resolve(['type-1', 'type-2']);
@@ -394,7 +407,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		const sessionsChangedPromise = Event.toPromise(viewModel.onDidChangeSessions);
@@ -425,7 +439,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		const sessionsChangedPromise = Event.toPromise(viewModel.onDidChangeSessions);
@@ -456,7 +471,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		const sessionsChangedPromise = Event.toPromise(viewModel.onDidChangeSessions);
@@ -487,7 +503,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		await viewModel.resolve(undefined);
@@ -507,7 +524,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		await viewModel.resolve(undefined);
@@ -547,7 +565,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		await viewModel.resolve(undefined);
@@ -581,7 +600,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		await viewModel.resolve(undefined);
@@ -609,7 +629,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		await viewModel.resolve(undefined);
@@ -637,7 +658,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		await viewModel.resolve(undefined);
@@ -668,7 +690,8 @@ suite('AgentSessionsViewModel', () => {
 		mockChatSessionsService.registerChatSessionItemProvider(provider);
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		// Make multiple rapid resolve calls
@@ -726,7 +749,8 @@ suite('AgentSessionsViewModel', () => {
 
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		// First resolve all
@@ -788,7 +812,8 @@ suite('AgentSessionsViewModel', () => {
 
 		viewModel = disposables.add(new AgentSessionsViewModel(
 			mockChatSessionsService,
-			mockChatService
+			mockChatService,
+			mockLifecycleService
 		));
 
 		// Call resolve with different types rapidly - they should accumulate
@@ -875,7 +900,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 		};
 
 		// Test with actual view model
-		const actualViewModel = new AgentSessionsViewModel(new MockChatSessionsService(), new MockChatService());
+		const actualViewModel = new AgentSessionsViewModel(new MockChatSessionsService(), new MockChatService(), disposables.add(new TestLifecycleService()));
 		disposables.add(actualViewModel);
 		assert.strictEqual(isAgentSessionsViewModel(actualViewModel), true);
 

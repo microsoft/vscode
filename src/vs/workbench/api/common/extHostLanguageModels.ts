@@ -335,14 +335,17 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				break;
 			}
 		}
-		if (!defaultModelId) {
+		if (!defaultModelId && !forceResolveModels) {
 			// Maybe the default wasn't cached so we will try again with resolving the models too
 			return this.getDefaultLanguageModel(extension, true);
 		}
 		return this.getLanguageModelByIdentifier(extension, defaultModelId);
 	}
 
-	async getLanguageModelByIdentifier(extension: IExtensionDescription, modelId: string): Promise<vscode.LanguageModelChat | undefined> {
+	async getLanguageModelByIdentifier(extension: IExtensionDescription, modelId: string | undefined): Promise<vscode.LanguageModelChat | undefined> {
+		if (!modelId) {
+			return undefined;
+		}
 
 		const model = this._localModels.get(modelId);
 		if (!model) {

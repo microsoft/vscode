@@ -941,17 +941,17 @@ export enum TerminalCompletionItemKind {
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	label: string | CompletionItemLabel;
 	replacementRange: readonly [number, number];
-	icon?: ThemeIcon | undefined;
 	detail?: string | undefined;
 	documentation?: string | vscode.MarkdownString | undefined;
+	kind?: TerminalCompletionItemKind | undefined;
 	isFile?: boolean | undefined;
 	isDirectory?: boolean | undefined;
 	isKeyword?: boolean | undefined;
 
-	constructor(label: string | CompletionItemLabel, replacementRange: readonly [number, number], icon?: ThemeIcon, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean) {
+	constructor(label: string | CompletionItemLabel, replacementRange: readonly [number, number], kind?: TerminalCompletionItemKind, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean) {
 		this.label = label;
 		this.replacementRange = replacementRange;
-		this.icon = icon;
+		this.kind = kind;
 		this.detail = detail;
 		this.documentation = documentation;
 		this.isFile = isFile;
