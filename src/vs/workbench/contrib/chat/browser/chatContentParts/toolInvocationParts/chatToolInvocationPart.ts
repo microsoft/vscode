@@ -177,8 +177,13 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		const resultDetails = IChatToolInvocation.resultDetails(this.toolInvocation);
 		if (Array.isArray(resultDetails) && resultDetails.length) {
-			const metadata = this.toolInvocation.toolMetadata as { hasError?: boolean } | undefined;
-			const hasError = metadata?.hasError === true;
+			// Check if tool metadata indicates an error (e.g., from fetch tool)
+			// The metadata structure is tool-specific, but we check for a common hasError property
+			const metadata = this.toolInvocation.toolMetadata;
+			let hasError = false;
+			if (metadata && typeof metadata === 'object' && 'hasError' in metadata) {
+				hasError = (metadata as { hasError: boolean }).hasError === true;
+			}
 			return this.instantiationService.createInstance(ChatResultListSubPart, this.toolInvocation, this.context, this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage, resultDetails, this.listPool, hasError);
 		}
 
