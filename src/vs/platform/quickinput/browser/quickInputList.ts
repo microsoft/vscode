@@ -324,7 +324,7 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<IQui
 				get value() {
 					return element.item.checked ?? false;
 				},
-				onDidChange: () => { },
+				onDidChange: Event.None,
 			};
 		}
 
