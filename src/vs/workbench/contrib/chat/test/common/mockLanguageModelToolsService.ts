@@ -36,6 +36,10 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	}
 
+	flushToolUpdates(): void {
+
+	}
+
 	cancelToolCallsForRequest(requestId: string): void {
 
 	}

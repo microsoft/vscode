@@ -870,21 +870,7 @@ export class ChatService extends Disposable implements IChatService {
 							message = promptTextResult.message;
 						}
 
-						let isInitialTools = true;
-
-						store.add(autorun(reader => {
-							const tools = options?.userSelectedTools?.read(reader);
-							if (isInitialTools) {
-								isInitialTools = false;
-								return;
-							}
-
-							if (tools) {
-								this.chatAgentService.setRequestTools(agent.id, request.id, tools);
-							}
-						}));
-
-						return {
+						const agentRequest: IChatAgentRequest = {
 							sessionId: model.sessionId,
 							requestId: request.id,
 							agentId: agent.id,
@@ -903,7 +889,25 @@ export class ChatService extends Disposable implements IChatService {
 							modeInstructions: options?.modeInfo?.modeInstructions,
 							editedFileEvents: request.editedFileEvents,
 							chatSummary: options?.chatSummary
-						} satisfies IChatAgentRequest;
+						};
+
+						let isInitialTools = true;
+
+						store.add(autorun(reader => {
+							const tools = options?.userSelectedTools?.read(reader);
+							if (isInitialTools) {
+								isInitialTools = false;
+								return;
+							}
+
+							if (tools) {
+								this.chatAgentService.setRequestTools(agent.id, request.id, tools);
+								// in case the request has not been sent out yet:
+								agentRequest.userSelectedTools = tools;
+							}
+						}));
+
+						return agentRequest;
 					};
 
 					if (
