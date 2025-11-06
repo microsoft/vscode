@@ -21176,13 +21176,14 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A language model response part containing arbitrary data, returned from a {@link LanguageModelChatResponse}.
+	 * A language model response part containing arbitrary data. Can be used in {@link LanguageModelChatResponse responses},
+	 * {@link LanguageModelChatMessage chat messages}, {@link LanguageModelToolResult tool results}, and other language model interactions.
 	 */
 	export class LanguageModelDataPart {
 		/**
 		 * Create a new {@linkcode LanguageModelDataPart} for an image.
 		 * @param data Binary image data
-		 * @param mimeType The MIME type of the image. Common values are `image/png` and `image/jpeg`.
+		 * @param mime The MIME type of the image. Common values are `image/png` and `image/jpeg`.
 		 */
 		static image(data: Uint8Array, mime: string): LanguageModelDataPart;
 
@@ -21193,7 +21194,7 @@ declare module 'vscode' {
 		 * an object that can be stringified. This function will throw an error
 		 * when the passed value cannot be JSON-stringified.
 		 * @param value  A JSON-stringifyable value.
-		 * @param mimeType Optional MIME type, defaults to `application/json`
+		 * @param mime Optional MIME type, defaults to `application/json`
 		 */
 		static json(value: any, mime?: string): LanguageModelDataPart;
 
@@ -21202,7 +21203,7 @@ declare module 'vscode' {
 		 *
 		 * *Note* that an UTF-8 encoder is used to create bytes for the string.
 		 * @param value Text data
-		 * @param mimeType The MIME type if any. Common values are `text/plain` and `text/markdown`.
+		 * @param mime The MIME type if any. Common values are `text/plain` and `text/markdown`.
 		 */
 		static text(value: string, mime?: string): LanguageModelDataPart;
 
