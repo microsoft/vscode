@@ -7791,6 +7791,8 @@ declare module 'vscode' {
 		 * @param commandLine The command line to execute, this is the exact text that will be sent
 		 * to the terminal.
 		 *
+		 * @throws When run on a terminal doesn't support this API, such as task terminals.
+		 *
 		 * @example
 		 * // Execute a command in a terminal immediately after being created
 		 * const myTerm = window.createTerminal();
