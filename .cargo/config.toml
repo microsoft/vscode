@@ -1,0 +1,5 @@
+[patch.crates-io]
+russh = { git = "https://github.com/warp-tech/russh", tag = "v0.54.4" }
+russh-keys = { git = "https://github.com/warp-tech/russh", tag = "v0.54.4" }
+russh-cryptovec = { git = "https://github.com/warp-tech/russh", tag = "v0.54.4" }
+russh-util = { git = "https://github.com/warp-tech/russh", tag = "v0.54.4" }
