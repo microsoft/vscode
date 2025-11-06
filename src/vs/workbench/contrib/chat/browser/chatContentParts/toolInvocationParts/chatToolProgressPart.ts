@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { status } from '../../../../../../base/browser/ui/aria/aria.js';
+import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -100,7 +100,7 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 
 	private provideScreenReaderStatus(content: IMarkdownString | string): void {
 		const message = typeof content === 'string' ? content : content.value;
-		status(message);
+		alert(message);
 	}
 
 	private hasMeaningfulContent(content: IMarkdownString | string | undefined): boolean {
