@@ -460,6 +460,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				this._currentCommand.commandStartMarker = e.startLine !== undefined ? this._terminal.registerMarker(e.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
 				this._currentCommand.commandStartX = e.startX;
 				this._currentCommand.promptStartMarker = e.promptStartLine !== undefined ? this._terminal.registerMarker(e.promptStartLine - (buffer.baseY + buffer.cursorY)) : undefined;
+				this._currentCommand.id = e.id;
 				this._cwd = e.cwd;
 				// eslint-disable-next-line local/code-no-dangerous-type-assertions
 				this._onCommandStarted.fire({ marker } as ITerminalCommand);
