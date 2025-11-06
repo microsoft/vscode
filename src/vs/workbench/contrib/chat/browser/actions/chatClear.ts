@@ -7,8 +7,8 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInput?: ChatEditorInput): Promise<void> {
 	const editorService = accessor.get(IEditorService);
@@ -19,8 +19,11 @@ export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInpu
 	}
 
 	if (chatEditorInput instanceof ChatEditorInput) {
-		const parsedInfo = LocalChatSessionUri.parse(chatEditorInput.resource);
-		const resource = parsedInfo?.chatSessionType ? LocalChatSessionUri.forChatSessionTypeAndId(parsedInfo.chatSessionType, `untitled-${generateUuid()}`) : ChatEditorInput.getNewEditorUri();
+		const genericResource = ChatEditorInput.getNewEditorUri();
+		const resource = chatEditorInput.resource.scheme === genericResource.scheme ? genericResource : URI.from({
+			scheme: chatEditorInput.resource.scheme,
+			path: `/untitled-${generateUuid()}`,
+		});
 
 		// A chat editor can only be open in one group
 		const identifier = editorService.findEditors(chatEditorInput.resource)[0];
