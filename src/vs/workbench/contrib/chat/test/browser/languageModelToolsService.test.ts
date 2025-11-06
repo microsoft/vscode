@@ -1755,6 +1755,91 @@ suite('LanguageModelToolsService', () => {
 
 	});
 
+	test('skipped tool invocation overrides pastTenseMessage', async () => {
+		const toolData: IToolData = {
+			id: 'testSkipTool',
+			modelDescription: 'Skip Test Tool',
+			displayName: 'Skip Test Tool',
+			source: ToolDataSource.Internal,
+		};
 
+		const tool = registerToolForTest(service, store, toolData.id, {
+			prepareToolInvocation: async () => ({
+				pastTenseMessage: 'Fetched some data successfully',
+				confirmationMessages: { title: 'Confirm', message: 'Run this tool?' }
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'should not reach here' }] }),
+		}, toolData);
+
+		const sessionId = 'skip-test';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'skip-req', capture });
+
+		const dto = tool.makeDto({ test: 1 }, { sessionId });
+		const promise = service.invokeTool(dto, async () => 0, CancellationToken.None);
+		const published = await waitForPublishedInvocation(capture);
+
+		// Skip the tool
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.Skipped });
+		const result = await promise;
+
+		// Verify that the result has the skip message
+		assert.strictEqual(result.content[0].kind, 'text');
+		assert.strictEqual(result.content[0].value, 'The user chose to skip the tool call, they want to proceed without running it');
+
+		// Verify that toolResultMessage is set to empty string to override pastTenseMessage
+		assert.strictEqual(result.toolResultMessage, '');
+	});
+
+	test('skipped post-execution confirmation overrides pastTenseMessage', async () => {
+		const toolData: IToolData = {
+			id: 'testPostSkipTool',
+			modelDescription: 'Post Skip Test Tool',
+			displayName: 'Post Skip Test Tool',
+			source: ToolDataSource.Internal,
+			canRequestPostApproval: true,
+		};
+
+		const tool = registerToolForTest(service, store, toolData.id, {
+			prepareToolInvocation: async () => ({
+				pastTenseMessage: 'Tool executed successfully',
+				confirmationMessages: {
+					title: 'Confirm Results',
+					message: 'Share these results?',
+					confirmResults: true
+				}
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'execution result' }] }),
+		}, toolData);
+
+		const sessionId = 'post-skip-test';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'post-skip-req', capture });
+
+		const dto = tool.makeDto({ test: 1 }, { sessionId });
+		const promise = service.invokeTool(dto, async () => 0, CancellationToken.None);
+		const published = await waitForPublishedInvocation(capture);
+
+		// Confirm the pre-execution
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+
+		// Wait for post-execution confirmation
+		await new Promise(resolve => setTimeout(resolve, 100));
+
+		// Skip the post-execution confirmation
+		const state = published.state.get();
+		if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+			state.confirm({ type: ToolConfirmKind.Skipped });
+		}
+
+		const result = await promise;
+
+		// Verify that the result has the post-skip message
+		assert.strictEqual(result.content[0].kind, 'text');
+		assert.strictEqual(result.content[0].value, 'The tool executed but the user chose not to share the results');
+
+		// Verify that toolResultMessage is set to empty string to override pastTenseMessage
+		assert.strictEqual(result.toolResultMessage, '');
+	});
 
 });

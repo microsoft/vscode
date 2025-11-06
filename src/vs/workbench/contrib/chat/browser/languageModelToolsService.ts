@@ -324,7 +324,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 							content: [{
 								kind: 'text',
 								value: 'The user chose to skip the tool call, they want to proceed without running it'
-							}]
+							}],
+							toolResultMessage: ''
 						};
 						return toolResult;
 					}
@@ -375,7 +376,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 						content: [{
 							kind: 'text',
 							value: 'The tool executed but the user chose not to share the results'
-						}]
+						}],
+						toolResultMessage: ''
 					};
 				}
 			}
