@@ -30,6 +30,7 @@ import { ChatToolInvocation } from '../../common/chatProgressTypes/chatToolInvoc
 import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/languageModelToolsConfirmationService.js';
 import { MockLanguageModelToolsConfirmationService } from '../common/mockLanguageModelToolsConfirmationService.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -1477,26 +1478,28 @@ suite('LanguageModelToolsService', () => {
 	});
 
 	test('configuration changes trigger tool updates', async () => {
-		let changeEventFired = false;
-		const disposable = service.onDidChangeTools(() => {
-			changeEventFired = true;
+		return runWithFakedTimers({}, async () => {
+			let changeEventFired = false;
+			const disposable = service.onDidChangeTools(() => {
+				changeEventFired = true;
+			});
+			store.add(disposable);
+
+			// Change the correct configuration key
+			configurationService.setUserConfiguration('chat.extensionTools.enabled', false);
+			// Fire the configuration change event manually
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: () => true,
+				affectedKeys: new Set(['chat.extensionTools.enabled']),
+				change: null!,
+				source: ConfigurationTarget.USER
+			} satisfies IConfigurationChangeEvent);
+
+			// Wait a bit for the scheduler
+			await new Promise(resolve => setTimeout(resolve, 800));
+
+			assert.strictEqual(changeEventFired, true, 'onDidChangeTools should fire when configuration changes');
 		});
-		store.add(disposable);
-
-		// Change the correct configuration key
-		configurationService.setUserConfiguration('chat.extensionTools.enabled', false);
-		// Fire the configuration change event manually
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: () => true,
-			affectedKeys: new Set(['chat.extensionTools.enabled']),
-			change: null!,
-			source: ConfigurationTarget.USER
-		} satisfies IConfigurationChangeEvent);
-
-		// Wait a bit for the scheduler
-		await new Promise(resolve => setTimeout(resolve, 800));
-
-		assert.strictEqual(changeEventFired, true, 'onDidChangeTools should fire when configuration changes');
 	});
 
 	test('toToolAndToolSetEnablementMap with MCP toolset enables contained tools', () => {
