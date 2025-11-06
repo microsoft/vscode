@@ -325,6 +325,7 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate | undefined,
+		protected readonly isElementFocused?: (element: IQuickPickElement) => boolean,
 	) { }
 
 	// TODO: only do the common stuff here and have a subclass handle their specific stuff
@@ -400,9 +401,10 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 
 	constructor(
 		hoverDelegate: IHoverDelegate | undefined,
+		isElementFocused: ((element: IQuickPickElement) => boolean) | undefined,
 		@IThemeService private readonly themeService: IThemeService,
 	) {
-		super(hoverDelegate);
+		super(hoverDelegate, isElementFocused);
 	}
 
 	get templateId() {
@@ -421,6 +423,15 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			checkbox = new Checkbox(element.saneLabel, element.checked, { ...defaultCheckboxStyles, size: 15 });
 			data.checkbox.value = checkbox;
 			data.outerLabel.prepend(checkbox.domNode);
+			
+			// Prevent checkbox from handling Space key when element is not focused in the tree
+			// The tree's Space handler should be the only one that toggles checkboxes
+			data.toDisposeTemplate.add(dom.addStandardDisposableListener(checkbox.domNode, dom.EventType.KEY_DOWN, e => {
+				if (e.keyCode === KeyCode.Space && this.isElementFocused && !this.isElementFocused(data.element)) {
+					e.preventDefault();
+					e.stopPropagation();
+				}
+			}, true)); // Use capture phase to run before the checkbox's handler
 		} else {
 			checkbox.setTitle(element.saneLabel);
 		}
@@ -720,8 +731,10 @@ export class QuickInputList extends Disposable {
 	) {
 		super();
 		this._container = dom.append(this.parent, $('.quick-input-list'));
-		this._separatorRenderer = new QuickPickSeparatorElementRenderer(hoverDelegate);
-		this._itemRenderer = instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate);
+		this._separatorRenderer = new QuickPickSeparatorElementRenderer(hoverDelegate, undefined);
+		this._itemRenderer = instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate, (element: IQuickPickElement) => {
+			return this._tree.getFocus().includes(element);
+		});
 		this._tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<IQuickPickElement, void>,
 			'QuickInput',
