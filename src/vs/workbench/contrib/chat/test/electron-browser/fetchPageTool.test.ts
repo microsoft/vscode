@@ -15,11 +15,12 @@ import { FetchWebPageTool } from '../../electron-browser/tools/fetchPageTool.js'
 import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { MockTrustedDomainService } from '../../../url/test/browser/mockTrustedDomainService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
+import { isToolResultReference } from '../../common/languageModelToolsService.js';
 
 class TestWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;
 
-	constructor(private uriToContentMap: ResourceMap<string>) { }
+	constructor(private uriToContentMap: ResourceMap<string>, private uriToTitleMap?: ResourceMap<string>) { }
 
 	async extract(uris: URI[]): Promise<WebContentExtractResult[]> {
 		return uris.map(uri => {
@@ -27,7 +28,8 @@ class TestWebContentExtractorService implements IWebContentExtractorService {
 			if (content === undefined) {
 				throw new Error(`No content configured for URI: ${uri.toString()}`);
 			}
-			return { status: 'ok', result: content };
+			const title = this.uriToTitleMap?.get(uri);
+			return { status: 'ok', result: content, title };
 		});
 	}
 }
@@ -511,9 +513,15 @@ suite('FetchWebPageTool', () => {
 			assert.ok(Array.isArray(result.toolResultDetails), 'toolResultDetails should be an array');
 			assert.strictEqual(result.toolResultDetails.length, 4, 'Should have 4 successful URIs');
 
-			// Check that all entries are URI objects
-			const uriDetails = result.toolResultDetails as URI[];
-			assert.ok(uriDetails.every(uri => uri instanceof URI), 'All toolResultDetails entries should be URI objects');
+			// Check that all entries are URI objects or IToolResultReference
+			const actualUriStrings = result.toolResultDetails.map(detail => {
+				if (URI.isUri(detail)) {
+					return detail.toString();
+				} else if (typeof detail === 'object' && 'uri' in detail) {
+					return detail.uri.toString();
+				}
+				throw new Error('Unexpected detail type');
+			});
 
 			// Check specific URIs are included (web URIs first, then successful file URIs)
 			const expectedUris = [
@@ -523,7 +531,6 @@ suite('FetchWebPageTool', () => {
 				'mcp-resource://server/file.txt'
 			];
 
-			const actualUriStrings = uriDetails.map(uri => uri.toString());
 			assert.deepStrictEqual(actualUriStrings.sort(), expectedUris.sort(), 'Should contain exactly the expected successful URIs');
 
 			// Verify content array matches input order (including failures)
@@ -862,5 +869,65 @@ suite('FetchWebPageTool', () => {
 				assert.ok(result.content[0].value.includes(InternalFetchWebPageToolId), 'Redirect message should suggest using tool again');
 			}
 		});
+	});
+
+	test('should include page titles in toolResultDetails for web URIs', async () => {
+		const webContentMap = new ResourceMap<string>([
+			[URI.parse('https://example1.com'), 'Content 1'],
+			[URI.parse('https://example2.com'), 'Content 2']
+		]);
+
+		const titleMap = new ResourceMap<string>([
+			[URI.parse('https://example1.com'), 'Example 1 - Page Title'],
+			[URI.parse('https://example2.com'), 'Example 2 - Page Title']
+		]);
+
+		const fileContentMap = new ResourceMap<string | VSBuffer>([
+			[URI.parse('file:///test.txt'), 'File content']
+		]);
+
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(webContentMap, titleMap),
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService(),
+		);
+
+		const result = await tool.invoke(
+			{
+				callId: 'test-titles',
+				toolId: 'fetch-page',
+				parameters: { urls: ['https://example1.com', 'https://example2.com', 'file:///test.txt'] },
+				context: undefined
+			},
+			() => Promise.resolve(0),
+			{ report: () => { } },
+			CancellationToken.None
+		);
+
+		// Verify toolResultDetails contains the URIs with titles
+		assert.ok(Array.isArray(result.toolResultDetails), 'toolResultDetails should be an array');
+		assert.strictEqual(result.toolResultDetails.length, 3, 'Should have 3 entries');
+
+		// First two should be IToolResultReference with titles
+		const firstDetail = result.toolResultDetails[0];
+		assert.ok(isToolResultReference(firstDetail), 'First entry should be IToolResultReference');
+		if (isToolResultReference(firstDetail)) {
+			assert.strictEqual(firstDetail.uri.toString(), 'https://example1.com/', 'First URI should match');
+			assert.strictEqual(firstDetail.title, 'Example 1 - Page Title', 'First title should match');
+		}
+
+		const secondDetail = result.toolResultDetails[1];
+		assert.ok(isToolResultReference(secondDetail), 'Second entry should be IToolResultReference');
+		if (isToolResultReference(secondDetail)) {
+			assert.strictEqual(secondDetail.uri.toString(), 'https://example2.com/', 'Second URI should match');
+			assert.strictEqual(secondDetail.title, 'Example 2 - Page Title', 'Second title should match');
+		}
+
+		// Third should be just a URI (file)
+		const thirdDetail = result.toolResultDetails[2];
+		assert.ok(URI.isUri(thirdDetail), 'Third entry should be a plain URI');
+		if (URI.isUri(thirdDetail)) {
+			assert.strictEqual(thirdDetail.toString(), 'file:///test.txt', 'Third URI should match');
+		}
 	});
 });
