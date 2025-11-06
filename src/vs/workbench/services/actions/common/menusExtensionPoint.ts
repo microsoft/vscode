@@ -158,7 +158,6 @@ const apiMenus: IAPIMenu[] = [
 		key: 'scm/repository',
 		id: MenuId.SCMSourceControlInline,
 		description: localize('menus.scmSourceControlInline', "The Source Control repository menu"),
-		proposed: 'contribSourceControlTitleMenu'
 	},
 	{
 		key: 'scm/resourceState/context',
