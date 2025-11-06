@@ -20,3 +20,10 @@ Review user's request and update code documentation comments in appropriate loca
 - Use {@link \<symbol\>} where possible **and reasonable** to refer to code symbols.
 - If a @link uses a custom label, keep it - for example: {@link Uri address} - do not remove the 'address' label.
 - Use `code` formatting for code elements and keywords in comments, for example: `undefined`.
+- Limit the maximum line length of comments to 120 characters.
+
+## Cleanup Mode
+
+If the user instructed you to "clean up" doc comments (e.g. by passing in "cleanup" as their prompt),
+it is **very important** that you limit your changes to only fixing grammar, punctuation, formatting, and spelling mistakes.
+**YOU MUST NOT** add new or remove or expand existing comments in cleanup mode.
