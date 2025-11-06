@@ -5392,18 +5392,29 @@ export class CommandCenter {
 	}
 
 	@command('git.repositories.deleteBranches', { repository: true })
-	async artifactDeleteBranches(repository: Repository, artifacts: any[]): Promise<void> {
-		if (!repository || !artifacts || artifacts.length === 0) {
+	async artifactDeleteBranches(repository: Repository, artifacts: unknown): Promise<void> {
+		if (!repository || !Array.isArray(artifacts) || artifacts.length === 0) {
 			return;
 		}
 
 		// Extract artifact tree elements from the array
-		const artifactElements = artifacts.filter((a: any) => a && a.artifact);
+		// Each element should have an 'artifact' property with a 'name' field
+		interface ArtifactTreeElement {
+			artifact: { name: string };
+		}
+
+		const isArtifactTreeElement = (item: unknown): item is ArtifactTreeElement => {
+			return typeof item === 'object' && item !== null &&
+				'artifact' in item && typeof (item as ArtifactTreeElement).artifact === 'object' &&
+				'name' in (item as ArtifactTreeElement).artifact;
+		};
+
+		const artifactElements = artifacts.filter(isArtifactTreeElement);
 		if (artifactElements.length === 0) {
 			return;
 		}
 
-		const branchNames = artifactElements.map((a: any) => a.artifact.name);
+		const branchNames = artifactElements.map(a => a.artifact.name);
 		const branchCount = branchNames.length;
 
 		const message = l10n.t('Are you sure you want to delete {0} branches? This action will permanently remove the branch references from the repository.', branchCount);
@@ -5419,7 +5430,7 @@ export class CommandCenter {
 				await this._deleteBranch(repository, undefined, branchName, { remote: false });
 			} catch (err) {
 				// Continue with other branches even if one fails
-				console.error(`Failed to delete branch ${branchName}:`, err);
+				this.logger.error(`Failed to delete branch ${branchName}: ${err}`);
 			}
 		}
 	}
