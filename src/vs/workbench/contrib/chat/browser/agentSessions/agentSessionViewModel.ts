@@ -6,13 +6,12 @@
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 
 //#region Interfaces, Types
@@ -71,10 +70,7 @@ export function isAgentSessionsViewModel(obj: IAgentSessionsViewModel | IAgentSe
 
 //#endregion
 
-const INCLUDE_HISTORY = false;
 export class AgentSessionsViewModel extends Disposable implements IAgentSessionsViewModel {
-
-	private static NO_DESCRIPTION_LABEL = new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`);
 
 	readonly sessions: IAgentSessionViewModel[] = [];
 
@@ -92,7 +88,6 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 
 	constructor(
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IChatService private readonly chatService: IChatService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
@@ -167,11 +162,9 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 						case ChatSessionStatus.Failed:
 							description = localize('chat.session.status.error', 'Failed');
 							break;
-						case ChatSessionStatus.Completed:
+						default:
 							description = localize('chat.session.status.completed', 'Finished');
 							break;
-						default:
-							description = AgentSessionsViewModel.NO_DESCRIPTION_LABEL;
 					}
 				}
 
@@ -189,23 +182,6 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 					},
 					statistics: session.statistics
 				});
-			}
-
-			if (INCLUDE_HISTORY && provider.chatSessionType === localChatSessionType) {
-				// TODO@bpasero this needs to come from the local provider:
-				// - do we want to show history or not and how
-				// - can we support all properties including `startTime` properly
-				for (const history of await this.chatService.getLocalSessionHistory()) {
-					newSessions.push({
-						resource: history.sessionResource,
-						label: history.title,
-						provider: provider,
-						timing: {
-							startTime: history.lastMessageDate ?? Date.now()
-						},
-						description: AgentSessionsViewModel.NO_DESCRIPTION_LABEL,
-					});
-				}
 			}
 		}
 
