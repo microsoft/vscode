@@ -193,8 +193,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			if (instance !== registeredInstance) {
 				return;
 			}
-			await attachInstance(instance);
 			this._store.delete(listener);
+			await attachInstance(instance);
 		});
 
 		if (this._store.isDisposed) {
