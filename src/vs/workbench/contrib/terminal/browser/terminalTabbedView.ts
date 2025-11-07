@@ -143,7 +143,11 @@ export class TerminalTabbedView extends Disposable {
 			this._updateChatTerminalsEntry();
 		}));
 
-		this._register(Event.any(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession, this._terminalService.onDidChangeInstances)(() => {
+		this._register(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(() => {
+			this._refreshShowTabs();
+			this._updateChatTerminalsEntry();
+		}));
+		this._register(this._terminalService.onDidChangeInstances(() => {
 			this._refreshShowTabs();
 			this._updateChatTerminalsEntry();
 		}));
@@ -172,11 +176,17 @@ export class TerminalTabbedView extends Disposable {
 
 	private _shouldShowTabs(): boolean {
 		const enabled = this._terminalConfigurationService.config.tabs.enabled;
-		const hide = this._terminalConfigurationService.config.tabs.hideCondition;
-		const hasChatTerminals = this._terminalChatService.getToolSessionTerminalInstances().length > 0;
 		if (!enabled) {
 			return false;
 		}
+		const hide = this._terminalConfigurationService.config.tabs.hideCondition;
+		const toolInstances = this._terminalChatService.getToolSessionTerminalInstances();
+		const foregroundInstances = new Set(this._terminalService.foregroundInstances.map(i => i.instanceId));
+		const hasHiddenChatTerminals = toolInstances.some(instance => !foregroundInstances.has(instance.instanceId));
+		if (hasHiddenChatTerminals) {
+			return true;
+		}
+		const hasChatTerminals = toolInstances.length > 0;
 
 		if (hide === 'never') {
 			return true;

@@ -9,9 +9,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { $ } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ITerminalChatService } from './terminal.js';
+import { ITerminalChatService, ITerminalService } from './terminal.js';
 import * as dom from '../../../../base/browser/dom.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 export class TerminalTabsChatEntry extends Disposable {
 
@@ -29,7 +28,7 @@ export class TerminalTabsChatEntry extends Disposable {
 		private readonly _tabContainer: HTMLElement,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
 
@@ -55,6 +54,9 @@ export class TerminalTabsChatEntry extends Disposable {
 				runChatTerminalsCommand();
 			}
 		}));
+		this._register(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(() => this.update()));
+		this._register(this._terminalService.onDidChangeInstances(() => this.update()));
+		this.update();
 	}
 
 	get element(): HTMLElement {
@@ -62,9 +64,9 @@ export class TerminalTabsChatEntry extends Disposable {
 	}
 
 	update(): void {
-		const chatTerminalCount = this._terminalChatService.getToolSessionTerminalInstances().length;
-
-		if (!this._contextKeyService.getContextKeyValue<boolean>('hasHiddenChatTerminals')) {
+		const foregroundInstances = new Set(this._terminalService.foregroundInstances.map(i => i.instanceId));
+		const hiddenChatTerminalCount = this._terminalChatService.getToolSessionTerminalInstances().filter(i => foregroundInstances.has(i.instanceId) === false).length;
+		if (hiddenChatTerminalCount <= 0) {
 			this._entry.style.display = 'none';
 			this._label.textContent = '';
 			this._entry.removeAttribute('aria-label');
@@ -75,16 +77,16 @@ export class TerminalTabsChatEntry extends Disposable {
 		this._entry.style.display = '';
 		const hasText = this._tabContainer.classList.contains('has-text');
 		if (hasText) {
-			this._label.textContent = chatTerminalCount === 1
-				? localize('terminal.tabs.chatEntryLabelSingle', "{0} Hidden Terminal", chatTerminalCount)
-				: localize('terminal.tabs.chatEntryLabelPlural', "{0} Hidden Terminals", chatTerminalCount);
+			this._label.textContent = hiddenChatTerminalCount === 1
+				? localize('terminal.tabs.chatEntryLabelSingle', "{0} Hidden Terminal", hiddenChatTerminalCount)
+				: localize('terminal.tabs.chatEntryLabelPlural', "{0} Hidden Terminals", hiddenChatTerminalCount);
 		} else {
-			this._label.textContent = `${chatTerminalCount}`;
+			this._label.textContent = `${hiddenChatTerminalCount}`;
 		}
 
-		const ariaLabel = chatTerminalCount === 1
+		const ariaLabel = hiddenChatTerminalCount === 1
 			? localize('terminal.tabs.chatEntryAriaLabelSingle', "Show 1 hidden chat terminal")
-			: localize('terminal.tabs.chatEntryAriaLabelPlural', "Show {0} hidden chat terminals", chatTerminalCount);
+			: localize('terminal.tabs.chatEntryAriaLabelPlural', "Show {0} hidden chat terminals", hiddenChatTerminalCount);
 		this._entry.setAttribute('aria-label', ariaLabel);
 	}
 }
