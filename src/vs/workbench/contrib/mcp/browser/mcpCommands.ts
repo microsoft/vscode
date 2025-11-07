@@ -81,6 +81,7 @@ export class ListMcpServerCommand extends Action2 {
 			icon: Codicon.server,
 			category,
 			f1: true,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
 			menu: [{
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.or(
@@ -88,7 +89,8 @@ export class ListMcpServerCommand extends Action2 {
 						McpContextKeys.hasServersWithErrors,
 					),
 					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-					ChatContextKeys.lockedToCodingAgent.negate()
+					ChatContextKeys.lockedToCodingAgent.negate(),
+					ChatContextKeys.Setup.hidden.negate(),
 				),
 				id: MenuId.ChatInput,
 				group: 'navigation',
@@ -673,7 +675,7 @@ export class ResetMcpCachedTools extends Action2 {
 			title: localize2('mcp.resetCachedTools', "Reset Cached Tools"),
 			category,
 			f1: true,
-			precondition: McpContextKeys.toolsCount.greater(0),
+			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate()),
 		});
 	}
 
@@ -693,11 +695,13 @@ export class AddConfigurationAction extends Action2 {
 			},
 			category,
 			f1: true,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
 			menu: {
 				id: MenuId.EditorContent,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.regex(ResourceContextKey.Path.key, /\.vscode[/\\]mcp\.json$/),
-					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID)
+					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),
+					ChatContextKeys.Setup.hidden.negate(),
 				)
 			}
 		});
@@ -847,13 +851,15 @@ export class McpBrowseCommand extends Action2 {
 			tooltip: localize2('mcp.command.browse.tooltip', "Browse MCP Servers"),
 			category,
 			icon: Codicon.search,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
 			menu: [{
 				id: extensionsFilterSubMenu,
 				group: '1_predefined',
 				order: 1,
+				when: ChatContextKeys.Setup.hidden.negate(),
 			}, {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledMcpServersViewId)),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledMcpServersViewId), ChatContextKeys.Setup.hidden.negate()),
 				group: 'navigation',
 			}],
 		});
@@ -868,7 +874,8 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: McpCommandIds.Browse,
 		title: localize2('mcp.command.browse.mcp', "Browse MCP Servers"),
-		category
+		category,
+		precondition: ChatContextKeys.Setup.hidden.negate(),
 	},
 });
 
@@ -923,7 +930,8 @@ export class OpenUserMcpResourceCommand extends OpenMcpResourceCommand {
 			id: McpCommandIds.OpenUserMcp,
 			title: localize2('mcp.command.openUserMcp', "Open User Configuration"),
 			category,
-			f1: true
+			f1: true,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
 		});
 	}
 
@@ -940,7 +948,10 @@ export class OpenRemoteUserMcpResourceCommand extends OpenMcpResourceCommand {
 			title: localize2('mcp.command.openRemoteUserMcp', "Open Remote User Configuration"),
 			category,
 			f1: true,
-			precondition: RemoteNameContext.notEqualsTo('')
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				RemoteNameContext.notEqualsTo('')
+			)
 		});
 	}
 
@@ -959,7 +970,10 @@ export class OpenWorkspaceFolderMcpResourceCommand extends Action2 {
 			title: localize2('mcp.command.openWorkspaceFolderMcp', "Open Workspace Folder MCP Configuration"),
 			category,
 			f1: true,
-			precondition: WorkspaceFolderCountContext.notEqualsTo(0)
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				WorkspaceFolderCountContext.notEqualsTo(0)
+			)
 		});
 	}
 
@@ -982,7 +996,10 @@ export class OpenWorkspaceMcpResourceCommand extends Action2 {
 			title: localize2('mcp.command.openWorkspaceMcp', "Open Workspace MCP Configuration"),
 			category,
 			f1: true,
-			precondition: WorkbenchStateContext.isEqualTo('workspace')
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				WorkbenchStateContext.isEqualTo('workspace')
+			)
 		});
 	}
 

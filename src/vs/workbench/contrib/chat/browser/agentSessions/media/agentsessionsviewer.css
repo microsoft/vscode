@@ -18,7 +18,8 @@
 	.agent-session-item {
 		display: flex;
 		flex-direction: row;
-		padding: 0 6px;
+		padding: 0 12px;
+		gap: 2px;
 
 		.agent-session-main-col,
 		.agent-session-title-row,
@@ -27,16 +28,34 @@
 			min-width: 0;
 		}
 
+		.agent-session-icon-col {
+			display: flex;
+			align-items: flex-start;
+			padding-top: 4px;
+
+			.agent-session-icon {
+				flex-shrink: 0;
+				width: 16px;
+				height: 16px;
+				font-size: 16px;
+			}
+		}
+
 		.agent-session-title-row,
 		.agent-session-details-row {
 			display: flex;
 			align-items: center;
-			line-height: 22px;
+			line-height: 20px; /* ends up as 22px with the padding below */
 			gap: 6px;
-			padding: 0 6px;
+		}
+
+		.agent-session-title-row {
+			padding: 2px 6px 0 6px;
 		}
 
 		.agent-session-details-row {
+			padding: 0 6px 2px 6px;
+			font-size: 12px;
 			color: var(--vscode-descriptionForeground);
 
 			.rendered-markdown {
@@ -50,31 +69,16 @@
 			}
 		}
 
-		.agent-session-title {
-			flex: 1;
-		}
-
 		.agent-session-title,
 		.agent-session-description {
 			text-overflow: ellipsis;
 			overflow: hidden;
 		}
 
-		.agent-session-icon {
-			flex-shrink: 0;
-			width: 16px;
-			height: 16px;
-			font-size: 16px;
-		}
-
-		.agent-session-timestamp {
-			font-size: 11px;
-		}
-
 		/* #region Diff Styling */
 
 		.agent-session-diff {
-			font-size: 11px;
+			flex: 1; /* push status to the end */
 			font-weight: 700;
 			display: flex;
 			gap: 4px;

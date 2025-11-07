@@ -24,12 +24,13 @@ import { LanguageModelToolsService } from '../../browser/languageModelToolsServi
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
+import { GithubCopilotToolReference, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet, VSCodeToolReference } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { ChatToolInvocation } from '../../common/chatProgressTypes/chatToolInvocation.js';
 import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/languageModelToolsConfirmationService.js';
 import { MockLanguageModelToolsConfirmationService } from '../common/mockLanguageModelToolsConfirmationService.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -556,7 +557,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with enabled tool
 		{
 			const qualifiedNames = ['tool1RefName'];
-			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 1, 'Expected 1 tool to be enabled');
 			assert.strictEqual(result1.get(tool1), true, 'tool1 should be enabled');
@@ -568,7 +569,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with multiple enabled tools
 		{
 			const qualifiedNames = ['my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName/internalToolSetTool1RefName'];
-			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 4, 'Expected 4 tools to be enabled');
 			assert.strictEqual(result1.get(extTool1), true, 'extTool1 should be enabled');
@@ -581,7 +582,7 @@ suite('LanguageModelToolsService', () => {
 		}
 		// Test with all enabled tools, redundant names
 		{
-			const result1 = service.toToolAndToolSetEnablementMap(allQualifiedNames);
+			const result1 = service.toToolAndToolSetEnablementMap(allQualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 8, 'Expected 8 tools to be enabled');
 
@@ -592,7 +593,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with no enabled tools
 		{
 			const qualifiedNames: string[] = [];
-			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 0, 'Expected 0 tools to be enabled');
 
@@ -602,7 +603,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with unknown tool
 		{
 			const qualifiedNames: string[] = ['unknownToolRefName'];
-			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 0, 'Expected 0 tools to be enabled');
 
@@ -612,7 +613,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with legacy tool names
 		{
 			const qualifiedNames: string[] = ['extTool1RefName', 'mcpToolSetRefName', 'internalToolSetTool1RefName'];
-			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 4, 'Expected 4 tools to be enabled');
 			assert.strictEqual(result1.get(extTool1), true, 'extTool1 should be enabled');
@@ -627,7 +628,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with tool in user tool set
 		{
 			const qualifiedNames = ['Tool2 Display Name'];
-			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 2, 'Expected 1 tool and user tool set to be enabled');
 			assert.strictEqual(result1.get(tool2), true, 'tool2 should be enabled');
@@ -654,7 +655,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test enabling the tool set
 		const enabledNames = [toolData1].map(t => service.getQualifiedToolName(t));
-		const result = service.toToolAndToolSetEnablementMap(enabledNames);
+		const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined);
 
 		assert.strictEqual(result.get(toolData1), true, 'individual tool should be enabled');
 
@@ -714,7 +715,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test enabling the tool set
 		const enabledNames = [toolSet, toolData1].map(t => service.getQualifiedToolName(t));
-		const result = service.toToolAndToolSetEnablementMap(enabledNames);
+		const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined);
 
 		assert.strictEqual(result.get(toolData1), true, 'individual tool should be enabled');
 		assert.strictEqual(result.get(toolData2), false);
@@ -749,7 +750,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test with non-existent tool names
 		const enabledNames = [toolData, unregisteredToolData].map(t => service.getQualifiedToolName(t));
-		const result = service.toToolAndToolSetEnablementMap(enabledNames);
+		const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined);
 
 		assert.strictEqual(result.get(toolData), true, 'existing tool should be enabled');
 		// Non-existent tools should not appear in the result map
@@ -758,6 +759,108 @@ suite('LanguageModelToolsService', () => {
 		const qualifiedNames = service.toQualifiedToolNames(result);
 		const expectedNames = [service.getQualifiedToolName(toolData)]; // Only the existing tool
 		assert.deepStrictEqual(qualifiedNames.sort(), expectedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
+
+	});
+
+
+	test('toToolAndToolSetEnablementMap map Github to VSCode tools', () => {
+		const runCommandsToolData: IToolData = {
+			id: VSCodeToolReference.runCommands,
+			toolReferenceName: VSCodeToolReference.runCommands,
+			modelDescription: 'runCommands',
+			displayName: 'runCommands',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+		};
+
+		store.add(service.registerToolData(runCommandsToolData));
+		const runSubagentToolData: IToolData = {
+			id: VSCodeToolReference.runSubagent,
+			toolReferenceName: VSCodeToolReference.runSubagent,
+			modelDescription: 'runSubagent',
+			displayName: 'runSubagent',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(runSubagentToolData));
+
+		const githubMcpDataSource: ToolDataSource = { type: 'mcp', label: 'Github', serverLabel: 'Github MCP Server', instructions: undefined, collectionId: 'githubMCPCollection', definitionId: 'githubMCPDefId' };
+		const githubMcpTool1: IToolData = {
+			id: 'create_branch',
+			toolReferenceName: 'create_branch',
+			modelDescription: 'Test Github MCP Tool 1',
+			displayName: 'Create Branch',
+			source: githubMcpDataSource,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(githubMcpTool1));
+
+		const githubMcpToolSet = store.add(service.createToolSet(
+			githubMcpDataSource,
+			'githubMcpToolSet',
+			'github/github-mcp-server',
+			{ description: 'Github MCP Test ToolSet' }
+		));
+		store.add(githubMcpToolSet.addTool(githubMcpTool1));
+
+		const playwrightMcpDataSource: ToolDataSource = { type: 'mcp', label: 'playwright', serverLabel: 'playwright MCP Server', instructions: undefined, collectionId: 'playwrightMCPCollection', definitionId: 'playwrightMCPDefId' };
+		const playwrightMcpTool1: IToolData = {
+			id: 'browser_click',
+			toolReferenceName: 'browser_click',
+			modelDescription: 'Test playwright MCP Tool 1',
+			displayName: 'Create Branch',
+			source: playwrightMcpDataSource,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(playwrightMcpTool1));
+
+		const playwrightMcpToolSet = store.add(service.createToolSet(
+			playwrightMcpDataSource,
+			'playwrightMcpToolSet',
+			'microsoft/playwright-mcp',
+			{ description: 'playwright MCP Test ToolSet' }
+		));
+		store.add(playwrightMcpToolSet.addTool(playwrightMcpTool1));
+		{
+			const toolNames = [GithubCopilotToolReference.customAgent, GithubCopilotToolReference.shell];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(runSubagentToolData), true, 'runSubagentToolData should be enabled');
+			assert.strictEqual(result.get(runCommandsToolData), true, 'runCommandsToolData should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, [VSCodeToolReference.runCommands, VSCodeToolReference.runSubagent], 'toQualifiedToolNames should return the VS Code tool names');
+		}
+		{
+			const toolNames = ['github/*', 'playwright/*'];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(githubMcpToolSet), true, 'githubMcpToolSet should be enabled');
+			assert.strictEqual(result.get(playwrightMcpToolSet), true, 'playwrightMcpToolSet should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, ['github/github-mcp-server/*', 'microsoft/playwright-mcp/*'], 'toQualifiedToolNames should return the VS Code tool names');
+		}
+
+		{
+			// map the qualified tool names for github and playwright MCP tools
+			const toolNames = ['github/create_branch', 'playwright/browser_click'];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
+			assert.strictEqual(result.get(playwrightMcpTool1), true, 'playwrightMcpTool1 should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, ['github/github-mcp-server/create_branch', 'microsoft/playwright-mcp/browser_click'], 'toQualifiedToolNames should return the VS Code tool names');
+		}
+
+		{
+			// test that already qualified names are not altered
+			const toolNames = ['github/github-mcp-server/create_branch', 'microsoft/playwright-mcp/browser_click'];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
+			assert.strictEqual(result.get(playwrightMcpTool1), true, 'playwrightMcpTool1 should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, ['github/github-mcp-server/create_branch', 'microsoft/playwright-mcp/browser_click'], 'toQualifiedToolNames should return the VS Code tool names');
+		}
 
 	});
 
@@ -1477,26 +1580,28 @@ suite('LanguageModelToolsService', () => {
 	});
 
 	test('configuration changes trigger tool updates', async () => {
-		let changeEventFired = false;
-		const disposable = service.onDidChangeTools(() => {
-			changeEventFired = true;
+		return runWithFakedTimers({}, async () => {
+			let changeEventFired = false;
+			const disposable = service.onDidChangeTools(() => {
+				changeEventFired = true;
+			});
+			store.add(disposable);
+
+			// Change the correct configuration key
+			configurationService.setUserConfiguration('chat.extensionTools.enabled', false);
+			// Fire the configuration change event manually
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: () => true,
+				affectedKeys: new Set(['chat.extensionTools.enabled']),
+				change: null!,
+				source: ConfigurationTarget.USER
+			} satisfies IConfigurationChangeEvent);
+
+			// Wait a bit for the scheduler
+			await new Promise(resolve => setTimeout(resolve, 800));
+
+			assert.strictEqual(changeEventFired, true, 'onDidChangeTools should fire when configuration changes');
 		});
-		store.add(disposable);
-
-		// Change the correct configuration key
-		configurationService.setUserConfiguration('chat.extensionTools.enabled', false);
-		// Fire the configuration change event manually
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: () => true,
-			affectedKeys: new Set(['chat.extensionTools.enabled']),
-			change: null!,
-			source: ConfigurationTarget.USER
-		} satisfies IConfigurationChangeEvent);
-
-		// Wait a bit for the scheduler
-		await new Promise(resolve => setTimeout(resolve, 800));
-
-		assert.strictEqual(changeEventFired, true, 'onDidChangeTools should fire when configuration changes');
 	});
 
 	test('toToolAndToolSetEnablementMap with MCP toolset enables contained tools', () => {
@@ -1522,7 +1627,7 @@ suite('LanguageModelToolsService', () => {
 		// Enable the MCP toolset
 		{
 			const enabledNames = [mcpToolSet].map(t => service.getQualifiedToolName(t));
-			const result = service.toToolAndToolSetEnablementMap(enabledNames);
+			const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined);
 
 			assert.strictEqual(result.get(mcpToolSet), true, 'MCP toolset should be enabled'); // Ensure the toolset is in the map
 			assert.strictEqual(result.get(mcpTool), true, 'MCP tool should be enabled when its toolset is enabled'); // Ensure the tool is in the map
@@ -1533,7 +1638,7 @@ suite('LanguageModelToolsService', () => {
 		// Enable a tool from the MCP toolset
 		{
 			const enabledNames = [mcpTool].map(t => service.getQualifiedToolName(t, mcpToolSet));
-			const result = service.toToolAndToolSetEnablementMap(enabledNames);
+			const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined);
 
 			assert.strictEqual(result.get(mcpToolSet), false, 'MCP toolset should be disabled'); // Ensure the toolset is in the map
 			assert.strictEqual(result.get(mcpTool), true, 'MCP tool should be enabled'); // Ensure the tool is in the map

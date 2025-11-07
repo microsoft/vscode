@@ -27,7 +27,8 @@ import {
 	IToolResult,
 	ToolDataSource,
 	ToolProgress,
-	ToolSet
+	ToolSet,
+	VSCodeToolReference
 } from '../languageModelToolsService.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';
 
@@ -44,7 +45,7 @@ const modelDescription = `Launch a new agent to handle complex, multi-step tasks
 
 export const RunSubagentToolData: IToolData = {
 	id: RunSubagentToolId,
-	toolReferenceName: 'runSubagent',
+	toolReferenceName: VSCodeToolReference.runSubagent,
 	canBeReferencedInPrompt: true,
 	icon: ThemeIcon.fromId(Codicon.organization.id),
 	displayName: localize('tool.runSubagent.displayName', 'Run Subagent'),
@@ -141,7 +142,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					const modeCustomTools = mode.customTools?.get();
 					if (modeCustomTools) {
 						// Convert the mode's custom tools (array of qualified names) to UserSelectedTools format
-						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools);
+						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools, mode.target?.get());
 						// Convert enablement map to UserSelectedTools (Record<string, boolean>)
 						modeTools = {};
 						for (const [tool, enabled] of enablementMap) {

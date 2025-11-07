@@ -97,6 +97,7 @@ const chatAlwaysUnsupportedFileSchemes = new Set([
 	Schemas.vscodeUserData,
 	Schemas.extension,
 	'ccreq',
+	'openai-codex', // Codex session custom editor scheme
 ]);
 
 export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: string): boolean {

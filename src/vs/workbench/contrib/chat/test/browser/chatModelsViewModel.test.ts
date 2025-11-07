@@ -20,7 +20,7 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	private models = new Map<string, ILanguageModelChatMetadata>();
 	private modelsByVendor = new Map<string, string[]>();
 
-	private readonly _onDidChangeLanguageModels = new Emitter<void>();
+	private readonly _onDidChangeLanguageModels = new Emitter<string>();
 	readonly onDidChangeLanguageModels = this._onDidChangeLanguageModels.event;
 
 	addVendor(vendor: IUserFriendlyLanguageModel): void {
