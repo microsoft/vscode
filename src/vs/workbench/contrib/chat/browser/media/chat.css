@@ -3092,3 +3092,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-style: italic;
 	color: var(--vscode-descriptionForeground);
 }
+
+/* Context usage indicator */
+.context-usage-badge {
+display: inline-block;
+padding: 2px 6px;
+margin-left: 8px;
+font-size: 11px;
+border-radius: 3px;
+background-color: var(--vscode-inputValidation-warningBackground);
+color: var(--vscode-inputValidation-warningForeground);
+border: 1px solid var(--vscode-inputValidation-warningBorder);
+}
+
+.request-hover .context-usage-hover {
+position: relative;
+display: inline-block;
+font-size: 11px;
+padding: 2px 4px;
+}
+
