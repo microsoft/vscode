@@ -9,7 +9,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { $ } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ITerminalChatService, ITerminalService } from './terminal.js';
+import { ITerminalChatService } from './terminal.js';
 import * as dom from '../../../../base/browser/dom.js';
 
 export class TerminalTabsChatEntry extends Disposable {
@@ -28,7 +28,6 @@ export class TerminalTabsChatEntry extends Disposable {
 		private readonly _tabContainer: HTMLElement,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
 
@@ -54,8 +53,6 @@ export class TerminalTabsChatEntry extends Disposable {
 				runChatTerminalsCommand();
 			}
 		}));
-		this._register(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(() => this.update()));
-		this._register(this._terminalService.onDidChangeInstances(() => this.update()));
 		this.update();
 	}
 
