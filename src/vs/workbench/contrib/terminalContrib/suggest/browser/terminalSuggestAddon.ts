@@ -285,10 +285,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			doNotRequestExtensionCompletions = true;
 		}
 
-		if (!doNotRequestExtensionCompletions) {
-			this._logService.trace('SuggestAddon#_handleCompletionProviders onTerminalCompletionsRequested');
-			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
-		}
 		this._currentPromptInputState = {
 			value: this._promptInputModel.value,
 			prefix: this._promptInputModel.prefix,
