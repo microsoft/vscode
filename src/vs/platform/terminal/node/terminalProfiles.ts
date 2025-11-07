@@ -149,7 +149,7 @@ async function detectAvailableWindowsProfiles(
 		try {
 			const result = await getWslProfiles(`${system32Path}\\wsl.exe`, defaultProfileName);
 			for (const wslProfile of result) {
-				if (!configProfiles || !(hasKey(configProfiles, { [wslProfile.profileName]: true }))) {
+				if (!configProfiles || !Object.prototype.hasOwnProperty.call(configProfiles, wslProfile.profileName)) {
 					resultProfiles.push(wslProfile);
 				}
 			}
