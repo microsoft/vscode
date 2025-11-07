@@ -71,7 +71,7 @@ import { ITreeCompressionDelegate } from '../../../../base/browser/ui/tree/async
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IDragAndDropData } from '../../../../base/browser/dnd.js';
+import { DataTransfers, IDragAndDropData } from '../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../base/browser/ui/list/listView.js';
 import { CodeDataTransfers } from '../../../../platform/dnd/browser/dnd.js';
 import { SCMHistoryItemTransferData } from './scmHistoryChatContext.js';
@@ -1001,6 +1001,8 @@ class SCMHistoryTreeDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 		if (historyItems.length === 0) {
 			return;
 		}
+
+		originalEvent.dataTransfer.setData(DataTransfers.TEXT, historyItems.map(hi => hi.historyItem.id).join(' '));
 
 		originalEvent.dataTransfer.setData(CodeDataTransfers.SCM_HISTORY_ITEM, JSON.stringify(historyItems));
 	}
