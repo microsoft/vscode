@@ -917,6 +917,15 @@ suite('Types', () => {
 			assert.strictEqual(obj.a, 'test');
 		});
 
+		test('should return false when object does not have specified key', () => {
+			type A = { a: string };
+			type B = { b: number };
+			const obj: A | B = { b: 42 };
+
+			// @ts-expect-error
+			assert(!types.hasKey(obj, { a: true }));
+		});
+
 		test('should work with multiple keys', () => {
 			type A = { a: string; b: number };
 			type B = { c: boolean };
@@ -954,12 +963,17 @@ suite('Types', () => {
 			const objB: TypeA | TypeB | TypeC = { kind: 'b', count: 5 };
 
 			assert(types.hasKey(objA, { value: true }));
-			// assert(!types.hasKey(objA, { count: true }));
-			// assert(!types.hasKey(objA, { items: true }));
+			// @ts-expect-error
+			assert(!types.hasKey(objA, { count: true }));
+			// @ts-expect-error
+			assert(!types.hasKey(objA, { items: true }));
 
-			// assert(!types.hasKey(objB, { value: true }));
+			// @ts-expect-error
+			assert(!types.hasKey(objB, { value: true }));
+			// @ts-expect-error
 			assert(types.hasKey(objB, { count: true }));
-			// assert(!types.hasKey(objB, { items: true }));
+			// @ts-expect-error
+			assert(!types.hasKey(objB, { items: true }));
 		});
 
 		test('should handle objects with optional properties', () => {
@@ -981,7 +995,8 @@ suite('Types', () => {
 			const obj: A | B = { data: { nested: 'test' } };
 
 			assert(types.hasKey(obj, { data: true }));
-			// assert(!types.hasKey(obj, { value: true }));
+			// @ts-expect-error
+			assert(!types.hasKey(obj, { value: true }));
 		});
 	});
 });
