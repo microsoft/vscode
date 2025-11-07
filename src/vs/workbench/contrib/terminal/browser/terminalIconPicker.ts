@@ -8,7 +8,7 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { codiconsLibrary } from '../../../../base/common/codiconsLibrary.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import type { ThemeIcon } from '../../../../base/common/themables.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
@@ -23,7 +23,7 @@ const icons = new Lazy<IconContribution[]>(() => {
 		if (e.id === codiconsLibrary.blank.id) {
 			return false;
 		}
-		if (!('fontCharacter' in e.defaults)) {
+		if (ThemeIcon.isThemeIcon(e.defaults)) {
 			return false;
 		}
 		if (includedChars.has(e.defaults.fontCharacter)) {

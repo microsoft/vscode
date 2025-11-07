@@ -149,19 +149,25 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	}
 
 	private async initialize(): Promise<void> {
+		this.logService.debug('[DefaultAccount] Starting initialization');
+
 		if (!this.productService.defaultAccount) {
+			this.logService.debug('[DefaultAccount] No default account configuration in product service, skipping initialization');
 			return;
 		}
 
 		const defaultAccountProviderId = this.getDefaultAccountProviderId();
+		this.logService.debug('[DefaultAccount] Default account provider ID:', defaultAccountProviderId);
 		if (!defaultAccountProviderId) {
 			return;
 		}
 
 		await this.extensionService.whenInstalledExtensionsRegistered();
+		this.logService.debug('[DefaultAccount] Installed extensions registered.');
+
 		const declaredProvider = this.authenticationService.declaredProviders.find(provider => provider.id === defaultAccountProviderId);
 		if (!declaredProvider) {
-			this.logService.info(`Default account authentication provider ${defaultAccountProviderId} is not declared.`);
+			this.logService.info(`[DefaultAccount] Authentication provider is not declared.`, defaultAccountProviderId);
 			return;
 		}
 
@@ -180,6 +186,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount!.authenticationProvider.scopes));
 		}));
 
+		this.logService.debug('[DefaultAccount] Initialization complete');
 	}
 
 	private setDefaultAccount(account: IDefaultAccount | null): void {
@@ -187,8 +194,10 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		this.defaultAccountService.setDefaultAccount(this.defaultAccount);
 		if (this.defaultAccount) {
 			this.accountStatusContext.set(DefaultAccountStatus.Available);
+			this.logService.debug('[DefaultAccount] Account status set to Available');
 		} else {
 			this.accountStatusContext.set(DefaultAccountStatus.Unavailable);
+			this.logService.debug('[DefaultAccount] Account status set to Unavailable');
 		}
 	}
 
@@ -200,33 +209,42 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			const [key, value] = field.split('=');
 			result.set(key, value);
 		}
-		this.logService.trace(`DefaultAccount#extractFromToken: ${JSON.stringify(Object.fromEntries(result))}`);
+		this.logService.debug(`[DefaultAccount] extractFromToken: ${JSON.stringify(Object.fromEntries(result))}`);
 		return result;
 	}
 
 	private async getDefaultAccountFromAuthenticatedSessions(authProviderId: string, scopes: string[]): Promise<IDefaultAccount | null> {
-		const sessions = await this.authenticationService.getSessions(authProviderId, undefined, undefined, true);
-		const session = sessions.find(s => this.scopesMatch(s.scopes, scopes));
+		try {
+			this.logService.debug('[DefaultAccount] Getting Default Account from authenticated sessions for provider:', authProviderId);
+			const sessions = await this.authenticationService.getSessions(authProviderId, undefined, undefined, true);
+			const session = sessions.find(s => this.scopesMatch(s.scopes, scopes));
 
-		if (!session) {
+			if (!session) {
+				this.logService.debug('[DefaultAccount] No matching session found for provider:', authProviderId);
+				return null;
+			}
+
+			const [chatEntitlements, tokenEntitlements] = await Promise.all([
+				this.getChatEntitlements(session.accessToken),
+				this.getTokenEntitlements(session.accessToken),
+			]);
+
+			const mcpRegistryProvider = tokenEntitlements.mcp ? await this.getMcpRegistryProvider(session.accessToken) : undefined;
+
+			const account = {
+				sessionId: session.id,
+				enterprise: this.isEnterpriseAuthenticationProvider(authProviderId) || session.account.label.includes('_'),
+				...chatEntitlements,
+				...tokenEntitlements,
+				mcpRegistryUrl: mcpRegistryProvider?.url,
+				mcpAccess: mcpRegistryProvider?.registry_access,
+			};
+			this.logService.debug('[DefaultAccount] Successfully created default account for provider:', authProviderId);
+			return account;
+		} catch (error) {
+			this.logService.error('[DefaultAccount] Failed to create default account for provider:', authProviderId, getErrorMessage(error));
 			return null;
 		}
-
-		const [chatEntitlements, tokenEntitlements] = await Promise.all([
-			this.getChatEntitlements(session.accessToken),
-			this.getTokenEntitlements(session.accessToken),
-		]);
-
-		const mcpRegistryProvider = tokenEntitlements.mcp ? await this.getMcpRegistryProvider(session.accessToken) : undefined;
-
-		return {
-			sessionId: session.id,
-			enterprise: this.isEnterpriseAuthenticationProvider(authProviderId) || session.account.label.includes('_'),
-			...chatEntitlements,
-			...tokenEntitlements,
-			mcpRegistryUrl: mcpRegistryProvider?.url,
-			mcpAccess: mcpRegistryProvider?.registry_access,
-		};
 	}
 
 	private scopesMatch(scopes: ReadonlyArray<string>, expectedScopes: string[]): boolean {
@@ -236,9 +254,11 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	private async getTokenEntitlements(accessToken: string): Promise<Partial<IDefaultAccount>> {
 		const tokenEntitlementsUrl = this.getTokenEntitlementUrl();
 		if (!tokenEntitlementsUrl) {
+			this.logService.debug('[DefaultAccount] No token entitlements URL found');
 			return {};
 		}
 
+		this.logService.debug('[DefaultAccount] Fetching token entitlements from:', tokenEntitlementsUrl);
 		try {
 			const chatContext = await this.requestService.request({
 				type: 'GET',
@@ -271,9 +291,11 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	private async getChatEntitlements(accessToken: string): Promise<Partial<IChatEntitlementsResponse>> {
 		const chatEntitlementsUrl = this.getChatEntitlementUrl();
 		if (!chatEntitlementsUrl) {
+			this.logService.debug('[DefaultAccount] No chat entitlements URL found');
 			return {};
 		}
 
+		this.logService.debug('[DefaultAccount] Fetching chat entitlements from:', chatEntitlementsUrl);
 		try {
 			const context = await this.requestService.request({
 				type: 'GET',
@@ -298,6 +320,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	private async getMcpRegistryProvider(accessToken: string): Promise<IMcpRegistryProvider | undefined> {
 		const mcpRegistryDataUrl = this.getMcpRegistryDataUrl();
 		if (!mcpRegistryDataUrl) {
+			this.logService.debug('[DefaultAccount] No MCP registry data URL found');
 			return undefined;
 		}
 
@@ -316,7 +339,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 				this.logService.debug('Fetched MCP registry providers', data.mcp_registries);
 				return data.mcp_registries[0];
 			}
-			this.logService.error('Failed to fetch MCP registry providers', 'No data returned');
+			this.logService.debug('Failed to fetch MCP registry providers', 'No data returned');
 		} catch (error) {
 			this.logService.error('Failed to fetch MCP registry providers', getErrorMessage(error));
 		}

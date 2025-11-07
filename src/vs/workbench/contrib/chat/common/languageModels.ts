@@ -241,7 +241,7 @@ export interface ILanguageModelsService {
 	readonly _serviceBrand: undefined;
 
 	// TODO @lramos15 - Make this a richer event in the future. Right now it just indicates some change happened, but not what
-	readonly onDidChangeLanguageModels: Event<void>;
+	readonly onDidChangeLanguageModels: Event<string>;
 
 	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void;
 
@@ -322,8 +322,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private _modelPickerUserPreferences: Record<string, boolean> = {};
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
 	private readonly _contextKeyService: IContextKeyService;
-	private readonly _onLanguageModelChange = this._store.add(new Emitter<void>());
-	readonly onDidChangeLanguageModels: Event<void> = this._onLanguageModelChange.event;
+	private readonly _onLanguageModelChange = this._store.add(new Emitter<string>());
+	readonly onDidChangeLanguageModels: Event<string> = this._onLanguageModelChange.event;
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -409,7 +409,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		} else if (model.isUserSelectable !== showInModelPicker) {
 			this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
 		}
-		this._onLanguageModelChange.fire();
+		this._onLanguageModelChange.fire(model.vendor);
 		this._logService.trace(`[LM] Updated model picker preference for ${modelIdentifier} to ${showInModelPicker}`);
 	}
 
@@ -473,7 +473,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			} catch (error) {
 				this._logService.error(`[LM] Error resolving language models for vendor ${vendor}:`, error);
 			}
-			this._onLanguageModelChange.fire();
+			this._onLanguageModelChange.fire(vendor);
 		});
 	}
 

@@ -105,6 +105,15 @@ export class LinkedList<E> {
 		}
 	}
 
+	peek(): E | undefined {
+		if (this._last === Node.Undefined) {
+			return undefined;
+		} else {
+			const res = this._last.element;
+			return res;
+		}
+	}
+
 	private _remove(node: Node<E>): void {
 		if (node.prev !== Node.Undefined && node.next !== Node.Undefined) {
 			// middle

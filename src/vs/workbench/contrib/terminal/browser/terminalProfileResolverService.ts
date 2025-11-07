@@ -169,7 +169,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		return this._context.getEnvironment(remoteAuthority);
 	}
 
-	private _getCustomIcon(icon?: unknown): TerminalIcon | undefined {
+	private _getCustomIcon(icon?: TerminalIcon): TerminalIcon | undefined {
 		if (!icon) {
 			return undefined;
 		}
@@ -182,11 +182,8 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		if (URI.isUri(icon) || isUriComponents(icon)) {
 			return URI.revive(icon);
 		}
-		if (typeof icon === 'object' && 'light' in icon && 'dark' in icon) {
-			const castedIcon = (icon as { light: unknown; dark: unknown });
-			if ((URI.isUri(castedIcon.light) || isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || isUriComponents(castedIcon.dark))) {
-				return { light: URI.revive(castedIcon.light), dark: URI.revive(castedIcon.dark) };
-			}
+		if ((URI.isUri(icon.light) || isUriComponents(icon.light)) && (URI.isUri(icon.dark) || isUriComponents(icon.dark))) {
+			return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
 		}
 		return undefined;
 	}

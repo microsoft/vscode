@@ -16,6 +16,7 @@ import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { MockChatSessionsService } from '../common/mockChatSessionsService.js';
 import { TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 suite('AgentSessionsViewModel', () => {
 
@@ -860,6 +861,8 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
+			providerLabel: 'Local',
+			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://local-1'),
 			label: 'Local',
 			description: 'test',
@@ -872,6 +875,8 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
+			providerLabel: 'Local',
+			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://remote-1'),
 			label: 'Remote',
 			description: 'test',
@@ -889,6 +894,8 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
+			providerLabel: 'Local',
+			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://test-1'),
 			label: 'Test',
 			description: 'test',
@@ -910,6 +917,8 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
+			providerLabel: 'Local',
+			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://test-1'),
 			label: 'Test',
 			description: 'test',

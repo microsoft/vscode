@@ -19,6 +19,7 @@ import { terminalStrings } from '../common/terminalStrings.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { HasSpeechProvider } from '../../speech/common/speechService.js';
+import { hasKey } from '../../../../base/common/types.js';
 
 export const enum TerminalContextMenuGroup {
 	Chat = '0_chat',
@@ -787,7 +788,7 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 } {
 	const dropdownActions: IAction[] = [];
 	const submenuActions: IAction[] = [];
-	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && 'viewColumn' in location && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
+	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && hasKey(location, { viewColumn: true }) && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 
 	if (location === TerminalLocation.Editor) {
 		location = { viewColumn: ACTIVE_GROUP };
