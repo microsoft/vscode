@@ -53,6 +53,7 @@ import { McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/commo
 import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
 import { CellEditType } from '../../contrib/notebook/common/notebookCommon.js';
 import { ICellRange } from '../../contrib/notebook/common/notebookRange.js';
+import { InputValidationType } from '../../contrib/scm/common/scm.js';
 import * as search from '../../contrib/search/common/search.js';
 import { TestId } from '../../contrib/testing/common/testId.js';
 import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestRunProfileReference, ITestTag, TestMessageType, TestResultItem, TestRunProfileBitset, denamespaceTestTag, namespaceTestTag } from '../../contrib/testing/common/testTypes.js';
@@ -66,7 +67,6 @@ import { CommandsConverter } from './extHostCommands.js';
 import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
 import { LanguageModelDataPart, LanguageModelPromptTsxPart, LanguageModelTextPart } from './extHostTypes.js';
-import { InputValidationType } from '../../contrib/scm/common/scm.js';
 
 export namespace Command {
 
@@ -3169,6 +3169,7 @@ export namespace ChatAgentRequest {
 			editedFileEvents: request.editedFileEvents,
 			modeInstructions: request.modeInstructions?.content,
 			modeInstructions2: ChatRequestModeInstructions.to(request.modeInstructions),
+			isSubagent: request.isSubagent,
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
@@ -3188,6 +3189,8 @@ export namespace ChatAgentRequest {
 			delete (requestWithAllProps as any).editedFileEvents;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).sessionId;
+			// eslint-disable-next-line local/code-no-any-casts
+			delete (requestWithAllProps as any).isSubagent;
 		}
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {

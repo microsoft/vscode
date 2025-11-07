@@ -481,6 +481,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						e.capability.promptInputModel.onDidChangeInput,
 						e.capability.promptInputModel.onDidFinishInput
 					)(refreshInfo));
+					this._register(e.capability.onCommandExecuted(async (command) => {
+						// Only generate ID if command doesn't already have one (i.e., it's a manual command, not Copilot-initiated)
+						// The tool terminal sets the command ID before command start, so this won't override it
+						if (!command.id && command.command) {
+							const commandId = generateUuid();
+							this.xterm?.shellIntegration.setNextCommandId(command.command, commandId);
+							await this._processManager.setNextCommandId(command.command, commandId);
+						}
+					}));
 					break;
 				}
 				case TerminalCapability.PromptTypeDetection: {
@@ -902,6 +911,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				onKeyListener?.dispose();
 				onKeyListener = undefined;
 			}));
+		}
+
+		if (this.xterm?.shellIntegration) {
+			this.capabilities.add(this.xterm.shellIntegration.capabilities);
 		}
 
 		this._pathService.userHome().then(userHome => {
@@ -1552,9 +1565,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		if (this.isDisposed) {
 			return;
-		}
-		if (this.xterm?.shellIntegration) {
-			this.capabilities.add(this.xterm.shellIntegration.capabilities);
 		}
 		if (originalIcon !== this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
 			this._icon = this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon;

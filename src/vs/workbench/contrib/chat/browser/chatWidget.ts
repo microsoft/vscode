@@ -81,7 +81,7 @@ import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/langua
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
-import { IHandOff, ParsedPromptFile, PromptHeader } from '../common/promptSyntax/promptFileParser.js';
+import { IHandOff, ParsedPromptFile, PromptHeader, Target } from '../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
@@ -95,6 +95,7 @@ import { ChatViewPane } from './chatViewPane.js';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { katexContainerClassName } from '../../markdown/common/markedKatexExtension.js';
 
 const $ = dom.$;
 
@@ -457,7 +458,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser)
-				.parseChatRequest(this.viewModel!.sessionResource, this.getInput(), this.location, {
+				.parseChatRequest(this.viewModel.sessionResource, this.getInput(), this.location, {
 					selectedAgent: this._lastSelectedAgent,
 					mode: this.input.currentModeKind,
 					forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined
@@ -545,7 +546,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Context key for when empty state history is enabled and in empty state
 		this.inEmptyStateWithHistoryEnabledKey = ChatContextKeys.inEmptyStateWithHistoryEnabled.bindTo(contextKeyService);
-		this._welcomeRenderScheduler = this._register(new RunOnceScheduler(() => this.renderWelcomeViewContentIfNeeded(), 10));
+		this._welcomeRenderScheduler = this._register(new RunOnceScheduler(() => this.renderWelcomeViewContentIfNeeded(), 0));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.EmptyStateHistoryEnabled)) {
 				this.updateEmptyStateWithHistoryContext();
@@ -1948,7 +1949,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.inputPart?.toggleChatInputOverlay(false);
 			try {
-				if (editedRequest?.rowContainer && editedRequest.rowContainer.contains(this.inputContainer)) {
+				if (editedRequest?.rowContainer?.contains(this.inputContainer)) {
 					editedRequest.rowContainer.removeChild(this.inputContainer);
 				} else if (this.inputContainer.parentElement) {
 					this.inputContainer.parentElement.removeChild(this.inputContainer);
@@ -1970,7 +1971,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart?.setEditing(!!this.viewModel?.editing && isInput);
 
 		this.onDidChangeItems();
-		if (editedRequest && editedRequest.currentElement) {
+		if (editedRequest?.currentElement) {
 			this.renderer.updateItemHeightOnRender(editedRequest.currentElement, editedRequest);
 		}
 
@@ -2015,7 +2016,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Check if the context menu was opened on a KaTeX element
 		const target = e.browserEvent.target as HTMLElement;
-		const isKatexElement = target.closest('.katex') !== null;
+		const isKatexElement = target.closest(`.${katexContainerClassName}`) !== null;
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
 			[ChatContextKeys.responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered],
@@ -2224,6 +2225,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
 			return;
 		}
+		this.inputPart.clearTodoListWidget(model.sessionResource, false);
+		this.chatSuggestNextWidget.hide();
 
 		if (this.historyList) {
 			this.historyList.setFocus([]);
@@ -2306,6 +2309,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			// Show next steps widget when response completes (not when request starts)
 			if (e.kind === 'completedRequest') {
+				const lastRequest = this.viewModel?.model.getRequests().at(-1);
+				const wasCancelled = lastRequest?.response?.isCanceled ?? false;
+				if (wasCancelled) {
+					// Clear todo list when request is cancelled
+					this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
+				}
 				// Only show if response wasn't canceled
 				this.renderChatSuggestNextWidget();
 			}
@@ -2836,7 +2845,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const currentAgent = this.input.currentModeObs.get();
 
 		// switch to appropriate agent if needed
-		if (agentName !== currentAgent.name) {
+		if (agentName !== currentAgent.name.get()) {
 			// Find the mode object to get its kind
 			const agent = this.chatModeService.findModeByName(agentName);
 			if (agent) {
@@ -2857,7 +2866,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private async _applyPromptMetadata({ agent, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
 
 		if (tools !== undefined && !agent && this.input.currentModeKind !== ChatModeKind.Agent) {
-			agent = ChatMode.Agent.name;
+			agent = ChatMode.Agent.name.get();
 		}
 		// switch to appropriate agent if needed
 		if (agent) {
@@ -2866,7 +2875,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// if not tools to enable are present, we are done
 		if (tools !== undefined && this.input.currentModeKind === ChatModeKind.Agent) {
-			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools);
+			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools, Target.VSCode);
 			this.input.selectedToolsModel.set(enablementMap, true);
 		}
 

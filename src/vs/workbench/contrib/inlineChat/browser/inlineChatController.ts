@@ -14,7 +14,7 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -49,6 +49,7 @@ import { ISharedWebContentExtractorService } from '../../../../platform/webConte
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IChatAttachmentResolveService } from '../../chat/browser/chatAttachmentResolveService.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
@@ -1244,7 +1245,6 @@ export class InlineChatController2 implements IEditorContribution {
 	}
 
 	private readonly _store = new DisposableStore();
-	private readonly _showWidgetOverrideObs = observableValue(this, false);
 	private readonly _isActiveController = observableValue(this, false);
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
 
@@ -1270,7 +1270,7 @@ export class InlineChatController2 implements IEditorContribution {
 		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
-		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
+		@IChatAgentService chatAgentService: IChatAgentService,
 		@IChatService chatService: IChatService,
 	) {
 
@@ -1291,7 +1291,7 @@ export class InlineChatController2 implements IEditorContribution {
 						selection: this._editor.getSelection(),
 						document,
 						wholeRange,
-						close: () => this._showWidgetOverrideObs.set(false, undefined),
+						close: () => { /* TODO@jrieken */ },
 						delegateSessionResource: chatService.editingSessions.find(session =>
 							session.entries.get().some(e => e.hasModificationAt({
 								range: wholeRange,
@@ -1336,7 +1336,20 @@ export class InlineChatController2 implements IEditorContribution {
 				{ editor: this._editor, notebookEditor },
 			);
 
+			this._store.add(result);
+
 			result.domNode.classList.add('inline-chat-2');
+
+			// agent lock
+			const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline));
+			this._store.add(autorun(r => {
+				const agent = agentObs.read(r);
+				if (agent) {
+					result.widget.chatWidget.lockToCodingAgent(agent.name, agent.fullName || agent.name, agent.id);
+				} else {
+					result.widget.chatWidget.unlockFromCodingAgent();
+				}
+			}));
 
 			return result;
 		});
@@ -1382,17 +1395,8 @@ export class InlineChatController2 implements IEditorContribution {
 
 			if (!session || !isActive || !model) {
 				visibleSessionObs.set(undefined, undefined);
-				return;
-			}
-
-			const { chatModel } = session;
-			const showShowUntil = this._showWidgetOverrideObs.read(r);
-			const hasNoRequests = chatModel.getRequests().length === 0;
-
-			if (showShowUntil || hasNoRequests) {
-				visibleSessionObs.set(session, undefined);
 			} else {
-				visibleSessionObs.set(undefined, undefined);
+				visibleSessionObs.set(session, undefined);
 			}
 		}));
 
@@ -1465,11 +1469,6 @@ export class InlineChatController2 implements IEditorContribution {
 		this._store.dispose();
 	}
 
-	toggleWidgetUntilNextRequest() {
-		const value = this._showWidgetOverrideObs.get();
-		this._showWidgetOverrideObs.set(!value, undefined);
-	}
-
 	getWidgetPosition(): Position | undefined {
 		return this._zone.rawValue?.position;
 	}
@@ -1485,11 +1484,18 @@ export class InlineChatController2 implements IEditorContribution {
 	async run(arg?: InlineChatRunOptions): Promise<boolean> {
 		assertType(this._editor.hasModel());
 
-		this.markActiveController();
 
 		const uri = this._editor.getModel().uri;
-		const session = this._inlineChatSessions.getSession2(uri)
-			?? await this._inlineChatSessions.createSession2(this._editor, uri, CancellationToken.None);
+
+		const existingSession = this._inlineChatSessions.getSession2(uri);
+		if (existingSession) {
+			await existingSession.editingSession.accept();
+			existingSession.dispose();
+		}
+
+		this.markActiveController();
+
+		const session = await this._inlineChatSessions.createSession2(this._editor, uri, CancellationToken.None);
 
 		// ADD diagnostics
 		const entries: IChatRequestVariableEntry[] = [];

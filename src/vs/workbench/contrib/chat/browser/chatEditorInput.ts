@@ -54,16 +54,16 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	public get sessionId(): string | undefined { return this._sessionInfo?.sessionId; }
 
 	private hasCustomTitle: boolean = false;
+	private didTransferOutEditingSession = false;
 	private cachedIcon: ThemeIcon | URI | undefined;
 
 	private model: IChatModel | undefined;
 
 	static getNewEditorUri(): URI {
-		const handle = Math.floor(Math.random() * 1e9);
-		return ChatEditorUri.forHandle(handle);
+		return ChatEditorUri.getNewEditorUri();
 	}
 
-	static getNextCount(inputName: string): number {
+	private static getNextCount(inputName: string): number {
 		let count = 0;
 		while (ChatEditorInput.countsInUseMap.get(inputName)?.has(count)) {
 			count++;
@@ -134,8 +134,13 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return this.model?.editingSession ? shouldShowClearEditingSessionConfirmation(this.model.editingSession) : false;
 	}
 
+	transferOutEditingSession(): IChatEditingSession | undefined {
+		this.didTransferOutEditingSession = true;
+		return this.model?.editingSession;
+	}
+
 	async confirm(editors: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
-		if (!this.model?.editingSession) {
+		if (!this.model?.editingSession || this.didTransferOutEditingSession) {
 			return ConfirmResult.SAVE;
 		}
 
@@ -346,11 +351,12 @@ export class ChatEditorModel extends Disposable {
 }
 
 
-export namespace ChatEditorUri {
+namespace ChatEditorUri {
 
-	export const scheme = Schemas.vscodeChatEditor;
+	const scheme = Schemas.vscodeChatEditor;
 
-	export function forHandle(handle: number): URI {
+	export function getNewEditorUri(): URI {
+		const handle = Math.floor(Math.random() * 1e9);
 		return URI.from({ scheme, path: `chat-${handle}` });
 	}
 

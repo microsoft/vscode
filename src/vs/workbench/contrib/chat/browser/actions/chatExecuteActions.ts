@@ -1096,7 +1096,6 @@ class SendToNewChatAction extends Action2 {
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
-			whenNotInProgress,
 		);
 
 		super({
@@ -1118,9 +1117,15 @@ class SendToNewChatAction extends Action2 {
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const dialogService = accessor.get(IDialogService);
+		const chatService = accessor.get(IChatService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
+		}
+
+		// Cancel any in-progress request before clearing
+		if (widget.viewModel) {
+			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource);
 		}
 
 		const editingSession = widget.viewModel?.model.editingSession;

@@ -1032,7 +1032,7 @@
         "title": "%command.graphCheckout%",
         "icon": "$(target)",
         "category": "Git",
-        "enablement": "!operationInProgress"
+        "enablement": "!operationInProgress && !scmArtifactIsHistoryItemRef"
       },
       {
         "command": "git.repositories.checkoutDetached",
@@ -1076,13 +1076,13 @@
         "command": "git.repositories.deleteBranch",
         "title": "%command.deleteRef%",
         "category": "Git",
-        "enablement": "!operationInProgress"
+        "enablement": "!operationInProgress && !scmArtifactIsHistoryItemRef"
       },
       {
         "command": "git.repositories.deleteTag",
         "title": "%command.deleteRef%",
         "category": "Git",
-        "enablement": "!operationInProgress"
+        "enablement": "!operationInProgress && !scmArtifactIsHistoryItemRef"
       },
       {
         "command": "git.repositories.createFrom",
@@ -2498,6 +2498,11 @@
           "command": "git.openFile",
           "group": "navigation",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInNotebookTextDiffEditor && resourceScheme =~ /^git$|^file$/"
+        },
+        {
+          "command": "git.openFile",
+          "group": "navigation",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isInNotebookTextDiffEditor && resourceScheme == git"
         },
         {
           "command": "git.openChange",

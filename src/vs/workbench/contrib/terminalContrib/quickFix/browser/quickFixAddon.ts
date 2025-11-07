@@ -33,6 +33,7 @@ import { CodeActionKind } from '../../../../../editor/contrib/codeAction/common/
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import type { SingleOrMany } from '../../../../../base/common/types.js';
 
 const enum QuickFixDecorationSelector {
 	QuickFix = 'quick-fix'
@@ -338,7 +339,7 @@ export async function getQuickFixesForCommand(
 	openerService: IOpenerService,
 	labelService: ILabelService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; shouldExecute?: boolean }>,
-	getResolvedFixes?: (selector: ITerminalQuickFixOptions, lines?: string[]) => Promise<ITerminalQuickFix | ITerminalQuickFix[] | undefined>
+	getResolvedFixes?: (selector: ITerminalQuickFixOptions, lines?: string[]) => Promise<SingleOrMany<ITerminalQuickFix> | undefined>
 ): Promise<ITerminalAction[] | undefined> {
 	// Prevent duplicates by tracking added entries
 	const commandQuickFixSet: Set<string> = new Set();

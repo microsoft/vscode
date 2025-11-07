@@ -2571,7 +2571,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return folder;
 	}
 
-	getTerminalsForTasks(task: (Task | Task[])): URI[] | undefined {
+	getTerminalsForTasks(task: Types.SingleOrMany<Task>): URI[] | undefined {
 		return this._taskSystem?.getTerminalsForTasks(task);
 	}
 

@@ -328,6 +328,7 @@ export class ChatViewWelcomePart extends Disposable {
 
 	private renderMarkdownMessageContent(content: IMarkdownString, options: IChatViewWelcomeRenderOptions | undefined): IRenderedMarkdown {
 		const messageResult = this._register(this.markdownRendererService.render(content));
+		// eslint-disable-next-line no-restricted-syntax
 		const firstLink = options?.firstLinkToButton ? messageResult.element.querySelector('a') : undefined;
 		if (firstLink) {
 			const target = firstLink.getAttribute('data-href');

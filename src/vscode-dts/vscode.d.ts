@@ -7791,6 +7791,8 @@ declare module 'vscode' {
 		 * @param commandLine The command line to execute, this is the exact text that will be sent
 		 * to the terminal.
 		 *
+		 * @throws When run on a terminal doesn't support this API, such as task terminals.
+		 *
 		 * @example
 		 * // Execute a command in a terminal immediately after being created
 		 * const myTerm = window.createTerminal();
@@ -8199,13 +8201,13 @@ declare module 'vscode' {
 	 * {@link TerminalCompletionList} describing completions for the current command line.
 	 *
 	 * @example <caption>Simple provider returning a single completion</caption>
-	 * window.registerTerminalCompletionProvider('extension-provider-id', {
+	 * window.registerTerminalCompletionProvider({
 	 * 	provideTerminalCompletions(terminal, context) {
 	 * 		return [{ label: '--help', replacementRange: [Math.max(0, context.cursorPosition - 2), context.cursorPosition] }];
 	 * 	}
 	 * });
 	 */
-	export interface TerminalCompletionProvider<T extends TerminalCompletionItem> {
+	export interface TerminalCompletionProvider<T extends TerminalCompletionItem = TerminalCompletionItem> {
 		/**
 		 * Provide completions for the given terminal and context.
 		 * @param terminal The terminal for which completions are being provided.
@@ -8240,8 +8242,7 @@ declare module 'vscode' {
 		/**
 		 * The range in the command line to replace when the completion is accepted. Defined
 		 * as a tuple where the first entry is the inclusive start index and the second entry is the
-		 * exclusive end index. When `undefined` the completion will be inserted at the cursor
-		 * position. When the two numbers are equal only the cursor position changes (insertion).
+		 * exclusive end index.
 		 *
 		 */
 		replacementRange: readonly [number, number];
@@ -8257,7 +8258,7 @@ declare module 'vscode' {
 		documentation?: string | MarkdownString;
 
 		/**
-		 * The completion's kind. Note that this will map to an icon.
+		 * The completion's kind. Note that this will map to an icon. If no kind is provided, a generic icon representing plaintext will be provided.
 		 */
 		kind?: TerminalCompletionItemKind;
 
@@ -8372,8 +8373,7 @@ declare module 'vscode' {
 	/**
 	 * Context information passed to {@link TerminalCompletionProvider.provideTerminalCompletions}.
 	 *
-	 * It contains the full command line, the current cursor position, and a flag indicating whether
-	 * completions were explicitly invoked.
+	 * It contains the full command line and the current cursor position
 	 */
 	export interface TerminalCompletionContext {
 		/**
@@ -8388,7 +8388,8 @@ declare module 'vscode' {
 
 	/**
 	 * Represents a collection of {@link TerminalCompletionItem completion items} to be presented
-	 * in the terminal.
+	 * in the terminal plus {@link TerminalCompletionList.resourceOptions} which indicate
+	 * which file and folder resources should be requested for the terminal's cwd.
 	 *
 	 * @example <caption>Create a completion list that requests files for the terminal cwd</caption>
 	 * const list = new TerminalCompletionList([
@@ -12021,16 +12022,28 @@ declare module 'vscode' {
 		/**
 		 * Register a completion provider for terminals.
 		 * @param provider The completion provider.
+		 * @param triggerCharacters Optional characters that trigger completion. When any of these characters is typed,
+		 * the completion provider will be invoked. For example, passing `'-'` would cause the provider to be invoked
+		 * whenever the user types a dash character.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 *
 		 * @example <caption>Register a provider for an extension</caption>
-		 * window.registerTerminalCompletionProvider('extension-provider-id', {
+		 * window.registerTerminalCompletionProvider({
 		 * 	provideTerminalCompletions(terminal, context) {
 		 * 		return new TerminalCompletionList([
-		 * 			{ label: '--version', replacementRange: [Math.max(0, context.cursorPosition - 2), 2] }
+		 * 			{ label: '--version', replacementRange: [Math.max(0, context.cursorPosition - 2), context.cursorPosition] }
 		 * 		]);
 		 * 	}
 		 * });
+		 *
+		 * @example <caption>Register a provider with trigger characters</caption>
+		 * window.registerTerminalCompletionProvider({
+		 * 	provideTerminalCompletions(terminal, context) {
+		 * 		return new TerminalCompletionList([
+		 * 			{ label: '--help', replacementRange: [Math.max(0, context.cursorPosition - 2), context.cursorPosition] }
+		 * 		]);
+		 * 	}
+		 * }, '-');
 		 */
 		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
 		/**
@@ -17969,9 +17982,16 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * The access token.
+		 * The access token. This token should be used to authenticate requests to a service. Popularized by OAuth.
+		 * @reference https://oauth.net/2/access-tokens/
 		 */
 		readonly accessToken: string;
+
+		/**
+		 * The ID token. This token contains identity information about the user. Popularized by OpenID Connect.
+		 * @reference https://openid.net/specs/openid-connect-core-1_0.html#IDToken
+		 */
+		readonly idToken?: string;
 
 		/**
 		 * The account associated with the session.
@@ -20970,9 +20990,11 @@ declare module 'vscode' {
 		 * 	}
 		 * ```
 		 *
-		 * When a new McpServerDefinitionProvider is available, the editor will present a 'refresh'
-		 * action to the user to discover new servers. To enable this flow, extensions should
-		 * call `registerMcpServerDefinitionProvider` during activation.
+		 * When a new McpServerDefinitionProvider is available, the editor will, by default,
+		 * automatically invoke it to discover new servers and tools when a chat message is
+		 * submitted. To enable this flow, extensions should call
+		 * `registerMcpServerDefinitionProvider` during activation.
+		 *
 		 * @param id The ID of the provider, which is unique to the extension.
 		 * @param provider The provider to register
 		 * @returns A disposable that unregisters the provider when disposed.
@@ -21154,13 +21176,14 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A language model response part containing arbitrary data, returned from a {@link LanguageModelChatResponse}.
+	 * A language model response part containing arbitrary data. Can be used in {@link LanguageModelChatResponse responses},
+	 * {@link LanguageModelChatMessage chat messages}, {@link LanguageModelToolResult tool results}, and other language model interactions.
 	 */
 	export class LanguageModelDataPart {
 		/**
 		 * Create a new {@linkcode LanguageModelDataPart} for an image.
 		 * @param data Binary image data
-		 * @param mimeType The MIME type of the image. Common values are `image/png` and `image/jpeg`.
+		 * @param mime The MIME type of the image. Common values are `image/png` and `image/jpeg`.
 		 */
 		static image(data: Uint8Array, mime: string): LanguageModelDataPart;
 
@@ -21171,7 +21194,7 @@ declare module 'vscode' {
 		 * an object that can be stringified. This function will throw an error
 		 * when the passed value cannot be JSON-stringified.
 		 * @param value  A JSON-stringifyable value.
-		 * @param mimeType Optional MIME type, defaults to `application/json`
+		 * @param mime Optional MIME type, defaults to `application/json`
 		 */
 		static json(value: any, mime?: string): LanguageModelDataPart;
 
@@ -21180,7 +21203,7 @@ declare module 'vscode' {
 		 *
 		 * *Note* that an UTF-8 encoder is used to create bytes for the string.
 		 * @param value Text data
-		 * @param mimeType The MIME type if any. Common values are `text/plain` and `text/markdown`.
+		 * @param mime The MIME type if any. Common values are `text/plain` and `text/markdown`.
 		 */
 		static text(value: string, mime?: string): LanguageModelDataPart;
 

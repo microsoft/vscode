@@ -10,6 +10,7 @@ import { ITreeSitterLibraryService } from '../../../../../editor/common/services
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 
 export const enum TreeSitterCommandParserLanguage {
 	Bash = 'bash',
@@ -99,8 +100,9 @@ export class TreeSitterCommandParser extends Disposable {
 	}
 
 	private _throwIfCanCrash(languageId: TreeSitterCommandParserLanguage) {
-		// TODO: The powershell grammar can cause an OOM crash on arm https://github.com/microsoft/vscode/issues/273177
+		// TODO: The powershell grammar can cause an OOM crash on Windows/arm https://github.com/microsoft/vscode/issues/273177
 		if (
+			isWindows &&
 			(arch === 'arm' || arch === 'arm64') &&
 			languageId === TreeSitterCommandParserLanguage.PowerShell
 		) {

@@ -20,25 +20,19 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IQuickAccessTextEditorContext } from '../../../../../editor/contrib/quickAccess/browser/editorNavigationQuickAccess.js';
 import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
-	private static zeroBasedOffsetSetting = 'workbench.quickOpen.useZeroBasedOffset';
 	protected readonly onDidActiveTextEditorControlChange: Event<void>;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService protected override readonly storageService: IStorageService
 	) {
-		super({
-			get value() {
-				return configurationService.getValue<boolean>(GotoLineQuickAccessProvider.zeroBasedOffsetSetting);
-			},
-			set value(value: boolean) {
-				configurationService.updateValue(GotoLineQuickAccessProvider.zeroBasedOffsetSetting, value);
-			}
-		});
+		super();
 		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 	}
 

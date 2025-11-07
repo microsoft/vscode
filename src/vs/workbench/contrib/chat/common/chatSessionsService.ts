@@ -13,6 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditableData } from '../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './chatAgents.js';
+import { IChatEditingSession } from './chatEditingService.js';
 import { IChatRequestVariableData } from './chatModel.js';
 import { IChatProgress } from './chatService.js';
 
@@ -110,6 +111,11 @@ export interface IChatSession extends IDisposable {
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
+
+	/**
+	 * Editing session transferred from a previously-untitled chat session in `onDidCommitChatSessionItem`.
+	 */
+	initialEditingSession?: IChatEditingSession;
 
 	requestHandler?: (
 		request: IChatAgentRequest,

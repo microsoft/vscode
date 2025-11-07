@@ -49,7 +49,8 @@ import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatWidgetService } from '../chat.js';
-import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID } from './agentSessions.js';
+import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID, AgentSessionProviders } from './agentSessions.js';
+import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 
 export class AgentSessionsView extends ViewPane {
 
@@ -258,26 +259,54 @@ export class AgentSessionsView extends ViewPane {
 
 	private getNewSessionActions(): IAction[] {
 		const actions: IAction[] = [];
+
+		// Default action
+		actions.push(toAction({
+			id: 'newChatSession.default',
+			label: localize('newChatSessionDefault', "New Local Session"),
+			run: () => this.commandService.executeCommand(ACTION_ID_OPEN_CHAT)
+		}));
+
+		// Background (CLI)
+		actions.push(toAction({
+			id: 'newChatSessionFromProvider.background',
+			label: localize('newBackgroundSession', "New Background Session"),
+			run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Background}`)
+		}));
+
+		// Cloud
+		actions.push(toAction({
+			id: 'newChatSessionFromProvider.cloud',
+			label: localize('newCloudSession', "New Cloud Session"),
+			run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Cloud}`)
+		}));
+
+		actions.push(new Separator());
+
 		for (const provider of this.chatSessionsService.getAllChatSessionContributions()) {
+			if (provider.type === AgentSessionProviders.Background || provider.type === AgentSessionProviders.Cloud) {
+				continue; // already added above
+			}
 
-			// Generic action to create new provider specific session
-			actions.push(toAction({
-				id: `newChatSessionFromProvider.${provider.type}`,
-				label: localize('newChatSessionFromProvider', "New {0}", provider.displayName),
-				run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${provider.type}`)
-			}));
+			const menuActions = this.menuService.getMenuActions(MenuId.ChatSessionsCreateSubMenu, this.scopedContextKeyService.createOverlay([
+				[ChatContextKeys.sessionType.key, provider.type]
+			]));
 
-			// Collect provider specific additional actions
-			const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.scopedContextKeyService.createOverlay([[ChatContextKeys.sessionType.key, provider.type]]));
-			const primaryActions = getActionBarActions(
-				menu.getActions({ shouldForwardArgs: true }),
-				'submenu',
-			).primary;
+			const primaryActions = getActionBarActions(menuActions, () => true).primary;
+
+			// Prefer provider creation actions...
 			if (primaryActions.length > 0) {
 				actions.push(...primaryActions);
-				actions.push(new Separator());
 			}
-			menu.dispose();
+
+			// ...over our generic one
+			else {
+				actions.push(toAction({
+					id: `newChatSessionFromProvider.${provider.type}`,
+					label: localize('newChatSessionFromProvider', "New {0}", provider.displayName),
+					run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${provider.type}`)
+				}));
+			}
 		}
 
 		// Install more
@@ -317,6 +346,7 @@ export class AgentSessionsView extends ViewPane {
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
 				findWidgetEnabled: true,
+				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				sorter: new AgentSessionsSorter(),
 				paddingBottom: AgentSessionsListDelegate.ITEM_HEIGHT

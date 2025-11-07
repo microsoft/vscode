@@ -374,12 +374,14 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 	private renderInputBox(container: HTMLElement, session: IChatSessionItem, editableData: IEditableData): DisposableStore {
 		// Hide the existing resource label element and session content
+		// eslint-disable-next-line no-restricted-syntax
 		const existingResourceLabelElement = container.querySelector('.monaco-icon-label') as HTMLElement;
 		if (existingResourceLabelElement) {
 			existingResourceLabelElement.style.display = 'none';
 		}
 
 		// Hide the session content container to avoid layout conflicts
+		// eslint-disable-next-line no-restricted-syntax
 		const sessionContentElement = container.querySelector('.session-content') as HTMLElement;
 		if (sessionContentElement) {
 			sessionContentElement.style.display = 'none';
@@ -432,6 +434,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			}
 
 			// Restore the session content container
+			// eslint-disable-next-line no-restricted-syntax
 			const sessionContentElement = container.querySelector('.session-content') as HTMLElement;
 			if (sessionContentElement) {
 				sessionContentElement.style.display = '';

@@ -425,14 +425,14 @@ class PrimaryOpenChatGlobalAction extends OpenChatGlobalAction {
 }
 
 export function getOpenChatActionIdForMode(mode: IChatMode): string {
-	return `workbench.action.chat.open${mode.name}`;
+	return `workbench.action.chat.open${mode.name.get()}`;
 }
 
 abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 	constructor(mode: IChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
 		super({
 			id: getOpenChatActionIdForMode(mode),
-			title: localize2('openChatMode', "Open Chat ({0})", mode.label),
+			title: localize2('openChatMode', "Open Chat ({0})", mode.label.get()),
 			keybinding
 		}, mode);
 	}
@@ -1612,9 +1612,7 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 // --- Title Bar Chat Controls
 
 const defaultChat = {
-	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
-	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
 	provider: product.defaultChatAgent?.provider ?? { enterprise: { id: '' } },
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 	completionsMenuCommand: product.defaultChatAgent?.completionsMenuCommand ?? '',

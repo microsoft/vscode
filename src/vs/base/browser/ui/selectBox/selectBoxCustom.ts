@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import * as arrays from '../../../common/arrays.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { KeyCode, KeyCodeUtils } from '../../../common/keyCodes.js';
-import { Disposable, IDisposable } from '../../../common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
 import { isMacintosh } from '../../../common/platform.js';
 import { ScrollbarVisibility } from '../../../common/scrollable.js';
 import * as cssJs from '../../cssValue.js';
@@ -15,7 +15,7 @@ import * as dom from '../../dom.js';
 import * as domStylesheetsJs from '../../domStylesheets.js';
 import { DomEmitter } from '../../event.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
-import { MarkdownActionHandler, renderMarkdown } from '../../markdownRenderer.js';
+import { IRenderedMarkdown, MarkdownActionHandler, renderMarkdown } from '../../markdownRenderer.js';
 import { AnchorPosition, IContextViewProvider } from '../contextview/contextview.js';
 import type { IManagedHover } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
@@ -103,6 +103,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private _dropDownPosition!: AnchorPosition;
 	private _hasDetails: boolean = false;
 	private selectionDetailsPane!: HTMLElement;
+	private readonly _selectionDetailsDisposables = this._register(new DisposableStore());
 	private _skipLayout: boolean = false;
 	private _cachedMaxDetailsHeight?: number;
 	private _hover?: IManagedHover;
@@ -868,7 +869,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 
-	private renderDescriptionMarkdown(text: string, actionHandler?: MarkdownActionHandler): HTMLElement {
+	private renderDescriptionMarkdown(text: string, actionHandler?: MarkdownActionHandler): IRenderedMarkdown {
 		const cleanRenderedMarkdown = (element: Node) => {
 			for (let i = 0; i < element.childNodes.length; i++) {
 				const child = <Element>element.childNodes.item(i);
@@ -887,7 +888,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		rendered.element.classList.add('select-box-description-markdown');
 		cleanRenderedMarkdown(rendered.element);
 
-		return rendered.element;
+		return rendered;
 	}
 
 	// List Focus Change - passive - update details pane with newly focused element's data
@@ -901,7 +902,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 	private updateDetail(selectedIndex: number): void {
+		// Reset
+		this._selectionDetailsDisposables.clear();
 		this.selectionDetailsPane.textContent = '';
+
 		const option = this.options[selectedIndex];
 		const description = option?.description ?? '';
 		const descriptionIsMarkdown = option?.descriptionIsMarkdown ?? false;
@@ -909,7 +913,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		if (description) {
 			if (descriptionIsMarkdown) {
 				const actionHandler = option.descriptionMarkdownActionHandler;
-				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description, actionHandler));
+				const result = this._selectionDetailsDisposables.add(this.renderDescriptionMarkdown(description, actionHandler));
+				this.selectionDetailsPane.appendChild(result.element);
 			} else {
 				this.selectionDetailsPane.textContent = description;
 			}

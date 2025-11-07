@@ -324,7 +324,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	abstract readonly changesCount: IObservable<number>;
 
-	acceptStreamingEditsStart(responseModel: IChatResponseModel, undoStopId: string | undefined, tx: ITransaction) {
+	acceptStreamingEditsStart(responseModel: IChatResponseModel, undoStopId: string | undefined, tx: ITransaction | undefined) {
 		this._resetEditsState(tx);
 		this._isCurrentlyBeingModifiedByObs.set({ responseModel, undoStopId }, tx);
 		this._lastModifyingResponseObs.set(responseModel, tx);
@@ -359,7 +359,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	// --- snapshot
 
-	abstract createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry;
+	abstract createSnapshot(sessionId: string, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry;
 
 	abstract equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean;
 

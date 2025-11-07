@@ -336,6 +336,10 @@ export class QuickInputTreeController extends Disposable {
 				toUpdate.push(...update.children);
 				updated.add(update.element);
 				this._tree.rerender(update.element);
+				this._onDidChangeCheckboxState.fire({
+					item: update.element,
+					checked: update.element.checked
+				});
 			}
 		}
 		if (fireCheckedChangeEvent) {

@@ -15,9 +15,10 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../../browser/treeSitterCommandParser.js';
 import { arch } from '../../../../../../base/common/process.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
 
-// TODO: The powershell grammar can cause an OOM crash on arm https://github.com/microsoft/vscode/issues/273177
-(arch === 'arm' || arch === 'arm64' ? suite.skip : suite)('TreeSitterCommandParser', () => {
+// TODO: The powershell grammar can cause an OOM crash on Windows/arm https://github.com/microsoft/vscode/issues/273177
+(isWindows && (arch === 'arm' || arch === 'arm64') ? suite.skip : suite)('TreeSitterCommandParser', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;

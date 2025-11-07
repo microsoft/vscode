@@ -1387,7 +1387,7 @@ class EditorResourceAccessorImpl {
 
 		// Original URI is the `preferredResource` of an editor if any
 		const originalResource = isEditorInputWithPreferredResource(editor) ? editor.preferredResource : editor.resource;
-		if (!originalResource || !options || !options.filterByScheme) {
+		if (!originalResource || !options?.filterByScheme) {
 			return originalResource;
 		}
 
@@ -1456,7 +1456,7 @@ class EditorResourceAccessorImpl {
 
 		// Canonical URI is the `resource` of an editor
 		const canonicalResource = editor.resource;
-		if (!canonicalResource || !options || !options.filterByScheme) {
+		if (!canonicalResource || !options?.filterByScheme) {
 			return canonicalResource;
 		}
 
@@ -1590,7 +1590,7 @@ class EditorFactoryRegistry implements IEditorFactoryRegistry {
 Registry.add(EditorExtensions.EditorFactory, new EditorFactoryRegistry());
 
 export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService, logService: ILogService): Promise<ReadonlyArray<IResourceEditorInput | IUntitledTextResourceEditorInput | undefined>> {
-	if (!paths || !paths.length) {
+	if (!paths?.length) {
 		return [];
 	}
 

@@ -26,7 +26,10 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	declare _serviceBrand: undefined;
 
 	private readonly _terminalInstancesByToolSessionId = new Map<string, ITerminalInstance>();
+	private readonly _toolSessionIdByTerminalInstance = new Map<ITerminalInstance, string>();
+	private readonly _chatSessionIdByTerminalInstance = new Map<ITerminalInstance, string>();
 	private readonly _terminalInstanceListenersByToolSessionId = this._register(new DisposableMap<string, IDisposable>());
+	private readonly _chatSessionListenersByTerminalInstance = this._register(new DisposableMap<ITerminalInstance, IDisposable>());
 	private readonly _onDidRegisterTerminalInstanceForToolSession = new Emitter<ITerminalInstance>();
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance> = this._onDidRegisterTerminalInstanceForToolSession.event;
 
@@ -61,9 +64,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			return;
 		}
 		this._terminalInstancesByToolSessionId.set(terminalToolSessionId, instance);
+		this._toolSessionIdByTerminalInstance.set(instance, terminalToolSessionId);
 		this._onDidRegisterTerminalInstanceForToolSession.fire(instance);
 		this._terminalInstanceListenersByToolSessionId.set(terminalToolSessionId, instance.onDisposed(() => {
 			this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
+			this._toolSessionIdByTerminalInstance.delete(instance);
 			this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
 			this._persistToStorage();
 			this._updateHasToolTerminalContextKeys();
@@ -72,6 +77,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._register(this._chatService.onDidDisposeSession(e => {
 			if (LocalChatSessionUri.parseLocalSessionId(e.sessionResource) === terminalToolSessionId) {
 				this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
+				this._toolSessionIdByTerminalInstance.delete(instance);
 				this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
 				this._persistToStorage();
 				this._updateHasToolTerminalContextKeys();
@@ -106,6 +112,32 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	getToolSessionTerminalInstances(): readonly ITerminalInstance[] {
 		// Ensure unique instances in case multiple tool sessions map to the same terminal
 		return Array.from(new Set(this._terminalInstancesByToolSessionId.values()));
+	}
+
+	getToolSessionIdForInstance(instance: ITerminalInstance): string | undefined {
+		return this._toolSessionIdByTerminalInstance.get(instance);
+	}
+
+	registerTerminalInstanceWithChatSession(chatSessionId: string, instance: ITerminalInstance): void {
+		// If already registered with the same session ID, skip to avoid duplicate listeners
+		if (this._chatSessionIdByTerminalInstance.get(instance) === chatSessionId) {
+			return;
+		}
+
+		// Clean up previous listener if the instance was registered with a different session
+		this._chatSessionListenersByTerminalInstance.deleteAndDispose(instance);
+
+		this._chatSessionIdByTerminalInstance.set(instance, chatSessionId);
+		// Clean up when the instance is disposed
+		const disposable = instance.onDisposed(() => {
+			this._chatSessionIdByTerminalInstance.delete(instance);
+			this._chatSessionListenersByTerminalInstance.deleteAndDispose(instance);
+		});
+		this._chatSessionListenersByTerminalInstance.set(instance, disposable);
+	}
+
+	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined {
+		return this._chatSessionIdByTerminalInstance.get(instance);
 	}
 
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean {
@@ -144,9 +176,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		for (const [toolSessionId, persistentProcessId] of this._pendingRestoredMappings) {
 			if (persistentProcessId === instance.shellLaunchConfig.attachPersistentProcess?.id) {
 				this._terminalInstancesByToolSessionId.set(toolSessionId, instance);
+				this._toolSessionIdByTerminalInstance.set(instance, toolSessionId);
 				this._onDidRegisterTerminalInstanceForToolSession.fire(instance);
 				this._terminalInstanceListenersByToolSessionId.set(toolSessionId, instance.onDisposed(() => {
 					this._terminalInstancesByToolSessionId.delete(toolSessionId);
+					this._toolSessionIdByTerminalInstance.delete(instance);
 					this._terminalInstanceListenersByToolSessionId.deleteAndDispose(toolSessionId);
 					this._persistToStorage();
 				}));

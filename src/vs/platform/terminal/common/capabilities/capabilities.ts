@@ -276,12 +276,6 @@ export interface IHandleCommandOptions {
 	 * Properties for the mark
 	 */
 	markProperties?: IMarkProperties;
-
-	/**
-	 * An optional predefined command ID. When provided, this ID will be used instead of
-	 * generating a new one, allowing commands to be linked across renderer and ptyHost.
-	 */
-	commandId?: string;
 }
 
 export interface INaiveCwdDetectionCapability {

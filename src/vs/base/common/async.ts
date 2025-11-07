@@ -1657,8 +1657,8 @@ export class TaskSequentializer {
 			this._queued = {
 				run,
 				promise,
-				promiseResolve: promiseResolve!,
-				promiseReject: promiseReject!
+				promiseResolve,
+				promiseReject
 			};
 		}
 

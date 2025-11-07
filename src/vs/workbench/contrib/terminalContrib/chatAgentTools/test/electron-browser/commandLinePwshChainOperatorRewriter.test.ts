@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -19,8 +19,8 @@ import { arch } from '../../../../../../base/common/process.js';
 import { CommandLinePwshChainOperatorRewriter } from '../../browser/tools/commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
 import type { ICommandLineRewriterOptions } from '../../browser/tools/commandLineRewriter/commandLineRewriter.js';
 
-// TODO: The powershell grammar can cause an OOM crash on arm https://github.com/microsoft/vscode/issues/273177
-(arch === 'arm' || arch === 'arm64' ? suite.skip : suite)('CommandLinePwshChainOperatorRewriter', () => {
+// TODO: The powershell grammar can cause an OOM crash on Windows/arm https://github.com/microsoft/vscode/issues/273177
+(isWindows && (arch === 'arm' || arch === 'arm64') ? suite.skip : suite)('CommandLinePwshChainOperatorRewriter', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;

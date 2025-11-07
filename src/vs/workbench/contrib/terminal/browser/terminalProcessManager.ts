@@ -44,6 +44,7 @@ import { shouldUseEnvironmentVariableCollection } from '../../../../platform/ter
 import { TerminalContribSettingId } from '../terminalContribExports.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
+import type { MaybePromise } from '../../../../base/common/async.js';
 
 const enum ProcessConstants {
 	/**
@@ -96,7 +97,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _dataFilter: SeamlessRelaunchDataFilter;
 	private _processListeners?: IDisposable[];
 	private _isDisconnected: boolean = false;
-	private _hasLoggedSetNextCommandIdFallback = false;
 
 	private _processTraits: IProcessReadyEvent | undefined;
 	private _shellLaunchConfig?: IShellLaunchConfig;
@@ -579,7 +579,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	setDimensions(cols: number, rows: number): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: true): void;
-	setDimensions(cols: number, rows: number, sync?: boolean): Promise<void> | void {
+	setDimensions(cols: number, rows: number, sync?: boolean): MaybePromise<void> {
 		if (sync) {
 			this._resize(cols, rows);
 			return;
@@ -598,27 +598,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (!process) {
 			return;
 		}
-		try {
-			await process.setNextCommandId(commandLine, commandId);
-		} catch (error) {
-			if (!this._shouldIgnoreSetNextCommandIdError(error)) {
-				throw error;
-			}
-		}
-	}
-
-	private _shouldIgnoreSetNextCommandIdError(error: unknown): boolean {
-		if (!(error instanceof Error) || !error.message) {
-			return false;
-		}
-		if (!error.message.includes('Method not found: setNextCommandId') && !error.message.includes('Method not found: $setNextCommandId')) {
-			return false;
-		}
-		if (!this._hasLoggedSetNextCommandIdFallback) {
-			this._hasLoggedSetNextCommandIdFallback = true;
-			this._logService.trace('setNextCommandId not supported by current terminal backend, falling back.');
-		}
-		return true;
+		await process.setNextCommandId(commandLine, commandId);
 	}
 
 	private _resize(cols: number, rows: number) {
