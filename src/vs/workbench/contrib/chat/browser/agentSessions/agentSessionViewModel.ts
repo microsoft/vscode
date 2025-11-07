@@ -107,10 +107,6 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 	}
 
 	async resolve(provider: string | string[] | undefined): Promise<void> {
-		if (this.lifecycleService.willShutdown) {
-			return;
-		}
-
 		if (Array.isArray(provider)) {
 			for (const p of provider) {
 				this.providersToResolve.add(p);
@@ -120,7 +116,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		}
 
 		return this.resolver.trigger(async token => {
-			if (token.isCancellationRequested) {
+			if (token.isCancellationRequested || this.lifecycleService.willShutdown) {
 				return;
 			}
 
