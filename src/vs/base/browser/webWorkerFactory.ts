@@ -12,12 +12,15 @@ import { Disposable, toDisposable } from '../common/lifecycle.js';
 import { coalesce } from '../common/arrays.js';
 import { getNLSLanguage, getNLSMessages } from '../../nls.js';
 import { Emitter } from '../common/event.js';
+import { getMonacoEnvironment } from './browser.js';
 
 // Reuse the trusted types policy defined from worker bootstrap
 // when available.
 // Refs https://github.com/microsoft/vscode/issues/222193
 let ttPolicy: ReturnType<typeof createTrustedTypesPolicy>;
+// eslint-disable-next-line local/code-no-any-casts
 if (typeof self === 'object' && self.constructor && self.constructor.name === 'DedicatedWorkerGlobalScope' && (globalThis as any).workerttPolicy !== undefined) {
+	// eslint-disable-next-line local/code-no-any-casts
 	ttPolicy = (globalThis as any).workerttPolicy;
 } else {
 	ttPolicy = createTrustedTypesPolicy('defaultWorkerFactory', { createScriptURL: value => value });
@@ -34,11 +37,7 @@ function getWorker(descriptor: IWebWorkerDescriptor, id: number): Worker | Promi
 	const label = descriptor.label || 'anonymous' + id;
 
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
-	interface IMonacoEnvironment {
-		getWorker?(moduleId: string, label: string): Worker | Promise<Worker>;
-		getWorkerUrl?(moduleId: string, label: string): string;
-	}
-	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
+	const monacoEnvironment = getMonacoEnvironment();
 	if (monacoEnvironment) {
 		if (typeof monacoEnvironment.getWorker === 'function') {
 			return monacoEnvironment.getWorker('workerMain.js', label);
@@ -129,13 +128,14 @@ class WebWorker extends Disposable implements IWebWorker {
 	private readonly _onError = this._register(new Emitter<any>());
 	public readonly onError = this._onError.event;
 
-	constructor(descriptorOrWorker: IWebWorkerDescriptor | Worker) {
+	constructor(descriptorOrWorker: IWebWorkerDescriptor | Worker | Promise<Worker>) {
 		super();
 		this.id = ++WebWorker.LAST_WORKER_ID;
 		const workerOrPromise = (
 			descriptorOrWorker instanceof Worker
-				? descriptorOrWorker
-				: getWorker(descriptorOrWorker, this.id)
+				? descriptorOrWorker :
+				'then' in descriptorOrWorker ? descriptorOrWorker
+					: getWorker(descriptorOrWorker, this.id)
 		);
 		if (isPromiseLike(workerOrPromise)) {
 			this.worker = workerOrPromise;
@@ -197,8 +197,8 @@ export class WebWorkerDescriptor implements IWebWorkerDescriptor {
 }
 
 export function createWebWorker<T extends object>(esmModuleLocation: URI, label: string | undefined): IWebWorkerClient<T>;
-export function createWebWorker<T extends object>(workerDescriptor: IWebWorkerDescriptor | Worker): IWebWorkerClient<T>;
-export function createWebWorker<T extends object>(arg0: URI | IWebWorkerDescriptor | Worker, arg1?: string | undefined): IWebWorkerClient<T> {
+export function createWebWorker<T extends object>(workerDescriptor: IWebWorkerDescriptor | Worker | Promise<Worker>): IWebWorkerClient<T>;
+export function createWebWorker<T extends object>(arg0: URI | IWebWorkerDescriptor | Worker | Promise<Worker>, arg1?: string | undefined): IWebWorkerClient<T> {
 	const workerDescriptorOrWorker = (URI.isUri(arg0) ? new WebWorkerDescriptor(arg0, arg1) : arg0);
 	return new WebWorkerClient<T>(new WebWorker(workerDescriptorOrWorker));
 }

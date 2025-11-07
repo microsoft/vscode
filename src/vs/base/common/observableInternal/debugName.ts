@@ -103,6 +103,7 @@ function computeDebugName(self: object, data: DebugNameData): string | undefined
 
 function findKey(obj: object, value: object): string | undefined {
 	for (const key in obj) {
+		// eslint-disable-next-line local/code-no-any-casts
 		if ((obj as any)[key] === value) {
 			return key;
 		}

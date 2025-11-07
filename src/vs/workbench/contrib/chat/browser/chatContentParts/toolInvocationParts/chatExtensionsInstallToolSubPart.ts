@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionManagementService } from '../../../../../../platform/extensionManagement/common/extensionManagement.js';
@@ -12,7 +13,7 @@ import { areSameExtensions } from '../../../../../../platform/extensionManagemen
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { IChatToolInvocation } from '../../../common/chatService.js';
+import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
@@ -46,54 +47,54 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 		this._register(chatExtensionsContentPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		dom.append(this.domNode, chatExtensionsContentPart.domNode);
 
-		if (toolInvocation.isConfirmed === undefined) {
-			const continueLabel = localize('continue', "Continue");
-			const continueKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
-			const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
+		if (toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			const allowLabel = localize('allow', "Allow");
+			const allowKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
+			const allowTooltip = allowKeybinding ? `${allowLabel} (${allowKeybinding})` : allowLabel;
 
 			const cancelLabel = localize('cancel', "Cancel");
 			const cancelKeybinding = keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
 			const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
-			const enableContinueButtonEvent = this._register(new Emitter<boolean>());
+			const enableAllowButtonEvent = this._register(new Emitter<boolean>());
 
-			const buttons: IChatConfirmationButton[] = [
+			const buttons: IChatConfirmationButton<ConfirmedReason>[] = [
 				{
-					label: continueLabel,
-					data: true,
-					tooltip: continueTooltip,
+					label: allowLabel,
+					data: { type: ToolConfirmKind.UserAction },
+					tooltip: allowTooltip,
 					disabled: true,
-					onDidChangeDisablement: enableContinueButtonEvent.event
+					onDidChangeDisablement: enableAllowButtonEvent.event
 				},
 				{
 					label: cancelLabel,
-					data: false,
+					data: { type: ToolConfirmKind.Denied },
 					isSecondary: true,
 					tooltip: cancelTooltip
 				}
 			];
 
 			const confirmWidget = this._register(instantiationService.createInstance(
-				ChatConfirmationWidget,
-				toolInvocation.confirmationMessages?.title ?? localize('installExtensions', "Install Extensions"),
-				undefined,
-				toolInvocation.confirmationMessages?.message ?? localize('installExtensionsConfirmation', "Click the Install button on the extension and then press Continue when finished."),
-				buttons,
-				context.container,
+				ChatConfirmationWidget<ConfirmedReason>,
+				context,
+				{
+					title: toolInvocation.confirmationMessages?.title ?? localize('installExtensions', "Install Extensions"),
+					message: toolInvocation.confirmationMessages?.message ?? localize('installExtensionsConfirmation', "Click the Install button on the extension and then press Allow when finished."),
+					buttons,
+				}
 			));
 			this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			dom.append(this.domNode, confirmWidget.domNode);
 			this._register(confirmWidget.onDidClick(button => {
-				toolInvocation.confirmed.complete(button.data);
-				chatWidgetService.getWidgetBySessionId(context.element.sessionId)?.focusInput();
+				IChatToolInvocation.confirmWith(toolInvocation, button.data);
+				chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput();
 			}));
-			toolInvocation.confirmed.p.then(() => {
-				ChatContextKeys.Editing.hasToolConfirmation.bindTo(contextKeyService).set(false);
-				this._onNeedsRerender.fire();
-			});
+			const hasToolConfirmationKey = ChatContextKeys.Editing.hasToolConfirmation.bindTo(contextKeyService);
+			hasToolConfirmationKey.set(true);
+			this._register(toDisposable(() => hasToolConfirmationKey.reset()));
 			const disposable = this._register(extensionManagementService.onInstallExtension(e => {
 				if (extensionsContent.extensions.some(id => areSameExtensions({ id }, e.identifier))) {
 					disposable.dispose();
-					enableContinueButtonEvent.fire(false);
+					enableAllowButtonEvent.fire(false);
 				}
 			}));
 		}

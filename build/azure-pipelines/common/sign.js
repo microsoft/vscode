@@ -159,8 +159,10 @@ function main([esrpCliPath, type, folderPath, pattern]) {
     const args = [
         esrpCliPath,
         'vsts.sign',
-        '-a', process.env['ESRP_CLIENT_ID'],
-        '-d', process.env['ESRP_TENANT_ID'],
+        '-a',
+        process.env['ESRP_CLIENT_ID'],
+        '-d',
+        process.env['ESRP_TENANT_ID'],
         '-k', JSON.stringify({ akv: 'vscode-esrp' }),
         '-z', JSON.stringify({ akv: 'vscode-esrp', cert: 'esrp-sign' }),
         '-f', folderPath,
@@ -186,7 +188,8 @@ function main([esrpCliPath, type, folderPath, pattern]) {
         '-pendingAnalysisWaitTimeoutMinutes', '5',
         '-adoTaskVersion', adoTaskVersion,
         '-resourceUri', 'https://msazurecloud.onmicrosoft.com/api.esrp.microsoft.com',
-        '-esrpClientId', process.env['ESRP_CLIENT_ID'],
+        '-esrpClientId',
+        process.env['ESRP_CLIENT_ID'],
         '-useMSIAuthentication', 'true',
         '-federatedTokenData', JSON.stringify(federatedTokenData)
     ];

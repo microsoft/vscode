@@ -34,8 +34,13 @@ import * as search from '../../contrib/search/common/search.js';
 import * as typeh from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
-import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { InlineCompletionEndOfLifeReasonKind } from '../common/extHostTypes.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../platform/dataChannel/browser/forwardingTelemetryService.js';
+import { IAiEditTelemetryService } from '../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { EditDeltaInfo } from '../../../editor/common/textModelEditSource.js';
+import { IInlineCompletionsUnificationService } from '../../services/inlineCompletions/common/inlineCompletionsUnification.js';
+import { InlineCompletionEndOfLifeEvent, sendInlineCompletionsEndOfLifeTelemetry } from '../../../editor/contrib/inlineCompletions/browser/telemetry.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -49,7 +54,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInlineCompletionsUnificationService private readonly _inlineCompletionsUnificationService: IInlineCompletionsUnificationService,
 	) {
 		super();
 
@@ -81,6 +87,13 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 			}));
 			updateAllWordDefinitions();
+		}
+
+		if (this._inlineCompletionsUnificationService) {
+			this._register(this._inlineCompletionsUnificationService.onDidStateChange(() => {
+				this._proxy.$acceptInlineCompletionsUnificationState(this._inlineCompletionsUnificationService.state);
+			}));
+			this._proxy.$acceptInlineCompletionsUnificationState(this._inlineCompletionsUnificationService.state);
 		}
 	}
 
@@ -123,7 +136,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	private static _reviveWorkspaceSymbolDto(data: undefined): undefined;
 	private static _reviveWorkspaceSymbolDto(data: IWorkspaceSymbolDto | IWorkspaceSymbolDto[] | undefined): search.IWorkspaceSymbol | search.IWorkspaceSymbol[] | undefined {
 		if (!data) {
-			return <undefined>data;
+			return data;
 		} else if (Array.isArray(data)) {
 			data.forEach(MainThreadLanguageFeatures._reviveWorkspaceSymbolDto);
 			return <search.IWorkspaceSymbol[]>data;
@@ -189,9 +202,10 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			},
 			resolveCodeLens: async (model: ITextModel, codeLens: languages.CodeLens, token: CancellationToken): Promise<languages.CodeLens | undefined> => {
 				const result = await this._proxy.$resolveCodeLens(handle, codeLens, token);
-				if (!result) {
+				if (!result || token.isCancellationRequested) {
 					return undefined;
 				}
+
 				return {
 					...result,
 					range: model.validateRange(result.range),
@@ -208,7 +222,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.codeLensProvider.register(selector, provider));
 	}
 
-	$emitCodeLensEvent(eventHandle: number, event?: any): void {
+	$emitCodeLensEvent(eventHandle: number, event?: unknown): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
 			obj.fire(event);
@@ -300,7 +314,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.inlineValuesProvider.register(selector, provider));
 	}
 
-	$emitInlineValuesEvent(eventHandle: number, event?: any): void {
+	$emitInlineValuesEvent(eventHandle: number, event?: unknown): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
 			obj.fire(event);
@@ -535,8 +549,21 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		}
 	}
 
-	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend): void {
-		this._registrations.set(handle, this._languageFeaturesService.documentRangeSemanticTokensProvider.register(selector, new MainThreadDocumentRangeSemanticTokensProvider(this._proxy, handle, legend)));
+	$emitDocumentRangeSemanticTokensEvent(eventHandle: number): void {
+		const obj = this._registrations.get(eventHandle);
+		if (obj instanceof Emitter) {
+			obj.fire(undefined);
+		}
+	}
+
+	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend, eventHandle: number | undefined): void {
+		let event: Event<void> | undefined = undefined;
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._registrations.set(eventHandle, emitter);
+			event = emitter.event;
+		}
+		this._registrations.set(handle, this._languageFeaturesService.documentRangeSemanticTokensProvider.register(selector, new MainThreadDocumentRangeSemanticTokensProvider(this._proxy, handle, legend, event)));
 	}
 
 	// --- suggest
@@ -617,12 +644,30 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.completionProvider.register(selector, provider));
 	}
 
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, extensionVersion: string, groupId: string | undefined, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, eventHandle: number | undefined): void {
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, extensionVersion: string, groupId: string | undefined, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, excludesExtensionIds: string[], eventHandle: number | undefined): void {
+		const providerId = new languages.ProviderId(extensionId, extensionVersion, groupId);
 		const provider: languages.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
-				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
+				const result = await this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
+				return result;
 			},
-			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, updatedInsertText: string): Promise<void> => {
+			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, updatedInsertText: string, editDeltaInfo: EditDeltaInfo): Promise<void> => {
+				this._instantiationService.invokeFunction(accessor => {
+					const aiEditTelemetryService = accessor.getIfExists(IAiEditTelemetryService);
+					if (item.suggestionId === undefined) {
+						item.suggestionId = aiEditTelemetryService?.createSuggestionId({
+							applyCodeBlockSuggestionId: undefined,
+							feature: 'inlineSuggestion',
+							source: providerId,
+							languageId: completions.languageId,
+							editDeltaInfo: editDeltaInfo,
+							modeId: undefined,
+							modelId: undefined,
+							presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
+						});
+					}
+				});
+
 				if (supportsHandleEvents) {
 					await this._proxy.$handleInlineCompletionDidShow(handle, completions.pid, item.idx, updatedInsertText);
 				}
@@ -647,16 +692,47 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				if (supportsHandleEvents) {
 					await this._proxy.$handleInlineCompletionEndOfLifetime(handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: completions.pid, idx: i.idx })));
 				}
+
+				if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Accepted) {
+					this._instantiationService.invokeFunction(accessor => {
+						const aiEditTelemetryService = accessor.getIfExists(IAiEditTelemetryService);
+						if (item.suggestionId !== undefined) {
+							aiEditTelemetryService?.handleCodeAccepted({
+								suggestionId: item.suggestionId,
+								feature: 'inlineSuggestion',
+								source: providerId,
+								languageId: completions.languageId,
+								editDeltaInfo: EditDeltaInfo.tryCreate(
+									lifetimeSummary.lineCountModified,
+									lifetimeSummary.lineCountOriginal,
+									lifetimeSummary.characterCountModified,
+									lifetimeSummary.characterCountOriginal,
+								),
+								modeId: undefined,
+								modelId: undefined,
+								presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
+								acceptanceMethod: 'accept',
+								applyCodeBlockSuggestionId: undefined,
+							});
+						}
+					});
+				}
+
 				const endOfLifeSummary: InlineCompletionEndOfLifeEvent = {
-					id: lifetimeSummary.requestUuid,
+					opportunityId: lifetimeSummary.requestUuid,
+					correlationId: lifetimeSummary.correlationId,
 					shown: lifetimeSummary.shown,
 					shownDuration: lifetimeSummary.shownDuration,
 					shownDurationUncollapsed: lifetimeSummary.shownDurationUncollapsed,
 					timeUntilShown: lifetimeSummary.timeUntilShown,
+					timeUntilProviderRequest: lifetimeSummary.timeUntilProviderRequest,
+					timeUntilProviderResponse: lifetimeSummary.timeUntilProviderResponse,
 					editorType: lifetimeSummary.editorType,
 					viewKind: lifetimeSummary.viewKind,
+					preceeded: lifetimeSummary.preceeded,
 					requestReason: lifetimeSummary.requestReason,
-					error: lifetimeSummary.error,
+					typingInterval: lifetimeSummary.typingInterval,
+					typingIntervalCharacterCount: lifetimeSummary.typingIntervalCharacterCount,
 					languageId: lifetimeSummary.languageId,
 					cursorColumnDistance: lifetimeSummary.cursorColumnDistance,
 					cursorLineDistance: lifetimeSummary.cursorLineDistance,
@@ -666,15 +742,26 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					characterCountModified: lifetimeSummary.characterCountModified,
 					disjointReplacements: lifetimeSummary.disjointReplacements,
 					sameShapeReplacements: lifetimeSummary.sameShapeReplacements,
+					selectedSuggestionInfo: lifetimeSummary.selectedSuggestionInfo,
 					extensionId,
 					extensionVersion,
+					groupId,
+					availableProviders: lifetimeSummary.availableProviders,
 					partiallyAccepted: lifetimeSummary.partiallyAccepted,
+					partiallyAcceptedCountSinceOriginal: lifetimeSummary.partiallyAcceptedCountSinceOriginal,
+					partiallyAcceptedRatioSinceOriginal: lifetimeSummary.partiallyAcceptedRatioSinceOriginal,
+					partiallyAcceptedCharactersSinceOriginal: lifetimeSummary.partiallyAcceptedCharactersSinceOriginal,
 					superseded: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored && !!reason.supersededBy,
 					reason: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted ? 'accepted'
 						: reason.kind === InlineCompletionEndOfLifeReasonKind.Rejected ? 'rejected'
-							: 'ignored'
+							: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored ? 'ignored' : undefined,
+					noSuggestionReason: undefined,
+					notShownReason: lifetimeSummary.notShownReason,
+					...forwardToChannelIf(isCopilotLikeExtension(extensionId)),
 				};
-				this._telemetryService.publicLog2<InlineCompletionEndOfLifeEvent, InlineCompletionsEndOfLifeClassification>('inlineCompletion.endOfLife', endOfLifeSummary);
+
+				const dataChannelForwardingTelemetryService = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
+				sendInlineCompletionsEndOfLifeTelemetry(dataChannelForwardingTelemetryService, endOfLifeSummary);
 			},
 			disposeInlineCompletions: (completions: IdentifiableInlineCompletions, reason: languages.InlineCompletionsDisposeReason): void => {
 				this._proxy.$freeInlineCompletionsList(handle, completions.pid, reason);
@@ -685,8 +772,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 			},
 			groupId: groupId ?? extensionId,
-			providerId: new languages.VersionedExtensionId(extensionId, extensionVersion).toString(),
+			providerId,
 			yieldsToGroupIds: yieldsToExtensionIds,
+			excludesGroupIds: excludesExtensionIds,
 			debounceDelayMs,
 			displayName,
 			toString() {
@@ -875,7 +963,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.foldingRangeProvider.register(selector, provider));
 	}
 
-	$emitFoldingRangeEvent(eventHandle: number, event?: any): void {
+	$emitFoldingRangeEvent(eventHandle: number, event?: unknown): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
 			obj.fire(event);
@@ -920,6 +1008,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				outgoing.forEach(value => {
 					value.to = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.to);
 				});
+				// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 				return <any>outgoing;
 			},
 			provideIncomingCalls: async (item, token) => {
@@ -930,6 +1019,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				incoming.forEach(value => {
 					value.from = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.from);
 				});
+				// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 				return <any>incoming;
 			}
 		}));
@@ -1270,6 +1360,7 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		private readonly _handle: number,
 		private readonly _legend: languages.SemanticTokensLegend,
+		public readonly onDidChange: Event<void> | undefined,
 	) {
 	}
 
@@ -1295,57 +1386,3 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 		throw new Error(`Unexpected`);
 	}
 }
-
-type InlineCompletionEndOfLifeEvent = {
-	id: string;
-	extensionId: string;
-	extensionVersion: string;
-	shown: boolean;
-	shownDuration: number;
-	shownDurationUncollapsed: number;
-	timeUntilShown: number | undefined;
-	reason: 'accepted' | 'rejected' | 'ignored';
-	partiallyAccepted: number;
-	requestReason: string;
-	languageId: string;
-	error: string | undefined;
-	superseded: boolean;
-	editorType: string;
-	viewKind: string | undefined;
-	cursorColumnDistance: number | undefined;
-	cursorLineDistance: number | undefined;
-	lineCountOriginal: number | undefined;
-	lineCountModified: number | undefined;
-	characterCountOriginal: number | undefined;
-	characterCountModified: number | undefined;
-	disjointReplacements: number | undefined;
-	sameShapeReplacements: boolean | undefined;
-};
-
-type InlineCompletionsEndOfLifeClassification = {
-	owner: 'benibenj';
-	comment: 'Inline completions ended';
-	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the inline completion request' };
-	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the extension that contributed the inline completion' };
-	extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension that contributed the inline completion' };
-	shown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was shown to the user' };
-	shownDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown' };
-	shownDurationUncollapsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown without collapsing' };
-	timeUntilShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
-	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion ending' };
-	partiallyAccepted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted by the user' };
-	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language ID of the document where the inline completion was shown' };
-	requestReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion request' };
-	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error message if the inline completion failed' };
-	superseded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was superseded by another one' };
-	editorType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the editor where the inline completion was shown' };
-	viewKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of the view where the inline completion was shown' };
-	cursorColumnDistance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The distance in columns from the cursor to the inline suggestion' };
-	cursorLineDistance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The distance in lines from the cursor to the inline suggestion' };
-	lineCountOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the original text' };
-	lineCountModified: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the modified text' };
-	characterCountOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters in the original text' };
-	characterCountModified: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters in the modified text' };
-	disjointReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of inner replacements made by the inline completion' };
-	sameShapeReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether all inner replacements are the same shape' };
-};

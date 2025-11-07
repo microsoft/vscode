@@ -334,7 +334,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		}
 
 		// Figure out auxiliary bar width based on workspace, configuration and overrides
-		const auxiliaryBarDefaultVisibility = this.configurationService.getValue(AUXILIARYBAR_DEFAULT_VISIBILITY);
+		const auxiliaryBarDefaultVisibility = this.configurationService.getValue(AUXILIARYBAR_DEFAULT_VISIBILITY) ?? 'visibleInWorkspace';
 		let auxiliaryBarWidth: number;
 		if (workspace) {
 			const auxiliaryBarVisible = override.layoutInfo.workspaces[workspace.id]?.auxiliaryBarVisible;
@@ -345,6 +345,8 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			} else {
 				if (auxiliaryBarDefaultVisibility === 'visible' || auxiliaryBarDefaultVisibility === 'visibleInWorkspace') {
 					auxiliaryBarWidth = override.layoutInfo.auxiliaryBarWidth || partSplash.layoutInfo.auxiliaryBarWidth || ThemeMainService.DEFAULT_BAR_WIDTH;
+				} else if (auxiliaryBarDefaultVisibility === 'maximized' || auxiliaryBarDefaultVisibility === 'maximizedInWorkspace') {
+					auxiliaryBarWidth = Number.MAX_SAFE_INTEGER; // marker for a maximised auxiliary bar
 				} else {
 					auxiliaryBarWidth = 0;
 				}

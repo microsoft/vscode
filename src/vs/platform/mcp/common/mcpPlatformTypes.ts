@@ -35,7 +35,7 @@ export const enum McpServerType {
 export interface ICommonMcpServerConfiguration {
 	readonly type: McpServerType;
 	readonly version?: string;
-	readonly gallery?: boolean;
+	readonly gallery?: boolean | string;
 }
 
 export interface IMcpStdioServerConfiguration extends ICommonMcpServerConfiguration {

@@ -39,13 +39,11 @@ suite('McpSync', () => {
 			const mcpResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.mcpResource;
 
 			assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
-			let manifest = await client.getResourceManifest();
+			let manifest = await client.getLatestRef(SyncResource.Mcp);
 			server.reset();
 			await testObject.sync(manifest);
 
-			assert.deepStrictEqual(server.requests, [
-				{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
-			]);
+			assert.deepStrictEqual(server.requests, []);
 			assert.ok(!await fileService.exists(mcpResource));
 
 			const lastSyncUserData = await testObject.getLastSyncUserData();
@@ -54,12 +52,12 @@ suite('McpSync', () => {
 			assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
 			assert.strictEqual(lastSyncUserData!.syncData, null);
 
-			manifest = await client.getResourceManifest();
+			manifest = await client.getLatestRef(SyncResource.Mcp);
 			server.reset();
 			await testObject.sync(manifest);
 			assert.deepStrictEqual(server.requests, []);
 
-			manifest = await client.getResourceManifest();
+			manifest = await client.getLatestRef(SyncResource.Mcp);
 			server.reset();
 			await testObject.sync(manifest);
 			assert.deepStrictEqual(server.requests, []);
@@ -85,7 +83,7 @@ suite('McpSync', () => {
 			const fileService = client.instantiationService.get(IFileService);
 			const mcpResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.mcpResource;
 
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 			const lastSyncUserData = await testObject.getLastSyncUserData();
@@ -110,7 +108,7 @@ suite('McpSync', () => {
 			});
 			fileService.writeFile(mcpResource, VSBuffer.fromString(content));
 
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 			const lastSyncUserData = await testObject.getLastSyncUserData();
@@ -140,7 +138,7 @@ suite('McpSync', () => {
 			const mcpResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.mcpResource;
 			await fileService.writeFile(mcpResource, VSBuffer.fromString(content));
 
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 			const lastSyncUserData = await testObject.getLastSyncUserData();
@@ -159,7 +157,7 @@ suite('McpSync', () => {
 				'mcpServers': {}
 			})));
 
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			const content = JSON.stringify({
 				'mcpServers': {
@@ -171,7 +169,7 @@ suite('McpSync', () => {
 			});
 			fileService.writeFile(mcpResource, VSBuffer.fromString(content));
 
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 			const lastSyncUserData = await testObject.getLastSyncUserData();
@@ -195,7 +193,7 @@ suite('McpSync', () => {
 			const mcpResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.mcpResource;
 
 			await client2.sync();
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			const content = JSON.stringify({
 				'mcpServers': {
@@ -208,7 +206,7 @@ suite('McpSync', () => {
 			fileService2.writeFile(mcpResource2, VSBuffer.fromString(content));
 
 			await client2.sync();
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 			const lastSyncUserData = await testObject.getLastSyncUserData();
@@ -233,7 +231,7 @@ suite('McpSync', () => {
 			const mcpResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.mcpResource;
 
 			await client2.sync();
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			const content = JSON.stringify({
 				'mcpServers': {
@@ -247,7 +245,7 @@ suite('McpSync', () => {
 			await client2.sync();
 
 			fileService.writeFile(mcpResource, VSBuffer.fromString(content));
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 			const lastSyncUserData = await testObject.getLastSyncUserData();
@@ -272,7 +270,7 @@ suite('McpSync', () => {
 			const mcpResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.mcpResource;
 
 			await client2.sync();
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			fileService2.writeFile(mcpResource2, VSBuffer.fromString(JSON.stringify({
 				'mcpServers': {
@@ -293,7 +291,7 @@ suite('McpSync', () => {
 				}
 			});
 			fileService.writeFile(mcpResource, VSBuffer.fromString(content));
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			const previewContent = (await fileService.readFile(testObject.conflicts.conflicts[0].previewResource)).value.toString();
 			assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
@@ -327,7 +325,7 @@ suite('McpSync', () => {
 			const mcpResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.mcpResource;
 
 			await client2.sync();
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			fileService2.writeFile(mcpResource2, VSBuffer.fromString(JSON.stringify({
 				'mcpServers': {
@@ -347,7 +345,7 @@ suite('McpSync', () => {
 					}
 				}
 			})));
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			const content = JSON.stringify({
 				'mcpServers': {
@@ -386,7 +384,7 @@ suite('McpSync', () => {
 			const mcpResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.mcpResource;
 
 			await client2.sync();
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			const content = JSON.stringify({
 				'mcpServers': {
@@ -407,7 +405,7 @@ suite('McpSync', () => {
 					}
 				}
 			})));
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 			assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
 
 			await testObject.accept(testObject.conflicts.conflicts[0].remoteResource);
@@ -435,7 +433,7 @@ suite('McpSync', () => {
 			const mcpResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.mcpResource;
 
 			await client2.sync();
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			fileService2.writeFile(mcpResource2, VSBuffer.fromString(JSON.stringify({
 				'mcpServers': {
@@ -456,7 +454,7 @@ suite('McpSync', () => {
 				}
 			});
 			fileService.writeFile(mcpResource, VSBuffer.fromString(content));
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 			assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
 
 			await testObject.accept(testObject.conflicts.conflicts[0].localResource);
@@ -477,7 +475,7 @@ suite('McpSync', () => {
 			await fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify({
 				'mcpServers': {}
 			})));
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			const client2 = disposableStore.add(new UserDataSyncClient(server));
 			await client2.setUp(true);
@@ -488,7 +486,7 @@ suite('McpSync', () => {
 			fileService2.del(mcpResource2);
 			await client2.sync();
 
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 			const lastSyncUserData = await testObject.getLastSyncUserData();
@@ -503,7 +501,7 @@ suite('McpSync', () => {
 		await runWithFakedTimers<void>({}, async () => {
 			const fileService = client.instantiationService.get(IFileService);
 			const mcpResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.mcpResource;
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Mcp));
 
 			const content = JSON.stringify({
 				'mcpServers': {
@@ -516,7 +514,7 @@ suite('McpSync', () => {
 			await fileService.createFile(mcpResource, VSBuffer.fromString(content));
 
 			let lastSyncUserData = await testObject.getLastSyncUserData();
-			const manifest = await client.getResourceManifest();
+			const manifest = await client.getLatestRef(SyncResource.Mcp);
 			server.reset();
 			await testObject.sync(manifest);
 
@@ -540,7 +538,7 @@ suite('McpSync', () => {
 				await fileService.del(mcpResource);
 			}
 
-			const preview = (await testObject.sync(await client.getResourceManifest(), true))!;
+			const preview = (await testObject.sync(await client.getLatestRef(SyncResource.Mcp), true))!;
 
 			server.reset();
 			const content = await testObject.resolveContent(preview.resourcePreviews[0].remoteResource);

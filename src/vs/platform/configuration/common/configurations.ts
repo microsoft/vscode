@@ -137,12 +137,11 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 					this.logService.warn(`Policy ${config.policy.name} has unsupported type ${config.type}`);
 					continue;
 				}
-				const { defaultValue, previewFeature } = config.policy;
+				const { value } = config.policy;
 				keys.push(key);
 				policyDefinitions[config.policy.name] = {
 					type: config.type === 'number' ? 'number' : config.type === 'boolean' ? 'boolean' : 'string',
-					previewFeature,
-					defaultValue,
+					value,
 				};
 			}
 		}
@@ -220,7 +219,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 
 		function onValue(value: any) {
 			if (Array.isArray(currentParent)) {
-				(<any[]>currentParent).push(value);
+				currentParent.push(value);
 			} else if (currentProperty !== null) {
 				if (currentParent[currentProperty] !== undefined) {
 					throw new Error(`Duplicate property found: ${currentProperty}`);

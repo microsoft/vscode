@@ -452,8 +452,8 @@ export class AzureActiveDirectoryService {
 			if (isSupportedEnvironment(callbackUri)) {
 				existingPromise = this.handleCodeResponse(scopeData);
 			} else {
-				inputBox = vscode.window.createInputBox();
-				existingPromise = this.handleCodeInputBox(inputBox, codeVerifier, scopeData);
+				// This code path shouldn't be hit often, so just surface an error.
+				throw new Error('Unsupported environment for authentication');
 			}
 			this._codeExchangePromises.set(scopeData.scopeStr, existingPromise);
 		}
@@ -741,34 +741,6 @@ export class AzureActiveDirectoryService {
 		}).catch(err => {
 			uriEventListener.dispose();
 			throw err;
-		});
-	}
-
-	private async handleCodeInputBox(inputBox: vscode.InputBox, verifier: string, scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
-		this._logger.trace(`[${scopeData.scopeStr}] Starting login flow with input box`);
-		inputBox.ignoreFocusOut = true;
-		inputBox.title = vscode.l10n.t('Microsoft Authentication');
-		inputBox.prompt = vscode.l10n.t('Provide the authorization code to complete the sign in flow.');
-		inputBox.placeholder = vscode.l10n.t('Paste authorization code here...');
-		return new Promise((resolve: (value: vscode.AuthenticationSession) => void, reject) => {
-			inputBox.show();
-			inputBox.onDidAccept(async () => {
-				const code = inputBox.value;
-				if (code) {
-					inputBox.dispose();
-					const session = await this.exchangeCodeForSession(code, verifier, scopeData);
-					this._logger.trace(`[${scopeData.scopeStr}] '${session.id}' sending session changed event because session was added.`);
-					this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
-					this._logger.trace(`[${scopeData.scopeStr}] '${session.id}' session successfully created!`);
-					resolve(session);
-				}
-			});
-			inputBox.onDidHide(() => {
-				if (!inputBox.value) {
-					inputBox.dispose();
-					reject('Cancelled');
-				}
-			});
 		});
 	}
 

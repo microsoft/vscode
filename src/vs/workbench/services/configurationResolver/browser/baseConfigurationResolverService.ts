@@ -274,7 +274,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						inputOptions.password = info.password;
 					}
 					return this.userInputAccessQueue.queue(() => this.quickInputService.input(inputOptions)).then(resolvedInput => {
-						if (typeof resolvedInput === 'string') {
+						if (typeof resolvedInput === 'string' && !info.password) {
 							this.storeInputLru(defaultValueMap.set(defaultValueKey, resolvedInput));
 						}
 						return resolvedInput !== undefined ? { value: resolvedInput as string, input: info } : undefined;

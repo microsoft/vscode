@@ -16,7 +16,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { Schemas } from '../../../../../base/common/network.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEnvironmentVariableService } from '../environmentVariable.js';
-import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController, ITerminalProcessOptions, IProcessReadyEvent, ITerminalLogService, IPtyHostLatencyMeasurement } from '../../../../../platform/terminal/common/terminal.js';
+import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController, ITerminalProcessOptions, IProcessReadyEvent, ITerminalLogService, IPtyHostLatencyMeasurement, ITerminalLaunchResult } from '../../../../../platform/terminal/common/terminal.js';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from '../../../../../platform/terminal/common/terminalProcess.js';
 import { IProcessEnvironment, OperatingSystem } from '../../../../../base/common/platform.js';
 import { ICompleteTerminalConfiguration } from '../terminal.js';
@@ -210,7 +210,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	processBinary(id: number, data: string): Promise<void> {
 		return this._channel.call(RemoteTerminalChannelRequest.ProcessBinary, [id, data]);
 	}
-	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	start(id: number): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		return this._channel.call(RemoteTerminalChannelRequest.Start, [id]);
 	}
 	input(id: number, data: string): Promise<void> {
@@ -224,6 +224,9 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	}
 	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
 		return this._channel.call(RemoteTerminalChannelRequest.SetUnicodeVersion, [id, version]);
+	}
+	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.SetNextCommandId, [id, commandLine, commandId]);
 	}
 	shutdown(id: number, immediate: boolean): Promise<void> {
 		return this._channel.call(RemoteTerminalChannelRequest.Shutdown, [id, immediate]);
@@ -271,7 +274,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		const workspace = this._workspaceContextService.getWorkspace();
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: workspace.id,
-			tabs: layout ? layout.tabs : []
+			tabs: layout ? layout.tabs : [],
+			background: layout ? layout.background : null
 		};
 		return this._channel.call<void>(RemoteTerminalChannelRequest.SetTerminalLayoutInfo, args);
 	}

@@ -178,7 +178,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	public readonly id: string;
 	private _foldingRanges: FoldingRegions | null = null;
 	private _onDidFoldingStateChanged = new Emitter<void>();
-	onDidFoldingStateChanged: Event<void> = this._onDidFoldingStateChanged.event;
+	readonly onDidFoldingStateChanged: Event<void> = this._onDidFoldingStateChanged.event;
 	private _hiddenRanges: ICellRange[] = [];
 	private _focused: boolean = true;
 
@@ -778,7 +778,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 		for (const _handle in deletesByHandle) {
 			const handle = parseInt(_handle);
-			const ids = deletesByHandle[handle];
+			const ids = deletesByHandle[handle]!;
 			const cell = this.getCellByHandle(handle);
 			cell?.deltaCellStatusBarItems(ids, []);
 			ids.forEach(id => this._statusBarItemIdToCellMap.delete(id));

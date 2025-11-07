@@ -5,7 +5,7 @@
 
 import { equalsIfDefined, itemsEquals } from '../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
-import { IObservable, IObservableWithChange, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
+import { DebugLocation, IObservable, IObservableWithChange, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
 import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
 import { LineRange } from '../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../common/core/ranges/offsetRange.js';
@@ -280,10 +280,10 @@ export class ObservableCodeEditor extends Disposable {
 
 	public readonly domNode;
 
-	public getOption<T extends EditorOption>(id: T): IObservable<FindComputedEditorOptionValueById<T>> {
+	public getOption<T extends EditorOption>(id: T, debugLocation = DebugLocation.ofCaller()): IObservable<FindComputedEditorOptionValueById<T>> {
 		return observableFromEvent(this, cb => this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(id)) { cb(undefined); }
-		}), () => this.editor.getOption(id));
+		}), () => this.editor.getOption(id), debugLocation);
 	}
 
 	public setDecorations(decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {

@@ -47,15 +47,17 @@
 			document.querySelector('.error-message > .detail').textContent = error;
 			document.querySelector('body').classList.add('error');
 		} else if (redirectUri) {
+			// Wrap the redirect URI so that the browser remembers who triggered the redirect
+			const wrappedRedirectUri = `https://vscode.dev/redirect?url=${encodeURIComponent(redirectUri)}`;
 			// Set up the fallback link
 			const fallbackLink = document.getElementById('fallback-link');
 			if (fallbackLink) {
-				fallbackLink.href = redirectUri;
+				fallbackLink.href = wrappedRedirectUri;
 			}
 
 			// Redirect after a delay
 			setTimeout(() => {
-				window.location = redirectUri;
+				window.location = wrappedRedirectUri;
 			}, 1000);
 		}
 	</script>

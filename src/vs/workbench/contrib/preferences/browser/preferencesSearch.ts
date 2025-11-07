@@ -20,7 +20,7 @@ import { IAiSettingsSearchService } from '../../../services/aiSettingsSearch/com
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IGroupFilter, ISearchResult, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingKeyMatchTypes, SettingMatchType } from '../../../services/preferences/common/preferences.js';
 import { nullRange } from '../../../services/preferences/common/preferencesModels.js';
-import { IAiSearchProvider, IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration } from '../common/preferences.js';
+import { EMBEDDINGS_ONLY_SEARCH_PROVIDER_NAME, EMBEDDINGS_SEARCH_PROVIDER_NAME, IAiSearchProvider, IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration, LLM_RANKED_SEARCH_PROVIDER_NAME, STRING_MATCH_SEARCH_PROVIDER_NAME, TF_IDF_SEARCH_PROVIDER_NAME } from '../common/preferences.js';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -134,7 +134,7 @@ export class LocalSearchProvider implements ISearchProvider {
 		const alwaysAllowedMatchTypes = SettingMatchType.DescriptionOrValueMatch | SettingMatchType.LanguageTagSettingMatch;
 		const filteredMatches = filterMatches
 			.filter(m => (m.matchType & topKeyMatchType) || (m.matchType & alwaysAllowedMatchTypes) || m.matchType === SettingMatchType.ExactMatch)
-			.map(m => ({ ...m, providerName: 'local' }));
+			.map(m => ({ ...m, providerName: STRING_MATCH_SEARCH_PROVIDER_NAME }));
 		return Promise.resolve({
 			filterMatches: filteredMatches,
 			exactMatch: filteredMatches.some(m => m.matchType === SettingMatchType.ExactMatch)
@@ -441,7 +441,7 @@ class EmbeddingsSearchProvider implements IRemoteSearchProvider {
 			return [];
 		}
 
-		const providerName = this._excludeSelectionStep ? 'embeddingsOnly' : 'embeddingsFull';
+		const providerName = this._excludeSelectionStep ? EMBEDDINGS_ONLY_SEARCH_PROVIDER_NAME : EMBEDDINGS_SEARCH_PROVIDER_NAME;
 		for (const settingKey of settings) {
 			if (filterMatches.length === EmbeddingsSearchProvider.EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS) {
 				break;
@@ -550,7 +550,7 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 				matchType: SettingMatchType.RemoteMatch,
 				keyMatchScore: 0,
 				score: info.score,
-				providerName: 'tfIdf'
+				providerName: TF_IDF_SEARCH_PROVIDER_NAME
 			});
 		}
 
@@ -639,7 +639,7 @@ class AiSearchProvider implements IAiSearchProvider {
 				matchType: SettingMatchType.RemoteMatch,
 				keyMatchScore: 0,
 				score: 0, // the results are sorted upstream.
-				providerName: 'llmRanked'
+				providerName: LLM_RANKED_SEARCH_PROVIDER_NAME
 			});
 		}
 

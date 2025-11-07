@@ -7,7 +7,8 @@ import { IPosition } from './core/position.js';
 import { IRange, Range } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
-import { TextModelEditReason } from './textModelEditReason.js';
+import { IModelContentChange } from './model/mirrorTextModel.js';
+import { TextModelEditSource } from './textModelEditSource.js';
 
 /**
  * An event describing that the current language associated with a model has changed.
@@ -32,25 +33,6 @@ export interface IModelLanguageChangedEvent {
  * An event describing that the language configuration associated with a model has changed.
  */
 export interface IModelLanguageConfigurationChangedEvent {
-}
-
-export interface IModelContentChange {
-	/**
-	 * The old range that got replaced.
-	 */
-	readonly range: IRange;
-	/**
-	 * The offset of the range that got replaced.
-	 */
-	readonly rangeOffset: number;
-	/**
-	 * The length of the range that got replaced.
-	 */
-	readonly rangeLength: number;
-	/**
-	 * The new text for the range.
-	 */
-	readonly text: string;
 }
 
 /**
@@ -92,7 +74,7 @@ export interface IModelContentChangedEvent {
 	 * Detailed reason information for the change
 	 * @internal
 	 */
-	readonly detailedReasons: TextModelEditReason[];
+	readonly detailedReasons: TextModelEditSource[];
 
 	/**
 	 * The sum of these lengths equals changes.length.

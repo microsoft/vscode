@@ -12,6 +12,7 @@ export interface IVisualizationEffect {
 }
 
 export function setVisualization(data: object, visualization: IVisualizationEffect): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	(data as any)['$$visualization'] = visualization;
 }
 
@@ -104,7 +105,7 @@ export function debugView(value: unknown, reader: IReader): void {
 }
 
 function debugReadDisposable(d: IDisposable, reader: IReader): void {
-	derived((_reader) => {
+	derived({ name: 'debugReadDisposable' }, (_reader) => {
 		_reader.store.add(d);
 		return undefined;
 	}).read(reader);

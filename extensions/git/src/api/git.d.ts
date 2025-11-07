@@ -183,6 +183,19 @@ export interface InitOptions {
 	defaultBranch?: string;
 }
 
+export interface CloneOptions {
+	parentPath?: Uri;
+	/**
+	 * ref is only used if the repository cache is missed.
+	 */
+	ref?: string;
+	recursive?: boolean;
+	/**
+	 * If no postCloneAction is provided, then the users setting for git.openAfterClone is used.
+	 */
+	postCloneAction?: 'none';
+}
+
 export interface RefQuery {
 	readonly contains?: string;
 	readonly count?: number;
@@ -224,6 +237,7 @@ export interface Repository {
 	diff(cached?: boolean): Promise<string>;
 	diffWithHEAD(): Promise<Change[]>;
 	diffWithHEAD(path: string): Promise<string>;
+	diffWithHEADShortStats(path?: string): Promise<CommitShortStat>;
 	diffWith(ref: string): Promise<Change[]>;
 	diffWith(ref: string, path: string): Promise<string>;
 	diffIndexWithHEAD(): Promise<Change[]>;
@@ -365,8 +379,15 @@ export interface API {
 	toGitUri(uri: Uri, ref: string): Uri;
 	getRepository(uri: Uri): Repository | null;
 	getRepositoryRoot(uri: Uri): Promise<Uri | null>;
+	getRepositoryWorkspace(uri: Uri): Promise<Uri[] | null>;
 	init(root: Uri, options?: InitOptions): Promise<Repository | null>;
-	openRepository(root: Uri): Promise<Repository | null>
+	/**
+	 * Checks the cache of known cloned repositories, and clones if the repository is not found.
+	 * Make sure to pass `postCloneAction` 'none' if you want to have the uri where you can find the repository returned.
+	 * @returns The URI of a folder or workspace file which, when opened, will open the cloned repository.
+	 */
+	clone(uri: Uri, options?: CloneOptions): Promise<Uri | null>;
+	openRepository(root: Uri): Promise<Repository | null>;
 
 	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
@@ -440,5 +461,8 @@ export const enum GitErrorCodes {
 	BranchNotYetBorn = 'BranchNotYetBorn',
 	TagConflict = 'TagConflict',
 	CherryPickEmpty = 'CherryPickEmpty',
-	CherryPickConflict = 'CherryPickConflict'
+	CherryPickConflict = 'CherryPickConflict',
+	WorktreeContainsChanges = 'WorktreeContainsChanges',
+	WorktreeAlreadyExists = 'WorktreeAlreadyExists',
+	WorktreeBranchAlreadyUsed = 'WorktreeBranchAlreadyUsed'
 }

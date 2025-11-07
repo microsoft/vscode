@@ -20,7 +20,7 @@ import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
-import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel.js';
+import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel/inlineDecorations.js';
 import { GhostText, GhostTextPart } from '../../../model/ghostText.js';
 import { GhostTextView } from '../../ghostText/ghostTextView.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
@@ -78,7 +78,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		return { topOffset: linesTop * lineHeight, bottomOffset: linesBottom * lineHeight, linesTop, linesBottom };
 	});
 
-	private readonly _maxPrefixTrim = derived(reader => {
+	private readonly _maxPrefixTrim = derived(this, reader => {
 		const state = this._state.read(reader);
 		if (!state) {
 			return { prefixLeftOffset: 0, prefixTrim: 0 };
@@ -163,7 +163,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			domNode: this._view.element,
 			position: constObservable(null),
 			allowEditorOverflow: false,
-			minContentWidthInPx: derived(reader => {
+			minContentWidthInPx: derived(this, reader => {
 				const info = this._overlayLayout.read(reader);
 				if (info === null) { return 0; }
 				return info.minContentWidthRequired;
@@ -253,7 +253,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 
 	private readonly _modifiedOverlay = n.div({
 		style: { pointerEvents: 'none', }
-	}, derived(reader => {
+	}, derived(this, reader => {
 		const overlayLayoutObs = mapOutFalsy(this._overlayLayout).read(reader);
 		if (!overlayLayoutObs) { return undefined; }
 

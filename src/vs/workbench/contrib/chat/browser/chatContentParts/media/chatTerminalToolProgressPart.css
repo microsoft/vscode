@@ -1,0 +1,120 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-terminal-content-part {
+	width: 100%;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title {
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 4px;
+	padding: 5px 9px;
+	max-width: 100%;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+	gap: 10px;
+
+	.rendered-markdown {
+		display: flex;
+		column-gap: 4px;
+
+		p {
+			margin: 0 !important;
+		}
+
+		.monaco-tokenized-source {
+			background: transparent !important;
+		}
+	}
+}
+
+.chat-terminal-content-part .chat-terminal-action-bar {
+	display: flex;
+	gap: 4px;
+	margin-left: auto;
+	align-self: flex-start;
+}
+
+.chat-terminal-content-part .chat-terminal-content-message {
+	.rendered-markdown {
+		white-space: normal;
+		line-height: normal;
+
+		& > p {
+			color: var(--vscode-descriptionForeground);
+			font-size: var(--vscode-chat-font-size-body-s);
+			margin: 0 !important;
+
+			code {
+				font-size: var(--vscode-chat-font-size-body-xs);
+			}
+		}
+	}
+}
+
+.chat-terminal-output-container.collapsed { display: none; }
+.chat-terminal-output-container {
+	margin-right: 18px;
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-bottom-left-radius: 4px;
+	border-bottom-right-radius: 4px;
+	background: var(--vscode-panel-background);
+	max-height: 300px;
+	font-family: var(--monaco-monospace-font);
+	box-sizing: border-box;
+	overflow: hidden;
+	position: relative;
+	max-width: 100%;
+	padding: 5px 9px;
+}
+
+.chat-terminal-content-title.expanded {
+	margin-right: 18px;
+	border-bottom-left-radius: 0px;
+	border-bottom-right-radius: 0px;
+	border-bottom: 0;
+}
+
+.chat-terminal-output-container.expanded { display: block; }
+.chat-terminal-output-container > .monaco-scrollable-element {
+	width: 100%;
+}
+.chat-terminal-output-body {
+	padding: 4px 6px;
+	max-width: 100%;
+	height: 100%;
+}
+.chat-terminal-output-content {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.chat-terminal-output {
+	margin: 0;
+	white-space: pre;
+	font-size: 12px;
+}
+
+.chat-terminal-output-empty {
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+	line-height: normal;
+}
+
+.chat-terminal-output div,
+.chat-terminal-output span {
+	height: auto;
+	line-height: normal;
+}
+
+.chat-terminal-output pre {
+	margin: 0;
+}
+.chat-terminal-output-info {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-xs);
+}

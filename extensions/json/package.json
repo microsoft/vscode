@@ -94,7 +94,8 @@
         ],
         "filenamePatterns": [
           "**/User/snippets/*.json",
-          "**/User/profiles/*/snippets/*.json"
+          "**/User/profiles/*/snippets/*.json",
+          "**/snippets*.json"
         ],
         "configuration": "./language-configuration.json"
       }

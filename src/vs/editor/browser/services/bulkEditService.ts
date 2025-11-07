@@ -12,7 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { isObject } from '../../../base/common/types.js';
 import { UndoRedoSource } from '../../../platform/undoRedo/common/undoRedo.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { TextModelEditReason } from '../../common/textModelEditReason.js';
+import { TextModelEditSource } from '../../common/textModelEditSource.js';
 
 export const IBulkEditService = createDecorator<IBulkEditService>('IWorkspaceEditService');
 
@@ -37,7 +37,7 @@ export class ResourceEdit {
 
 export class ResourceTextEdit extends ResourceEdit implements IWorkspaceTextEdit {
 
-	static is(candidate: any): candidate is IWorkspaceTextEdit {
+	static is(candidate: unknown): candidate is IWorkspaceTextEdit {
 		if (candidate instanceof ResourceTextEdit) {
 			return true;
 		}
@@ -66,7 +66,7 @@ export class ResourceTextEdit extends ResourceEdit implements IWorkspaceTextEdit
 
 export class ResourceFileEdit extends ResourceEdit implements IWorkspaceFileEdit {
 
-	static is(candidate: any): candidate is IWorkspaceFileEdit {
+	static is(candidate: unknown): candidate is IWorkspaceFileEdit {
 		if (candidate instanceof ResourceFileEdit) {
 			return true;
 		} else {
@@ -105,7 +105,7 @@ export interface IBulkEditOptions {
 	undoRedoGroupId?: number;
 	confirmBeforeUndo?: boolean;
 	respectAutoSaveConfig?: boolean;
-	reason?: TextModelEditReason;
+	reason?: TextModelEditSource;
 }
 
 export interface IBulkEditResult {

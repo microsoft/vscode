@@ -40,7 +40,7 @@ export interface IWorkerFileSystemFileHandle extends IWorkerFileSystemHandle {
 }
 
 export interface ILocalFileSearchWorker {
-	_requestHandlerBrand: any;
+	_requestHandlerBrand: void;
 
 	$cancelQuery(queryId: number): void;
 

@@ -35,6 +35,7 @@ export class SkipList<K, V> implements Map<K, V> {
 		capacity: number = 2 ** 16
 	) {
 		this._maxLevel = Math.max(1, Math.log2(capacity) | 0);
+		// eslint-disable-next-line local/code-no-any-casts
 		this._header = <any>new Node(this._maxLevel, NIL, NIL);
 	}
 
@@ -43,6 +44,7 @@ export class SkipList<K, V> implements Map<K, V> {
 	}
 
 	clear(): void {
+		// eslint-disable-next-line local/code-no-any-casts
 		this._header = <any>new Node(this._maxLevel, NIL, NIL);
 		this._size = 0;
 	}

@@ -10,12 +10,13 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { revive } from '../../../../base/common/marshalling.js';
+import { revive, Revived } from '../../../../base/common/marshalling.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Command } from '../../../../editor/common/languages.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -24,10 +25,10 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from './chatContextKeys.js';
-import { IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
+import { IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
 import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from './chatService.js';
-import { ChatAgentLocation, ChatModeKind } from './constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
 
 //#region agent service, commands etc
 
@@ -35,6 +36,19 @@ export interface IChatAgentHistoryEntry {
 	request: IChatAgentRequest;
 	response: ReadonlyArray<IChatProgressHistoryResponseContent | IChatTaskDto>;
 	result: IChatAgentResult;
+}
+
+export interface IChatAgentAttachmentCapabilities {
+	supportsFileAttachments?: boolean;
+	supportsToolAttachments?: boolean;
+	supportsMCPAttachments?: boolean;
+	supportsImageAttachments?: boolean;
+	supportsSearchResultAttachments?: boolean;
+	supportsInstructionAttachments?: boolean;
+	supportsSourceControlAttachments?: boolean;
+	supportsProblemAttachments?: boolean;
+	supportsSymbolAttachments?: boolean;
+	supportsTerminalAttachments?: boolean;
 }
 
 export interface IChatAgentData {
@@ -45,6 +59,7 @@ export interface IChatAgentData {
 	/** This is string, not ContextKeyExpression, because dealing with serializing/deserializing is hard and need a better pattern for this */
 	when?: string;
 	extensionId: ExtensionIdentifier;
+	extensionVersion: string | undefined;
 	extensionPublisherId: string;
 	/** This is the extension publisher id, or, in the case of a dynamically registered participant (remote agent), whatever publisher name we have for it */
 	publisherDisplayName?: string;
@@ -58,8 +73,10 @@ export interface IChatAgentData {
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
+	/** This is only relevant for isDefault agents. Others should have all modes available. */
 	modes: ChatModeKind[];
 	disambiguation: { category: string; description: string; examples: string[] }[];
+	capabilities?: IChatAgentAttachmentCapabilities;
 }
 
 export interface IChatWelcomeMessageContent {
@@ -70,7 +87,7 @@ export interface IChatWelcomeMessageContent {
 
 export interface IChatAgentImplementation {
 	invoke(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
-	setRequestPaused?(requestId: string, isPaused: boolean): void;
+	setRequestTools?(requestId: string, tools: UserSelectedTools): void;
 	provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	provideChatTitle?: (history: IChatAgentHistoryEntry[], token: CancellationToken) => Promise<string | undefined>;
 	provideChatSummary?: (history: IChatAgentHistoryEntry[], token: CancellationToken) => Promise<string | undefined>;
@@ -108,7 +125,6 @@ export interface IChatRequesterInformation {
 
 export interface IChatAgentMetadata {
 	helpTextPrefix?: string | IMarkdownString;
-	helpTextVariablesPrefix?: string | IMarkdownString;
 	helpTextPostfix?: string | IMarkdownString;
 	icon?: URI;
 	iconDark?: URI;
@@ -120,6 +136,8 @@ export interface IChatAgentMetadata {
 	requester?: IChatRequesterInformation;
 	additionalWelcomeMessage?: string | IMarkdownString;
 }
+
+export type UserSelectedTools = Record<string, boolean>;
 
 
 export interface IChatAgentRequest {
@@ -133,13 +151,22 @@ export interface IChatAgentRequest {
 	isParticipantDetected?: boolean;
 	variables: IChatRequestVariableData;
 	location: ChatAgentLocation;
-	locationData?: IChatLocationData;
+	locationData?: Revived<IChatLocationData>;
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
 	userSelectedModelId?: string;
-	userSelectedTools?: Record<string, boolean>;
-	modeInstructions?: string;
+	userSelectedTools?: UserSelectedTools;
+	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+	isSubagent?: boolean;
+
+	/**
+	 * Summary data for chat sessions context
+	 */
+	chatSummary?: {
+		prompt?: string;
+		history?: string;
+	};
 }
 
 export interface IChatQuestion {
@@ -158,6 +185,7 @@ export interface IChatAgentResult {
 	timings?: IChatAgentResultTimings;
 	/** Extra properties that the agent can use to identify a result */
 	readonly metadata?: { readonly [key: string]: any };
+	readonly details?: string;
 	nextQuestion?: IChatQuestion;
 }
 
@@ -193,7 +221,7 @@ export interface IChatAgentService {
 	detectAgentOrCommand(request: IChatAgentRequest, history: IChatAgentHistoryEntry[], options: { location: ChatAgentLocation }, token: CancellationToken): Promise<{ agent: IChatAgentData; command?: IChatAgentCommand } | undefined>;
 	hasChatParticipantDetectionProviders(): boolean;
 	invokeAgent(agent: string, request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
-	setRequestPaused(agent: string, requestId: string, isPaused: boolean): void;
+	setRequestTools(agent: string, requestId: string, tools: UserSelectedTools): void;
 	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	getChatTitle(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined>;
 	getChatSummary(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined>;
@@ -231,19 +259,18 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	private readonly _hasDefaultAgent: IContextKey<boolean>;
 	private readonly _extensionAgentRegistered: IContextKey<boolean>;
 	private readonly _defaultAgentRegistered: IContextKey<boolean>;
-	private readonly _editingAgentRegistered: IContextKey<boolean>;
 	private _hasToolsAgent = false;
 
 	private _chatParticipantDetectionProviders = new Map<number, IChatParticipantDetectionProvider>();
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._hasDefaultAgent = ChatContextKeys.enabled.bindTo(this.contextKeyService);
 		this._extensionAgentRegistered = ChatContextKeys.extensionParticipantRegistered.bindTo(this.contextKeyService);
 		this._defaultAgentRegistered = ChatContextKeys.panelParticipantRegistered.bindTo(this.contextKeyService);
-		this._editingAgentRegistered = ChatContextKeys.editingParticipantRegistered.bindTo(this.contextKeyService);
 		this._register(contextKeyService.onDidChangeContext((e) => {
 			if (e.affectsSome(this._agentsContextKeys)) {
 				this._updateContextKeys();
@@ -293,7 +320,6 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	private _updateContextKeys(): void {
-		let editingAgentRegistered = false;
 		let extensionAgentRegistered = false;
 		let defaultAgentRegistered = false;
 		let toolsAgentRegistered = false;
@@ -302,21 +328,19 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 				if (!agent.isCore) {
 					extensionAgentRegistered = true;
 				}
-				if (agent.modes.includes(ChatModeKind.Agent)) {
+				if (agent.id === 'chat.setup' || agent.id === 'github.copilot.editsAgent') {
+					// TODO@roblourens firing the event below probably isn't necessary but leave it alone for now
 					toolsAgentRegistered = true;
-				} else if (agent.modes.includes(ChatModeKind.Edit)) {
-					editingAgentRegistered = true;
 				} else {
 					defaultAgentRegistered = true;
 				}
 			}
 		}
-		this._editingAgentRegistered.set(editingAgentRegistered);
 		this._defaultAgentRegistered.set(defaultAgentRegistered);
 		this._extensionAgentRegistered.set(extensionAgentRegistered);
 		if (toolsAgentRegistered !== this._hasToolsAgent) {
 			this._hasToolsAgent = toolsAgentRegistered;
-			this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.Panel, ChatModeKind.Agent));
+			this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.Chat, ChatModeKind.Agent));
 		}
 	}
 
@@ -392,7 +416,8 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	public get hasToolsAgent(): boolean {
-		return !!this._hasToolsAgent;
+		// The chat participant enablement is just based on this setting. Don't wait for the extension to be loaded.
+		return !!this.configurationService.getValue(ChatConfiguration.AgentEnabled);
 	}
 
 	getContributedDefaultAgent(location: ChatAgentLocation): IChatAgentData | undefined {
@@ -477,13 +502,13 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		return await data.impl.invoke(request, progress, history, token);
 	}
 
-	setRequestPaused(id: string, requestId: string, isPaused: boolean) {
+	setRequestTools(id: string, requestId: string, tools: UserSelectedTools): void {
 		const data = this._agents.get(id);
 		if (!data?.impl) {
 			throw new Error(`No activated agent with id "${id}"`);
 		}
 
-		data.impl.setRequestPaused?.(requestId, isPaused);
+		data.impl.setRequestTools?.(requestId, tools);
 	}
 
 	async getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
@@ -580,6 +605,7 @@ export class MergedChatAgent implements IChatAgent {
 	get fullName(): string { return this.data.fullName ?? ''; }
 	get description(): string { return this.data.description ?? ''; }
 	get extensionId(): ExtensionIdentifier { return this.data.extensionId; }
+	get extensionVersion(): string | undefined { return this.data.extensionVersion; }
 	get extensionPublisherId(): string { return this.data.extensionPublisherId; }
 	get extensionPublisherDisplayName() { return this.data.publisherDisplayName; }
 	get extensionDisplayName(): string { return this.data.extensionDisplayName; }
@@ -595,10 +621,8 @@ export class MergedChatAgent implements IChatAgent {
 		return this.impl.invoke(request, progress, history, token);
 	}
 
-	setRequestPaused(requestId: string, isPaused: boolean): void {
-		if (this.impl.setRequestPaused) {
-			this.impl.setRequestPaused(requestId, isPaused);
-		}
+	setRequestTools(requestId: string, tools: UserSelectedTools): void {
+		this.impl.setRequestTools?.(requestId, tools);
 	}
 
 	async provideFollowups(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
@@ -726,26 +750,35 @@ export function getFullyQualifiedId(chatAgentData: IChatAgentData): string {
 	return `${chatAgentData.extensionId.value}.${chatAgentData.id}`;
 }
 
-export function reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAgentData {
-	const agent = 'name' in raw ?
+/**
+ * There was a period where serialized chat agent data used 'id' instead of 'name'.
+ * Don't copy this pattern, serialized data going forward should be versioned with strict interfaces.
+ */
+interface IOldSerializedChatAgentData extends Omit<ISerializableChatAgentData, 'name'> {
+	id: string;
+	extensionPublisher?: string;
+}
+
+export function reviveSerializedAgent(raw: ISerializableChatAgentData | IOldSerializedChatAgentData): IChatAgentData {
+	const normalized: ISerializableChatAgentData = 'name' in raw ?
 		raw :
 		{
-			...(raw as any),
-			name: (raw as any).id,
+			...raw,
+			name: raw.id,
 		};
 
 	// Fill in required fields that may be missing from old data
-	if (!('extensionPublisherId' in agent)) {
-		agent.extensionPublisherId = agent.extensionPublisher ?? '';
+	if (!normalized.extensionPublisherId) {
+		normalized.extensionPublisherId = (raw as IOldSerializedChatAgentData).extensionPublisher ?? '';
 	}
 
-	if (!('extensionDisplayName' in agent)) {
-		agent.extensionDisplayName = '';
+	if (!normalized.extensionDisplayName) {
+		normalized.extensionDisplayName = '';
 	}
 
-	if (!('extensionId' in agent)) {
-		agent.extensionId = new ExtensionIdentifier('');
+	if (!normalized.extensionId) {
+		normalized.extensionId = new ExtensionIdentifier('');
 	}
 
-	return revive(agent);
+	return revive(normalized);
 }

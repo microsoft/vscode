@@ -39,9 +39,9 @@ export interface IEmbedderTerminalOptions {
  * See Pseudoterminal on the vscode API for usage.
  */
 export interface IEmbedderTerminalPty {
-	onDidWrite: Event<string>;
-	onDidClose?: Event<void | number>;
-	onDidChangeName?: Event<string>;
+	readonly onDidWrite: Event<string>;
+	readonly onDidClose?: Event<void | number>;
+	readonly onDidChangeName?: Event<string>;
 
 	open(): void;
 	close(): void;
@@ -127,13 +127,16 @@ class EmbedderTerminalProcess extends Disposable implements ITerminalChildProces
 	resize(): void {
 		// no-op
 	}
-	clearBuffer(): void | Promise<void> {
+	clearBuffer(): void {
 		// no-op
 	}
 	acknowledgeDataEvent(): void {
 		// no-op, flow control not currently implemented
 	}
 	async setUnicodeVersion(): Promise<void> {
+		// no-op
+	}
+	async setNextCommandId(): Promise<void> {
 		// no-op
 	}
 	async getInitialCwd(): Promise<string> {

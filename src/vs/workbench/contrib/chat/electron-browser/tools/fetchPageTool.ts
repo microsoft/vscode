@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from '../../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
 import { extname } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { IWebContentExtractorService, WebContentExtractResult } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { detectEncodingFromBuffer } from '../../../../services/textfile/common/encoding.js';
+import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
 import { ChatImageMimeType } from '../../common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
@@ -22,6 +23,8 @@ export const FetchWebPageToolData: IToolData = {
 	canBeReferencedInPrompt: false,
 	modelDescription: localize('fetchWebPage.modelDescription', 'Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage.'),
 	source: ToolDataSource.Internal,
+	canRequestPostApproval: true,
+	canRequestPreApproval: true,
 	inputSchema: {
 		type: 'object',
 		properties: {
@@ -37,12 +40,14 @@ export const FetchWebPageToolData: IToolData = {
 	}
 };
 
+type ResultType = string | { type: 'tooldata'; value: IToolResultDataPart } | { type: 'extracted'; value: WebContentExtractResult } | undefined;
+
 export class FetchWebPageTool implements IToolImpl {
-	private _alreadyApprovedDomains = new ResourceSet();
 
 	constructor(
 		@IWebContentExtractorService private readonly _readerModeService: IWebContentExtractorService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -56,17 +61,11 @@ export class FetchWebPageTool implements IToolImpl {
 			};
 		}
 
-		// We approved these via confirmation, so mark them as "approved" in this session
-		// if they are not approved via the trusted domain service.
-		for (const uri of webUris.values()) {
-			this._alreadyApprovedDomains.add(uri);
-		}
-
 		// Get contents from web URIs
 		const webContents = webUris.size > 0 ? await this._readerModeService.extract([...webUris.values()]) : [];
 
 		// Get contents from file URIs
-		const fileContents: (string | IToolResultDataPart | undefined)[] = [];
+		const fileContents: (string | { type: 'tooldata'; value: IToolResultDataPart } | undefined)[] = [];
 		const successfulFileUris: URI[] = [];
 		for (const uri of fileUris.values()) {
 			try {
@@ -77,10 +76,13 @@ export class FetchWebPageTool implements IToolImpl {
 				if (imageMimeType) {
 					// For supported image files, return as IToolResultDataPart
 					fileContents.push({
-						kind: 'data',
+						type: 'tooldata',
 						value: {
-							mimeType: imageMimeType,
-							data: fileContent.value
+							kind: 'data',
+							value: {
+								mimeType: imageMimeType,
+								data: fileContent.value
+							}
 						}
 					});
 				} else {
@@ -105,14 +107,14 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 		// Build results array in original order
-		const results: (string | IToolResultDataPart | undefined)[] = [];
+		const results: ResultType[] = [];
 		let webIndex = 0;
 		let fileIndex = 0;
 		for (const url of urls) {
 			if (invalidUris.has(url)) {
 				results.push(undefined);
 			} else if (webUris.has(url)) {
-				results.push(webContents[webIndex]);
+				results.push({ type: 'extracted', value: webContents[webIndex] });
 				webIndex++;
 			} else if (fileUris.has(url)) {
 				results.push(fileContents[fileIndex]);
@@ -122,12 +124,20 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		}
 
+		// Skip confirming any results if every web content we got was an error or redirect
+		let confirmResults: undefined | boolean;
+		if (webContents.every(e => e.status === 'error' || e.status === 'redirect')) {
+			confirmResults = false;
+		}
+
+
 		// Only include URIs that actually had content successfully fetched
 		const actuallyValidUris = [...webUris.values(), ...successfulFileUris];
 
 		return {
 			content: this._getPromptPartsForResults(results),
-			toolResultDetails: actuallyValidUris
+			toolResultDetails: actuallyValidUris,
+			confirmResults,
 		};
 	}
 
@@ -148,8 +158,7 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 		const invalid = [...Array.from(invalidUris), ...additionalInvalidUrls];
-		const valid = [...webUris.values(), ...validFileUris];
-		const urlsNeedingConfirmation = webUris.size > 0 ? [...webUris.values()].filter(url => !this._alreadyApprovedDomains.has(url)) : [];
+		const urlsNeedingConfirmation = [...webUris.values(), ...validFileUris];
 
 		const pastTenseMessage = invalid.length
 			? invalid.length > 1
@@ -157,7 +166,7 @@ export class FetchWebPageTool implements IToolImpl {
 				? new MarkdownString(
 					localize(
 						'fetchWebPage.pastTenseMessage.plural',
-						'Fetched {0} resources, but the following were invalid URLs:\n\n{1}\n\n', valid.length, invalid.map(url => `- ${url}`).join('\n')
+						'Fetched {0} resources, but the following were invalid URLs:\n\n{1}\n\n', urlsNeedingConfirmation.length, invalid.map(url => `- ${url}`).join('\n')
 					))
 				// If there is only one invalid URL, show it
 				: new MarkdownString(
@@ -169,11 +178,11 @@ export class FetchWebPageTool implements IToolImpl {
 			: new MarkdownString();
 
 		const invocationMessage = new MarkdownString();
-		if (valid.length > 1) {
-			pastTenseMessage.appendMarkdown(localize('fetchWebPage.pastTenseMessageResult.plural', 'Fetched {0} resources', valid.length));
-			invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.plural', 'Fetching {0} resources', valid.length));
-		} else if (valid.length === 1) {
-			const url = valid[0].toString();
+		if (urlsNeedingConfirmation.length > 1) {
+			pastTenseMessage.appendMarkdown(localize('fetchWebPage.pastTenseMessageResult.plural', 'Fetched {0} resources', urlsNeedingConfirmation.length));
+			invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.plural', 'Fetching {0} resources', urlsNeedingConfirmation.length));
+		} else if (urlsNeedingConfirmation.length === 1) {
+			const url = urlsNeedingConfirmation[0].toString();
 			// If the URL is too long or it's a file url, show it as a link... otherwise, show it as plain text
 			if (url.length > 400 || validFileUris.length === 1) {
 				pastTenseMessage.appendMarkdown(localize({
@@ -197,26 +206,32 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 		const result: IPreparedToolInvocation = { invocationMessage, pastTenseMessage };
-		if (urlsNeedingConfirmation.length) {
-			let confirmationTitle: string;
-			let confirmationMessage: string | MarkdownString;
+		const allDomainsTrusted = urlsNeedingConfirmation.every(u => this._trustedDomainService.isValid(u));
+		let confirmationTitle: string | undefined;
+		let confirmationMessage: string | MarkdownString | undefined;
+
+		if (urlsNeedingConfirmation.length && !allDomainsTrusted) {
 			if (urlsNeedingConfirmation.length === 1) {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.singular', 'Fetch web page?');
 				confirmationMessage = new MarkdownString(
-					urlsNeedingConfirmation[0].toString() + '\n\n$(info) ' +
-					localize('fetchWebPage.confirmationMessage.singular', 'Web content may contain malicious code or attempt prompt injection attacks.'),
+					urlsNeedingConfirmation[0].toString(),
 					{ supportThemeIcons: true }
 				);
 			} else {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.plural', 'Fetch web pages?');
 				confirmationMessage = new MarkdownString(
-					urlsNeedingConfirmation.map(uri => `- ${uri.toString()}`).join('\n') + '\n\n$(info) ' +
-					localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.'),
+					urlsNeedingConfirmation.map(uri => `- ${uri.toString()}`).join('\n'),
 					{ supportThemeIcons: true }
 				);
 			}
-			result.confirmationMessages = { title: confirmationTitle, message: confirmationMessage, allowAutoConfirm: true };
 		}
+		result.confirmationMessages = {
+			title: confirmationTitle,
+			message: confirmationMessage,
+			confirmResults: urlsNeedingConfirmation.length > 0,
+			allowAutoConfirm: true,
+			disclaimer: new MarkdownString('$(info) ' + localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true })
+		};
 		return result;
 	}
 
@@ -242,7 +257,7 @@ export class FetchWebPageTool implements IToolImpl {
 		return { webUris, fileUris, invalidUris };
 	}
 
-	private _getPromptPartsForResults(results: (string | IToolResultDataPart | undefined)[]): (IToolResultTextPart | IToolResultDataPart)[] {
+	private _getPromptPartsForResults(results: ResultType[]): (IToolResultTextPart | IToolResultDataPart)[] {
 		return results.map(value => {
 			if (!value) {
 				return {
@@ -254,9 +269,21 @@ export class FetchWebPageTool implements IToolImpl {
 					kind: 'text',
 					value: value
 				};
+			} else if (value.type === 'tooldata') {
+				return value.value;
+			} else if (value.type === 'extracted') {
+				switch (value.value.status) {
+					case 'ok':
+						return { kind: 'text', value: value.value.result };
+					case 'redirect':
+						return { kind: 'text', value: `The webpage has redirected to "${value.value.toURI.toString(true)}". Use the ${InternalFetchWebPageToolId} again to get its contents.` };
+					case 'error':
+						return { kind: 'text', value: `An error occurred retrieving the fetch result: ${value.value.error}` };
+					default:
+						assertNever(value.value);
+				}
 			} else {
-				// This is an IToolResultDataPart
-				return value;
+				throw new Error('unreachable');
 			}
 		});
 	}

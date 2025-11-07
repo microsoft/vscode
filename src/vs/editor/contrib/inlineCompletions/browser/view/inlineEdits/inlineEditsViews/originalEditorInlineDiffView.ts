@@ -216,7 +216,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 				for (const m of diff.diff) {
 					if (!m.original.isEmpty) {
 						originalDecorations.push({
-							range: m.original.toExclusiveRange()!,
+							range: m.original.toExclusiveRange(),
 							options: NESOriginalBackground,
 						});
 					}

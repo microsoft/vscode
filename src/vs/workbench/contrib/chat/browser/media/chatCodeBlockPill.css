@@ -10,7 +10,7 @@
 	width: fit-content;
 	font-weight: normal;
 	text-decoration: none;
-	font-size: 11px;
+	font-size: var(--vscode-chat-font-size-body-xs);
 	padding: 0 3px;
 	cursor: pointer;
 }

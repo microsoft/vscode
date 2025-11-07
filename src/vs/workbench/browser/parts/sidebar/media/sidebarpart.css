@@ -95,6 +95,13 @@
 	color: var(--vscode-activityBarTop-foreground) !important;
 }
 
+.monaco-workbench .part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label.uri-icon,
+.monaco-workbench .part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .action-label.uri-icon,
+.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label.uri-icon,
+.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .action-label.uri-icon {
+	background-color: var(--vscode-activityBarTop-foreground) !important;
+}
+
 .monaco-workbench .sidebar.pane-composite-part > .title > .composite-bar-container {
 	flex: 1;
 }

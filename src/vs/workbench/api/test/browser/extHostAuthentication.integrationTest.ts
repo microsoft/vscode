@@ -72,6 +72,7 @@ class AuthQuickPick {
 }
 class AuthTestQuickInputService extends TestQuickInputService {
 	override createQuickPick() {
+		// eslint-disable-next-line local/code-no-any-casts
 		return <any>new AuthQuickPick();
 	}
 }
@@ -160,6 +161,7 @@ suite('ExtHostAuthentication', () => {
 
 		rpcProtocol.set(MainContext.MainThreadAuthentication, disposables.add(mainInstantiationService.createInstance(MainThreadAuthentication, rpcProtocol)));
 		rpcProtocol.set(MainContext.MainThreadWindow, disposables.add(mainInstantiationService.createInstance(MainThreadWindow, rpcProtocol)));
+		// eslint-disable-next-line local/code-no-any-casts
 		const initData: IExtHostInitDataService = {
 			environment: {
 				appUriScheme: 'test',
@@ -168,6 +170,7 @@ suite('ExtHostAuthentication', () => {
 		} as any;
 		extHostAuthentication = new ExtHostAuthentication(
 			rpcProtocol,
+			// eslint-disable-next-line local/code-no-any-casts
 			{
 				environment: {
 					appUriScheme: 'test',

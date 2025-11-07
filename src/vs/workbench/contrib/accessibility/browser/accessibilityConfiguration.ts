@@ -35,7 +35,8 @@ export const enum AccessibilityWorkbenchSettingId {
 	DimUnfocusedEnabled = 'accessibility.dimUnfocused.enabled',
 	DimUnfocusedOpacity = 'accessibility.dimUnfocused.opacity',
 	HideAccessibleView = 'accessibility.hideAccessibleView',
-	AccessibleViewCloseOnKeyPress = 'accessibility.accessibleView.closeOnKeyPress'
+	AccessibleViewCloseOnKeyPress = 'accessibility.accessibleView.closeOnKeyPress',
+	VerboseChatProgressUpdates = 'accessibility.verboseChatProgressUpdates'
 }
 
 export const enum ViewDimUnfocusedOpacityProperties {
@@ -562,6 +563,10 @@ const configuration: IConfigurationNode = {
 		'accessibility.signals.progress': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.progress', "Plays a signal - sound (audio cue) and/or announcement (alert) - on loop while progress is occurring."),
+			'default': {
+				'sound': 'auto',
+				'announcement': 'off'
+			},
 			'properties': {
 				'sound': {
 					'description': localize('accessibility.signals.progress.sound', "Plays a sound on loop while progress is occurring."),
@@ -802,6 +807,16 @@ const configuration: IConfigurationNode = {
 			'default': true,
 			'markdownDescription': localize('accessibility.windowTitleOptimized', "Controls whether the {0} should be optimized for screen readers when in screen reader mode. When enabled, the window title will have {1} appended to the end.", '`#window.title#`', '`activeEditorState`')
 		},
+		'accessibility.openChatEditedFiles': {
+			'type': 'boolean',
+			'default': false,
+			'markdownDescription': localize('accessibility.openChatEditedFiles', "Controls whether files should be opened when the chat agent has applied edits to them.")
+		},
+		'accessibility.verboseChatProgressUpdates': {
+			'type': 'boolean',
+			'default': true,
+			'markdownDescription': localize('accessibility.verboseChatProgressUpdates', "Controls whether verbose progress announcements should be made when a chat request is in progress, including information like searched text for <search term> with X results, created file <file_name>, or read file <file path>.")
+		}
 	}
 };
 
@@ -833,6 +848,11 @@ export function registerAccessibilityConfiguration() {
 				type: 'boolean',
 				default: false,
 				tags: ['accessibility']
+			},
+			[AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates]: {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('accessibility.verboseChatProgressUpdates', "Controls whether verbose progress announcements should be made when a chat request is in progress, including information like searched text for <search term> with X results, created file <file_name>, or read file <file path>.")
 			}
 		}
 	});
@@ -840,7 +860,7 @@ export function registerAccessibilityConfiguration() {
 
 export { AccessibilityVoiceSettingId };
 
-export const SpeechTimeoutDefault = 1200;
+export const SpeechTimeoutDefault = 0;
 
 export class DynamicSpeechAccessibilityConfiguration extends Disposable implements IWorkbenchContribution {
 

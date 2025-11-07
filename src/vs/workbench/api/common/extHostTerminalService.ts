@@ -28,6 +28,7 @@ import { IExtHostCommands } from './extHostCommands.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ISerializedTerminalInstanceContext } from '../../contrib/terminal/common/terminal.js';
 import { isWindows } from '../../../base/common/platform.js';
+import { hasKey } from '../../../base/common/types.js';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -191,11 +192,12 @@ export class ExtHostTerminal extends Disposable {
 			useShellEnvironment: internalOptions?.useShellEnvironment ?? undefined,
 			location: internalOptions?.location || this._serializeParentTerminal(options.location, internalOptions?.resolvedExtHostIdentifier),
 			isTransient: options.isTransient ?? undefined,
+			shellIntegrationNonce: options.shellIntegrationNonce ?? undefined,
 		});
 	}
 
 
-	public async createExtensionTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, internalOptions?: ITerminalInternalOptions, parentTerminal?: ExtHostTerminalIdentifier, iconPath?: TerminalIcon, color?: ThemeColor): Promise<number> {
+	public async createExtensionTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, internalOptions?: ITerminalInternalOptions, parentTerminal?: ExtHostTerminalIdentifier, iconPath?: TerminalIcon, color?: ThemeColor, shellIntegrationNonce?: string): Promise<number> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
@@ -205,7 +207,8 @@ export class ExtHostTerminal extends Disposable {
 			icon: iconPath,
 			color: ThemeColor.isThemeColor(color) ? color.id : undefined,
 			location: internalOptions?.location || this._serializeParentTerminal(location, parentTerminal),
-			isTransient: true
+			isTransient: true,
+			shellIntegrationNonce: shellIntegrationNonce ?? undefined,
 		});
 		// At this point, the id has been set via `$acceptTerminalOpened`
 		if (typeof this._id === 'string') {
@@ -216,11 +219,11 @@ export class ExtHostTerminal extends Disposable {
 
 	private _serializeParentTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminalIdentifier): TerminalLocation | { viewColumn: EditorGroupColumn; preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | undefined {
 		if (typeof location === 'object') {
-			if ('parentTerminal' in location && location.parentTerminal && parentTerminal) {
+			if (hasKey(location, { parentTerminal: true }) && location.parentTerminal && parentTerminal) {
 				return { parentTerminal };
 			}
 
-			if ('viewColumn' in location) {
+			if (hasKey(location, { viewColumn: true })) {
 				return { viewColumn: ViewColumn.from(location.viewColumn), preserveFocus: location.preserveFocus };
 			}
 
@@ -344,7 +347,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 		this._pty.setDimensions?.({ columns: cols, rows });
 	}
 
-	clearBuffer(): void | Promise<void> {
+	clearBuffer(): void {
 		// no-op
 	}
 
@@ -359,6 +362,10 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
 		// No-op, xterm-headless isn't used for extension owned terminals.
+	}
+
+	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
+		// No-op, command IDs are only tracked on the renderer for extension terminals.
 	}
 
 	getInitialCwd(): Promise<string> {
@@ -511,7 +518,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
-		terminal.createExtensionTerminal(options.location, internalOptions, this._serializeParentTerminal(options, internalOptions).resolvedExtHostIdentifier, asTerminalIcon(options.iconPath), asTerminalColor(options.color)).then(id => {
+		terminal.createExtensionTerminal(options.location, internalOptions, this._serializeParentTerminal(options, internalOptions).resolvedExtHostIdentifier, asTerminalIcon(options.iconPath), asTerminalColor(options.color), options.shellIntegrationNonce).then(id => {
 			const disposable = this._setupExtHostProcessListeners(id, p);
 			this._terminalProcessDisposables[id] = disposable;
 		});
@@ -521,7 +528,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	protected _serializeParentTerminal(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): ITerminalInternalOptions {
 		internalOptions = internalOptions ? internalOptions : {};
-		if (options.location && typeof options.location === 'object' && 'parentTerminal' in options.location) {
+		if (options.location && typeof options.location === 'object' && hasKey(options.location, { parentTerminal: true })) {
 			const parentTerminal = options.location.parentTerminal;
 			if (parentTerminal) {
 				const parentExtHostTerminal = this._terminals.find(t => t.value === parentTerminal);
@@ -531,7 +538,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			}
 		} else if (options.location && typeof options.location !== 'object') {
 			internalOptions.location = options.location;
-		} else if (internalOptions.location && typeof internalOptions.location === 'object' && 'splitActiveTerminal' in internalOptions.location) {
+		} else if (internalOptions.location && typeof internalOptions.location === 'object' && hasKey(internalOptions.location, { splitActiveTerminal: true })) {
 			internalOptions.location = { splitActiveTerminal: true };
 		}
 		return internalOptions;
@@ -756,14 +763,14 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public registerTerminalCompletionProvider(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable {
-		if (this._completionProviders.has(provider.id)) {
-			throw new Error(`Terminal completion provider "${provider.id}" already registered`);
+		if (this._completionProviders.has(extension.identifier.value)) {
+			throw new Error(`Terminal completion provider "${extension.identifier.value}" already registered`);
 		}
-		this._completionProviders.set(provider.id, provider);
-		this._proxy.$registerCompletionProvider(provider.id, extension.identifier.value, ...triggerCharacters);
+		this._completionProviders.set(extension.identifier.value, provider);
+		this._proxy.$registerCompletionProvider(extension.identifier.value, extension.identifier.value, ...triggerCharacters);
 		return new VSCodeDisposable(() => {
-			this._completionProviders.delete(provider.id);
-			this._proxy.$unregisterCompletionProvider(provider.id);
+			this._completionProviders.delete(extension.identifier.value);
+			this._proxy.$unregisterCompletionProvider(extension.identifier.value);
 		});
 	}
 
@@ -844,15 +851,15 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (token.isCancellationRequested) {
 			return;
 		}
-		if (profile && !('options' in profile)) {
+		if (profile && !hasKey(profile, { options: true })) {
 			profile = { options: profile };
 		}
 
-		if (!profile || !('options' in profile)) {
+		if (!profile || !hasKey(profile, { options: true })) {
 			throw new Error(`No terminal profile options provided for id "${id}"`);
 		}
 
-		if ('pty' in profile.options) {
+		if (hasKey(profile.options, { pty: true })) {
 			this.createExtensionTerminal(profile.options, options);
 			return;
 		}
@@ -1264,7 +1271,7 @@ function asTerminalIcon(iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscod
 		return undefined;
 	}
 
-	if (!('id' in iconPath)) {
+	if (!hasKey(iconPath, { id: true })) {
 		return iconPath;
 	}
 
@@ -1282,6 +1289,7 @@ function convertMutator(mutator: IEnvironmentVariableMutator): vscode.Environmen
 	const newMutator = { ...mutator };
 	delete newMutator.scope;
 	newMutator.options = newMutator.options ?? undefined;
+	// eslint-disable-next-line local/code-no-any-casts
 	delete (newMutator as any).variable;
 	return newMutator as vscode.EnvironmentVariableMutator;
 }

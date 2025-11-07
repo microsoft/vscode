@@ -46,7 +46,7 @@ import { ResourceListDnDHandler } from '../../../browser/dnd.js';
 import { ResourceLabels } from '../../../browser/labels.js';
 import { FilterViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
-import { Memento, MementoObject } from '../../../common/memento.js';
+import { Memento } from '../../../common/memento.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { Markers, MarkersContextKeys, MarkersViewMode } from '../common/markers.js';
@@ -65,6 +65,18 @@ function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterab
 
 		return { element: m, children };
 	});
+}
+
+interface IMarkersPanelState {
+	filter?: string;
+	filterHistory?: string[];
+	showErrors?: boolean;
+	showWarnings?: boolean;
+	showInfos?: boolean;
+	useFilesExclude?: boolean;
+	activeFile?: boolean;
+	multiline?: boolean;
+	viewMode?: MarkersViewMode;
 }
 
 export interface IProblemsWidget {
@@ -115,8 +127,8 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 
 	private currentHeight = 0;
 	private currentWidth = 0;
-	private readonly memento: Memento;
-	private readonly panelState: MementoObject;
+	private readonly memento: Memento<IMarkersPanelState>;
+	private readonly panelState: IMarkersPanelState;
 
 	private cachedFilterStats: { total: number; filtered: number } | undefined = undefined;
 
@@ -142,7 +154,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		const memento = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService);
+		const memento = new Memento<IMarkersPanelState>(Markers.MARKERS_VIEW_STORAGE_ID, storageService);
 		const panelState = memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		super({
 			...options,
@@ -150,15 +162,15 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				ariaLabel: Messages.MARKERS_PANEL_FILTER_ARIA_LABEL,
 				placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER,
 				focusContextKey: MarkersContextKeys.MarkerViewFilterFocusContextKey.key,
-				text: panelState['filter'] || '',
-				history: panelState['filterHistory'] || []
+				text: panelState.filter || '',
+				history: panelState.filterHistory || []
 			}
 		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.memento = memento;
 		this.panelState = panelState;
 
 		this.markersModel = this._register(instantiationService.createInstance(MarkersModel));
-		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline'], this.panelState['viewMode'] ?? this.getDefaultViewMode()));
+		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState.multiline, this.panelState.viewMode ?? this.getDefaultViewMode()));
 		this._register(this.onDidChangeVisibility(visible => this.onDidChangeMarkersViewVisibility(visible)));
 		this._register(this.markersViewModel.onDidChangeViewMode(_ => this.onDidChangeViewMode()));
 
@@ -171,12 +183,12 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		this.rangeHighlightDecorations = this._register(this.instantiationService.createInstance(RangeHighlightDecorations));
 
 		this.filters = this._register(new MarkersFilters({
-			filterHistory: this.panelState['filterHistory'] || [],
-			showErrors: this.panelState['showErrors'] !== false,
-			showWarnings: this.panelState['showWarnings'] !== false,
-			showInfos: this.panelState['showInfos'] !== false,
-			excludedFiles: !!this.panelState['useFilesExclude'],
-			activeFile: !!this.panelState['activeFile'],
+			filterHistory: this.panelState.filterHistory || [],
+			showErrors: this.panelState.showErrors !== false,
+			showWarnings: this.panelState.showWarnings !== false,
+			showInfos: this.panelState.showInfos !== false,
+			excludedFiles: !!this.panelState.useFilesExclude,
+			activeFile: !!this.panelState.activeFile,
 		}, this.contextKeyService));
 
 		// Update filter, whenever the "files.exclude" setting is changed
@@ -884,15 +896,15 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	}
 
 	override saveState(): void {
-		this.panelState['filter'] = this.filterWidget.getFilterText();
-		this.panelState['filterHistory'] = this.filters.filterHistory;
-		this.panelState['showErrors'] = this.filters.showErrors;
-		this.panelState['showWarnings'] = this.filters.showWarnings;
-		this.panelState['showInfos'] = this.filters.showInfos;
-		this.panelState['useFilesExclude'] = this.filters.excludedFiles;
-		this.panelState['activeFile'] = this.filters.activeFile;
-		this.panelState['multiline'] = this.markersViewModel.multiline;
-		this.panelState['viewMode'] = this.markersViewModel.viewMode;
+		this.panelState.filter = this.filterWidget.getFilterText();
+		this.panelState.filterHistory = this.filters.filterHistory;
+		this.panelState.showErrors = this.filters.showErrors;
+		this.panelState.showWarnings = this.filters.showWarnings;
+		this.panelState.showInfos = this.filters.showInfos;
+		this.panelState.useFilesExclude = this.filters.excludedFiles;
+		this.panelState.activeFile = this.filters.activeFile;
+		this.panelState.multiline = this.markersViewModel.multiline;
+		this.panelState.viewMode = this.markersViewModel.viewMode;
 
 		this.memento.saveMemento();
 		super.saveState();

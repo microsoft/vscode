@@ -94,14 +94,19 @@ export function setup(options?: { skipSuite: boolean }) {
 			after(async function () {
 				await settingsEditor.clearUserSettings();
 			});
-			beforeEach(async function () {
+
+			// Don't use beforeEach as that ignores the retry count, createEmptyTerminal has been
+			// flaky in the past
+			async function beforeEachSetup() {
 				// Use the simplest profile to get as little process interaction as possible
 				await terminal.createEmptyTerminal();
 				// Erase all content and reset cursor to top
 				await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${csi('2J')}${csi('H')}`);
-			});
+			}
+
 			describe('VS Code sequences', () => {
 				it('should handle the simple case', async () => {
+					await beforeEachSetup();
 					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}exitcode 0`);
 					await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
 					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${vsc('C')}Success\\r\\n${vsc('D;0')}`);
@@ -116,6 +121,7 @@ export function setup(options?: { skipSuite: boolean }) {
 			});
 			describe('Final Term sequences', () => {
 				it('should handle the simple case', async () => {
+					await beforeEachSetup();
 					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${ft('A')}Prompt> ${ft('B')}exitcode 0`);
 					await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
 					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${ft('C')}Success\\r\\n${ft('D;0')}`);

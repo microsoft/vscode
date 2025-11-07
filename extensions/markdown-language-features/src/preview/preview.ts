@@ -53,7 +53,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	private readonly _webviewPanel: vscode.WebviewPanel;
 
 	private _line: number | undefined;
-	private _scrollToFragment: string | undefined;
+	private readonly _scrollToFragment: string | undefined;
 	private _firstUpdate = true;
 	private _currentVersion?: PreviewDocumentVersion;
 	private _isScrolling = false;

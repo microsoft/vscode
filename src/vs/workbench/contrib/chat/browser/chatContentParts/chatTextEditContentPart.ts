@@ -147,11 +147,12 @@ export class DiffEditorPool extends Disposable {
 		options: ChatEditorOptions,
 		delegate: IChatRendererDelegate,
 		overflowWidgetsDomNode: HTMLElement | undefined,
+		private readonly isSimpleWidget: boolean = false,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 		this._pool = this._register(new ResourcePool(() => {
-			return instantiationService.createInstance(CodeCompareBlockPart, options, MenuId.ChatCompareBlock, delegate, overflowWidgetsDomNode);
+			return instantiationService.createInstance(CodeCompareBlockPart, options, MenuId.ChatCompareBlock, delegate, overflowWidgetsDomNode, this.isSimpleWidget);
 		}));
 	}
 
@@ -209,7 +210,7 @@ class CodeCompareModelService implements ICodeCompareModelService {
 		}
 
 		// apply edits to the "modified" model
-		const chatModel = this.chatService.getSession(element.sessionId)!;
+		const chatModel = this.chatService.getSession(element.sessionResource)!;
 		const editGroups: ISingleEditOperation[][] = [];
 		for (const request of chatModel.getRequests()) {
 			if (!request.response) {

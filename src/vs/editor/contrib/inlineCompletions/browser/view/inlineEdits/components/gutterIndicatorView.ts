@@ -18,8 +18,8 @@ import { IEditorMouseEvent } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../../common/core/2d/point.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
-import { HoverService } from '../../../../../../browser/services/hoverService/hoverService.js';
-import { HoverWidget } from '../../../../../../browser/services/hoverService/hoverWidget.js';
+import { HoverService } from '../../../../../../../platform/hover/browser/hoverService.js';
+import { HoverWidget } from '../../../../../../../platform/hover/browser/hoverWidget.js';
 import { EditorOption, RenderLineNumbersType } from '../../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
@@ -28,6 +28,7 @@ import { IInlineEditModel, InlineEditTabAction } from '../inlineEditsViewInterfa
 import { getEditorBlendedColor, inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryBorder, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulBorder, inlineEditIndicatorsuccessfulForeground } from '../theme.js';
 import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
+import { assertNever } from '../../../../../../../base/common/assert.js';
 
 export class InlineEditsGutterIndicator extends Disposable {
 
@@ -37,7 +38,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		return model;
 	}
 
-	private readonly _gutterIndicatorStyles: IObservable<{ background: string; foreground: string; border: string }>;
+	private readonly _gutterIndicatorStyles;
 	private readonly _isHoveredOverInlineEditDebounced: IObservable<boolean>;
 
 	constructor(
@@ -67,7 +68,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		this.isHoveredOverIcon = this._isHoveredOverIconDebounced;
 		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
 
-		this._gutterIndicatorStyles = this._tabAction.map((v, reader) => {
+		this._gutterIndicatorStyles = this._tabAction.map(this, (v, reader) => {
 			switch (v) {
 				case InlineEditTabAction.Inactive: return {
 					background: getEditorBlendedColor(inlineEditIndicatorSecondaryBackground, themeService).read(reader).toString(),
@@ -84,16 +85,18 @@ export class InlineEditsGutterIndicator extends Disposable {
 					foreground: getEditorBlendedColor(inlineEditIndicatorsuccessfulForeground, themeService).read(reader).toString(),
 					border: getEditorBlendedColor(inlineEditIndicatorsuccessfulBorder, themeService).read(reader).toString()
 				};
+				default:
+					assertNever(v);
 			}
 		});
 
 		this._originalRangeObs = mapOutFalsy(this._originalRange);
-		this._state = derived(reader => {
+		this._state = derived(this, reader => {
 			const range = this._originalRangeObs.read(reader);
 			if (!range) { return undefined; }
 			return {
 				range,
-				lineOffsetRange: this._editorObs.observeLineOffsetRange(range, this._store),
+				lineOffsetRange: this._editorObs.observeLineOffsetRange(range, reader.store),
 			};
 		});
 		this._stickyScrollController = StickyScrollController.get(this._editorObs.editor);
@@ -198,7 +201,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const layout = this._editorObs.layoutInfo.read(reader);
 
 			const lineHeight = this._editorObs.observeLineHeightForLine(s.range.map(r => r.startLineNumber)).read(reader);
-			const gutterViewPortPadding = 1;
+			const gutterViewPortPadding = 2;
 
 			// Entire gutter view from top left to bottom right
 			const gutterWidthWithoutPadding = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPadding;
@@ -219,7 +222,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 			// The icon which will be rendered in the pill
 			const iconNoneDocked = this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
-			const iconDocked = derived(reader => {
+			const iconDocked = derived(this, reader => {
 				if (this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader)) {
 					return Codicon.check;
 				}
@@ -234,7 +237,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const idealIconWidth = 22;
 			const minimalIconWidth = 16; // codicon size
 			const iconWidth = (pillRect: Rect) => {
-				const availableWidth = this._availableWidthForIcon.get()(pillRect.bottom + this._editorObs.editor.getScrollTop()) - gutterViewPortPadding;
+				const availableWidth = this._availableWidthForIcon.read(undefined)(pillRect.bottom + this._editorObs.editor.getScrollTop()) - gutterViewPortPadding;
 				return Math.max(Math.min(availableWidth, idealIconWidth), minimalIconWidth);
 			};
 
@@ -340,6 +343,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 					zIndex: '20',
 					position: 'absolute',
 					backgroundColor: this._gutterIndicatorStyles.map(v => v.background),
+					// eslint-disable-next-line local/code-no-any-casts
 					['--vscodeIconForeground' as any]: this._gutterIndicatorStyles.map(v => v.foreground),
 					border: this._gutterIndicatorStyles.map(v => `1px solid ${v.border}`),
 					boxSizing: 'border-box',

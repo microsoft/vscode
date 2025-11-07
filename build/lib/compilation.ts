@@ -100,11 +100,11 @@ export function createCompile(src: string, { build, emitError, transpileOnly, pr
 	return pipeline;
 }
 
-export function transpileTask(src: string, out: string, esbuild: boolean): task.StreamTask {
+export function transpileTask(src: string, out: string, esbuild?: boolean): task.StreamTask {
 
 	const task = () => {
 
-		const transpile = createCompile(src, { build: false, emitError: true, transpileOnly: { esbuild }, preserveEnglish: false });
+		const transpile = createCompile(src, { build: false, emitError: true, transpileOnly: { esbuild: !!esbuild }, preserveEnglish: false });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 
 		return srcPipe
@@ -134,7 +134,7 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 		// mangle: TypeScript to TypeScript
 		let mangleStream = es.through();
 		if (build && !options.disableMangle) {
-			let ts2tsMangler = new Mangler(compile.projectPath, (...data) => fancyLog(ansiColors.blue('[mangler]'), ...data), { mangleExports: true, manglePrivateFields: true });
+			let ts2tsMangler: Mangler | undefined = new Mangler(compile.projectPath, (...data) => fancyLog(ansiColors.blue('[mangler]'), ...data), { mangleExports: true, manglePrivateFields: true });
 			const newContentsByFileName = ts2tsMangler.computeNewFileContents(new Set(['saveState']));
 			mangleStream = es.through(async function write(data: File & { sourceMap?: RawSourceMap }) {
 				type TypeScriptExt = typeof ts & { normalizePath(path: string): string };
@@ -150,7 +150,7 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 				(await newContentsByFileName).clear();
 
 				this.push(null);
-				(<any>ts2tsMangler) = undefined;
+				ts2tsMangler = undefined;
 			});
 		}
 
@@ -249,7 +249,7 @@ class MonacoGenerator {
 		return r;
 	}
 
-	private _log(message: any, ...rest: any[]): void {
+	private _log(message: any, ...rest: unknown[]): void {
 		fancyLog(ansiColors.cyan('[monaco.d.ts]'), message, ...rest);
 	}
 
@@ -301,7 +301,7 @@ function generateApiProposalNames() {
 
 			const proposalName = match[1];
 
-			const contents = f.contents.toString('utf8');
+			const contents = f.contents!.toString('utf8');
 			const versionMatch = versionPattern.exec(contents);
 			const version = versionMatch ? versionMatch[1] : undefined;
 

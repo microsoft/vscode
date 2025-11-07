@@ -23,7 +23,7 @@
 		background-image: url('./github.svg');
 	}
 
-	.dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.alternate::before {
+	.dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.google::before {
 		background-image: url('./google.svg');
 	}
 
@@ -51,12 +51,12 @@
 	}
 }
 
-.monaco-workbench.hc-black .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.alternate.monochrome::before,
-.monaco-workbench.vs-dark .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.alternate.monochrome::before {
-	background-image: url('./google-mono-dark.svg');
+.monaco-workbench.hc-black .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before,
+.monaco-workbench.vs-dark .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before {
+	background-image: url('./apple-dark.svg');
 }
 
-.monaco-workbench.hc-light .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.alternate.monochrome::before,
-.monaco-workbench.vs .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.alternate.monochrome::before {
-	background-image: url('./google-mono-light.svg');
+.monaco-workbench.hc-light .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before,
+.monaco-workbench.vs .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before {
+	background-image: url('./apple-light.svg');
 }

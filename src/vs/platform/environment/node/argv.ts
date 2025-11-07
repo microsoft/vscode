@@ -58,6 +58,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 			'maximize': { type: 'boolean', cat: 'o', description: localize('chatMaximize', "Maximize the chat session view.") },
 			'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindowForChat', "Force to use the last active window for the chat session.") },
 			'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindowForChat', "Force to open an empty window for the chat session.") },
+			'profile': { type: 'string', 'cat': 'o', args: 'profileName', description: localize('profileName', "Opens the provided folder or workspace with the given profile and associates the profile with the workspace. If the profile does not exist, a new empty one is created.") },
 			'help': { type: 'boolean', alias: 'h', description: localize('help', "Print usage.") }
 		}
 	},
@@ -161,6 +162,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'inspect-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'export-default-configuration': { type: 'string' },
+	'export-policy-data': { type: 'string', allowEmptyValue: true },
 	'install-source': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },
 	'logExtensionHostCommunication': { type: 'boolean' },
@@ -168,7 +170,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'skip-welcome': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
-	'transient': { type: 'boolean' },
+	'transient': { type: 'boolean', cat: 't', description: localize('transient', "Run with temporary data and extension directories, as if launched for the first time.") },
 	'use-inmemory-secretstorage': { type: 'boolean', deprecates: ['disable-keytar'] },
 	'password-store': { type: 'string' },
 	'disable-workspace-trust': { type: 'boolean' },
@@ -202,7 +204,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'enable-rdp-display-tracking': { type: 'boolean' },
 	'disable-layout-restore': { type: 'boolean' },
 	'disable-experiments': { type: 'boolean' },
-	'startup-experiment-group': { type: 'string', cat: 't', args: 'control|maximizedChat|splitEmptyEditorChat|splitWelcomeChat', description: localize('startupExperimentGroup', "Override the startup experiment group.") },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
@@ -261,8 +262,8 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	const alias: { [key: string]: string } = {};
 	const stringOptions: string[] = ['_'];
 	const booleanOptions: string[] = [];
-	const globalOptions: OptionDescriptions<any> = {};
-	let command: Subcommand<any> | undefined = undefined;
+	const globalOptions: Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'>> = {};
+	let command: Subcommand<Record<string, unknown>> | undefined = undefined;
 	for (const optionId in options) {
 		const o = options[optionId];
 		if (o.type === 'subcommand') {
@@ -291,13 +292,13 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		}
 	}
 	if (command && firstPossibleCommand) {
-		const options = globalOptions;
+		const options: Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'> | Subcommand<Record<string, unknown>>> = globalOptions;
 		for (const optionId in command.options) {
 			options[optionId] = command.options[optionId];
 		}
 		const newArgs = args.filter(a => a !== firstPossibleCommand);
 		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstPossibleCommand) : undefined;
-		const subcommandOptions = parseArgs(newArgs, options, reporter);
+		const subcommandOptions = parseArgs(newArgs, options as OptionDescriptions<Record<string, unknown>>, reporter);
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <T>{
 			[firstPossibleCommand]: subcommandOptions,
@@ -309,8 +310,8 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	// remove aliases to avoid confusion
 	const parsedArgs = minimist(args, { string: stringOptions, boolean: booleanOptions, alias });
 
-	const cleanedArgs: any = {};
-	const remainingArgs: any = parsedArgs;
+	const cleanedArgs: Record<string, unknown> = {};
+	const remainingArgs: Record<string, unknown> = parsedArgs;
 
 	// https://github.com/microsoft/vscode/issues/58177, https://github.com/microsoft/vscode/issues/106617
 	cleanedArgs._ = parsedArgs._.map(arg => String(arg)).filter(arg => arg.length > 0);
@@ -347,8 +348,8 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 					val = [val];
 				}
 				if (!o.allowEmptyValue) {
-					const sanitized = val.filter((v: string) => v.length > 0);
-					if (sanitized.length !== val.length) {
+					const sanitized = (val as string[]).filter((v: string) => v.length > 0);
+					if (sanitized.length !== (val as string[]).length) {
 						errorReporter.onEmptyValue(optionId);
 						val = sanitized.length > 0 ? sanitized : undefined;
 					}
@@ -356,7 +357,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 			} else if (o.type === 'string') {
 				if (Array.isArray(val)) {
 					val = val.pop(); // take the last
-					errorReporter.onMultipleValues(optionId, val);
+					errorReporter.onMultipleValues(optionId, val as string);
 				} else if (!val && !o.allowEmptyValue) {
 					errorReporter.onEmptyValue(optionId);
 					val = undefined;
@@ -375,10 +376,10 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		errorReporter.onUnknownOption(key);
 	}
 
-	return cleanedArgs;
+	return cleanedArgs as T;
 }
 
-function formatUsage(optionId: string, option: Option<any>) {
+function formatUsage(optionId: string, option: Option<'boolean'> | Option<'string'> | Option<'string[]'>) {
 	let args = '';
 	if (option.args) {
 		if (Array.isArray(option.args)) {
@@ -394,10 +395,10 @@ function formatUsage(optionId: string, option: Option<any>) {
 }
 
 // exported only for testing
-export function formatOptions(options: OptionDescriptions<any>, columns: number): string[] {
+export function formatOptions(options: OptionDescriptions<unknown> | Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'>>, columns: number): string[] {
 	const usageTexts: [string, string][] = [];
 	for (const optionId in options) {
-		const o = options[optionId];
+		const o = options[optionId as keyof typeof options] as Option<'boolean'> | Option<'string'> | Option<'string[]'>;
 		const usageText = formatUsage(optionId, o);
 		usageTexts.push([usageText, o.description!]);
 	}
@@ -443,7 +444,7 @@ function wrapText(text: string, columns: number): string[] {
 	return lines;
 }
 
-export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, capabilities?: { noPipe?: boolean; noInputFiles?: boolean; isChat?: boolean }): string {
+export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<unknown> | Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'> | Subcommand<Record<string, unknown>>>, capabilities?: { noPipe?: boolean; noInputFiles?: boolean; isChat?: boolean }): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
 	const inputFiles = capabilities?.noInputFiles ? '' : capabilities?.isChat ? ` [${localize('cliPrompt', 'prompt')}]` : ` [${localize('paths', 'paths')}...]`;
 	const subcommand = capabilities?.isChat ? ' chat' : '';
@@ -456,18 +457,19 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 		help.push(buildStdinMessage(executableName, capabilities?.isChat));
 		help.push('');
 	}
-	const optionsByCategory: { [P in keyof typeof helpCategories]?: OptionDescriptions<any> } = {};
+	const optionsByCategory: { [P in keyof typeof helpCategories]?: Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'>> } = {};
 	const subcommands: { command: string; description: string }[] = [];
 	for (const optionId in options) {
-		const o = options[optionId];
+		const o = options[optionId as keyof typeof options] as Option<'boolean'> | Option<'string'> | Option<'string[]'> | Subcommand<Record<string, unknown>>;
 		if (o.type === 'subcommand') {
 			if (o.description) {
 				subcommands.push({ command: optionId, description: o.description });
 			}
 		} else if (o.description && o.cat) {
-			let optionsByCat = optionsByCategory[o.cat];
+			const cat = o.cat;
+			let optionsByCat = optionsByCategory[cat];
 			if (!optionsByCat) {
-				optionsByCategory[o.cat] = optionsByCat = {};
+				optionsByCategory[cat] = optionsByCat = {};
 			}
 			optionsByCat[optionId] = o;
 		}

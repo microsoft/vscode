@@ -38,11 +38,11 @@ export interface IInternalWebWorkerOptions {
 	/**
 	 * The worker.
 	 */
-	worker: Worker;
+	worker: Worker | Promise<Worker>;
 	/**
 	 * An object that can be used by the web worker to make calls back to the main thread.
 	 */
-	host?: any;
+	host?: Record<string, Function>;
 	/**
 	 * Keep idle models.
 	 * Defaults to false, which means that idle models will stop syncing after a while.
@@ -61,10 +61,14 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 		this._foreignProxy = this._getProxy().then(proxy => {
 			return new Proxy({}, {
 				get(target, prop, receiver) {
+					if (prop === 'then') {
+						// Don't forward the call when the proxy is returned in an async function and the runtime tries to .then it.
+						return undefined;
+					}
 					if (typeof prop !== 'string') {
 						throw new Error(`Not supported`);
 					}
-					return (...args: any[]) => {
+					return (...args: unknown[]) => {
 						return proxy.$fmr(prop, args);
 					};
 				}
@@ -73,7 +77,7 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 	}
 
 	// foreign host request
-	public override fhr(method: string, args: any[]): Promise<any> {
+	public override fhr(method: string, args: unknown[]): Promise<unknown> {
 		if (!this._foreignModuleHost || typeof this._foreignModuleHost[method] !== 'function') {
 			return Promise.reject(new Error('Missing method ' + method + ' or missing main thread foreign host.'));
 		}

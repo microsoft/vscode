@@ -14,6 +14,7 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../j
 import { Registry } from '../../registry/common/platform.js';
 import { IPolicy, PolicyName } from '../../../base/common/policy.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import product from '../../product/common/product.js';
 
 export enum EditPresentationTypes {
 	Multiline = 'multilineText',
@@ -176,7 +177,6 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * List of tags associated to the property.
 	 *  - A tag can be used for filtering
 	 *  - Use `experimental` tag for marking the setting as experimental.
-	 *  - Use `onExP` tag for marking that the default of the setting can be changed by running experiments.
 	 */
 	tags?: string[];
 
@@ -217,6 +217,24 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * a system-wide policy.
 	 */
 	policy?: IPolicy;
+
+	/**
+	 * When specified, this setting's default value can always be overwritten by
+	 * an experiment.
+	 */
+	experiment?: {
+		/**
+		 * The mode of the experiment.
+		 * - `startup`: The setting value is updated to the experiment value only on startup.
+		 * - `auto`: The setting value is updated to the experiment value automatically (whenever the experiment value changes).
+		 */
+		mode: 'startup' | 'auto';
+
+		/**
+		 * The name of the experiment. By default, this is `config.${settingId}`
+		 */
+		name?: string;
+	};
 }
 
 export interface IExtensionInfo {
@@ -245,6 +263,12 @@ export interface IConfigurationDefaults {
 }
 
 export type IRegisteredConfigurationPropertySchema = IConfigurationPropertySchema & {
+	section?: {
+		id?: string;
+		title?: string;
+		order?: number;
+		extensionInfo?: IExtensionInfo;
+	};
 	defaultDefaultValue?: any;
 	source?: IExtensionInfo; // Source of the Property
 	defaultValueSource?: ConfigurationDefaultValueSource; // Source of the Default Value
@@ -470,6 +494,12 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 
 	private updateDefaultOverrideProperty(key: string, newDefaultOverride: IConfigurationDefaultOverrideValue, source: IExtensionInfo | undefined): void {
 		const property: IRegisteredConfigurationPropertySchema = {
+			section: {
+				id: this.defaultLanguageConfigurationOverridesNode.id,
+				title: this.defaultLanguageConfigurationOverridesNode.title,
+				order: this.defaultLanguageConfigurationOverridesNode.order,
+				extensionInfo: this.defaultLanguageConfigurationOverridesNode.extensionInfo
+			},
 			type: 'object',
 			default: newDefaultOverride.value,
 			description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for {0}.", getLanguageTagSettingPlainKey(key)),
@@ -638,7 +668,13 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		if (properties) {
 			for (const key in properties) {
 				const property: IRegisteredConfigurationPropertySchema = properties[key];
-				if (validate && validateProperty(key, property)) {
+				property.section = {
+					id: configuration.id,
+					title: configuration.title,
+					order: configuration.order,
+					extensionInfo: configuration.extensionInfo
+				};
+				if (validate && validateProperty(key, property, extensionInfo?.id)) {
 					delete properties[key];
 					continue;
 				}
@@ -655,6 +691,16 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 				} else {
 					property.scope = types.isUndefinedOrNull(property.scope) ? scope : property.scope;
 					property.restricted = types.isUndefinedOrNull(property.restricted) ? !!restrictedProperties?.includes(key) : property.restricted;
+				}
+
+				if (property.experiment) {
+					if (!property.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
+						property.tags = property.tags ?? [];
+						property.tags.push('onExP');
+					}
+				} else if (property.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
+					console.error(`Invalid tag 'onExP' found for property '${key}'. Please use 'experiment' property instead.`);
+					property.experiment = { mode: 'startup' };
 				}
 
 				const excluded = properties[key].hasOwnProperty('included') && !properties[key].included;
@@ -679,6 +725,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 					}
 				}
 
+
 			}
 		}
 		const subNodes = configuration.allOf;
@@ -689,7 +736,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		}
 	}
 
-	// TODO: @sandy081 - Remove this method and include required info in getConfigurationProperties
+	// Only for tests
 	getConfigurations(): IConfigurationNode[] {
 		return this.configurationContributors;
 	}
@@ -872,7 +919,7 @@ export function keyFromOverrideIdentifiers(overrideIdentifiers: string[]): strin
 }
 
 export function getDefaultValue(type: string | string[] | undefined) {
-	const t = Array.isArray(type) ? (<string[]>type)[0] : <string>type;
+	const t = Array.isArray(type) ? type[0] : <string>type;
 	switch (t) {
 		case 'boolean':
 			return false;
@@ -893,14 +940,14 @@ export function getDefaultValue(type: string | string[] | undefined) {
 const configurationRegistry = new ConfigurationRegistry();
 Registry.add(Extensions.Configuration, configurationRegistry);
 
-export function validateProperty(property: string, schema: IRegisteredConfigurationPropertySchema): string | null {
+export function validateProperty(property: string, schema: IRegisteredConfigurationPropertySchema, extensionId?: string): string | null {
 	if (!property.trim()) {
 		return nls.localize('config.property.empty', "Cannot register an empty property");
 	}
 	if (OVERRIDE_PROPERTY_REGEX.test(property)) {
 		return nls.localize('config.property.languageDefault', "Cannot register '{0}'. This matches property pattern '\\\\[.*\\\\]$' for describing language specific editor settings. Use 'configurationDefaults' contribution.", property);
 	}
-	if (configurationRegistry.getConfigurationProperties()[property] !== undefined) {
+	if (configurationRegistry.getConfigurationProperties()[property] !== undefined && (!extensionId || !EXTENSION_UNIFICATION_EXTENSION_IDS.has(extensionId.toLowerCase()))) {
 		return nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", property);
 	}
 	if (schema.policy?.name && configurationRegistry.getPolicyConfigurations().get(schema.policy?.name) !== undefined) {
@@ -952,3 +999,6 @@ export function parseScope(scope: string): ConfigurationScope {
 			return ConfigurationScope.WINDOW;
 	}
 }
+
+// Used for extension unification. Should be removed when complete.
+export const EXTENSION_UNIFICATION_EXTENSION_IDS: Set<string> = new Set(product.defaultChatAgent ? [product.defaultChatAgent.extensionId, product.defaultChatAgent.chatExtensionId].map(id => id.toLowerCase()) : []);

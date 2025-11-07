@@ -86,32 +86,25 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	fi
 
 	if [ "$WRITE_SOURCE" != 'no' ]; then
-		# Check if apt modernize-sources is available.
-		if apt modernize-sources --help >/dev/null 2>&1; then
-			# Write repository in deb822 format with Signed-By.
-			echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
+		# Write repository in deb822 format with Signed-By.
+		echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
 # You may comment out this entry, but any other modifications may be lost." > "$CODE_SOURCE_PART_DEB822"
-			cat <<EOF >> "$CODE_SOURCE_PART_DEB822"
+		cat <<EOF >> "$CODE_SOURCE_PART_DEB822"
 Types: deb
 URIs: https://packages.microsoft.com/repos/code
 Suites: stable
 Components: main
-Architectures: amd64,arm64,armhf
+Architectures: @@ARCHITECTURE@@
 Signed-By: $CODE_TRUSTED_PART
 EOF
-			if [ -f "$CODE_SOURCE_PART" ]; then
-				rm -f "$CODE_SOURCE_PART"
-			fi
-		else
-			echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
-# You may comment out this entry, but any other modifications may be lost.
-deb [arch=amd64,arm64,armhf] https://packages.microsoft.com/repos/code stable main" > $CODE_SOURCE_PART
+		if [ -f "$CODE_SOURCE_PART" ]; then
+			rm -f "$CODE_SOURCE_PART"
 		fi
 
 		# Sourced from https://packages.microsoft.com/keys/microsoft.asc
 		if [ ! -f $CODE_TRUSTED_PART ]; then
 			echo "-----BEGIN PGP PUBLIC KEY BLOCK-----
-Version: GnuPG v1.4.7 (GNU/Linux)
+Version: BSN Pgp v1.1.0.0
 
 mQENBFYxWIwBCADAKoZhZlJxGNGWzqV+1OG1xiQeoowKhssGAKvd+buXCGISZJwT
 LXZqIcIiLP7pqdcZWtE9bSc7yBY2MalDp9Liu0KekywQ6VVX1T72NPf5Ev6x6DLV
@@ -119,15 +112,15 @@ LXZqIcIiLP7pqdcZWtE9bSc7yBY2MalDp9Liu0KekywQ6VVX1T72NPf5Ev6x6DLV
 OeizPXmRljMtUUttHQZnRhtlzkmwIrUivbfFPD+fEoHJ1+uIdfOzZX8/oKHKLe2j
 H632kvsNzJFlROVvGLYAk2WRcLu+RjjggixhwiB+Mu/A8Tf4V6b+YppS44q8EvVr
 M+QvY7LNSOffSO6Slsy9oisGTdfE39nC7pVRABEBAAG0N01pY3Jvc29mdCAoUmVs
-ZWFzZSBzaWduaW5nKSA8Z3Bnc2VjdXJpdHlAbWljcm9zb2Z0LmNvbT6JATUEEwEC
-AB8FAlYxWIwCGwMGCwkIBwMCBBUCCAMDFgIBAh4BAheAAAoJEOs+lK2+EinPGpsH
-/32vKy29Hg51H9dfFJMx0/a/F+5vKeCeVqimvyTM04C+XENNuSbYZ3eRPHGHFLqe
-MNGxsfb7C7ZxEeW7J/vSzRgHxm7ZvESisUYRFq2sgkJ+HFERNrqfci45bdhmrUsy
-7SWw9ybxdFOkuQoyKD3tBmiGfONQMlBaOMWdAsic965rvJsd5zYaZZFI1UwTkFXV
-KJt3bp3Ngn1vEYXwijGTa+FXz6GLHueJwF0I7ug34DgUkAFvAs8Hacr2DRYxL5RJ
-XdNgj4Jd2/g6T9InmWT0hASljur+dJnzNiNCkbn9KbX7J/qK1IbR8y560yRmFsU+
-NdCFTW7wY0Fb1fWJ+/KTsC4=
-=J6gs
+ZWFzZSBzaWduaW5nKSA8Z3Bnc2VjdXJpdHlAbWljcm9zb2Z0LmNvbT6JATQEEwEI
+AB4FAlYxWIwCGwMGCwkIBwMCAxUIAwMWAgECHgECF4AACgkQ6z6Urb4SKc+P9gf/
+diY2900wvWEgV7iMgrtGzx79W/PbwWiOkKoD9sdzhARXWiP8Q5teL/t5TUH6TZ3B
+ENboDjwr705jLLPwuEDtPI9jz4kvdT86JwwG6N8gnWM8Ldi56SdJEtXrzwtlB/Fe
+6tyfMT1E/PrJfgALUG9MWTIJkc0GhRJoyPpGZ6YWSLGXnk4c0HltYKDFR7q4wtI8
+4cBu4mjZHZbxIO6r8Cci+xxuJkpOTIpr4pdpQKpECM6x5SaT2gVnscbN0PE19KK9
+nPsBxyK4wW0AvAhed2qldBPTipgzPhqB2gu0jSryil95bKrSmlYJd1Y1XfNHno5D
+xfn5JwgySBIdWWvtOI05gw==
+=zPfd
 -----END PGP PUBLIC KEY BLOCK-----
 " | gpg --dearmor > $CODE_TRUSTED_PART
 			if [ -f "$CODE_TRUSTED_PART_OLD" ]; then

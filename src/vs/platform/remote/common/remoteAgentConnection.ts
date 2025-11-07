@@ -781,6 +781,7 @@ function safeDisposeProtocolAndSocket(protocol: PersistentProtocol): void {
 function getErrorFromMessage(msg: any): Error | null {
 	if (msg && msg.type === 'error') {
 		const error = new Error(`Connection error: ${msg.reason}`);
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>error).code = 'VSCODE_CONNECTION_ERROR';
 		return error;
 	}

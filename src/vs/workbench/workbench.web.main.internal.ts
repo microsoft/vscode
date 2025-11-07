@@ -43,6 +43,7 @@ import './services/extensionManagement/browser/extensionsProfileScannerService.j
 import './services/extensions/browser/extensionsScannerService.js';
 import './services/extensionManagement/browser/webExtensionsScannerService.js';
 import './services/extensionManagement/common/extensionManagementServerService.js';
+import './services/mcp/browser/mcpGalleryManifestService.js';
 import './services/mcp/browser/mcpWorkbenchManagementService.js';
 import './services/extensionManagement/browser/extensionGalleryManifestService.js';
 import './services/telemetry/browser/telemetryService.js';
@@ -58,6 +59,7 @@ import './services/localization/browser/localeService.js';
 import './services/path/browser/pathService.js';
 import './services/themes/browser/browserHostColorSchemeService.js';
 import './services/encryption/browser/encryptionService.js';
+import './services/imageResize/browser/imageResizeService.js';
 import './services/secrets/browser/secretStorageService.js';
 import './services/workingCopy/browser/workingCopyBackupService.js';
 import './services/tunnel/browser/tunnelService.js';
@@ -193,6 +195,7 @@ import { UserDataSyncResourceProviderService } from '../platform/userDataSync/co
 import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode } from '../platform/remote/common/remoteAuthorityResolver.js';
 
 // TODO@esm remove me once we stop supporting our web-esm-bridge
+// eslint-disable-next-line local/code-no-any-casts
 if ((globalThis as any).__VSCODE_WEB_ESM_PROMISE) {
 	const exports = {
 
@@ -217,7 +220,9 @@ if ((globalThis as any).__VSCODE_WEB_ESM_PROMISE) {
 		logger: logger,
 		Menu: Menu
 	};
+	// eslint-disable-next-line local/code-no-any-casts
 	(globalThis as any).__VSCODE_WEB_ESM_PROMISE(exports);
+	// eslint-disable-next-line local/code-no-any-casts
 	delete (globalThis as any).__VSCODE_WEB_ESM_PROMISE;
 }
 

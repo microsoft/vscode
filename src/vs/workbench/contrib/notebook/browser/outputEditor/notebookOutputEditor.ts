@@ -29,7 +29,8 @@ import { getDefaultNotebookCreationOptions } from '../notebookEditorWidget.js';
 import { NotebookOptions } from '../notebookOptions.js';
 import { BackLayerWebView, INotebookDelegateForWebview } from '../view/renderers/backLayerWebView.js';
 import { NotebookOutputEditorInput } from './notebookOutputEditorInput.js';
-import { BareFontInfo, FontInfo } from '../../../../../editor/common/config/fontInfo.js';
+import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
+import { createBareFontInfoFromRawSettings } from '../../../../../editor/common/config/fontInfoFromSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEditorOptions as ICodeEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { FontMeasurements } from '../../../../../editor/browser/config/fontMeasurements.js';
@@ -125,7 +126,7 @@ export class NotebookOutputEditor extends EditorPane implements INotebookDelegat
 
 	private createFontInfo() {
 		const editorOptions = this.configurationService.getValue<ICodeEditorOptions>('editor');
-		return FontMeasurements.readFontInfo(this.window, BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(this.window).value));
+		return FontMeasurements.readFontInfo(this.window, createBareFontInfoFromRawSettings(editorOptions, PixelRatio.getInstance(this.window).value));
 	}
 
 	private async _createOriginalWebview(id: string, viewType: string, resource: URI): Promise<void> {

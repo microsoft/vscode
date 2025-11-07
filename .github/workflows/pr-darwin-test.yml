@@ -24,14 +24,12 @@ jobs:
       VSCODE_ARCH: arm64
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
-        env:
-          NODEJS_ORG_MIRROR: https://github.com/joaomoreno/node-mirror/releases/download
 
       - name: Prepare node_modules cache key
         run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
@@ -41,7 +39,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build/node_modules_cache
-          key: "node_modules-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-macos-${{ hashFiles('.build/packagelockhash') }}"
 
       - name: Extract node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
@@ -93,6 +91,7 @@ jobs:
         id: cache-builtin-extensions
         uses: actions/cache/restore@v4
         with:
+          enableCrossOsArchive: true
           path: .build/builtInExtensions
           key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
 
@@ -213,7 +212,7 @@ jobs:
         if: always()
 
       - name: Publish Crash Reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: failure()
         continue-on-error: true
         with:
@@ -224,7 +223,7 @@ jobs:
       # In order to properly symbolify above crash reports
       # (if any), we need the compiled native modules too
       - name: Publish Node Modules
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: failure()
         continue-on-error: true
         with:
@@ -233,7 +232,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Publish Log Files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         continue-on-error: true
         with:

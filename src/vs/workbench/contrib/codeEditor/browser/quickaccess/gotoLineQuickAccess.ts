@@ -20,6 +20,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IQuickAccessTextEditorContext } from '../../../../../editor/contrib/quickAccess/browser/editorNavigationQuickAccess.js';
 import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
@@ -28,7 +29,8 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService protected override readonly storageService: IStorageService
 	) {
 		super();
 		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
@@ -96,6 +98,6 @@ registerAction2(GotoLineAction);
 Registry.as<IQuickAccessRegistry>(QuickaccesExtensions.Quickaccess).registerQuickAccessProvider({
 	ctor: GotoLineQuickAccessProvider,
 	prefix: AbstractGotoLineQuickAccessProvider.PREFIX,
-	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. 42:5 for line 42 and column 5)."),
+	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. :42:5 for line 42, column 5). Type :: to go to a character offset (e.g. ::1024 for character 1024 from the start of the file). Use negative values to navigate backwards."),
 	helpEntries: [{ description: localize('gotoLineQuickAccess', "Go to Line/Column"), commandId: GotoLineAction.ID }]
 });

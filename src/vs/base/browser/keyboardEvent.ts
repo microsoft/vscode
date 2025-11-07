@@ -114,6 +114,15 @@ export function printStandardKeyboardEvent(e: StandardKeyboardEvent): string {
 	return `modifiers: [${modifiers.join(',')}], code: ${e.code}, keyCode: ${e.keyCode} ('${KeyCodeUtils.toString(e.keyCode)}')`;
 }
 
+export function hasModifierKeys(keyStatus: {
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+}): boolean {
+	return keyStatus.ctrlKey || keyStatus.shiftKey || keyStatus.altKey || keyStatus.metaKey;
+}
+
 export class StandardKeyboardEvent implements IKeyboardEvent {
 
 	readonly _standardKeyboardEventBrand = true;

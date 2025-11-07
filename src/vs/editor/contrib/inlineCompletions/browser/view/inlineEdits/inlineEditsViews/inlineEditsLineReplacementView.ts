@@ -23,7 +23,7 @@ import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
-import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel.js';
+import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel/inlineDecorations.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, modifiedChangedLineBackgroundColor, originalBackgroundColor } from '../theme.js';
 import { getEditorValidOverlayRect, getPrefixTrim, mapOutFalsy, rectToProps } from '../utils/utils.js';
@@ -46,6 +46,8 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 
 	readonly isHovered;
 
+	readonly minEditorScrollHeight;
+
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
 		private readonly _edit: IObservable<{
@@ -62,8 +64,8 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 		super();
 		this._onDidClick = this._register(new Emitter<IMouseEvent>());
 		this.onDidClick = this._onDidClick.event;
-		this._maxPrefixTrim = this._edit.map(e => e ? getPrefixTrim(e.replacements.flatMap(r => [r.originalRange, r.modifiedRange]), e.originalRange, e.modifiedLines, this._editor.editor) : undefined);
-		this._modifiedLineElements = derived(reader => {
+		this._maxPrefixTrim = this._edit.map((e, reader) => e ? getPrefixTrim(e.replacements.flatMap(r => [r.originalRange, r.modifiedRange]), e.originalRange, e.modifiedLines, this._editor.editor, reader) : undefined);
+		this._modifiedLineElements = derived(this, reader => {
 			const lines = [];
 			let requiredWidth = 0;
 
@@ -188,10 +190,17 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			const viewZoneLineNumber = edit.originalRange.endLineNumberExclusive;
 			return { height: viewZoneHeight, lineNumber: viewZoneLineNumber };
 		});
+		this.minEditorScrollHeight = derived(this, reader => {
+			const layout = mapOutFalsy(this._layout).read(reader);
+			if (!layout || this._viewZoneInfo.read(reader) !== undefined) {
+				return 0;
+			}
+			return layout.read(reader).lowerText.bottom + this._editor.editor.getScrollTop();
+		});
 		this._div = n.div({
 			class: 'line-replacement',
 		}, [
-			derived(reader => {
+			derived(this, reader => {
 				const layout = mapOutFalsy(this._layout).read(reader);
 				const modifiedLineElements = this._modifiedLineElements.read(reader);
 				if (!layout || !modifiedLineElements) {
@@ -309,7 +318,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 
 		this._register(this._editor.createOverlayWidget({
 			domNode: this._div.element,
-			minContentWidthInPx: derived(reader => {
+			minContentWidthInPx: derived(this, reader => {
 				return this._layout.read(reader)?.minContentWidthRequired ?? 0;
 			}),
 			position: constObservable({ preference: { top: 0, left: 0 } }),

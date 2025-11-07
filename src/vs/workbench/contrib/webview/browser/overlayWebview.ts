@@ -9,6 +9,7 @@ import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IContextKey, IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -256,8 +257,10 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this._webviewEvents.add(webview.onMessage(x => { this._onMessage.fire(x); }));
 			this._webviewEvents.add(webview.onMissingCsp(x => { this._onMissingCsp.fire(x); }));
 			this._webviewEvents.add(webview.onDidWheel(x => { this._onDidWheel.fire(x); }));
-			this._webviewEvents.add(webview.onDidReload(() => { this._onDidReload.fire(); }));
 			this._webviewEvents.add(webview.onFatalError(x => { this._onFatalError.fire(x); }));
+			this._webviewEvents.add(autorun(reader => {
+				this.intrinsicContentSize.set(reader.readObservable(webview.intrinsicContentSize), undefined, undefined);
+			}));
 
 			this._webviewEvents.add(webview.onDidScroll(x => {
 				this._initialScrollProgress = x.scrollYPercentage;
@@ -338,9 +341,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _onDidClickLink = this._register(new Emitter<string>());
 	public readonly onDidClickLink = this._onDidClickLink.event;
 
-	private readonly _onDidReload = this._register(new Emitter<void>());
-	public readonly onDidReload = this._onDidReload.event;
-
 	private readonly _onDidScroll = this._register(new Emitter<{ readonly scrollYPercentage: number }>());
 	public readonly onDidScroll = this._onDidScroll.event;
 
@@ -358,6 +358,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	private readonly _onFatalError = this._register(new Emitter<{ readonly message: string }>());
 	public onFatalError = this._onFatalError.event;
+
+	public readonly intrinsicContentSize = observableValue<{ readonly width: number; readonly height: number } | undefined>('WebviewIntrinsicContentSize', undefined);
 
 	public async postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean> {
 		if (this._webview.value) {

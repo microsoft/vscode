@@ -17,7 +17,7 @@ import { RemoteAgentConnectionContext } from '../../platform/remote/common/remot
 import { IPtyHostService, IShellLaunchConfig, ITerminalProfile } from '../../platform/terminal/common/terminal.js';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from '../../platform/terminal/common/terminalProcess.js';
 import { IWorkspaceFolder } from '../../platform/workspace/common/workspace.js';
-import { createURITransformer } from '../../workbench/api/node/uriTransformer.js';
+import { createURITransformer } from '../../base/common/uriTransformer.js';
 import { CLIServerBase, ICommandsExecuter } from '../../workbench/api/node/extHostCLIServer.js';
 import { IEnvironmentVariableCollection } from '../../platform/terminal/common/environmentVariable.js';
 import { MergedEnvironmentVariableCollection } from '../../platform/terminal/common/environmentVariableCollection.js';
@@ -151,6 +151,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case RemoteTerminalChannelRequest.ReviveTerminalProcesses: return this._ptyHostService.reviveTerminalProcesses.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.GetRevivedPtyNewId: return this._ptyHostService.getRevivedPtyNewId.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.SetUnicodeVersion: return this._ptyHostService.setUnicodeVersion.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.SetNextCommandId: return this._ptyHostService.setNextCommandId.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.ReduceConnectionGraceTime: return this._reduceConnectionGraceTime();
 			case RemoteTerminalChannelRequest.UpdateIcon: return this._ptyHostService.updateIcon.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.UpdateTitle: return this._ptyHostService.updateTitle.apply(this._ptyHostService, args);

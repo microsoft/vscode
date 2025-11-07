@@ -37,6 +37,7 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 	}
 	if (obj !== undefined && obj !== null && typeof obj === 'object' && Object.keys(obj).length > 0) {
 		return (
+			// eslint-disable-next-line local/code-no-any-casts
 			Object.keys(obj)
 				.sort()
 				.reduce<Record<string, any>>((sortedObj, prop) => {
@@ -57,6 +58,7 @@ export function getCellMetadata(options: { cell: NotebookCell | NotebookCellData
 			...(cell.metadata ?? {})
 		} satisfies CellMetadata;
 		if (cell.kind === NotebookCellKindMarkup) {
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (metadata as any).execution_count;
 		}
 		return metadata;
@@ -398,7 +400,9 @@ export function pruneCell(cell: nbformat.ICell): nbformat.ICell {
 
 	// Remove outputs and execution_count from non code cells
 	if (result.cell_type !== 'code') {
+		// eslint-disable-next-line local/code-no-any-casts
 		delete (<any>result).outputs;
+		// eslint-disable-next-line local/code-no-any-casts
 		delete (<any>result).execution_count;
 	} else {
 		// Clean outputs from code cells

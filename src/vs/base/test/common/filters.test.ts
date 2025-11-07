@@ -25,6 +25,7 @@ suite('Filters', () => {
 		let filter: IFilter;
 		let counters: number[];
 		const newFilter = function (i: number, r: boolean): IFilter {
+			// eslint-disable-next-line local/code-no-any-casts
 			return function (): IMatch[] { counters[i]++; return r as any; };
 		};
 

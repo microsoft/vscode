@@ -254,6 +254,7 @@ function makeLoaderJsHotReloadable(loaderJsCode: string, fileChangesUrl: URL): s
 		}
 
 		console.log('Connecting to server to watch for changes...');
+		// eslint-disable-next-line local/code-no-any-casts
 		(fetch as any)(fileChangesUrl)
 			.then(async request => {
 				const reader = request.body.getReader();
@@ -332,6 +333,7 @@ function makeLoaderJsHotReloadable(loaderJsCode: string, fileChangesUrl: URL): s
 				const moduleIdStr = trimEnd(relativePath, '.js');
 
 				const requireFn: any = globalThis.require;
+				// eslint-disable-next-line local/code-no-any-casts
 				const moduleManager = (requireFn as any).moduleManager;
 				if (!moduleManager) {
 					console.log(debugSessionName, 'ignoring js change, as moduleManager is not available', relativePath);
@@ -347,6 +349,7 @@ function makeLoaderJsHotReloadable(loaderJsCode: string, fileChangesUrl: URL): s
 				}
 
 				// Check if we can reload
+				// eslint-disable-next-line local/code-no-any-casts
 				const g = globalThis as any;
 
 				// A frozen copy of the previous exports

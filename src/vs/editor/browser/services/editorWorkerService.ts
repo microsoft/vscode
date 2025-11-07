@@ -415,7 +415,7 @@ class SynchronousWorkerClient<T extends IDisposable> implements IWebWorkerClient
 }
 
 export interface IEditorWorkerClient {
-	fhr(method: string, args: any[]): Promise<any>;
+	fhr(method: string, args: unknown[]): Promise<unknown>;
 }
 
 export class EditorWorkerClient extends Disposable implements IEditorWorkerClient {
@@ -427,7 +427,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	private _disposed = false;
 
 	constructor(
-		private readonly _workerDescriptorOrWorker: IWebWorkerDescriptor | Worker,
+		private readonly _workerDescriptorOrWorker: IWebWorkerDescriptor | Worker | Promise<Worker>,
 		keepIdleModels: boolean,
 		@IModelService modelService: IModelService,
 	) {
@@ -439,7 +439,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	}
 
 	// foreign host request
-	public fhr(method: string, args: any[]): Promise<any> {
+	public fhr(method: string, args: unknown[]): Promise<unknown> {
 		throw new Error(`Not implemented!`);
 	}
 

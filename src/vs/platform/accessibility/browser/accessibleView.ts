@@ -100,7 +100,7 @@ export interface IAccessibleViewContentProvider extends IBasicContentProvider, I
 	/**
 	 * Note that this will only take effect if the provider has an ID.
 	 */
-	onDidRequestClearLastProvider?: Event<AccessibleViewProviderId>;
+	readonly onDidRequestClearLastProvider?: Event<AccessibleViewProviderId>;
 }
 
 
@@ -201,5 +201,5 @@ export interface IBasicContentProvider extends IDisposable {
 	actions?: IAction[];
 	providePreviousContent?(): void;
 	provideNextContent?(): void;
-	onDidChangeContent?: Event<void>;
+	readonly onDidChangeContent?: Event<void>;
 }

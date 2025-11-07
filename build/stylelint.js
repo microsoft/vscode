@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
 
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
@@ -10,19 +11,38 @@ const { getVariableNameValidator } = require('./lib/stylelint/validateVariableNa
 
 module.exports = gulpstylelint;
 
-/** use regex on lines */
+/**
+ * use regex on lines
+ *
+ * @param {function(string, boolean):void} reporter
+ */
 function gulpstylelint(reporter) {
 	const variableValidator = getVariableNameValidator();
 	let errorCount = 0;
+	const monacoWorkbenchPattern = /\.monaco-workbench/;
+	const restrictedPathPattern = /^src[\/\\]vs[\/\\](base|platform|editor)[\/\\]/;
+	const layerCheckerDisablePattern = /\/\*\s*stylelint-disable\s+layer-checker\s*\*\//;
+
 	return es.through(function (file) {
+		/** @type {string[]} */
 		const lines = file.__lines || file.contents.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
+
+		const isRestrictedPath = restrictedPathPattern.test(file.relative);
+
+		// Check if layer-checker is disabled for the entire file
+		const isLayerCheckerDisabled = lines.some(line => layerCheckerDisablePattern.test(line));
 
 		lines.forEach((line, i) => {
 			variableValidator(line, unknownVariable => {
 				reporter(file.relative + '(' + (i + 1) + ',1): Unknown variable: ' + unknownVariable, true);
 				errorCount++;
 			});
+
+			if (isRestrictedPath && !isLayerCheckerDisabled && monacoWorkbenchPattern.test(line)) {
+				reporter(file.relative + '(' + (i + 1) + ',1): The class .monaco-workbench cannot be used in files under src/vs/{base,platform,editor} because only src/vs/workbench applies it', true);
+				errorCount++;
+			}
 		});
 
 		this.emit('data', file);

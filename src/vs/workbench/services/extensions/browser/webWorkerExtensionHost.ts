@@ -325,14 +325,14 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				sessionId: this._telemetryService.sessionId,
 				machineId: this._telemetryService.machineId,
 				sqmId: this._telemetryService.sqmId,
-				devDeviceId: this._telemetryService.devDeviceId,
+				devDeviceId: this._telemetryService.devDeviceId ?? this._telemetryService.machineId,
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._extensionHostLogsLocation,
-			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart),
+			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart || this.startup === ExtensionHostStartup.LazyAutoStart),
 			remote: {
 				authority: this._environmentService.remoteAuthority,
 				connectionData: null,

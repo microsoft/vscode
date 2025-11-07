@@ -18,6 +18,7 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionVersion: undefined,
         publisherDisplayName: "",
         extensionDisplayName: "",
         extensionPublisherId: "",

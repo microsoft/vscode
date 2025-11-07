@@ -22,8 +22,8 @@ import type { ViewContext } from '../../common/viewModel/viewContext.js';
 import { DecorationCssRuleExtractor } from './css/decorationCssRuleExtractor.js';
 import { Event } from '../../../base/common/event.js';
 import { EditorOption, type IEditorOptions } from '../../common/config/editorOptions.js';
-import { InlineDecorationType } from '../../common/viewModel.js';
 import { DecorationStyleCache } from './css/decorationStyleCache.js';
+import { InlineDecorationType } from '../../common/viewModel/inlineDecorations.js';
 
 export class ViewGpuContext extends Disposable {
 	/**
@@ -223,6 +223,7 @@ export class ViewGpuContext extends Disposable {
 					}
 					for (const r of rule.style) {
 						if (!supportsCssRule(r, rule.style)) {
+							// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 							problemRules.push(`${r}: ${rule.style[r as any]}`);
 							return false;
 						}

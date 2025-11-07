@@ -123,6 +123,7 @@ export class Configuration extends BaseConfiguration {
 
 	override keys(): {
 		default: string[];
+		policy: string[];
 		user: string[];
 		workspace: string[];
 		workspaceFolder: string[];

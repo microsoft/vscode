@@ -9,7 +9,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { basename, delimiter, normalize, dirname, resolve } from '../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../base/common/platform.js';
 import { findExecutable } from '../../../base/node/processes.js';
-import { isString } from '../../../base/common/types.js';
+import { hasKey, isString } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import * as pfs from '../../../base/node/pfs.js';
 import { enumeratePowerShellInstallations } from '../../../base/node/powershell.js';
@@ -84,7 +84,9 @@ async function detectAvailableWindowsProfiles(
 	const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 	const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
 
-	const useWSLexe = getWindowsBuildNumber() >= 22000;
+	// WSL 2 released in the May 2020 Update, this is where the `-d` flag was added that we depend
+	// upon
+	const allowWslDiscovery = getWindowsBuildNumber() >= 19041;
 
 	await initializeWindowsProfiles(testPwshSourcePaths);
 
@@ -104,6 +106,7 @@ async function detectAvailableWindowsProfiles(
 		});
 		detectedProfiles.set('Git Bash', {
 			source: ProfileSource.GitBash,
+			icon: Codicon.terminalGitBash,
 			isAutoDetected: true
 		});
 		detectedProfiles.set('Command Prompt', {
@@ -143,11 +146,11 @@ async function detectAvailableWindowsProfiles(
 
 	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, shellEnv, logService, variableResolver);
 
-	if (includeDetectedProfiles && useWslProfiles) {
+	if (includeDetectedProfiles && useWslProfiles && allowWslDiscovery) {
 		try {
-			const result = await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl' : 'bash'}.exe`, defaultProfileName);
+			const result = await getWslProfiles(`${system32Path}\\wsl.exe`, defaultProfileName);
 			for (const wslProfile of result) {
-				if (!configProfiles || !(wslProfile.profileName in configProfiles)) {
+				if (!configProfiles || !Object.prototype.hasOwnProperty.call(configProfiles, wslProfile.profileName)) {
 					resultProfiles.push(wslProfile);
 				}
 			}
@@ -174,7 +177,7 @@ async function transformToTerminalProfiles(
 	for (const [profileName, profile] of entries) {
 		promises.push(getValidatedProfile(profileName, profile, defaultProfileName, fsProvider, shellEnv, logService, variableResolver));
 	}
-	return (await Promise.all(promises)).filter(e => !!e) as ITerminalProfile[];
+	return (await Promise.all(promises)).filter(e => !!e);
 }
 
 async function getValidatedProfile(
@@ -193,7 +196,7 @@ async function getValidatedProfile(
 	let args: string[] | string | undefined;
 	let icon: ThemeIcon | URI | { light: URI; dark: URI } | undefined = undefined;
 	// use calculated values if path is not specified
-	if ('source' in profile && !('path' in profile)) {
+	if (hasKey(profile, { source: true })) {
 		const source = profileSources?.get(profile.source);
 		if (!source) {
 			return undefined;
@@ -441,7 +444,7 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTe
 		return;
 	}
 	for (const [profileName, value] of Object.entries(configProfiles)) {
-		if (value === null || typeof value !== 'object' || (!('path' in value) && !('source' in value))) {
+		if (value === null || typeof value !== 'object' || (!hasKey(value, { path: true }) && !hasKey(value, { source: true }))) {
 			profilesMap.delete(profileName);
 		} else {
 			value.icon = value.icon || profilesMap.get(profileName)?.icon;

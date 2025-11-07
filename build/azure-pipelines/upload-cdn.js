@@ -14,6 +14,7 @@ const gulp_filter_1 = __importDefault(require("gulp-filter"));
 const gulp_gzip_1 = __importDefault(require("gulp-gzip"));
 const mime_1 = __importDefault(require("mime"));
 const identity_1 = require("@azure/identity");
+const util_1 = require("../lib/util");
 const azure = require('gulp-azure-storage');
 const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new identity_1.ClientAssertionCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], () => Promise.resolve(process.env['AZURE_ID_TOKEN']));
@@ -105,7 +106,7 @@ async function main() {
     const listing = new vinyl_1.default({
         path: 'files.txt',
         contents: Buffer.from(files.join('\n')),
-        stat: { mode: 0o666 }
+        stat: new util_1.VinylStat({ mode: 0o666 })
     });
     const filesOut = event_stream_1.default.readArray([listing])
         .pipe((0, gulp_gzip_1.default)({ append: false }))

@@ -17,6 +17,7 @@ import { deserializeEnvironmentVariableCollections } from '../common/environment
 import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection.js';
 import { chmod, realpathSync, mkdirSync } from 'fs';
 import { promisify } from 'util';
+import type { SingleOrMany } from '../../../base/common/types.js';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
@@ -110,9 +111,12 @@ export async function getShellIntegrationInjection(
 			envMixin['VSCODE_SHELL_ENV_REPORTING'] = scopedDownShellEnvs.join(',');
 		}
 	}
+
 	// Windows
 	if (isWindows) {
 		if (shell === 'pwsh.exe' || shell === 'powershell.exe') {
+			envMixin['VSCODE_A11Y_MODE'] = options.isScreenReaderOptimized ? '1' : '0';
+
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwsh);
 			} else if (arePwshLoginArgs(originalArgs)) {
@@ -121,12 +125,8 @@ export async function getShellIntegrationInjection(
 			if (!newArgs) {
 				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
 			}
-			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
-			if (options.shellIntegration.suggestEnabled) {
-				envMixin['VSCODE_SUGGEST'] = '1';
-			}
 			return { type, newArgs, envMixin };
 		} else if (shell === 'bash.exe') {
 			if (!originalArgs || originalArgs.length === 0) {
@@ -194,9 +194,6 @@ export async function getShellIntegrationInjection(
 			}
 			if (!newArgs) {
 				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
-			}
-			if (options.shellIntegration.suggestEnabled) {
-				envMixin['VSCODE_SUGGEST'] = '1';
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
@@ -352,7 +349,7 @@ const shLoginArgs = ['--login', '-l'];
 const shInteractiveArgs = ['-i', '--interactive'];
 const pwshImpliedArgs = ['-nol', '-nologo'];
 
-function arePwshLoginArgs(originalArgs: string | string[]): boolean {
+function arePwshLoginArgs(originalArgs: SingleOrMany<string>): boolean {
 	if (typeof originalArgs === 'string') {
 		return pwshLoginArgs.includes(originalArgs.toLowerCase());
 	} else {
@@ -363,7 +360,7 @@ function arePwshLoginArgs(originalArgs: string | string[]): boolean {
 	}
 }
 
-function arePwshImpliedArgs(originalArgs: string | string[]): boolean {
+function arePwshImpliedArgs(originalArgs: SingleOrMany<string>): boolean {
 	if (typeof originalArgs === 'string') {
 		return pwshImpliedArgs.includes(originalArgs.toLowerCase());
 	} else {
@@ -371,7 +368,7 @@ function arePwshImpliedArgs(originalArgs: string | string[]): boolean {
 	}
 }
 
-function areZshBashFishLoginArgs(originalArgs: string | string[]): boolean {
+function areZshBashFishLoginArgs(originalArgs: SingleOrMany<string>): boolean {
 	if (typeof originalArgs !== 'string') {
 		originalArgs = originalArgs.filter(arg => !shInteractiveArgs.includes(arg.toLowerCase()));
 	}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProcessPropertyMap, IPtyService, ITerminalChildProcess, ITerminalLaunchError, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
+import { ITerminalLaunchResult, IProcessPropertyMap, IPtyService, ITerminalChildProcess, ITerminalLaunchError, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
 import { BasePty } from '../common/basePty.js';
 
 /**
@@ -19,7 +19,7 @@ export class LocalPty extends BasePty implements ITerminalChildProcess {
 		super(id, shouldPersist);
 	}
 
-	start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		return this._proxy.start(this.id);
 	}
 
@@ -89,6 +89,10 @@ export class LocalPty extends BasePty implements ITerminalChildProcess {
 
 	setUnicodeVersion(version: '6' | '11'): Promise<void> {
 		return this._proxy.setUnicodeVersion(this.id, version);
+	}
+
+	setNextCommandId(commandLine: string, commandId: string): Promise<void> {
+		return this._proxy.setNextCommandId(this.id, commandLine, commandId);
 	}
 
 	handleOrphanQuestion() {

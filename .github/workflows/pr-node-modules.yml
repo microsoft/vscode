@@ -13,14 +13,12 @@ jobs:
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
-        env:
-          NODEJS_ORG_MIRROR: https://github.com/joaomoreno/node-mirror/releases/download
 
       - name: Prepare node_modules cache key
         run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile $(node -p process.arch) > .build/packagelockhash
@@ -30,7 +28,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build/node_modules_cache
-          key: "node_modules-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-compile-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Extract node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        run: tar -xzf .build/node_modules_cache/cache.tgz
 
       - name: Install build tools
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -52,7 +54,7 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
       - name: Create node_modules archive
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -72,6 +74,7 @@ jobs:
         id: cache-builtin-extensions
         uses: actions/cache@v4
         with:
+          enableCrossOsArchive: true
           path: .build/builtInExtensions
           key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
 
@@ -79,7 +82,7 @@ jobs:
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
         run: node build/lib/builtInExtensions.js
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
   linux:
     name: Linux
@@ -89,14 +92,12 @@ jobs:
       VSCODE_ARCH: x64
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
-        env:
-          NODEJS_ORG_MIRROR: https://github.com/joaomoreno/node-mirror/releases/download
 
       - name: Prepare node_modules cache key
         run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
@@ -106,7 +107,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build/node_modules_cache
-          key: "node_modules-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
 
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -123,7 +124,7 @@ jobs:
             echo "Npm install failed $i, trying again..."
           done
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -145,7 +146,7 @@ jobs:
           VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
       - name: Create node_modules archive
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -163,14 +164,12 @@ jobs:
       VSCODE_ARCH: arm64
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
-        env:
-          NODEJS_ORG_MIRROR: https://github.com/joaomoreno/node-mirror/releases/download
 
       - name: Prepare node_modules cache key
         run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
@@ -180,7 +179,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build/node_modules_cache
-          key: "node_modules-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-macos-${{ hashFiles('.build/packagelockhash') }}"
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -203,7 +202,7 @@ jobs:
           VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
           # Avoid using dlopen to load Kerberos on macOS which can cause missing libraries
           # https://github.com/mongodb-js/kerberos/commit/04044d2814ad1d01e77f1ce87f26b03d86692cf2
           # flipped the default to support legacy linux distros which shouldn't happen
@@ -226,14 +225,12 @@ jobs:
       VSCODE_ARCH: x64
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
-        env:
-          NODEJS_ORG_MIRROR: https://github.com/joaomoreno/node-mirror/releases/download
 
       - name: Prepare node_modules cache key
         shell: pwsh
@@ -246,7 +243,7 @@ jobs:
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
-          key: "node_modules-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-windows-${{ hashFiles('.build/packagelockhash') }}"
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -275,7 +272,7 @@ jobs:
           VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
       - name: Create node_modules archive
         if: steps.node-modules-cache.outputs.cache-hit != 'true'

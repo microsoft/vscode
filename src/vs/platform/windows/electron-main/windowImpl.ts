@@ -8,7 +8,7 @@ import { DeferredPromise, RunOnceScheduler, timeout, Delayer } from '../../../ba
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { getMarks, mark } from '../../../base/common/performance.js';
 import { isBigSurOrNewer, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
@@ -173,7 +173,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			this.dispose();
 		}));
 		this._register(Event.fromNodeEventEmitter(win, 'focus')(() => {
-			this.clearFocusNotificationBadge();
+			this.clearNotifyFocus();
 
 			this._lastFocusTime = Date.now();
 		}));
@@ -347,23 +347,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				break;
 
 			case FocusMode.Notify:
-				if (isMacintosh) {
-					this.showFocusNotificationBadge();
-
-					// On macOS we have direct API to bounce the dock icon
-					electron.app.dock?.bounce('informational');
-				} else if (isWindows) {
-					this.showFocusNotificationBadge();
-
-					// On Windows, calling focus() will bounce the taskbar icon
-					// https://github.com/electron/electron/issues/2867
-					this.win?.focus();
-				} else if (isLinux) {
-					this.showFocusNotificationBadge();
-
-					// On Linux, there seems to be no way to bounce the taskbar icon
-					// as calling focus() will actually steal focus away.
-				}
+				this.showNotifyFocus();
 				break;
 
 			case FocusMode.Force:
@@ -375,16 +359,26 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 	}
 
-	private readonly focusNotificationBadgeDisposable = this._register(new MutableDisposable());
+	private readonly notifyFocusDisposable = this._register(new MutableDisposable());
 
-	private showFocusNotificationBadge(): void {
-		if (!this.focusNotificationBadgeDisposable.value) {
-			this.focusNotificationBadgeDisposable.value = DockBadgeManager.INSTANCE.acquireBadge(this);
+	private showNotifyFocus(): void {
+		const disposables = new DisposableStore();
+		this.notifyFocusDisposable.value = disposables;
+
+		// Badge
+		disposables.add(DockBadgeManager.INSTANCE.acquireBadge(this));
+
+		// Flash/Bounce
+		if (isWindows || isLinux) {
+			this.win?.flashFrame(true);
+			disposables.add(toDisposable(() => this.win?.flashFrame(false)));
+		} else if (isMacintosh) {
+			electron.app.dock?.bounce('informational');
 		}
 	}
 
-	private clearFocusNotificationBadge(): void {
-		this.focusNotificationBadgeDisposable.clear();
+	private clearNotifyFocus(): void {
+		this.notifyFocusDisposable.clear();
 	}
 
 	private doFocusWindow() {
@@ -908,7 +902,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 				// Unresponsive
 				if (type === WindowError.UNRESPONSIVE) {
-					if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || (this._win && this._win.webContents && this._win.webContents.isDevToolsOpened())) {
+					if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || this._win?.webContents?.isDevToolsOpened()) {
 						// TODO@electron Workaround for https://github.com/microsoft/vscode/issues/56994
 						// In certain cases the window can report unresponsiveness because a breakpoint was hit
 						// and the process is stopped executing. The most typical cases are:
@@ -1411,7 +1405,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return menuBarVisibility;
 	}
 
-	private setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
+	private setMenuBarVisibility(visibility: MenuBarVisibility, notify = true): void {
 		if (isMacintosh) {
 			return; // ignore for macOS platform
 		}
@@ -1479,7 +1473,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this._win?.close();
 	}
 
-	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void {
+	sendWhenReady(channel: string, token: CancellationToken, ...args: unknown[]): void {
 		if (this.isReady) {
 			this.send(channel, ...args);
 		} else {
@@ -1491,7 +1485,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 	}
 
-	send(channel: string, ...args: any[]): void {
+	send(channel: string, ...args: unknown[]): void {
 		if (this._win) {
 			if (this._win.isDestroyed() || this._win.webContents.isDestroyed()) {
 				this.logService.warn(`Sending IPC message to channel '${channel}' for window that is destroyed`);
@@ -1582,7 +1576,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private async startCollectingJScallStacks(): Promise<void> {
 		if (!this.jsCallStackCollector.isTriggered()) {
-			const stack = await this._win.webContents.mainFrame.collectJavaScriptCallStack();
+			const stack = await this._win?.webContents.mainFrame.collectJavaScriptCallStack();
 
 			// Increment the count for this stack trace
 			if (stack) {
@@ -1610,7 +1604,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				// If the stack appears more than 20 percent of the time, log it
 				// to the error telemetry as UnresponsiveSampleError.
 				if (Math.round((count * 100) / this.jsCallStackEffectiveSampleCount) > 20) {
-					const fakeError = new UnresponsiveError(stack, this.id, this.win?.webContents.getOSProcessId());
+					const fakeError = new UnresponsiveError(stack, this.id, this._win?.webContents.getOSProcessId());
 					errorHandler.onUnexpectedError(fakeError);
 				}
 				logMessage += `<${count}> ${stack}\n`;
@@ -1638,7 +1632,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 class UnresponsiveError extends Error {
 
-	constructor(sample: string, windowId: number, pid: number = 0) {
+	constructor(sample: string, windowId: number, pid = 0) {
 		// Since the stacks are available via the sample
 		// we can avoid collecting them when constructing the error.
 		const stackTraceLimit = Error.stackTraceLimit;

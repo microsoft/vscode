@@ -51,7 +51,7 @@ const RULES = [
             'browserElements/common/browserElements.ts',
             'browserElements/common/nativeBrowserElementsService.ts'
         ].join(',')}}`,
-        disallowedTypes: [ /* Ignore native types that are defined from here */],
+        disallowedTypes: [ /* Ignore native types that are defined from here */ /* Ignore native types that are defined from here */],
     },
     // Common: vs/base/parts/sandbox/electron-browser/preload{,-aux}.ts
     {

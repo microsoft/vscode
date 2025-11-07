@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { sumBy } from '../../../../base/common/arrays.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenPool, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { newWriteableStream, ReadableStreamEvents } from '../../../../base/common/stream.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
@@ -21,12 +23,28 @@ import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { IMcpService, McpCapability, McpResourceURI } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
+const MOMENTARY_CACHE_DURATION = 3000;
+
+interface IReadData {
+	contents: (MCP.TextResourceContents | MCP.BlobResourceContents)[];
+	resourceURI: URL;
+	forSameURI: (MCP.TextResourceContents | MCP.BlobResourceContents)[];
+}
+
 export class McpResourceFilesystem extends Disposable implements IWorkbenchContribution,
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithFileAtomicReadCapability,
 	IFileSystemProviderWithFileReadStreamCapability {
 	/** Defer getting the MCP service since this is a BlockRestore and no need to make it unnecessarily. */
 	private readonly _mcpServiceLazy = new Lazy(() => this._instantiationService.invokeFunction(a => a.get(IMcpService)));
+
+	/**
+	 * For many file operations we re-read the resources quickly (e.g. stat
+	 * before reading the file) and would prefer to avoid spamming the MCP
+	 * with multiple reads. This is a very short-duration cache
+	 * to solve that.
+	 */
+	private readonly _momentaryCache = new ResourceMap<{ pool: CancellationTokenPool; promise: Promise<IReadData> }>();
 
 	private get _mcpService() {
 		return this._mcpServiceLazy.value;
@@ -232,6 +250,28 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 	}
 
 	private async _readURI(uri: URI, token?: CancellationToken) {
+		const cached = this._momentaryCache.get(uri);
+		if (cached) {
+			cached.pool.add(token || CancellationToken.None);
+			return cached.promise;
+		}
+
+		const pool = this._store.add(new CancellationTokenPool());
+		pool.add(token || CancellationToken.None);
+
+		const promise = this._readURIInner(uri, pool.token);
+		this._momentaryCache.set(uri, { pool, promise });
+
+		const disposable = this._store.add(disposableTimeout(() => {
+			this._momentaryCache.delete(uri);
+			this._store.delete(disposable);
+			this._store.delete(pool);
+		}, MOMENTARY_CACHE_DURATION));
+
+		return promise;
+	}
+
+	private async _readURIInner(uri: URI, token?: CancellationToken): Promise<IReadData> {
 		const { resourceURI, server } = this._decodeURI(uri);
 		const res = await McpServer.callOn(server, r => r.readResource({ uri: resourceURI.toString() }, token), token);
 

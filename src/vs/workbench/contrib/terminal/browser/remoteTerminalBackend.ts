@@ -93,6 +93,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			const pty = this._ptys.get(e.id);
 			if (pty) {
 				pty.handleExit(e.event);
+				pty.dispose();
 				this._ptys.delete(e.id);
 			}
 		});
@@ -286,7 +287,15 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			return undefined;
 		}
 		const resolverResult = await this._remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
-		return resolverResult.options?.extensionHostEnv as any;
+		const envResult: IProcessEnvironment = {};
+		if (resolverResult.options?.extensionHostEnv) {
+			for (const [key, value] of Object.entries(resolverResult.options.extensionHostEnv)) {
+				if (value !== null) {
+					envResult[key] = value;
+				}
+			}
+		}
+		return envResult;
 	}
 
 	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
@@ -340,7 +349,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				}
 			} catch (e: unknown) {
-				this._logService.warn('RemoteTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
+				this._logService.warn('RemoteTerminalBackend#getTerminalLayoutInfo Error', (<{ message?: string }>e).message ?? e);
 			}
 		}
 
