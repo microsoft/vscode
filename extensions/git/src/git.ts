@@ -1721,15 +1721,15 @@ export class Repository {
 		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
 	}
 
-	private async diffFilesShortStat(ref1: string | undefined, options: { cached: boolean; path?: string }): Promise<CommitShortStat> {
+	private async diffFilesShortStat(ref: string | undefined, options: { cached: boolean; path?: string }): Promise<CommitShortStat> {
 		const args = ['diff', '--shortstat'];
 
 		if (options.cached) {
 			args.push('--cached');
 		}
 
-		if (ref1 !== undefined) {
-			args.push(ref1);
+		if (ref !== undefined) {
+			args.push(ref);
 		}
 
 		args.push('--');
