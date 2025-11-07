@@ -979,9 +979,7 @@ export interface LsTreeElement {
 export function parseLsTree(raw: string): LsTreeElement[] {
 	return raw.split('\n')
 		.filter(l => !!l)
-<<<<<<< HEAD
 		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\t(.*)$/.exec(line)!)
->>>>>>> 735104e6eb4d037d48238cb9c9da5b22c77abda7
 		.filter(m => !!m)
 		.map(([, mode, type, object, size, file]) => ({ mode, type, object, size, file }));
 }
