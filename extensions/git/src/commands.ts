@@ -3462,7 +3462,7 @@ export class CommandCenter {
 			return;
 		}
 
-		if (worktreeUri !== undefined) {
+		if (worktreeUri === undefined) {
 			// Non-interactive migration, do not show confirmation dialog
 			const message = l10n.t('Proceed with migrating changes to the current repository?');
 			const detail = l10n.t('This will apply the worktree\'s changes to this repository and discard changes in the worktree.\nThis is IRREVERSIBLE!');
