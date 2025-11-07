@@ -142,6 +142,7 @@ export type UserSelectedTools = Record<string, boolean>;
 
 export interface IChatAgentRequest {
 	sessionId: string;
+	sessionResource: URI;
 	requestId: string;
 	agentId: string;
 	command?: string;

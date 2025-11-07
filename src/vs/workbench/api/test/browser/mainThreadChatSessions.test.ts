@@ -226,6 +226,7 @@ suite('ObservableChatSession', function () {
 		const request: IChatAgentRequest = {
 			requestId: 'req1',
 			sessionId: 'test-session',
+			sessionResource: LocalChatSessionUri.forSession('test-session'),
 			agentId: 'test-agent',
 			message: 'Test prompt',
 			location: ChatAgentLocation.Chat,
@@ -247,6 +248,7 @@ suite('ObservableChatSession', function () {
 		const request: IChatAgentRequest = {
 			requestId: 'req1',
 			sessionId: 'test-session',
+			sessionResource: LocalChatSessionUri.forSession('test-session'),
 			agentId: 'test-agent',
 			message: 'Test prompt',
 			location: ChatAgentLocation.Chat,
@@ -405,6 +407,7 @@ suite('MainThreadChatSessions', function () {
 		// Create a mock IChatAgentRequest
 		const mockRequest: IChatAgentRequest = {
 			sessionId: 'test-session',
+			sessionResource: LocalChatSessionUri.forSession('test-session'),
 			requestId: 'test-request',
 			agentId: 'test-agent',
 			message: 'my prompt',
