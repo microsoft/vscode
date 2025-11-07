@@ -356,8 +356,6 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/terminal/browser/terminalTabsList.ts',
 			'src/vs/workbench/contrib/terminal/browser/terminalView.ts',
 			'src/vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon.ts',
-			'src/vs/workbench/contrib/terminal/electron-browser/localTerminalBackend.ts',
-			'src/vs/workbench/contrib/terminal/test/common/terminalDataBuffering.test.ts',
 			'src/vs/workbench/contrib/terminalContrib/accessibility/browser/terminal.accessibility.contribution.ts',
 			'src/vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBufferProvider.ts',
 			'src/vs/workbench/contrib/terminalContrib/chat/browser/terminal.initialHint.contribution.ts',
