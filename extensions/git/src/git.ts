@@ -1628,6 +1628,10 @@ export class Repository {
 		return result.stdout;
 	}
 
+	async diffWithHEADShortStats(path?: string): Promise<CommitShortStat> {
+		return this.diffFilesShortStat(undefined, { cached: false, path });
+	}
+
 	diffWith(ref: string): Promise<Change[]>;
 	diffWith(ref: string, path: string): Promise<string>;
 	diffWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
@@ -1716,6 +1720,32 @@ export class Repository {
 
 		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
 	}
+
+	private async diffFilesShortStat(ref1: string | undefined, options: { cached: boolean; path?: string }): Promise<CommitShortStat> {
+		const args = ['diff', '--shortstat'];
+
+		if (options.cached) {
+			args.push('--cached');
+		}
+
+		if (ref1 !== undefined) {
+			args.push(ref1);
+		}
+
+		args.push('--');
+
+		if (options.path) {
+			args.push(sanitizeRelativePath(options.path));
+		}
+
+		const result = await this.exec(args);
+		if (result.exitCode) {
+			return { files: 0, insertions: 0, deletions: 0 };
+		}
+
+		return parseGitDiffShortStat(result.stdout.trim());
+	}
+
 
 	async diffTrees(treeish1: string, treeish2?: string, options?: { similarityThreshold?: number }): Promise<Change[]> {
 		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR'];

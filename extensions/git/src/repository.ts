@@ -14,7 +14,7 @@ import { Branch, BranchQuery, Change, CommitOptions, FetchOptions, ForcePushMode
 import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, sequentialize, throttle } from './decorators';
-import { Repository as BaseRepository, BlameInformation, Commit, GitError, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
+import { Repository as BaseRepository, BlameInformation, Commit, CommitShortStat, GitError, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
 import { GitHistoryProvider } from './historyProvider';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
@@ -1205,6 +1205,10 @@ export class Repository implements Disposable {
 	diffWithHEAD(path?: string | undefined): Promise<string | Change[]>;
 	diffWithHEAD(path?: string | undefined): Promise<string | Change[]> {
 		return this.run(Operation.Diff, () => this.repository.diffWithHEAD(path));
+	}
+
+	diffWithHEADShortStats(path?: string): Promise<CommitShortStat> {
+		return this.run(Operation.Diff, () => this.repository.diffWithHEADShortStats(path));
 	}
 
 	diffWith(ref: string): Promise<Change[]>;
