@@ -1123,14 +1123,18 @@ export async function fetchResourceMetadata(
 	// If no resourceMetadataUrl is provided, try well-known URIs as per RFC 9728
 	let urlsToTry: string[];
 	if (!resourceMetadataUrl) {
-		// Per spec: append /.well-known/oauth-protected-resource to the resource URL
-		const resourceWithoutTrailingSlash = targetResource.replace(/\/$/, '');
-		urlsToTry = [
-			`${resourceWithoutTrailingSlash}${AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH}`
-		];
-		// If there's more than just the root path, also try at root as fallback
-		if (targetResourceUrlObj.pathname !== '/') {
-			urlsToTry.push(`${targetResourceUrlObj.origin}${AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH}`);
+		// Try in order: 1) with path appended, 2) at root
+		const pathComponent = targetResourceUrlObj.pathname === '/' ? undefined : targetResourceUrlObj.pathname;
+		const rootUrl = `${targetResourceUrlObj.origin}${AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH}`;
+		if (pathComponent) {
+			// Only try both URLs if we have a path component
+			urlsToTry = [
+				`${rootUrl}${pathComponent}`,
+				rootUrl
+			];
+		} else {
+			// If target is already at root, only try the root URL once
+			urlsToTry = [rootUrl];
 		}
 	} else {
 		urlsToTry = [resourceMetadataUrl];
