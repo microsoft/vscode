@@ -1735,7 +1735,7 @@ export class Repository {
 		args.push('--');
 
 		if (options.path) {
-			args.push(sanitizeRelativePath(options.path));
+			args.push(this.sanitizeRelativePath(options.path));
 		}
 
 		const result = await this.exec(args);
