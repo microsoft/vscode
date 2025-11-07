@@ -79,7 +79,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 	public didExecuteTool(result: IToolResult | undefined, final?: boolean): IChatToolInvocation.State {
-		if (result?.toolResultMessage) {
+		if (result?.toolResultMessage !== undefined) {
 			this.pastTenseMessage = result.toolResultMessage;
 		} else if (this._progress.get().message) {
 			this.pastTenseMessage = this._progress.get().message;
