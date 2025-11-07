@@ -132,7 +132,7 @@ export interface ITerminalChatService {
 	 * Returns the list of terminal instances that have been registered with a tool session id.
 	 * This is used for surfacing tool-driven/background terminals in UI (eg. quick picks).
 	 */
-	getToolSessionTerminalInstances(): readonly ITerminalInstance[];
+	getToolSessionTerminalInstances(hiddenOnly?: boolean): readonly ITerminalInstance[];
 
 	/**
 	 * Returns the tool session ID for a given terminal instance, if it has been registered.
