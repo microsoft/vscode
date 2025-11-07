@@ -2277,7 +2277,7 @@ written authorization of the copyright holder.
 
 ---------------------------------------------------------
 
-vscode-codicons 0.0.14 - MIT and Creative Commons Attribution 4.0
+vscode-codicons 0.0.41 - MIT and Creative Commons Attribution 4.0
 https://github.com/microsoft/vscode-codicons
 
 Attribution 4.0 International
