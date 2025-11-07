@@ -4495,7 +4495,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
 			},
-			triggerCommandOnProviderChange: true,
+			triggerCommandOnProviderChange: false,
 			experimental: {
 				suppressInlineSuggestions: '',
 				showOnSuggestConflict: 'never',
