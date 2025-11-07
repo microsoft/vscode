@@ -563,10 +563,13 @@
 	}
 }
 
-.interactive-item-container .value > .from-sub-agent.chat-tool-invocation-part,
-.interactive-item-container .value > .from-sub-agent.chat-confirmation-widget,
-.interactive-item-container .value > .from-sub-agent.chat-terminal-confirmation-widget {
-	margin-left: 18px;
+.interactive-item-container .value .from-sub-agent {
+	&.chat-tool-invocation-part,
+	&.chat-confirmation-widget,
+	&.chat-terminal-confirmation-widget,
+	&.chat-codeblock-pill-widget {
+		margin-left: 18px;
+	}
 }
 
 .interactive-item-container .value > .rendered-markdown li > p {

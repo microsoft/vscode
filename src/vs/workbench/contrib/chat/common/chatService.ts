@@ -146,9 +146,10 @@ export interface IChatContentInlineReference {
 }
 
 export interface IChatMarkdownContent {
+	kind: 'markdownContent';
 	content: IMarkdownString;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
-	kind: 'markdownContent';
+	fromSubagent?: boolean;
 }
 
 export interface IChatTreeData {
