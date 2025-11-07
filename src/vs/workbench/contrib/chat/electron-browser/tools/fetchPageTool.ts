@@ -145,9 +145,29 @@ export class FetchWebPageTool implements IToolImpl {
 		// Build the toolResultDetails with references and titles
 		const actuallyValidUris: Array<URI | IToolResultReference> = [...webReferences, ...successfulFileUris];
 
+		// Create toolResultMessage with title for single web resource
+		let toolResultMessage: MarkdownString | undefined;
+		if (webReferences.length === 1 && successfulFileUris.length === 0 && webReferences[0].title) {
+			const title = webReferences[0].title;
+			const url = webReferences[0].uri.toString();
+			toolResultMessage = new MarkdownString();
+			if (url.length > 400) {
+				toolResultMessage.appendMarkdown(localize({
+					key: 'fetchWebPage.toolResultMessage.singularAsLink',
+					comment: [
+						// Make sure the link syntax is correct
+						'{Locked="]({0})"}',
+					]
+				}, 'Fetched [{0}]({1})', title, url));
+			} else {
+				toolResultMessage.appendMarkdown(localize('fetchWebPage.toolResultMessage.singular', 'Fetched {0}', title));
+			}
+		}
+
 		return {
 			content: this._getPromptPartsForResults(results),
 			toolResultDetails: actuallyValidUris,
+			toolResultMessage,
 			confirmResults,
 		};
 	}

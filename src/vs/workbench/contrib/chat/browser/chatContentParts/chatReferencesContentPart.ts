@@ -386,8 +386,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				const settingId = uri.path.substring(1);
 				templateData.label.setResource({ resource: uri, name: settingId }, { icon: Codicon.settingsGear, title: localize('setting.hover', "Open setting '{0}'", settingId), strikethrough: data.excluded, extraClasses });
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
-				const displayName = data.title || uri.toString();
-				templateData.label.setResource({ resource: uri, name: displayName }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? uri.toString(), strikethrough: data.excluded, extraClasses });
+				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString(), strikethrough: data.excluded, extraClasses });
 			} else {
 				templateData.label.setFile(uri, {
 					fileKind: FileKind.FILE,

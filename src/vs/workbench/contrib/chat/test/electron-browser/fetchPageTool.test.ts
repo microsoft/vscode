@@ -930,4 +930,71 @@ suite('FetchWebPageTool', () => {
 			assert.strictEqual(thirdDetail.toString(), 'file:///test.txt', 'Third URI should match');
 		}
 	});
+
+	test('should include page title in toolResultMessage for single web URI', async () => {
+		const webContentMap = new ResourceMap<string>([
+			[URI.parse('https://example.com'), 'Content']
+		]);
+
+		const titleMap = new ResourceMap<string>([
+			[URI.parse('https://example.com'), 'Example Page Title']
+		]);
+
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(webContentMap, titleMap),
+			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+			new MockTrustedDomainService(),
+		);
+
+		const result = await tool.invoke(
+			{
+				callId: 'test-title-message',
+				toolId: 'fetch-page',
+				parameters: { urls: ['https://example.com'] },
+				context: undefined
+			},
+			() => Promise.resolve(0),
+			{ report: () => { } },
+			CancellationToken.None
+		);
+
+		// Verify toolResultMessage contains the title
+		assert.ok(result.toolResultMessage, 'Should have toolResultMessage');
+		const messageText = typeof result.toolResultMessage === 'string' ? result.toolResultMessage : result.toolResultMessage.value;
+		assert.ok(messageText.includes('Example Page Title'), 'toolResultMessage should contain the title');
+		assert.ok(messageText.includes('Fetched'), 'toolResultMessage should contain "Fetched"');
+	});
+
+	test('should not include toolResultMessage for multiple resources', async () => {
+		const webContentMap = new ResourceMap<string>([
+			[URI.parse('https://example1.com'), 'Content 1'],
+			[URI.parse('https://example2.com'), 'Content 2']
+		]);
+
+		const titleMap = new ResourceMap<string>([
+			[URI.parse('https://example1.com'), 'Example 1'],
+			[URI.parse('https://example2.com'), 'Example 2']
+		]);
+
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(webContentMap, titleMap),
+			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+			new MockTrustedDomainService(),
+		);
+
+		const result = await tool.invoke(
+			{
+				callId: 'test-no-message',
+				toolId: 'fetch-page',
+				parameters: { urls: ['https://example1.com', 'https://example2.com'] },
+				context: undefined
+			},
+			() => Promise.resolve(0),
+			{ report: () => { } },
+			CancellationToken.None
+		);
+
+		// Should not have toolResultMessage for multiple resources
+		assert.strictEqual(result.toolResultMessage, undefined, 'Should not have toolResultMessage for multiple resources');
+	});
 });
