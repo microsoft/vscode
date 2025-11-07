@@ -185,7 +185,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				));
 
 				const markerOwner = generateUuid();
-				const schemaUri = createToolSchemaUri(toolInvocation.toolCallId);
+				const schemaUri = createToolSchemaUri(toolInvocation.toolId);
 				const validator = new RunOnceScheduler(async () => {
 
 					const newMarker: IMarkerData[] = [];
