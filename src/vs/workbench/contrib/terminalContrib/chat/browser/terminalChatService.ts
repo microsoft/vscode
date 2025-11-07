@@ -218,7 +218,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private _updateHasToolTerminalContextKeys(): void {
 		const toolCount = this._terminalInstancesByToolSessionId.size;
 		this._hasToolTerminalContext.set(toolCount > 0);
-		const hiddenToolCount = this.getToolSessionTerminalInstances(true).length;
-		this._hasHiddenToolTerminalContext.set(hiddenToolCount > 0);
+		const hiddenTerminalCount = this.getToolSessionTerminalInstances(true).length;
+		this._hasHiddenToolTerminalContext.set(hiddenTerminalCount > 0);
 	}
 }
