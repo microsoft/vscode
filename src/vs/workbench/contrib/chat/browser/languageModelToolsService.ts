@@ -168,6 +168,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
+	flushToolUpdates(): void {
+		this._onDidChangeToolsScheduler.flush();
+	}
+
 	private _refreshAllToolContextKeys() {
 		this._toolContextKeys.clear();
 		for (const tool of this._tools.values()) {
@@ -611,21 +615,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	};
 	private _githubPrefixToVSCodePrefix = [['github', 'github/github-mcp-server'], ['playwright', 'microsoft/playwright-mcp']] as const;
 
-	private migrateGithubToolNames(toolNames: readonly string[]): readonly string[] {
-		return toolNames.map(name => {
-			const mapped = this._githubToVSCodeToolMap[name];
-			if (mapped) {
-				return mapped;
+	mapGithubToolName(name: string): string {
+		const mapped = this._githubToVSCodeToolMap[name];
+		if (mapped) {
+			return mapped;
+		}
+		for (const [fromPrefix, toPrefix] of this._githubPrefixToVSCodePrefix) {
+			const regexp = new RegExp(`^${fromPrefix}(/[^/]+)$`);
+			const m = name.match(regexp);
+			if (m) {
+				return toPrefix + m[1];
 			}
-			for (const [fromPrefix, toPrefix] of this._githubPrefixToVSCodePrefix) {
-				const regexp = new RegExp(`^${fromPrefix}(/[^/]+)$`);
-				const m = name.match(regexp);
-				if (m) {
-					return toPrefix + m[1];
-				}
-			}
-			return name;
-		});
+		}
+		return name;
 	}
 
 	/**
@@ -635,7 +637,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	 */
 	toToolAndToolSetEnablementMap(enabledQualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap {
 		if (target === undefined || target === Target.GitHubCopilot) {
-			enabledQualifiedToolOrToolSetNames = this.migrateGithubToolNames(enabledQualifiedToolOrToolSetNames);
+			enabledQualifiedToolOrToolSetNames = enabledQualifiedToolOrToolSetNames.map(name => this.mapGithubToolName(name));
 		}
 		const toolOrToolSetNames = new Set(enabledQualifiedToolOrToolSetNames);
 		const result = new Map<ToolSet | IToolData, boolean>();

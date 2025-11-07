@@ -56,6 +56,8 @@ suite('PromptValidator', () => {
 		disposables.add(toolService.registerToolData(testTool1));
 		const testTool2 = { id: 'testTool2', displayName: 'tool2', canBeReferencedInPrompt: true, toolReferenceName: 'tool2', modelDescription: 'Test Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(testTool2));
+		const runCommandsTool = { id: 'runCommands', displayName: 'runCommands', canBeReferencedInPrompt: true, toolReferenceName: 'runCommands', modelDescription: 'Run Commands Tool', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(runCommandsTool));
 
 		const myExtSource = { type: 'extension', label: 'My Extension', extensionId: new ExtensionIdentifier('My.extension') } satisfies ToolDataSource;
 		const testTool3 = { id: 'testTool3', displayName: 'tool3', canBeReferencedInPrompt: true, toolReferenceName: 'tool3', modelDescription: 'Test Tool 3', source: myExtSource, inputSchema: {} } satisfies IToolData;
@@ -374,6 +376,40 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `Unknown tool 'unknownTool'.`);
 		});
 
+		test('vscode target agent with mcp-servers and github-tools', async () => {
+			const content = [
+				'---',
+				'description: "VS Code agent"',
+				'target: vscode',
+				`tools: ['tool1', 'shell']`,
+				`mcp-servers: {}`,
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			const messages = markers.map(m => m.message);
+			assert.deepStrictEqual(messages, [
+				'Attribute \'mcp-servers\' is ignored when running locally in VS Code.',
+				'Unknown tool \'shell\'.',
+			]);
+		});
+
+		test('undefined target with mcp-servers and github-tools', async () => {
+			const content = [
+				'---',
+				'description: "VS Code agent"',
+				`tools: ['tool1', 'shell']`,
+				`mcp-servers: {}`,
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			const messages = markers.map(m => m.message);
+			assert.deepStrictEqual(messages, [
+				'Attribute \'mcp-servers\' is ignored when running locally in VS Code.',
+			]);
+		});
+
 		test('default target (no target specified) validates as vscode', async () => {
 			const content = [
 				'---',
@@ -479,9 +515,7 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'name' attribute is required when target is 'github-copilot'.`);
+				assert.strictEqual(markers.length, 0);
 			}
 
 			// Valid name with github-copilot target

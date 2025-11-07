@@ -131,7 +131,7 @@ export class PromptValidator {
 		switch (promptType) {
 			case PromptsType.prompt: {
 				const agent = this.validateAgent(attributes, report);
-				this.validateTools(attributes, agent?.kind ?? ChatModeKind.Agent, false, report);
+				this.validateTools(attributes, agent?.kind ?? ChatModeKind.Agent, header.target, report);
 				this.validateModel(attributes, agent?.kind ?? ChatModeKind.Agent, report);
 				break;
 			}
@@ -142,7 +142,7 @@ export class PromptValidator {
 
 			case PromptsType.agent: {
 				this.validateTarget(attributes, report);
-				this.validateTools(attributes, ChatModeKind.Agent, isGitHubTarget, report);
+				this.validateTools(attributes, ChatModeKind.Agent, header.target, report);
 				if (!isGitHubTarget) {
 					this.validateModel(attributes, ChatModeKind.Agent, report);
 					this.validateHandoffs(attributes, report);
@@ -155,6 +155,7 @@ export class PromptValidator {
 
 	private checkForInvalidArguments(attributes: IHeaderAttribute[], promptType: PromptsType, isGitHubTarget: boolean, report: (markers: IMarkerData) => void): void {
 		const validAttributeNames = getValidAttributeNames(promptType, true, isGitHubTarget);
+		const validGithubCopilotAttributeNames = new Lazy(() => new Set(getValidAttributeNames(promptType, false, true)));
 		for (const attribute of attributes) {
 			if (!validAttributeNames.includes(attribute.key)) {
 				const supportedNames = new Lazy(() => getValidAttributeNames(promptType, false, isGitHubTarget).sort().join(', '));
@@ -166,7 +167,11 @@ export class PromptValidator {
 						if (isGitHubTarget) {
 							report(toMarker(localize('promptValidator.unknownAttribute.github-agent', "Attribute '{0}' is not supported in custom GitHub Copilot agent files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
 						} else {
-							report(toMarker(localize('promptValidator.unknownAttribute.vscode-agent', "Attribute '{0}' is not supported in VS Code agent files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+							if (validGithubCopilotAttributeNames.value.has(attribute.key)) {
+								report(toMarker(localize('promptValidator.ignoredAttribute.vscode-agent', "Attribute '{0}' is ignored when running locally in VS Code.", attribute.key), attribute.range, MarkerSeverity.Info));
+							} else {
+								report(toMarker(localize('promptValidator.unknownAttribute.vscode-agent', "Attribute '{0}' is not supported in VS Code agent files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+							}
 						}
 						break;
 					case PromptsType.instructions:
@@ -182,9 +187,6 @@ export class PromptValidator {
 	private validateName(attributes: IHeaderAttribute[], isGitHubTarget: boolean, report: (markers: IMarkerData) => void): void {
 		const nameAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.name);
 		if (!nameAttribute) {
-			if (isGitHubTarget) {
-				report(toMarker(localize('promptValidator.nameRequiredForGithubTarget', "The 'name' attribute is required when target is 'github-copilot'."), new Range(1, 1, 1, 4), MarkerSeverity.Error));
-			}
 			return;
 		}
 		if (nameAttribute.value.type !== 'string') {
@@ -313,7 +315,7 @@ export class PromptValidator {
 		return undefined;
 	}
 
-	private validateTools(attributes: IHeaderAttribute[], agentKind: ChatModeKind, isGitHubTarget: boolean, report: (markers: IMarkerData) => void): undefined {
+	private validateTools(attributes: IHeaderAttribute[], agentKind: ChatModeKind, target: string | undefined, report: (markers: IMarkerData) => void): undefined {
 		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.tools);
 		if (!attribute) {
 			return;
@@ -324,10 +326,10 @@ export class PromptValidator {
 
 		switch (attribute.value.type) {
 			case 'array':
-				if (isGitHubTarget) {
+				if (target === Target.GitHubCopilot) {
 					// no validation for github-copilot target
 				} else {
-					this.validateVSCodeTools(attribute.value, report);
+					this.validateVSCodeTools(attribute.value, target, report);
 				}
 				break;
 			default:
@@ -335,19 +337,22 @@ export class PromptValidator {
 		}
 	}
 
-	private validateVSCodeTools(valueItem: IArrayValue, report: (markers: IMarkerData) => void) {
+	private validateVSCodeTools(valueItem: IArrayValue, target: string | undefined, report: (markers: IMarkerData) => void) {
 		if (valueItem.items.length > 0) {
 			const available = new Set<string>(this.languageModelToolsService.getQualifiedToolNames());
 			const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
 			for (const item of valueItem.items) {
 				if (item.type !== 'string') {
 					report(toMarker(localize('promptValidator.eachToolMustBeString', "Each tool name in the 'tools' attribute must be a string."), item.range, MarkerSeverity.Error));
-				} else if (item.value && !available.has(item.value)) {
-					if (deprecatedNames.has(item.value)) {
-						const currentName = deprecatedNames.get(item.value);
-						report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", item.value, currentName), item.range, MarkerSeverity.Info));
-					} else {
-						report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", item.value), item.range, MarkerSeverity.Warning));
+				} else if (item.value) {
+					const toolName = target === undefined ? this.languageModelToolsService.mapGithubToolName(item.value) : item.value;
+					if (!available.has(toolName)) {
+						if (deprecatedNames.has(toolName)) {
+							const currentName = deprecatedNames.get(toolName);
+							report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", toolName, currentName), item.range, MarkerSeverity.Info));
+						} else {
+							report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", toolName), item.range, MarkerSeverity.Warning));
+						}
 					}
 				}
 			}
