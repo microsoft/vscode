@@ -239,7 +239,6 @@ export default tseslint.config(
 			'src/vs/platform/contextkey/browser/contextKeyService.ts',
 			'src/vs/platform/contextkey/test/common/scanner.test.ts',
 			'src/vs/platform/dataChannel/browser/forwardingTelemetryService.ts',
-			'src/vs/platform/externalTerminal/node/externalTerminalService.ts',
 			'src/vs/platform/hover/browser/hoverService.ts',
 			'src/vs/platform/hover/browser/hoverWidget.ts',
 			'src/vs/platform/instantiation/common/instantiationService.ts',
