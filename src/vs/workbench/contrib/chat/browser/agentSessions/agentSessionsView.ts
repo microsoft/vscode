@@ -233,12 +233,6 @@ export class AgentSessionsView extends ViewPane {
 	private createNewSessionButton(container: HTMLElement): void {
 		this.newSessionContainer = append(container, $('.agent-sessions-new-session-container'));
 
-		const primaryAction = toAction({
-			id: 'agentSessions.newSession.primary',
-			label: localize('agentSessions.newSession', "New Session"),
-			run: () => this.commandService.executeCommand(ACTION_ID_OPEN_CHAT)
-		});
-
 		const newSessionButton = this._register(new ButtonWithDropdown(this.newSessionContainer, {
 			title: localize('agentSessions.newSession', "New Session"),
 			ariaLabel: localize('agentSessions.newSessionAriaLabel', "New Session"),
@@ -254,7 +248,7 @@ export class AgentSessionsView extends ViewPane {
 
 		newSessionButton.label = localize('agentSessions.newSession', "New Session");
 
-		this._register(newSessionButton.onDidClick(() => primaryAction.run()));
+		this._register(newSessionButton.onDidClick(() => this.commandService.executeCommand(ACTION_ID_OPEN_CHAT)));
 	}
 
 	private getNewSessionActions(): IAction[] {
@@ -281,11 +275,15 @@ export class AgentSessionsView extends ViewPane {
 			run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Cloud}`)
 		}));
 
-		actions.push(new Separator());
-
+		let addedSeparator = false;
 		for (const provider of this.chatSessionsService.getAllChatSessionContributions()) {
 			if (provider.type === AgentSessionProviders.Background || provider.type === AgentSessionProviders.Cloud) {
 				continue; // already added above
+			}
+
+			if (!addedSeparator) {
+				actions.push(new Separator());
+				addedSeparator = true;
 			}
 
 			const menuActions = this.menuService.getMenuActions(MenuId.ChatSessionsCreateSubMenu, this.scopedContextKeyService.createOverlay([
