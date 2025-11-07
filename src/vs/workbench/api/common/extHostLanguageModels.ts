@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { AsyncIterableObject, AsyncIterableProducer, AsyncIterableSource, RunOnceScheduler } from '../../../base/common/async.js';
+import { AsyncIterableProducer, AsyncIterableSource, RunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
@@ -59,7 +59,7 @@ class LanguageModelResponse {
 				return stream1;
 			},
 			get text() {
-				return AsyncIterableObject.map(stream2, part => {
+				return stream2.map(part => {
 					if (part instanceof extHostTypes.LanguageModelTextPart) {
 						return part.value;
 					} else {
