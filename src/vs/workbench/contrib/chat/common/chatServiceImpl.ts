@@ -239,7 +239,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (!LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
 					return false;
 				}
-				return session.initialLocation === ChatAgentLocation.Chat || session.initialLocation === ChatAgentLocation.EditorInline;
+				return !session.isTransient;
 			});
 
 		this._chatSessionStore.storeSessions(liveChats);
@@ -406,7 +406,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken, options?: { sessionResource?: URI; canUseTools?: boolean }, transferEditingSession?: IChatEditingSession): ChatModel {
-		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, { initialLocation: location, canUseTools: options?.canUseTools ?? true });
+		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, { initialLocation: location, canUseTools: options?.canUseTools ?? true, isTransient: location === ChatAgentLocation.EditorInline });
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(isGlobalEditingSession, transferEditingSession);
 		}
@@ -1099,7 +1099,7 @@ export class ChatService extends Disposable implements IChatService {
 		const history: IChatAgentHistoryEntry[] = [];
 		const agent = this.chatAgentService.getAgent(forAgentId);
 		for (const request of requests) {
-			if (!request.response) {
+			if (!request.response || request.session.isTransient) {
 				continue;
 			}
 
@@ -1203,7 +1203,7 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		const localSessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
-		if (localSessionId && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.EditorInline)) {
+		if (localSessionId && !model.isTransient) {
 			// Always preserve sessions that have custom titles, even if empty
 			if (model.getRequests().length === 0 && !model.customTitle) {
 				await this._chatSessionStore.deleteSession(localSessionId);
