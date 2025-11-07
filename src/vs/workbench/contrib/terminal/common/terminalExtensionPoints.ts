@@ -9,6 +9,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IExtensionTerminalProfile, ITerminalCompletionProviderContribution, ITerminalContributions, ITerminalProfileContribution } from '../../../../platform/terminal/common/terminal.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 
 // terminal extension point
 const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
@@ -48,6 +49,9 @@ export class TerminalContributionService implements ITerminalContributionService
 			}).flat();
 
 			this._terminalCompletionProviders = contributions.map(c => {
+				if (!isProposedApiEnabled(c.description, 'terminalCompletionProvider')) {
+					return [];
+				}
 				return c.value?.completionProviders?.map(p => {
 					return { ...p, extensionIdentifier: c.description.identifier.value };
 				}) || [];
