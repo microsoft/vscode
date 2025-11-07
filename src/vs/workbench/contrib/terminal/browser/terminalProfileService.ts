@@ -23,6 +23,7 @@ import { ITerminalContributionService } from '../common/terminalExtensionPoints.
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { hasKey } from '../../../../base/common/types.js';
 
 /*
  * Links TerminalService with TerminalProfileResolverService
@@ -244,7 +245,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	async getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined> {
 		// prevents recursion with the MainThreadTerminalService call to create terminal
 		// and defers to the provided launch config when an executable is provided
-		if (shellLaunchConfig && !shellLaunchConfig.extHostTerminalId && !('executable' in shellLaunchConfig)) {
+		if (shellLaunchConfig && !shellLaunchConfig.extHostTerminalId && !hasKey(shellLaunchConfig, { executable: true })) {
 			const key = await this.getPlatformKey();
 			const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${key}`);
 			const contributedDefaultProfile = this.contributedProfiles.find(p => p.title === defaultProfileName);
