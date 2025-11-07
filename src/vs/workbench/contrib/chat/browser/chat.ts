@@ -57,7 +57,7 @@ export interface IChatWidgetService {
 
 export async function showChatWidgetInViewOrEditor(accessor: ServicesAccessor, widget: IChatWidget) {
 	if ('viewId' in widget.viewContext) {
-		await accessor.get(IViewsService).openView(widget.location);
+		await accessor.get(IViewsService).openView(widget.viewContext.viewId);
 	} else {
 		const sessionResource = widget.viewModel?.sessionResource;
 		if (sessionResource) {
