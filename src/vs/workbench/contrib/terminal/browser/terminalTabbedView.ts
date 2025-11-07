@@ -180,19 +180,16 @@ export class TerminalTabbedView extends Disposable {
 			return false;
 		}
 		const hide = this._terminalConfigurationService.config.tabs.hideCondition;
-		const toolInstances = this._terminalChatService.getToolSessionTerminalInstances();
-		const foregroundInstances = new Set(this._terminalService.foregroundInstances.map(i => i.instanceId));
-		const hasHiddenChatTerminals = toolInstances.some(instance => !foregroundInstances.has(instance.instanceId));
-		if (hasHiddenChatTerminals) {
+		const hiddenChatTerminals = this._terminalChatService.getToolSessionTerminalInstances(true);
+		if (hiddenChatTerminals.length > 0) {
 			return true;
 		}
-		const hasChatTerminals = toolInstances.length > 0;
 
 		if (hide === 'never') {
 			return true;
 		}
 
-		if (this._terminalGroupService.instances.length && hasChatTerminals) {
+		if (this._terminalGroupService.instances.length) {
 			return true;
 		}
 

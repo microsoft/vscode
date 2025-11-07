@@ -64,8 +64,7 @@ export class TerminalTabsChatEntry extends Disposable {
 	}
 
 	update(): void {
-		const foregroundInstances = new Set(this._terminalService.foregroundInstances.map(i => i.instanceId));
-		const hiddenChatTerminalCount = this._terminalChatService.getToolSessionTerminalInstances().filter(i => foregroundInstances.has(i.instanceId) === false).length;
+		const hiddenChatTerminalCount = this._terminalChatService.getToolSessionTerminalInstances(true).length;
 		if (hiddenChatTerminalCount <= 0) {
 			this._entry.style.display = 'none';
 			this._label.textContent = '';

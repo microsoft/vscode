@@ -109,7 +109,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		return this._terminalInstancesByToolSessionId.get(terminalToolSessionId);
 	}
 
-	getToolSessionTerminalInstances(): readonly ITerminalInstance[] {
+	getToolSessionTerminalInstances(hiddenOnly?: boolean): readonly ITerminalInstance[] {
+		if (hiddenOnly) {
+			const foregroundInstances = new Set(this._terminalService.foregroundInstances.map(i => i.instanceId));
+			return Array.from(this._terminalInstancesByToolSessionId.values()).filter(i => !foregroundInstances.has(i.instanceId));
+		}
 		// Ensure unique instances in case multiple tool sessions map to the same terminal
 		return Array.from(new Set(this._terminalInstancesByToolSessionId.values()));
 	}
@@ -213,8 +217,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private _updateHasToolTerminalContextKeys(): void {
 		const toolCount = this._terminalInstancesByToolSessionId.size;
 		this._hasToolTerminalContext.set(toolCount > 0);
-		const foregroundInstances = new Set(this._terminalService.foregroundInstances.map(i => i.instanceId));
-		const hiddenToolCount = Array.from(this._terminalInstancesByToolSessionId.values()).filter(instance => !foregroundInstances.has(instance.instanceId)).length;
+		const hiddenToolCount = this.getToolSessionTerminalInstances(true).length;
 		this._hasHiddenToolTerminalContext.set(hiddenToolCount > 0);
 	}
 }
