@@ -75,7 +75,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 	}
 
 	public async runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
-		const exec = settings.windowsExec ?? WindowsExternalTerminalService.getDefaultTerminalWindows();
+		const exec = settings.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
 		const wt = await WindowsExternalTerminalService.getWtExePath();
 
 		return new Promise<number | undefined>((resolve, reject) => {
