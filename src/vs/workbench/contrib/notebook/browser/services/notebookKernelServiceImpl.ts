@@ -340,13 +340,13 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 			info.replPriorities.delete(notebook);
 		} else {
 			info.notebookPriorities.set(notebook, preference);
-			// when setting a preference for an exisisting notebook,
+			// when setting a preference for an existing notebook,
 			// we also set the repl preference so it can be auto-selected when the notebook is opened as a REPL
 			if (this._notebookService.getNotebookTextModel(notebook)) {
-				this._notebookLogService.debug('KernelService', `Setting affinity for for kernel '${kernelId}' and (REPL) notebook '${notebook.toString()}' to ${preference}`);
+				this._notebookLogService.debug('KernelService', `Setting kernel affinity of kernel '${kernelId}' for (REPL) notebook '${notebook.toString()}' to ${preference}`);
 				info.replPriorities.set(notebook, preference);
 			} else {
-				this._notebookLogService.debug('KernelService', `Setting affinity for kernel '${kernelId}' and notebook '${notebook.toString()}' to ${preference}`);
+				this._notebookLogService.debug('KernelService', `Setting kernel affinity of kernel '${kernelId}' for notebook '${notebook.toString()}' to ${preference}`);
 			}
 		}
 		this._onDidChangeNotebookAffinity.fire();
