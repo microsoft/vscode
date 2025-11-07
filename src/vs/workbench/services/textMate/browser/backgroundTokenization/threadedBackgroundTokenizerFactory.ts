@@ -22,7 +22,7 @@ import { TextMateWorkerHost } from './worker/textMateWorkerHost.js';
 import { TextMateWorkerTokenizerController } from './textMateWorkerTokenizerController.js';
 import { IValidGrammarDefinition } from '../../common/TMScopeRegistry.js';
 import type { IRawTheme } from 'vscode-textmate';
-import { createWebWorker } from '../../../../../base/browser/webWorkerFactory.js';
+import { createWebWorker, WebWorkerDescriptor } from '../../../../../base/browser/webWorkerFactory.js';
 import { IWebWorkerClient, Proxied } from '../../../../../base/common/worker/webWorker.js';
 
 export class ThreadedBackgroundTokenizerFactory implements IDisposable {
@@ -138,8 +138,10 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 			onigurumaWASMUri: FileAccess.asBrowserUri(onigurumaWASM).toString(true),
 		};
 		const worker = this._worker = createWebWorker<TextMateTokenizationWorker>(
-			FileAccess.asBrowserUri('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.workerMain.js'),
-			'TextMateWorker'
+			new WebWorkerDescriptor({
+				esmModuleLocation: FileAccess.asBrowserUri('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.workerMain.js'),
+				label: 'TextMateWorker'
+			})
 		);
 		TextMateWorkerHost.setChannel(worker, {
 			$readFile: async (_resource: UriComponents): Promise<string> => {
