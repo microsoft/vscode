@@ -823,35 +823,42 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this._onDidRerender.fire(templateData);
 		}
 
-		// Calculate context utilization percentage
+		// Calculate context utilization percentage if not already calculated
 		if (element.modelId && element.contextUsagePercentage === undefined) {
 			const modelMetadata = this.languageModelsService.lookupLanguageModel(element.modelId);
 			if (modelMetadata && modelMetadata.maxInputTokens > 0) {
 				this.languageModelsService.computeTokenLength(element.modelId, element.messageText, CancellationToken.None).then(tokenCount => {
 					element.contextUsagePercentage = Math.round((tokenCount / modelMetadata.maxInputTokens) * 100);
+					// Trigger a re-render by updating the item height
+					this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
 				}).catch(err => {
 					this.logService.error('Failed to compute token length for context utilization', err);
 				});
 			}
 		}
 
-		// Setup hover for context utilization indicator
-		if (element.contextUsagePercentage !== undefined) {
-			const contextUsageText = localize('contextUsage', '⭕ {0}% context used', element.contextUsagePercentage);
-			const hoverElement = dom.$('span.context-usage-hover');
-			hoverElement.textContent = contextUsageText;
-			
-			templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.requestHover, {
-				content: hoverElement
-			}));
-			
-			// Show badge directly for high utilization (>80%)
-			if (element.contextUsagePercentage > 80) {
-				const badge = dom.append(templateData.requestHover, $('span.context-usage-badge'));
-				badge.textContent = contextUsageText;
-				templateData.elementDisposables.add(toDisposable(() => badge.remove()));
+		// Setup hover and badge for context utilization indicator
+		// This creates a hover that will show the context usage percentage
+		const setupContextUsageDisplay = () => {
+			if (element.contextUsagePercentage !== undefined) {
+				const contextUsageText = localize('contextUsage', '⭕ {0}% context used', element.contextUsagePercentage);
+				const hoverElement = dom.$('span.context-usage-hover');
+				hoverElement.textContent = contextUsageText;
+				
+				templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.requestHover, {
+					content: hoverElement
+				}));
+				
+				// Show badge directly for high utilization (>80%)
+				if (element.contextUsagePercentage > 80) {
+					const badge = dom.append(templateData.requestHover, $('span.context-usage-badge'));
+					badge.textContent = contextUsageText;
+					templateData.elementDisposables.add(toDisposable(() => badge.remove()));
+				}
 			}
-		}
+		};
+		
+		setupContextUsageDisplay();
 
 		if (this.configService.getValue<string>('chat.editRequests') !== 'none' && this.rendererOptions.editable) {
 			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, e => {
