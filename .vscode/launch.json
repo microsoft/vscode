@@ -592,7 +592,7 @@
 			"type": "chrome",
 			"request": "launch",
 			"url": "http://localhost:5001",
-			"preLaunchTask": "Launch Http Server",
+			"preLaunchTask": "Launch Monaco Editor Vite",
 			"presentation": {
 				"group": "monaco",
 				"order": 4
