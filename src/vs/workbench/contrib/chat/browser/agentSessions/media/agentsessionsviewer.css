@@ -60,7 +60,13 @@
 
 			.rendered-markdown {
 				p {
+					display: flex;
+					align-items: center;
 					margin: 0;
+
+					>span.codicon {
+						margin-right: 2px;
+					}
 				}
 
 				a {
