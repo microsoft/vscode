@@ -624,7 +624,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 
 		if (notebook && textModel) {
 			const info = this._notebookKernelService.getMatchingKernel(notebook);
-			const selected = info.selected ?? info.all.length === 1 ? info.all[0] : undefined;
+			const selected = info.selected ?? (info.all.length === 1 ? info.all[0] : undefined);
 
 			if (selected) {
 				const language = selected.supportedLanguages[0];
