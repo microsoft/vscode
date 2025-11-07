@@ -216,6 +216,16 @@ function isAnonymous(configurationService: IConfigurationService, entitlement: C
 	return true;
 }
 
+function logChatEntitlements(state: IChatEntitlementContextState, configurationService: IConfigurationService, telemetryService: ITelemetryService): void {
+	telemetryService.publicLog2<ChatEntitlementEvent, ChatEntitlementClassification>('chatEntitlements', {
+		chatHidden: Boolean(state.hidden),
+		chatDisabled: Boolean(state.disabled),
+		chatEntitlement: state.entitlement,
+		chatRegistered: Boolean(state.registered),
+		chatAnonymous: isAnonymous(configurationService, state.entitlement, state)
+	});
+}
+
 export class ChatEntitlementService extends Disposable implements IChatEntitlementService {
 
 	declare _serviceBrand: undefined;
@@ -228,7 +238,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		@IProductService productService: IProductService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -236,6 +247,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this.completionsQuotaExceededContextKey = ChatEntitlementContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
 
 		this.anonymousContextKey = ChatEntitlementContextKeys.chatAnonymous.bindTo(this.contextKeyService);
+		this.anonymousContextKey.set(this.anonymous);
 
 		this.onDidChangeEntitlement = Event.map(
 			Event.filter(
@@ -371,6 +383,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			if (newAnonymousUsage !== anonymousUsage) {
 				anonymousUsage = newAnonymousUsage;
 				this.anonymousContextKey.set(newAnonymousUsage);
+
+				if (this.context?.hasValue) {
+					logChatEntitlements(this.context.value.state, this.configurationService, this.telemetryService);
+				}
 
 				this._onDidChangeAnonymous.fire();
 			}
@@ -1278,13 +1294,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.registeredContext.set(!!state.registered);
 
 		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
-		this.telemetryService.publicLog2<ChatEntitlementEvent, ChatEntitlementClassification>('chatEntitlements', {
-			chatHidden: Boolean(state.hidden),
-			chatDisabled: Boolean(state.disabled),
-			chatEntitlement: state.entitlement,
-			chatRegistered: Boolean(state.registered),
-			chatAnonymous: isAnonymous(this.configurationService, state.entitlement, state)
-		});
+		logChatEntitlements(state, this.configurationService, this.telemetryService);
 
 		this._onDidChange.fire();
 	}
