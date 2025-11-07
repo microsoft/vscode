@@ -880,6 +880,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTerminalService.registerProfileProvider(extension, id, provider);
 			},
 			registerTerminalCompletionProvider(provider: vscode.TerminalCompletionProvider<vscode.TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'terminalCompletionProvider');
 				return extHostTerminalService.registerTerminalCompletionProvider(extension, provider, ...triggerCharacters);
 			},
 			registerTerminalQuickFixProvider(id: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
