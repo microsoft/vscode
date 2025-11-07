@@ -679,7 +679,7 @@ export function registerChatActions() {
 				uri?: URI;
 			}
 
-			function isChatPickerItem(item: IQuickPickItem): item is IChatPickerItem {
+			function isChatPickerItem(item: IQuickPickItem | IChatPickerItem): item is IChatPickerItem {
 				return hasKey(item, { chat: true });
 			}
 
