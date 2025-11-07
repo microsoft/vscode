@@ -421,7 +421,7 @@ function countNewLines(regex: RegExp): number {
 }
 
 function getPromptRowCount(command: ITerminalCommand | ICurrentPartialCommand, buffer: IBuffer): number {
-	const marker = 'hasOutput' in command ? command.marker : command.commandStartMarker;
+	const marker = isFullTerminalCommand(command) ? command.marker : command.commandStartMarker;
 	if (!marker || !command.promptStartMarker) {
 		return 1;
 	}
@@ -436,17 +436,21 @@ function getPromptRowCount(command: ITerminalCommand | ICurrentPartialCommand, b
 }
 
 function getCommandRowCount(command: ITerminalCommand | ICurrentPartialCommand): number {
-	const marker = 'hasOutput' in command ? command.marker : command.commandStartMarker;
-	const executedMarker = 'hasOutput' in command ? command.executedMarker : command.commandExecutedMarker;
+	const marker = isFullTerminalCommand(command) ? command.marker : command.commandStartMarker;
+	const executedMarker = isFullTerminalCommand(command) ? command.executedMarker : command.commandExecutedMarker;
 	if (!marker || !executedMarker) {
 		return 1;
 	}
 	const commandExecutedLine = Math.max(executedMarker.line, marker.line);
 	let commandRowCount = commandExecutedLine - marker.line + 1;
 	// Trim the last line if the cursor X is in the left-most cell
-	const executedX = 'hasOutput' in command ? command.executedX : command.commandExecutedX;
+	const executedX = isFullTerminalCommand(command) ? command.executedX : command.commandExecutedX;
 	if (executedX === 0) {
 		commandRowCount--;
 	}
 	return commandRowCount;
+}
+
+export function isFullTerminalCommand(command: ITerminalCommand | ICurrentPartialCommand): command is ITerminalCommand {
+	return !!(command as ITerminalCommand).hasOutput;
 }

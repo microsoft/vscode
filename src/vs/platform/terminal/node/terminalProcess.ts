@@ -394,7 +394,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private async _throttleKillSpawn(): Promise<void> {
 		// Only throttle on Windows/conpty
-		if (!isWindows || !('useConpty' in this._ptyOptions) || !this._ptyOptions.useConpty) {
+		if (!isWindows || !hasConptyOption(this._ptyOptions) || !this._ptyOptions.useConpty) {
 			return;
 		}
 		// Don't throttle when using conpty.dll as it seems to have been fixed in later versions
@@ -661,7 +661,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	getWindowsPty(): IProcessReadyWindowsPty | undefined {
 		return isWindows ? {
-			backend: 'useConpty' in this._ptyOptions && this._ptyOptions.useConpty ? 'conpty' : 'winpty',
+			backend: hasConptyOption(this._ptyOptions) && this._ptyOptions.useConpty ? 'conpty' : 'winpty',
 			buildNumber: getWindowsBuildNumber()
 		} : undefined;
 	}
@@ -685,4 +685,8 @@ class DelayedResizer extends Disposable {
 		}, 1000);
 		this._register(toDisposable(() => clearTimeout(this._timeout)));
 	}
+}
+
+function hasConptyOption(obj: IPtyForkOptions | IWindowsPtyForkOptions): obj is IWindowsPtyForkOptions {
+	return 'useConpty' in obj;
 }

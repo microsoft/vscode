@@ -32,6 +32,7 @@ import { memoize } from '../../../base/common/decorators.js';
 import * as performance from '../../../base/common/performance.js';
 import pkg from '@xterm/headless';
 import { AutoRepliesPtyServiceContribution } from './terminalContrib/autoReplies/autoRepliesContribController.js';
+import { hasKey } from '../../../base/common/types.js';
 
 type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
@@ -717,7 +718,7 @@ class PersistentTerminalProcess extends Disposable {
 	}
 
 	setIcon(userInitiated: boolean, icon: TerminalIcon, color?: string): void {
-		if (!this._icon || 'id' in icon && 'id' in this._icon && icon.id !== this._icon.id ||
+		if (!this._icon || hasKey(icon, { id: true }) && hasKey(this._icon, { id: true }) && icon.id !== this._icon.id ||
 			!this.color || color !== this._color) {
 
 			this._serializer.freeRawReviveBuffer();
@@ -832,7 +833,7 @@ class PersistentTerminalProcess extends Disposable {
 	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		if (!this._isStarted) {
 			const result = await this._terminalProcess.start();
-			if (result && 'message' in result) {
+			if (result && hasKey(result, { message: true })) {
 				// it's a terminal launch error
 				return result;
 			}
