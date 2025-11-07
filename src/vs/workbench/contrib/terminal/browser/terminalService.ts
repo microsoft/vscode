@@ -1039,6 +1039,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 					this._onDidDisposeInstance.fire(instance);
 				})
 			]);
+			this._onDidChangeInstances.fire();
 			return instance;
 		}
 
