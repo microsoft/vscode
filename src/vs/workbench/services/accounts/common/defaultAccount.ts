@@ -161,7 +161,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		await this.extensionService.whenInstalledExtensionsRegistered();
 		const declaredProvider = this.authenticationService.declaredProviders.find(provider => provider.id === defaultAccountProviderId);
 		if (!declaredProvider) {
-			this.logService.info(`Default account authentication provider ${defaultAccountProviderId} is not declared.`);
+			this.logService.info(`[DefaultAccount] Authentication provider is not declared.`, defaultAccountProviderId);
 			return;
 		}
 
@@ -200,7 +200,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			const [key, value] = field.split('=');
 			result.set(key, value);
 		}
-		this.logService.trace(`DefaultAccount#extractFromToken: ${JSON.stringify(Object.fromEntries(result))}`);
+		this.logService.debug(`[DefaultAccount] extractFromToken: ${JSON.stringify(Object.fromEntries(result))}`);
 		return result;
 	}
 
@@ -209,6 +209,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		const session = sessions.find(s => this.scopesMatch(s.scopes, scopes));
 
 		if (!session) {
+			this.logService.debug('[DefaultAccount] No matching session found', authProviderId);
 			return null;
 		}
 
@@ -236,6 +237,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	private async getTokenEntitlements(accessToken: string): Promise<Partial<IDefaultAccount>> {
 		const tokenEntitlementsUrl = this.getTokenEntitlementUrl();
 		if (!tokenEntitlementsUrl) {
+			this.logService.debug('[DefaultAccount] No token entitlements URL found');
 			return {};
 		}
 
@@ -271,6 +273,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	private async getChatEntitlements(accessToken: string): Promise<Partial<IChatEntitlementsResponse>> {
 		const chatEntitlementsUrl = this.getChatEntitlementUrl();
 		if (!chatEntitlementsUrl) {
+			this.logService.debug('[DefaultAccount] No chat entitlements URL found');
 			return {};
 		}
 
@@ -298,6 +301,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	private async getMcpRegistryProvider(accessToken: string): Promise<IMcpRegistryProvider | undefined> {
 		const mcpRegistryDataUrl = this.getMcpRegistryDataUrl();
 		if (!mcpRegistryDataUrl) {
+			this.logService.debug('[DefaultAccount] No MCP registry data URL found');
 			return undefined;
 		}
 
@@ -316,7 +320,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 				this.logService.debug('Fetched MCP registry providers', data.mcp_registries);
 				return data.mcp_registries[0];
 			}
-			this.logService.error('Failed to fetch MCP registry providers', 'No data returned');
+			this.logService.debug('Failed to fetch MCP registry providers', 'No data returned');
 		} catch (error) {
 			this.logService.error('Failed to fetch MCP registry providers', getErrorMessage(error));
 		}
