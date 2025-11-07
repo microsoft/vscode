@@ -317,7 +317,6 @@ export class TokenizationStateStore<TState extends IState> {
 	}
 
 	public acceptChanges(changes: IModelContentChange[]) {
-		console.log('acceptChanges called in TokenizationStateStore');
 		for (const c of changes) {
 			const [eolCount] = countEOL(c.text);
 			this.acceptChange(new LineRange(c.range.startLineNumber, c.range.endLineNumber + 1), eolCount + 1);

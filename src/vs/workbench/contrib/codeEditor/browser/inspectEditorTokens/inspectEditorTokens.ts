@@ -499,7 +499,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private _decodeMetadata(metadata: number): IDecodedMetadata {
-		const colorMap = this._themeService.getColorTheme().tokenColorMap; //
+		const colorMap = this._themeService.getColorTheme().tokenColorMap;
 		const languageId = TokenMetadata.getLanguageId(metadata);
 		const tokenType = TokenMetadata.getTokenType(metadata);
 		const fontStyle = TokenMetadata.getFontStyle(metadata);
@@ -623,7 +623,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				}
 				const range = new Range(line + 1, character + 1, line + 1, character + 1 + len);
 				const definitions = {};
-				const colorMap = this._themeService.getColorTheme().tokenColorMap; //
+				const colorMap = this._themeService.getColorTheme().tokenColorMap;
 				const theme = this._themeService.getColorTheme() as ColorThemeData;
 				const tokenStyle = theme.getTokenStyleMetadata(type, modifiers, defaultLanguage, true, definitions);
 

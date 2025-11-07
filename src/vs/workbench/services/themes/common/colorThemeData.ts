@@ -101,7 +101,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	get tokenColors(): ITextMateThemingRule[] {
-		console.log('tokenColors');
 		if (!this.textMateThemingRules) {
 			const result: ITextMateThemingRule[] = [];
 
@@ -146,11 +145,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			}
 			this.textMateThemingRules = result;
 		}
-
-		console.log('this.textMateThemingRules', this.textMateThemingRules);
-		console.log('this.themeTokenColors', this.themeTokenColors);
-		console.log('this.customTokenColors', this.customTokenColors);
-
 		return this.textMateThemingRules;
 	}
 
@@ -168,8 +162,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		if (useDefault !== false) {
 			return this.getDefault(colorId);
 		}
-		console.log('colorId : ', colorId);
-		console.log('customColor : ', customColor);
 		return undefined;
 	}
 
@@ -289,7 +281,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 			this.tokenColorIndex = index;
 		}
-		console.log('this.tokenColorIndex', this.tokenColorIndex);
 		return this.tokenColorIndex;
 	}
 
@@ -299,7 +290,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			this.tokenColors.forEach(r => index.add(r.settings.fontFamily, r.settings.fontSize, r.settings.lineHeight));
 			this.tokenFontIndex = index;
 		}
-		console.log('this.tokenColorIndex', this.tokenColorIndex);
 		return this.tokenFontIndex;
 	}
 
@@ -343,7 +333,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 
 	public resolveScopes(scopes: ProbeScope[], definitions?: TextMateThemingRuleDefinitions): TokenStyle | undefined {
-		console.log('resolveScopes', scopes);
 
 		if (!this.themeTokenScopeMatchers) {
 			this.themeTokenScopeMatchers = this.themeTokenColors.map(getScopeMatcher);
@@ -403,7 +392,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public setCustomizations(settings: ThemeConfiguration) {
-		console.log('setCustomizations', settings);
 		this.setCustomColors(settings.colorCustomizations);
 		this.setCustomTokenColors(settings.tokenColorCustomizations);
 		this.setCustomSemanticTokenColors(settings.semanticTokenColorCustomizations);
@@ -424,7 +412,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	private overwriteCustomColors(colors: IColorCustomizations) {
-		console.log('overwriteCustomColors', colors);
 		for (const id in colors) {
 			const colorVal = colors[id];
 			if (colorVal === DEFAULT_COLOR_CONFIG_VALUE) {
@@ -436,8 +423,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public setCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
-		console.log('setCustomTokenColors');
-		console.log('customTokenColors : ', customTokenColors);
 		this.customTokenColors = [];
 		this.customSemanticHighlightingDeprecated = undefined;
 
@@ -446,7 +431,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 		// append theme specific settings. Last rules will win.
 		const themeSpecificTokenColors = this.getThemeSpecificColors(customTokenColors) as ITokenColorCustomizations;
-		console.log('themeSpecificTokenColors : ', themeSpecificTokenColors);
 		if (types.isObject(themeSpecificTokenColors)) {
 			this.addCustomTokenColors(themeSpecificTokenColors);
 		}
@@ -457,8 +441,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public setCustomSemanticTokenColors(semanticTokenColors: ISemanticTokenColorCustomizations | undefined) {
-		console.log('setCustomSemanticTokenColors');
-		console.log('semanticTokenColors : ', semanticTokenColors);
 		this.customSemanticTokenRules = [];
 		this.customSemanticHighlighting = undefined;
 
@@ -524,8 +506,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 				}
 			}
 		}
-		console.log('getThemeSpecificColors');
-		console.log('themeSpecificColors : ', themeSpecificColors);
 		return themeSpecificColors;
 	}
 

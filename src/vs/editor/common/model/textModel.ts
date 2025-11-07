@@ -359,7 +359,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		this._bracketPairs = this._register(new BracketPairsTextModelPart(this, this._languageConfigurationService));
 		this._guidesTextModelPart = this._register(new GuidesTextModelPart(this, this._languageConfigurationService));
-		// Creating a new colorized bracket pair decoration provider which is fake
 		this._decorationProvider = this._register(new ColorizedBracketPairsDecorationProvider(this));
 		this._tokenizationTextModelPart = this.instantiationService.createInstance(TokenizationTextModelPart,
 			this,
@@ -389,12 +388,12 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._trimAutoWhitespaceLines = null;
 
 
-		this._register(this._decorationProvider.onDidChange(() => {
+		this._register(this._decorationProvider.onDidChangeLineHeight(() => {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._onDidChangeDecorations.fire();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}));
-		this._register(this._fontDecorationProvider.onDidChange((affectedLineHeights) => {
+		this._register(this._fontDecorationProvider.onDidChangeLineHeight((affectedLineHeights) => {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._onDidChangeDecorations.fire();
 			const affectedLines = Array.from(affectedLineHeights);
@@ -1786,7 +1785,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const range = new Range(startLineNumber, 1, endLineNumber, endColumn);
 
 		const decorations = this._getDecorationsInRange(range, ownerId, filterOutValidation, filterFontDecorations, onlyMarginDecorations);
-		// After we fetch the decorations, we add the ones from the bracket decoration provider
 		pushMany(decorations, this._decorationProvider.getDecorationsInRange(range, ownerId, filterOutValidation));
 		pushMany(decorations, this._fontDecorationProvider.getDecorationsInRange(range, ownerId, filterOutValidation));
 		return decorations;
@@ -1796,7 +1794,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const validatedRange = this.validateRange(range);
 
 		const decorations = this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation, filterFontDecorations, onlyMarginDecorations);
-		// After we fetch the decorations, we add the ones from the bracket decoration provider
 		pushMany(decorations, this._decorationProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation, onlyMinimapDecorations));
 		pushMany(decorations, this._fontDecorationProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation, onlyMinimapDecorations));
 		return decorations;
@@ -1829,7 +1826,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false, filterFontDecorations: boolean = false): model.IModelDecoration[] {
-		// getting all the decorations from the tree and concatenating with those from the bracket pairs
 		let result = this._decorationsTree.getAll(this, ownerId, filterOutValidation, filterFontDecorations, false, false);
 		result = result.concat(this._decorationProvider.getAllDecorations(ownerId, filterOutValidation));
 		result = result.concat(this._fontDecorationProvider.getAllDecorations(ownerId, filterOutValidation));
@@ -2413,7 +2409,6 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	public static createDynamic(options: model.IModelDecorationOptions): ModelDecorationOptions {
 		return new ModelDecorationOptions(options);
 	}
-	readonly type: string | undefined;
 	readonly description: string;
 	readonly blockClassName: string | null;
 	readonly blockIsAfterEnd: boolean | null;
@@ -2452,7 +2447,6 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly textDirection?: model.TextDirection | null | undefined;
 
 	private constructor(options: model.IModelDecorationOptions) {
-		this.type = options.type;
 		this.description = options.description;
 		this.blockClassName = options.blockClassName ? cleanClassName(options.blockClassName) : null;
 		this.blockDoesNotCollapse = options.blockDoesNotCollapse ?? null;

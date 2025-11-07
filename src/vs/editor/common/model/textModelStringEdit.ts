@@ -50,15 +50,12 @@ export function offsetEditFromLineRangeMapping(original: ITextModel, modified: I
 }
 
 export function linesLengthEditFromModelContentChange(c: IModelContentChange[]): LengthEdit {
-	console.log('linesLengthEditFromModelContentChange called with changes: ', c);
 	const contentChanges = c.slice().reverse();
 	const lengthEdits = contentChanges.map(c => LengthEdit.replace(
 		// Expand the edit range to include the entire line
 		new OffsetRange(c.range.startLineNumber - 1, c.range.endLineNumber),
 		countEOL(c.text)[0] + 1)
 	);
-	console.log('lengthEdits: ', lengthEdits);
 	const lengthEdit = LengthEdit.compose(lengthEdits);
-	console.log('Composed lengthEdit: ', lengthEdit);
 	return lengthEdit;
 }

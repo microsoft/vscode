@@ -152,7 +152,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		this._editorStyleSheets.delete(editorId);
 	}
 
-	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): IDisposable { //
+	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): IDisposable {
 		let provider = this._decorationOptionProviders.get(key);
 		if (!provider) {
 			const styleSheet = this._getOrCreateStyleSheet(editor);
@@ -163,7 +163,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 				options: options || Object.create(null)
 			};
 			if (!parentTypeKey) {
-				provider = new DecorationTypeOptionsProvider(description, key, this._themeService, styleSheet, providerArgs);
+				provider = new DecorationTypeOptionsProvider(description, this._themeService, styleSheet, providerArgs);
 			} else {
 				provider = new DecorationSubTypeOptionsProvider(this._themeService, styleSheet, providerArgs);
 			}
@@ -176,10 +176,6 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 				this.removeDecorationType(key);
 			}
 		};
-	}
-
-	public hasDecorationType(type: string): boolean {
-		return this._decorationOptionProviders.has(type);
 	}
 
 	public listDecorationTypes(): string[] {
@@ -456,7 +452,6 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
 	public refCount: number;
 
-	public type: string;
 	public description: string;
 	public className: string | undefined;
 	public inlineClassName: string | undefined;
@@ -475,9 +470,9 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public beforeInjectedText: InjectedTextOptions | undefined;
 	public afterInjectedText: InjectedTextOptions | undefined;
 
-	constructor(description: string, type: string, themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
+	constructor(description: string, themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
 		this.description = description;
-		this.type = type;
+
 		this._styleSheet = styleSheet;
 		this._styleSheet.ref();
 		this.refCount = 0;
@@ -557,7 +552,6 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		}
 
 		return {
-			type: this.type,
 			description: this.description,
 			inlineClassName: this.inlineClassName,
 			beforeContentClassName: this.beforeContentClassName,

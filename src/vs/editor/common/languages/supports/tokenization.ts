@@ -411,7 +411,7 @@ export class ThemeTrieElement {
 	}
 }
 
-export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string { // ----
+export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string {
 	const rules: string[] = [];
 	for (let i = 1, len = colorMap.length; i < len; i++) {
 		const color = colorMap[i];
@@ -427,30 +427,30 @@ export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string
 
 export function generateTokensCSSForFontMap(fontMap: readonly ITokenFont[]): string {
 	const rules: string[] = [];
-	// We somehow need to get the range of the font infos here so it can be encoded in the class name
-	const consideredFonts = new Set<number>();
+	const consideredFonts = new Set<string>();
 	for (let i = 1, len = fontMap.length; i < len; i++) {
 		const font = fontMap[i];
-		if (!font.fontFamily && !font.fontSize && !font.lineHeight) {
+		if (!font.fontFamily && !font.fontSize) {
 			continue;
 		}
-		const hashFont = hash(`${font.fontFamily}-${font.fontSize}-${font.lineHeight}`);
-		if (consideredFonts.has(hashFont)) {
+		const classForFont = classNameForFont(font.fontFamily ?? '', font.fontSize ?? '');
+		if (consideredFonts.has(classForFont)) {
 			continue;
 		}
-		consideredFonts.add(hashFont);
-		let rule = `.font-decoration-${hashFont} {`;
+		consideredFonts.add(classForFont);
+		let rule = `.${classForFont} {`;
 		if (font.fontFamily) {
-			rule += ` font-family: ${font.fontFamily};`;
+			rule += `font-family: ${font.fontFamily};`;
 		}
 		if (font.fontSize) {
-			rule += ` font-size: ${font.fontSize};`;
+			rule += `font-size: ${font.fontSize};`;
 		}
-		if (font.lineHeight) {
-			rule += ` line-height: ${font.lineHeight}px;`;
-		}
-		rule += ` }`;
+		rule += `}`;
 		rules.push(rule);
 	}
 	return rules.join('\n');
+}
+
+export function classNameForFont(fontFamily: string, fontSize: string): string {
+	return `font-decoration-${hash(`${fontFamily}-${fontSize}`)}`;
 }

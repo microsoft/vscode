@@ -25,5 +25,5 @@ export interface DecorationProvider<T = void> {
 	 */
 	getAllDecorations(ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[];
 
-	onDidChange: Event<T>;
+	onDidChangeLineHeight: Event<T>;
 }

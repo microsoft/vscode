@@ -363,7 +363,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	}
 
 	public getColorTheme(): IWorkbenchColorTheme {
-		return this.currentColorTheme; //
+		return this.currentColorTheme;
 	}
 
 	public async getColorThemes(): Promise<IWorkbenchColorTheme[]> {

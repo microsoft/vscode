@@ -147,10 +147,6 @@ export interface IModelDecorationMinimapOptions extends IDecorationOptions {
  */
 export interface IModelDecorationOptions {
 	/**
-	 * @internal
-	 */
-	type?: string;
-	/**
 	 * A debug description that can be used for inspecting model decorations.
 	 * @internal
 	 */
