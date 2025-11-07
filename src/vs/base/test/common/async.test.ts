@@ -2391,12 +2391,14 @@ suite('Async', () => {
 		});
 
 		test('peekTimeout - timeout occurs', async () => {
-			const reader = new async.AsyncReader(createDelayedAsyncIterator([1, 2, 3], 50));
+			return runWithFakedTimers({}, async () => {
+				const reader = new async.AsyncReader(createDelayedAsyncIterator([1, 2, 3], 50));
 
-			const result = await reader.peekTimeout(10);
-			assert.strictEqual(result, undefined);
+				const result = await reader.peekTimeout(10);
+				assert.strictEqual(result, undefined);
 
-			await reader.consumeToEnd();
+				await reader.consumeToEnd();
+			});
 		});
 
 		test('peekTimeout - empty iterator', async () => {
