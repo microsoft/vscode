@@ -492,22 +492,22 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		if (!idFilters || !idFilters.size) {
 			return true;
 		}
-		
-		// Check for exact match first (for backward compatibility)
+
+		// Check for exact match first
 		if (idFilters.has(this.setting.key)) {
 			return true;
 		}
-		
+
 		// Check for wildcard patterns (ending with .*)
 		for (const filter of idFilters) {
-			if (filter.endsWith('.*')) {
-				const prefix = filter.slice(0, -2); // Remove '.*' suffix
+			if (filter.endsWith('*')) {
+				const prefix = filter.slice(0, -1); // Remove '*' suffix
 				if (this.setting.key.startsWith(prefix)) {
 					return true;
 				}
 			}
 		}
-		
+
 		return false;
 	}
 
