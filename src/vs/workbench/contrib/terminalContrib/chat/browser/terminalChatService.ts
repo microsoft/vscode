@@ -112,7 +112,8 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	getToolSessionTerminalInstances(hiddenOnly?: boolean): readonly ITerminalInstance[] {
 		if (hiddenOnly) {
 			const foregroundInstances = new Set(this._terminalService.foregroundInstances.map(i => i.instanceId));
-			return Array.from(new Set(Array.from(this._terminalInstancesByToolSessionId.values()).filter(i => !foregroundInstances.has(i.instanceId))));
+			const uniqueInstances = new Set(this._terminalInstancesByToolSessionId.values());
+			return Array.from(uniqueInstances).filter(i => !foregroundInstances.has(i.instanceId));
 		}
 		// Ensure unique instances in case multiple tool sessions map to the same terminal
 		return Array.from(new Set(this._terminalInstancesByToolSessionId.values()));
