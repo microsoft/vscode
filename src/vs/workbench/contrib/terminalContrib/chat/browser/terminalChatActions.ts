@@ -54,19 +54,25 @@ registerActiveXtermAction({
 		}
 
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
+		if (!contr) {
+			return;
+		}
 
 		if (opts) {
+			function isValidOptionsObject(obj: unknown): obj is { query: string; isPartialQuery?: boolean } {
+				return typeof obj === 'object' && obj !== null && 'query' in obj && typeof obj.query === 'string';
+			}
 			opts = typeof opts === 'string' ? { query: opts } : opts;
-			if (typeof opts === 'object' && opts !== null && 'query' in opts && typeof opts.query === 'string') {
-				contr?.updateInput(opts.query, false);
-				if (!('isPartialQuery' in opts && opts.isPartialQuery)) {
-					contr?.terminalChatWidget?.acceptInput();
+			if (isValidOptionsObject(opts)) {
+				contr.updateInput(opts.query, false);
+				if (opts.isPartialQuery) {
+					contr.terminalChatWidget?.acceptInput();
 				}
 			}
 
 		}
 
-		contr?.terminalChatWidget?.reveal();
+		contr.terminalChatWidget?.reveal();
 	}
 });
 
