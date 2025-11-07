@@ -517,7 +517,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 		let result = `${commandHeader}\n${output}`;
 		if (this._lastOutputTruncated) {
-			result += `\n\n${localize('chat.terminalOutputTruncated', 'Output truncated to first {0} characters.', CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES)}`;
+			result += `\n\n${localize('chat.terminalOutputTruncated', 'Output truncated to first {0} lines.', CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES)}`;
 		}
 		return result;
 	}
