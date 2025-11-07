@@ -64,8 +64,8 @@ function hasValidTerminalIcon(profile: ITerminalProfileContribution): boolean {
 			typeof profile.icon === 'string' ||
 			URI.isUri(profile.icon) ||
 			(
-				'light' in profile.icon && 'dark' in profile.icon &&
-				URI.isUri(profile.icon.light) && URI.isUri(profile.icon.dark)
+				(<{ light: URI; dark: URI }>profile.icon).light && URI.isUri(profile.icon.light) &&
+				(<{ light: URI; dark: URI }>profile.icon).dark && URI.isUri(profile.icon.dark)
 			)
 		);
 }
