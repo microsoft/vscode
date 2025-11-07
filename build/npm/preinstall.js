@@ -121,7 +121,7 @@ function installHeaders() {
 		if (fs.existsSync(localHeaderPath)) {
 			console.log('Applying v8-source-location.patch to', localHeaderPath);
 			try {
-				cp.execSync(`patch -p0 < ${path.join(__dirname, 'gyp', 'custom-headers', 'v8-source-location.patch')}`, {
+				cp.execFileSync('patch', ['-p0', '-i', path.join(__dirname, 'gyp', 'custom-headers', 'v8-source-location.patch')], {
 					cwd: localHeaderPath
 				});
 			} catch (error) {
