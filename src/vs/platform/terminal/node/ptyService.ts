@@ -37,13 +37,18 @@ import { hasKey } from '../../../base/common/types.js';
 type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
 
+interface ITraceRpcArgs {
+	logService: ILogService;
+	simulatedLatency: number;
+}
+
 export function traceRpc(_target: Object, key: string, descriptor: PropertyDescriptor) {
 	if (typeof descriptor.value !== 'function') {
 		throw new Error('not supported');
 	}
 	const fnKey = 'value';
 	const fn = descriptor.value;
-	descriptor[fnKey] = async function <TThis extends { traceRpcArgs: { logService: ILogService; simulatedLatency: number } }>(this: TThis, ...args: unknown[]) {
+	descriptor[fnKey] = async function <TThis extends { traceRpcArgs: ITraceRpcArgs }>(this: TThis, ...args: unknown[]) {
 		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
 			this.traceRpcArgs.logService.trace(`[RPC Request] PtyService#${fn.name}(${args.map(e => JSON.stringify(e)).join(', ')})`);
 		}
@@ -123,7 +128,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	@memoize
-	get traceRpcArgs(): { logService: ILogService; simulatedLatency: number } {
+	get traceRpcArgs(): ITraceRpcArgs {
 		return {
 			logService: this._logService,
 			simulatedLatency: this._simulatedLatency
