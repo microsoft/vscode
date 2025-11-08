@@ -13,6 +13,12 @@
 	.monaco-list-row.selected span.agent-session-diff-added,
 	.monaco-list-row.selected span.agent-session-diff-removed {
 		color: unset;
+
+		.rendered-markdown {
+			a {
+				color: unset;
+			}
+		}
 	}
 
 	.agent-session-item {
@@ -67,7 +73,7 @@
 					align-items: center;
 					margin: 0;
 
-					>span.codicon {
+					> span.codicon {
 						margin-right: 2px;
 					}
 				}
