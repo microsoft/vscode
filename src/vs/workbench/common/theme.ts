@@ -480,12 +480,7 @@ export const ACTIVITY_BAR_HOVER_FOREGROUND = registerColor(
 );
 export const ACTIVITY_BAR_HOVER_BACKGROUND = registerColor(
 	'activityBar.hoverBackground',
-	{
-		dark: null,
-		light: null,
-		hcDark: null,
-		hcLight: null
-	},
+	null,
 	localize('activityBarHoverBackground', 'Activity bar item background color when hovering.')
 );
 export const ACTIVITY_BAR_TOP_HOVER_FOREGROUND = registerColor(
