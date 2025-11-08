@@ -72,6 +72,7 @@ export interface IChatSessionItem {
 		endTime?: number;
 	};
 	statistics?: {
+		files: number;
 		insertions: number;
 		deletions: number;
 	};

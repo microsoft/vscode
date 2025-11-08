@@ -50,6 +50,7 @@ export interface IAgentSessionViewModel {
 	};
 
 	readonly statistics?: {
+		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;
 	};
