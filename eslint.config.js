@@ -515,7 +515,6 @@ export default tseslint.config(
 			'src/vs/platform/extensions/common/extensionValidator.ts',
 			'src/vs/platform/extensions/common/extensions.ts',
 			'src/vs/platform/extensions/electron-main/extensionHostStarter.ts',
-			'src/vs/platform/externalTerminal/node/externalTerminalService.ts',
 			'src/vs/platform/instantiation/common/descriptors.ts',
 			'src/vs/platform/instantiation/common/extensions.ts',
 			'src/vs/platform/instantiation/common/instantiation.ts',
