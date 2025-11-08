@@ -18,8 +18,7 @@
 	.agent-session-item {
 		display: flex;
 		flex-direction: row;
-		padding: 0 12px;
-		gap: 2px;
+		padding: 0 8px;
 
 		.agent-session-main-col,
 		.agent-session-title-row,
@@ -38,6 +37,10 @@
 				width: 16px;
 				height: 16px;
 				font-size: 16px;
+
+				&.codicon-terminal {
+					font-size: 15px; /* TODO@bpasero remove once we settle on icon */
+				}
 			}
 		}
 
