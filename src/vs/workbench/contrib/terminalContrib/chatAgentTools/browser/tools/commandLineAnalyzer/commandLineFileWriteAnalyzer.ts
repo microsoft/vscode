@@ -65,6 +65,28 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		return fileWrites;
 	}
 
+	private _isSafeNullDevicePath(fileWrite: URI | string): boolean {
+		const path = URI.isUri(fileWrite) ? fileWrite.fsPath : fileWrite;
+		const normalizedPath = path.toLowerCase().replace(/\\/g, '/');
+		
+		// Unix/Linux null device
+		if (normalizedPath === '/dev/null') {
+			return true;
+		}
+		
+		// Windows CMD null device (case-insensitive)
+		if (normalizedPath === 'nul' || normalizedPath.endsWith('/nul') || normalizedPath.endsWith('\\nul')) {
+			return true;
+		}
+		
+		// PowerShell $null variable (appears as "$null" in the command line)
+		if (path === '$null') {
+			return true;
+		}
+		
+		return false;
+	}
+
 	private _getResult(options: ICommandLineAnalyzerOptions, fileWrites: URI[] | string[]): ICommandLineAnalyzerResult {
 		let isAutoApproveAllowed = true;
 		if (fileWrites.length > 0) {
@@ -79,6 +101,12 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 					const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
 					if (workspaceFolders.length > 0) {
 						for (const fileWrite of fileWrites) {
+							// Allow safe null device paths (check before variable detection)
+							if (this._isSafeNullDevicePath(fileWrite)) {
+								this._log('File write to null device allowed', URI.isUri(fileWrite) ? fileWrite.toString() : fileWrite);
+								continue;
+							}
+							
 							if (isString(fileWrite)) {
 								const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(fileWrite) : posix.isAbsolute(fileWrite);
 								if (!isAbsolute) {
@@ -106,9 +134,12 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							}
 						}
 					} else {
-						// No workspace folders, consider all writes as outside workspace
-						isAutoApproveAllowed = false;
-						this._log('File writes blocked - no workspace folders');
+						// No workspace folders, allow safe null device paths even without workspace
+						const hasOnlyNullDevices = fileWrites.every(fw => this._isSafeNullDevicePath(fw));
+						if (!hasOnlyNullDevices) {
+							isAutoApproveAllowed = false;
+							this._log('File writes blocked - no workspace folders');
+						}
 					}
 					break;
 				}
