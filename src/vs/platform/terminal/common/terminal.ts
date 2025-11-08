@@ -255,7 +255,7 @@ export const enum ProcessPropertyType {
 	ShellIntegrationInjectionFailureReason = 'shellIntegrationInjectionFailureReason',
 }
 
-export interface IProcessProperty<T extends ProcessPropertyType> {
+export interface IProcessProperty<T extends ProcessPropertyType = ProcessPropertyType> {
 	type: T;
 	value: IProcessPropertyMap[T];
 }
@@ -301,7 +301,7 @@ export interface IPtyService {
 	readonly onProcessReplay: Event<{ id: number; event: IPtyHostProcessReplayEvent }>;
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
 	readonly onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
-	readonly onDidChangeProperty: Event<{ id: number; property: IProcessProperty<any> }>;
+	readonly onDidChangeProperty: Event<{ id: number; property: IProcessProperty }>;
 	readonly onProcessExit: Event<{ id: number; event: number | undefined }>;
 
 	createProcess(
@@ -774,7 +774,7 @@ export interface ITerminalChildProcess {
 	readonly onProcessData: Event<IProcessDataEvent | string>;
 	readonly onProcessReady: Event<IProcessReadyEvent>;
 	readonly onProcessReplayComplete?: Event<void>;
-	readonly onDidChangeProperty: Event<IProcessProperty<any>>;
+	readonly onDidChangeProperty: Event<IProcessProperty>;
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onRestoreCommands?: Event<ISerializedCommandDetectionCapability>;
 

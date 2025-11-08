@@ -130,7 +130,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = this._register(new Emitter<number>());
 	readonly onProcessExit = this._onProcessExit.event;
@@ -542,8 +542,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		const object = this._writeQueue.shift()!;
 		this._logService.trace('node-pty.IPty#write', object.data);
 		if (object.isBinary) {
-			// TODO: node-pty's write should accept a Buffer
-			// eslint-disable-next-line local/code-no-any-casts
+			// TODO: node-pty's write should accept a Buffer, needs https://github.com/microsoft/node-pty/pull/812
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
 		} else {
 			this._ptyProcess!.write(object.data);
