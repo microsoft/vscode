@@ -3462,12 +3462,15 @@ export class CommandCenter {
 			return;
 		}
 
-		const message = l10n.t('Proceed with migrating changes to the current repository?');
-		const detail = l10n.t('This will apply the worktree\'s changes to this repository and discard changes in the worktree.\nThis is IRREVERSIBLE!');
-		const proceed = l10n.t('Proceed');
-		const pick = await window.showWarningMessage(message, { modal: true, detail }, proceed);
-		if (pick !== proceed) {
-			return;
+		if (worktreeUri === undefined) {
+			// Non-interactive migration, do not show confirmation dialog
+			const message = l10n.t('Proceed with migrating changes to the current repository?');
+			const detail = l10n.t('This will apply the worktree\'s changes to this repository and discard changes in the worktree.\nThis is IRREVERSIBLE!');
+			const proceed = l10n.t('Proceed');
+			const pick = await window.showWarningMessage(message, { modal: true, detail }, proceed);
+			if (pick !== proceed) {
+				return;
+			}
 		}
 
 		await worktreeRepository.createStash(undefined, true);
@@ -3852,11 +3855,11 @@ export class CommandCenter {
 			return;
 		}
 
-		// Dispose worktree repository
-		this.model.disposeRepository(repository);
-
 		try {
 			await mainRepository.deleteWorktree(repository.root);
+
+			// Dispose worktree repository
+			this.model.disposeRepository(repository);
 		} catch (err) {
 			if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
 				const forceDelete = l10n.t('Force Delete');
@@ -3864,8 +3867,9 @@ export class CommandCenter {
 				const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
 				if (choice === forceDelete) {
 					await mainRepository.deleteWorktree(repository.root, { force: true });
-				} else {
-					await this.model.openRepository(repository.root);
+
+					// Dispose worktree repository
+					this.model.disposeRepository(repository);
 				}
 
 				return;

@@ -1586,7 +1586,7 @@ Update \`.github/copilot-instructions.md\` for the user, then ask for feedback o
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const preferencesService = accessor.get(IPreferencesService);
-			preferencesService.openSettings({ query: '@feature:chat' });
+			preferencesService.openSettings({ query: '@feature:chat ' });
 		}
 	});
 
