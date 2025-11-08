@@ -65,7 +65,7 @@ registerActiveXtermAction({
 			opts = typeof opts === 'string' ? { query: opts } : opts;
 			if (isValidOptionsObject(opts)) {
 				contr.updateInput(opts.query, false);
-				if (opts.isPartialQuery) {
+				if (!opts.isPartialQuery) {
 					contr.terminalChatWidget?.acceptInput();
 				}
 			}
