@@ -45,10 +45,12 @@ interface IAgentSessionItemTemplate {
 	// Column 2 Row 1
 	readonly title: IconLabel;
 
-	// Column 2 Row 2
-	readonly description: HTMLElement;
+	readonly diffFiles: HTMLElement;
 	readonly diffAdded: HTMLElement;
 	readonly diffRemoved: HTMLElement;
+
+	// Column 2 Row 2
+	readonly description: HTMLElement;
 	readonly status: HTMLElement;
 
 	readonly elementDisposable: DisposableStore;
@@ -86,13 +88,14 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 				h('div.agent-session-main-col', [
 					h('div.agent-session-title-row', [
 						h('div.agent-session-title@title'),
-					]),
-					h('div.agent-session-details-row', [
-						h('div.agent-session-description@description'),
 						h('div.agent-session-diff', [
+							h('span.agent-session-diff-files@diffFiles'),
 							h('span.agent-session-diff-added@diffAdded'),
 							h('span.agent-session-diff-removed@diffRemoved')
 						]),
+					]),
+					h('div.agent-session-details-row', [
+						h('div.agent-session-description@description'),
 						h('div.agent-session-status@status')
 					])
 				])
@@ -106,6 +109,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			icon: elements.icon,
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
 			description: elements.description,
+			diffFiles: elements.diffFiles,
 			diffAdded: elements.diffAdded,
 			diffRemoved: elements.diffRemoved,
 			status: elements.status,
@@ -125,8 +129,9 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Diff
 		const { statistics: diff } = session.element;
-		template.diffAdded.textContent = diff ? `+${diff.insertions}` : '';
-		template.diffRemoved.textContent = diff ? `-${diff.deletions}` : '';
+		template.diffFiles.textContent = diff?.files && diff.files > 0 ? `${diff.files}` : '';
+		template.diffAdded.textContent = diff?.insertions && diff.insertions > 0 ? `+${diff.insertions}` : '';
+		template.diffRemoved.textContent = diff?.deletions && diff.deletions > 0 ? `-${diff.deletions}` : '';
 
 		// Description
 		if (typeof session.element.description === 'string') {

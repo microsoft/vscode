@@ -10,6 +10,7 @@
 	}
 
 	.monaco-list-row.selected .agent-session-details-row,
+	.monaco-list-row.selected span.agent-session-diff-files,
 	.monaco-list-row.selected span.agent-session-diff-added,
 	.monaco-list-row.selected span.agent-session-diff-removed {
 		color: unset;
@@ -86,6 +87,7 @@
 
 		.agent-session-title,
 		.agent-session-description {
+			flex: 1; /* push other items to the end */
 			text-overflow: ellipsis;
 			overflow: hidden;
 		}
@@ -93,10 +95,13 @@
 		/* #region Diff Styling */
 
 		.agent-session-diff {
-			flex: 1; /* push status to the end */
-			font-weight: 700;
+			font-size: 12px;
 			display: flex;
 			gap: 4px;
+		}
+
+		span.agent-session-diff-files {
+			color: var(--vscode-descriptionForeground);
 		}
 
 		span.agent-session-diff-added {
