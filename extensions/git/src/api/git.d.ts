@@ -242,6 +242,7 @@ export interface Repository {
 	diffWith(ref: string, path: string): Promise<string>;
 	diffIndexWithHEAD(): Promise<Change[]>;
 	diffIndexWithHEAD(path: string): Promise<string>;
+	diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat>;
 	diffIndexWith(ref: string): Promise<Change[]>;
 	diffIndexWith(ref: string, path: string): Promise<string>;
 	diffBlobs(object1: string, object2: string): Promise<string>;
