@@ -8,7 +8,7 @@ import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
 import { UriEventHandler } from '../UriEventHandler';
 import { ICachedPublicClientApplication, ICachedPublicClientApplicationManager } from '../common/publicClientCache';
-import { MicrosoftAccountType, MicrosoftAuthenticationTelemetryReporter } from '../common/telemetryReporter';
+import { MicrosoftAuthenticationTelemetryReporter } from '../common/telemetryReporter';
 import { ScopeData } from '../common/scopeData';
 import { EventBufferer } from '../common/event';
 import { BetterTokenStorage } from '../betterSecretStorage';
@@ -17,9 +17,6 @@ import { ExtensionHost, getMsalFlows } from './flows';
 import { base64Decode } from './buffer';
 import { Config } from '../common/config';
 import { isSupportedClient } from '../common/env';
-
-const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
-const MSA_PASSTHRU_TID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
 
 export class MsalAuthProvider implements AuthenticationProvider {
 
@@ -126,15 +123,6 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	private async initialize(): Promise<void> {
 		if (!this._context.globalState.get('msalMigration', false)) {
 			await this._migrateSessions();
-		}
-
-		// Send telemetry for existing accounts
-		for (const cachedPca of this._publicClientManager.getAll()) {
-			for (const account of cachedPca.accounts) {
-				const tid = account.tenantId;
-				const type = tid === MSA_TID || tid === MSA_PASSTHRU_TID ? MicrosoftAccountType.MSA : MicrosoftAccountType.AAD;
-				this._telemetryReporter.sendAccountEvent([], type);
-			}
 		}
 	}
 

@@ -119,28 +119,6 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		});
 	}
 
-	/**
-	 * Sends an event for an account type available at startup.
-	 * @param scopes The scopes for the session
-	 * @param accountType The account type for the session
-	 * @todo Remove the scopes since we really don't care about them.
-	 */
-	sendAccountEvent(scopes: string[], accountType: MicrosoftAccountType): void {
-		/* __GDPR__
-			"account" : {
-				"owner": "TylerLeonhardt",
-				"comment": "Used to determine the usage of the Microsoft Auth Provider.",
-				"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." },
-				"accountType": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what account types are being used." }
-			}
-		*/
-		this._telemetryReporter.sendTelemetryEvent('account', {
-			// Get rid of guids from telemetry.
-			scopes: JSON.stringify(this._scrubGuids(scopes)),
-			accountType
-		});
-	}
-
 	protected _scrubGuids(scopes: readonly string[]): string[] {
 		return scopes.map(s => s.replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/i, '{guid}'));
 	}
