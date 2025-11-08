@@ -10,7 +10,7 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { isNumber, isObject } from '../../../../../base/common/types.js';
+import { hasKey, isNumber, isObject } from '../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
@@ -63,7 +63,7 @@ export class ToolTerminalCreator {
 			instance.processReady.then(() => processReadyTimestamp = Date.now()),
 			Event.toPromise(instance.onExit),
 		]);
-		if (!isNumber(initResult) && isObject(initResult) && 'message' in initResult) {
+		if (!isNumber(initResult) && isObject(initResult) && hasKey(initResult, { message: true })) {
 			throw new Error(initResult.message);
 		}
 

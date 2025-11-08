@@ -136,8 +136,8 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 		}
 	}
 
-	getFilters(): Map<string, any> {
-		const filters: Map<string, any> = new Map<string, any>();
+	getFilters(): Map<string, unknown> {
+		const filters: Map<string, unknown> = new Map<string, unknown>();
 		const filterValues = Object.values(Filters);
 		for (const value of filterValues) {
 			filters.set(value, this.getFilterValue(value));
