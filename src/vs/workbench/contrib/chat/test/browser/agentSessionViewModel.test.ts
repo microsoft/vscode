@@ -211,7 +211,7 @@ suite('AgentSessionsViewModel', () => {
 						tooltip: 'Session tooltip',
 						iconPath: ThemeIcon.fromId('check'),
 						timing: { startTime, endTime },
-						statistics: { insertions: 10, deletions: 5 }
+						statistics: { files: 1, insertions: 10, deletions: 5 }
 					}
 				]
 			};
