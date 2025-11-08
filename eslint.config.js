@@ -1014,7 +1014,6 @@ export default tseslint.config(
 			'src/vs/server/node/remoteAgentEnvironmentImpl.ts',
 			'src/vs/server/node/remoteExtensionHostAgentServer.ts',
 			'src/vs/server/node/remoteExtensionsScanner.ts',
-			'src/vs/server/node/remoteTerminalChannel.ts',
 			// Tests
 			'**/*.test.ts',
 			'**/*.integrationTest.ts'
