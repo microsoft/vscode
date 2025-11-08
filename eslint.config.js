@@ -266,7 +266,6 @@ export default tseslint.config(
 			'src/vs/workbench/browser/workbench.ts',
 			'src/vs/workbench/common/notifications.ts',
 			'src/vs/workbench/contrib/accessibility/browser/accessibleView.ts',
-			'src/vs/workbench/contrib/chat/browser/actions/chatExecuteActions.ts',
 			'src/vs/workbench/contrib/chat/browser/chat.ts',
 			'src/vs/workbench/contrib/chat/browser/chatAttachmentResolveService.ts',
 			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatAttachmentsContentPart.ts',
