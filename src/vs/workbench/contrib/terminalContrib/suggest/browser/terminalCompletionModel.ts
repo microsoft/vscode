@@ -130,6 +130,12 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		if ((b.completion.kind === TerminalCompletionItemKind.Method || b.completion.kind === TerminalCompletionItemKind.Alias) && (a.completion.kind !== TerminalCompletionItemKind.Method && a.completion.kind !== TerminalCompletionItemKind.Alias)) {
 			return 1; // Methods and aliases should come first
 		}
+		if (a.completion.kind === TerminalCompletionItemKind.Argument && b.completion.kind !== TerminalCompletionItemKind.Argument) {
+			return -1; // Arguments should come before other kinds
+		}
+		if (b.completion.kind === TerminalCompletionItemKind.Argument && a.completion.kind !== TerminalCompletionItemKind.Argument) {
+			return 1; // Arguments should come before other kinds
+		}
 		if ((a.completion.kind === TerminalCompletionItemKind.File || a.completion.kind === TerminalCompletionItemKind.Folder) && (b.completion.kind !== TerminalCompletionItemKind.File && b.completion.kind !== TerminalCompletionItemKind.Folder)) {
 			return 1; // Resources should come last
 		}
