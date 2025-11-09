@@ -157,7 +157,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 			// Prevent link clicks from opening the session itself
 			// by stopping propagation of mouse events from links
-			// within.
+			// within (TODO@bpasero revisit this in the future).
 			// eslint-disable-next-line no-restricted-syntax
 			const anchors = descriptionMarkdown.element.querySelectorAll('a');
 			for (const anchor of anchors) {
