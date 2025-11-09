@@ -50,7 +50,7 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 }
 
 export function getCellMetadata(options: { cell: NotebookCell | NotebookCellData } | { metadata?: { [key: string]: any } }): CellMetadata {
-	if (hasKey(options, { 'cell': true })) {
+	if (hasKey(options, { cell: true })) {
 		const cell = options.cell;
 		const metadata = {
 			execution_count: null,
