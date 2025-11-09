@@ -35,6 +35,8 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../commo
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { AGENT_SESSIONS_VIEW_ID } from './agentSessions.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { AgentSessionDiffActionViewItem, AgentSessionShowDiffAction } from './agentSessionsActions.js';
 
 interface IAgentSessionItemTemplate {
 	readonly element: HTMLElement;
@@ -44,10 +46,7 @@ interface IAgentSessionItemTemplate {
 
 	// Column 2 Row 1
 	readonly title: IconLabel;
-
-	readonly diffFiles: HTMLElement;
-	readonly diffAdded: HTMLElement;
-	readonly diffRemoved: HTMLElement;
+	readonly toolbar: ActionBar;
 
 	// Column 2 Row 2
 	readonly description: HTMLElement;
@@ -69,6 +68,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
@@ -88,11 +88,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 				h('div.agent-session-main-col', [
 					h('div.agent-session-title-row', [
 						h('div.agent-session-title@title'),
-						h('div.agent-session-diff', [
-							h('span.agent-session-diff-files@diffFiles'),
-							h('span.agent-session-diff-added@diffAdded'),
-							h('span.agent-session-diff-removed@diffRemoved')
-						]),
+						h('div.agent-session-toolbar@toolbar'),
 					]),
 					h('div.agent-session-details-row', [
 						h('div.agent-session-description@description'),
@@ -104,14 +100,22 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		container.appendChild(elements.item);
 
+		const toolbar = disposables.add(new ActionBar(elements.toolbar, {
+			actionViewItemProvider: (action, options) => {
+				if (action.id === AgentSessionShowDiffAction.ID) {
+					return this.instantiationService.createInstance(AgentSessionDiffActionViewItem, action, options);
+				}
+
+				return undefined;
+			},
+		}));
+
 		return {
 			element: elements.item,
 			icon: elements.icon,
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
 			description: elements.description,
-			diffFiles: elements.diffFiles,
-			diffAdded: elements.diffAdded,
-			diffRemoved: elements.diffRemoved,
+			toolbar,
 			status: elements.status,
 			elementDisposable,
 			disposables
@@ -127,11 +131,14 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		// Title
 		template.title.setLabel(session.element.label, undefined, { matches: createMatches(session.filterData) });
 
-		// Diff
+		// Toolbar
+		template.toolbar.clear();
+
 		const { statistics: diff } = session.element;
-		template.diffFiles.textContent = diff?.files && diff.files > 0 ? `${diff.files}` : '';
-		template.diffAdded.textContent = diff?.insertions && diff.insertions > 0 ? `+${diff.insertions}` : '';
-		template.diffRemoved.textContent = diff?.deletions && diff.deletions > 0 ? `-${diff.deletions}` : '';
+		if (diff && (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0)) {
+			const diffAction = template.elementDisposable.add(new AgentSessionShowDiffAction(session.element));
+			template.toolbar.push([diffAction], { icon: false, label: true });
+		}
 
 		// Description
 		if (typeof session.element.description === 'string') {
