@@ -5677,7 +5677,7 @@ declare namespace monaco.editor {
 		 * When set, stacks with other overlay widgets with the same preference,
 		 * in an order determined by the ordinal value.
 		 */
-		stackOridinal?: number;
+		stackOrdinal?: number;
 	}
 
 	/**
