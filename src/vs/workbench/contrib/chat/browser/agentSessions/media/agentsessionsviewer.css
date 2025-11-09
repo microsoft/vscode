@@ -34,7 +34,7 @@
 		.agent-session-icon-col {
 			display: flex;
 			align-items: flex-start;
-			padding-top: 4px;
+			padding-top: 5px;
 
 			.agent-session-icon {
 				flex-shrink: 0;
@@ -53,7 +53,6 @@
 			display: flex;
 			align-items: center;
 			line-height: 20px; /* ends up as 22px with the padding below */
-			gap: 6px;
 		}
 
 		.agent-session-title-row {
