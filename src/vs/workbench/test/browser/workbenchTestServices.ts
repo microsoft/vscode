@@ -1431,6 +1431,8 @@ export class TestHostService implements IHostService {
 	async moveTop(): Promise<void> { }
 	async getCursorScreenPoint(): Promise<undefined> { return undefined; }
 
+	async getWindows(options: unknown) { return []; }
+
 	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }
 
 	async toggleFullScreen(): Promise<void> { }
