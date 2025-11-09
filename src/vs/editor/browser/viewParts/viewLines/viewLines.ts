@@ -245,12 +245,10 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return r;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		if (true/*e.inlineDecorationsChanged*/) {
-			const rendStartLineNumber = this._visibleLines.getStartLineNumber();
-			const rendEndLineNumber = this._visibleLines.getEndLineNumber();
-			for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
-				this._visibleLines.getVisibleLine(lineNumber).onDecorationsChanged();
-			}
+		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
+		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
+		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
+			this._visibleLines.getVisibleLine(lineNumber).onDecorationsChanged();
 		}
 		return true;
 	}
