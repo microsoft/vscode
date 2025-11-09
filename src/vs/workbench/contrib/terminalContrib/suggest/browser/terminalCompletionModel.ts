@@ -136,10 +136,10 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		if (b.completion.kind === TerminalCompletionItemKind.Argument && a.completion.kind !== TerminalCompletionItemKind.Argument) {
 			return 1; // Arguments should come before other kinds
 		}
-		if ((a.completion.kind === TerminalCompletionItemKind.File || a.completion.kind === TerminalCompletionItemKind.Folder) && (b.completion.kind !== TerminalCompletionItemKind.File && b.completion.kind !== TerminalCompletionItemKind.Folder)) {
+		if ((a.completion.kind === TerminalCompletionItemKind.File || a.completion.kind === TerminalCompletionItemKind.Folder || a.completion.kind === TerminalCompletionItemKind.SymbolicLinkFile || a.completion.kind === TerminalCompletionItemKind.SymbolicLinkFolder) && (b.completion.kind !== TerminalCompletionItemKind.File && b.completion.kind !== TerminalCompletionItemKind.Folder && b.completion.kind !== TerminalCompletionItemKind.SymbolicLinkFile && b.completion.kind !== TerminalCompletionItemKind.SymbolicLinkFolder)) {
 			return 1; // Resources should come last
 		}
-		if ((b.completion.kind === TerminalCompletionItemKind.File || b.completion.kind === TerminalCompletionItemKind.Folder) && (a.completion.kind !== TerminalCompletionItemKind.File && a.completion.kind !== TerminalCompletionItemKind.Folder)) {
+		if ((b.completion.kind === TerminalCompletionItemKind.File || b.completion.kind === TerminalCompletionItemKind.Folder || b.completion.kind === TerminalCompletionItemKind.SymbolicLinkFile || b.completion.kind === TerminalCompletionItemKind.SymbolicLinkFolder) && (a.completion.kind !== TerminalCompletionItemKind.File && a.completion.kind !== TerminalCompletionItemKind.Folder && a.completion.kind !== TerminalCompletionItemKind.SymbolicLinkFile && a.completion.kind !== TerminalCompletionItemKind.SymbolicLinkFolder)) {
 			return -1; // Resources should come last
 		}
 	}

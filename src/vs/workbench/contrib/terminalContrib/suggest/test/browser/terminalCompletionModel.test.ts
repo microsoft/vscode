@@ -383,9 +383,11 @@ suite('TerminalCompletionModel', function () {
 				createItem({ kind: TerminalCompletionItemKind.Folder, label: 'folder/' }),
 				createItem({ kind: TerminalCompletionItemKind.Option, label: '--option' }),
 				createItem({ kind: TerminalCompletionItemKind.Alias, label: 'alias' }),
+				createItem({ kind: TerminalCompletionItemKind.SymbolicLinkFile, label: 'file-symlink.txt' }),
+				createItem({ kind: TerminalCompletionItemKind.SymbolicLinkFolder, label: 'folder-symlink/' }),
 			];
 			const model = new TerminalCompletionModel(items, new LineContext('', 0));
-			assertItems(model, ['alias', 'method', 'arg', '--flag', '--option', 'file.txt', 'folder/']);
+			assertItems(model, ['alias', 'method', 'arg', '--flag', '--option', 'file.txt', 'folder/', 'file-symlink.txt', 'folder-symlink/']);
 		});
 	});
 });
