@@ -541,7 +541,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 			// only proceed if we just did a layout
 			return;
 		}
-		if (this._asyncUpdateLineWidths.isScheduled()) {
+		if (!this._asyncUpdateLineWidths.isScheduled()) {
 			// reading widths is not scheduled => widths are up-to-date
 			return;
 		}
