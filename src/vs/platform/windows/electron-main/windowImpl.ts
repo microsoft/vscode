@@ -53,6 +53,14 @@ export interface IWindowCreationOptions {
 	readonly isExtensionTestHost?: boolean;
 }
 
+interface IWorkbenchEditorConfiguration {
+	workbench?: {
+		editor?: {
+			swipeToNavigate?: boolean;
+		};
+	};
+}
+
 interface ITouchBarSegment extends electron.SegmentedControlSegment {
 	readonly id: string;
 }
@@ -1042,6 +1050,16 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
 
+		// Swipe command support (macOS)
+		if (isMacintosh) {
+			const config = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
+			if (config?.workbench?.editor?.swipeToNavigate) {
+				this.registerSwipeListener();
+			} else {
+				this._win.removeAllListeners('swipe');
+			}
+		}
+
 		// Menubar
 		if (!e || e.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
 			const newMenuBarVisibility = this.getMenuBarVisibility();
@@ -1083,6 +1101,20 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				electron.app.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 			}
 		}
+	}
+
+	private registerSwipeListener() {
+		this._win.on('swipe', (event: Electron.Event, cmd: string) => {
+			if (!this.isReady) {
+				return; // window must be ready
+			}
+
+			if (cmd === 'left') {
+				this.send('vscode:runAction', { id: 'workbench.action.openPreviousRecentlyUsedEditor', from: 'mouse' });
+			} else if (cmd === 'right') {
+				this.send('vscode:runAction', { id: 'workbench.action.openNextRecentlyUsedEditor', from: 'mouse' });
+			}
+		});
 	}
 
 	addTabbedWindow(window: ICodeWindow): void {
