@@ -53,14 +53,6 @@ export interface IWindowCreationOptions {
 	readonly isExtensionTestHost?: boolean;
 }
 
-interface IWorkbenchEditorConfiguration {
-	workbench?: {
-		editor?: {
-			swipeToNavigate?: boolean;
-		};
-	};
-}
-
 interface ITouchBarSegment extends electron.SegmentedControlSegment {
 	readonly id: string;
 }
@@ -1051,12 +1043,12 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
 
 		// Swipe command support (macOS)
-		if (isMacintosh) {
-			const config = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
-			if (config?.workbench?.editor?.swipeToNavigate) {
+		if (isMacintosh && (!e || e.affectsConfiguration('workbench.editor.swipeToNavigate'))) {
+			const swipeToNavigate = this.configurationService.getValue<boolean>('workbench.editor.swipeToNavigate');
+			if (swipeToNavigate) {
 				this.registerSwipeListener();
 			} else {
-				this._win.removeAllListeners('swipe');
+				this.swipeListenerDisposable.clear();
 			}
 		}
 
@@ -1103,8 +1095,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 	}
 
-	private registerSwipeListener() {
-		this._win.on('swipe', (event: Electron.Event, cmd: string) => {
+	private readonly swipeListenerDisposable = this._register(new MutableDisposable());
+
+	private registerSwipeListener(): void {
+		this.swipeListenerDisposable.value = Event.fromNodeEventEmitter<string>(this._win, 'swipe', (event: Electron.Event, cmd: string) => cmd)(cmd => {
 			if (!this.isReady) {
 				return; // window must be ready
 			}
