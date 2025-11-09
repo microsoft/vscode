@@ -1,0 +1,116 @@
+{
+  "name": "ai-coding-agent",
+  "displayName": "AI Coding Agent",
+  "description": "AI-powered coding assistant using Gemini 2.5 Flash",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.107.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Machine Learning",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aiCodingAgent.explainCode",
+        "title": "AI: Explain Selected Code"
+      },
+      {
+        "command": "aiCodingAgent.generateCode",
+        "title": "AI: Generate Code"
+      },
+      {
+        "command": "aiCodingAgent.fixCode",
+        "title": "AI: Fix Code Issues"
+      },
+      {
+        "command": "aiCodingAgent.refactorCode",
+        "title": "AI: Refactor Code"
+      },
+      {
+        "command": "aiCodingAgent.addComments",
+        "title": "AI: Add Comments"
+      },
+      {
+        "command": "aiCodingAgent.chat",
+        "title": "AI: Open Chat"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "aiCodingAgent.explainCode",
+          "when": "editorHasSelection",
+          "group": "ai@1"
+        },
+        {
+          "command": "aiCodingAgent.fixCode",
+          "when": "editorHasSelection",
+          "group": "ai@2"
+        },
+        {
+          "command": "aiCodingAgent.refactorCode",
+          "when": "editorHasSelection",
+          "group": "ai@3"
+        },
+        {
+          "command": "aiCodingAgent.addComments",
+          "when": "editorHasSelection",
+          "group": "ai@4"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "aiCodingAgent.chat",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a"
+      },
+      {
+        "command": "aiCodingAgent.explainCode",
+        "key": "ctrl+shift+e",
+        "mac": "cmd+shift+e",
+        "when": "editorHasSelection"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "ai-coding-agent",
+          "title": "AI Coding Agent",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "ai-coding-agent": [
+        {
+          "id": "aiCodingAgent.chatView",
+          "name": "AI Chat"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/vscode": "^1.105.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0"
+  }
+}
