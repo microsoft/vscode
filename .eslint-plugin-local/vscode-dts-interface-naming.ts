@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import * as ESTree from 'estree';
 import { TSESTree } from '@typescript-eslint/utils';
 
 export = new class ApiInterfaceNaming implements eslint.Rule.RuleModule {
@@ -20,7 +21,7 @@ export = new class ApiInterfaceNaming implements eslint.Rule.RuleModule {
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
 		return {
-			['TSInterfaceDeclaration Identifier']: (node: any) => {
+			['TSInterfaceDeclaration Identifier']: (node: ESTree.Identifier) => {
 
 				const name = (<TSESTree.Identifier>node).name;
 				if (ApiInterfaceNaming._nameRegExp.test(name)) {

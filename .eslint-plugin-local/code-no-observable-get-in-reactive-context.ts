@@ -19,7 +19,7 @@ export = new class NoObservableGetInReactiveContext implements eslint.Rule.RuleM
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		return {
-			'CallExpression': (node: any) => {
+			'CallExpression': (node: ESTree.CallExpression) => {
 				const callExpression = node as TSESTree.CallExpression;
 
 				if (!isReactiveFunctionWithReader(callExpression.callee)) {
