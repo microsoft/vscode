@@ -116,7 +116,7 @@ const LINE_ENDS_WITH_COLON_RE = /:\s*$/;
 
 const END = /\(END\)$/;
 
-const PASSWORD = /[Pp]assword[:]?$/i;
+const PASSWORD = /password[:]?$/i;
 
 const QUESTION = /\?[\(\)\s]*$/i;
 
