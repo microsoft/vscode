@@ -53,7 +53,7 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../common/chatService.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
@@ -835,7 +835,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		let content: IChatRendererContent[] = [];
 		if (!element.confirmation) {
-			const markdown = 'message' in element.message ?
+			const markdown = isChatFollowup(element.message) ?
 				element.message.message :
 				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.message);
 			content = [{ content: new MarkdownString(markdown), kind: 'markdownContent' }];
@@ -1729,7 +1729,7 @@ export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 
 	getHeight(element: ChatTreeItem): number {
 		const kind = isRequestVM(element) ? 'request' : 'response';
-		const height = ('currentRenderedHeight' in element ? element.currentRenderedHeight : undefined) ?? this.defaultElementHeight;
+		const height = element.currentRenderedHeight ?? this.defaultElementHeight;
 		this._traceLayout('getHeight', `${kind}, height=${height}`);
 		return height;
 	}

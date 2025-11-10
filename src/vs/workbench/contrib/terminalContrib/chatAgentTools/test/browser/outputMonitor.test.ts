@@ -15,6 +15,7 @@ import { IChatService } from '../../../../chat/common/chatService.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ChatModel } from '../../../../chat/common/chatModel.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -76,97 +77,109 @@ suite('OutputMonitor', () => {
 	});
 
 	test('startMonitoring returns immediately when polling succeeds', async () => {
-		// Simulate output change after first poll
-		let callCount = 0;
-		execution.getOutput = () => {
-			callCount++;
-			return callCount > 1 ? 'changed output' : 'test output';
-		};
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
-		await Event.toPromise(monitor.onDidFinishCommand);
-		const pollingResult = monitor.pollingResult;
-		assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
-		assert.strictEqual(pollingResult.output, 'changed output');
-		assert.strictEqual(sendTextCalled, false, 'sendText should not be called');
+		return runWithFakedTimers({}, async () => {
+			// Simulate output change after first poll
+			let callCount = 0;
+			execution.getOutput = () => {
+				callCount++;
+				return callCount > 1 ? 'changed output' : 'test output';
+			};
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			await Event.toPromise(monitor.onDidFinishCommand);
+			const pollingResult = monitor.pollingResult;
+			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+			assert.strictEqual(pollingResult.output, 'changed output');
+			assert.strictEqual(sendTextCalled, false, 'sendText should not be called');
+		});
 	});
 
 	test('startMonitoring returns cancelled when token is cancelled', async () => {
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
-		cts.cancel();
-		await Event.toPromise(monitor.onDidFinishCommand);
-		const pollingResult = monitor.pollingResult;
-		assert.strictEqual(pollingResult?.state, OutputMonitorState.Cancelled);
+		return runWithFakedTimers({}, async () => {
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			cts.cancel();
+			await Event.toPromise(monitor.onDidFinishCommand);
+			const pollingResult = monitor.pollingResult;
+			assert.strictEqual(pollingResult?.state, OutputMonitorState.Cancelled);
+		});
 	});
 	test('startMonitoring returns idle when isActive is false', async () => {
-		execution.isActive = async () => false;
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
-		await Event.toPromise(monitor.onDidFinishCommand);
-		const pollingResult = monitor.pollingResult;
-		assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+		return runWithFakedTimers({}, async () => {
+			execution.isActive = async () => false;
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			await Event.toPromise(monitor.onDidFinishCommand);
+			const pollingResult = monitor.pollingResult;
+			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+		});
 	});
 
 	test('startMonitoring works when isActive is undefined', async () => {
-		// Simulate output change after first poll
-		let callCount = 0;
-		execution.getOutput = () => {
-			callCount++;
-			return callCount > 1 ? 'changed output' : 'test output';
-		};
-		delete execution.isActive;
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
-		await Event.toPromise(monitor.onDidFinishCommand);
-		const pollingResult = monitor.pollingResult;
-		assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+		return runWithFakedTimers({}, async () => {
+			// Simulate output change after first poll
+			let callCount = 0;
+			execution.getOutput = () => {
+				callCount++;
+				return callCount > 1 ? 'changed output' : 'test output';
+			};
+			delete execution.isActive;
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			await Event.toPromise(monitor.onDidFinishCommand);
+			const pollingResult = monitor.pollingResult;
+			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+		});
 	});
 
 	test('monitor can be disposed twice without error', async () => {
-		// Simulate output change after first poll
-		let callCount = 0;
-		execution.getOutput = () => {
-			callCount++;
-			return callCount > 1 ? 'changed output' : 'test output';
-		};
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
-		await Event.toPromise(monitor.onDidFinishCommand);
-		const pollingResult = monitor.pollingResult;
-		assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
-		monitor.dispose();
-		monitor.dispose();
+		return runWithFakedTimers({}, async () => {
+			// Simulate output change after first poll
+			let callCount = 0;
+			execution.getOutput = () => {
+				callCount++;
+				return callCount > 1 ? 'changed output' : 'test output';
+			};
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			await Event.toPromise(monitor.onDidFinishCommand);
+			const pollingResult = monitor.pollingResult;
+			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+			monitor.dispose();
+			monitor.dispose();
+		});
 	});
 	test('timeout prompt unanswered → continues polling and completes when idle', async () => {
-		// Fake a ChatModel enough to pass instanceof and the two methods used
-		const fakeChatModel: any = {
-			getRequests: () => [{}],
-			acceptResponseProgress: () => { }
-		};
-		Object.setPrototypeOf(fakeChatModel, ChatModel.prototype);
-		instantiationService.stub(IChatService, { getSession: () => fakeChatModel });
+		return runWithFakedTimers({}, async () => {
+			// Fake a ChatModel enough to pass instanceof and the two methods used
+			const fakeChatModel: any = {
+				getRequests: () => [{}],
+				acceptResponseProgress: () => { }
+			};
+			Object.setPrototypeOf(fakeChatModel, ChatModel.prototype);
+			instantiationService.stub(IChatService, { getSession: () => fakeChatModel });
 
-		// Poller: first pass times out (to show the prompt), second pass goes idle
-		let pass = 0;
-		const timeoutThenIdle = async (): Promise<IPollingResult> => {
-			pass++;
-			return pass === 1
-				? { state: OutputMonitorState.Timeout, output: execution.getOutput(), modelOutputEvalResponse: 'Timed out' }
-				: { state: OutputMonitorState.Idle, output: execution.getOutput(), modelOutputEvalResponse: 'Done' };
-		};
+			// Poller: first pass times out (to show the prompt), second pass goes idle
+			let pass = 0;
+			const timeoutThenIdle = async (): Promise<IPollingResult> => {
+				pass++;
+				return pass === 1
+					? { state: OutputMonitorState.Timeout, output: execution.getOutput(), modelOutputEvalResponse: 'Timed out' }
+					: { state: OutputMonitorState.Idle, output: execution.getOutput(), modelOutputEvalResponse: 'Done' };
+			};
 
-		monitor = store.add(
-			instantiationService.createInstance(
-				OutputMonitor,
-				execution,
-				timeoutThenIdle,
-				{ sessionId: '1' },
-				cts.token,
-				'test command'
-			)
-		);
+			monitor = store.add(
+				instantiationService.createInstance(
+					OutputMonitor,
+					execution,
+					timeoutThenIdle,
+					{ sessionId: '1' },
+					cts.token,
+					'test command'
+				)
+			);
 
-		await Event.toPromise(monitor.onDidFinishCommand);
+			await Event.toPromise(monitor.onDidFinishCommand);
 
-		const res = monitor.pollingResult!;
-		assert.strictEqual(res.state, OutputMonitorState.Idle);
-		assert.strictEqual(res.output, 'test output');
-		assert.ok(typeof res.pollDurationMs === 'number');
+			const res = monitor.pollingResult!;
+			assert.strictEqual(res.state, OutputMonitorState.Idle);
+			assert.strictEqual(res.output, 'test output');
+			assert.ok(typeof res.pollDurationMs === 'number');
+		});
 	});
 });

@@ -26,6 +26,7 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -181,6 +182,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._timeline = this._instantiationService.createInstance(
@@ -907,7 +909,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 			// this file does not exist yet, create it and try again
 			await this._bulkEditService.apply({ edits: [{ newResource: resource }] });
-			this._editorService.openEditor({ resource, options: { inactive: true, preserveFocus: true, pinned: true } });
+			if (this.configurationService.getValue<boolean>('accessibility.openChatEditedFiles')) {
+				this._editorService.openEditor({ resource, options: { inactive: true, preserveFocus: true, pinned: true } });
+			}
 
 			// Record file creation operation
 			this._timeline.recordFileOperation({

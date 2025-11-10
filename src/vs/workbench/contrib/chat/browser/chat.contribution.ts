@@ -50,6 +50,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/co
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
+import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
@@ -100,6 +101,7 @@ import { SimpleBrowserOverlay } from './chatEditing/simpleBrowserEditorOverlay.j
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './chatEditorInput.js';
 import { ChatLayoutService } from './chatLayoutService.js';
+import './chatManagement/chatManagement.contribution.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './chatMarkdownDecorationsRenderer.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
@@ -119,15 +121,13 @@ import './contrib/chatInputCompletions.js';
 import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
+import { LanguageModelToolsConfirmationService } from './languageModelToolsConfirmationService.js';
 import { LanguageModelToolsService, globalAutoApproveDescription } from './languageModelToolsService.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
-import './chatManagement/chatManagement.contribution.js';
-import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
-import { LanguageModelToolsConfirmationService } from './languageModelToolsConfirmationService.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -645,16 +645,6 @@ configurationRegistry.registerConfiguration({
 				}
 			],
 		},
-		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
-			type: 'string',
-			enum: ['default', 'apple'],
-			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
-			default: 'default',
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
 		[ChatConfiguration.TodosShowWidget]: {
 			type: 'boolean',
 			default: true,
@@ -733,6 +723,15 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		'chat.signInWithAlternateScopes': { // TODO@bpasero remove me eventually
+			type: 'boolean',
+			description: nls.localize('chat.signInWithAlternateScopes', "Controls whether sign-in with alternate scopes is used."),
+			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
 		'chat.extensionUnification.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.extensionUnification.enabled', "Enables the unification of GitHub Copilot extensions. When enabled, all GitHub Copilot functionality is served from the GitHub Copilot Chat extension. When disabled, the GitHub Copilot and GitHub Copilot Chat extensions operate independently."),
@@ -741,6 +740,12 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'auto'
 			}
+		},
+		[ChatConfiguration.SubagentToolCustomAgents]: {
+			type: 'boolean',
+			description: nls.localize('chat.subagentTool.customAgents', "Whether the runSubagent tool is able to use custom agents. When enabled, the tool can take the name of a custom agent, but it must be given the exact name of the agent."),
+			default: false,
+			tags: ['experimental'],
 		}
 	}
 });

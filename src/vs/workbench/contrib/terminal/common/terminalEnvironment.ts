@@ -173,7 +173,7 @@ export function getLangEnvVariable(locale?: string): string {
 			uk: 'UA',
 			zh: 'CN',
 		};
-		if (parts[0] in languageVariants) {
+		if (Object.prototype.hasOwnProperty.call(languageVariants, parts[0])) {
 			parts.push(languageVariants[parts[0]]);
 		}
 	} else {

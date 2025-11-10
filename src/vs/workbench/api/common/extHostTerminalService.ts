@@ -28,6 +28,7 @@ import { IExtHostCommands } from './extHostCommands.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ISerializedTerminalInstanceContext } from '../../contrib/terminal/common/terminal.js';
 import { isWindows } from '../../../base/common/platform.js';
+import { hasKey } from '../../../base/common/types.js';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -218,11 +219,11 @@ export class ExtHostTerminal extends Disposable {
 
 	private _serializeParentTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminalIdentifier): TerminalLocation | { viewColumn: EditorGroupColumn; preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | undefined {
 		if (typeof location === 'object') {
-			if ('parentTerminal' in location && location.parentTerminal && parentTerminal) {
+			if (hasKey(location, { parentTerminal: true }) && location.parentTerminal && parentTerminal) {
 				return { parentTerminal };
 			}
 
-			if ('viewColumn' in location) {
+			if (hasKey(location, { viewColumn: true })) {
 				return { viewColumn: ViewColumn.from(location.viewColumn), preserveFocus: location.preserveFocus };
 			}
 
@@ -527,7 +528,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	protected _serializeParentTerminal(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): ITerminalInternalOptions {
 		internalOptions = internalOptions ? internalOptions : {};
-		if (options.location && typeof options.location === 'object' && 'parentTerminal' in options.location) {
+		if (options.location && typeof options.location === 'object' && hasKey(options.location, { parentTerminal: true })) {
 			const parentTerminal = options.location.parentTerminal;
 			if (parentTerminal) {
 				const parentExtHostTerminal = this._terminals.find(t => t.value === parentTerminal);
@@ -537,7 +538,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			}
 		} else if (options.location && typeof options.location !== 'object') {
 			internalOptions.location = options.location;
-		} else if (internalOptions.location && typeof internalOptions.location === 'object' && 'splitActiveTerminal' in internalOptions.location) {
+		} else if (internalOptions.location && typeof internalOptions.location === 'object' && hasKey(internalOptions.location, { splitActiveTerminal: true })) {
 			internalOptions.location = { splitActiveTerminal: true };
 		}
 		return internalOptions;
@@ -850,15 +851,15 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (token.isCancellationRequested) {
 			return;
 		}
-		if (profile && !('options' in profile)) {
+		if (profile && !hasKey(profile, { options: true })) {
 			profile = { options: profile };
 		}
 
-		if (!profile || !('options' in profile)) {
+		if (!profile || !hasKey(profile, { options: true })) {
 			throw new Error(`No terminal profile options provided for id "${id}"`);
 		}
 
-		if ('pty' in profile.options) {
+		if (hasKey(profile.options, { pty: true })) {
 			this.createExtensionTerminal(profile.options, options);
 			return;
 		}
@@ -1270,7 +1271,7 @@ function asTerminalIcon(iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscod
 		return undefined;
 	}
 
-	if (!('id' in iconPath)) {
+	if (!hasKey(iconPath, { id: true })) {
 		return iconPath;
 	}
 

@@ -358,6 +358,10 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.monaco-workbench .pane-body.integrated-terminal .tabs-list-container.drop-target {
+	background-color: var(--vscode-list-dropBackground);
+}
+
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-label {
 	min-width: 0;
 	overflow: hidden;

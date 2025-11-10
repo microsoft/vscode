@@ -93,6 +93,7 @@ import type { IProgressState } from '@xterm/addon-progress';
 import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { PromptInputState } from '../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
+import { hasKey } from '../../../../base/common/types.js';
 
 const enum Constants {
 	/**
@@ -645,13 +646,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._register(this.onDisposed(() => {
 				contribution.dispose();
 				this._contributions.delete(desc.id);
-				// Just in case to prevent potential future memory leaks due to cyclic dependency.
-				if ('instance' in contribution) {
-					delete contribution.instance;
-				}
-				if ('_instance' in contribution) {
-					delete contribution._instance;
-				}
 			}));
 		}
 	}
@@ -1556,9 +1550,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const originalIcon = this.shellLaunchConfig.icon;
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows).then(result => {
 			if (result) {
-				if ('message' in result) {
+				if (hasKey(result, { message: true })) {
 					this._onProcessExit(result);
-				} else if ('injectedArgs' in result) {
+				} else if (hasKey(result, { injectedArgs: true })) {
 					this._injectedArgs = result.injectedArgs;
 				}
 			}
@@ -1832,9 +1826,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 		await this._processManager.relaunch(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, reset).then(result => {
 			if (result) {
-				if ('message' in result) {
+				if (hasKey(result, { message: true })) {
 					this._onProcessExit(result);
-				} else if ('injectedArgs' in result) {
+				} else if (hasKey(result, { injectedArgs: true })) {
 					this._injectedArgs = result.injectedArgs;
 				}
 			}

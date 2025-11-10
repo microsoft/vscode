@@ -31,6 +31,7 @@ import { IChatModel } from '../../contrib/chat/common/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -105,6 +106,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	constructor(
 		extHostContext: IExtHostContext,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IChatSessionsService private readonly _chatSessionService: IChatSessionsService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
@@ -160,7 +162,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	async $registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): Promise<void> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		const staticAgentRegistration = this._chatAgentService.getAgent(id, true);
-		if (!staticAgentRegistration && !dynamicProps) {
+		const chatSessionRegistration = this._chatSessionService.getAllChatSessionContributions().find(c => c.type === id || c.alternativeIds?.includes(id));
+		if (!staticAgentRegistration && !chatSessionRegistration && !dynamicProps) {
 			if (this._chatAgentService.getAgentsByName(id).length) {
 				// Likely some extension authors will not adopt the new ID, so give a hint if they register a
 				// participant by name instead of ID.
@@ -172,7 +175,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 		const impl: IChatAgentImplementation = {
 			invoke: async (request, progress, history, token) => {
-				const chatSession = this._chatService.getSession(LocalChatSessionUri.forSession(request.sessionId));
+				const chatSession = this._chatService.getSessionByLegacyId(request.sessionId);
 				this._pendingProgress.set(request.requestId, { progress, chatSession });
 				try {
 					return await this._proxy.$invokeAgent(handle, request, {

@@ -679,7 +679,7 @@ export function registerChatActions() {
 				uri?: URI;
 			}
 
-			function isChatPickerItem(item: IQuickPickItem): item is IChatPickerItem {
+			function isChatPickerItem(item: IQuickPickItem | IChatPickerItem): item is IChatPickerItem {
 				return hasKey(item, { chat: true });
 			}
 
@@ -1586,7 +1586,7 @@ Update \`.github/copilot-instructions.md\` for the user, then ask for feedback o
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const preferencesService = accessor.get(IPreferencesService);
-			preferencesService.openSettings({ query: '@feature:chat' });
+			preferencesService.openSettings({ query: '@feature:chat ' });
 		}
 	});
 
@@ -1612,9 +1612,7 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 // --- Title Bar Chat Controls
 
 const defaultChat = {
-	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
-	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
 	provider: product.defaultChatAgent?.provider ?? { enterprise: { id: '' } },
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 	completionsMenuCommand: product.defaultChatAgent?.completionsMenuCommand ?? '',

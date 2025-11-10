@@ -36,6 +36,10 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	}
 
+	flushToolUpdates(): void {
+
+	}
+
 	cancelToolCallsForRequest(requestId: string): void {
 
 	}
@@ -117,6 +121,10 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 	}
 
 	getDeprecatedQualifiedToolNames(): Map<string, string> {
+		throw new Error('Method not implemented.');
+	}
+
+	mapGithubToolName(githubToolName: string): string {
 		throw new Error('Method not implemented.');
 	}
 }

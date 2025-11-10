@@ -81,10 +81,10 @@ import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/langua
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
-import { IHandOff, ParsedPromptFile, PromptHeader } from '../common/promptSyntax/promptFileParser.js';
+import { IHandOff, ParsedPromptFile, PromptHeader, Target } from '../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
-import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
+import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
@@ -140,11 +140,11 @@ export interface IChatWidgetLocationOptions {
 }
 
 export function isQuickChat(widget: IChatWidget): boolean {
-	return 'viewContext' in widget && 'isQuickChat' in widget.viewContext && Boolean(widget.viewContext.isQuickChat);
+	return isIChatResourceViewContext(widget.viewContext) && Boolean(widget.viewContext.isQuickChat);
 }
 
 export function isInlineChat(widget: IChatWidget): boolean {
-	return 'viewContext' in widget && 'isInlineChat' in widget.viewContext && Boolean(widget.viewContext.isInlineChat);
+	return isIChatResourceViewContext(widget.viewContext) && Boolean(widget.viewContext.isInlineChat);
 }
 
 interface IChatHistoryListItem {
@@ -546,7 +546,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Context key for when empty state history is enabled and in empty state
 		this.inEmptyStateWithHistoryEnabledKey = ChatContextKeys.inEmptyStateWithHistoryEnabled.bindTo(contextKeyService);
-		this._welcomeRenderScheduler = this._register(new RunOnceScheduler(() => this.renderWelcomeViewContentIfNeeded(), 10));
+		this._welcomeRenderScheduler = this._register(new RunOnceScheduler(() => this.renderWelcomeViewContentIfNeeded(), 0));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.EmptyStateHistoryEnabled)) {
 				this.updateEmptyStateWithHistoryContext();
@@ -790,7 +790,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	render(parent: HTMLElement): void {
-		const viewId = 'viewId' in this.viewContext ? this.viewContext.viewId : undefined;
+		const viewId = isIChatViewViewContext(this.viewContext) ? this.viewContext.viewId : undefined;
 		this.editorOptions = this._register(this.instantiationService.createInstance(ChatEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
 		const renderInputOnTop = this.viewOptions.renderInputOnTop ?? false;
 		const renderFollowups = this.viewOptions.renderFollowups ?? !renderInputOnTop;
@@ -2061,7 +2061,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private getWidgetViewKindTag(): string {
 		if (!this.viewContext) {
 			return 'editor';
-		} else if ('viewId' in this.viewContext) {
+		} else if (isIChatViewViewContext(this.viewContext)) {
 			return 'view';
 		} else {
 			return 'quick';
@@ -2225,6 +2225,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
 			return;
 		}
+		this.inputPart.clearTodoListWidget(model.sessionResource, false);
+		this.chatSuggestNextWidget.hide();
 
 		if (this.historyList) {
 			this.historyList.setFocus([]);
@@ -2873,7 +2875,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// if not tools to enable are present, we are done
 		if (tools !== undefined && this.input.currentModeKind === ChatModeKind.Agent) {
-			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools);
+			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools, Target.VSCode);
 			this.input.selectedToolsModel.set(enablementMap, true);
 		}
 
