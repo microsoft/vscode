@@ -294,7 +294,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public get tokenColorMap(): string[] {
-		return this.getTokenColorIndex().asArray(); //
+		return this.getTokenColorIndex().asArray();
 	}
 
 	public get tokenFontMap(): ITokenFont[] {

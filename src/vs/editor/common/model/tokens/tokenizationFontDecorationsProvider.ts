@@ -29,10 +29,26 @@ export class LineHeightChangingDecoration {
 	) { }
 }
 
+export class LineFontChangingDecoration {
+
+	public static toKey(obj: LineFontChangingDecoration): string {
+		return `${obj.ownerId};${obj.decorationId};${obj.lineNumber}`;
+	}
+
+	constructor(
+		public readonly ownerId: number,
+		public readonly decorationId: string,
+		public readonly lineNumber: number
+	) { }
+}
+
 export class TokenizationFontDecorationProvider extends Disposable implements DecorationProvider<Set<LineHeightChangingDecoration>> {
 
 	private readonly _onDidChangeLineHeight = new Emitter<Set<LineHeightChangingDecoration>>();
 	public readonly onDidChangeLineHeight = this._onDidChangeLineHeight.event;
+
+	private readonly _onDidChangeFont = new Emitter<Set<LineFontChangingDecoration>>();
+	public readonly onDidChangeFont = this._onDidChangeFont.event;
 
 	private readonly fontInfo = new Map<number, IFontOption[]>();
 
@@ -42,20 +58,42 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	) {
 		super();
 		this.tokenizationTextModelPart.onDidChangeFontInfo(fontChanges => {
-			const affectedLineHeights = new Set<LineHeightChangingDecoration>();
+			console.log('fontChanges : ', fontChanges);
+			const changedLineNumberHeights = new Map<number, number | null>();
+			const changedLineNumberFonts = new Set<number>();
 			for (const fontChange of fontChanges) {
 				if (!fontChange.options) {
+					changedLineNumberHeights.set(fontChange.lineNumber, null);
+					changedLineNumberFonts.add(fontChange.lineNumber);
 					continue;
 				}
 				this.fontInfo.set(fontChange.lineNumber, fontChange.options);
 				for (const option of fontChange.options) {
-					if (option.lineHeight) {
-						affectedLineHeights.add(new LineHeightChangingDecoration(0, classNameForFont(option.fontFamily ?? '', option.fontSize ?? ''), fontChange.lineNumber, option.lineHeight));
-						break;
+					const lineNumber = fontChange.lineNumber;
+					if (changedLineNumberHeights.has(lineNumber)) {
+						// if the line number has already been considered, then we have to take the maximum with what exists
+						const currentLineHeight = changedLineNumberHeights.get(lineNumber);
+						if (!currentLineHeight || (option.lineHeight && option.lineHeight > currentLineHeight)) {
+							changedLineNumberHeights.set(lineNumber, option.lineHeight); // we take the maximum line height
+						}
+					} else {
+						// if the line number has not been considered yet, then it overwrites the previous data
+						changedLineNumberHeights.set(fontChange.lineNumber, option.lineHeight);
 					}
+					changedLineNumberFonts.add(lineNumber);
 				}
 			}
+			const affectedLineHeights = new Set<LineHeightChangingDecoration>();
+			for (const [lineNumber, lineHeight] of changedLineNumberHeights) {
+				affectedLineHeights.add(new LineHeightChangingDecoration(0, `tokenization-line-decoration-${lineNumber}`, lineNumber, lineHeight));
+			}
+			const affectedLineFonts = new Set<LineFontChangingDecoration>();
+			for (const lineNumber of changedLineNumberFonts) {
+				affectedLineFonts.add(new LineFontChangingDecoration(0, `tokenization-line-decoration-${lineNumber}`, lineNumber));
+			}
+			console.log('affectedLineHeights : ', affectedLineHeights);
 			this._onDidChangeLineHeight.fire(affectedLineHeights);
+			this._onDidChangeFont.fire(affectedLineFonts);
 		});
 	}
 

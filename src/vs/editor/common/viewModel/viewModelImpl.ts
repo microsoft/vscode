@@ -448,6 +448,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		if (allowVariableLineHeights) {
 			this._register(this.model.onDidChangeLineHeight((e) => {
 				const filteredChanges = e.changes.filter((change) => change.ownerId === this._editorId || change.ownerId === 0);
+				console.log('onDidChangeLineHeight - filteredChanges: ', JSON.stringify(filteredChanges));
 
 				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
 					for (const change of filteredChanges) {

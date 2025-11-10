@@ -50,7 +50,7 @@ import { TokenArray } from '../tokens/lineTokens.js';
 import { SetWithKey } from '../../../base/common/collections.js';
 import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { TextEdit } from '../core/edits/textEdit.js';
-import { LineHeightChangingDecoration, TokenizationFontDecorationProvider } from './tokens/tokenizationFontDecorationsProvider.js';
+import { LineFontChangingDecoration, LineHeightChangingDecoration, TokenizationFontDecorationProvider } from './tokens/tokenizationFontDecorationsProvider.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -394,11 +394,19 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._onDidChangeDecorations.endDeferredEmit();
 		}));
 		this._register(this._fontDecorationProvider.onDidChangeLineHeight((affectedLineHeights) => {
+			console.log('on did change line height from font decoration provider : ', affectedLineHeights);
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._onDidChangeDecorations.fire();
 			const affectedLines = Array.from(affectedLineHeights);
 			const lineHeightChangeEvent = affectedLines.map(specialLineHeightChange => new ModelLineHeightChanged(specialLineHeightChange.ownerId, specialLineHeightChange.decorationId, specialLineHeightChange.lineNumber, specialLineHeightChange.lineHeight));
 			this._onDidChangeLineHeight.fire(new ModelLineHeightChangedEvent(lineHeightChangeEvent));
+			this._onDidChangeDecorations.endDeferredEmit();
+		}));
+		this._register(this._fontDecorationProvider.onDidChangeFont((affectedFontLines) => {
+			this._onDidChangeDecorations.beginDeferredEmit();
+			const affectedLinesArray = Array.from(affectedFontLines);
+			const fontChangeEvent = affectedLinesArray.map(specialFontChange => new ModelFontChanged(specialFontChange.ownerId, specialFontChange.lineNumber));
+			this._onDidChangeFont.fire(new ModelFontChangedEvent(fontChangeEvent));
 			this._onDidChangeDecorations.endDeferredEmit();
 		}));
 
@@ -1622,6 +1630,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._onDidChangeInjectedText.fire(new ModelInjectedTextChangedEvent(lineChangeEvents));
 		}
 		if (affectedLineHeights && affectedLineHeights.size > 0) {
+			console.log('on did change line height from decorations : ', affectedLineHeights);
 			const affectedLines = Array.from(affectedLineHeights);
 			const lineHeightChangeEvent = affectedLines.map(specialLineHeightChange => new ModelLineHeightChanged(specialLineHeightChange.ownerId, specialLineHeightChange.decorationId, specialLineHeightChange.lineNumber, specialLineHeightChange.lineHeight));
 			this._onDidChangeLineHeight.fire(new ModelLineHeightChangedEvent(lineHeightChangeEvent));
@@ -2502,20 +2511,6 @@ function _normalizeOptions(options: model.IModelDecorationOptions): ModelDecorat
 		return options;
 	}
 	return ModelDecorationOptions.createDynamic(options);
-}
-
-
-class LineFontChangingDecoration {
-
-	public static toKey(obj: LineFontChangingDecoration): string {
-		return `${obj.ownerId};${obj.decorationId};${obj.lineNumber}`;
-	}
-
-	constructor(
-		public readonly ownerId: number,
-		public readonly decorationId: string,
-		public readonly lineNumber: number
-	) { }
 }
 
 class DidChangeDecorationsEmitter extends Disposable {
