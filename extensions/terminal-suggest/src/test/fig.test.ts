@@ -192,7 +192,8 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 				description: 'Foo',
 				options: [
 					{ name: '--help', description: 'Show help', isPersistent: true },
-					{ name: '--verbose', description: 'Verbose output', isPersistent: true }
+					{ name: '--docs', description: 'Show docs' },
+					{ name: '--version', description: 'Version info', isPersistent: false }
 				],
 				subcommands: [
 					{
@@ -220,16 +221,16 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 		],
 		availableCommands: 'foo',
 		testSpecs: [
-			// Top-level should show persistent options
-			{ input: 'foo |', expectedCompletions: ['--help', '--verbose', 'bar', 'baz'] },
-			// First-level subcommand should inherit persistent options
-			{ input: 'foo bar |', expectedCompletions: ['--help', '--verbose', '--local'] },
-			// Another first-level subcommand should also inherit persistent options
-			{ input: 'foo baz |', expectedCompletions: ['--help', '--verbose', '--another', 'nested'] },
-			// Nested subcommand should inherit persistent options from parent
-			{ input: 'foo baz nested |', expectedCompletions: ['--help', '--verbose'] },
+			// Top-level should show all options including persistent
+			{ input: 'foo |', expectedCompletions: ['--help', '--docs', '--version', 'bar', 'baz'] },
+			// First-level subcommand should only inherit persistent options (not --docs or --version)
+			{ input: 'foo bar |', expectedCompletions: ['--help', '--local'] },
+			// Another first-level subcommand should also inherit only persistent options
+			{ input: 'foo baz |', expectedCompletions: ['--help', '--another', 'nested'] },
+			// Nested subcommand should inherit persistent options from top level
+			{ input: 'foo baz nested |', expectedCompletions: ['--help'] },
 			// Persistent options should be available even after using local options
-			{ input: 'foo bar --local |', expectedCompletions: ['--help', '--verbose'] },
+			{ input: 'foo bar --local |', expectedCompletions: ['--help'] },
 		]
 	}
 ];
