@@ -168,7 +168,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		throw new Error(`IPC Command ${command} not found`);
 	}
 
-	listen<T extends unknown>(_: unknown, event: RemoteTerminalChannelEvent, _arg: unknown): Event<T> {
+	listen<T>(_: unknown, event: RemoteTerminalChannelEvent, _arg: unknown): Event<T> {
 		switch (event) {
 			case RemoteTerminalChannelEvent.OnPtyHostExitEvent: return (this._ptyHostService.onPtyHostExit || Event.None) as Event<T>;
 			case RemoteTerminalChannelEvent.OnPtyHostStartEvent: return (this._ptyHostService.onPtyHostStart || Event.None) as Event<T>;
