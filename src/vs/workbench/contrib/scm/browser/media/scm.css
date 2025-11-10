@@ -591,9 +591,20 @@
 
 /* History item hover */
 
-.monaco-hover.history-item-hover p:first-child {
+/* .monaco-hover.history-item-hover p:first-child {
 	margin-top: 4px;
+	display: flex;
+	align-items: center;
 }
+
+.monaco-hover.history-item-hover p:first-child img {
+	border-radius: 50%;
+	margin-right: 4px;
+}
+
+.monaco-hover.history-item-hover p:first-child .codicon {
+	margin: 0 2px;
+} */
 
 .monaco-hover.history-item-hover p:last-child {
 	margin-bottom: 2px !important;
