@@ -35,6 +35,7 @@ import { WorkerTextModelSyncClient } from '../../common/services/textModelSync/t
 import { EditorWorkerHost } from '../../common/services/editorWorkerHost.js';
 import { StringEdit } from '../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../common/core/ranges/offsetRange.js';
+import { FileAccess } from '../../../base/common/network.js';
 
 /**
  * Stop the worker if it was not needed for 5 min.
@@ -61,7 +62,6 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 	private readonly _logService: ILogService;
 
 	constructor(
-		workerDescriptor: WebWorkerDescriptor,
 		@IModelService modelService: IModelService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@ILogService logService: ILogService,
@@ -70,6 +70,13 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 	) {
 		super();
 		this._modelService = modelService;
+
+		const workerDescriptor = new WebWorkerDescriptor({
+			esmModuleLocation: () => FileAccess.asBrowserUri('vs/editor/common/services/editorWebWorkerMain.js'),
+			esmModuleLocationBundler: () => new URL('../../common/services/editorWebWorkerMain.ts?worker', import.meta.url),
+			label: 'editorWorkerService'
+		});
+
 		this._workerManager = this._register(new WorkerManager(workerDescriptor, this._modelService));
 		this._logService = logService;
 
