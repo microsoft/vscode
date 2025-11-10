@@ -34,6 +34,7 @@ interface IHoverSettings {
 	readonly enabled: 'on' | 'off' | 'onKeyboardModifier';
 	readonly sticky: boolean;
 	readonly hidingDelay: number;
+	readonly delay: number; // show delay from editor hover options
 }
 
 export class ContentHoverController extends Disposable implements IEditorContribution {
@@ -96,7 +97,8 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		this._hoverSettings = {
 			enabled: hoverOpts.enabled,
 			sticky: hoverOpts.sticky,
-			hidingDelay: hoverOpts.hidingDelay
+			hidingDelay: hoverOpts.hidingDelay,
+			delay: hoverOpts.delay
 		};
 		if (hoverOpts.enabled === 'off') {
 			this._cancelSchedulerAndHide();
@@ -268,6 +270,33 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	private _onKeyDown(e: IKeyboardEvent): void {
 		if (this._ignoreMouseEvents) {
 			return;
+		}
+		// New behavior: if hover is configured for keyboard modifier and the user presses the triggering modifier
+		// we should show the hover immediately for the current (last known) mouse location even without moving the mouse again.
+		if (this._hoverSettings.enabled === 'onKeyboardModifier' && this._mouseMoveEvent) {
+			const multiCursorModifier = this._editor.getOption(EditorOption.multiCursorModifier); // 'altKey' | 'ctrlKey' | 'metaKey'
+			// Inverse logic: if multiCursor uses Alt (multiCursorModifier === 'altKey'), hover triggers on Ctrl/Cmd.
+			// Otherwise (multiCursorModifier is ctrlKey/metaKey), hover triggers on Alt.
+			const triggerPressed = multiCursorModifier === 'altKey'
+				? (e.ctrlKey || e.metaKey)
+				: e.altKey;
+			if (triggerPressed) {
+				// Avoid re-trigger if already visible
+				if (!this._contentWidget?.isVisible) {
+					// Get the position/range from the last mouse event and show hover immediately
+					const mouseTarget = this._mouseMoveEvent.target;
+					if (mouseTarget.position) {
+						this.showContentHover(
+							Range.fromPositions(mouseTarget.position),
+							HoverStartMode.Immediate,
+							HoverStartSource.Keyboard,
+							false
+						);
+					}
+				}
+				// Do not hide hover for this key press
+				return;
+			}
 		}
 		if (!this._contentWidget) {
 			return;
