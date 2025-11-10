@@ -53,9 +53,9 @@ export interface IToolBarOptions {
 	/**
 	 * Controls the responsive behavior of the primary group of the toolbar.
 	 * - `enabled`: Whether the responsive behavior is enabled.
-	 * - `maxItems`: The maximum number of items that should never overflow.
+	 * - `minItems`: The minimum number of items that should always be visible.
 	 */
-	responsiveBehavior?: { enabled: boolean; maxItems?: number };
+	responsiveBehavior?: { enabled: boolean; minItems?: number };
 }
 
 /**
@@ -244,8 +244,8 @@ export class ToolBar extends Disposable {
 			this.hiddenActions.length = 0;
 
 			// Set the minimum width
-			if (this.options.responsiveBehavior?.maxItems !== undefined) {
-				let itemCount = this.options.responsiveBehavior.maxItems;
+			if (this.options.responsiveBehavior?.minItems !== undefined) {
+				let itemCount = this.options.responsiveBehavior.minItems;
 
 				// Account for overflow menu
 				if (
@@ -295,12 +295,12 @@ export class ToolBar extends Disposable {
 
 		if (actionBarWidth() > containerWidth) {
 			// Check for max items limit
-			if (this.options.responsiveBehavior?.maxItems !== undefined) {
+			if (this.options.responsiveBehavior?.minItems !== undefined) {
 				const primaryActionsCount = this.actionBar.hasAction(this.toggleMenuAction)
 					? this.actionBar.length() - 1
 					: this.actionBar.length();
 
-				if (primaryActionsCount <= this.options.responsiveBehavior.maxItems) {
+				if (primaryActionsCount <= this.options.responsiveBehavior.minItems) {
 					return;
 				}
 			}
