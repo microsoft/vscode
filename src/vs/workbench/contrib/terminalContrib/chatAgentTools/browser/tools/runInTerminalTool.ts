@@ -785,7 +785,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	): Promise<void> {
 		if (commandId) {
 			try {
-				toolSpecificData.terminalCommandUri = URI.from(this._createTerminalCommandUri(instance, commandId));
+				toolSpecificData.terminalCommandUri = this._createTerminalCommandUri(instance, commandId);
 			} catch (error) {
 				this._logService.warn(`RunInTerminalTool: Failed to create terminal command URI for ${commandId}`, error);
 			}
