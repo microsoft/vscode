@@ -11,10 +11,10 @@ npm i && npm run compile
 # Dev (Electron)
 npm run smoketest
 
-# Dev (Web - Must be run on distro)
+git# Dev (Web - Must be run on distro)
 npm run smoketest -- --web --browser [chromium|webkit]
 
-# Build (Electron)
+ # Build (Electron)
 npm run smoketest -- --build <path to latest version>
 example: npm run smoketest -- --build /Applications/Visual\ Studio\ Code\ -\ Insiders.app
 
@@ -32,8 +32,7 @@ npm run smoketest -- --build <path to latest version> --remote
 You must always run the smoketest version that matches the release you are testing. So, if you want to run the smoketest for a release build (e.g. `release/1.22`), you need to check out that version of the smoke tests too:
 
 ```bash
-git fetch
-git checkout release/1.22
+git fetc gitit checkout release/1.22
 npm i && npm run compile
 cd test/smoke
 npm i
