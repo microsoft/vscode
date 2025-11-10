@@ -40,11 +40,16 @@ function getWorker(descriptor: WebWorkerDescriptor, id: number): Worker | Promis
 	const monacoEnvironment = getMonacoEnvironment();
 	if (monacoEnvironment) {
 		if (typeof monacoEnvironment.getWorker === 'function') {
-			return monacoEnvironment.getWorker('workerMain.js', label);
+			const w = monacoEnvironment.getWorker('workerMain.js', label);
+			if (w !== undefined) {
+				return w;
+			}
 		}
 		if (typeof monacoEnvironment.getWorkerUrl === 'function') {
 			const workerUrl = monacoEnvironment.getWorkerUrl('workerMain.js', label);
-			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: 'module' });
+			if (workerUrl !== undefined) {
+				return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: 'module' });
+			}
 		}
 	}
 

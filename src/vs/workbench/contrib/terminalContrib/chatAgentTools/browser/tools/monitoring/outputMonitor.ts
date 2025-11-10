@@ -388,7 +388,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const lastLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-15).join('\n');
 		const promptText =
-			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null. If the option is ambiguous or non-specific (like "any key" or "some key"), return null.
+			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null. If the option is ambiguous, return null.
 			Examples:
 			1. Output: "Do you want to overwrite? (y/n)"
 				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"], "freeFormInput": false}
@@ -409,10 +409,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				Response: {"prompt": "Continue", "options": ["y", "N"], "freeFormInput": false}
 
 			7. Output: "Press any key to close the terminal."
-				Response: null
+				Response: {"prompt": "Press any key to continue...", "options": ["a"], "freeFormInput": false}
 
 			8. Output: "Terminal will be reused by tasks, press any key to close it."
-				Response: null
+				Response: {"prompt": "Terminal will be reused by tasks, press any key to close it.", "options": ["a"], "freeFormInput": false}
+
 			9. Output: "Password:"
 				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
 
@@ -444,20 +445,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					if (obj.freeFormInput === true) {
 						return { prompt: obj.prompt, options: [], detectedRequestForFreeFormInput: true };
 					}
-					// Filter out non-specific options like "any key"
-					const NON_SPECIFIC_OPTIONS = new Set(['any key', 'some key', 'a key']);
-					const isNonSpecificOption = (option: string): boolean => {
-						const lowerOption = option.toLowerCase().trim();
-						return NON_SPECIFIC_OPTIONS.has(lowerOption);
-					};
 					if (Array.isArray(obj.options) && obj.options.every(isString)) {
-						const filteredOptions = obj.options.filter(opt => !isNonSpecificOption(opt));
-						if (filteredOptions.length === 0) {
-							return undefined;
-						}
-						return { prompt: obj.prompt, options: filteredOptions, detectedRequestForFreeFormInput: obj.freeFormInput };
+						return { prompt: obj.prompt, options: obj.options, detectedRequestForFreeFormInput: obj.freeFormInput };
 					} else if (isObject(obj.options) && Object.values(obj.options).every(isString)) {
-						const keys = Object.keys(obj.options).filter(key => !isNonSpecificOption(key));
+						const keys = Object.keys(obj.options);
 						if (keys.length === 0) {
 							return undefined;
 						}
@@ -511,7 +502,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const parsed = suggestedOption.replace(/['"`]/g, '').trim();
 		const index = confirmationPrompt.options.indexOf(parsed);
-		const validOption = confirmationPrompt.options.find(opt => parsed === opt.replace(/['"`]/g, '').trim());
+		const validOption = confirmationPrompt.options.find(opt => parsed === 'any key' || parsed === opt.replace(/['"`]/g, '').trim());
 		if (!validOption || index === -1) {
 			return;
 		}
@@ -557,7 +548,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _confirmRunInTerminal(token: CancellationToken, suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
-		const suggestedOptionValue = typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option;
+		let suggestedOptionValue = typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option;
+		if (suggestedOptionValue === 'any key') {
+			suggestedOptionValue = 'a';
+		}
 		let inputDataDisposable = Disposable.None;
 		const { promise: userPrompt, part } = this._createElicitationPart<string | undefined>(
 			token,
