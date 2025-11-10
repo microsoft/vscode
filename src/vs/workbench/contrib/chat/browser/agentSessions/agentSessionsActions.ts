@@ -9,7 +9,7 @@ import { IAgentSessionViewModel } from './agentSessionViewModel.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { EventHelper, h } from '../../../../../base/browser/dom.js';
+import { EventHelper, h, hide, show } from '../../../../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../../../../base/common/types.js';
 
 //#region Diff Statistics Action
@@ -68,9 +68,26 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 			]
 		);
 
-		elements.filesSpan.textContent = diff.files > 0 ? `${diff.files}` : '';
-		elements.addedSpan.textContent = diff.insertions > 0 ? `+${diff.insertions}` : '';
-		elements.removedSpan.textContent = diff.deletions > 0 ? `-${diff.deletions}` : '';
+		if (diff.files > 0) {
+			elements.filesSpan.textContent = `${diff.files}`;
+			show(elements.filesSpan);
+		} else {
+			hide(elements.filesSpan);
+		}
+
+		if (diff.insertions > 0) {
+			elements.addedSpan.textContent = `+${diff.insertions}`;
+			show(elements.addedSpan);
+		} else {
+			hide(elements.addedSpan);
+		}
+
+		if (diff.deletions > 0) {
+			elements.removedSpan.textContent = `-${diff.deletions}`;
+			show(elements.removedSpan);
+		} else {
+			hide(elements.removedSpan);
+		}
 
 		label.appendChild(elements.diffContainer);
 	}

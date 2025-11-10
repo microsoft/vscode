@@ -14,7 +14,7 @@
 		font-weight: 500;
 		display: flex;
 		gap: 4px;
-		padding: 0 4px 0 0; /* to make space for hover effect */
+		padding: 0 4px; /* to make space for hover effect */
 	}
 
 	.agent-session-diff-files {
