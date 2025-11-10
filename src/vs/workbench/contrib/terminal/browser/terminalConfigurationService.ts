@@ -246,6 +246,9 @@ export class TerminalFontMetrics extends Disposable {
 // #region Utils
 
 function clampInt<T>(source: string | number, minimum: number, maximum: number, fallback: T): number | T {
+	if (source === null || source === undefined) {
+		return fallback;
+	}
 	let r = isString(source) ? parseInt(source, 10) : source;
 	if (isNaN(r)) {
 		return fallback;
