@@ -278,6 +278,14 @@ class FileAccessImpl {
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
 	asBrowserUri(resourcePath: AppResourcePath | ''): URI {
+		// For webworkers
+		if (resourcePath.endsWith('Main.js')) {
+			function getUriOfSrcModule(esModule: string) {
+				return URI.parse(globalThis._VSCODE_SRC_ROOT + esModule);
+			}
+			return getUriOfSrcModule(resourcePath);
+		}
+
 		const uri = this.toUri(resourcePath);
 		return this.uriToBrowserUri(uri);
 	}
