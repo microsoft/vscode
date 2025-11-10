@@ -30,9 +30,7 @@ export class Notebook {
 	}
 
 	async focusNextCell() {
-		await this.code.dispatchKeybinding('down', async () => {
-			// TODO: Add an accept callback to verify the keybinding was successful
-		});
+		await this.quickAccess.runCommand('notebook.focusNextEditor');
 	}
 
 	async focusFirstCell() {
@@ -40,9 +38,7 @@ export class Notebook {
 	}
 
 	async editCell() {
-		await this.code.dispatchKeybinding('enter', async () => {
-			// TODO: Add an accept callback to verify the keybinding was successful
-		});
+		await this.quickAccess.runCommand('notebook.cell.edit');
 	}
 
 	async stopEditingCell() {
