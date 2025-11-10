@@ -596,7 +596,7 @@ class WindowsPtyHeuristics extends Disposable {
 			if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
 				this._tryAdjustCommandStartMarkerScheduler?.cancel();
 				this._tryAdjustCommandStartMarkerScheduler = undefined;
-				this._hooks.clearAllCommands();
+				this._hooks.clearCommandsInViewport();
 				this._capability.currentCommand.isInvalid = true;
 				this._hooks.onCurrentCommandInvalidatedEmitter.fire({ reason: CommandInvalidationReason.Windows });
 			}
