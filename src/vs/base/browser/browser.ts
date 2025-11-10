@@ -147,9 +147,9 @@ export interface IMonacoEnvironment {
 		policyOptions?: Options,
 	): undefined | Pick<TrustedTypePolicy, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>>;
 
-	getWorker?(moduleId: string, label: string): Worker | Promise<Worker>;
+	getWorker?(moduleId: string, label: string): Worker | Promise<Worker> | undefined;
 
-	getWorkerUrl?(moduleId: string, label: string): string;
+	getWorkerUrl?(moduleId: string, label: string): string | undefined;
 
 	globalAPI?: boolean;
 

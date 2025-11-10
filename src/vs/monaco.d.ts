@@ -22,14 +22,16 @@ declare namespace monaco {
 		baseUrl?: string;
 		/**
 		 * A web worker factory.
-		 * NOTE: If `getWorker` is defined, `getWorkerUrl` is not invoked.
+		 * NOTE: If `getWorker` is defined and returns a worker, `getWorkerUrl` is not invoked.
+		 * If `getWorker` returns `undefined`, `getWorkerUrl` will be invoked as a fallback.
 		 */
-		getWorker?(workerId: string, label: string): Promise<Worker> | Worker;
+		getWorker?(workerId: string, label: string): Promise<Worker> | Worker | undefined;
 		/**
 		 * Return the location for web worker scripts.
-		 * NOTE: If `getWorker` is defined, `getWorkerUrl` is not invoked.
+		 * NOTE: If `getWorker` is defined and returns a worker, `getWorkerUrl` is not invoked.
+		 * If `getWorker` returns `undefined`, `getWorkerUrl` will be invoked as a fallback.
 		 */
-		getWorkerUrl?(workerId: string, label: string): string;
+		getWorkerUrl?(workerId: string, label: string): string | undefined;
 		/**
 		 * Create a trusted types policy (same API as window.trustedTypes.createPolicy)
 		 */
