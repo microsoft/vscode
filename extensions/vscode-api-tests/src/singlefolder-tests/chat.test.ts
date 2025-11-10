@@ -228,7 +228,7 @@ suite('chat', () => {
 		];
 
 		for (const modulePath of nodePtyModules) {
-			// module exists, try to require it
+			// try to stat and require module
 			try {
 				await fs.promises.stat(modulePath);
 				const nodePty = require(modulePath);
