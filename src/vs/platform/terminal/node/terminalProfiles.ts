@@ -349,7 +349,7 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 	const distroOutput = await new Promise<string>((resolve, reject) => {
 		// wsl.exe output is encoded in utf16le (ie. A -> 0x4100) by default, force it in case the
 		// user changed https://github.com/microsoft/vscode/issues/276253
-		cp.exec('wsl.exe -l -q', { encoding: 'utf16le', env: { WSL_UTF8: '0' }, timeout: 1000 }, (err, stdout) => {
+		cp.exec('wsl.exe -l -q', { encoding: 'utf16le', env: { ...process.env, WSL_UTF8: '0' }, timeout: 1000 }, (err, stdout) => {
 			if (err) {
 				return reject('Problem occurred when getting wsl distros');
 			}
