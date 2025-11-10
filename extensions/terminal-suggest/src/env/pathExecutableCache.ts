@@ -232,7 +232,7 @@ export async function watchPathDirectories(context: vscode.ExtensionContext, env
 	// Watch each directory
 	for (const dir of pathDirectories) {
 		if (activeWatchers.has(dir)) {
-			// Skip if already watching or directory doesn't exist
+			// Skip if already watching this directory
 			continue;
 		}
 
