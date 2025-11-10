@@ -236,7 +236,6 @@ suite('chat', () => {
 				return;
 			} catch (err) {
 				// failed to require, try next
-				continue;
 			}
 		}
 		assert.fail('Failed to find and require node-pty module');
