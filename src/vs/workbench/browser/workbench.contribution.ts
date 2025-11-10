@@ -569,7 +569,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				]
 			},
 			'workbench.secondarySideBar.enableDefaultVisibilityInOldWorkspace': {
-				'type': 'string',
+				'type': 'boolean',
 				'description': localize('enableDefaultVisibilityInOldWorkspace', "Enables the default secondary sidebar visibility in older workspaces before we had default visibility support."),
 				'tags': ['advanced'],
 				'experiment': {
