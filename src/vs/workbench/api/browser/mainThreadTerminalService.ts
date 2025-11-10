@@ -33,6 +33,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private readonly _store = new DisposableStore();
 	private readonly _proxy: ExtHostTerminalServiceShape;
+	private readonly _proxyDisposables = this._store.add(new MutableDisposable());
 
 	/**
 	 * Stores a map from a temporary terminal id (a UUID generated on the extension host side)
@@ -438,10 +439,12 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			initialDimensions
 		).then(request.callback);
 
-		this._store.add(proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.instanceId, data)));
-		this._store.add(proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.instanceId, immediate)));
-		this._store.add(proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.instanceId)));
-		this._store.add(proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(proxy.instanceId)));
+		this._proxyDisposables.value = combinedDisposable(
+			proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.instanceId, data)),
+			proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.instanceId, immediate)),
+			proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.instanceId)),
+			proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(proxy.instanceId)),
+		);
 	}
 
 	public $sendProcessData(terminalId: number, data: string): void {
