@@ -101,6 +101,7 @@ class ManageAccountsActionImpl {
 
 		quickPick.title = localize('manageAccount', "Manage '{0}'", accountLabel);
 		quickPick.placeholder = localize('selectAction', "Select an action");
+		quickPick.buttons = [this.quickInputService.backButton];
 
 		const items: AccountActionQuickPickItem[] = [{
 			label: localize('manageTrustedExtensions', "Manage Trusted Extensions"),
@@ -128,6 +129,13 @@ class ManageAccountsActionImpl {
 			if (selected) {
 				quickPick.hide();
 				selected.action();
+			}
+		}));
+
+		store.add(quickPick.onDidTriggerButton((button) => {
+			if (button === this.quickInputService.backButton) {
+				quickPick.hide();
+				this.run();
 			}
 		}));
 
