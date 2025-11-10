@@ -317,6 +317,12 @@
 	flex: 1;
 	margin: 10px 20px;
 	height: initial;
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 2px;
+}
+
+.pane-body .viewpane-filter-container > .viewpane-filter > .viewpane-filter-controls {
+	padding-right: 4px;
 }
 
 .pane-body .viewpane-filter-container > .viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-item {
