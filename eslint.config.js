@@ -837,7 +837,6 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/tasks/common/taskConfiguration.ts',
 			'src/vs/workbench/contrib/tasks/common/taskSystem.ts',
 			'src/vs/workbench/contrib/tasks/common/tasks.ts',
-			'src/vs/workbench/contrib/terminal/browser/remoteTerminalBackend.ts',
 			'src/vs/workbench/contrib/terminal/browser/terminalConfigurationService.ts',
 			'src/vs/workbench/contrib/terminal/browser/terminalExtensions.ts',
 			'src/vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy.ts',
@@ -846,7 +845,6 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/terminal/browser/terminalProfileService.ts',
 			'src/vs/workbench/contrib/terminal/browser/xterm/xtermTerminal.ts',
 			'src/vs/workbench/contrib/terminal/common/basePty.ts',
-			'src/vs/workbench/contrib/terminal/common/remote/remoteTerminalChannel.ts',
 			'src/vs/workbench/contrib/terminal/common/terminal.ts',
 			'src/vs/workbench/contrib/terminalContrib/links/browser/links.ts',
 			'src/vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon.ts',
@@ -917,7 +915,6 @@ export default tseslint.config(
 			'src/vs/server/node/remoteAgentEnvironmentImpl.ts',
 			'src/vs/server/node/remoteExtensionHostAgentServer.ts',
 			'src/vs/server/node/remoteExtensionsScanner.ts',
-			'src/vs/server/node/remoteTerminalChannel.ts',
 			// Tests
 			'**/*.test.ts',
 			'**/*.integrationTest.ts'
