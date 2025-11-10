@@ -97,7 +97,7 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from '../../../platform/environment/common/environment.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { ResourceMap } from '../../../base/common/map.js';
-import { IWebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js';
+import { WebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js';
 import { ITreeSitterLibraryService } from '../../common/services/treeSitter/treeSitterLibraryService.js';
 import { StandaloneTreeSitterLibraryService } from './standaloneTreeSitterLibraryService.js';
 import { IDataChannelService, NullDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
@@ -1075,10 +1075,10 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
-const standaloneEditorWorkerDescriptor: IWebWorkerDescriptor = {
+const standaloneEditorWorkerDescriptor = new WebWorkerDescriptor({
 	esmModuleLocation: undefined,
 	label: 'editorWorkerService'
-};
+});
 
 class StandaloneEditorWorkerService extends EditorWorkerService {
 	constructor(
