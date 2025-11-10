@@ -72,6 +72,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _terminalData: IChatTerminalToolInvocationData;
 	private readonly _terminalCommandUri: URI | undefined;
 	private readonly _storedCommandId: string | undefined;
+	private readonly _isSerializedInvocation: boolean;
 	private _terminalInstance: ITerminalInstance | undefined;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
@@ -98,6 +99,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._terminalData = terminalData;
 		this._terminalCommandUri = terminalData.terminalCommandUri ? URI.revive(terminalData.terminalCommandUri) : undefined;
 		this._storedCommandId = this._terminalCommandUri ? new URLSearchParams(this._terminalCommandUri.query ?? '').get('command') ?? undefined : undefined;
+		this._isSerializedInvocation = (toolInvocation.kind === 'toolInvocationSerialized');
 
 		const elements = h('.chat-terminal-content-part@container', [
 			h('.chat-terminal-content-title@title'),
@@ -230,9 +232,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 
 		const resolvedCommand = this._getResolvedCommand(terminalInstance);
-		if (terminalInstance) {
-			const isTerminalHidden = terminalToolSessionId ? this._terminalChatService.isBackgroundTerminal(terminalToolSessionId) : false;
-			const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, resolvedCommand, isTerminalHidden);
+		const canFocus = !!terminalInstance || (this._isSerializedInvocation && !!this._terminalCommandUri);
+		if (canFocus) {
+			const isTerminalHidden = terminalInstance && terminalToolSessionId ? this._terminalChatService.isBackgroundTerminal(terminalToolSessionId) : false;
+			const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, resolvedCommand, this._terminalCommandUri, this._storedCommandId, isTerminalHidden);
 			this._focusAction.value = focusAction;
 			actionBar.push(focusAction, { icon: true, label: false, index: 0 });
 		} else {
@@ -604,8 +607,10 @@ class ToggleChatTerminalOutputAction extends Action implements IAction {
 
 export class FocusChatInstanceAction extends Action implements IAction {
 	constructor(
-		private readonly _instance: ITerminalInstance,
-		private readonly _command: ITerminalCommand | undefined,
+		private _instance: ITerminalInstance | undefined,
+		private _command: ITerminalCommand | undefined,
+		private readonly _commandUri: URI | undefined,
+		private readonly _commandId: string | undefined,
 		isTerminalHidden: boolean,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
@@ -621,16 +626,39 @@ export class FocusChatInstanceAction extends Action implements IAction {
 
 	public override async run() {
 		this.label = localize('focusTerminal', 'Focus Terminal');
-		this._terminalService.setActiveInstance(this._instance);
-		if (this._instance.target === TerminalLocation.Editor) {
-			this._terminalEditorService.openEditor(this._instance);
-		} else {
-			await this._terminalGroupService.showPanel(true);
+		if (this._instance) {
+			this._terminalService.setActiveInstance(this._instance);
+			if (this._instance.target === TerminalLocation.Editor) {
+				this._terminalEditorService.openEditor(this._instance);
+			} else {
+				await this._terminalGroupService.showPanel(true);
+			}
+			this._terminalService.setActiveInstance(this._instance);
+			await this._instance.focusWhenReady(true);
+			const command = this._resolveCommand();
+			if (command) {
+				this._instance.xterm?.markTracker.revealCommand(command);
+			}
+			return;
 		}
-		this._terminalService.setActiveInstance(this._instance);
-		await this._instance.focusWhenReady(true);
-		if (this._command) {
-			this._instance.xterm?.markTracker.revealCommand(this._command);
+
+		if (this._commandUri) {
+			this._terminalService.openResource(this._commandUri);
 		}
+	}
+
+	private _resolveCommand(): ITerminalCommand | undefined {
+		if (this._command && !this._command.endMarker?.isDisposed) {
+			return this._command;
+		}
+		if (!this._instance || !this._commandId) {
+			return this._command;
+		}
+		const commandDetection = this._instance.capabilities.get(TerminalCapability.CommandDetection);
+		const resolved = commandDetection?.commands.find(c => c.id === this._commandId);
+		if (resolved) {
+			this._command = resolved;
+		}
+		return this._command;
 	}
 }
