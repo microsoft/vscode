@@ -116,10 +116,15 @@ const LINE_ENDS_WITH_COLON_RE = /:\s*$/;
 
 const END = /\(END\)$/;
 
-export function detectsInputRequiredPattern(cursorLine: string): boolean {
-	return PS_CONFIRM_RE.test(cursorLine) || YN_PAIRED_RE.test(cursorLine) || YN_AFTER_PUNCT_RE.test(cursorLine) || CONFIRM_Y_RE.test(cursorLine) || LINE_ENDS_WITH_COLON_RE.test(cursorLine.trim()) || END.test(cursorLine);
-}
+const PASSWORD = /[Pp]assword[:]?$/i;
 
+const QUESTION = /\?[\(\)\s]*$/i;
+
+const PRESS_ANY_KEY_RE = /press a(?:ny)? key/i;
+
+export function detectsInputRequiredPattern(cursorLine: string): boolean {
+	return PS_CONFIRM_RE.test(cursorLine) || YN_PAIRED_RE.test(cursorLine) || YN_AFTER_PUNCT_RE.test(cursorLine) || CONFIRM_Y_RE.test(cursorLine) || LINE_ENDS_WITH_COLON_RE.test(cursorLine.trim()) || END.test(cursorLine) || PASSWORD.test(cursorLine) || QUESTION.test(cursorLine) || PRESS_ANY_KEY_RE.test(cursorLine);
+}
 
 /**
  * Enhanced version of {@link waitForIdle} that uses prompt detection heuristics. After the terminal

@@ -134,6 +134,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					case OutputMonitorState.Idle: {
 						const idleResult = await this._handleIdleState(token);
 						if (idleResult.shouldContinuePollling) {
+							this._state = OutputMonitorState.PollingForIdle;
 							continue;
 						} else {
 							resources = idleResult.resources;
@@ -300,7 +301,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				waited += waitTime;
 				currentInterval = Math.min(currentInterval * 2, maxInterval);
 				const currentOutput = execution.getOutput();
-				const promptResult = detectsInputRequiredPattern(currentOutput);
+				const promptResult = detectsInputRequiredPattern(currentOutput.trim());
 				if (promptResult) {
 					this._state = OutputMonitorState.Idle;
 					return this._state;
@@ -385,7 +386,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!model) {
 			return undefined;
 		}
-		const lastFiveLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-5).join('\n');
+		const lastLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-15).join('\n');
 		const promptText =
 			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null. If the option is ambiguous or non-specific (like "any key" or "some key"), return null.
 			Examples:
@@ -412,6 +413,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 			8. Output: "Terminal will be reused by tasks, press any key to close it."
 				Response: null
+			9. Output: "Password:"
+				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
 
 			Alternatively, the prompt may request free form input, for example:
 			1. Output: "Enter your username:"
@@ -419,7 +422,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			2. Output: "Password:"
 				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
 			Now, analyze this output:
-			${lastFiveLines}
+			${lastLines}
 			`;
 
 		const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('core'), [{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }], {}, token);
@@ -437,6 +440,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				) {
 					if (this._lastPrompt === obj.prompt) {
 						return;
+					}
+					if (obj.freeFormInput === true) {
+						return { prompt: obj.prompt, options: [], detectedRequestForFreeFormInput: true };
 					}
 					// Filter out non-specific options like "any key"
 					const NON_SPECIFIC_OPTIONS = new Set(['any key', 'some key', 'a key']);
