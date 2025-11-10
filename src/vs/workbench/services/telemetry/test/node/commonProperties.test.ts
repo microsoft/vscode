@@ -9,6 +9,7 @@ import { resolveWorkbenchCommonProperties } from '../../common/workbenchCommonPr
 import { StorageScope, InMemoryStorageService, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { hasKey } from '../../../../../base/common/types.js';
 
 suite('Telemetry - common properties', function () {
 	const commit: string = (undefined)!;
@@ -28,24 +29,25 @@ suite('Telemetry - common properties', function () {
 
 	test('default', function () {
 		const props = resolveWorkbenchCommonProperties(testStorageService, release(), hostname(), commit, version, 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process, date);
-		assert.ok(props.commitHash);
-		assert.ok(props.sessionID);
-		assert.ok(props.timestamp);
-		assert.ok(props['common.platform']);
-		assert.ok(props['common.nodePlatform']);
-		assert.ok(props['common.nodeArch']);
-		assert.ok(props['common.timesincesessionstart']);
-		assert.ok(props['common.sequence']);
-		// assert.ok('common.version.shell' in first.data); // only when running on electron
-		// assert.ok('common.version.renderer' in first.data);
-		assert.ok(props['common.platformVersion'], 'platformVersion');
-		assert.ok(props.version);
-		assert.ok(props['common.releaseDate']);
-		assert.ok(props['common.firstSessionDate'], 'firstSessionDate');
-		assert.ok(props['common.lastSessionDate'], 'lastSessionDate'); // conditional, see below, 'lastSessionDate'ow
-		assert.ok(props['common.isNewSession'], 'isNewSession');
-		// machine id et al
-		assert.ok(props['common.machineId'], 'machineId');
+		assert.ok(hasKey(props, {
+			commitHash: true,
+			sessionID: true,
+			timestamp: true,
+			'common.platform': true,
+			'common.nodePlatform': true,
+			'common.nodeArch': true,
+			'common.timesincesessionstart': true,
+			'common.sequence': true,
+			// 'common.version.shell': true, // only when running on electron
+			// 'common.version.renderer': true,
+			'common.platformVersion': true,
+			version: true,
+			'common.releaseDate': true,
+			'common.firstSessionDate': true,
+			'common.lastSessionDate': true,
+			'common.isNewSession': true,
+			'common.machineId': true
+		}));
 	});
 
 	test('lastSessionDate when available', function () {
