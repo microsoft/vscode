@@ -100,6 +100,7 @@ export interface IChatRequestViewModel {
 	readonly agentOrSlashCommandDetected: boolean;
 	readonly shouldBeBlocked?: boolean;
 	readonly modelId?: string;
+	contextUsagePercentage?: number;
 }
 
 export interface IChatResponseMarkdownRenderData {
