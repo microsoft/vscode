@@ -151,7 +151,7 @@
     "@vscode/test-web": "^0.0.62",
     "@vscode/v8-heap-parser": "^0.1.0",
     "@vscode/vscode-perf": "^0.0.19",
-    "@webgpu/types": "^0.1.44",
+    "@webgpu/types": "^0.1.66",
     "ansi-colors": "^3.2.3",
     "asar": "^3.0.3",
     "chromium-pickle-js": "^0.2.0",
