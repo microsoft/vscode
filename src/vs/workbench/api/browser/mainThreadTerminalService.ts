@@ -124,6 +124,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 				e.proxy.dispose();
 				e.store.dispose();
 			}
+			this._terminalProcessProxies.clear();
 		}));
 
 		remoteAgentService.getEnvironment().then(async env => {
