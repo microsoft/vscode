@@ -374,7 +374,6 @@ export default tseslint.config(
 			'src/vs/base/node/processes.ts',
 			'src/vs/base/common/arrays.ts',
 			'src/vs/base/common/async.ts',
-			'src/vs/base/common/cancellation.ts',
 			'src/vs/base/common/collections.ts',
 			'src/vs/base/common/console.ts',
 			'src/vs/base/common/controlFlow.ts',
@@ -389,7 +388,6 @@ export default tseslint.config(
 			'src/vs/base/common/json.ts',
 			'src/vs/base/common/jsonSchema.ts',
 			'src/vs/base/common/lifecycle.ts',
-			'src/vs/base/common/linkedList.ts',
 			'src/vs/base/common/map.ts',
 			'src/vs/base/common/marshalling.ts',
 			'src/vs/base/common/network.ts',
@@ -399,9 +397,7 @@ export default tseslint.config(
 			'src/vs/base/common/platform.ts',
 			'src/vs/base/common/processes.ts',
 			'src/vs/base/common/resourceTree.ts',
-			'src/vs/base/common/skipList.ts',
 			'src/vs/base/common/strings.ts',
-			'src/vs/base/common/ternarySearchTree.ts',
 			'src/vs/base/common/types.ts',
 			'src/vs/base/common/uriIpc.ts',
 			'src/vs/base/common/verifier.ts',
@@ -471,7 +467,6 @@ export default tseslint.config(
 			'src/vs/platform/contextkey/browser/contextKeyService.ts',
 			'src/vs/platform/contextkey/common/contextkey.ts',
 			'src/vs/platform/contextview/browser/contextView.ts',
-			'src/vs/platform/contextview/browser/contextViewService.ts',
 			'src/vs/platform/debug/common/extensionHostDebugIpc.ts',
 			'src/vs/platform/debug/electron-main/extensionHostDebugIpc.ts',
 			'src/vs/platform/diagnostics/common/diagnostics.ts',
@@ -573,8 +568,6 @@ export default tseslint.config(
 			'src/vs/editor/contrib/codeAction/browser/codeAction.ts',
 			'src/vs/editor/contrib/codeAction/browser/codeActionCommands.ts',
 			'src/vs/editor/contrib/codeAction/common/types.ts',
-			'src/vs/editor/contrib/codelens/browser/codelens.ts',
-			'src/vs/editor/contrib/codelens/browser/codelensController.ts',
 			'src/vs/editor/contrib/colorPicker/browser/colorDetector.ts',
 			'src/vs/editor/contrib/diffEditorBreadcrumbs/browser/contribution.ts',
 			'src/vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorContribution.ts',
@@ -617,8 +610,6 @@ export default tseslint.config(
 			'src/vs/workbench/api/common/extHostConsoleForwarder.ts',
 			'src/vs/workbench/api/common/extHostDataChannels.ts',
 			'src/vs/workbench/api/common/extHostDebugService.ts',
-			'src/vs/workbench/api/common/extHostDiagnostics.ts',
-			'src/vs/workbench/api/common/extHostDocumentSaveParticipant.ts',
 			'src/vs/workbench/api/common/extHostExtensionActivator.ts',
 			'src/vs/workbench/api/common/extHostExtensionService.ts',
 			'src/vs/workbench/api/common/extHostFileSystemConsumer.ts',
@@ -941,7 +932,7 @@ export default tseslint.config(
 			'@typescript-eslint/no-explicit-any': [
 				'warn',
 				{
-					'fixToUnknown': true
+					'fixToUnknown': false
 				}
 			]
 		}
