@@ -11,17 +11,20 @@ const dirCache: { [dir: string]: boolean } = {};
 
 function writeFile(filePath: string, contents: Buffer | string): void {
 	function ensureDirs(dirPath: string): void {
-		if (dirCache[dirPath]) {
-			return;
-		}
-		dirCache[dirPath] = true;
+    if (!dirPath || dirPath === '/' || dirPath.match(/^[A-Za-z]:[\\/]*$/)) {
+        // Stop recursion at root (Unix) or drive root (Windows)
+        return;
+    }
+    if (dirCache[dirPath]) {
+        return;
+    }
+    dirCache[dirPath] = true;
 
-		ensureDirs(path.dirname(dirPath));
-		if (fs.existsSync(dirPath)) {
-			return;
-		}
-		fs.mkdirSync(dirPath);
-	}
+    ensureDirs(path.dirname(dirPath));
+    if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath);
+    }
+}
 	ensureDirs(path.dirname(filePath));
 	fs.writeFileSync(filePath, contents);
 }
