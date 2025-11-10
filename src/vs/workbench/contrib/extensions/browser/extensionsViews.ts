@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, toDisposable } from '../../../../base/comm
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { isCancellationError, getErrorMessage, CancellationError } from '../../../../base/common/errors.js';
 import { PagedModel, IPagedModel, DelayedPagedModel, IPager } from '../../../../base/common/paging.js';
-import { SortOrder, IQueryOptions as IGalleryQueryOptions, SortBy as GallerySortBy, InstallExtensionInfo, ExtensionGalleryErrorCode, ExtensionGalleryError } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { SortOrder, IQueryOptions as IGalleryQueryOptions, SortBy as GallerySortBy, InstallExtensionInfo, ExtensionGalleryErrorCode, ExtensionGalleryError, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { areSameExtensions, getExtensionDependencies } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -159,7 +159,8 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService
 	) {
 		super({
 			...(viewletViewOptions as IViewPaneOptions),
@@ -398,6 +399,10 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 
 		else if (/@recentlyUpdated/i.test(query.value)) {
 			extensions = this.filterRecentlyUpdatedExtensions(local, query, options);
+		}
+
+		else if (/@allowed/i.test(query.value)) {
+			extensions = this.filterAllowedExtensions(local, query, options);
 		}
 
 		else if (/@feature:/i.test(query.value)) {
@@ -661,6 +666,25 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			&& this.filterExtensionByCategory(e, includedCategories, excludedCategories));
 
 		options.sortBy = options.sortBy ?? LocalSortBy.UpdateDate;
+
+		return this.sortExtensions(result, options);
+	}
+
+	private filterAllowedExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
+		let { value, includedCategories, excludedCategories } = this.parseCategories(query.value);
+
+		value = value.replace(/@allowed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+
+		const result = local.filter(e =>
+			this.allowedExtensionsService.isAllowed({
+				id: e.identifier.id,
+				publisherDisplayName: e.publisherDisplayName,
+				version: e.version,
+				prerelease: e.preRelease,
+				targetPlatform: e.local?.targetPlatform
+			}) === true
+			&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+			&& this.filterExtensionByCategory(e, includedCategories, excludedCategories));
 
 		return this.sortExtensions(result, options);
 	}
@@ -1380,13 +1404,14 @@ export class StaticQueryExtensionsView extends ExtensionsListView {
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionFeaturesManagementService extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService
 	) {
 		super(options, viewletViewOptions, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService,
 			extensionsWorkbenchService, extensionRecommendationsService, telemetryService, hoverService, configurationService, contextService, extensionManagementServerService,
 			extensionManifestPropertiesService, extensionManagementService, workspaceService, productService, contextKeyService, viewDescriptorService, openerService,
 			storageService, workspaceTrustManagementService, extensionEnablementService, extensionFeaturesManagementService,
-			uriIdentityService, logService);
+			uriIdentityService, logService, allowedExtensionsService);
 	}
 
 	override show(): Promise<IPagedModel<IExtension>> {

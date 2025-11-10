@@ -148,5 +148,8 @@ suite('Extension query', () => {
 
 		Query.suggestions('@category:blah', null).some(x => x === '@category:"extension packs" ');
 		Query.suggestions('@category:"extension packs"', null).every(x => x !== '@category:formatters ');
+
+		assert(Query.suggestions('', null).some(x => x === '@allowed '));
+		assert(Query.suggestions('@allowed', null).every(x => x !== '@allowed '));
 	});
 });
