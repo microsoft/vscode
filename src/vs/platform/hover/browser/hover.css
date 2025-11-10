@@ -44,9 +44,13 @@
 	font-size: 16px !important;
 }
 
-.monaco-hover .monaco-hover-content p:last-child span:not(.codicon),
-.monaco-hover .monaco-hover-content p:last-child a:not(.codicon) {
-	padding: 2px 0;
+.monaco-hover .monaco-hover-content p:last-child {
+	display: flex;
+}
+
+.monaco-hover .monaco-hover-content p:last-child a {
+	display: inline-flex;
+	gap: 2px;
 }
 
 .monaco-hover.workbench-hover.compact .monaco-action-bar .action-item .codicon {

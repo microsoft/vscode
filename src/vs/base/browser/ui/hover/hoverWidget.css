@@ -99,9 +99,9 @@
 	margin-bottom: 2px;
 }
 
-.monaco-hover p:last-child span:not(.codicon) {
+/* .monaco-hover p:last-child span:not(.codicon) {
 	padding: 2px 0;
-}
+} */
 
 .monaco-hover .code:last-child,
 .monaco-hover ul:last-child {
@@ -220,7 +220,8 @@
  * https://github.com/microsoft/vscode/issues/221359
  */
 .monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span.codicon {
-	margin-bottom: 2px;
+	/* margin-bottom: 2px; */
+	margin-right: 4px;
 }
 
 .monaco-hover-content .action-container a {
