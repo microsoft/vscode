@@ -377,7 +377,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 	}
 
-	private async _determineUserInputOptions(execution: IExecution, token: CancellationToken, any?: boolean): Promise<IConfirmationPrompt | undefined> {
+	private async _determineUserInputOptions(execution: IExecution, token: CancellationToken): Promise<IConfirmationPrompt | undefined> {
 		if (token.isCancellationRequested) {
 			return;
 		}
