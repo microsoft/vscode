@@ -1468,36 +1468,36 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(processManager.onDidChangeProperty(({ type, value }) => {
 			switch (type) {
 				case ProcessPropertyType.Cwd:
-					this._cwd = value;
+					this._cwd = value as IProcessPropertyMap[ProcessPropertyType.Cwd];
 					this._labelComputer?.refreshLabel(this);
 					break;
 				case ProcessPropertyType.InitialCwd:
-					this._initialCwd = value;
+					this._initialCwd = value as IProcessPropertyMap[ProcessPropertyType.InitialCwd];
 					this._cwd = this._initialCwd;
 					this._setTitle(this.title, TitleEventSource.Config);
 					this._icon = this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon;
 					this._onIconChanged.fire({ instance: this, userInitiated: false });
 					break;
 				case ProcessPropertyType.Title:
-					this._setTitle(value ?? '', TitleEventSource.Process);
+					this._setTitle(value as IProcessPropertyMap[ProcessPropertyType.Title] ?? '', TitleEventSource.Process);
 					break;
 				case ProcessPropertyType.OverrideDimensions:
-					this.setOverrideDimensions(value, true);
+					this.setOverrideDimensions(value as IProcessPropertyMap[ProcessPropertyType.OverrideDimensions], true);
 					break;
 				case ProcessPropertyType.ResolvedShellLaunchConfig:
-					this._setResolvedShellLaunchConfig(value);
+					this._setResolvedShellLaunchConfig(value as IProcessPropertyMap[ProcessPropertyType.ResolvedShellLaunchConfig]);
 					break;
 				case ProcessPropertyType.ShellType:
-					this.setShellType(value);
+					this.setShellType(value as IProcessPropertyMap[ProcessPropertyType.ShellType]);
 					break;
 				case ProcessPropertyType.HasChildProcesses:
-					this._onDidChangeHasChildProcesses.fire(value);
+					this._onDidChangeHasChildProcesses.fire(value as IProcessPropertyMap[ProcessPropertyType.HasChildProcesses]);
 					break;
 				case ProcessPropertyType.UsedShellIntegrationInjection:
 					this._usedShellIntegrationInjection = true;
 					break;
 				case ProcessPropertyType.ShellIntegrationInjectionFailureReason:
-					this._shellIntegrationInjectionInfo = value;
+					this._shellIntegrationInjectionInfo = value as IProcessPropertyMap[ProcessPropertyType.ShellIntegrationInjectionFailureReason];
 					break;
 			}
 		}));
