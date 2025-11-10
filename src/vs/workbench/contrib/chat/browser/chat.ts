@@ -56,7 +56,7 @@ export interface IChatWidgetService {
 }
 
 export async function showChatWidgetInViewOrEditor(accessor: ServicesAccessor, widget: IChatWidget) {
-	if ('viewId' in widget.viewContext) {
+	if (isIChatViewViewContext(widget.viewContext)) {
 		await accessor.get(IViewsService).openView(widget.viewContext.viewId);
 	} else {
 		const sessionResource = widget.viewModel?.sessionResource;
@@ -185,9 +185,17 @@ export interface IChatViewViewContext {
 	viewId: string;
 }
 
+export function isIChatViewViewContext(context: IChatWidgetViewContext): context is IChatViewViewContext {
+	return typeof (context as IChatViewViewContext).viewId === 'string';
+}
+
 export interface IChatResourceViewContext {
 	isQuickChat?: boolean;
 	isInlineChat?: boolean;
+}
+
+export function isIChatResourceViewContext(context: IChatWidgetViewContext): context is IChatResourceViewContext {
+	return !isIChatViewViewContext(context);
 }
 
 export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewContext | {};

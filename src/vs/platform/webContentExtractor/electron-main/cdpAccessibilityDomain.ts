@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 
 export interface AXValue {
 	type: AXValueType;
-	value?: any;
+	value?: unknown;
 	relatedNodes?: AXNode[];
 	sources?: AXValueSource[];
 }
