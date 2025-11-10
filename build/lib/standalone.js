@@ -79,7 +79,6 @@ function extractEditor(options) {
     compilerOptions.preserveConstEnums = false;
     compilerOptions.declaration = false;
     options.compilerOptions = compilerOptions;
-    console.log('foobar');
     console.log(`Running tree shaker with shakeLevel ${tss.toStringShakeLevel(options.shakeLevel)}`);
     // Take the extra included .d.ts files from `tsconfig.monaco.json`
     options.typings = tsConfig.include.filter(includedFile => /\.d\.ts$/.test(includedFile));
