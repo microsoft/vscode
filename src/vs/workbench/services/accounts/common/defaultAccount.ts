@@ -7,7 +7,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IAuthenticationService } from '../../authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../authentication/common/authentication.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
@@ -441,7 +441,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 					title: localize('sign in', "Sign in"),
 				});
 			}
-			run(): Promise<any> {
+			run(): Promise<AuthenticationSession> {
 				return that.authenticationService.createSession(authProviderId, scopes);
 			}
 		}));
