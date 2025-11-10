@@ -34,7 +34,7 @@ serde_bytes = "0.11.9"
 chrono = { version = "0.4.26", features = ["serde", "std", "clock"], default-features = false }
 gethostname = "0.4.3"
 libc = "0.2.144"
-tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "8cae9b2a24c65c6c1958f5a0e77d72b23b5c6c30", default-features = false, features = ["connections"] }
+tunnels = { git = "https://github.com/microsoft/dev-tunnels", tag = "v0.1.13", default-features = false, features = ["connections"] }
 keyring = { version = "2.0.3", default-features = false, features = ["linux-secret-service-rt-tokio-crypto-openssl", "platform-windows", "platform-macos", "linux-keyutils"] }
 dialoguer = "0.10.4"
 hyper = { version = "0.14.26", features = ["server", "http1", "runtime"] }
@@ -69,10 +69,11 @@ core-foundation = "0.9.3"
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = { version = "3.13.1", default-features = false, features = ["tokio"] }
 
-[patch.crates-io]
-russh = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
-russh-cryptovec = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
-russh-keys = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
+
+russh = "0.54.3"
+russh-keys = "0.49.2"
+russh-cryptovec = "0.52.0"
+
 
 [profile.release]
 strip = true

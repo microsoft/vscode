@@ -429,7 +429,7 @@ export class Git {
 	}
 
 	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {
-		const baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
+				const baseFolderName = decodeURI(url).replace(/[\\/]+$/, '').replace(/^(?:.*[\\/\\])?/, '').replace(/\.git$/, '') || 'repository';
 		let folderName = baseFolderName;
 		let folderPath = path.join(options.parentPath, folderName);
 		let count = 1;
@@ -910,7 +910,7 @@ export function parseGitRemotes(raw: string): MutableRemote[] {
 	return remotes;
 }
 
-const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)(?:\n((?:.*)files? changed(?:.*))$)?/gm;
+const commitRegex = /([0-9a-f]{40})\n([^\r\n]*)\n([^\r\n]*)\n([^\r\n]*)\n([^\r\n]*)\n([^\r\n]*)\n([^\r\n]*)(?:\n((?:.|\n|\r)*?))?(?:\x00)(?:\n((?:[^\r\n]*)files? changed(?:[^\r\n]*))$)?/gm;
 
 export function parseGitCommits(data: string): Commit[] {
 	const commits: Commit[] = [];
@@ -979,7 +979,7 @@ export interface LsTreeElement {
 export function parseLsTree(raw: string): LsTreeElement[] {
 	return raw.split('\n')
 		.filter(l => !!l)
-		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
+		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\t(.*)$/.exec(line)!)
 		.filter(m => !!m)
 		.map(([, mode, type, object, size, file]) => ({ mode, type, object, size, file }));
 }
@@ -992,11 +992,29 @@ interface LsFilesElement {
 }
 
 export function parseLsFiles(raw: string): LsFilesElement[] {
-	return raw.split('\n')
-		.filter(l => !!l)
-		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
-		.filter(m => !!m)
-		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
+	const elements: LsFilesElement[] = [];
+	for (const line of raw.split('\n')) {
+		if (!line) {
+			continue;
+		}
+
+		const tabIndex = line.indexOf('\t');
+		if (tabIndex === -1) {
+			continue;
+		}
+
+		const metadata = line.substring(0, tabIndex);
+		const file = line.substring(tabIndex + 1);
+
+		const parts = metadata.split(/\s+/);
+		if (parts.length !== 3) {
+			continue;
+		}
+
+		const [mode, object, stage] = parts;
+		elements.push({ mode, object, stage, file });
+	}
+	return elements;
 }
 
 const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)*on([^:]+):(.*)(?:\x00)/gmi;
@@ -1160,12 +1178,12 @@ const REFS_FORMAT = '%(refname)%00%(objectname)%00%(*objectname)';
 const REFS_WITH_DETAILS_FORMAT = `${REFS_FORMAT}%00%(parent)%00%(*parent)%00%(authorname)%00%(*authorname)%00%(committerdate:unix)%00%(*committerdate:unix)%00%(subject)%00%(*subject)`;
 
 function parseRefs(data: string): (Ref | Branch)[] {
-	const refRegex = /^(refs\/[^\0]+)\0([0-9a-f]{40})\0([0-9a-f]{40})?(?:\0(.*))?$/gm;
+	const refRegex = /^(refs\/[^\0]+)\0([0-9a-f]{40})\0([0-9a-f]{40})?(?:\0([^\r\n]*))?$/gm;
 
 	const headRegex = /^refs\/heads\/([^ ]+)$/;
 	const remoteHeadRegex = /^refs\/remotes\/([^/]+)\/([^ ]+)$/;
 	const tagRegex = /^refs\/tags\/([^ ]+)$/;
-	const statusRegex = /\[(?:ahead ([0-9]+))?[,\s]*(?:behind ([0-9]+))?]|\[gone]/;
+	const statusRegex = /\[(?:ahead ([0-9]+))?[,\s]?(?:behind ([0-9]+))?]|\[gone]/;
 
 	let ref: string | undefined;
 	let commitHash: string | undefined;
@@ -2707,7 +2725,7 @@ export class Repository {
 		const raw = await fs.readFile(path.join(this.dotGit.path, 'HEAD'), 'utf8');
 
 		// Branch
-		const branchMatch = raw.match(/^ref: refs\/heads\/(?<name>.*)$/m);
+		const branchMatch = raw.match(/^ref: refs\/heads\/(?<name>[^\r\n]+)$/m);
 		if (branchMatch?.groups?.name) {
 			return { name: branchMatch.groups.name, commit: undefined, type: RefType.Head };
 		}

@@ -1066,6 +1066,7 @@ export interface IChatRequestDisablement {
 }
 
 export interface IChatModel extends IDisposable {
+	readonly isTransient: boolean;
 	readonly onDidDispose: Event<void>;
 	readonly onDidChange: Event<IChatChangeEvent>;
 	/** @deprecated Use {@link sessionResource} instead */
@@ -1467,6 +1468,11 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._initialLocation;
 	}
 
+	private readonly _isTransient: boolean;
+	get isTransient(): boolean {
+		return this._isTransient;
+	}
+
 	private readonly _canUseTools: boolean = true;
 	get canUseTools(): boolean {
 		return this._canUseTools;
@@ -1474,7 +1480,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	constructor(
 		initialData: ISerializableChatData | IExportableChatData | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; resource?: URI },
+		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; isTransient: boolean; resource?: URI },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -1501,6 +1507,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._initialResponderAvatarIconUri = isUriComponents(initialData?.responderAvatarIconUri) ? URI.revive(initialData.responderAvatarIconUri) : initialData?.responderAvatarIconUri;
 
 		this._initialLocation = initialData?.initialLocation ?? initialModelProps.initialLocation;
+		this._isTransient = initialModelProps.isTransient;
 		this._canUseTools = initialModelProps.canUseTools;
 
 		const lastResponse = observableFromEvent(this, this.onDidChange, () => this._requests.at(-1)?.response);

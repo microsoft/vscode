@@ -80,8 +80,8 @@ const compileFromSources = (callback) => {
 };
 
 const acquireBuiltOpenSSL = (callback) => {
-	const untar = require('gulp-untar');
-	const gunzip = require('gulp-gunzip');
+	const tar = require('tar');
+	const { sync: globSync } = require('glob');
 	const dir = path.join(tmpdir(), 'vscode-openssl-download');
 	mkdirSync(dir, { recursive: true });
 
@@ -91,15 +91,24 @@ const acquireBuiltOpenSSL = (callback) => {
 		{ stdio: ['ignore', 'ignore', 'inherit'], cwd: dir }
 	);
 
-	gulp.src('*.tgz', { cwd: dir })
-		.pipe(gunzip())
-		.pipe(untar())
-		.pipe(gulp.dest(`${root}/openssl`))
-		.on('error', callback)
-		.on('end', () => {
-			rmSync(dir, { recursive: true, force: true });
-			callback();
-		});
+	const tgz = globSync('*.tgz', { cwd: dir });
+	if (tgz.length !== 1) {
+		rmSync(dir, { recursive: true, force: true });
+		callback(new Error(`Expected one tgz file, but found ${tgz.length}`));
+		return;
+	}
+
+	tar.x({
+		file: path.join(dir, tgz[0]),
+		cwd: path.join(rootAbs, 'openssl'),
+		strip: 1,
+	}).then(() => {
+		rmSync(dir, { recursive: true, force: true });
+		callback();
+	}).catch(err => {
+		rmSync(dir, { recursive: true, force: true });
+		callback(err);
+	});
 };
 
 const compileWithOpenSSLCheck = (/** @type import('./lib/reporter').IReporter */ reporter) => es.map((_, callback) => {

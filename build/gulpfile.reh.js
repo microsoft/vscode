@@ -22,7 +22,7 @@ const { readISODate } = require('./lib/date');
 const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const flatmap = require('gulp-flatmap');
-const gunzip = require('gulp-gunzip');
+const decompress = require('gulp-decompress');
 const File = require('vinyl');
 const fs = require('fs');
 const glob = require('glob');
@@ -186,7 +186,7 @@ if (defaultNodeTask) {
 
 function nodejs(platform, arch) {
 	const { fetchUrls, fetchGithub } = require('./lib/fetch');
-	const untar = require('gulp-untar');
+	
 
 	if (arch === 'armhf') {
 		arch = 'armv7l';
@@ -234,14 +234,14 @@ function nodejs(platform, arch) {
 			return (product.nodejsRepository !== 'https://nodejs.org' ?
 				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: expectedName, checksumSha256 }) :
 				fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
-			).pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
+			).pipe(flatmap(stream => stream.pipe(decompress({ strip: 1 }))))
 				.pipe(filter('**/node'))
 				.pipe(util.setExecutableBit('**'))
 				.pipe(rename('node'));
 		case 'alpine':
 			return product.nodejsRepository !== 'https://nodejs.org' ?
 				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: expectedName, checksumSha256 })
-					.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
+					.pipe(flatmap(stream => stream.pipe(decompress({ strip: 1 }))))
 					.pipe(filter('**/node'))
 					.pipe(util.setExecutableBit('**'))
 					.pipe(rename('node'))
