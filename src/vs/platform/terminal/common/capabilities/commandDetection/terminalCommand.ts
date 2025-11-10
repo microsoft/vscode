@@ -154,7 +154,7 @@ export class TerminalCommand implements ITerminalCommand {
 		const buffer = this._xterm.buffer.active;
 		const startLine = Math.max(this.executedMarker.line, 0);
 		const matcher = outputMatcher.lineMatcher;
-		const linesToCheck = isString(matcher) ? 1 : (outputMatcher.length || countNewLines(matcher));
+		const linesToCheck = isString(matcher) ? 1 : outputMatcher.length || countNewLines(matcher);
 		const lines: string[] = [];
 		let match: RegExpMatchArray | null | undefined;
 		if (outputMatcher.anchor === 'bottom') {
