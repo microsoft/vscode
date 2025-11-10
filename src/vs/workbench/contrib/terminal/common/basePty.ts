@@ -81,6 +81,7 @@ export abstract class BasePty extends Disposable implements Partial<ITerminalChi
 				if (cast.cwd && typeof cast.cwd !== 'string') {
 					cast.cwd = URI.revive(cast.cwd);
 				}
+				break;
 			}
 		}
 		this._onDidChangeProperty.fire({ type, value });
