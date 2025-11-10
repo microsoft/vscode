@@ -599,7 +599,6 @@ export default tseslint.config(
 			'src/vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/utils/utils.ts',
 			// Workbench
 			'src/vs/workbench/api/browser/mainThreadChatSessions.ts',
-			'src/vs/workbench/api/browser/mainThreadTerminalService.ts',
 			'src/vs/workbench/api/common/configurationExtensionPoint.ts',
 			'src/vs/workbench/api/common/extHost.api.impl.ts',
 			'src/vs/workbench/api/common/extHost.protocol.ts',
@@ -629,7 +628,6 @@ export default tseslint.config(
 			'src/vs/workbench/api/common/extHostStatusBar.ts',
 			'src/vs/workbench/api/common/extHostStoragePaths.ts',
 			'src/vs/workbench/api/common/extHostTelemetry.ts',
-			'src/vs/workbench/api/common/extHostTerminalService.ts',
 			'src/vs/workbench/api/common/extHostTesting.ts',
 			'src/vs/workbench/api/common/extHostTextEditor.ts',
 			'src/vs/workbench/api/common/extHostTimeline.ts',
@@ -898,7 +896,6 @@ export default tseslint.config(
 			'src/vs/workbench/services/search/node/fileSearch.ts',
 			'src/vs/workbench/services/search/node/rawSearchService.ts',
 			'src/vs/workbench/services/search/node/ripgrepTextSearchEngine.ts',
-			'src/vs/workbench/services/terminal/common/embedderTerminalService.ts',
 			'src/vs/workbench/services/textMate/common/TMGrammarFactory.ts',
 			'src/vs/workbench/services/themes/browser/fileIconThemeData.ts',
 			'src/vs/workbench/services/themes/browser/productIconThemeData.ts',
