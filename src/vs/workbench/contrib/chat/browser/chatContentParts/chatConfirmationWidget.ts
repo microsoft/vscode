@@ -353,15 +353,15 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private readonly messageElement: HTMLElement;
-	private markdownContentPart?: ChatMarkdownContentPart;
+	private readonly markdownContentPart = this._register(new MutableDisposable<ChatMarkdownContentPart>());
 	private readonly notificationManager: ChatConfirmationNotifier;
 
 	public get codeblocksPartId() {
-		return this.markdownContentPart?.codeblocksPartId;
+		return this.markdownContentPart.value?.codeblocksPartId;
 	}
 
 	public get codeblocks() {
-		return this.markdownContentPart?.codeblocks;
+		return this.markdownContentPart.value?.codeblocks;
 	}
 
 	constructor(
@@ -475,6 +475,8 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	protected renderMessage(element: HTMLElement | IMarkdownString | string, listContainer: HTMLElement): void {
+		this.markdownContentPart.clear();
+
 		if (!dom.isHTMLElement(element)) {
 			const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart,
 				{
@@ -496,7 +498,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			));
 			this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
-			this.markdownContentPart = part;
+			this.markdownContentPart.value = part;
 			element = part.domNode;
 		}
 
