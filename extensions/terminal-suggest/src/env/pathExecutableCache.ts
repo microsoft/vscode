@@ -10,7 +10,6 @@ import { osIsWindows } from '../helpers/os';
 import type { ICompletionResource } from '../types';
 import { getFriendlyResourcePath } from '../helpers/uri';
 import { SettingsIds } from '../constants';
-import * as filesystem from 'fs';
 import * as path from 'path';
 import { TerminalShellType } from '../terminalSuggestMain';
 
@@ -232,33 +231,35 @@ export async function watchPathDirectories(context: vscode.ExtensionContext, env
 
 	// Watch each directory
 	for (const dir of pathDirectories) {
-		try {
-			if (activeWatchers.has(dir)) {
-				// Skip if already watching or directory doesn't exist
-				continue;
-			}
+		if (activeWatchers.has(dir)) {
+			// Skip if already watching or directory doesn't exist
+			continue;
+		}
 
+		try {
 			const stat = await fs.stat(dir);
 			if (!stat.isDirectory()) {
 				continue;
 			}
+		} catch {
+			// File not found
+			continue;
+		}
 
-			const watcher = filesystem.watch(dir, { persistent: false }, () => {
-				if (pathExecutableCache) {
-					// Refresh cache when directory contents change
-					pathExecutableCache.refresh(dir);
-				}
-			});
+		const handleChange = () => {
+			// Refresh cache when directory contents change
+			pathExecutableCache?.refresh(dir);
+		};
 
-			activeWatchers.add(dir);
+		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(dir), '*'));
+		context.subscriptions.push(
+			watcher,
+			watcher.onDidCreate(handleChange),
+			watcher.onDidChange(handleChange),
+			watcher.onDidDelete(handleChange)
+		);
 
-			context.subscriptions.push(new vscode.Disposable(() => {
-				try {
-					watcher.close();
-					activeWatchers.delete(dir);
-				} catch { } { }
-			}));
-		} catch { }
+		activeWatchers.add(dir);
 	}
 }
 
