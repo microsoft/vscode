@@ -1776,7 +1776,7 @@ export class SearchView extends ViewPane {
 				} else if (hasExcludes) {
 					message = nls.localize('noOpenEditorResultsExcludes', "No results found in open editors excluding '{0}' - ", excludePatternText);
 				} else {
-					message = nls.localize('noOpenEditorResultsFound', "No results found in open editors. Review your settings for configured exclusions and check your gitignore files - ");
+					message = nls.localize('noOpenEditorResultsFound', "No results found in open editors. Review your configured exclusions and check your gitignore files - ");
 				}
 			} else {
 				if (hasIncludes && hasExcludes) {
@@ -1786,7 +1786,7 @@ export class SearchView extends ViewPane {
 				} else if (hasExcludes) {
 					message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
 				} else {
-					message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and check your gitignore files - ");
+					message = nls.localize('noResultsFound', "No results found. Review your configured exclusions and check your gitignore files - ");
 				}
 			}
 
