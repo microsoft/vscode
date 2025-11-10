@@ -17,10 +17,12 @@ import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createFileSystemProviderError, FileChangeType, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileService, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileWriteOptions, IStat, IWatchOptions } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { McpServer } from './mcpServer.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { IMcpService, McpCapability, McpResourceURI } from './mcpTypes.js';
+import { ValidateHttpResources } from './mcpTypesUtils.js';
 import { MCP } from './modelContextProtocol.js';
 
 const MOMENTARY_CACHE_DURATION = 3000;
@@ -65,6 +67,7 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileService private readonly _fileService: IFileService,
+		@IWebContentExtractorService private readonly _webContentExtractorService: IWebContentExtractorService,
 	) {
 		super();
 		this._register(this._fileService.registerProvider(McpResourceURI.scheme, this));
@@ -164,7 +167,6 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 		if (forSameURI.length > 0) {
 			throw createFileSystemProviderError(`File is not a directory`, FileSystemProviderErrorCode.FileNotADirectory);
 		}
-
 		const resourcePathParts = resourceURI.pathname.split('/');
 
 		const output = new Map<string, FileType>();
@@ -273,12 +275,28 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 
 	private async _readURIInner(uri: URI, token?: CancellationToken): Promise<IReadData> {
 		const { resourceURI, server } = this._decodeURI(uri);
+		const matchedServer = this._mcpService.servers.get().find(s => s.definition.id === server.definition.id);
+		//check for http/https resources and use web content extractor service to fetch the contents.
+		if (ValidateHttpResources(uri, matchedServer)) {
+			const extractURI = URI.parse(resourceURI.toString());
+			const result = await this._webContentExtractorService.extract([extractURI], { followRedirects: false });
+			return {
+				contents: result.map(r => {
+					if (r.status === 'ok') {
+						return { uri: resourceURI.toString(), text: r.result };
+					} else {
+						return { uri: resourceURI.toString(), text: '' };
+					}
+				}),
+				resourceURI,
+				forSameURI: result.filter(r => r.status === 'ok').map(r => ({ uri: resourceURI.toString(), text: r.result }))
+			};
+		}
 		const res = await McpServer.callOn(server, r => r.readResource({ uri: resourceURI.toString() }, token), token);
-
 		return {
 			contents: res.contents,
 			resourceURI,
-			forSameURI: res.contents.filter(c => equalsUrlPath(c.uri, resourceURI)),
+			forSameURI: res.contents.filter(c => equalsUrlPath(c.uri, resourceURI))
 		};
 	}
 }
