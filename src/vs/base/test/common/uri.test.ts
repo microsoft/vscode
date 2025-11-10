@@ -641,7 +641,7 @@ suite('URI', () => {
 			const filePath = 'C:\\Users\\Abd-al-Haseeb\'s_Dell\\Studio\\w3mage\\wp-content\\database.ht.sqlite';
 			const uri = URI.file(filePath);
 			assert.strictEqual(uri.path, '/C:/Users/Abd-al-Haseeb\'s_Dell/Studio/w3mage/wp-content/database.ht.sqlite');
-			assert.strictEqual(uri.fsPath, '/c:/Users/Abd-al-Haseeb\'s_Dell/Studio/w3mage/wp-content/database.ht.sqlite');
+			assert.strictEqual(uri.fsPath, 'c:\\Users\\Abd-al-Haseeb\'s_Dell\\Studio\\w3mage\\wp-content\\database.ht.sqlite');
 		}
 	});
 
