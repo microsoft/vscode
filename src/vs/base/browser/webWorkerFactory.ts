@@ -33,7 +33,7 @@ export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Work
 	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, { ...options, type: 'module' });
 }
 
-function getWorker(descriptor: IWebWorkerDescriptor, id: number): Worker | Promise<Worker> {
+function getWorker(descriptor: WebWorkerDescriptor, id: number): Worker | Promise<Worker> {
 	const label = descriptor.label || 'anonymous' + id;
 
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
@@ -48,9 +48,9 @@ function getWorker(descriptor: IWebWorkerDescriptor, id: number): Worker | Promi
 		}
 	}
 
-	const esmWorkerLocation = descriptor.esmModuleLocation;
+	const esmWorkerLocation = descriptor.getUrl();
 	if (esmWorkerLocation) {
-		const workerUrl = getWorkerBootstrapUrl(label, esmWorkerLocation.toString(true));
+		const workerUrl = getWorkerBootstrapUrl(label, esmWorkerLocation);
 		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: 'module' });
 		return whenESMWorkerReady(worker);
 	}
@@ -128,7 +128,7 @@ class WebWorker extends Disposable implements IWebWorker {
 	private readonly _onError = this._register(new Emitter<any>());
 	public readonly onError = this._onError.event;
 
-	constructor(descriptorOrWorker: IWebWorkerDescriptor | Worker | Promise<Worker>) {
+	constructor(descriptorOrWorker: WebWorkerDescriptor | Worker | Promise<Worker>) {
 		super();
 		this.id = ++WebWorker.LAST_WORKER_ID;
 		const workerOrPromise = (
@@ -184,21 +184,29 @@ class WebWorker extends Disposable implements IWebWorker {
 	}
 }
 
-export interface IWebWorkerDescriptor {
-	readonly esmModuleLocation: URI | undefined;
-	readonly label: string | undefined;
+export class WebWorkerDescriptor {
+	public readonly esmModuleLocation: URI | (() => URI) | undefined;
+	public readonly label: string | undefined;
+
+	constructor(args: {
+		/** The location of the esm module after transpilation */
+		esmModuleLocation?: URI | (() => URI);
+		label?: string;
+	}) {
+		this.esmModuleLocation = args.esmModuleLocation;
+		this.label = args.label;
+	}
+
+	getUrl(): string | undefined {
+		if (this.esmModuleLocation) {
+			const esmWorkerLocation = typeof this.esmModuleLocation === 'function' ? this.esmModuleLocation() : this.esmModuleLocation;
+			return esmWorkerLocation.toString(true);
+		}
+
+		return undefined;
+	}
 }
 
-export class WebWorkerDescriptor implements IWebWorkerDescriptor {
-	constructor(
-		public readonly esmModuleLocation: URI,
-		public readonly label: string | undefined,
-	) { }
-}
-
-export function createWebWorker<T extends object>(esmModuleLocation: URI, label: string | undefined): IWebWorkerClient<T>;
-export function createWebWorker<T extends object>(workerDescriptor: IWebWorkerDescriptor | Worker | Promise<Worker>): IWebWorkerClient<T>;
-export function createWebWorker<T extends object>(arg0: URI | IWebWorkerDescriptor | Worker | Promise<Worker>, arg1?: string | undefined): IWebWorkerClient<T> {
-	const workerDescriptorOrWorker = (URI.isUri(arg0) ? new WebWorkerDescriptor(arg0, arg1) : arg0);
-	return new WebWorkerClient<T>(new WebWorker(workerDescriptorOrWorker));
+export function createWebWorker<T extends object>(workerDescriptor: WebWorkerDescriptor | Worker | Promise<Worker>): IWebWorkerClient<T> {
+	return new WebWorkerClient<T>(new WebWorker(workerDescriptor));
 }

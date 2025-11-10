@@ -1225,6 +1225,10 @@ export class Repository implements Disposable {
 		return this.run(Operation.Diff, () => this.repository.diffIndexWithHEAD(path));
 	}
 
+	diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat> {
+		return this.run(Operation.Diff, () => this.repository.diffIndexWithHEADShortStats(path));
+	}
+
 	diffIndexWith(ref: string): Promise<Change[]>;
 	diffIndexWith(ref: string, path: string): Promise<string>;
 	diffIndexWith(ref: string, path?: string | undefined): Promise<string | Change[]>;

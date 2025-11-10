@@ -63,7 +63,7 @@ const LAST_SYNC_TIME_KEY = 'sync.lastSyncTime';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _status: SyncStatus = SyncStatus.Uninitialized;
 	get status(): SyncStatus { return this._status; }
@@ -903,7 +903,7 @@ class ProfileSynchronizer extends Disposable {
 	}
 }
 
-function canBailout(e: any): boolean {
+function canBailout(e: unknown): boolean {
 	if (e instanceof UserDataSyncError) {
 		switch (e.code) {
 			case UserDataSyncErrorCode.MethodNotFound:

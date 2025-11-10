@@ -22,7 +22,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { LRUCache } from '../../../../base/common/map.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { canASAR } from '../../../../amdX.js';
-import { createWebWorker } from '../../../../base/browser/webWorkerFactory.js';
+import { createWebWorker, WebWorkerDescriptor } from '../../../../base/browser/webWorkerFactory.js';
 import { WorkerTextModelSyncClient } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 import { ILanguageDetectionWorker, LanguageDetectionWorkerHost } from './languageDetectionWorker.protocol.js';
 
@@ -201,8 +201,10 @@ export class LanguageDetectionWorkerClient extends Disposable {
 	} {
 		if (!this.worker) {
 			const workerClient = this._register(createWebWorker<ILanguageDetectionWorker>(
-				FileAccess.asBrowserUri('vs/workbench/services/languageDetection/browser/languageDetectionWebWorkerMain.js'),
-				'LanguageDetectionWorker'
+				new WebWorkerDescriptor({
+					esmModuleLocation: FileAccess.asBrowserUri('vs/workbench/services/languageDetection/browser/languageDetectionWebWorkerMain.js'),
+					label: 'LanguageDetectionWorker'
+				})
 			));
 			LanguageDetectionWorkerHost.setChannel(workerClient, {
 				$getIndexJsUri: async () => this.getIndexJsUri(),

@@ -179,6 +179,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.diffIndexWithHEAD(path);
 	}
 
+	diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat> {
+		return this.#repository.diffIndexWithHEADShortStats(path);
+	}
+
 	diffIndexWith(ref: string): Promise<Change[]>;
 	diffIndexWith(ref: string, path: string): Promise<string>;
 	diffIndexWith(ref: string, path?: string): Promise<string | Change[]> {
