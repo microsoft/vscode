@@ -32,17 +32,17 @@ suite('Browser Telemetry - common properties', function () {
 
 		const props = resolveWorkbenchCommonProperties(testStorageService, commit, version, false, undefined, undefined, false, resolveCommonTelemetryProperties);
 
-		assert.ok('commitHash' in props);
-		assert.ok('sessionID' in props);
-		assert.ok('timestamp' in props);
-		assert.ok('common.platform' in props);
-		assert.ok('common.timesincesessionstart' in props);
-		assert.ok('common.sequence' in props);
-		assert.ok('version' in props);
-		assert.ok('common.firstSessionDate' in props, 'firstSessionDate');
-		assert.ok('common.lastSessionDate' in props, 'lastSessionDate');
-		assert.ok('common.isNewSession' in props, 'isNewSession');
-		assert.ok('common.machineId' in props, 'machineId');
+		assert.ok(props.commitHash);
+		assert.ok(props.sessionID);
+		assert.ok(props.timestamp);
+		assert.ok(props['common.platform']);
+		assert.ok(props['common.timesincesessionstart']);
+		assert.ok(props['common.sequence']);
+		assert.ok(props.version);
+		assert.ok(props['common.firstSessionDate'], 'firstSessionDate');
+		assert.ok(props['common.lastSessionDate'], 'lastSessionDate');
+		assert.ok(props['common.isNewSession'], 'isNewSession');
+		assert.ok(props['common.machineId'], 'machineId');
 
 		assert.strictEqual(props['userId'], '1');
 	});

@@ -28,24 +28,24 @@ suite('Telemetry - common properties', function () {
 
 	test('default', function () {
 		const props = resolveWorkbenchCommonProperties(testStorageService, release(), hostname(), commit, version, 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process, date);
-		assert.ok('commitHash' in props);
-		assert.ok('sessionID' in props);
-		assert.ok('timestamp' in props);
-		assert.ok('common.platform' in props);
-		assert.ok('common.nodePlatform' in props);
-		assert.ok('common.nodeArch' in props);
-		assert.ok('common.timesincesessionstart' in props);
-		assert.ok('common.sequence' in props);
+		assert.ok(props.commitHash);
+		assert.ok(props.sessionID);
+		assert.ok(props.timestamp);
+		assert.ok(props['common.platform']);
+		assert.ok(props['common.nodePlatform']);
+		assert.ok(props['common.nodeArch']);
+		assert.ok(props['common.timesincesessionstart']);
+		assert.ok(props['common.sequence']);
 		// assert.ok('common.version.shell' in first.data); // only when running on electron
 		// assert.ok('common.version.renderer' in first.data);
-		assert.ok('common.platformVersion' in props, 'platformVersion');
-		assert.ok('version' in props);
-		assert.ok('common.releaseDate' in props);
-		assert.ok('common.firstSessionDate' in props, 'firstSessionDate');
-		assert.ok('common.lastSessionDate' in props, 'lastSessionDate'); // conditional, see below, 'lastSessionDate'ow
-		assert.ok('common.isNewSession' in props, 'isNewSession');
+		assert.ok(props['common.platformVersion'], 'platformVersion');
+		assert.ok(props.version);
+		assert.ok(props['common.releaseDate']);
+		assert.ok(props['common.firstSessionDate'], 'firstSessionDate');
+		assert.ok(props['common.lastSessionDate'], 'lastSessionDate'); // conditional, see below, 'lastSessionDate'ow
+		assert.ok(props['common.isNewSession'], 'isNewSession');
 		// machine id et al
-		assert.ok('common.machineId' in props, 'machineId');
+		assert.ok(props['common.machineId'], 'machineId');
 	});
 
 	test('lastSessionDate when available', function () {
@@ -53,8 +53,8 @@ suite('Telemetry - common properties', function () {
 		testStorageService.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 		const props = resolveWorkbenchCommonProperties(testStorageService, release(), hostname(), commit, version, 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process, date);
-		assert.ok('common.lastSessionDate' in props); // conditional, see below
-		assert.ok('common.isNewSession' in props);
+		assert.ok(props['common.lastSessionDate']); // conditional, see below
+		assert.ok(props['common.isNewSession']);
 		assert.strictEqual(props['common.isNewSession'], '0');
 	});
 
