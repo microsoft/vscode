@@ -170,7 +170,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 			onDidTriggerItemButton: async context => {
 
 				// Remove
-				if (context.button === this.removeFromRecentlyOpened) {
+				if (context.button === this.removeFromRecentlyOpened || context.button === this.windowOpenedRecentlyOpenedFolder || context.button === this.windowOpenedRecentlyOpenedWorkspace) {
 					await workspacesService.removeRecentlyOpened([context.item.resource]);
 					context.removeItem();
 				}
