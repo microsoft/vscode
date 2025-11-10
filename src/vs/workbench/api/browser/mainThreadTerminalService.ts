@@ -80,13 +80,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			this._onTerminalOpened(instance);
 			this._onInstanceDimensionsChanged(instance);
 		}));
-		this._store.add(_terminalService.onDidDisposeInstance(instance => {
-			const proxy = this._terminalProcessProxies.get(instance.instanceId);
-			if (proxy) {
-				proxy.proxy.dispose();
-				proxy.store.dispose();
-			}
-		}));
 
 		this._store.add(_terminalService.onDidDisposeInstance(instance => this._onTerminalDisposed(instance)));
 		this._store.add(_terminalService.onAnyInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
@@ -406,6 +399,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {
 		this._proxy.$acceptTerminalClosed(terminalInstance.instanceId, terminalInstance.exitCode, terminalInstance.exitReason ?? TerminalExitReason.Unknown);
+		const proxy = this._terminalProcessProxies.get(terminalInstance.instanceId);
+		if (proxy) {
+			proxy.proxy.dispose();
+			proxy.store.dispose();
+		}
 	}
 
 	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {
