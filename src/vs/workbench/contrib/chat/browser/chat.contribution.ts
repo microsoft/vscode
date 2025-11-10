@@ -181,7 +181,6 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.implicitContext.enabled': {
 			type: 'object',
-			tags: ['experimental'],
 			description: nls.localize('chat.implicitContext.enabled.1', "Enables automatically using the active editor as chat context for specified chat locations."),
 			additionalProperties: {
 				type: 'string',
@@ -199,7 +198,6 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.implicitContext.suggestedContext': {
 			type: 'boolean',
-			tags: ['experimental'],
 			markdownDescription: nls.localize('chat.implicitContext.suggestedContext', "Controls whether the new implicit context flow is shown. In Ask and Edit modes, the context will automatically be included. When using an agent, context will be suggested as an attachment. Selections are always included as context."),
 			default: true,
 		},
@@ -280,13 +278,13 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.sendElementsToChat.enabled', "Controls whether elements can be sent to chat from the Simple Browser."),
 			type: 'boolean',
-			tags: ['experimental']
+			tags: ['preview']
 		},
 		'chat.sendElementsToChat.attachCSS': {
 			default: true,
 			markdownDescription: nls.localize('chat.sendElementsToChat.attachCSS', "Controls whether CSS of the selected element will be added to the chat. {0} must be enabled.", '`#chat.sendElementsToChat.enabled#`'),
 			type: 'boolean',
-			tags: ['experimental']
+			tags: ['preview']
 		},
 		'chat.sendElementsToChat.attachImages': {
 			default: true,
@@ -298,7 +296,6 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			markdownDescription: nls.localize('chat.undoRequests.restoreInput', "Controls whether the input of the chat should be restored when an undo request is made. The input will be filled with the text of the request that was restored."),
 			type: 'boolean',
-			tags: ['experimental']
 		},
 		'chat.editRequests': {
 			markdownDescription: nls.localize('chat.editRequests', "Enables editing of requests in the chat. This allows you to change the request content and resubmit it to the model."),
@@ -310,7 +307,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: product.quality === 'insiders',
 			description: nls.localize('chat.emptyState.history.enabled', "Show recent chat history on the empty chat state."),
-			tags: ['experimental']
+			tags: ['preview']
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
