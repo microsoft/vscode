@@ -239,5 +239,12 @@
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.5.0"
+  },
+  "config": {
+    "node_gyp_disturl": "https://electronjs.org/headers",
+    "node_gyp_target": "37.7.0",
+    "ms_build_id": "12597478",
+    "node_gyp_runtime": "electron",
+    "node_gyp_build_from_source": "true"
   }
 }

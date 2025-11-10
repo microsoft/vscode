@@ -74,24 +74,7 @@ function npmInstall(dir, opts) {
 	removeParcelWatcherPrebuild(dir);
 }
 
-function setNpmrcConfig(dir, env) {
-	const npmrcPath = path.join(root, dir, '.npmrc');
-	const lines = fs.readFileSync(npmrcPath, 'utf8').split('\n');
-
-	for (const line of lines) {
-		const trimmedLine = line.trim();
-		if (trimmedLine && !trimmedLine.startsWith('#')) {
-			const [key, value] = trimmedLine.split('=');
-			env[`npm_config_${key}`] = value.replace(/^"(.*)"$/, '$1');
-		}
-	}
-
-	// Use our bundled node-gyp version
-	env['npm_config_node_gyp'] =
-		process.platform === 'win32'
-			? path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
-			: path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
-
+function setNodeGypConfig(dir, env) {
 	// Force node-gyp to use process.config on macOS
 	// which defines clang variable as expected. Otherwise we
 	// run into compilation errors due to incorrect compiler
@@ -101,14 +84,14 @@ function setNpmrcConfig(dir, env) {
 	// in preinstall sync with this logic.
 	// Change was first introduced in https://github.com/nodejs/node/commit/6e0a2bb54c5bbeff0e9e33e1a0c683ed980a8a0f
 	if ((dir === 'remote' || dir === 'build') && process.platform === 'darwin') {
-		env['npm_config_force_process_config'] = 'true';
+		env['npm_package_config_node_gyp_force_process_config'] = 'true';
 	} else {
-		delete env['npm_config_force_process_config'];
+		delete env['npm_package_config_node_gyp_force_process_config'];
 	}
 
 	if (dir === 'build') {
-		env['npm_config_target'] = process.versions.node;
-		env['npm_config_arch'] = process.arch;
+		env['npm_package_config_node_gyp_target'] = process.versions.node;
+		env['npm_package_config_node_gyp_arch'] = process.arch;
 	}
 }
 
@@ -148,7 +131,7 @@ for (let dir of dirs) {
 		if (process.env['CXXFLAGS']) { opts.env['CXXFLAGS'] = ''; }
 		if (process.env['LDFLAGS']) { opts.env['LDFLAGS'] = ''; }
 
-		setNpmrcConfig('build', opts.env);
+		setNodeGypConfig('build', opts.env);
 		npmInstall('build', opts);
 		continue;
 	}
@@ -177,7 +160,7 @@ for (let dir of dirs) {
 		if (process.env['VSCODE_REMOTE_LDFLAGS']) { opts.env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
 		if (process.env['VSCODE_REMOTE_NODE_GYP']) { opts.env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 
-		setNpmrcConfig('remote', opts.env);
+		setNodeGypConfig('remote', opts.env);
 		npmInstall(dir, opts);
 		continue;
 	}

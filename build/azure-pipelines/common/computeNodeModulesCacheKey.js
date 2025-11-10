@@ -14,9 +14,6 @@ const { dirs } = require('../../npm/dirs');
 const ROOT = path_1.default.join(__dirname, '../../../');
 const shasum = crypto_1.default.createHash('sha256');
 shasum.update(fs_1.default.readFileSync(path_1.default.join(ROOT, 'build/.cachesalt')));
-shasum.update(fs_1.default.readFileSync(path_1.default.join(ROOT, '.npmrc')));
-shasum.update(fs_1.default.readFileSync(path_1.default.join(ROOT, 'build', '.npmrc')));
-shasum.update(fs_1.default.readFileSync(path_1.default.join(ROOT, 'remote', '.npmrc')));
 // Add `package.json` and `package-lock.json` files
 for (const dir of dirs) {
     const packageJsonPath = path_1.default.join(ROOT, dir, 'package.json');

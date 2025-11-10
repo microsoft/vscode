@@ -37,10 +37,12 @@ interface IFetchOptions {
 }
 
 function getElectronVersion(): Record<string, string> {
-	const npmrc = fs.readFileSync(path.join(REPO_ROOT, '.npmrc'), 'utf8');
-	const electronVersion = /^target="(.*)"$/m.exec(npmrc)![1];
-	const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)![1];
-	return { electronVersion, msBuildId };
+	const packageJson = fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8');
+	const { config } = JSON.parse(packageJson);
+	return {
+		electronVersion: config.node_gyp_target,
+		msBuildId: config.ms_build_id
+	};
 }
 
 function getSha(filename: fs.PathLike): string {

@@ -19,9 +19,9 @@ const gpuHelperAppName = helperAppBaseName + ' Helper (GPU).app';
 const rendererHelperAppName = helperAppBaseName + ' Helper (Renderer).app';
 const pluginHelperAppName = helperAppBaseName + ' Helper (Plugin).app';
 function getElectronVersion() {
-    const npmrc = fs_1.default.readFileSync(path_1.default.join(root, '.npmrc'), 'utf8');
-    const target = /^target="(.*)"$/m.exec(npmrc)[1];
-    return target;
+    const packageJson = fs_1.default.readFileSync(path_1.default.join(root, 'package.json'), 'utf8');
+    const { config } = JSON.parse(packageJson);
+    return config.node_gyp_target;
 }
 function getEntitlementsForFile(filePath) {
     if (filePath.includes(gpuHelperAppName)) {

@@ -137,10 +137,12 @@ const bootstrapEntryPoints = [
 ];
 
 function getNodeVersion() {
-	const npmrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8');
-	const nodeVersion = /^target="(.*)"$/m.exec(npmrc)[1];
-	const internalNodeVersion = /^ms_build_id="(.*)"$/m.exec(npmrc)[1];
-	return { nodeVersion, internalNodeVersion };
+	const packageJson = fs.readFileSync(path.join(REPO_ROOT, 'remote', 'package.json'), 'utf8');
+	const { config } = JSON.parse(packageJson);
+	return {
+		nodeVersion: config.node_gyp_target,
+		internalNodeVersion: config.ms_build_id
+	};
 }
 
 function getNodeChecksum(expectedName) {
