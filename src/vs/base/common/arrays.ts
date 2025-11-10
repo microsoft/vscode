@@ -109,7 +109,16 @@ export function binarySearch2(length: number, compareToKey: (index: number) => n
 
 type Compare<T> = (a: T, b: T) => number;
 
-
+/**
+ * Finds the nth smallest element in the array using quickselect algorithm.
+ * The data does not need to be sorted.
+ *
+ * @param nth The zero-based index of the element to find (0 = smallest, 1 = second smallest, etc.)
+ * @param data The unsorted array
+ * @param compare A comparator function that defines the sort order
+ * @returns The nth smallest element
+ * @throws TypeError if nth is >= data.length
+ */
 export function quickSelect<T>(nth: number, data: T[], compare: Compare<T>): T {
 
 	nth = nth | 0;

@@ -13,6 +13,7 @@ import { ok, notDeepStrictEqual, strictEqual } from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { GeneralShellType, PosixShellType } from '../../../../common/terminal.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 
 suite('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -680,84 +681,88 @@ suite('PromptInputModel', () => {
 		});
 
 		test('navigate left in multi-line', async () => {
-			await writePromise('$ ');
-			fireCommandStart();
-			await assertPromptInput('|');
+			return runWithFakedTimers({}, async () => {
+				await writePromise('$ ');
+				fireCommandStart();
+				await assertPromptInput('|');
 
-			await writePromise('echo "a');
-			await assertPromptInput(`echo "a|`);
+				await writePromise('echo "a');
+				await assertPromptInput(`echo "a|`);
 
-			await writePromise('\n\r\∙ ');
-			setContinuationPrompt('∙ ');
-			await assertPromptInput(`echo "a\n|`);
+				await writePromise('\n\r\∙ ');
+				setContinuationPrompt('∙ ');
+				await assertPromptInput(`echo "a\n|`);
 
-			await writePromise('b');
-			await assertPromptInput(`echo "a\nb|`);
+				await writePromise('b');
+				await assertPromptInput(`echo "a\nb|`);
 
-			await writePromise('\x1b[D');
-			await assertPromptInput(`echo "a\n|b`);
+				await writePromise('\x1b[D');
+				await assertPromptInput(`echo "a\n|b`);
 
-			await writePromise('\x1b[@c');
-			await assertPromptInput(`echo "a\nc|b`);
+				await writePromise('\x1b[@c');
+				await assertPromptInput(`echo "a\nc|b`);
 
-			await writePromise('\x1b[K\n\r\∙ ');
-			await assertPromptInput(`echo "a\nc\n|`);
+				await writePromise('\x1b[K\n\r\∙ ');
+				await assertPromptInput(`echo "a\nc\n|`);
 
-			await writePromise('b');
-			await assertPromptInput(`echo "a\nc\nb|`);
+				await writePromise('b');
+				await assertPromptInput(`echo "a\nc\nb|`);
 
-			await writePromise(' foo');
-			await assertPromptInput(`echo "a\nc\nb foo|`);
+				await writePromise(' foo');
+				await assertPromptInput(`echo "a\nc\nb foo|`);
 
-			await writePromise('\x1b[3D');
-			await assertPromptInput(`echo "a\nc\nb |foo`);
+				await writePromise('\x1b[3D');
+				await assertPromptInput(`echo "a\nc\nb |foo`);
+			});
 		});
 
 		test('navigate up in multi-line', async () => {
-			await writePromise('$ ');
-			fireCommandStart();
-			await assertPromptInput('|');
+			return runWithFakedTimers({}, async () => {
+				await writePromise('$ ');
+				fireCommandStart();
+				await assertPromptInput('|');
 
-			await writePromise('echo "foo');
-			await assertPromptInput(`echo "foo|`);
+				await writePromise('echo "foo');
+				await assertPromptInput(`echo "foo|`);
 
-			await writePromise('\n\r\∙ ');
-			setContinuationPrompt('∙ ');
-			await assertPromptInput(`echo "foo\n|`);
+				await writePromise('\n\r\∙ ');
+				setContinuationPrompt('∙ ');
+				await assertPromptInput(`echo "foo\n|`);
 
-			await writePromise('bar');
-			await assertPromptInput(`echo "foo\nbar|`);
+				await writePromise('bar');
+				await assertPromptInput(`echo "foo\nbar|`);
 
-			await writePromise('\n\r\∙ ');
-			setContinuationPrompt('∙ ');
-			await assertPromptInput(`echo "foo\nbar\n|`);
+				await writePromise('\n\r\∙ ');
+				setContinuationPrompt('∙ ');
+				await assertPromptInput(`echo "foo\nbar\n|`);
 
-			await writePromise('baz');
-			await assertPromptInput(`echo "foo\nbar\nbaz|`);
+				await writePromise('baz');
+				await assertPromptInput(`echo "foo\nbar\nbaz|`);
 
-			await writePromise('\x1b[A');
-			await assertPromptInput(`echo "foo\nbar|\nbaz`);
+				await writePromise('\x1b[A');
+				await assertPromptInput(`echo "foo\nbar|\nbaz`);
 
-			await writePromise('\x1b[D');
-			await assertPromptInput(`echo "foo\nba|r\nbaz`);
+				await writePromise('\x1b[D');
+				await assertPromptInput(`echo "foo\nba|r\nbaz`);
 
-			await writePromise('\x1b[D');
-			await assertPromptInput(`echo "foo\nb|ar\nbaz`);
+				await writePromise('\x1b[D');
+				await assertPromptInput(`echo "foo\nb|ar\nbaz`);
 
-			await writePromise('\x1b[D');
-			await assertPromptInput(`echo "foo\n|bar\nbaz`);
+				await writePromise('\x1b[D');
+				await assertPromptInput(`echo "foo\n|bar\nbaz`);
 
-			await writePromise('\x1b[1;9H');
-			await assertPromptInput(`echo "|foo\nbar\nbaz`);
+				await writePromise('\x1b[1;9H');
+				await assertPromptInput(`echo "|foo\nbar\nbaz`);
 
-			await writePromise('\x1b[C');
-			await assertPromptInput(`echo "f|oo\nbar\nbaz`);
+				await writePromise('\x1b[C');
+				await assertPromptInput(`echo "f|oo\nbar\nbaz`);
 
-			await writePromise('\x1b[C');
-			await assertPromptInput(`echo "fo|o\nbar\nbaz`);
+				await writePromise('\x1b[C');
+				await assertPromptInput(`echo "fo|o\nbar\nbaz`);
 
-			await writePromise('\x1b[C');
-			await assertPromptInput(`echo "foo|\nbar\nbaz`);
+				await writePromise('\x1b[C');
+				await assertPromptInput(`echo "foo|\nbar\nbaz`);
+			});
 		});
 
 		test('navigating up when first line contains invalid/stale trailing whitespace', async () => {
@@ -788,25 +793,27 @@ suite('PromptInputModel', () => {
 
 	suite('multi-line wrapped (no continuation prompt)', () => {
 		test('basic wrapped line', async () => {
-			xterm.resize(5, 10);
+			return runWithFakedTimers({}, async () => {
+				xterm.resize(5, 10);
 
-			await writePromise('$ ');
-			fireCommandStart();
-			await assertPromptInput('|');
+				await writePromise('$ ');
+				fireCommandStart();
+				await assertPromptInput('|');
 
-			await writePromise('ech');
-			await assertPromptInput(`ech|`);
+				await writePromise('ech');
+				await assertPromptInput(`ech|`);
 
-			await writePromise('o ');
-			await assertPromptInput(`echo |`);
+				await writePromise('o ');
+				await assertPromptInput(`echo |`);
 
-			await writePromise('"a"');
-			// HACK: Trailing whitespace is due to flaky detection in wrapped lines (but it doesn't matter much)
-			await assertPromptInput(`echo "a"| `);
-			await writePromise('\n\r\ b');
-			await assertPromptInput(`echo "a"\n b|`);
-			await writePromise('\n\r\ c');
-			await assertPromptInput(`echo "a"\n b\n c|`);
+				await writePromise('"a"');
+				// HACK: Trailing whitespace is due to flaky detection in wrapped lines (but it doesn't matter much)
+				await assertPromptInput(`echo "a"| `);
+				await writePromise('\n\r\ b');
+				await assertPromptInput(`echo "a"\n b|`);
+				await writePromise('\n\r\ c');
+				await assertPromptInput(`echo "a"\n b\n c|`);
+			});
 		});
 	});
 	suite('multi-line wrapped (continuation prompt)', () => {
@@ -880,130 +887,136 @@ suite('PromptInputModel', () => {
 
 		suite('Windows 11 (10.0.22621.3447), pwsh 7.4.2, starship prompt 1.10.2', () => {
 			test('input with ignored ghost text', async () => {
-				await replayEvents([
-					'[?25l[2J[m[H]0;C:\\Program Files\\WindowsApps\\Microsoft.PowerShell_7.4.2.0_x64__8wekyb3d8bbwe\\pwsh.exe[?25h',
-					'[?25l[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K[H[?25h',
-					']633;P;IsWindows=True',
-					']633;P;ContinuationPrompt=\x1b[38\x3b5\x3b8m∙\x1b[0m ',
-					']633;A]633;P;Cwd=C:\x5cGithub\x5cmicrosoft\x5cvscode]633;B',
-					'[34m\r\n[38;2;17;17;17m[44m03:13:47 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/prompt_input_model [33m[46m [38;2;17;17;17m$⇡ [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
-				]);
-				fireCommandStart();
-				await assertPromptInput('|');
+				return runWithFakedTimers({}, async () => {
+					await replayEvents([
+						'[?25l[2J[m[H]0;C:\\Program Files\\WindowsApps\\Microsoft.PowerShell_7.4.2.0_x64__8wekyb3d8bbwe\\pwsh.exe[?25h',
+						'[?25l[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K[H[?25h',
+						']633;P;IsWindows=True',
+						']633;P;ContinuationPrompt=\x1b[38\x3b5\x3b8m∙\x1b[0m ',
+						']633;A]633;P;Cwd=C:\x5cGithub\x5cmicrosoft\x5cvscode]633;B',
+						'[34m\r\n[38;2;17;17;17m[44m03:13:47 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/prompt_input_model [33m[46m [38;2;17;17;17m$⇡ [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
+					]);
+					fireCommandStart();
+					await assertPromptInput('|');
 
-				await replayEvents([
-					'[?25l[93mf[97m[2m[3makecommand[3;4H[?25h',
-					'[m',
-					'[93mfo[9X',
-					'[m',
-					'[?25l[93m[3;3Hfoo[?25h',
-					'[m',
-				]);
-				await assertPromptInput('foo|');
+					await replayEvents([
+						'[?25l[93mf[97m[2m[3makecommand[3;4H[?25h',
+						'[m',
+						'[93mfo[9X',
+						'[m',
+						'[?25l[93m[3;3Hfoo[?25h',
+						'[m',
+					]);
+					await assertPromptInput('foo|');
+				});
 			});
 			test('input with accepted and run ghost text', async () => {
-				await replayEvents([
-					'[?25l[2J[m[H]0;C:\\Program Files\\WindowsApps\\Microsoft.PowerShell_7.4.2.0_x64__8wekyb3d8bbwe\\pwsh.exe[?25h',
-					'[?25l[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K[H[?25h',
-					']633;P;IsWindows=True',
-					']633;P;ContinuationPrompt=\x1b[38\x3b5\x3b8m∙\x1b[0m ',
-					']633;A]633;P;Cwd=C:\x5cGithub\x5cmicrosoft\x5cvscode]633;B',
-					'[34m\r\n[38;2;17;17;17m[44m03:41:36 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/prompt_input_model [33m[46m [38;2;17;17;17m$ [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
-				]);
-				promptInputModel.setContinuationPrompt('∙ ');
-				fireCommandStart();
-				await assertPromptInput('|');
+				return runWithFakedTimers({}, async () => {
+					await replayEvents([
+						'[?25l[2J[m[H]0;C:\\Program Files\\WindowsApps\\Microsoft.PowerShell_7.4.2.0_x64__8wekyb3d8bbwe\\pwsh.exe[?25h',
+						'[?25l[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K[H[?25h',
+						']633;P;IsWindows=True',
+						']633;P;ContinuationPrompt=\x1b[38\x3b5\x3b8m∙\x1b[0m ',
+						']633;A]633;P;Cwd=C:\x5cGithub\x5cmicrosoft\x5cvscode]633;B',
+						'[34m\r\n[38;2;17;17;17m[44m03:41:36 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/prompt_input_model [33m[46m [38;2;17;17;17m$ [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
+					]);
+					promptInputModel.setContinuationPrompt('∙ ');
+					fireCommandStart();
+					await assertPromptInput('|');
 
-				await replayEvents([
-					'[?25l[93me[97m[2m[3mcho "hello world"[3;4H[?25h',
-					'[m',
-				]);
-				await assertPromptInput('e|[cho "hello world"]');
+					await replayEvents([
+						'[?25l[93me[97m[2m[3mcho "hello world"[3;4H[?25h',
+						'[m',
+					]);
+					await assertPromptInput('e|[cho "hello world"]');
 
-				await replayEvents([
-					'[?25l[93mec[97m[2m[3mho "hello world"[3;5H[?25h',
-					'[m',
-				]);
-				await assertPromptInput('ec|[ho "hello world"]');
+					await replayEvents([
+						'[?25l[93mec[97m[2m[3mho "hello world"[3;5H[?25h',
+						'[m',
+					]);
+					await assertPromptInput('ec|[ho "hello world"]');
 
-				await replayEvents([
-					'[?25l[93m[3;3Hech[97m[2m[3mo "hello world"[3;6H[?25h',
-					'[m',
-				]);
-				await assertPromptInput('ech|[o "hello world"]');
+					await replayEvents([
+						'[?25l[93m[3;3Hech[97m[2m[3mo "hello world"[3;6H[?25h',
+						'[m',
+					]);
+					await assertPromptInput('ech|[o "hello world"]');
 
-				await replayEvents([
-					'[?25l[93m[3;3Hecho[97m[2m[3m "hello world"[3;7H[?25h',
-					'[m',
-				]);
-				await assertPromptInput('echo|[ "hello world"]');
+					await replayEvents([
+						'[?25l[93m[3;3Hecho[97m[2m[3m "hello world"[3;7H[?25h',
+						'[m',
+					]);
+					await assertPromptInput('echo|[ "hello world"]');
 
-				await replayEvents([
-					'[?25l[93m[3;3Hecho [97m[2m[3m"hello world"[3;8H[?25h',
-					'[m',
-				]);
-				await assertPromptInput('echo |["hello world"]');
+					await replayEvents([
+						'[?25l[93m[3;3Hecho [97m[2m[3m"hello world"[3;8H[?25h',
+						'[m',
+					]);
+					await assertPromptInput('echo |["hello world"]');
 
-				await replayEvents([
-					'[?25l[93m[3;3Hecho [36m"hello world"[?25h',
-					'[m',
-				]);
-				await assertPromptInput('echo "hello world"|');
+					await replayEvents([
+						'[?25l[93m[3;3Hecho [36m"hello world"[?25h',
+						'[m',
+					]);
+					await assertPromptInput('echo "hello world"|');
 
-				await replayEvents([
-					']633;E;echo "hello world";ff464d39-bc80-4bae-9ead-b1cafc4adf6f]633;C',
-				]);
-				fireCommandExecuted();
-				await assertPromptInput('echo "hello world"');
+					await replayEvents([
+						']633;E;echo "hello world";ff464d39-bc80-4bae-9ead-b1cafc4adf6f]633;C',
+					]);
+					fireCommandExecuted();
+					await assertPromptInput('echo "hello world"');
 
-				await replayEvents([
-					'\r\n',
-					'hello world\r\n',
-				]);
-				await assertPromptInput('echo "hello world"');
+					await replayEvents([
+						'\r\n',
+						'hello world\r\n',
+					]);
+					await assertPromptInput('echo "hello world"');
 
-				await replayEvents([
-					']633;D;0]633;A]633;P;Cwd=C:\x5cGithub\x5cmicrosoft\x5cvscode]633;B',
-					'[34m\r\n[38;2;17;17;17m[44m03:41:42 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/prompt_input_model [33m[46m [38;2;17;17;17m$ [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
-				]);
-				fireCommandStart();
-				await assertPromptInput('|');
+					await replayEvents([
+						']633;D;0]633;A]633;P;Cwd=C:\x5cGithub\x5cmicrosoft\x5cvscode]633;B',
+						'[34m\r\n[38;2;17;17;17m[44m03:41:42 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/prompt_input_model [33m[46m [38;2;17;17;17m$ [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
+					]);
+					fireCommandStart();
+					await assertPromptInput('|');
+				});
 			});
 
 			test('input, go to start (ctrl+home), delete word in front (ctrl+delete)', async () => {
-				await replayEvents([
-					'[?25l[2J[m[H]0;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.4.2.0_x64__8wekyb3d8bbwe\pwsh.exe[?25h',
-					'[?25l[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K[H[?25h',
-					']633;P;IsWindows=True',
-					']633;P;ContinuationPrompt=\x1b[38\x3b5\x3b8m∙\x1b[0m ',
-					']633;A]633;P;Cwd=C:\x5cGithub\x5cmicrosoft\x5cvscode]633;B',
-					'[34m\r\n[38;2;17;17;17m[44m16:07:06 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/210662 [33m[46m [38;2;17;17;17m$! [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
-				]);
-				fireCommandStart();
-				await assertPromptInput('|');
+				return runWithFakedTimers({}, async () => {
+					await replayEvents([
+						'[?25l[2J[m[H]0;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.4.2.0_x64__8wekyb3d8bbwe\pwsh.exe[?25h',
+						'[?25l[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K\r\n[K[H[?25h',
+						']633;P;IsWindows=True',
+						']633;P;ContinuationPrompt=\x1b[38\x3b5\x3b8m∙\x1b[0m ',
+						']633;A]633;P;Cwd=C:\x5cGithub\x5cmicrosoft\x5cvscode]633;B',
+						'[34m\r\n[38;2;17;17;17m[44m16:07:06 [34m[41m [38;2;17;17;17mvscode [31m[43m [38;2;17;17;17m tyriar/210662 [33m[46m [38;2;17;17;17m$! [36m[49m [mvia [32m[1m v18.18.2 \r\n❯[m ',
+					]);
+					fireCommandStart();
+					await assertPromptInput('|');
 
-				await replayEvents([
-					'[?25l[93mG[97m[2m[3mit push[3;4H[?25h',
-					'[m',
-					'[?25l[93mGe[97m[2m[3mt-ChildItem -Path a[3;5H[?25h',
-					'[m',
-					'[?25l[93m[3;3HGet[97m[2m[3m-ChildItem -Path a[3;6H[?25h',
-				]);
-				await assertPromptInput('Get|[-ChildItem -Path a]');
+					await replayEvents([
+						'[?25l[93mG[97m[2m[3mit push[3;4H[?25h',
+						'[m',
+						'[?25l[93mGe[97m[2m[3mt-ChildItem -Path a[3;5H[?25h',
+						'[m',
+						'[?25l[93m[3;3HGet[97m[2m[3m-ChildItem -Path a[3;6H[?25h',
+					]);
+					await assertPromptInput('Get|[-ChildItem -Path a]');
 
-				await replayEvents([
-					'[m',
-					'[?25l[3;3H[?25h',
-					'[21X',
-				]);
+					await replayEvents([
+						'[m',
+						'[?25l[3;3H[?25h',
+						'[21X',
+					]);
 
-				// Don't force a sync, the prompt input model should update by itself
-				await timeout(0);
-				const actualValueWithCursor = promptInputModel.getCombinedString();
-				strictEqual(
-					actualValueWithCursor,
-					'|'.replaceAll('\n', '\u23CE')
-				);
+					// Don't force a sync, the prompt input model should update by itself
+					await timeout(0);
+					const actualValueWithCursor = promptInputModel.getCombinedString();
+					strictEqual(
+						actualValueWithCursor,
+						'|'.replaceAll('\n', '\u23CE')
+					);
+				});
 			});
 		});
 	});

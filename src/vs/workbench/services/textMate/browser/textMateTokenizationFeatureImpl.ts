@@ -269,7 +269,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 		this._grammarFactory = new TMGrammarFactory({
 			logTrace: (msg: string) => this._logService.trace(msg),
-			logError: (msg: string, err: any) => this._logService.error(msg, err),
+			logError: (msg: string, err: unknown) => this._logService.error(msg, err),
 			readFile: (resource: URI) => this._extensionResourceLoaderService.readExtensionResource(resource)
 		}, this._grammarDefinitions || [], vscodeTextmate, onigLib);
 

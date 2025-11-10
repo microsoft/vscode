@@ -103,7 +103,7 @@ declare namespace monaco {
 		 *
 		 * @event
 		 */
-		readonly onCancellationRequested: (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable[]) => IDisposable;
+		readonly onCancellationRequested: (listener: (e: void) => unknown, thisArgs?: unknown, disposables?: IDisposable[]) => IDisposable;
 	}
 	/**
 	 * Uniform Resource Identifier (Uri) http://tools.ietf.org/html/rfc3986.
@@ -5677,7 +5677,7 @@ declare namespace monaco.editor {
 		 * When set, stacks with other overlay widgets with the same preference,
 		 * in an order determined by the ordinal value.
 		 */
-		stackOridinal?: number;
+		stackOrdinal?: number;
 	}
 
 	/**

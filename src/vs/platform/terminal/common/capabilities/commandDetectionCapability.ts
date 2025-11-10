@@ -10,7 +10,7 @@ import { Disposable, MandatoryMutableDisposable, MutableDisposable } from '../..
 import { ILogService } from '../../../log/common/log.js';
 import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, TerminalCapability } from './capabilities.js';
 import { ITerminalOutputMatcher } from '../terminal.js';
-import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from './commandDetection/terminalCommand.js';
+import { ICurrentPartialCommand, isFullTerminalCommand, PartialTerminalCommand, TerminalCommand } from './commandDetection/terminalCommand.js';
 import { PromptInputModel, type IPromptInputModel } from './commandDetection/promptInputModel.js';
 import type { IBuffer, IDisposable, IMarker, Terminal } from '@xterm/headless';
 
@@ -52,7 +52,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 	get executingCommandConfidence(): 'low' | 'medium' | 'high' | undefined {
 		const casted = this._currentCommand as PartialTerminalCommand | ITerminalCommand;
-		return 'commandLineConfidence' in casted ? casted.commandLineConfidence : undefined;
+		return isFullTerminalCommand(casted) ? casted.commandLineConfidence : undefined;
 	}
 	get currentCommand(): ICurrentPartialCommand {
 		return this._currentCommand;
@@ -94,7 +94,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				command.commandLineConfidence = 'low';
 
 				// ITerminalCommand
-				if ('getOutput' in typedCommand) {
+				if (isFullTerminalCommand(typedCommand)) {
 					if (
 						// Markers exist
 						typedCommand.promptStartMarker && typedCommand.marker && typedCommand.executedMarker &&
@@ -272,7 +272,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 
 		const command = this.getCommandForLine(line);
-		if (command && 'cwd' in command) {
+		if (command && isFullTerminalCommand(command)) {
 			return command.cwd;
 		}
 

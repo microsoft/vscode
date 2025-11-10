@@ -37,7 +37,6 @@ import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/c
 import { EditorOptions, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IDimension } from '../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
-import { Range } from '../../../../editor/common/core/range.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -1616,8 +1615,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.promptFileAttached.set(this.hasPromptFileAttachments);
 
 		for (const [index, attachment] of attachments) {
-			const resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
-			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
+			const resource = URI.isUri(attachment.value) ? attachment.value : isLocation(attachment.value) ? attachment.value.uri : undefined;
+			const range = isLocation(attachment.value) ? attachment.value.range : undefined;
 			const shouldFocusClearButton = index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachmentModel.size - 1) && this._indexOfLastAttachedContextDeletedWithKeyboard > -1;
 
 			let attachmentWidget;
