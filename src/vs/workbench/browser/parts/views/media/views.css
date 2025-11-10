@@ -295,6 +295,7 @@
 	margin: 4px 2px 4px 0px;
 	padding: 0px 8px;
 	border-radius: 2px;
+	pointer-events: none;
 }
 
 .viewpane-filter > .viewpane-filter-controls > .viewpane-filter-badge.hidden,
