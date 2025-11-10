@@ -3057,8 +3057,8 @@ class LayoutStateModel extends Disposable {
 		if (
 			key.scope === StorageScope.WORKSPACE &&
 			key.name === LayoutStateKeys.AUXILIARYBAR_HIDDEN.name &&
-			typeof this.configurationService.getValue('workbench.secondarySideBar.defaultVisibilityMarker') === 'string' &&
-			this.storageService.get(this.configurationService.getValue('workbench.secondarySideBar.defaultVisibilityMarker'), StorageScope.WORKSPACE) === undefined
+			this.configurationService.getValue('workbench.secondarySideBar.enableDefaultVisibilityInOldWorkspace') === true &&
+			this.storageService.get('workbench.panel.chat.numberOfVisibleViews', StorageScope.WORKSPACE) === undefined
 		) {
 			value = undefined;
 		}
