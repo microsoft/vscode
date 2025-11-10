@@ -316,7 +316,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		};
 
 		attachCommandDetection(terminalInstance.capabilities.get(TerminalCapability.CommandDetection));
-		this._register(terminalInstance.capabilities.onDidAddCommandDetectionCapability(cd => void attachCommandDetection(cd)));
+		this._register(terminalInstance.capabilities.onDidAddCommandDetectionCapability(cd => attachCommandDetection(cd)));
 
 		const instanceListener = this._register(terminalInstance.onDisposed(() => {
 			if (this._terminalInstance === terminalInstance) {
