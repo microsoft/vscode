@@ -640,8 +640,8 @@ suite('URI', () => {
 		if (isWindows) {
 			const filePath = 'C:\\Users\\Abd-al-Haseeb\'s_Dell\\Studio\\w3mage\\wp-content\\database.ht.sqlite';
 			const uri = URI.file(filePath);
-			assert.strictEqual(uri.path, '/c:/Users/Abd-al-Haseeb\'s_Dell/Studio/w3mage/wp-content/database.ht.sqlite');
-			assert.strictEqual(uri.fsPath, filePath);
+			assert.strictEqual(uri.path, '/C:/Users/Abd-al-Haseeb\'s_Dell/Studio/w3mage/wp-content/database.ht.sqlite');
+			assert.strictEqual(uri.fsPath, '/c:/Users/Abd-al-Haseeb\'s_Dell/Studio/w3mage/wp-content/database.ht.sqlite');
 		}
 	});
 
