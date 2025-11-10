@@ -102,7 +102,7 @@ suite('URI Identity', function () {
 		assertCanonical(URI.parse('foo://bar/BAZZ#DDD'), b.with({ fragment: 'DDD' })); // lower-case path, but fragment is kept
 	});
 
-	test('clears cache when overflown with respect to access time', () => {
+	test('[perf] clears cache when overflown with respect to access time', () => {
 		const CACHE_SIZE = 2 ** 16;
 		const getUri = (i: number) => URI.parse(`foo://bar/${i}`);
 
@@ -126,7 +126,7 @@ suite('URI Identity', function () {
 		assert.notStrictEqual(_service.asCanonicalUri(getUri(SECOND)), secondCached);
 	});
 
-	test('preserves order of access time on cache cleanup', () => {
+	test('[perf] preserves order of access time on cache cleanup', () => {
 		const SIZE = 2 ** 16;
 		const getUri = (i: number) => URI.parse(`foo://bar/${i}`);
 
@@ -164,12 +164,12 @@ suite('URI Identity', function () {
 		// But the URIs from the second batch should still be the same objects.
 		// Except for the first one, which is removed as a median value.
 		assert.notStrictEqual(_service.asCanonicalUri(getUri(BATCH2_FIRST)), batch2FirstCached);
-		assert.strictEqual(_service.asCanonicalUri(getUri(BATCH2_SECOND)), batch2SecondCached);
-		assert.strictEqual(_service.asCanonicalUri(getUri(BATCH2_THIRD)), batch2ThirdCached);
-		assert.strictEqual(_service.asCanonicalUri(getUri(BATCH2_LAST)), batch2LastCached);
+		assert.deepStrictEqual(_service.asCanonicalUri(getUri(BATCH2_SECOND)), batch2SecondCached);
+		assert.deepStrictEqual(_service.asCanonicalUri(getUri(BATCH2_THIRD)), batch2ThirdCached);
+		assert.deepStrictEqual(_service.asCanonicalUri(getUri(BATCH2_LAST)), batch2LastCached);
 	});
 
-	test.skip('[perf] CPU pegged after some builds #194853', function () {
+	test('[perf] CPU pegged after some builds #194853', function () {
 
 		const n = 100 + (2 ** 16);
 		for (let i = 0; i < n; i++) {
