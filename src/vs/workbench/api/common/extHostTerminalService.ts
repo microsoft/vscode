@@ -23,7 +23,7 @@ import { TerminalDataBufferer } from '../../../platform/terminal/common/terminal
 import { ThemeColor } from '../../../base/common/themables.js';
 import { Promises } from '../../../base/common/async.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
-import { TerminalCompletionList, TerminalQuickFix, ViewColumn } from './extHostTypeConverters.js';
+import { MarkdownString, TerminalCompletionList, TerminalQuickFix, ViewColumn } from './extHostTypeConverters.js';
 import { IExtHostCommands } from './extHostCommands.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ISerializedTerminalInstanceContext } from '../../contrib/terminal/common/terminal.js';
@@ -922,7 +922,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 						id: nextLinkId++,
 						startIndex: providerLink.startIndex,
 						length: providerLink.length,
-						label: providerLink.tooltip
+						label: MarkdownString.fromStrict(providerLink.tooltip)
 					};
 					cacheLinkMap.set(link.id, {
 						provider: provideResult.provider,

@@ -8164,8 +8164,11 @@ declare module 'vscode' {
 		 * If a tooltip is provided, is will be displayed in a string that includes instructions on
 		 * how to trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary
 		 * depending on OS, user settings, and localization.
+		 *
+		 * The tooltip can be a plain string or a markdown string. Markdown strings support rich formatting
+		 * including links, bold, italic, and code blocks.
 		 */
-		tooltip?: string;
+		tooltip?: string | MarkdownString;
 
 		/**
 		 * Creates a new terminal link.
@@ -8176,8 +8179,11 @@ declare module 'vscode' {
 		 * If a tooltip is provided, is will be displayed in a string that includes instructions on
 		 * how to trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary
 		 * depending on OS, user settings, and localization.
+		 *
+		 * The tooltip can be a plain string or a markdown string. Markdown strings support rich formatting
+		 * including links, bold, italic, and code blocks.
 		 */
-		constructor(startIndex: number, length: number, tooltip?: string);
+		constructor(startIndex: number, length: number, tooltip?: string | MarkdownString);
 	}
 
 	/**

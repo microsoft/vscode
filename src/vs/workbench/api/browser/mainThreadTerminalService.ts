@@ -27,6 +27,7 @@ import { TerminalCapability } from '../../../platform/terminal/common/capabiliti
 import { ITerminalCompletionService } from '../../contrib/terminalContrib/suggest/browser/terminalCompletionService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { hasKey } from '../../../base/common/types.js';
+import { MarkdownString } from '../../../base/common/htmlContent.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -515,7 +516,7 @@ class ExtensionTerminalLinkProvider implements ITerminalExternalLinkProvider {
 			id: dto.id,
 			startIndex: dto.startIndex,
 			length: dto.length,
-			label: dto.label,
+			label: typeof dto.label === 'string' ? dto.label : dto.label ? MarkdownString.lift(dto.label) : undefined,
 			activate: () => proxy.$activateLink(instance.instanceId, dto.id)
 		}));
 	}

@@ -5,6 +5,7 @@
 
 import type { IBufferLine, IBufferRange, Terminal } from '@xterm/xterm';
 import { URI } from '../../../../../base/common/uri.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
 import { IParsedLink } from './terminalLinkParsing.js';
@@ -102,7 +103,7 @@ export interface ITerminalSimpleLink {
 	/**
 	 * A hover label to override the default for the type.
 	 */
-	label?: string;
+	label?: string | MarkdownString;
 
 	/**
 	 * An optional set of actions to show in the hover's status bar.

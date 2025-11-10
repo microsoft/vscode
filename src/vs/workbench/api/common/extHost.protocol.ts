@@ -2492,7 +2492,7 @@ export interface ITerminalLinkDto {
 	/** The length of the link in the line. */
 	length: number;
 	/** The descriptive label for what the link does when activated. */
-	label?: string;
+	label?: string | IMarkdownString;
 }
 
 export interface ITerminalDimensionsDto {

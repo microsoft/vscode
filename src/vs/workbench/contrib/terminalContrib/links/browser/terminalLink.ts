@@ -15,6 +15,7 @@ import { TerminalLinkType } from './links.js';
 import type { URI } from '../../../../../base/common/uri.js';
 import type { IParsedLink } from './terminalLinkParsing.js';
 import type { IHoverAction } from '../../../../../base/browser/ui/hover/hover.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 export class TerminalLink extends Disposable implements ILink {
 	decorations: ILinkDecorations;
@@ -38,7 +39,7 @@ export class TerminalLink extends Disposable implements ILink {
 		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => Promise<void>,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		private readonly _isHighConfidenceLink: boolean,
-		readonly label: string | undefined,
+		readonly label: string | MarkdownString | undefined,
 		private readonly _type: TerminalLinkType,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {

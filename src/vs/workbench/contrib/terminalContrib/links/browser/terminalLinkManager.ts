@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EventType } from '../../../../../base/browser/dom.js';
-import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isMacintosh, OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -65,7 +65,8 @@ export class TerminalLinkManager extends DisposableStore {
 		super();
 
 		let enableFileLinks: boolean = true;
-		const enableFileLinksConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks as ITerminalConfiguration['enableFileLinks'] | boolean;
+		const terminalConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
+		const enableFileLinksConfig = terminalConfig?.enableFileLinks as ITerminalConfiguration['enableFileLinks'] | boolean | undefined;
 		switch (enableFileLinksConfig) {
 			case 'off':
 			case false: // legacy from v1.75
@@ -433,7 +434,7 @@ export class TerminalLinkManager extends DisposableStore {
 		return isMacintosh ? event.metaKey : event.ctrlKey;
 	}
 
-	private _getLinkHoverString(uri: string, label: string | undefined): IMarkdownString {
+	private _getLinkHoverString(uri: string, label: string | MarkdownString | undefined): IMarkdownString {
 		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 
 		let clickLabel = '';
@@ -460,26 +461,45 @@ export class TerminalLinkManager extends DisposableStore {
 			// No-op, already set to fallback
 		}
 
+		// Handle MarkdownString label
+		if (isMarkdownString(label)) {
+			const result = new MarkdownString(label.value, label);
+			result.uris = label.uris;
+			result.baseUri = label.baseUri;
+			// Append URI link and keyboard shortcut (following document links pattern)
+			const escapedUri = new MarkdownString('', true).appendText(uri).value;
+			let displayUri = escapedUri || fallbackLabel;
+			if (/(\s|&nbsp;)/.test(displayUri)) {
+				displayUri = nls.localize('followLinkUrl', 'Link');
+			}
+			// Append the URI link and keyboard shortcut to the markdown tooltip
+			result.appendLink(displayUri, fallbackLabel).appendMarkdown(` (${clickLabel})`);
+			return result;
+		}
+
+		// Handle string label (existing behavior)
 		const markdown = new MarkdownString('', true);
 		// Escapes markdown in label & uri
+		let escapedLabel: string | undefined;
 		if (label) {
-			label = markdown.appendText(label).value;
+			escapedLabel = markdown.appendText(label).value;
 			markdown.value = '';
 		}
+		let escapedUri = uri;
 		if (uri) {
-			uri = markdown.appendText(uri).value;
+			escapedUri = markdown.appendText(uri).value;
 			markdown.value = '';
 		}
 
-		label = label || fallbackLabel;
+		const displayLabel = escapedLabel || fallbackLabel;
 		// Use the label when uri is '' so the link displays correctly
-		uri = uri || label;
+		let displayUri = escapedUri || displayLabel;
 		// Although if there is a space in the uri, just replace it completely
-		if (/(\s|&nbsp;)/.test(uri)) {
-			uri = nls.localize('followLinkUrl', 'Link');
+		if (/(\s|&nbsp;)/.test(displayUri)) {
+			displayUri = nls.localize('followLinkUrl', 'Link');
 		}
 
-		return markdown.appendLink(uri, label).appendMarkdown(` (${clickLabel})`);
+		return markdown.appendLink(displayUri, displayLabel).appendMarkdown(` (${clickLabel})`);
 	}
 }
 

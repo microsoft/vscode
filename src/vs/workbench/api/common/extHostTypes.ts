@@ -875,7 +875,7 @@ export class TerminalLink implements vscode.TerminalLink {
 	constructor(
 		public startIndex: number,
 		public length: number,
-		public tooltip?: string
+		public tooltip?: string | vscode.MarkdownString
 	) {
 		if (typeof startIndex !== 'number' || startIndex < 0) {
 			throw illegalArgument('startIndex');
@@ -883,7 +883,7 @@ export class TerminalLink implements vscode.TerminalLink {
 		if (typeof length !== 'number' || length < 1) {
 			throw illegalArgument('length');
 		}
-		if (tooltip !== undefined && typeof tooltip !== 'string') {
+		if (tooltip !== undefined && typeof tooltip !== 'string' && !MarkdownString.isMarkdownString(tooltip)) {
 			throw illegalArgument('tooltip');
 		}
 	}

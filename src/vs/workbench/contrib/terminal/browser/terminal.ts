@@ -6,6 +6,7 @@
 import { IDimension } from '../../../../base/browser/dom.js';
 import { Orientation } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Event, IDynamicListEventMultiplexer, type DynamicListEventMultiplexer } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
@@ -692,7 +693,7 @@ export interface ITerminalLink {
 	/** The length of the link in the line. */
 	length: number;
 	/** The descriptive label for what the link does when activated. */
-	label?: string;
+	label?: string | MarkdownString;
 	/**
 	 * Activates the link.
 	 * @param text The text of the link.
