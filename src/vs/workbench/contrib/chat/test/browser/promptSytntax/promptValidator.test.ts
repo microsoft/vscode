@@ -547,6 +547,33 @@ suite('PromptValidator', () => {
 				assert.deepStrictEqual(markers, [], 'Name should be optional for vscode target');
 			}
 		});
+
+		test('* in tools', async () => {
+			{
+				const content = [
+					'---',
+					`tools: ['*']`,
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 0);
+			}
+
+			{
+				const content = [
+					'---',
+					`tools: ['*', 'edit']`,
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				const messages = markers.map(m => m.message);
+				assert.deepStrictEqual(messages, [
+					'The tool will be ignored due to wildcard \'*\' in the tools list.',
+				]);
+			}
+		});
 	});
 
 	suite('instructions', () => {

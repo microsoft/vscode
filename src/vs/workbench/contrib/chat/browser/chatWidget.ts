@@ -2873,10 +2873,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._switchToAgentByName(agent);
 		}
 
-		// if not tools to enable are present, we are done
-		if (tools !== undefined && this.input.currentModeKind === ChatModeKind.Agent) {
+		// if no tools to enable are present, we are done
+		if (this.input.currentModeKind === ChatModeKind.Agent) {
 			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools, Target.VSCode);
-			this.input.selectedToolsModel.set(enablementMap, true);
+			if (enablementMap) {
+				this.input.selectedToolsModel.set(enablementMap, true);
+			}
 		}
 
 		if (model !== undefined) {

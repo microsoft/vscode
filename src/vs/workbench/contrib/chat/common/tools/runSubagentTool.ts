@@ -152,9 +152,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 					// Use mode-specific tools if available
 					const modeCustomTools = mode.customTools?.get();
-					if (modeCustomTools) {
-						// Convert the mode's custom tools (array of qualified names) to UserSelectedTools format
-						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools, mode.target?.get());
+
+					// Convert the mode's custom tools (array of qualified names) to UserSelectedTools format
+					const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools, mode.target?.get());
+					if (enablementMap) {
 						// Convert enablement map to UserSelectedTools (Record<string, boolean>)
 						modeTools = {};
 						for (const [tool, enabled] of enablementMap) {

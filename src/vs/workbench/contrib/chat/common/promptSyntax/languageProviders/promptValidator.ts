@@ -92,7 +92,7 @@ export class PromptValidator {
 		if (body.variableReferences.length && !isGitHubTarget) {
 			const headerTools = promptAST.header?.tools;
 			const headerTarget = promptAST.header?.target;
-			const headerToolsMap = headerTools ? this.languageModelToolsService.toToolAndToolSetEnablementMap(headerTools, headerTarget) : undefined;
+			const headerToolsMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(headerTools, headerTarget);
 
 			const available = new Set<string>(this.languageModelToolsService.getQualifiedToolNames());
 			const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
@@ -338,21 +338,39 @@ export class PromptValidator {
 	}
 
 	private validateVSCodeTools(valueItem: IArrayValue, target: string | undefined, report: (markers: IMarkerData) => void) {
-		if (valueItem.items.length > 0) {
-			const available = new Set<string>(this.languageModelToolsService.getQualifiedToolNames());
-			const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
+		if (valueItem.items.length === 0) {
+			return;
+		}
+		let hasStar = false;
+		for (const item of valueItem.items) {
+			if (item.type !== 'string') {
+				report(toMarker(localize('promptValidator.eachToolMustBeString', "Each tool name in the 'tools' attribute must be a string."), item.range, MarkerSeverity.Error));
+			} else if (item.value.length === 0) {
+				report(toMarker(localize('promptValidator.toolCannotBeEmpty', "Each tool name in the 'tools' attribute must be a non-empty string."), item.range, MarkerSeverity.Error));
+			} else if (item.value === '*') {
+				hasStar = true;
+			}
+		}
+		if (hasStar) {
 			for (const item of valueItem.items) {
-				if (item.type !== 'string') {
-					report(toMarker(localize('promptValidator.eachToolMustBeString', "Each tool name in the 'tools' attribute must be a string."), item.range, MarkerSeverity.Error));
-				} else if (item.value) {
-					const toolName = target === undefined ? this.languageModelToolsService.mapGithubToolName(item.value) : item.value;
-					if (!available.has(toolName)) {
-						if (deprecatedNames.has(toolName)) {
-							const currentName = deprecatedNames.get(toolName);
-							report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", toolName, currentName), item.range, MarkerSeverity.Info));
-						} else {
-							report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", toolName), item.range, MarkerSeverity.Warning));
-						}
+				if (item.type === 'string' && item.value !== '*') {
+					report(toMarker(localize('promptValidator.ignoredDueToWildcard', "The tool will be ignored due to wildcard '*' in the tools list."), item.range, MarkerSeverity.Warning));
+				}
+			}
+			return;
+		}
+		const available = new Set<string>(this.languageModelToolsService.getQualifiedToolNames());
+		const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
+
+		for (const item of valueItem.items) {
+			if (item.type === 'string') {
+				const toolName = target === undefined ? this.languageModelToolsService.mapGithubToolName(item.value) : item.value;
+				if (!available.has(toolName)) {
+					if (deprecatedNames.has(toolName)) {
+						const currentName = deprecatedNames.get(toolName);
+						report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", toolName, currentName), item.range, MarkerSeverity.Info));
+					} else {
+						report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", toolName), item.range, MarkerSeverity.Warning));
 					}
 				}
 			}

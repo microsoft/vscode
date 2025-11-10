@@ -237,6 +237,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		}
 		const getSuggestions = (toolRange: Range) => {
 			const suggestions: CompletionItem[] = [];
+			suggestions.push({ label: '*', kind: CompletionItemKind.Value, insertText: '*', range: toolRange });
 			const toolNames = isGitHubTarget ? Object.keys(knownGithubCopilotTools) : this.languageModelToolsService.getQualifiedToolNames();
 			for (const toolName of toolNames) {
 				let insertText: string;

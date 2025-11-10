@@ -368,7 +368,7 @@ export interface ILanguageModelToolsService {
 	getDeprecatedQualifiedToolNames(): Map<string, string>;
 	mapGithubToolName(githubToolName: string): string;
 
-	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap;
+	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[] | undefined, target: string | undefined): IToolAndToolSetEnablementMap | undefined;
 	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }

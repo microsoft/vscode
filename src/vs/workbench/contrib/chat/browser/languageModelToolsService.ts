@@ -632,9 +632,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	/**
 	 * Create a map that contains all tools and toolsets with their enablement state.
 	 * @param toolOrToolSetNames A list of tool or toolset names that are enabled.
-	 * @returns A map of tool or toolset instances to their enablement state.
+	 * @returns A map of tool or toolset instances to their enablement state or undefined if tools should be inherited e.g. from the global settings.
 	 */
-	toToolAndToolSetEnablementMap(enabledQualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap {
+	toToolAndToolSetEnablementMap(enabledQualifiedToolOrToolSetNames: readonly string[] | undefined, target: string | undefined): IToolAndToolSetEnablementMap | undefined {
+		if (enabledQualifiedToolOrToolSetNames === undefined || enabledQualifiedToolOrToolSetNames.includes('*')) {
+			return undefined;
+		}
+
 		if (target === undefined || target === Target.GitHubCopilot) {
 			enabledQualifiedToolOrToolSetNames = enabledQualifiedToolOrToolSetNames.map(name => this.mapGithubToolName(name));
 		}

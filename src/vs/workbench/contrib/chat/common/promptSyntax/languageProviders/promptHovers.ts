@@ -132,6 +132,9 @@ export class PromptHoverProvider implements HoverProvider {
 			for (const toolName of node.value.items) {
 				if (toolName.type === 'string' && toolName.range.containsPosition(position)) {
 					let toolNameValue = toolName.value;
+					if (toolNameValue === '*') {
+						return this.createHover(localize('promptHeader.agent.tools.wildcard', "The wildcard '*' means all globally enabled tools are used."), toolName.range);
+					}
 					if (target === undefined) {
 						toolNameValue = this.languageModelToolsService.mapGithubToolName(toolNameValue);
 					}
