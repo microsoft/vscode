@@ -135,7 +135,7 @@ class ManageAccountsActionImpl {
 		store.add(quickPick.onDidTriggerButton((button) => {
 			if (button === this.quickInputService.backButton) {
 				quickPick.hide();
-				this.run();
+				void this.run();
 			}
 		}));
 
