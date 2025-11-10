@@ -18,6 +18,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 	constructor() { }
 
 	readonly onDidChangeTools: Event<void> = Event.None;
+	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ sessionId: string; toolData: IToolData }> = Event.None;
 
 	registerToolData(toolData: IToolData): IDisposable {
 		return Disposable.None;
@@ -32,6 +33,10 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 	}
 
 	resetToolPostExecutionAutoConfirmation(): void {
+
+	}
+
+	flushToolUpdates(): void {
 
 	}
 
@@ -116,6 +121,10 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 	}
 
 	getDeprecatedQualifiedToolNames(): Map<string, string> {
+		throw new Error('Method not implemented.');
+	}
+
+	mapGithubToolName(githubToolName: string): string {
 		throw new Error('Method not implemented.');
 	}
 }

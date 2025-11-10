@@ -420,6 +420,7 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 		const editableData = this._terminalEditingService.getEditableData(instance);
 		template.label.element.classList.toggle('editable-tab', !!editableData);
 		if (editableData) {
+			// eslint-disable-next-line no-restricted-syntax
 			template.elementDisposables.add(this._renderInputBox(template.label.element.querySelector('.monaco-icon-label-container')!, instance, editableData));
 			template.actionBar.clear();
 		}
@@ -643,9 +644,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 			return;
 		}
 		// Attach terminals type to event
-		const terminals: ITerminalInstance[] = (dndData as unknown[]).filter(e => (
-			isObject(e) && 'instanceId' in e
-		)) as ITerminalInstance[];
+		const terminals = (dndData as unknown[]).filter(isTerminalInstance);
 		if (terminals.length > 0) {
 			originalEvent.dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify(terminals.map(e => e.resource.toString())));
 		}
@@ -734,7 +733,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 
 			sourceInstances = [];
 			for (const e of draggedElement) {
-				if ('instanceId' in e) {
+				if (isTerminalInstance(e)) {
 					sourceInstances.push(e as ITerminalInstance);
 				}
 			}
@@ -827,4 +826,8 @@ class TabDecorationsProvider extends Disposable implements IDecorationsProvider 
 			tooltip: primaryStatus.tooltip
 		};
 	}
+}
+
+function isTerminalInstance(obj: unknown): obj is ITerminalInstance {
+	return isObject(obj) && 'instanceId' in obj;
 }

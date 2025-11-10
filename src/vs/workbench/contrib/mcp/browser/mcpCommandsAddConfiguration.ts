@@ -291,7 +291,8 @@ export class McpAddConfigurationCommand {
 		}
 
 		const targetPick = await this._quickInputService.pick(options, {
-			title: localize('mcp.target.title', "Choose where to install the MCP server"),
+			title: localize('mcp.target.title', "Add MCP Server"),
+			placeHolder: localize('mcp.target.placeholder', "Select the configuration target")
 		});
 
 		return targetPick?.target;

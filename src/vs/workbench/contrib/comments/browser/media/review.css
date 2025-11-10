@@ -68,10 +68,11 @@
 }
 
 .review-widget .body .comment-body blockquote {
-	margin: 0 7px 0 5px;
-	padding: 0 16px 0 10px;
+	margin: 8px 7px 8px 5px;
+	padding: 2px 16px 2px 10px;
 	border-left-width: 5px;
 	border-left-style: solid;
+	border-left-color: var(--vscode-textBlockQuote-border);
 }
 
 .review-widget .body .review-comment .avatar-container {

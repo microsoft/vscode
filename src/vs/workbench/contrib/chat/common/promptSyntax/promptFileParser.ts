@@ -10,6 +10,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { parse, YamlNode, YamlParseError, Position as YamlPosition } from '../../../../../base/common/yaml.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 
+export const PROMPT_NAME_REGEXP = /^[\p{L}\d_\-\.]+$/u;
+
 export class PromptFileParser {
 	constructor() {
 	}
@@ -62,6 +64,7 @@ interface ParsedHeader {
 }
 
 export namespace PromptHeaderAttributes {
+	export const name = 'name';
 	export const description = 'description';
 	export const agent = 'agent';
 	export const mode = 'mode';
@@ -71,6 +74,17 @@ export namespace PromptHeaderAttributes {
 	export const handOffs = 'handoffs';
 	export const advancedOptions = 'advancedOptions';
 	export const argumentHint = 'argument-hint';
+	export const excludeAgent = 'excludeAgent';
+	export const target = 'target';
+}
+
+export namespace GithubPromptHeaderAttributes {
+	export const mcpServers = 'mcp-servers';
+}
+
+export enum Target {
+	VSCode = 'vscode',
+	GitHubCopilot = 'github-copilot'
 }
 
 export class PromptHeader {
@@ -147,6 +161,14 @@ export class PromptHeader {
 		return undefined;
 	}
 
+	public get name(): string | undefined {
+		const name = this.getStringAttribute(PromptHeaderAttributes.name);
+		if (name && PROMPT_NAME_REGEXP.test(name)) {
+			return name;
+		}
+		return undefined;
+	}
+
 	public get description(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.description);
 	}
@@ -165,6 +187,10 @@ export class PromptHeader {
 
 	public get argumentHint(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.argumentHint);
+	}
+
+	public get target(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.target);
 	}
 
 	public get tools(): string[] | undefined {
@@ -291,6 +317,7 @@ export class PromptBody {
 			const bodyOffset = Iterable.reduce(Iterable.slice(this.linesWithEOL, 0, this.range.startLineNumber - 1), (len, line) => line.length + len, 0);
 			for (let i = this.range.startLineNumber - 1, lineStartOffset = bodyOffset; i < this.range.endLineNumber - 1; i++) {
 				const line = this.linesWithEOL[i];
+				// Match markdown links: [text](link)
 				const linkMatch = line.matchAll(/\[(.*?)\]\((.+?)\)/g);
 				for (const match of linkMatch) {
 					const linkEndOffset = match.index + match[0].length - 1; // before the parenthesis
@@ -299,26 +326,27 @@ export class PromptBody {
 					fileReferences.push({ content: match[2], range, isMarkdownLink: true });
 					markdownLinkRanges.push(new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1));
 				}
-				const reg = new RegExp(`#([\\w]+:)?([^\\s#]+)`, 'g');
+				// Match #file:<filePath> and #tool:<toolName>
+				// Regarding the <toolName> pattern below, see also the variableReg regex in chatRequestParser.ts.
+				const reg = /#file:(?<filePath>[^\s#]+)|#tool:(?<toolName>[\w_\-\.\/]+)/gi;
 				const matches = line.matchAll(reg);
 				for (const match of matches) {
-					const fullRange = new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1);
+					const fullMatch = match[0];
+					const fullRange = new Range(i + 1, match.index + 1, i + 1, match.index + fullMatch.length + 1);
 					if (markdownLinkRanges.some(mdRange => Range.areIntersectingOrTouching(mdRange, fullRange))) {
 						continue;
 					}
-					const varType = match[1];
-					if (varType) {
-						if (varType === 'file:') {
-							const linkStartOffset = match.index + match[0].length - match[2].length;
-							const linkEndOffset = match.index + match[0].length;
-							const range = new Range(i + 1, linkStartOffset + 1, i + 1, linkEndOffset + 1);
-							fileReferences.push({ content: match[2], range, isMarkdownLink: false });
-						}
-					} else {
-						const contentStartOffset = match.index + 1; // after the #
-						const contentEndOffset = match.index + match[0].length;
-						const range = new Range(i + 1, contentStartOffset + 1, i + 1, contentEndOffset + 1);
-						variableReferences.push({ name: match[2], range, offset: lineStartOffset + match.index });
+					const contentMatch = match.groups?.['filePath'] || match.groups?.['toolName'];
+					if (!contentMatch) {
+						continue;
+					}
+					const startOffset = match.index + fullMatch.length - contentMatch.length;
+					const endOffset = match.index + fullMatch.length;
+					const range = new Range(i + 1, startOffset + 1, i + 1, endOffset + 1);
+					if (match.groups?.['filePath']) {
+						fileReferences.push({ content: match.groups?.['filePath'], range, isMarkdownLink: false });
+					} else if (match.groups?.['toolName']) {
+						variableReferences.push({ name: match.groups?.['toolName'], range, offset: lineStartOffset + match.index });
 					}
 				}
 				lineStartOffset += line.length;

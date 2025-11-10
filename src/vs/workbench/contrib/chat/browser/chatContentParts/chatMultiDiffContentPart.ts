@@ -4,33 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatContentPart } from './chatContentParts.js';
-import { IChatMultiDiffData } from '../../common/chatService.js';
-import { ChatTreeItem } from '../chat.js';
-import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
-import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
-import { FileKind } from '../../../../../platform/files/common/files.js';
-import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
-import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
-import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IChatRendererContent } from '../../common/chatViewModel.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { FileKind } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
+import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
+import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
+import { IChatMultiDiffData } from '../../common/chatService.js';
+import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { ChatTreeItem } from '../chat.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { IChatContentPart } from './chatContentParts.js';
 
 const $ = dom.$;
 
@@ -135,18 +136,15 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		const setupActionBar = () => {
 			actionBar.clear();
 
-			const activeEditorUri = this.editorService.activeEditor?.resource;
 			let marshalledUri: any | undefined = undefined;
 			let contextKeyService: IContextKeyService = this.contextKeyService;
-			if (activeEditorUri) {
-				const { authority } = activeEditorUri;
-				const overlay: [string, unknown][] = [];
-				if (authority) {
-					overlay.push([ChatContextKeys.sessionType.key, authority]);
-				}
-				contextKeyService = this.contextKeyService.createOverlay(overlay);
+			if (this.editorService.activeEditor instanceof ChatEditorInput) {
+				contextKeyService = this.contextKeyService.createOverlay([
+					[ChatContextKeys.sessionType.key, this.editorService.activeEditor.getSessionType()]
+				]);
+
 				marshalledUri = {
-					...activeEditorUri,
+					...this.editorService.activeEditor.resource,
 					$mid: MarshalledId.Uri
 				};
 			}
@@ -207,6 +205,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 				item.diff = {
 					originalURI: resource.originalUri,
 					modifiedURI: resource.modifiedUri,
+					isFinal: true,
 					quitEarly: false,
 					identical: false,
 					added: resource.added || 0,
@@ -294,6 +293,7 @@ class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, ICh
 		});
 
 		const labelElement = templateData.label.element;
+		// eslint-disable-next-line no-restricted-syntax
 		labelElement.querySelector(`.${ChatMultiDiffListRenderer.CHANGES_SUMMARY_CLASS_NAME}`)?.remove();
 
 		if (element.diff?.added || element.diff?.removed) {

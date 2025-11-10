@@ -50,12 +50,12 @@ export class WebviewInput extends EditorInput {
 	get resource() {
 		return URI.from({
 			scheme: Schemas.webviewPanel,
-			path: `webview-panel/webview-${this._resourceId}`
+			path: `webview-panel/webview-${this.providerId}-${this._resourceId}`
 		});
 	}
 
 	public readonly viewType: string;
-	public readonly providedId: string | undefined;
+	public readonly providerId: string | undefined;
 
 	constructor(
 		init: WebviewInputInitInfo,
@@ -65,7 +65,7 @@ export class WebviewInput extends EditorInput {
 		super();
 
 		this.viewType = init.viewType;
-		this.providedId = init.providedId;
+		this.providerId = init.providedId;
 
 		this._webviewTitle = init.name;
 		this._iconPath = init.iconPath;

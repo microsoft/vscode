@@ -22,6 +22,7 @@ export const enum TerminalSuggestSettingId {
 	InlineSuggestion = 'terminal.integrated.suggest.inlineSuggestion',
 	UpArrowNavigatesHistory = 'terminal.integrated.suggest.upArrowNavigatesHistory',
 	SelectionMode = 'terminal.integrated.suggest.selectionMode',
+	InsertTrailingSpace = 'terminal.integrated.suggest.insertTrailingSpace',
 }
 
 export const windowsDefaultExecutableExtensions: string[] = [
@@ -59,6 +60,7 @@ export interface ITerminalSuggestConfiguration {
 	showStatusBar: boolean;
 	cdPath: 'off' | 'relative' | 'absolute';
 	inlineSuggestion: 'off' | 'alwaysOnTopExceptExactMatch' | 'alwaysOnTop';
+	insertTrailingSpace: boolean;
 }
 
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -67,14 +69,15 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('suggest.enabled', "Enables terminal intellisense suggestions (preview) for supported shells ({0}) when {1} is set to {2}.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`'),
 		type: 'boolean',
 		default: product.quality !== 'stable',
-		tags: ['preview'],
+		experiment: {
+			mode: 'auto',
+		},
 	},
 	[TerminalSuggestSettingId.Providers]: {
 		restricted: true,
 		markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
 		type: 'object',
 		properties: {},
-		tags: ['preview'],
 	},
 	[TerminalSuggestSettingId.QuickSuggestions]: {
 		restricted: true,
@@ -102,14 +105,12 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			arguments: 'on',
 			unknown: 'off',
 		},
-		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.SuggestOnTriggerCharacters]: {
 		restricted: true,
 		markdownDescription: localize('suggest.suggestOnTriggerCharacters', "Controls whether suggestions should automatically show up when typing trigger characters."),
 		type: 'boolean',
 		default: true,
-		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.RunOnEnter]: {
 		restricted: true,
@@ -122,7 +123,6 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			localize('runOnEnter.always', "Always run on `Enter`.")
 		],
 		default: 'never',
-		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.SelectionMode]: {
 		markdownDescription: localize('terminal.integrated.selectionMode', "Controls how suggestion selection works in the integrated terminal."),
@@ -134,7 +134,6 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			localize('terminal.integrated.selectionMode.never', "Never select a suggestion when automatically triggering IntelliSense. The list must be navigated via `Down` before `Enter` or `Tab` can be used to accept the active suggestion."),
 		],
 		default: 'partial',
-		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.WindowsExecutableExtensions]: {
 		restricted: true,
@@ -143,14 +142,12 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		),
 		type: 'object',
 		default: {},
-		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.ShowStatusBar]: {
 		restricted: true,
 		markdownDescription: localize('suggest.showStatusBar', "Controls whether the terminal suggestions status bar should be shown."),
 		type: 'boolean',
 		default: true,
-		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.CdPath]: {
 		restricted: true,
@@ -163,7 +160,6 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			localize('suggest.cdPath.absolute', "Enable the feature and use absolute paths. This is useful when the shell doesn't natively support `$CDPATH`."),
 		],
 		default: 'absolute',
-		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.InlineSuggestion]: {
 		restricted: true,
@@ -176,14 +172,18 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			localize('suggest.inlineSuggestion.alwaysOnTop', "Enable the feature and always put the inline suggestion on top."),
 		],
 		default: 'alwaysOnTop',
-		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.UpArrowNavigatesHistory]: {
 		restricted: true,
 		markdownDescription: localize('suggest.upArrowNavigatesHistory', "Determines whether the up arrow key navigates the command history when focus is on the first suggestion and navigation has not yet occurred. When set to false, the up arrow will move focus to the last suggestion instead."),
 		type: 'boolean',
 		default: true,
-		tags: ['preview']
+	},
+	[TerminalSuggestSettingId.InsertTrailingSpace]: {
+		restricted: true,
+		markdownDescription: localize('suggest.insertTrailingSpace', "Controls whether a space is automatically inserted after accepting a suggestion and re-trigger suggestions. Folders and symbolic link folders will never have a trailing space added."),
+		type: 'boolean',
+		default: false,
 	},
 
 };

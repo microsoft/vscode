@@ -303,6 +303,7 @@
 .monaco-workbench .pane-body.integrated-terminal .tabs-list-container {
 	height: 100%;
 	overflow: hidden;
+	position: relative;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container > .monaco-toolbar {
@@ -328,8 +329,53 @@
 	text-align: left;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-list {
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 22px;
+	line-height: 22px;
+	display: flex;
+	align-items: center;
+	padding: 0;
+	cursor: pointer;
+	background-color: transparent;
+	color: inherit;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-entry {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	width: 100%;
 	height: 100%;
+	padding: 0;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-entry:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-list-container.drop-target {
+	background-color: var(--vscode-list-dropBackground);
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .terminal-tabs-chat-entry .terminal-tabs-entry {
+	justify-content: center;
+	padding: 0 10px;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-label:empty {
+	display: none;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .terminal-tabs-entry {

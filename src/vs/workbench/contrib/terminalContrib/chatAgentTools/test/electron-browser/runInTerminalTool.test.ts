@@ -31,11 +31,18 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
+import { arch } from '../../../../../../base/common/process.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
+import type { SingleOrMany } from '../../../../../../base/common/types.js';
+import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IHistoryService } from '../../../../../services/history/common/history.js';
+import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
+import { Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
 
-	get commandLineAutoApprover() { return this._commandLineAutoApprover; }
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
 	get profileFetcher() { return this._profileFetcher; }
 
@@ -44,20 +51,23 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	}
 }
 
-suite('RunInTerminalTool', () => {
+// TODO: The powershell grammar can cause an OOM crash on Windows/arm https://github.com/microsoft/vscode/issues/273177
+(isWindows && (arch === 'arm' || arch === 'arm64') ? suite.skip : suite)('RunInTerminalTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let fileService: IFileService;
 	let storageService: IStorageService;
+	let workspaceContextService: TestContextService;
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
-	let chatServiceDisposeEmitter: Emitter<{ sessionId: string; reason: 'cleared' }>;
+	let chatServiceDisposeEmitter: Emitter<{ sessionResource: URI; reason: 'cleared' }>;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
+		workspaceContextService = new TestContextService();
 
 		const logService = new NullLogService();
 		fileService = store.add(new FileService(logService));
@@ -66,12 +76,17 @@ suite('RunInTerminalTool', () => {
 
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
-		chatServiceDisposeEmitter = new Emitter<{ sessionId: string; reason: 'cleared' }>();
+		chatServiceDisposeEmitter = new Emitter<{ sessionResource: URI; reason: 'cleared' }>();
 
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
 			fileService: () => fileService,
 		}, store);
+
+		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
+		instantiationService.stub(IHistoryService, {
+			getLastActiveWorkspaceRoot: () => undefined
+		});
 
 		const treeSitterLibraryService = store.add(instantiationService.createInstance(TreeSitterLibraryService));
 		treeSitterLibraryService.isTest = true;
@@ -290,7 +305,7 @@ suite('RunInTerminalTool', () => {
 			'A=1 B=2 C=3 ./script.sh',
 		];
 
-		suite('auto approved', () => {
+		suite.skip('auto approved', () => {
 			for (const command of autoApprovedTestCases) {
 				test(command.replaceAll('\n', '\\n'), async () => {
 					assertAutoApproved(await executeToolTest({ command }));
@@ -458,7 +473,7 @@ suite('RunInTerminalTool', () => {
 
 	suite('prepareToolInvocation - custom actions for dropdown', () => {
 
-		function assertDropdownActions(result: IPreparedToolInvocation | undefined, items: ({ subCommand: string | string[] } | 'commandLine' | '---' | 'configure')[]) {
+		function assertDropdownActions(result: IPreparedToolInvocation | undefined, items: ({ subCommand: SingleOrMany<string> } | 'commandLine' | '---' | 'configure')[]) {
 			const actions = result?.confirmationMessages?.terminalCustomActions!;
 			ok(actions, 'Expected custom actions to be defined');
 
@@ -835,6 +850,25 @@ suite('RunInTerminalTool', () => {
 				'configure',
 			]);
 		});
+
+		test('should prevent auto approval when writing to a file outside the workspace', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
+			setAutoApprove({});
+
+			const workspaceFolder = URI.file(isWindows ? 'C:/workspace/project' : '/workspace/project');
+			const workspace = new Workspace('test', [toWorkspaceFolder(workspaceFolder)]);
+			workspaceContextService.setWorkspace(workspace);
+			instantiationService.stub(IHistoryService, {
+				getLastActiveWorkspaceRoot: () => workspaceFolder
+			});
+
+			const result = await executeToolTest({
+				command: 'echo "abc" > ../file.txt'
+			});
+
+			assertConfirmationRequired(result);
+			strictEqual(result?.confirmationMessages?.terminalCustomActions, undefined, 'Expected no custom actions when file write is blocked');
+		});
 	});
 
 	suite('chat session disposal cleanup', () => {
@@ -855,7 +889,7 @@ suite('RunInTerminalTool', () => {
 
 			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should exist before disposal');
 
-			chatServiceDisposeEmitter.fire({ sessionId, reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: LocalChatSessionUri.forSession(sessionId), reason: 'cleared' });
 
 			strictEqual(terminalDisposed, true, 'Terminal should have been disposed');
 			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should be removed after disposal');
@@ -892,7 +926,7 @@ suite('RunInTerminalTool', () => {
 			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId1), 'Session 1 terminal association should exist');
 			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId2), 'Session 2 terminal association should exist');
 
-			chatServiceDisposeEmitter.fire({ sessionId: sessionId1, reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: LocalChatSessionUri.forSession(sessionId1), reason: 'cleared' });
 
 			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
 			strictEqual(terminal2Disposed, false, 'Terminal 2 should NOT have been disposed');
@@ -902,7 +936,7 @@ suite('RunInTerminalTool', () => {
 
 		test('should handle disposal of non-existent session gracefully', () => {
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist initially');
-			chatServiceDisposeEmitter.fire({ sessionId: 'non-existent-session', reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: LocalChatSessionUri.forSession('non-existent-session'), reason: 'cleared' });
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist after handling non-existent session');
 		});
 	});

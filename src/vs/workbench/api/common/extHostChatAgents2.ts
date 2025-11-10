@@ -22,11 +22,11 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { isChatViewTitleActionContext } from '../../contrib/chat/common/chatActions.js';
 import { IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings, UserSelectedTools } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRelatedFile, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
-import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatSessionContext, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
+import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentProgressShape, IChatProgressDto, IExtensionChatAgentMetadata, IMainContext, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
+import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentProgressShape, IChatProgressDto, IChatSessionContextDto, IExtensionChatAgentMetadata, IMainContext, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
@@ -82,7 +82,7 @@ export class ChatAgentResponseStream {
 
 
 			const sendQueue: (IChatProgressDto | [IChatProgressDto, number])[] = [];
-			const notify: Function[] = [];
+			let notify: Function[] = [];
 
 			function send(chunk: IChatProgressDto): void;
 			function send(chunk: IChatProgressDto, handle: number): Promise<void>;
@@ -92,9 +92,10 @@ export class ChatAgentResponseStream {
 				const newLen = sendQueue.push(handle !== undefined ? [chunk, handle] : chunk);
 				if (newLen === 1) {
 					queueMicrotask(() => {
+						const toNotify = notify;
+						notify = [];
 						that._proxy.$handleProgressChunk(that._request.requestId, sendQueue).finally(() => {
-							notify.forEach(f => f());
-							notify.length = 0;
+							toNotify.forEach(f => f());
 						});
 						sendQueue.length = 0;
 					});
@@ -274,6 +275,18 @@ export class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				async externalEdit(target, callback) {
+					throwIfDone(this.externalEdit);
+					const resources = Array.isArray(target) ? target : [target];
+					const operationId = taskHandlePool++;
+
+					await send({ kind: 'externalEdits', start: true, resources }, operationId);
+					try {
+						return await callback();
+					} finally {
+						await send({ kind: 'externalEdits', start: false, resources }, operationId);
+					}
+				},
 				confirmation(title, message, data, buttons) {
 					throwIfDone(this.confirmation);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -304,6 +317,7 @@ export class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseCodeCitationPart ||
 						part instanceof extHostTypes.ChatResponseMovePart ||
 						part instanceof extHostTypes.ChatResponseExtensionsPart ||
+						part instanceof extHostTypes.ChatResponseExternalEditPart ||
 						part instanceof extHostTypes.ChatResponseThinkingProgressPart ||
 						part instanceof extHostTypes.ChatResponsePullRequestPart ||
 						part instanceof extHostTypes.ChatResponseProgressPart2
@@ -342,6 +356,10 @@ export class ChatAgentResponseStream {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 						const dto = typeConvert.ChatPrepareToolInvocationPart.from(part);
 						_report(dto);
+						return this;
+					} else if (part instanceof extHostTypes.ChatResponseExternalEditPart) {
+						const p = this.externalEdit(part.uris, part.callback);
+						p.then(() => part.didGetApplied());
 						return this;
 					} else {
 						const dto = typeConvert.ChatResponsePart.from(part, that._commandsConverter, that._sessionDisposables);
@@ -541,7 +559,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		this._onDidChangeChatRequestTools.fire(request.extRequest);
 	}
 
-	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContext; chatSummary?: { prompt?: string; history?: string } }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
+	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContextDto; chatSummary?: { prompt?: string; history?: string } }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
@@ -581,7 +599,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			if (context.chatSessionContext) {
 				chatSessionContext = {
 					chatSessionItem: {
-						id: context.chatSessionContext.chatSessionId,
 						resource: URI.revive(context.chatSessionContext.chatSessionResource),
 						label: context.chatSessionContext.isUntitled ? 'Untitled Session' : 'Session',
 					},

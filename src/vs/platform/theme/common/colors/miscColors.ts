@@ -65,6 +65,10 @@ export const scrollbarSliderActiveBackground = registerColor('scrollbarSlider.ac
 	{ dark: Color.fromHex('#BFBFBF').transparent(0.4), light: Color.fromHex('#000000').transparent(0.6), hcDark: contrastBorder, hcLight: contrastBorder },
 	nls.localize('scrollbarSliderActiveBackground', "Scrollbar slider background color when clicked on."));
 
+export const scrollbarBackground = registerColor('scrollbar.background',
+	null,
+	nls.localize('scrollbarBackground', "Scrollbar track background color."));
+
 
 // ----- progress bar
 

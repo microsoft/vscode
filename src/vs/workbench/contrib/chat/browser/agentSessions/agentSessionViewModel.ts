@@ -5,15 +5,16 @@
 
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IChatService } from '../../common/chatService.js';
-import { IChatSessionItemProvider, IChatSessionsService } from '../../common/chatSessionsService.js';
-import { ChatSessionUri } from '../../common/chatUri.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { AgentSessionProviders } from './agentSessions.js';
 
 //#region Interfaces, Types
 
@@ -29,24 +30,19 @@ export interface IAgentSessionsViewModel {
 	resolve(provider: string | string[] | undefined): Promise<void>;
 }
 
-export const enum AgentSessionStatus {
-	Failed = 0,
-	Completed = 1,
-	InProgress = 2
-}
-
 export interface IAgentSessionViewModel {
 
 	readonly provider: IChatSessionItemProvider;
+	readonly providerLabel: string;
 
-	readonly id: string;
 	readonly resource: URI;
 
-	readonly status?: AgentSessionStatus;
+	readonly status?: ChatSessionStatus;
+	readonly tooltip?: string | IMarkdownString;
 
 	readonly label: string;
 	readonly description: string | IMarkdownString;
-	readonly icon?: ThemeIcon; // TODO@bpasero support
+	readonly icon: ThemeIcon;
 
 	readonly timing: {
 		readonly startTime: number;
@@ -54,21 +50,20 @@ export interface IAgentSessionViewModel {
 	};
 
 	readonly statistics?: {
+		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;
 	};
 }
 
-export const LOCAL_AGENT_SESSION_TYPE = 'local';
-
 export function isLocalAgentSessionItem(session: IAgentSessionViewModel): boolean {
-	return session.provider.chatSessionType === LOCAL_AGENT_SESSION_TYPE;
+	return session.provider.chatSessionType === localChatSessionType;
 }
 
 export function isAgentSession(obj: IAgentSessionsViewModel | IAgentSessionViewModel): obj is IAgentSessionViewModel {
 	const session = obj as IAgentSessionViewModel | undefined;
 
-	return typeof session?.id === 'string';
+	return URI.isUri(session?.resource);
 }
 
 export function isAgentSessionsViewModel(obj: IAgentSessionsViewModel | IAgentSessionViewModel): obj is IAgentSessionsViewModel {
@@ -79,7 +74,6 @@ export function isAgentSessionsViewModel(obj: IAgentSessionsViewModel | IAgentSe
 
 //#endregion
 
-const INCLUDE_HISTORY = false;
 export class AgentSessionsViewModel extends Disposable implements IAgentSessionsViewModel {
 
 	readonly sessions: IAgentSessionViewModel[] = [];
@@ -98,7 +92,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 
 	constructor(
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IChatService private readonly chatService: IChatService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -123,7 +117,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		}
 
 		return this.resolver.trigger(async token => {
-			if (token.isCancellationRequested) {
+			if (token.isCancellationRequested || this.lifecycleService.willShutdown) {
 				return;
 			}
 
@@ -139,6 +133,11 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 	private async doResolve(token: CancellationToken): Promise<void> {
 		const providersToResolve = Array.from(this.providersToResolve);
 		this.providersToResolve.clear();
+
+		const mapSessionContributionToType = new Map<string, IChatSessionsExtensionPoint>();
+		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
+			mapSessionContributionToType.set(contribution.type, contribution);
+		}
 
 		const newSessions: IAgentSessionViewModel[] = [];
 		for (const provider of this.chatSessionsService.getAllChatSessionItemProviders()) {
@@ -157,38 +156,59 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 					continue; // TODO@bpasero this needs to be fixed at the provider level
 				}
 
+				let description;
+				if (session.description) {
+					description = session.description;
+				} else {
+					switch (session.status) {
+						case ChatSessionStatus.InProgress:
+							description = localize('chat.session.status.inProgress', "Working...");
+							break;
+						case ChatSessionStatus.Failed:
+							description = localize('chat.session.status.error', "Failed");
+							break;
+						default:
+							description = localize('chat.session.status.completed', "Finished");
+							break;
+					}
+				}
+
+				let icon: ThemeIcon;
+				let providerLabel: string;
+				switch ((provider.chatSessionType)) {
+					case localChatSessionType:
+						providerLabel = localize('chat.session.providerLabel.local', "Local");
+						icon = Codicon.window;
+						break;
+					case AgentSessionProviders.Background:
+						providerLabel = localize('chat.session.providerLabel.background', "Background");
+						icon = Codicon.serverProcess;
+						break;
+					case AgentSessionProviders.Cloud:
+						providerLabel = localize('chat.session.providerLabel.cloud', "Cloud");
+						icon = Codicon.cloud;
+						break;
+					default: {
+						providerLabel = mapSessionContributionToType.get(provider.chatSessionType)?.name ?? provider.chatSessionType;
+						icon = session.iconPath ?? Codicon.terminal;
+					}
+				}
+
 				newSessions.push({
 					provider,
-					id: session.id,
+					providerLabel,
 					resource: session.resource,
 					label: session.label,
-					description: session.description || new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`),
-					icon: session.iconPath,
-					status: session.status as unknown as AgentSessionStatus,
+					description,
+					icon,
+					tooltip: session.tooltip,
+					status: session.status,
 					timing: {
 						startTime: session.timing.startTime,
 						endTime: session.timing.endTime
 					},
 					statistics: session.statistics
 				});
-			}
-
-			if (INCLUDE_HISTORY && provider.chatSessionType === LOCAL_AGENT_SESSION_TYPE) {
-				// TODO@bpasero this needs to come from the local provider:
-				// - do we want to show history or not and how
-				// - can we support all properties including `startTime` properly
-				for (const history of await this.chatService.getHistory()) {
-					newSessions.push({
-						id: history.sessionId,
-						resource: ChatSessionUri.forSession(LOCAL_AGENT_SESSION_TYPE, history.sessionId),
-						label: history.title,
-						provider: provider,
-						timing: {
-							startTime: history.lastMessageDate ?? Date.now()
-						},
-						description: new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`),
-					});
-				}
 			}
 		}
 

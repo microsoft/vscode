@@ -73,8 +73,8 @@ suite('ChatModeService', () => {
 		// Check that Ask mode is always present
 		const askMode = modes.builtin.find(mode => mode.id === ChatModeKind.Ask);
 		assert.ok(askMode);
-		assert.strictEqual(askMode.label, 'Ask');
-		assert.strictEqual(askMode.name, 'ask');
+		assert.strictEqual(askMode.label.get(), 'Ask');
+		assert.strictEqual(askMode.name.get(), 'ask');
 		assert.strictEqual(askMode.kind, ChatModeKind.Ask);
 	});
 
@@ -126,8 +126,8 @@ suite('ChatModeService', () => {
 
 		const testMode = modes.custom[0];
 		assert.strictEqual(testMode.id, customMode.uri.toString());
-		assert.strictEqual(testMode.name, customMode.name);
-		assert.strictEqual(testMode.label, customMode.name);
+		assert.strictEqual(testMode.name.get(), customMode.name);
+		assert.strictEqual(testMode.label.get(), customMode.name);
 		assert.strictEqual(testMode.description.get(), customMode.description);
 		assert.strictEqual(testMode.kind, ChatModeKind.Agent);
 		assert.deepStrictEqual(testMode.customTools?.get(), customMode.tools);
@@ -178,8 +178,8 @@ suite('ChatModeService', () => {
 		const foundMode = chatModeService.findModeById(customMode.uri.toString());
 		assert.ok(foundMode);
 		assert.strictEqual(foundMode.id, customMode.uri.toString());
-		assert.strictEqual(foundMode.name, customMode.name);
-		assert.strictEqual(foundMode.label, customMode.name);
+		assert.strictEqual(foundMode.name.get(), customMode.name);
+		assert.strictEqual(foundMode.label.get(), customMode.name);
 	});
 
 	test('should update existing custom mode instances when data changes', async () => {

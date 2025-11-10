@@ -88,7 +88,7 @@ let homeDir = isWindows ? testEnv['USERPROFILE'] : testEnv['HOME'];
 if (!homeDir!.endsWith('/')) {
 	homeDir += '/';
 }
-const standardTidleItem = Object.freeze({ label: '~', detail: homeDir });
+const standardTildeItem = Object.freeze({ label: '~', detail: homeDir });
 
 suite('TerminalCompletionService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -174,7 +174,7 @@ suite('TerminalCompletionService', () => {
 				{ label: '.', detail: '/test/' },
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: '../', detail: '/' },
-				standardTidleItem,
+				standardTildeItem,
 			], { replacementRange: [1, 1] });
 		});
 
@@ -457,8 +457,31 @@ suite('TerminalCompletionService', () => {
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './folder2/', detail: '/test/folder2/' },
 				{ label: '../', detail: '/' },
-				standardTidleItem,
+				standardTildeItem,
 			], { replacementRange: [0, 0] });
+		});
+
+		test('should ignore environment variable setting prefixes', async () => {
+			const resourceOptions: TerminalCompletionResourceOptions = {
+				cwd: URI.parse('file:///test'),
+				showDirectories: true,
+				pathSeparator
+			};
+			validResources = [URI.parse('file:///test')];
+			childResources = [
+				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true },
+				{ resource: URI.parse('file:///test/folder2/'), isDirectory: true }
+			];
+			const result = await terminalCompletionService.resolveResources(resourceOptions, 'FOO=./', 2, provider, capabilities);
+
+			// Must not include FOO= prefix in completions
+			assertCompletions(result, [
+				{ label: '.', detail: '/test/' },
+				{ label: './folder1/', detail: '/test/folder1/' },
+				{ label: './folder2/', detail: '/test/folder2/' },
+				{ label: '../', detail: '/' },
+				standardTildeItem,
+			], { replacementRange: [0, 2] });
 		});
 
 		test('./| should handle large directories with many results gracefully', async () => {
@@ -756,7 +779,7 @@ suite('TerminalCompletionService', () => {
 				{ label: './\!special\$chars\&/', detail: '/test/\!special\$chars\&/' },
 				{ label: './\!special\$chars2\&', detail: '/test/\!special\$chars2\&', kind: TerminalCompletionItemKind.File },
 				{ label: '../', detail: '/' },
-				standardTidleItem,
+				standardTildeItem,
 			], { replacementRange: [0, 0] });
 		});
 

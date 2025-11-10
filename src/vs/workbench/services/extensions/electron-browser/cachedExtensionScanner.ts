@@ -23,7 +23,7 @@ export class CachedExtensionScanner {
 
 	public readonly scannedExtensions: Promise<IExtensionDescription[]>;
 	private _scannedExtensionsResolve!: (result: IExtensionDescription[]) => void;
-	private _scannedExtensionsReject!: (err: any) => void;
+	private _scannedExtensionsReject!: (err: unknown) => void;
 
 	constructor(
 		@INotificationService private readonly _notificationService: INotificationService,

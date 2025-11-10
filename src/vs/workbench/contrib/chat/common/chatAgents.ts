@@ -48,6 +48,7 @@ export interface IChatAgentAttachmentCapabilities {
 	supportsSourceControlAttachments?: boolean;
 	supportsProblemAttachments?: boolean;
 	supportsSymbolAttachments?: boolean;
+	supportsTerminalAttachments?: boolean;
 }
 
 export interface IChatAgentData {
@@ -157,6 +158,7 @@ export interface IChatAgentRequest {
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+	isSubagent?: boolean;
 
 	/**
 	 * Summary data for chat sessions context

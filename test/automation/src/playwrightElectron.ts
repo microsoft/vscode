@@ -33,7 +33,11 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 	const electron = await measureAndLog(() => playwrightImpl._electron.launch({
 		executablePath: configuration.electronPath,
 		args: configuration.args,
-		recordVideo: options.videosPath ? { dir: options.videosPath } : undefined,
+		recordVideo: options.videosPath
+			? {
+				dir: options.videosPath,
+				size: { width: 1920, height: 1080 }
+			} : undefined,
 		env: configuration.env as { [key: string]: string },
 		timeout: 0
 	}), 'playwright-electron#launch', logger);

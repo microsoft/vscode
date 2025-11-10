@@ -5,7 +5,7 @@
 
 import type { IMarker as XtermMarker } from '@xterm/xterm';
 import { IAction } from '../../../../../../../base/common/actions.js';
-import { timeout } from '../../../../../../../base/common/async.js';
+import { timeout, type MaybePromise } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -28,6 +28,8 @@ import { getTextResponseFromStream } from './utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
+import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
+import { LocalChatSessionUri } from '../../../../../chat/common/chatUri.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -87,6 +89,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
 
@@ -352,13 +355,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 
 	private async _assessOutputForErrors(buffer: string, token: CancellationToken): Promise<string | undefined> {
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
-		if (!models.length) {
+		const model = await this._getLanguageModel();
+		if (!model) {
 			return 'No models available';
 		}
 
 		const response = await this._languageModelsService.sendChatRequest(
-			models[0],
+			model,
 			new ExtensionIdentifier('core'),
 			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors. If there are errors, return them. Otherwise, return undefined: ${buffer}.` }] }],
 			{},
@@ -378,8 +381,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (token.isCancellationRequested) {
 			return;
 		}
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
-		if (!models.length) {
+		const model = await this._getLanguageModel();
+		if (!model) {
 			return undefined;
 		}
 		const lastFiveLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-5).join('\n');
@@ -419,7 +422,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			${lastFiveLines}
 			`;
 
-		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }], {}, token);
+		const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('core'), [{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }], {}, token);
 		const responseText = await getTextResponseFromStream(response);
 		try {
 			const match = responseText.match(/\{[\s\S]*\}/);
@@ -526,7 +529,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			'',
 			localize('poll.terminal.enterInput', 'Focus terminal'),
 			undefined,
-			async () => { execution.instance.focus(true); return true; },
+			async () => {
+				this._showInstance(execution.instance.instanceId);
+				return true;
+			}
 		);
 
 		const inputPromise = new Promise<boolean>(resolve => {
@@ -567,6 +573,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				return option;
 			},
 			async () => {
+				this._showInstance(execution.instance.instanceId);
 				this._state = OutputMonitorState.Cancelled;
 				this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
 				inputDataDisposable.dispose();
@@ -590,6 +597,17 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return optionToRun;
 	}
 
+	private _showInstance(instanceId?: number): void {
+		if (!instanceId) {
+			return;
+		}
+		const instance = this._terminalService.getInstanceFromId(instanceId);
+		if (!instance) {
+			return;
+		}
+		this._terminalService.setActiveInstance(instance);
+		this._terminalService.revealActiveTerminal(true);
+	}
 	// Helper to create, register, and wire a ChatElicitationRequestPart. Returns the promise that
 	// resolves when the part is accepted/rejected and the registered part itself so callers can
 	// attach additional listeners (e.g., onDidRequestHide) or compose with other promises.
@@ -601,11 +619,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		subtitle: string,
 		acceptLabel: string,
 		rejectLabel?: string,
-		onAccept?: (value: IAction | true) => Promise<T | undefined> | T | undefined,
-		onReject?: () => Promise<T | undefined> | T | undefined,
+		onAccept?: (value: IAction | true) => MaybePromise<T | undefined>,
+		onReject?: () => MaybePromise<T | undefined>,
 		moreActions?: IAction[] | undefined
 	): { promise: Promise<T | undefined>; part: ChatElicitationRequestPart } {
-		const chatModel = sessionId && this._chatService.getSession(sessionId);
+		const chatModel = sessionId && this._chatService.getSession(LocalChatSessionUri.forSession(sessionId));
 		if (!(chatModel instanceof ChatModel)) {
 			throw new Error('No model');
 		}
@@ -657,6 +675,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return { promise, part };
 	}
 
+	private async _getLanguageModel(): Promise<string | undefined> {
+		let models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
+
+		// Fallback to gpt-4o-mini if copilot-fast is not available for backwards compatibility
+		if (!models.length) {
+			models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
+		}
+
+		return models.length ? models[0] : undefined;
+	}
 }
 
 function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] | undefined {

@@ -64,7 +64,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			...options,
 			onDidFocus: el => {
 				if (el) {
-					this._proxy.$onItemSelected((<TransferQuickPickItem>el).handle);
+					this._proxy.$onItemSelected(el.handle);
 				}
 			}
 		};
@@ -238,7 +238,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 				}
 
 				default:
-					// eslint-disable-next-line local/code-no-any-casts
+					// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 					(input as any)[param] = params[param];
 					break;
 			}

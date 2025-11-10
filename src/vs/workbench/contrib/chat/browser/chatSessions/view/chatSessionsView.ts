@@ -7,6 +7,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import * as nls from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -24,17 +25,35 @@ import { Extensions, IViewContainersRegistry, IViewDescriptor, IViewDescriptorSe
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { ChatContextKeyExprs } from '../../../common/chatContextKeys.js';
-import { IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { AGENT_SESSIONS_VIEWLET_ID } from '../../../common/constants.js';
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { SessionsViewPane } from './sessionsViewPane.js';
+
+export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.chatSessionsView';
+	constructor() {
+		super();
+		this.registerViewContainer();
+	}
+	private registerViewContainer(): void {
+		Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+			{
+				id: AGENT_SESSIONS_VIEWLET_ID,
+				title: nls.localize2('chat.agent.sessions', "Agent Sessions"),
+				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer),
+				hideIfEmpty: true,
+				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View'),
+				order: 6
+			}, ViewContainerLocation.Sidebar);
+	}
+
+}
 
 export class ChatSessionsViewContrib extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatSessions';
 
-	private localProvider: LocalChatSessionsProvider | undefined;
 	private readonly sessionTracker: ChatSessionTracker;
 	private readonly registeredViewDescriptors: Map<string, IViewDescriptor> = new Map();
 
@@ -47,15 +66,8 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 		super();
 
 		this.sessionTracker = this._register(this.instantiationService.createInstance(ChatSessionTracker));
-		this.setupEditorTracking();
-
-		// Create and register the local chat sessions provider immediately
-		// This ensures it's available even when the view container is not initialized
-		this.localProvider = this._register(this.instantiationService.createInstance(LocalChatSessionsProvider));
-		this._register(this.chatSessionsService.registerChatSessionItemProvider(this.localProvider));
 
 		// Initial check
-		this.registerViewContainer();
 		void this.updateViewRegistration();
 
 		this._register(this.chatSessionsService.onDidChangeItemsProviders(() => {
@@ -67,24 +79,6 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 		}));
 	}
 
-	private setupEditorTracking(): void {
-		this._register(this.sessionTracker.onDidChangeEditors(e => {
-			this.chatSessionsService.notifySessionItemsChanged(e.sessionType);
-		}));
-	}
-
-	private registerViewContainer(): void {
-		Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
-			{
-				id: AGENT_SESSIONS_VIEWLET_ID,
-				title: nls.localize2('chat.agent.sessions', "Agent Sessions"),
-				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer, [this.sessionTracker]),
-				hideIfEmpty: true,
-				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View'),
-				order: 6
-			}, ViewContainerLocation.Sidebar);
-	}
-
 	private getAllChatSessionItemProviders(): IChatSessionItemProvider[] {
 		return Array.from(this.chatSessionsService.getAllChatSessionItemProviders());
 	}
@@ -92,7 +86,7 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 	private async updateViewRegistration(): Promise<void> {
 		// prepare all chat session providers
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
-		await Promise.all(contributions.map(contrib => this.chatSessionsService.canResolveItemProvider(contrib.type)));
+		await Promise.all(contributions.map(contrib => this.chatSessionsService.hasChatSessionItemProvider(contrib.type)));
 		const currentProviders = this.getAllChatSessionItemProviders();
 		const currentProviderIds = new Set(currentProviders.map(p => p.chatSessionType));
 
@@ -125,9 +119,9 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 			const viewDescriptorsToRegister: IViewDescriptor[] = [];
 
 			// Separate providers by type and prepare display names with order
-			const localProvider = providers.find(p => p.chatSessionType === 'local');
+			const localProvider = providers.find(p => p.chatSessionType === localChatSessionType);
 			const historyProvider = providers.find(p => p.chatSessionType === 'history');
-			const otherProviders = providers.filter(p => p.chatSessionType !== 'local' && p.chatSessionType !== 'history');
+			const otherProviders = providers.filter(p => p.chatSessionType !== localChatSessionType && p.chatSessionType !== 'history');
 
 			// Sort other providers by order, then alphabetically by display name
 			const providersWithDisplayNames = otherProviders.map(provider => {
@@ -200,7 +194,7 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 					viewDescriptorsToRegister.push(viewDescriptor);
 					this.registeredViewDescriptors.set(provider.chatSessionType, viewDescriptor);
 
-					if (provider.chatSessionType === 'local') {
+					if (provider.chatSessionType === localChatSessionType) {
 						const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 						this._register(viewsRegistry.registerViewWelcomeContent(viewDescriptor.id, {
 							content: nls.localize('chatSessions.noResults', "No local chat agent sessions\n[Start an Agent Session](command:{0})", ACTION_ID_OPEN_CHAT),
@@ -211,8 +205,7 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 
 			const gettingStartedViewId = `${AGENT_SESSIONS_VIEWLET_ID}.gettingStarted`;
 			if (!this.registeredViewDescriptors.has('gettingStarted')
-				&& this.productService.chatSessionRecommendations
-				&& this.productService.chatSessionRecommendations.length) {
+				&& this.productService.chatSessionRecommendations?.length) {
 				const gettingStartedDescriptor: IViewDescriptor = {
 					id: gettingStartedViewId,
 					name: {
@@ -224,7 +217,7 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 					canMoveView: true,
 					order: 1000,
 					collapsed: !!otherProviders.length,
-					when: ChatContextKeyExprs.agentViewWhen
+					when: ContextKeyExpr.false()
 				};
 				viewDescriptorsToRegister.push(gettingStartedDescriptor);
 				this.registeredViewDescriptors.set('gettingStarted', gettingStartedDescriptor);
@@ -265,7 +258,6 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@ILogService logService: ILogService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super(
 			AGENT_SESSIONS_VIEWLET_ID,
@@ -284,30 +276,10 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 			viewDescriptorService,
 			logService
 		);
-
-		// Listen for session items changes and refresh the appropriate provider tree
-		this._register(this.chatSessionsService.onDidChangeSessionItems((chatSessionType) => {
-			this.refreshProviderTree(chatSessionType);
-		}));
 	}
 
 	override getTitle(): string {
 		const title = nls.localize('chat.agent.sessions.title', "Agent Sessions");
 		return title;
-	}
-
-	private refreshProviderTree(chatSessionType: string): void {
-		// Find the provider with the matching chatSessionType
-		const providers = Array.from(this.chatSessionsService.getAllChatSessionItemProviders());
-		const targetProvider = providers.find(provider => provider.chatSessionType === chatSessionType);
-
-		if (targetProvider) {
-			// Find the corresponding view and refresh its tree
-			const viewId = `${AGENT_SESSIONS_VIEWLET_ID}.${chatSessionType}`;
-			const view = this.getView(viewId) as SessionsViewPane | undefined;
-			if (view) {
-				view.refreshTree();
-			}
-		}
 	}
 }

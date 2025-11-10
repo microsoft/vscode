@@ -12,8 +12,6 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
 import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
-import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { inputPlaceholderForeground } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -53,7 +51,6 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
@@ -142,12 +139,7 @@ class InputEditorDecorations extends Disposable {
 
 		if (!inputValue) {
 			const mode = this.widget.input.currentModeObs.get();
-			let placeholder;
-			if (this.configurationService.getValue<boolean>('chat.emptyChatState.enabled')) {
-				placeholder = localize('chatPlaceholderHint', "Add context (#), extensions (@), commands (/)");
-			} else {
-				placeholder = mode.description.get() ?? '';
-			}
+			const placeholder = mode.argumentHint?.get() ?? mode.description.get() ?? '';
 
 			const decoration: IDecorationOptions[] = [
 				{
@@ -252,7 +244,7 @@ class InputEditorDecorations extends Disposable {
 			// Resolve the prompt file (this will use cache if available)
 			const promptFile = this.promptsService.resolvePromptSlashCommandFromCache(slashPromptPart.slashPromptCommand.command);
 
-			const description = promptFile?.header?.description;
+			const description = promptFile?.header?.argumentHint ?? promptFile?.header?.description;
 			if (description) {
 				placeholderDecoration = [{
 					range: getRangeForPlaceholder(slashPromptPart),
@@ -371,7 +363,7 @@ class ChatTokenDeleter extends Disposable {
 
 			// If this was a simple delete, try to find out whether it was inside a token
 			if (!change.text && this.widget.viewModel) {
-				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentModeKind });
+				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionResource, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentModeKind });
 
 				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
 				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestSlashPromptPart || p instanceof ChatRequestToolPart);

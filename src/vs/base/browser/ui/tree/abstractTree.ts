@@ -167,10 +167,12 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 		dnd: options.dnd && disposableStore.add(new TreeNodeListDragAndDrop(modelProvider, options.dnd)),
 		multipleSelectionController: options.multipleSelectionController && {
 			isSelectionSingleChangeEvent(e) {
-				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element }! as IListMouseEvent<T> | IListTouchEvent<T>);
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
+				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element } as IListMouseEvent<T> | IListTouchEvent<T>);
 			},
 			isSelectionRangeChangeEvent(e) {
-				return options.multipleSelectionController!.isSelectionRangeChangeEvent({ ...e, element: e.element }! as IListMouseEvent<T> | IListTouchEvent<T>);
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
+				return options.multipleSelectionController!.isSelectionRangeChangeEvent({ ...e, element: e.element } as IListMouseEvent<T> | IListTouchEvent<T>);
 			}
 		},
 		accessibilityProvider: options.accessibilityProvider && {

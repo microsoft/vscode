@@ -17,6 +17,7 @@ import { Lazy } from '../../../../../../base/common/lazy.js';
 import { LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isGithubTarget } from './promptValidator.js';
 
 export class PromptCodeActionProvider implements CodeActionProvider {
 	/**
@@ -40,15 +41,15 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 
 		const result: CodeAction[] = [];
 
-		const parser = this.promptsService.getParsedPromptFile(model);
+		const promptAST = this.promptsService.getParsedPromptFile(model);
 		switch (promptType) {
 			case PromptsType.agent:
-				this.getUpdateToolsCodeActions(parser, model, range, result);
+				this.getUpdateToolsCodeActions(promptAST, promptType, model, range, result);
 				await this.getMigrateModeFileCodeActions(model.uri, result);
 				break;
 			case PromptsType.prompt:
-				this.getUpdateModeCodeActions(parser, model, range, result);
-				this.getUpdateToolsCodeActions(parser, model, range, result);
+				this.getUpdateModeCodeActions(promptAST, model, range, result);
+				this.getUpdateToolsCodeActions(promptAST, promptType, model, range, result);
 				break;
 		}
 
@@ -91,11 +92,16 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 		}
 	}
 
-	private getUpdateToolsCodeActions(promptFile: ParsedPromptFile, model: ITextModel, range: Range, result: CodeAction[]): void {
+	private getUpdateToolsCodeActions(promptFile: ParsedPromptFile, promptType: PromptsType, model: ITextModel, range: Range, result: CodeAction[]): void {
 		const toolsAttr = promptFile.header?.getAttribute(PromptHeaderAttributes.tools);
 		if (toolsAttr?.value.type !== 'array' || !toolsAttr.value.range.containsRange(range)) {
 			return;
 		}
+		if (isGithubTarget(promptType, promptFile.header?.target)) {
+			// GitHub Copilot custom agents use a fixed set of tool names that are not deprecated
+			return;
+		}
+
 		const values = toolsAttr.value.items;
 		const deprecatedNames = new Lazy(() => this.languageModelToolsService.getDeprecatedQualifiedToolNames());
 		const edits: TextEdit[] = [];

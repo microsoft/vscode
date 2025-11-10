@@ -146,9 +146,10 @@ export interface IChatContentInlineReference {
 }
 
 export interface IChatMarkdownContent {
+	kind: 'markdownContent';
 	content: IMarkdownString;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
-	kind: 'markdownContent';
+	fromSubagent?: boolean;
 }
 
 export interface IChatTreeData {
@@ -189,6 +190,12 @@ export interface IChatTask extends IChatTaskDto {
 export interface IChatUndoStop {
 	kind: 'undoStop';
 	id: string;
+}
+
+export interface IChatExternalEditsDto {
+	kind: 'externalEdits';
+	start: boolean; /** true=start, false=stop */
+	resources: UriComponents[];
 }
 
 export interface IChatTaskDto {
@@ -245,6 +252,7 @@ export interface IChatTextEdit {
 	edits: TextEdit[];
 	kind: 'textEdit';
 	done?: boolean;
+	isExternalEdit?: boolean;
 }
 
 export interface IChatClearToPreviousToolInvocation {
@@ -257,6 +265,7 @@ export interface IChatNotebookEdit {
 	edits: ICellEditOperation[];
 	kind: 'notebookEdit';
 	done?: boolean;
+	isExternalEdit?: boolean;
 }
 
 export interface IChatConfirmation {
@@ -305,6 +314,8 @@ export interface IChatTerminalToolInvocationData {
 	alternativeRecommendation?: string;
 	language: string;
 	terminalToolSessionId?: string;
+	/** The predefined command ID that will be used for this terminal command */
+	terminalCommandId?: string;
 	autoApproveInfo?: IMarkdownString;
 }
 
@@ -350,6 +361,7 @@ export interface IChatToolInvocation {
 	readonly source: ToolDataSource;
 	readonly toolId: string;
 	readonly toolCallId: string;
+	readonly parameters: unknown;
 	readonly fromSubAgent?: boolean;
 	readonly state: IObservable<IChatToolInvocation.State>;
 
@@ -660,6 +672,15 @@ export interface IChatFollowup {
 	tooltip?: string;
 }
 
+export function isChatFollowup(obj: unknown): obj is IChatFollowup {
+	return (
+		!!obj &&
+		(obj as IChatFollowup).kind === 'reply' &&
+		typeof (obj as IChatFollowup).message === 'string' &&
+		typeof (obj as IChatFollowup).agentId === 'string'
+	);
+}
+
 export enum ChatAgentVoteDirection {
 	Down = 0,
 	Up = 1
@@ -777,7 +798,7 @@ export interface IChatUserActionEvent {
 	action: ChatUserAction;
 	agentId: string | undefined;
 	command: string | undefined;
-	sessionId: string;
+	sessionResource: URI;
 	requestId: string;
 	result: IChatAgentResult | undefined;
 	modelId?: string | undefined;
@@ -803,7 +824,7 @@ export interface IChatCompleteResponse {
 }
 
 export interface IChatDetail {
-	sessionId: string;
+	sessionResource: URI;
 	title: string;
 	lastMessageDate: number;
 	isActive: boolean;
@@ -836,7 +857,7 @@ export interface IChatEditorLocationData {
 	selection: ISelection;
 	wholeRange: IRange;
 	close: () => void;
-	delegateSessionId: string | undefined;
+	delegateSessionResource: URI | undefined;
 }
 
 export interface IChatNotebookLocationData {
@@ -890,41 +911,42 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
-	readonly onDidSubmitRequest: Event<{ chatSessionId: string }>;
+	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean, options?: { canUseTools?: boolean; inputType?: string }): ChatModel;
-	getSession(sessionId: string): IChatModel | undefined;
-	getOrRestoreSession(sessionId: string): Promise<IChatModel | undefined>;
-	getPersistedSessionTitle(sessionId: string): string | undefined;
-	isPersistedSessionEmpty(sessionId: string): boolean;
+	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean, options?: { canUseTools?: boolean }): ChatModel;
+	getSession(sessionResource: URI): IChatModel | undefined;
+	getSessionByLegacyId(sessionId: string): IChatModel | undefined;
+	getOrRestoreSession(sessionResource: URI): Promise<IChatModel | undefined>;
+	getPersistedSessionTitle(sessionResource: URI): string | undefined;
+	isPersistedSessionEmpty(sessionResource: URI): boolean;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI): IChatModel | undefined;
 	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined>;
 	readonly editingSessions: IChatEditingSession[];
-	getChatSessionFromInternalId(sessionId: string): IChatSessionContext | undefined;
+	getChatSessionFromInternalUri(sessionResource: URI): IChatSessionContext | undefined;
 
 	/**
 	 * Returns whether the request was accepted.`
 	 */
-	sendRequest(sessionId: string, message: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined>;
+	sendRequest(sessionResource: URI, message: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined>;
 
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
-	adoptRequest(sessionId: string, request: IChatRequestModel): Promise<void>;
-	removeRequest(sessionid: string, requestId: string): Promise<void>;
-	cancelCurrentRequestForSession(sessionId: string): void;
-	clearSession(sessionId: string): Promise<void>;
-	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
-	getHistory(): Promise<IChatDetail[]>;
-	setChatSessionTitle(sessionId: string, title: string): void;
+	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
+	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
+	cancelCurrentRequestForSession(sessionResource: URI): void;
+	clearSession(sessionResource: URI): Promise<void>;
+	addCompleteRequest(sessionResource: URI, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
+	setChatSessionTitle(sessionResource: URI, title: string): void;
+	getLocalSessionHistory(): Promise<IChatDetail[]>;
 	clearAllHistoryEntries(): Promise<void>;
-	removeHistoryEntry(sessionId: string): Promise<void>;
+	removeHistoryEntry(sessionResource: URI): Promise<void>;
 	getChatStorageFolder(): URI;
 	logChatIndex(): void;
 
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
-	readonly onDidDisposeSession: Event<{ sessionId: string; reason: 'cleared' }>;
+	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI; readonly reason: 'cleared' }>;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 
@@ -936,10 +958,9 @@ export interface IChatService {
 }
 
 export interface IChatSessionContext {
-	chatSessionType: string;
-	chatSessionId: string;
-	chatSessionResource: UriComponents;
-	isUntitled: boolean;
+	readonly chatSessionType: string;
+	readonly chatSessionResource: URI;
+	readonly isUntitled: boolean;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';

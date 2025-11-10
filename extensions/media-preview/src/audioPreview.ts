@@ -6,7 +6,8 @@
 import * as vscode from 'vscode';
 import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 import { MediaPreview, reopenAsText } from './mediaPreview';
-import { escapeAttribute, getNonce } from './util/dom';
+import { escapeAttribute } from './util/dom';
+import { generateUuid } from './util/uuid';
 
 class AudioPreviewProvider implements vscode.CustomReadonlyEditorProvider {
 
@@ -57,7 +58,7 @@ class AudioPreview extends MediaPreview {
 			src: await this.getResourcePath(this._webviewEditor, this._resource, version),
 		};
 
-		const nonce = getNonce();
+		const nonce = generateUuid();
 
 		const cspSource = this._webviewEditor.webview.cspSource;
 		return /* html */`<!DOCTYPE html>

@@ -92,7 +92,7 @@
 	align-items: center;
 	font-size: 0.9em;
 	line-height: 1em;
-	margin: 2px 22px 0 22px;
+	margin: 2px 22px 0 20px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -115,6 +115,16 @@
 .chat-sessions-tree-container .chat-session-item .description-row .description {
 	opacity: 0.5;
 }
+
+.chat-sessions-tree-container .chat-session-item .description-row .description p {
+	display: flex;
+	align-items: center;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row .description p .codicon {
+	font-size: 14px;
+}
+
 .chat-sessions-tree-container .chat-session-item .description-row .statistics {
 	margin-left: 8px;
 }

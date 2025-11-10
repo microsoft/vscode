@@ -9,7 +9,7 @@ import * as objects from '../../../../base/common/objects.js';
 import { toAction } from '../../../../base/common/actions.js';
 import * as errors from '../../../../base/common/errors.js';
 import { createErrorWithActions } from '../../../../base/common/errorMessage.js';
-import { formatPII, isUri } from '../common/debugUtils.js';
+import { formatPII, isUriString } from '../common/debugUtils.js';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from '../common/debug.js';
 import { IExtensionHostDebugService, IOpenExtensionWindowResult } from '../../../../platform/debug/common/extensionHostDebug.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -738,8 +738,8 @@ export class RawDebugSession implements IDisposable {
 				const key = match[1];
 				let value = match[2];
 
-				if ((key === 'file-uri' || key === 'folder-uri') && !isUri(arg.path)) {
-					value = isUri(value) ? value : URI.file(value).toString();
+				if ((key === 'file-uri' || key === 'folder-uri') && !isUriString(arg.path)) {
+					value = isUriString(value) ? value : URI.file(value).toString();
 				}
 				args.push(`--${key}=${value}`);
 			} else {

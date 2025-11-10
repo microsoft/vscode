@@ -53,12 +53,19 @@ suite('PromptValidator', () => {
 		const toolService = disposables.add(instaService.createInstance(LanguageModelToolsService));
 
 		const testTool1 = { id: 'testTool1', displayName: 'tool1', canBeReferencedInPrompt: true, modelDescription: 'Test Tool 1', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
-		const testTool2 = { id: 'testTool2', displayName: 'tool2', canBeReferencedInPrompt: true, toolReferenceName: 'tool2', modelDescription: 'Test Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
-		const testTool3 = { id: 'testTool3', displayName: 'tool3', canBeReferencedInPrompt: true, toolReferenceName: 'tool3', modelDescription: 'Test Tool 3', source: { type: 'extension', label: 'My Extension', extensionId: new ExtensionIdentifier('My.extension') }, inputSchema: {} } satisfies IToolData;
-
 		disposables.add(toolService.registerToolData(testTool1));
+		const testTool2 = { id: 'testTool2', displayName: 'tool2', canBeReferencedInPrompt: true, toolReferenceName: 'tool2', modelDescription: 'Test Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(testTool2));
+		const runCommandsTool = { id: 'runCommands', displayName: 'runCommands', canBeReferencedInPrompt: true, toolReferenceName: 'runCommands', modelDescription: 'Run Commands Tool', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(runCommandsTool));
+
+		const myExtSource = { type: 'extension', label: 'My Extension', extensionId: new ExtensionIdentifier('My.extension') } satisfies ToolDataSource;
+		const testTool3 = { id: 'testTool3', displayName: 'tool3', canBeReferencedInPrompt: true, toolReferenceName: 'tool3', modelDescription: 'Test Tool 3', source: myExtSource, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(testTool3));
+
+		const prExtSource = { type: 'extension', label: 'GitHub Pull Request Extension', extensionId: new ExtensionIdentifier('github.vscode-pull-request-github') } satisfies ToolDataSource;
+		const prExtTool1 = { id: 'suggestFix', canBeReferencedInPrompt: true, toolReferenceName: 'suggest-fix', modelDescription: 'tool4', displayName: 'Test Tool 4', source: prExtSource, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(prExtTool1));
 
 		instaService.set(ILanguageModelToolsService, toolService);
 
@@ -188,9 +195,12 @@ suite('PromptValidator', () => {
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
-			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.startsWith(`Attribute 'applyTo' is not supported in custom agent files.`));
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: argument-hint, description, handoffs, model, name, target, tools.` },
+				]
+			);
 		});
 
 		test('tools with invalid handoffs', async () => {
@@ -232,6 +242,21 @@ suite('PromptValidator', () => {
 				assert.strictEqual(markers.length, 1);
 				assert.deepStrictEqual(markers.map(m => m.message), [`The 'agent' property in a handoff must be a non-empty string.`]);
 			}
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`handoffs:`,
+					`  - label: '123'`,
+					`    agent: 'Cool'`,
+					`    prompt: ''`,
+					`    send: true`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.deepStrictEqual(markers.map(m => m.message), [`Unknown agent 'Cool'. Available agents: agent, ask, edit, BeastMode.`]);
+			}
 		});
 
 		test('agent with handoffs attribute', async () => {
@@ -240,16 +265,287 @@ suite('PromptValidator', () => {
 				'description: \"Test agent with handoffs\"',
 				`handoffs:`,
 				'  - label: Test Prompt',
-				'    agent: Default',
+				'    agent: agent',
 				'    prompt: Add tests for this code',
 				'  - label: Optimize Performance',
-				'    agent: Default',
+				'    agent: agent',
 				'    prompt: Optimize for performance',
 				'---',
 				'Body',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues for handoffs attribute');
+		});
+
+		test('github-copilot agent with supported attributes', async () => {
+			const content = [
+				'---',
+				'name: "GitHub_Copilot_Custom_Agent"',
+				'description: "GitHub Copilot agent"',
+				'target: github-copilot',
+				`tools: ['shell', 'edit', 'search', 'custom-agent']`,
+				'mcp-servers: []',
+				'---',
+				'Body with #search and #edit references',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, [], 'Expected no validation issues for github-copilot target');
+		});
+
+		test('github-copilot agent warns about model and handoffs attributes', async () => {
+			const content = [
+				'---',
+				'name: "GitHubAgent"',
+				'description: "GitHub Copilot agent"',
+				'target: github-copilot',
+				'model: MAE 4.1',
+				`tools: ['shell', 'edit']`,
+				`handoffs:`,
+				'  - label: Test',
+				'    agent: Default',
+				'    prompt: Test',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			const messages = markers.map(m => m.message);
+			assert.deepStrictEqual(messages, [
+				'Attribute \'model\' is not supported in custom GitHub Copilot agent files. Supported: description, mcp-servers, name, target, tools.',
+				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, mcp-servers, name, target, tools.',
+			], 'Model and handoffs are not validated for github-copilot target');
+		});
+
+		test('github-copilot agent does not validate variable references', async () => {
+			const content = [
+				'---',
+				'name: "GitHubAgent"',
+				'description: "GitHub Copilot agent"',
+				'target: github-copilot',
+				`tools: ['shell', 'edit']`,
+				'---',
+				'Body with #unknownTool reference',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			// Variable references should not be validated for github-copilot target
+			assert.deepStrictEqual(markers, [], 'Variable references are not validated for github-copilot target');
+		});
+
+		test('github-copilot agent rejects unsupported attributes', async () => {
+			const content = [
+				'---',
+				'name: "GitHubAgent"',
+				'description: "GitHub Copilot agent"',
+				'target: github-copilot',
+				'argument-hint: "test hint"',
+				`tools: ['shell']`,
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.ok(markers[0].message.includes(`Attribute 'argument-hint' is not supported`), 'Expected warning about unsupported attribute');
+		});
+
+		test('vscode target agent validates normally', async () => {
+			const content = [
+				'---',
+				'description: "VS Code agent"',
+				'target: vscode',
+				'model: MAE 4.1',
+				`tools: ['tool1', 'tool2']`,
+				'---',
+				'Body with #tool1',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, [], 'VS Code target should validate normally');
+		});
+
+		test('vscode target agent warns about unknown tools', async () => {
+			const content = [
+				'---',
+				'description: "VS Code agent"',
+				'target: vscode',
+				`tools: ['tool1', 'unknownTool']`,
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, `Unknown tool 'unknownTool'.`);
+		});
+
+		test('vscode target agent with mcp-servers and github-tools', async () => {
+			const content = [
+				'---',
+				'description: "VS Code agent"',
+				'target: vscode',
+				`tools: ['tool1', 'shell']`,
+				`mcp-servers: {}`,
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			const messages = markers.map(m => m.message);
+			assert.deepStrictEqual(messages, [
+				'Attribute \'mcp-servers\' is ignored when running locally in VS Code.',
+				'Unknown tool \'shell\'.',
+			]);
+		});
+
+		test('undefined target with mcp-servers and github-tools', async () => {
+			const content = [
+				'---',
+				'description: "VS Code agent"',
+				`tools: ['tool1', 'shell']`,
+				`mcp-servers: {}`,
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			const messages = markers.map(m => m.message);
+			assert.deepStrictEqual(messages, [
+				'Attribute \'mcp-servers\' is ignored when running locally in VS Code.',
+			]);
+		});
+
+		test('default target (no target specified) validates as vscode', async () => {
+			const content = [
+				'---',
+				'description: "Agent without target"',
+				'model: MAE 4.1',
+				`tools: ['tool1']`,
+				'argument-hint: "test hint"',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			// Should validate normally as if target was vscode
+			assert.deepStrictEqual(markers, [], 'Agent without target should validate as vscode');
+		});
+
+		test('name attribute validation', async () => {
+			// Valid name
+			{
+				const content = [
+					'---',
+					'name: "MyAgent"',
+					'description: "Test agent"',
+					'target: vscode',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid name should not produce errors');
+			}
+
+			// Empty name
+			{
+				const content = [
+					'---',
+					'name: ""',
+					'description: "Test agent"',
+					'target: vscode',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
+			}
+
+			// Non-string name
+			{
+				const content = [
+					'---',
+					'name: 123',
+					'description: "Test agent"',
+					'target: vscode',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'name' attribute must be a string.`);
+			}
+
+			// Invalid characters in name
+			{
+				const content = [
+					'---',
+					'name: "My@Agent!"',
+					'description: "Test agent"',
+					'target: vscode',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'name' attribute can only consist of letters, digits, underscores, hyphens, and periods.`);
+			}
+
+			// Valid name with allowed characters
+			{
+				const content = [
+					'---',
+					'name: "My_Agent-2.0"',
+					'description: "Test agent"',
+					'target: vscode',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Name with allowed characters should be valid');
+			}
+		});
+
+		test('github-copilot target requires name attribute', async () => {
+			// Missing name with github-copilot target
+			{
+				const content = [
+					'---',
+					'description: "GitHub Copilot agent"',
+					'target: github-copilot',
+					`tools: ['shell']`,
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 0);
+			}
+
+			// Valid name with github-copilot target
+			{
+				const content = [
+					'---',
+					'name: "GitHubAgent"',
+					'description: "GitHub Copilot agent"',
+					'target: github-copilot',
+					`tools: ['shell']`,
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid github-copilot agent with name should not produce errors');
+			}
+
+			// Missing name with vscode target (should be optional)
+			{
+				const content = [
+					'---',
+					'description: "VS Code agent"',
+					'target: vscode',
+					`tools: ['tool1']`,
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Name should be optional for vscode target');
+			}
 		});
 	});
 
@@ -304,6 +600,54 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.instructions);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].message, 'Invalid header, expecting <key: value> pairs');
+		});
+
+		test('name attribute validation in instructions', async () => {
+			// Valid name
+			{
+				const content = [
+					'---',
+					'name: "MyInstructions"',
+					'description: "Test instructions"',
+					'applyTo: "**/*.ts"',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.instructions);
+				assert.deepStrictEqual(markers, [], 'Valid name should not produce errors');
+			}
+
+			// Empty name
+			{
+				const content = [
+					'---',
+					'name: ""',
+					'description: "Test instructions"',
+					'applyTo: "**/*.ts"',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.instructions);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
+			}
+
+			// Invalid characters in name
+			{
+				const content = [
+					'---',
+					'name: "My Instructions#"',
+					'description: "Test instructions"',
+					'applyTo: "**/*.ts"',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.instructions);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'name' attribute can only consist of letters, digits, underscores, hyphens, and periods.`);
+			}
 		});
 	});
 
@@ -413,6 +757,51 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.strictEqual(markers[0].message, `The 'tools' attribute is only supported when using agents. Attribute will be ignored.`);
 		});
+
+		test('name attribute validation in prompts', async () => {
+			// Valid name
+			{
+				const content = [
+					'---',
+					'name: "MyPrompt"',
+					'description: "Test prompt"',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.prompt);
+				assert.deepStrictEqual(markers, [], 'Valid name should not produce errors');
+			}
+
+			// Empty name
+			{
+				const content = [
+					'---',
+					'name: ""',
+					'description: "Test prompt"',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.prompt);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
+			}
+
+			// Invalid characters in name
+			{
+				const content = [
+					'---',
+					'name: "My Prompt!"',
+					'description: "Test prompt"',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.prompt);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'name' attribute can only consist of letters, digits, underscores, hyphens, and periods.`);
+			}
+		});
 	});
 
 	suite('body', () => {
@@ -474,12 +863,31 @@ suite('PromptValidator', () => {
 				'---',
 				'description: "Unknown tool var"',
 				'---',
-				'This line references known #tool1 and unknown #toolX'
+				'This line references known #tool:tool1 and unknown #tool:toolX'
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1, 'Expected one warning for unknown tool variable');
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.strictEqual(markers[0].message, `Unknown tool or toolset 'toolX'.`);
+		});
+
+		test('body with tool not present in tools list', async () => {
+			const content = [
+				'---',
+				'tools: []',
+				'---',
+				'I need',
+				'#tool:ms-azuretools.vscode-azure-github-copilot/azure_recommend_custom_modes',
+				'#tool:github.vscode-pull-request-github/suggest-fix',
+				'#tool:openSimpleBrowser',
+			].join('\n');
+			const markers = await validate(content, PromptsType.prompt);
+			const actual = markers.sort((a, b) => a.startLineNumber - b.startLineNumber).map(m => ({ message: m.message, startColumn: m.startColumn, endColumn: m.endColumn }));
+			assert.deepEqual(actual, [
+				{ message: `Unknown tool or toolset 'ms-azuretools.vscode-azure-github-copilot/azure_recommend_custom_modes'.`, startColumn: 7, endColumn: 77 },
+				{ message: `Tool or toolset 'github.vscode-pull-request-github/suggest-fix' also needs to be enabled in the header.`, startColumn: 7, endColumn: 52 },
+				{ message: `Unknown tool or toolset 'openSimpleBrowser'.`, startColumn: 7, endColumn: 24 },
+			]);
 		});
 
 	});
