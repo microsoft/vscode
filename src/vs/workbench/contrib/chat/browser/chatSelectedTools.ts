@@ -132,7 +132,8 @@ export class ChatSelectedTools extends Disposable {
 		if (!currentMap && currentMode.kind === ChatModeKind.Agent) {
 			const modeTools = currentMode.customTools?.read(r);
 			if (modeTools) {
-				currentMap = ToolEnablementStates.fromMap(this._toolsService.toToolAndToolSetEnablementMap(modeTools));
+				const target = currentMode.target?.read(r);
+				currentMap = ToolEnablementStates.fromMap(this._toolsService.toToolAndToolSetEnablementMap(modeTools, target));
 			}
 		}
 		if (!currentMap) {

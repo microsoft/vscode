@@ -1250,14 +1250,22 @@ class SCMHistoryViewModel extends Disposable {
 			// Create the color map
 			const colorMap = this._getGraphColorMap(historyItemRefs);
 
+			// Only show incoming changes node if the remote history item reference is part of the graph
+			const addIncomingChangesNode = this._scmViewService.graphShowIncomingChangesConfig.get()
+				&& historyItemRefs.some(ref => ref.id === historyItemRemoteRef?.id);
+
+			// Only show outgoing changes node if the history item reference is part of the graph
+			const addOutgoingChangesNode = this._scmViewService.graphShowOutgoingChangesConfig.get()
+				&& historyItemRefs.some(ref => ref.id === historyItemRef?.id);
+
 			const viewModels = toISCMHistoryItemViewModelArray(
 				historyItems,
 				colorMap,
 				historyProvider.historyItemRef.get(),
 				historyProvider.historyItemRemoteRef.get(),
 				historyProvider.historyItemBaseRef.get(),
-				this._scmViewService.graphShowIncomingChangesConfig.get(),
-				this._scmViewService.graphShowOutgoingChangesConfig.get(),
+				addIncomingChangesNode,
+				addOutgoingChangesNode,
 				mergeBase)
 				.map(historyItemViewModel => ({
 					repository,

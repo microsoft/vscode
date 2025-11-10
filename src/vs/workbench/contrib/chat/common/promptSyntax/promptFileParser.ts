@@ -82,6 +82,11 @@ export namespace GithubPromptHeaderAttributes {
 	export const mcpServers = 'mcp-servers';
 }
 
+export enum Target {
+	VSCode = 'vscode',
+	GitHubCopilot = 'github-copilot'
+}
+
 export class PromptHeader {
 	private _parsed: ParsedHeader | undefined;
 

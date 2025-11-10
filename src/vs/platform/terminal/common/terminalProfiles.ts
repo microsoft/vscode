@@ -8,7 +8,7 @@ import { isUriComponents, URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalIcon } from './terminal.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import type { SingleOrMany } from '../../../base/common/types.js';
+import { isObject, type SingleOrMany } from '../../../base/common/types.js';
 
 export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[], extensionProfiles?: readonly IExtensionTerminalProfile[]): {
 	values: (string | null)[] | undefined;
@@ -94,8 +94,10 @@ export function terminalIconsEqual(a?: TerminalIcon, b?: TerminalIcon): boolean 
 	if (ThemeIcon.isThemeIcon(a) && ThemeIcon.isThemeIcon(b)) {
 		return a.id === b.id && a.color === b.color;
 	}
-	if (typeof a === 'object' && 'light' in a && 'dark' in a
-		&& typeof b === 'object' && 'light' in b && 'dark' in b) {
+	if (
+		isObject(a) && !URI.isUri(a) && !ThemeIcon.isThemeIcon(a) &&
+		isObject(b) && !URI.isUri(b) && !ThemeIcon.isThemeIcon(b)
+	) {
 		const castedA = (a as { light: unknown; dark: unknown });
 		const castedB = (b as { light: unknown; dark: unknown });
 		if ((URI.isUri(castedA.light) || isUriComponents(castedA.light)) && (URI.isUri(castedA.dark) || isUriComponents(castedA.dark))

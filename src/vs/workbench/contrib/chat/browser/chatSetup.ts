@@ -332,24 +332,16 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 			try {
 				const ready = await Promise.race([
 					timeout(this.environmentService.remoteAuthority ? 60000 /* increase for remote scenarios */ : 20000).then(() => 'timedout'),
-					this.whenDefaultAgentFailed(chatService).then(() => 'error'),
+					this.whenDefaultAgentActivated(chatService),
 					Promise.allSettled([whenLanguageModelReady, whenAgentReady, whenToolsModelReady])
 				]);
 
-				if (ready === 'error' || ready === 'timedout') {
+				if (ready === 'timedout') {
 					let warningMessage: string;
-					if (ready === 'timedout') {
-						if (this.chatEntitlementService.anonymous) {
-							warningMessage = localize('chatTookLongWarningAnonymous', "Chat took too long to get ready. Please ensure that the extension `{0}` is installed and enabled.", defaultChat.chatExtensionId);
-						} else {
-							warningMessage = localize('chatTookLongWarning', "Chat took too long to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
-						}
+					if (this.chatEntitlementService.anonymous) {
+						warningMessage = localize('chatTookLongWarningAnonymous', "Chat took too long to get ready. Please ensure that the extension `{0}` is installed and enabled.", defaultChat.chatExtensionId);
 					} else {
-						if (this.chatEntitlementService.anonymous) {
-							warningMessage = localize('chatFailedWarningAnonymous', "Chat failed to get ready. Please ensure that the extension `{0}` is installed and enabled.", defaultChat.chatExtensionId);
-						} else {
-							warningMessage = localize('chatFailedWarning', "Chat failed to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
-						}
+						warningMessage = localize('chatTookLongWarning', "Chat took too long to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
 					}
 
 					this.logService.warn(warningMessage, {
@@ -439,10 +431,12 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}));
 	}
 
-	private async whenDefaultAgentFailed(chatService: IChatService): Promise<void> {
-		return new Promise<void>(resolve => {
-			chatService.activateDefaultAgent(this.location).catch(() => resolve());
-		});
+	private async whenDefaultAgentActivated(chatService: IChatService): Promise<void> {
+		try {
+			await chatService.activateDefaultAgent(this.location);
+		} catch (error) {
+			this.logService.error(error);
+		}
 	}
 
 	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {

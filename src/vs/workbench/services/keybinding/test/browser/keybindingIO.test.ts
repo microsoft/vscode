@@ -156,6 +156,6 @@ suite('keybindingIO', () => {
 		const strJSON = `[{ "key": "ctrl+k ctrl+f", "command": "firstcommand", "when": [], "args": { "text": "theText" } }]`;
 		const userKeybinding = <Object>JSON.parse(strJSON)[0];
 		const keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding);
-		assert.strictEqual(keybindingItem.commandArgs.text, 'theText');
+		assert.strictEqual((keybindingItem.commandArgs as unknown as { text: string }).text, 'theText');
 	});
 });

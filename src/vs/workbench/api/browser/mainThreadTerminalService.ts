@@ -26,6 +26,7 @@ import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } fro
 import { TerminalCapability } from '../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalCompletionService } from '../../contrib/terminalContrib/suggest/browser/terminalCompletionService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { hasKey } from '../../../base/common/types.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -182,7 +183,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private async _deserializeParentTerminal(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean; location?: TerminalLocation }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean } | undefined> {
-		if (typeof location === 'object' && 'parentTerminal' in location) {
+		if (typeof location === 'object' && hasKey(location, { parentTerminal: true })) {
 			const parentTerminal = await this._extHostTerminals.get(location.parentTerminal.toString());
 			return parentTerminal ? { parentTerminal } : undefined;
 		}
@@ -527,10 +528,10 @@ export function getOutputMatchForLines(lines: string[], outputMatcher: ITerminal
 
 function parseQuickFix(id: string, source: string, fix: TerminalQuickFix): ITerminalQuickFix {
 	let type = TerminalQuickFixType.TerminalCommand;
-	if ('uri' in fix) {
+	if (hasKey(fix, { uri: true })) {
 		fix.uri = URI.revive(fix.uri);
 		type = TerminalQuickFixType.Opener;
-	} else if ('id' in fix) {
+	} else if (hasKey(fix, { id: true })) {
 		type = TerminalQuickFixType.VscodeCommand;
 	}
 	return { id, type, source, ...fix };

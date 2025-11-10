@@ -1364,7 +1364,7 @@ class TestExplorerActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected override async runAction(action: IAction, context: TestExplorerTreeElement): Promise<any> {
+	protected override async runAction(action: IAction, context: TestExplorerTreeElement): Promise<void> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}

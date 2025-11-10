@@ -5,6 +5,7 @@
 
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { $, append } from '../../../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
@@ -349,8 +350,7 @@ export class SessionsViewPane extends ViewPane {
 					getKeyboardNavigationLabel: (session: ChatSessionItemWithProvider) => {
 						const parts = [
 							session.label || '',
-							session.id || '',
-							typeof session.description === 'string' ? session.description : (session.description?.value || '')
+							typeof session.description === 'string' ? session.description : (session.description ? renderAsPlaintext(session.description) : '')
 						];
 						return parts.filter(text => text.length > 0).join(' ');
 					}
