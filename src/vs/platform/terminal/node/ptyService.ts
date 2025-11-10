@@ -37,13 +37,18 @@ import { hasKey } from '../../../base/common/types.js';
 type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
 
-export function traceRpc(_target: any, key: string, descriptor: any) {
+interface ITraceRpcArgs {
+	logService: ILogService;
+	simulatedLatency: number;
+}
+
+export function traceRpc(_target: Object, key: string, descriptor: PropertyDescriptor) {
 	if (typeof descriptor.value !== 'function') {
 		throw new Error('not supported');
 	}
 	const fnKey = 'value';
 	const fn = descriptor.value;
-	descriptor[fnKey] = async function (...args: unknown[]) {
+	descriptor[fnKey] = async function <TThis extends { traceRpcArgs: ITraceRpcArgs }>(this: TThis, ...args: unknown[]) {
 		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
 			this.traceRpcArgs.logService.trace(`[RPC Request] PtyService#${fn.name}(${args.map(e => JSON.stringify(e)).join(', ')})`);
 		}
@@ -110,7 +115,7 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onProcessOrphanQuestion = this._traceEvent('_onProcessOrphanQuestion', this._onProcessOrphanQuestion.event);
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
 	readonly onDidRequestDetach = this._traceEvent('_onDidRequestDetach', this._onDidRequestDetach.event);
-	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number; property: IProcessProperty<any> }>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number; property: IProcessProperty }>());
 	readonly onDidChangeProperty = this._traceEvent('_onDidChangeProperty', this._onDidChangeProperty.event);
 
 	private _traceEvent<T>(name: string, event: Event<T>): Event<T> {
@@ -123,7 +128,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	@memoize
-	get traceRpcArgs(): { logService: ILogService; simulatedLatency: number } {
+	get traceRpcArgs(): ITraceRpcArgs {
 		return {
 			logService: this._logService,
 			simulatedLatency: this._simulatedLatency
@@ -663,7 +668,7 @@ class PersistentTerminalProcess extends Disposable {
 
 	private readonly _bufferer: TerminalDataBufferer;
 
-	private readonly _pendingCommands = new Map<number, { resolve: (data: any) => void; reject: (err: any) => void }>();
+	private readonly _pendingCommands = new Map<number, { resolve: (data: unknown) => void; reject: (err: unknown) => void }>();
 
 	private _isStarted: boolean = false;
 	private _interactionState: MutationLogger<InteractionState>;
@@ -685,7 +690,7 @@ class PersistentTerminalProcess extends Disposable {
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessOrphanQuestion = this._register(new Emitter<void>());
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
 	private _inReplay = false;
@@ -931,7 +936,7 @@ class PersistentTerminalProcess extends Disposable {
 		this._onPersistentProcessReady.fire();
 	}
 
-	sendCommandResult(reqId: number, isError: boolean, serializedPayload: any): void {
+	sendCommandResult(reqId: number, isError: boolean, serializedPayload: unknown): void {
 		const data = this._pendingCommands.get(reqId);
 		if (!data) {
 			return;

@@ -672,6 +672,15 @@ export interface IChatFollowup {
 	tooltip?: string;
 }
 
+export function isChatFollowup(obj: unknown): obj is IChatFollowup {
+	return (
+		!!obj &&
+		(obj as IChatFollowup).kind === 'reply' &&
+		typeof (obj as IChatFollowup).message === 'string' &&
+		typeof (obj as IChatFollowup).agentId === 'string'
+	);
+}
+
 export enum ChatAgentVoteDirection {
 	Down = 0,
 	Up = 1

@@ -182,7 +182,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 						break;
 					case AgentSessionProviders.Background:
 						providerLabel = localize('chat.session.providerLabel.background', "Background");
-						icon = Codicon.layers;
+						icon = Codicon.serverProcess;
 						break;
 					case AgentSessionProviders.Cloud:
 						providerLabel = localize('chat.session.providerLabel.cloud', "Cloud");

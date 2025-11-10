@@ -45,6 +45,7 @@ import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { chatSessionResourceToId } from '../../common/chatUri.js';
+import { isITextModel } from '../../../../../editor/common/model.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -822,7 +823,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				if (activeEditor) {
 					const model = activeEditor.getModel();
 					let activeEditorUri: URI | undefined = undefined;
-					if (model && 'uri' in model) {
+					if (model && isITextModel(model)) {
 						activeEditorUri = model.uri as URI;
 					}
 					const selection = activeEditor.getSelection();

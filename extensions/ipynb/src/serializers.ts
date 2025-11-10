@@ -5,7 +5,7 @@
 
 import type * as nbformat from '@jupyterlab/nbformat';
 import type { NotebookCell, NotebookCellData, NotebookCellOutput, NotebookData, NotebookDocument } from 'vscode';
-import { CellOutputMetadata, type CellMetadata } from './common';
+import { CellOutputMetadata, hasKey, type CellMetadata } from './common';
 import { textMimeTypes, NotebookCellKindMarkup, CellOutputMimeTypes, defaultNotebookFormat } from './constants';
 
 const textDecoder = new TextDecoder();
@@ -50,7 +50,7 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 }
 
 export function getCellMetadata(options: { cell: NotebookCell | NotebookCellData } | { metadata?: { [key: string]: any } }): CellMetadata {
-	if ('cell' in options) {
+	if (hasKey(options, { cell: true })) {
 		const cell = options.cell;
 		const metadata = {
 			execution_count: null,
@@ -472,7 +472,7 @@ export function serializeNotebookToString(data: NotebookData): string {
 		.map(cell => createJupyterCellFromNotebookCell(cell, preferredCellLanguage))
 		.map(pruneCell);
 
-	const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?
+	const indentAmount = data.metadata && typeof data.metadata.indentAmount === 'string' ?
 		data.metadata.indentAmount :
 		' ';
 
