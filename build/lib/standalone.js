@@ -79,14 +79,18 @@ function extractEditor(options) {
     compilerOptions.preserveConstEnums = false;
     compilerOptions.declaration = false;
     options.compilerOptions = compilerOptions;
+    console.log('foobar');
     console.log(`Running tree shaker with shakeLevel ${tss.toStringShakeLevel(options.shakeLevel)}`);
     // Take the extra included .d.ts files from `tsconfig.monaco.json`
     options.typings = tsConfig.include.filter(includedFile => /\.d\.ts$/.test(includedFile));
     const result = tss.shake(options);
     for (const fileName in result) {
         if (result.hasOwnProperty(fileName)) {
+            let fileContents = result[fileName];
+            // Replace .ts? with .js? in new URL() patterns
+            fileContents = fileContents.replace(/(new\s+URL\s*\(\s*['"`][^'"`]*?)\.ts(\?[^'"`]*['"`])/g, '$1.js$2');
             const relativePath = path_1.default.relative(options.sourcesRoot, fileName);
-            writeFile(path_1.default.join(options.destRoot, relativePath), result[fileName]);
+            writeFile(path_1.default.join(options.destRoot, relativePath), fileContents);
         }
     }
     const copied = {};
