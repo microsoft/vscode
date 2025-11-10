@@ -562,7 +562,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (result.truncated) {
 			const note = document.createElement('div');
 			note.classList.add('chat-terminal-output-info');
-			note.textContent = localize('chat.terminalOutputTruncated', 'Output truncated to first {0} characters.', CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
+			note.textContent = localize('chat.terminalOutputTruncated', 'Output truncated to first {0} lines.', CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
 			container.appendChild(note);
 		}
 
