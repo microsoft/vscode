@@ -1,3 +1,14 @@
+## Contributing
+
+If you want to contribute:
+
+1. Fork the repository.
+2. Create a branch for your feature or bug fix.
+3. Commit your changes with clear messages.
+4. Push to your fork and open a pull request.
+
+See [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) for full instructions.
+
 # Visual Studio Code - Open Source ("Code - OSS")
 [![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
 [![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
