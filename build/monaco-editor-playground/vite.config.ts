@@ -96,10 +96,29 @@ function injectBuiltinExtensionsPlugin(): Plugin {
 	};
 }
 
+function createHotClassSupport(): Plugin {
+	return {
+		name: 'createHotClassSupport',
+		transform(code, id) {
+			if (id.endsWith('.ts')) {
+				if (code.includes('createHotClass')) {
+					code = code + `\n
+if (import.meta.hot) {
+	import.meta.hot.accept();
+}`;
+				}
+				return code;
+			}
+			return undefined;
+		},
+	};
+}
+
 export default defineConfig({
 	plugins: [
 		urlToEsmPlugin(),
-		injectBuiltinExtensionsPlugin()
+		injectBuiltinExtensionsPlugin(),
+		createHotClassSupport()
 	],
 	esbuild: {
 		target: 'es6', // to fix property initialization issues, not needed when loading monaco-editor from npm package
