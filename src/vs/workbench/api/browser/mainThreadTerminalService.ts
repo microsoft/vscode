@@ -438,10 +438,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			initialDimensions
 		).then(request.callback);
 
-		proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.instanceId, data));
-		proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.instanceId, immediate));
-		proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.instanceId));
-		proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(proxy.instanceId));
+		this._store.add(proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.instanceId, data)));
+		this._store.add(proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.instanceId, immediate)));
+		this._store.add(proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.instanceId)));
+		this._store.add(proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(proxy.instanceId)));
 	}
 
 	public $sendProcessData(terminalId: number, data: string): void {
