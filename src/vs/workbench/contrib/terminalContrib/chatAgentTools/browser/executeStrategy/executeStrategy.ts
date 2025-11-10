@@ -116,8 +116,10 @@ const LINE_ENDS_WITH_COLON_RE = /:\s*$/;
 
 const END = /\(END\)$/;
 
+const ANY_KEY = /press any key|press a key/i;
+
 export function detectsInputRequiredPattern(cursorLine: string): boolean {
-	return PS_CONFIRM_RE.test(cursorLine) || YN_PAIRED_RE.test(cursorLine) || YN_AFTER_PUNCT_RE.test(cursorLine) || CONFIRM_Y_RE.test(cursorLine) || LINE_ENDS_WITH_COLON_RE.test(cursorLine.trim()) || END.test(cursorLine);
+	return PS_CONFIRM_RE.test(cursorLine) || YN_PAIRED_RE.test(cursorLine) || YN_AFTER_PUNCT_RE.test(cursorLine) || CONFIRM_Y_RE.test(cursorLine) || LINE_ENDS_WITH_COLON_RE.test(cursorLine.trim()) || END.test(cursorLine) || ANY_KEY.test(cursorLine);
 }
 
 
