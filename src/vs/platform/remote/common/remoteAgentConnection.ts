@@ -556,6 +556,7 @@ export abstract class PersistentConnection extends Disposable {
 
 	public static updateDefaultGraceTime(graceTime: number): void {
 		const sanitizedGrace = sanitizeGraceTime(graceTime, ProtocolConstants.ReconnectionGraceTime);
+		console.log(`[reconnection-grace-time] Updating default grace time: ${graceTime}ms -> ${sanitizedGrace}ms (${Math.floor(sanitizedGrace / 1000)}s), updating ${this._instances.length} existing connection(s)`);
 		this._defaultReconnectionGraceTime = sanitizedGrace;
 		this._instances.forEach(instance => instance._applyGraceTimes(sanitizedGrace));
 	}
@@ -621,6 +622,8 @@ export abstract class PersistentConnection extends Disposable {
 	}
 
 	private _applyGraceTimes(graceTime: number): void {
+		const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, false);
+		this._options.logService.trace(`${logPrefix} Applying reconnection grace time: ${graceTime}ms (${Math.floor(graceTime / 1000)}s)`);
 		this._reconnectionGraceTime = graceTime;
 	}
 
@@ -652,6 +655,7 @@ export abstract class PersistentConnection extends Disposable {
 		this._onDidStateChange.fire(new ConnectionLostEvent(this.reconnectionToken, this.protocol.getMillisSinceLastIncomingData()));
 		const TIMES = [0, 5, 5, 10, 10, 10, 10, 10, 30];
 		const graceTime = this._reconnectionGraceTime;
+		this._options.logService.info(`${logPrefix} starting reconnection with grace time: ${graceTime}ms (${Math.floor(graceTime / 1000)}s)`);
 		if (graceTime <= 0) {
 			this._options.logService.error(`${logPrefix} reconnection grace time is set to 0ms, will not attempt to reconnect.`);
 			this._onReconnectionPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), 0, false);

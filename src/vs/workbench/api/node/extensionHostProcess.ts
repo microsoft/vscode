@@ -162,14 +162,18 @@ let onTerminate = function (reason: string) {
 function readReconnectionValue(envKey: string, fallback: number): number {
 	const raw = process.env[envKey];
 	if (typeof raw !== 'string' || raw.trim().length === 0) {
+		console.log(`[reconnection-grace-time] Extension host: env var ${envKey} not set, using default: ${fallback}ms (${Math.floor(fallback / 1000)}s)`);
 		return fallback;
 	}
 	const parsed = Number(raw);
 	if (!isFinite(parsed) || parsed < 0) {
+		console.log(`[reconnection-grace-time] Extension host: env var ${envKey} invalid value '${raw}', using default: ${fallback}ms (${Math.floor(fallback / 1000)}s)`);
 		return fallback;
 	}
 	const millis = Math.floor(parsed);
-	return millis > Number.MAX_SAFE_INTEGER ? Number.MAX_SAFE_INTEGER : millis;
+	const result = millis > Number.MAX_SAFE_INTEGER ? Number.MAX_SAFE_INTEGER : millis;
+	console.log(`[reconnection-grace-time] Extension host: read ${envKey}=${raw}ms (${Math.floor(result / 1000)}s)`);
+	return result;
 }
 
 function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {

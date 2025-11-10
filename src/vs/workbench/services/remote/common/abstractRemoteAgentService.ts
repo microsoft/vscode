@@ -61,7 +61,10 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 					const env = await RemoteExtensionEnvironmentChannelClient.getEnvironmentData(channel, connection.remoteAuthority, this.userDataProfileService.currentProfile.isDefault ? undefined : this.userDataProfileService.currentProfile.id);
 					this._remoteAuthorityResolverService._setAuthorityConnectionToken(connection.remoteAuthority, env.connectionToken);
 					if (typeof env.reconnectionGraceTime === 'number') {
+						console.log(`[reconnection-grace-time] Client received grace time from server: ${env.reconnectionGraceTime}ms (${Math.floor(env.reconnectionGraceTime / 1000)}s)`);
 						PersistentConnection.updateDefaultGraceTime(env.reconnectionGraceTime);
+					} else {
+						console.log(`[reconnection-grace-time] Server did not provide grace time, using default`);
 					}
 					return env;
 				},

@@ -250,15 +250,19 @@ export class ServerEnvironmentService extends NativeEnvironmentService implement
 
 function parseGraceTime(rawValue: string | undefined, fallback: number): number {
 	if (typeof rawValue !== 'string' || rawValue.trim().length === 0) {
+		console.log(`[reconnection-grace-time] No CLI argument provided, using default: ${fallback}ms (${Math.floor(fallback / 1000)}s)`);
 		return fallback;
 	}
 	const parsedSeconds = Number(rawValue);
 	if (!isFinite(parsedSeconds) || parsedSeconds < 0) {
+		console.log(`[reconnection-grace-time] Invalid value '${rawValue}', using default: ${fallback}ms (${Math.floor(fallback / 1000)}s)`);
 		return fallback;
 	}
 	const millis = Math.floor(parsedSeconds * 1000);
 	if (!isFinite(millis) || millis > Number.MAX_SAFE_INTEGER) {
+		console.log(`[reconnection-grace-time] Value too large '${rawValue}', using default: ${fallback}ms (${Math.floor(fallback / 1000)}s)`);
 		return fallback;
 	}
+	console.log(`[reconnection-grace-time] Parsed CLI argument: ${parsedSeconds}s -> ${millis}ms`);
 	return millis;
 }
