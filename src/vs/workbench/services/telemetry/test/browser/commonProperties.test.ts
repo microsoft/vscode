@@ -6,6 +6,7 @@ import assert from 'assert';
 import { resolveWorkbenchCommonProperties } from '../../browser/workbenchCommonProperties.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { hasKey } from '../../../../../base/common/types.js';
 
 suite('Browser Telemetry - common properties', function () {
 
@@ -32,18 +33,19 @@ suite('Browser Telemetry - common properties', function () {
 
 		const props = resolveWorkbenchCommonProperties(testStorageService, commit, version, false, undefined, undefined, false, resolveCommonTelemetryProperties);
 
-		assert.ok(props.commitHash);
-		assert.ok(props.sessionID);
-		assert.ok(props.timestamp);
-		assert.ok(props['common.platform']);
-		assert.ok(props['common.timesincesessionstart']);
-		assert.ok(props['common.sequence']);
-		assert.ok(props.version);
-		assert.ok(props['common.firstSessionDate'], 'firstSessionDate');
-		assert.ok(props['common.lastSessionDate'], 'lastSessionDate');
-		assert.ok(props['common.isNewSession'], 'isNewSession');
-		assert.ok(props['common.machineId'], 'machineId');
-
+		assert.ok(hasKey(props, {
+			commitHash: true,
+			sessionID: true,
+			timestamp: true,
+			'common.platform': true,
+			'common.timesincesessionstart': true,
+			'common.sequence': true,
+			version: true,
+			'common.firstSessionDate': true,
+			'common.lastSessionDate': true,
+			'common.isNewSession': true,
+			'common.machineId': true
+		}));
 		assert.strictEqual(props['userId'], '1');
 	});
 
