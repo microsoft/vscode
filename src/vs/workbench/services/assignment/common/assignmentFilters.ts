@@ -175,8 +175,8 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		}
 	}
 
-	getFilters(): Map<string, any> {
-		const filters: Map<string, any> = new Map<string, any>();
+	getFilters(): Map<string, string | null> {
+		const filters = new Map<string, string | null>();
 		const filterValues = Object.values(ExtensionsFilter);
 		for (const value of filterValues) {
 			filters.set(value, this.getFilterValue(value));

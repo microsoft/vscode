@@ -744,7 +744,7 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 		const scrollTop = this._editor.getScrollTop();
 
 		this._position = {
-			stackOridinal: 1,
+			stackOrdinal: 1,
 			preference: {
 				top: this._editor.getTopForLineNumber(startLineNumber) - scrollTop - (lineHeight * this._lineDelta),
 				left: contentLeft + contentWidth - (2 * verticalScrollbarWidth + getTotalWidth(this._domNode))
@@ -814,7 +814,7 @@ class AccessibleDiffViewContainer implements IOverlayWidget {
 	getPosition(): IOverlayWidgetPosition | null {
 		return {
 			preference: { top: 0, left: 0 },
-			stackOridinal: 1
+			stackOrdinal: 1
 		};
 	}
 }

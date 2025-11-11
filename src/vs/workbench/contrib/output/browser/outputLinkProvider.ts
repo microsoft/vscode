@@ -12,7 +12,7 @@ import { OUTPUT_MODE_ID, LOG_MODE_ID } from '../../../services/output/common/out
 import { OutputLinkComputer } from '../common/outputLinkComputer.js';
 import { IDisposable, dispose, Disposable } from '../../../../base/common/lifecycle.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-import { createWebWorker } from '../../../../base/browser/webWorkerFactory.js';
+import { createWebWorker, WebWorkerDescriptor } from '../../../../base/browser/webWorkerFactory.js';
 import { IWebWorkerClient } from '../../../../base/common/worker/webWorker.js';
 import { WorkerTextModelSyncClient } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 import { FileAccess } from '../../../../base/common/network.js';
@@ -99,8 +99,10 @@ class OutputLinkWorkerClient extends Disposable {
 	) {
 		super();
 		this._workerClient = this._register(createWebWorker<OutputLinkComputer>(
-			FileAccess.asBrowserUri('vs/workbench/contrib/output/common/outputLinkComputerMain.js'),
-			'OutputLinkDetectionWorker'
+			new WebWorkerDescriptor({
+				esmModuleLocation: FileAccess.asBrowserUri('vs/workbench/contrib/output/common/outputLinkComputerMain.js'),
+				label: 'OutputLinkDetectionWorker'
+			})
 		));
 		this._workerTextModelSyncClient = this._register(WorkerTextModelSyncClient.create(this._workerClient, modelService));
 		this._initializeBarrier = this._ensureWorkspaceFolders();

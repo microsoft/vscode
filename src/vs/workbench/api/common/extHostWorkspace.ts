@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { delta as arrayDelta, mapArrayOrNot } from '../../../base/common/arrays.js';
-import { AsyncIterableObject, Barrier } from '../../../base/common/async.js';
+import { AsyncIterableProducer, Barrier } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { AsyncEmitter, Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -620,7 +620,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			(result, uri) => progressEmitter.fire({ result, uri }),
 			token
 		);
-		const asyncIterable = new AsyncIterableObject<vscode.TextSearchResult2>(async emitter => {
+		const asyncIterable = new AsyncIterableProducer<vscode.TextSearchResult2>(async emitter => {
 			disposables.add(progressEmitter.event(e => {
 				const result = e.result;
 				const uri = e.uri;

@@ -9,12 +9,13 @@ declare module 'vscode' {
 
 	export interface QuickPickItem {
 		/**
-		 * The {@link Uri} of the resource representing this item.
+		 * A {@link Uri} representing the resource associated with this item.
 		 *
-		 * Will be used to derive the {@link label}, when it is not provided (falsy or empty).
-		 * Will be used to derive the {@link description}, when it is not provided (falsy or empty).
-		 * Will be used to derive the icon from current file icon theme, when {@link iconPath} has either
-		 * {@link ThemeIcon.File} or {@link ThemeIcon.Folder} value.
+		 * When set, this property is used to automatically derive several item properties if they are not explicitly provided:
+		 * - **Label**: Derived from the resource's file name when {@link QuickPickItem.label label} is not provided or is empty.
+		 * - **Description**: Derived from the resource's path when {@link QuickPickItem.description description} is not provided or is empty.
+		 * - **Icon**: Derived from the current file icon theme when {@link QuickPickItem.iconPath iconPath} is set to
+		 *   {@link ThemeIcon.File} or {@link ThemeIcon.Folder}.
 		 */
 		resourceUri?: Uri;
 	}

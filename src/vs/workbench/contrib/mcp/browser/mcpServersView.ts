@@ -529,7 +529,7 @@ export class McpServersViewsContribution extends Disposable implements IWorkbenc
 				id: InstalledMcpServersViewId,
 				name: localize2('mcp-installed', "MCP Servers - Installed"),
 				ctorDescriptor: new SyncDescriptor(McpServersListView, [{}]),
-				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledMcpServersContext),
+				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledMcpServersContext, ChatContextKeys.Setup.hidden.negate()),
 				weight: 40,
 				order: 4,
 				canToggleVisibility: true
@@ -547,7 +547,7 @@ export class McpServersViewsContribution extends Disposable implements IWorkbenc
 				id: 'workbench.views.mcp.marketplace',
 				name: localize2('mcp', "MCP Servers"),
 				ctorDescriptor: new SyncDescriptor(McpServersListView, [{}]),
-				when: ContextKeyExpr.and(SearchMcpServersContext, McpServersGalleryStatusContext.isEqualTo(McpGalleryManifestStatus.Available), ContextKeyExpr.or(ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`), ProductQualityContext.notEqualsTo('stable'), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceEnablementConfig}`))),
+				when: ContextKeyExpr.and(SearchMcpServersContext, ChatContextKeys.Setup.hidden.negate(), McpServersGalleryStatusContext.isEqualTo(McpGalleryManifestStatus.Available), ContextKeyExpr.or(ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`), ProductQualityContext.notEqualsTo('stable'), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceEnablementConfig}`))),
 			},
 			{
 				id: 'workbench.views.mcp.default.welcomeView',
@@ -562,7 +562,7 @@ export class McpServersViewsContribution extends Disposable implements IWorkbenc
 				id: 'workbench.views.mcp.welcomeView',
 				name: localize2('mcp', "MCP Servers"),
 				ctorDescriptor: new SyncDescriptor(McpServersListView, [{ showWelcome: true }]),
-				when: ContextKeyExpr.and(SearchMcpServersContext, McpServersGalleryStatusContext.isEqualTo(McpGalleryManifestStatus.Available), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`).negate(), ProductQualityContext.isEqualTo('stable'), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceEnablementConfig}`).negate()),
+				when: ContextKeyExpr.and(SearchMcpServersContext, ChatContextKeys.Setup.hidden.negate(), McpServersGalleryStatusContext.isEqualTo(McpGalleryManifestStatus.Available), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`).negate(), ProductQualityContext.isEqualTo('stable'), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceEnablementConfig}`).negate()),
 			}
 		], VIEW_CONTAINER);
 	}

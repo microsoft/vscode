@@ -634,23 +634,37 @@ export class AttachContextAction extends Action2 {
 		}
 
 		if (cts.token.isCancellationRequested) {
+			pickerConfig.dispose?.();
 			return true; // picker got hidden already
 		}
 
 		const defer = new DeferredPromise<boolean>();
 		const addPromises: Promise<void>[] = [];
 
-		store.add(qp.onDidAccept(e => {
+		store.add(qp.onDidAccept(async e => {
+			const noop = 'noop';
 			const [selected] = qp.selectedItems;
 			if (isChatContextPickerPickItem(selected)) {
 				const attachment = selected.asAttachment();
+				if (!attachment || attachment === noop) {
+					return;
+				}
 				if (isThenable(attachment)) {
-					addPromises.push(attachment.then(v => widget.attachmentModel.addContext(v)));
+					addPromises.push(attachment.then(v => {
+						if (v !== noop) {
+							widget.attachmentModel.addContext(v);
+						}
+					}));
 				} else {
 					widget.attachmentModel.addContext(attachment);
 				}
 			}
 			if (selected === goBackItem) {
+				if (pickerConfig.goBack?.()) {
+					// Custom goBack handled the navigation, stay in the picker
+					return; // Don't complete, keep picker open
+				}
+				// Default behavior: go back to main picker
 				defer.complete(false);
 			}
 			if (selected === configureItem) {
@@ -664,6 +678,7 @@ export class AttachContextAction extends Action2 {
 
 		store.add(qp.onDidHide(() => {
 			defer.complete(true);
+			pickerConfig.dispose?.();
 		}));
 
 		try {
