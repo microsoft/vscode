@@ -791,15 +791,16 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			? { wanted: this._cappedHeight?.wanted ?? size.height, capped: height }
 			: undefined;
 		// }
-		this.element.domNode.style.left = `${this._cursorPosition.left}px`;
-
-		// Move anchor if widget will overflow the edge of the container
-		const containerWidth = this._container.clientWidth;
+		// Horizontal positioning: Position widget at cursor, flip to left if would overflow right
 		let anchorLeft = this._cursorPosition.left;
-		if (width > containerWidth) {
-			anchorLeft = Math.max(0, this._cursorPosition.left - width + containerWidth);
-			this.element.domNode.style.left = `${anchorLeft}px`;
+		const wouldOverflowRight = anchorLeft + width > bodyBox.width;
+
+		if (wouldOverflowRight) {
+			// Position right edge at cursor (extends left)
+			anchorLeft = this._cursorPosition.left - width;
 		}
+
+		this.element.domNode.style.left = `${anchorLeft}px`;
 		if (this._preference === WidgetPositionPreference.Above) {
 			this.element.domNode.style.top = `${this._cursorPosition.top - height - info.borderHeight}px`;
 		} else {
