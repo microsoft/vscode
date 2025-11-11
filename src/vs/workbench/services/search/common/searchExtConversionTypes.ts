@@ -246,13 +246,6 @@ export interface TextSearchComplete {
 export interface FileSearchQuery {
 	/**
 	 * The search pattern to match against file paths.
-	 *
-	 * The `pattern`-parameter should be interpreted in a *relaxed way* as the editor will apply its own highlighting
-	 * and scoring on the results. A good rule of thumb is to match case-insensitive and to simply check that the
-	 * characters of `pattern` appear in their order in a candidate file path. Don't use prefix, substring, or similar
-	 * strict matching.
-	 *
-	 * When `pattern` is empty, all files in the folder should be returned.
 	 */
 	pattern: string;
 }
