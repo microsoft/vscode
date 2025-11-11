@@ -55,6 +55,7 @@ export class FileWalker {
 	private errors: string[];
 	private cmdSW: StopWatch | null = null;
 	private cmdResultCount: number = 0;
+	private ignoreCase: boolean = false;
 
 	private folderExcludePatterns: Map<string, AbsoluteAndRelativeParsedExpression>;
 	private globalExcludePattern: glob.ParsedExpression | undefined;
@@ -77,6 +78,9 @@ export class FileWalker {
 		if (this.filePattern) {
 			this.normalizedFilePatternLowercase = config.shouldGlobMatchFilePattern ? null : prepareQuery(this.filePattern).normalizedLowercase;
 		}
+
+		// Get ignoreCase from the first folder query that has it set
+		this.ignoreCase = config.folderQueries.some(fq => fq.ignoreCase);
 
 		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
 		this.folderExcludePatterns = new Map<string, AbsoluteAndRelativeParsedExpression>();
@@ -588,7 +592,7 @@ export class FileWalker {
 			if (this.normalizedFilePatternLowercase) {
 				return isFilePatternMatch(candidate, this.normalizedFilePatternLowercase);
 			} else if (this.filePattern) {
-				return isFilePatternMatch(candidate, this.filePattern, false);
+				return isFilePatternMatch(candidate, this.filePattern, false, this.ignoreCase);
 			}
 		}
 
