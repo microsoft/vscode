@@ -49,6 +49,7 @@ import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.j
 import '../../media/chatSessions.css';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, IChatSessionGroupItem, isGroupNode, isLocalChatSessionItem, processSessionsWithTimeGrouping } from '../common.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -234,7 +235,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 		// Handle different icon types
 		let iconTheme: ThemeIcon | undefined;
-		// if (!session.iconPath && session.id !== LocalChatSessionsProvider.HISTORY_NODE_ID) {
 		if (!session.iconPath) {
 			iconTheme = this.statusToIcon(session.status);
 		} else {
@@ -586,9 +586,8 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 				result.push(...ungroupedItems);
 				for (const [groupName, children] of groupedItems) {
 					const groupNode: IChatSessionGroupItem = {
-						id: `group:${groupName}`,
 						label: groupName,
-						resource: URI.from({ scheme: 'chat-group', path: `/${groupName}` }),
+						resource: URI.parse(`${Schemas.vscodeLocalChatSession}://history`),
 						provider: this.provider,
 						isGroupNode: true,
 						groupChildren: children,
@@ -622,11 +621,6 @@ export class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWit
 	constructor(private readonly configurationService: IConfigurationService) { }
 
 	getHeight(element: ChatSessionItemWithProvider): number {
-		// Group nodes always use single height
-		if (isGroupNode(element)) {
-			return SessionsDelegate.ITEM_HEIGHT;
-		}
-
 		// Return consistent height for all items (single-line layout)
 		if (element.description && this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && element.provider.chatSessionType !== localChatSessionType) {
 			return SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION;
