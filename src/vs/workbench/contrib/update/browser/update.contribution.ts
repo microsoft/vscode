@@ -16,6 +16,7 @@ import { IUpdateService, StateType } from '../../../../platform/update/common/up
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
 import { ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId } from '../common/update.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
@@ -215,6 +216,26 @@ if (isWindows) {
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const updateService = accessor.get(IUpdateService);
 			const fileDialogService = accessor.get(IFileDialogService);
+			const quickInputService = accessor.get(IQuickInputService);
+			const productService = accessor.get(IProductService);
+
+			const version = await quickInputService.input({
+				title: localize('enterCommit', "Commit Hash"),
+				prompt: localize('enterCommitPrompt', "Enter the commit hash for this update"),
+				validateInput: async (input: string) => {
+					if (!input || !input.trim()) {
+						return localize('commitRequired', "Commit hash is required");
+					}
+					if (input.trim() === productService.commit) {
+						return localize('commitMatchesCurrent', "Same version update is not supported.");
+					}
+					return null;
+				}
+			});
+
+			if (!version) {
+				return;
+			}
 
 			const updatePath = await fileDialogService.showOpenDialog({
 				title: localize('pickUpdate', "Apply Update"),
@@ -227,7 +248,7 @@ if (isWindows) {
 				return;
 			}
 
-			await updateService._applySpecificUpdate(updatePath[0].fsPath);
+			await updateService._applySpecificUpdate(updatePath[0].fsPath, version.trim());
 		}
 	}
 

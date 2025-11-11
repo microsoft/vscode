@@ -92,22 +92,24 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override async initialize(): Promise<void> {
-		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
-			this.setState(State.Disabled(DisablementReason.RunningAsAdmin));
-			this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');
-			return;
+		if (this.environmentMainService.isBuilt) {
+			const cachePath = await this.cachePath;
+			app.setPath('appUpdate', cachePath);
+			try {
+				await unlink(path.join(cachePath, 'session-ending.flag'));
+			} catch { }
 		}
 
-		const cachePath = await this.cachePath;
-		app.setPath('appUpdate', cachePath);
-		try {
-			await unlink(path.join(cachePath, 'session-ending.flag'));
-		} catch { }
-
-		// Avoid scheduling update check if inno setup is already running,
-		// this can happen if the user quit the application once inno_setup.exe has started
-		// then attempted to manually start the application before inno_setup.exe finished.
 		if (this.productService.target === 'user') {
+			if (await this.nativeHostMainService.isAdmin(undefined)) {
+				this.setState(State.Disabled(DisablementReason.RunningAsAdmin));
+				this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');
+				return;
+			}
+
+			// Avoid scheduling update check if inno setup is already running,
+			// this can happen if the user quit the application once inno_setup.exe has started
+			// then attempted to manually start the application before inno_setup.exe finished.
 			const readyMutexName = `${this.productService.win32MutexName}-ready`;
 			const mutex = await import('@vscode/windows-mutex');
 			if (mutex.isActive(readyMutexName)) {
@@ -154,7 +156,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				this.getUpdatePackagePath(updatingVersion).then(updatePackagePath => {
 					pfs.Promises.exists(updatePackagePath).then(exists => {
 						if (exists) {
-							this._applySpecificUpdate(updatePackagePath).then(async _ => {
+							this._applySpecificUpdate(updatePackagePath, updatingVersion).then(async _ => {
 								this.logService.info(`update#doCheckForUpdates - successfully applied update to version ${updatingVersion}`);
 							});
 						}
@@ -331,16 +333,38 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		return getUpdateType();
 	}
 
-	override async _applySpecificUpdate(packagePath: string): Promise<void> {
+	override async _applySpecificUpdate(packagePath: string, version?: string): Promise<void> {
 		if (this.state.type !== StateType.Idle) {
 			return;
 		}
 
+		if (version && this.productService.commit && version === this.productService.commit) {
+			this.logService.info(`update#_applySpecificUpdate - same version ${version} update is not supported.`);
+			return;
+		}
+
 		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
-		const update: IUpdate = { version: 'unknown', productVersion: 'unknown' };
+		const updateVersion = version || 'unknown';
+		const update: IUpdate = { version: updateVersion, productVersion: 'unknown' };
 
 		this.setState(State.Downloading);
-		this.availableUpdate = { packagePath };
+
+		let targetPackagePath = packagePath;
+		if (version) {
+			targetPackagePath = await this.getUpdatePackagePath(version);
+			const exists = await pfs.Promises.exists(targetPackagePath);
+			if (!exists) {
+				try {
+					await pfs.Promises.copy(packagePath, targetPackagePath, { preserveSymlinks: false });
+					this.logService.info(`update#_applySpecificUpdate - copied package from ${packagePath} to ${targetPackagePath}`);
+				} catch (error) {
+					this.logService.error(`update#_applySpecificUpdate - failed to copy package: ${error}`);
+					throw error;
+				}
+			}
+		}
+
+		this.availableUpdate = { packagePath: targetPackagePath };
 		this.setState(State.Downloaded(update));
 
 		if (fastUpdatesEnabled) {
