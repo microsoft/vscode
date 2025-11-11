@@ -19,7 +19,6 @@ import { ILanguageModelToolsService, IToolResultDataPart, IToolResultPromptTsxPa
 import { AcceptToolPostConfirmationActionId, SkipToolPostConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
-import { EditorPool } from '../chatMarkdownContentPart.js';
 import { ChatCollapsibleIOPart } from '../chatToolInputOutputContentPart.js';
 import { ChatToolOutputContentSubPart } from '../chatToolOutputContentSubPart.js';
 import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
@@ -33,8 +32,6 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 	constructor(
 		toolInvocation: IChatToolInvocation,
 		context: IChatContentPartRenderContext,
-		private readonly editorPool: EditorPool,
-		private readonly currentWidthDelegate: () => number,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private readonly modelService: IModelService,
@@ -260,9 +257,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 			const outputSubPart = this._register(this.instantiationService.createInstance(
 				ChatToolOutputContentSubPart,
 				this.context,
-				this.editorPool,
 				parts,
-				this.currentWidthDelegate()
 			));
 
 			this._codeblocks.push(...outputSubPart.codeblocks);

@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../media/chatCodeBlockPill.css';
-import './media/chatMarkdownPart.css';
 import * as dom from '../../../../../base/browser/dom.js';
-import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { allowedMarkdownHtmlAttributes, MarkdownRendererMarkedOptions, type MarkdownRenderOptions } from '../../../../../base/browser/markdownRenderer.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
@@ -22,7 +21,6 @@ import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -36,14 +34,17 @@ import { IMenuService, MenuId } from '../../../../../platform/actions/common/act
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../../platform/editor/browser/editor.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { MarkedKatexSupport } from '../../../markdown/browser/markedKatexSupport.js';
-import { IMarkdownVulnerability } from '../../common/annotations.js';
+import { extractCodeblockUrisFromText, IMarkdownVulnerability } from '../../common/annotations.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatMarkdownContent, IChatService, IChatUndoStop } from '../../common/chatService.js';
@@ -51,23 +52,24 @@ import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockEntry, CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IChatCodeBlockInfo } from '../chat.js';
-import { IChatRendererDelegate } from '../chatListRenderer.js';
-import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
 import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
-import { ChatEditorOptions } from '../chatOptions.js';
+import { IMarkdownDiffBlockData, MarkdownDiffBlockPart, parseUnifiedDiff } from '../chatDiffBlockPart.js';
+import { ChatEditingActionContext } from '../chatEditing/chatEditingActions.js';
+import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
-import { IDisposableReference, ResourcePool } from './chatCollections.js';
+import '../media/chatCodeBlockPill.css';
+import { IDisposableReference } from './chatCollections.js';
+import { EditorPool } from './chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
-import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../../platform/editor/browser/editor.js';
-import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
-import { ChatEditingActionContext } from '../chatEditing/chatEditingActions.js';
-import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import './media/chatMarkdownPart.css';
 
 const $ = dom.$;
 
 export interface IChatMarkdownContentPartOptions {
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
+	readonly allowInlineDiffs?: boolean;
+	readonly horizontalPadding?: number;
 	readonly accessibilityOptions?: {
 		/**
 		 * Message to announce to screen readers as a status update if VerboseChatProgressUpdates is enabled.
@@ -84,7 +86,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	readonly codeblocksPartId = String(++ChatMarkdownContentPart.ID_POOL);
 	readonly domNode: HTMLElement;
 
-	private readonly allRefs: IDisposableReference<CodeBlockPart | CollapsedCodeBlock>[] = [];
+	private readonly allRefs: IDisposableReference<CodeBlockPart | CollapsedCodeBlock | MarkdownDiffBlockPart>[] = [];
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -167,6 +169,34 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						const hideEmptyCodeblock = $('div');
 						hideEmptyCodeblock.style.display = 'none';
 						return hideEmptyCodeblock;
+					}
+					if (languageId === 'diff' && raw && this.rendererOptions.allowInlineDiffs) {
+						const match = raw.match(/^```diff:(\w+)/);
+						if (match && isResponseVM(context.element)) {
+							const actualLanguageId = match[1];
+							const codeBlockUri = extractCodeblockUrisFromText(text);
+							const { before, after } = parseUnifiedDiff(codeBlockUri?.textWithoutResult ?? text);
+							const diffData: IMarkdownDiffBlockData = {
+								element: context.element,
+								codeBlockIndex: globalCodeBlockIndexStart++,
+								languageId: actualLanguageId,
+								beforeContent: before,
+								afterContent: after,
+								codeBlockResource: codeBlockUri?.uri,
+								isReadOnly: true,
+								horizontalPadding: this.rendererOptions.horizontalPadding,
+							};
+							const diffPart = this.instantiationService.createInstance(MarkdownDiffBlockPart, diffData, context.diffEditorPool, context.currentWidth());
+							const ref: IDisposableReference<MarkdownDiffBlockPart> = {
+								object: diffPart,
+								isStale: () => false,
+								dispose: () => diffPart.dispose()
+							};
+							this.allRefs.push(ref);
+							this._register(diffPart.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
+							orderedDisposablesList.push(ref);
+							return diffPart.element;
+						}
 					}
 					if (languageId === 'vscode-extensions') {
 						const chatExtensions = this._register(instantiationService.createInstance(ChatExtensionsContentPart, { kind: 'extensions', extensions: text.split(',') }));
@@ -380,6 +410,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this.allRefs.forEach((ref, index) => {
 			if (ref.object instanceof CodeBlockPart) {
 				ref.object.layout(width);
+			} else if (ref.object instanceof MarkdownDiffBlockPart) {
+				ref.object.layout(width);
 			} else if (ref.object instanceof CollapsedCodeBlock) {
 				const codeblockModel = this.codeblocks[index];
 				if (codeblockModel.codemapperUri && ref.object.uri?.toString() !== codeblockModel.codemapperUri.toString()) {
@@ -393,42 +425,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	addDisposable(disposable: IDisposable): void {
 		this._register(disposable);
-	}
-}
-
-export class EditorPool extends Disposable {
-
-	private readonly _pool: ResourcePool<CodeBlockPart>;
-
-	inUse(): Iterable<CodeBlockPart> {
-		return this._pool.inUse;
-	}
-
-	constructor(
-		options: ChatEditorOptions,
-		delegate: IChatRendererDelegate,
-		overflowWidgetsDomNode: HTMLElement | undefined,
-		private readonly isSimpleWidget: boolean = false,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
-		this._pool = this._register(new ResourcePool(() => {
-			return instantiationService.createInstance(CodeBlockPart, options, MenuId.ChatCodeBlock, delegate, overflowWidgetsDomNode, this.isSimpleWidget);
-		}));
-	}
-
-	get(): IDisposableReference<CodeBlockPart> {
-		const codeBlock = this._pool.get();
-		let stale = false;
-		return {
-			object: codeBlock,
-			isStale: () => stale,
-			dispose: () => {
-				codeBlock.reset();
-				stale = true;
-				this._pool.release(codeBlock);
-			}
-		};
 	}
 }
 

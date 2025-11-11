@@ -10,7 +10,7 @@ export type EqualityComparer<T> = (a: T, b: T) => boolean;
 /**
  * Compares two items for equality using strict equality.
 */
-export const strictEquals: EqualityComparer<any> = (a, b) => a === b;
+export const strictEquals = <T>(a: T, b: T): boolean => a === b;
 
 /**
  * Checks if the items of two arrays are equal.
