@@ -206,7 +206,6 @@ export default tseslint.config(
 			'src/vs/base/browser/dom.ts',
 			'src/vs/base/browser/markdownRenderer.ts',
 			'src/vs/base/browser/touch.ts',
-			'src/vs/base/browser/webWorkerFactory.ts',
 			'src/vs/base/common/async.ts',
 			'src/vs/base/common/desktopEnvironmentInfo.ts',
 			'src/vs/base/common/objects.ts',
