@@ -46,7 +46,7 @@ import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { ChatSessionItemWithProvider, findExistingChatEditorByUri, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
+import { ChatSessionItemWithProvider, findExistingChatEditorByUri, getSessionItemContextOverlay, isGroupNode, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 
@@ -377,7 +377,9 @@ export class SessionsViewPane extends ViewPane {
 
 		// Register context menu event for right-click actions
 		this._register(this.tree.onContextMenu((e) => {
-			this.showContextMenu(e);
+			if (e.element && !isGroupNode(e.element)) {
+				this.showContextMenu(e);
+			}
 		}));
 
 		this._register(this.tree.onMouseDblClick(e => {
@@ -469,6 +471,9 @@ export class SessionsViewPane extends ViewPane {
 				return;
 			}
 			if (this.chatWidgetService.getWidgetBySessionResource(session.resource)) {
+				return;
+			}
+			if (isGroupNode(session)) {
 				return;
 			}
 
