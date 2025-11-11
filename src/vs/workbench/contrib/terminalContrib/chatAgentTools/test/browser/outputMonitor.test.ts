@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
+import { detectsInputRequiredPattern, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -182,4 +182,66 @@ suite('OutputMonitor', () => {
 			assert.ok(typeof res.pollDurationMs === 'number');
 		});
 	});
+
+	suite('detectsInputRequiredPattern', () => {
+		test('detects yes/no confirmation prompts (pairs and variants)', () => {
+			assert.strictEqual(detectsInputRequiredPattern('Continue? (y/N) '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Continue? (y/n) '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Overwrite file? [Y/n] '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Are you sure? (Y/N) '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Delete files? [y/N] '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Proceed? (yes/no) '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Proceed? [no/yes] '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Continue? y/n '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Overwrite: yes/no '), true);
+
+			// No match if there's a response already
+			assert.strictEqual(detectsInputRequiredPattern('Continue? (y/N) y'), false);
+			assert.strictEqual(detectsInputRequiredPattern('Continue? (y/n) n'), false);
+			assert.strictEqual(detectsInputRequiredPattern('Overwrite file? [Y/n] N'), false);
+			assert.strictEqual(detectsInputRequiredPattern('Are you sure? (Y/N) Y'), false);
+			assert.strictEqual(detectsInputRequiredPattern('Delete files? [y/N] y'), false);
+			assert.strictEqual(detectsInputRequiredPattern('Continue? y/n y\/n'), false);
+			assert.strictEqual(detectsInputRequiredPattern('Overwrite: yes/no yes\/n'), false);
+		});
+
+		test('detects PowerShell multi-option confirmation line', () => {
+			assert.strictEqual(
+				detectsInputRequiredPattern('[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "Y"): '),
+				true
+			);
+			// also matches without default suffix
+			assert.strictEqual(
+				detectsInputRequiredPattern('[Y] Yes  [N] No '),
+				true
+			);
+
+			// No match if there's a response already
+			assert.strictEqual(
+				detectsInputRequiredPattern('[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "Y"): Y'),
+				false
+			);
+			assert.strictEqual(
+				detectsInputRequiredPattern('[Y] Yes  [N] No N'),
+				false
+			);
+		});
+		test('Line ends with colon', () => {
+			assert.strictEqual(detectsInputRequiredPattern('Enter your name: '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Password: '), true);
+			assert.strictEqual(detectsInputRequiredPattern('File to overwrite: '), true);
+		});
+
+		test('detects trailing questions', () => {
+			assert.strictEqual(detectsInputRequiredPattern('Continue?'), true);
+			assert.strictEqual(detectsInputRequiredPattern('Proceed?   '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Are you sure?'), true);
+		});
+
+		test('detects press any key prompts', () => {
+			assert.strictEqual(detectsInputRequiredPattern('Press any key to continue...'), true);
+			assert.strictEqual(detectsInputRequiredPattern('Press a key'), true);
+		});
+	});
+
 });

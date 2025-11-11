@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, Disposable, IDisposable, MutableDisposable, combinedDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, Disposable, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, TerminalLaunchConfig, ITerminalDimensionsDto, ExtHostTerminalIdentifier, TerminalQuickFix, ITerminalCommandDto } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { URI } from '../../../base/common/uri.js';
@@ -33,7 +33,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private readonly _store = new DisposableStore();
 	private readonly _proxy: ExtHostTerminalServiceShape;
-	private readonly _proxyDisposables = this._store.add(new MutableDisposable());
 
 	/**
 	 * Stores a map from a temporary terminal id (a UUID generated on the extension host side)
@@ -41,7 +40,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	 * This comes in play only when dealing with terminals created on the extension host side
 	 */
 	private readonly _extHostTerminals = new Map<string, Promise<ITerminalInstance>>();
-	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
+	private readonly _terminalProcessProxies = new Map<number, { proxy: ITerminalProcessExtHostProxy; store: DisposableStore }>();
 	private readonly _profileProviders = new Map<string, IDisposable>();
 	private readonly _completionProviders = new Map<string, IDisposable>();
 	private readonly _quickFixProviders = new Map<string, IDisposable>();
@@ -112,6 +111,14 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			});
 			this._proxy.$initEnvironmentVariableCollections(serializedCollections);
 		}
+
+		this._store.add(toDisposable(() => {
+			for (const e of this._terminalProcessProxies.values()) {
+				e.proxy.dispose();
+				e.store.dispose();
+			}
+			this._terminalProcessProxies.clear();
+		}));
 
 		remoteAgentService.getEnvironment().then(async env => {
 			this._os = env?.os || OS;
@@ -221,7 +228,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $sendProcessExit(terminalId: number, exitCode: number | undefined): void {
-		this._terminalProcessProxies.get(terminalId)?.emitExit(exitCode);
+		this._terminalProcessProxies.get(terminalId)?.proxy.emitExit(exitCode);
 	}
 
 	public $startSendingDataEvents(): void {
@@ -392,6 +399,12 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {
 		this._proxy.$acceptTerminalClosed(terminalInstance.instanceId, terminalInstance.exitCode, terminalInstance.exitReason ?? TerminalExitReason.Unknown);
+		const proxy = this._terminalProcessProxies.get(terminalInstance.instanceId);
+		if (proxy) {
+			proxy.proxy.dispose();
+			proxy.store.dispose();
+			this._terminalProcessProxies.delete(terminalInstance.instanceId);
+		}
 	}
 
 	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {
@@ -425,7 +438,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onRequestStartExtensionTerminal(request: IStartExtensionTerminalRequest): void {
 		const proxy = request.proxy;
-		this._terminalProcessProxies.set(proxy.instanceId, proxy);
+		const store = new DisposableStore();
+		this._terminalProcessProxies.set(proxy.instanceId, { proxy, store });
 
 		// Note that onResize is not being listened to here as it needs to fire when max dimensions
 		// change, excluding the dimension override
@@ -439,20 +453,18 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			initialDimensions
 		).then(request.callback);
 
-		this._proxyDisposables.value = combinedDisposable(
-			proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.instanceId, data)),
-			proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.instanceId, immediate)),
-			proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.instanceId)),
-			proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(proxy.instanceId)),
-		);
+		store.add(proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.instanceId, data)));
+		store.add(proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.instanceId, immediate)));
+		store.add(proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.instanceId)));
+		store.add(proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(proxy.instanceId)));
 	}
 
 	public $sendProcessData(terminalId: number, data: string): void {
-		this._terminalProcessProxies.get(terminalId)?.emitData(data);
+		this._terminalProcessProxies.get(terminalId)?.proxy.emitData(data);
 	}
 
 	public $sendProcessReady(terminalId: number, pid: number, cwd: string, windowsPty: IProcessReadyWindowsPty | undefined): void {
-		this._terminalProcessProxies.get(terminalId)?.emitReady(pid, cwd, windowsPty);
+		this._terminalProcessProxies.get(terminalId)?.proxy.emitReady(pid, cwd, windowsPty);
 	}
 
 	public $sendProcessProperty(terminalId: number, property: IProcessProperty): void {
@@ -460,7 +472,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			const instance = this._terminalService.getInstanceFromId(terminalId);
 			instance?.rename(property.value as IProcessPropertyMap[ProcessPropertyType.Title]);
 		}
-		this._terminalProcessProxies.get(terminalId)?.emitProcessProperty(property);
+		this._terminalProcessProxies.get(terminalId)?.proxy.emitProcessProperty(property);
 	}
 
 	$setEnvironmentVariableCollection(extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined, descriptionMap: ISerializableEnvironmentDescriptionMap): void {

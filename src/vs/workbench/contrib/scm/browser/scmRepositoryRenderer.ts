@@ -89,10 +89,12 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	}
 
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
-		// hack
+		// HACK - add .force-twistie class to the twistie element
 		if (container.classList.contains('monaco-tl-contents')) {
-			// eslint-disable-next-line no-restricted-syntax
-			(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
+			const twistieElement = container.previousElementSibling;
+			if (twistieElement && twistieElement.classList.contains('monaco-tl-twistie')) {
+				twistieElement.classList.add('force-twistie');
+			}
 		}
 
 		const provider = append(container, $('.scm-provider'));

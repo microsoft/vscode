@@ -317,6 +317,8 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.reset();
 		this._cfUseQuickPick.dispose();
 		this._cfShowIcons.dispose();
+		this._cfTitleScrollbarSizing.dispose();
+		this._cfTitleScrollbarVisibility.dispose();
 		this._widget.dispose();
 		this._labels.dispose();
 		this.domNode.remove();
