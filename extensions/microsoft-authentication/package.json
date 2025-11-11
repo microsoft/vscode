@@ -110,13 +110,11 @@
             "default": "msal",
             "enum": [
               "msal",
-              "msal-no-broker",
-              "classic"
+              "msal-no-broker"
             ],
             "enumDescriptions": [
               "%microsoft-authentication.implementation.enumDescriptions.msal%",
-              "%microsoft-authentication.implementation.enumDescriptions.msal-no-broker%",
-              "%microsoft-authentication.implementation.enumDescriptions.classic%"
+              "%microsoft-authentication.implementation.enumDescriptions.msal-no-broker%"
             ],
             "markdownDescription": "%microsoft-authentication.implementation.description%",
             "tags": [

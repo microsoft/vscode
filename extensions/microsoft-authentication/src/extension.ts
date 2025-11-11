@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { commands, ExtensionContext, l10n, window, workspace } from 'vscode';
-import * as extensionV1 from './extensionV1';
 import * as extensionV2 from './extensionV2';
 import { MicrosoftAuthenticationTelemetryReporter } from './common/telemetryReporter';
 
-let implementation: 'msal' | 'msal-no-broker' | 'classic' = 'msal';
-const getImplementation = () => workspace.getConfiguration('microsoft-authentication').get<'msal' | 'msal-no-broker' | 'classic'>('implementation') ?? 'msal';
+let implementation: 'msal' | 'msal-no-broker' = 'msal';
+const getImplementation = () => workspace.getConfiguration('microsoft-authentication').get<'msal' | 'msal-no-broker'>('implementation') ?? 'msal';
 
 export async function activate(context: ExtensionContext) {
 	const mainTelemetryReporter = new MicrosoftAuthenticationTelemetryReporter(context.extension.packageJSON.aiKey);
@@ -39,22 +38,11 @@ export async function activate(context: ExtensionContext) {
 			commands.executeCommand('workbench.action.reloadWindow');
 		}
 	}));
-	const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
-
-	// Only activate the new extension if we are not running in a browser environment
-	if (!isNodeEnvironment) {
-		mainTelemetryReporter.sendActivatedWithClassicImplementationEvent('web');
-		return await extensionV1.activate(context, mainTelemetryReporter.telemetryReporter);
-	}
 
 	switch (implementation) {
 		case 'msal-no-broker':
 			mainTelemetryReporter.sendActivatedWithMsalNoBrokerEvent();
 			await extensionV2.activate(context, mainTelemetryReporter);
-			break;
-		case 'classic':
-			mainTelemetryReporter.sendActivatedWithClassicImplementationEvent('setting');
-			await extensionV1.activate(context, mainTelemetryReporter.telemetryReporter);
 			break;
 		case 'msal':
 		default:
@@ -64,9 +52,5 @@ export async function activate(context: ExtensionContext) {
 }
 
 export function deactivate() {
-	if (implementation !== 'classic') {
-		extensionV2.deactivate();
-	} else {
-		extensionV1.deactivate();
-	}
+	extensionV2.deactivate();
 }

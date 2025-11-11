@@ -12,7 +12,7 @@ import { MicrosoftAccountType, MicrosoftAuthenticationTelemetryReporter } from '
 import { ScopeData } from '../common/scopeData';
 import { EventBufferer } from '../common/event';
 import { BetterTokenStorage } from '../betterSecretStorage';
-import { IStoredSession } from '../AADHelper';
+import { IStoredSession } from '../storedSession';
 import { ExtensionHost, getMsalFlows } from './flows';
 import { base64Decode } from './buffer';
 import { Config } from '../common/config';
