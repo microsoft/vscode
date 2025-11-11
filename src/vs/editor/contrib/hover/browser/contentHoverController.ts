@@ -17,7 +17,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { HoverVerbosityAction } from '../../../common/languages.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { isMousePositionWithinElement, shouldShowHover } from './hoverUtils.js';
+import { isMousePositionWithinElement, shouldShowHover, isTriggerModifierPressed } from './hoverUtils.js';
 import { ContentHoverWidgetWrapper } from './contentHoverWidgetWrapper.js';
 import './hover.css';
 import { Emitter } from '../../../../base/common/event.js';
@@ -34,7 +34,6 @@ interface IHoverSettings {
 	readonly enabled: 'on' | 'off' | 'onKeyboardModifier';
 	readonly sticky: boolean;
 	readonly hidingDelay: number;
-	readonly delay: number; // show delay from editor hover options
 }
 
 export class ContentHoverController extends Disposable implements IEditorContribution {
@@ -97,8 +96,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		this._hoverSettings = {
 			enabled: hoverOpts.enabled,
 			sticky: hoverOpts.sticky,
-			hidingDelay: hoverOpts.hidingDelay,
-			delay: hoverOpts.delay
+			hidingDelay: hoverOpts.hidingDelay
 		};
 		if (hoverOpts.enabled === 'off') {
 			this._cancelSchedulerAndHide();
@@ -275,11 +273,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		// we should show the hover immediately for the current (last known) mouse location even without moving the mouse again.
 		if (this._hoverSettings.enabled === 'onKeyboardModifier' && this._mouseMoveEvent) {
 			const multiCursorModifier = this._editor.getOption(EditorOption.multiCursorModifier); // 'altKey' | 'ctrlKey' | 'metaKey'
-			// Inverse logic: if multiCursor uses Alt (multiCursorModifier === 'altKey'), hover triggers on Ctrl/Cmd.
-			// Otherwise (multiCursorModifier is ctrlKey/metaKey), hover triggers on Alt.
-			const triggerPressed = multiCursorModifier === 'altKey'
-				? (e.ctrlKey || e.metaKey)
-				: e.altKey;
+			const triggerPressed = isTriggerModifierPressed(multiCursorModifier, e);
 			if (triggerPressed) {
 				// Avoid re-trigger if already visible
 				if (!this._contentWidget?.isVisible) {

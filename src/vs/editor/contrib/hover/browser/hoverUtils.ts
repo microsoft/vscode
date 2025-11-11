@@ -26,6 +26,20 @@ export function isMousePositionWithinElement(element: HTMLElement, posx: number,
  * @param mouseEvent - The current mouse event containing modifier key states
  * @returns true if hover should be shown, false otherwise
  */
+/**
+ * Returns true if the trigger modifier (inverse of multi-cursor modifier) is pressed.
+ * This works with both mouse and keyboard events by relying only on the modifier flags.
+ */
+export function isTriggerModifierPressed(
+	multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey',
+	event: { ctrlKey: boolean; metaKey: boolean; altKey: boolean }
+): boolean {
+	if (multiCursorModifier === 'altKey') {
+		return event.ctrlKey || event.metaKey;
+	}
+	return event.altKey; // multiCursorModifier is ctrlKey or metaKey
+}
+
 export function shouldShowHover(
 	hoverEnabled: 'on' | 'off' | 'onKeyboardModifier',
 	multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey',
@@ -37,9 +51,6 @@ export function shouldShowHover(
 	if (hoverEnabled === 'off') {
 		return false;
 	}
-	if (multiCursorModifier === 'altKey') {
-		return mouseEvent.event.ctrlKey || mouseEvent.event.metaKey;
-	} else {
-		return mouseEvent.event.altKey;
-	}
+	// onKeyboardModifier
+	return isTriggerModifierPressed(multiCursorModifier, mouseEvent.event);
 }
