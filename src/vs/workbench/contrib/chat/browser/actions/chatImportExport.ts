@@ -10,7 +10,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { CHAT_CATEGORY } from './chatActions.js';
+import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -19,9 +19,12 @@ import { isExportableSessionData } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 
 const defaultFileName = 'chat.json';
+const defaultMarkdownFileName = 'chat.md';
 const filters = [{ name: localize('chat.file.label', "Chat Session"), extensions: ['json'] }];
+const markdownFilters = [{ name: localize('chat.markdown.file.label', "Markdown File"), extensions: ['md'] }];
 
 export function registerChatExportActions() {
 	registerAction2(class ExportChatAction extends Action2 {
@@ -65,6 +68,51 @@ export function registerChatExportActions() {
 			// Using toJSON on the model
 			const content = VSBuffer.fromString(JSON.stringify(model.toExport(), undefined, 2));
 			await fileService.writeFile(outputPath, content);
+		}
+	});
+
+	registerAction2(class ExportChatAsMarkdownAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.exportAsMarkdown',
+				category: CHAT_CATEGORY,
+				title: localize2('chat.exportAsMarkdown.label', "Export Chat as Markdown..."),
+				precondition: ChatContextKeys.enabled,
+				f1: true,
+			});
+		}
+		async run(accessor: ServicesAccessor, outputPath?: URI) {
+			const widgetService = accessor.get(IChatWidgetService);
+			const fileDialogService = accessor.get(IFileDialogService);
+			const fileService = accessor.get(IFileService);
+
+			const widget = widgetService.lastFocusedWidget;
+			if (!widget || !widget.viewModel) {
+				return;
+			}
+
+			if (!outputPath) {
+				const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultMarkdownFileName);
+				const result = await fileDialogService.showSaveDialog({
+					defaultUri,
+					filters: markdownFilters
+				});
+				if (!result) {
+					return;
+				}
+				outputPath = result;
+			}
+
+			const viewModel = widget.viewModel;
+			const sessionAsText = viewModel.getItems()
+				.filter((item): item is (IChatRequestViewModel | IChatResponseViewModel) => isRequestVM(item) || (isResponseVM(item) && !item.errorDetails?.responseIsFiltered))
+				.map(item => stringifyItem(item))
+				.join('\n\n');
+
+			if (sessionAsText) {
+				const content = VSBuffer.fromString(sessionAsText);
+				await fileService.writeFile(outputPath, content);
+			}
 		}
 	});
 
