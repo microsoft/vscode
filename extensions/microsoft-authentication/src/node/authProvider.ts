@@ -12,7 +12,6 @@ import { MicrosoftAccountType, MicrosoftAuthenticationTelemetryReporter } from '
 import { ScopeData } from '../common/scopeData';
 import { EventBufferer } from '../common/event';
 import { BetterTokenStorage } from '../betterSecretStorage';
-import { IStoredSession } from '../AADHelper';
 import { ExtensionHost, getMsalFlows } from './flows';
 import { base64Decode } from './buffer';
 import { Config } from '../common/config';
@@ -20,6 +19,22 @@ import { isSupportedClient } from '../common/env';
 
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
 const MSA_PASSTHRU_TID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
+
+/**
+ * Interface for sessions stored from the old authentication flow.
+ * Used for migration purposes when upgrading to MSAL.
+ * TODO: Remove this after one or two releases.
+ */
+export interface IStoredSession {
+	id: string;
+	refreshToken: string;
+	scope: string; // Scopes are alphabetized and joined with a space
+	account: {
+		label: string;
+		id: string;
+	};
+	endpoint: string | undefined;
+}
 
 export class MsalAuthProvider implements AuthenticationProvider {
 
