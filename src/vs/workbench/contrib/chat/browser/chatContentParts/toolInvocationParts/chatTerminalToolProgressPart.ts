@@ -70,8 +70,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _focusAction = this._register(new MutableDisposable<FocusChatInstanceAction>());
 
 	private readonly _terminalData: IChatTerminalToolInvocationData;
-	private readonly _terminalCommandUri: URI | undefined;
-	private readonly _storedCommandId: string | undefined;
+	private _terminalCommandUri: URI | undefined;
+	private _storedCommandId: string | undefined;
 	private readonly _isSerializedInvocation: boolean;
 	private _terminalInstance: ITerminalInstance | undefined;
 
@@ -186,6 +186,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				return;
 			}
 			if (!instance) {
+				if (this._isSerializedInvocation) {
+					this._clearCommandAssociation();
+				}
 				this._addActions(undefined, terminalToolSessionId);
 				return;
 			}
@@ -231,7 +234,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 		}
 
-		const canFocus = !!terminalInstance || (this._isSerializedInvocation && !!this._terminalCommandUri);
+		const canFocus = !!terminalInstance;
 		if (canFocus) {
 			const isTerminalHidden = terminalInstance && terminalToolSessionId ? this._terminalChatService.isBackgroundTerminal(terminalToolSessionId) : false;
 			const resolvedCommand = this._getResolvedCommand(terminalInstance);
@@ -290,6 +293,17 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._showOutputActionAdded = true;
 	}
 
+	private _clearCommandAssociation(): void {
+		this._terminalCommandUri = undefined;
+		this._storedCommandId = undefined;
+		if (this._terminalData.terminalCommandUri) {
+			delete this._terminalData.terminalCommandUri;
+		}
+		if (this._terminalData.terminalToolSessionId) {
+			delete this._terminalData.terminalToolSessionId;
+		}
+	}
+
 	private _registerInstanceListener(terminalInstance: ITerminalInstance): void {
 		const commandDetectionListener = this._register(new MutableDisposable<IDisposable>());
 		const tryResolveCommand = async (): Promise<ITerminalCommand | undefined> => {
@@ -322,6 +336,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			if (this._terminalInstance === terminalInstance) {
 				this._terminalInstance = undefined;
 			}
+			this._clearCommandAssociation();
 			commandDetectionListener.clear();
 			this._actionBar.value?.clear();
 			this._focusAction.clear();
