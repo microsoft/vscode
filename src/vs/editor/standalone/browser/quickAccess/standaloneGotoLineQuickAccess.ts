@@ -77,7 +77,7 @@ class GotoOffsetAction extends EditorAction {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	run(accessor: ServicesAccessor): void {
 		accessor.get(IQuickInputService).quickAccess.show(StandaloneGotoLineQuickAccessProvider.GO_TO_OFFSET_PREFIX);
 	}
 }
