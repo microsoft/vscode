@@ -329,6 +329,9 @@ export class SessionsViewPane extends ViewPane {
 						}
 					},
 					getDragURI: (element: ChatSessionItemWithProvider) => {
+						if (isGroupNode(element)) {
+							return null;
+						}
 						return getResourceForElement(element)?.toString() ?? null;
 					},
 					getDragLabel: (elements: ChatSessionItemWithProvider[]) => {
