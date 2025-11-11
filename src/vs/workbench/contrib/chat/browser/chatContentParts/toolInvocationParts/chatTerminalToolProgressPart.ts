@@ -231,10 +231,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 		}
 
-		const resolvedCommand = this._getResolvedCommand(terminalInstance);
 		const canFocus = !!terminalInstance || (this._isSerializedInvocation && !!this._terminalCommandUri);
 		if (canFocus) {
 			const isTerminalHidden = terminalInstance && terminalToolSessionId ? this._terminalChatService.isBackgroundTerminal(terminalToolSessionId) : false;
+			const resolvedCommand = this._getResolvedCommand(terminalInstance);
 			const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, resolvedCommand, this._terminalCommandUri, this._storedCommandId, isTerminalHidden);
 			this._focusAction.value = focusAction;
 			actionBar.push(focusAction, { icon: true, label: false, index: 0 });
