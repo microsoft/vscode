@@ -529,7 +529,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
 				const commandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
-				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId, commandId);
+				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId, this._configurationService, commandId);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
@@ -882,12 +882,15 @@ class BackgroundTerminalExecution extends Disposable {
 		private readonly _xterm: XtermTerminal,
 		private readonly _commandLine: string,
 		readonly sessionId: string,
+		private readonly _configurationService: IConfigurationService,
 		commandId?: string
 	) {
 		super();
 
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
-		this.instance.runCommand(this._commandLine, true, commandId);
+		const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
+		const commandToExecute = preventShellHistory ? ` ${this._commandLine}` : this._commandLine;
+		this.instance.runCommand(commandToExecute, true, commandId);
 	}
 	getOutput(marker?: IXtermMarker): string {
 		return getOutput(this.instance, marker ?? this._startMarker);

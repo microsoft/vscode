@@ -14,6 +14,8 @@ import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITe
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { setupRecreatingStartMarker } from './strategyHelpers.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -49,6 +51,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 		private readonly _instance: ITerminalInstance,
 		private readonly _hasReceivedUserInput: () => boolean,
 		private readonly _commandDetection: ICommandDetectionCapability,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 	}
@@ -117,8 +120,10 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			// is used as it's more common to not recognize the prompt input which would result in
 			// ^C being sent and also to return the exit code of 130 when from the shell when that
 			// occurs.
-			this._log(`Executing command line \`${commandLine}\``);
-			this._instance.sendText(commandLine, true);
+			const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
+			const commandToExecute = preventShellHistory ? ` ${commandLine}` : commandLine;
+			this._log(`Executing command line \`${commandToExecute}\`${preventShellHistory ? ' (prefixed with space to prevent shell history)' : ''}`);
+			this._instance.sendText(commandToExecute, true);
 
 			// Wait for the next end execution event - note that this may not correspond to the actual
 			// execution requested

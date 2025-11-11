@@ -14,6 +14,8 @@ import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js
 import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { setupRecreatingStartMarker } from './strategyHelpers.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 
 /**
  * This strategy is used when the terminal has rich shell integration/command detection is
@@ -32,6 +34,7 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		private readonly _commandDetection: ICommandDetectionCapability,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 	}
@@ -75,8 +78,10 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 			);
 
 			// Execute the command
-			this._log(`Executing command line \`${commandLine}\``);
-			this._instance.runCommand(commandLine, true, commandId);
+			const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
+			const commandToExecute = preventShellHistory ? ` ${commandLine}` : commandLine;
+			this._log(`Executing command line \`${commandToExecute}\`${preventShellHistory ? ' (prefixed with space to prevent shell history)' : ''}`);
+			this._instance.runCommand(commandToExecute, true, commandId);
 
 			// Wait for the terminal to idle
 			this._log('Waiting for done event');

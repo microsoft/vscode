@@ -20,6 +20,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
 	OutputLocation = 'chat.tools.terminal.outputLocation',
+	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
 
 	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
@@ -422,6 +423,12 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		experiment: {
 			mode: 'auto'
 		}
+	},
+	[TerminalChatAgentToolsSettingId.PreventShellHistory]: {
+		markdownDescription: localize('preventShellHistory.description', "Controls whether to prefix commands with a space to prevent them from entering shell history. This works in Bash and Zsh when `HISTCONTROL=ignorespace` or `HIST_IGNORE_SPACE` is set, and in Fish by default. PowerShell support is limited."),
+		type: 'boolean',
+		default: true,
+		tags: ['experimental']
 	}
 };
 
