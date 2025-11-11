@@ -48,7 +48,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	constructor(
 		@ILifecycleMainService protected readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@IEnvironmentMainService protected environmentMainService: IEnvironmentMainService,
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
 		@IProductService protected readonly productService: IProductService
@@ -218,7 +218,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 	}
 
-	async _applySpecificUpdate(packagePath: string): Promise<void> {
+	async _applySpecificUpdate(packagePath: string, version?: string): Promise<void> {
 		// noop
 	}
 

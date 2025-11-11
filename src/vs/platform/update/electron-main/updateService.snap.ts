@@ -128,7 +128,7 @@ abstract class AbstractUpdateService implements IUpdateService {
 
 	abstract isLatestVersion(): Promise<boolean | undefined>;
 
-	async _applySpecificUpdate(packagePath: string): Promise<void> {
+	async _applySpecificUpdate(packagePath: string, version?: string): Promise<void> {
 		// noop
 	}
 
