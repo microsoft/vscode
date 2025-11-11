@@ -468,6 +468,13 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatParticipantPrivate'
 	},
 	{
+		key: 'chat/execute',
+		id: MenuId.ChatExecute,
+		description: localize('menus.chatExecute', "The Chat Execute menu."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
+	{
 		// TODO: rename this to something like: `chatSessions/item/inline`
 		key: 'chat/chatSessions',
 		id: MenuId.ChatSessionsMenu,
