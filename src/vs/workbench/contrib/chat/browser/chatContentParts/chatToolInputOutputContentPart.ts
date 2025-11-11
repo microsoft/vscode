@@ -23,7 +23,6 @@ import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from '../codeB
 import { IDisposableReference } from './chatCollections.js';
 import { ChatQueryTitlePart } from './chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
-import { EditorPool } from './chatMarkdownContentPart.js';
 import { ChatToolOutputContentSubPart } from './chatToolOutputContentSubPart.js';
 
 export interface IChatCollapsibleIOCodePart {
@@ -86,17 +85,15 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		title: IMarkdownString | string,
 		subtitle: string | IMarkdownString | undefined,
 		private readonly context: IChatContentPartRenderContext,
-		private readonly editorPool: EditorPool,
 		private readonly input: IChatCollapsibleInputData,
 		private readonly output: IChatCollapsibleOutputData | undefined,
 		isError: boolean,
 		initiallyExpanded: boolean,
-		width: number,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this._currentWidth = width;
+		this._currentWidth = context.currentWidth();
 
 		const container = dom.h('.chat-confirmation-widget-container');
 		const titleEl = dom.h('.chat-confirmation-widget-title-inner');
@@ -157,9 +154,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			const resourceSubPart = this._register(this._instantiationService.createInstance(
 				ChatToolOutputContentSubPart,
 				this.context,
-				this.editorPool,
 				topLevelResources,
-				this._currentWidth
 			));
 			const group = resourceSubPart.domNode;
 			group.classList.add('chat-collapsible-top-level-resource-group');
@@ -191,9 +186,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			const outputSubPart = this._register(this._instantiationService.createInstance(
 				ChatToolOutputContentSubPart,
 				this.context,
-				this.editorPool,
 				output.parts,
-				this._currentWidth
 			));
 			this._outputSubPart = outputSubPart;
 			this._register(outputSubPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -214,7 +207,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			renderOptions: part.options,
 			chatSessionResource: this.context.element.sessionResource,
 		};
-		const editorReference = this._register(this.editorPool.get());
+		const editorReference = this._register(this.context.editorPool.get());
 		editorReference.object.render(data, this._currentWidth || 300);
 		this._register(editorReference.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 		container.appendChild(editorReference.object.element);

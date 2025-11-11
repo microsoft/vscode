@@ -9,7 +9,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { basename, delimiter, normalize, dirname, resolve } from '../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../base/common/platform.js';
 import { findExecutable } from '../../../base/node/processes.js';
-import { hasKey, isString } from '../../../base/common/types.js';
+import { hasKey, isObject, isString } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import * as pfs from '../../../base/node/pfs.js';
 import { enumeratePowerShellInstallations } from '../../../base/node/powershell.js';
@@ -48,8 +48,8 @@ export function detectAvailableProfiles(
 			shellEnv,
 			logService,
 			configurationService.getValue(TerminalSettingId.UseWslProfiles) !== false,
-			profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: IUnresolvedTerminalProfile }>(TerminalSettingId.ProfilesWindows),
-			typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(TerminalSettingId.DefaultProfileWindows),
+			profiles && isObject(profiles) ? { ...profiles } : configurationService.getValue<{ [key: string]: IUnresolvedTerminalProfile }>(TerminalSettingId.ProfilesWindows),
+			isString(defaultProfile) ? defaultProfile : configurationService.getValue<string>(TerminalSettingId.DefaultProfileWindows),
 			testPwshSourcePaths,
 			variableResolver
 		);
@@ -58,8 +58,8 @@ export function detectAvailableProfiles(
 		fsProvider,
 		logService,
 		includeDetectedProfiles,
-		profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: IUnresolvedTerminalProfile }>(isLinux ? TerminalSettingId.ProfilesLinux : TerminalSettingId.ProfilesMacOs),
-		typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(isLinux ? TerminalSettingId.DefaultProfileLinux : TerminalSettingId.DefaultProfileMacOs),
+		profiles && isObject(profiles) ? { ...profiles } : configurationService.getValue<{ [key: string]: IUnresolvedTerminalProfile }>(isLinux ? TerminalSettingId.ProfilesLinux : TerminalSettingId.ProfilesMacOs),
+		isString(defaultProfile) ? defaultProfile : configurationService.getValue<string>(isLinux ? TerminalSettingId.DefaultProfileLinux : TerminalSettingId.DefaultProfileMacOs),
 		testPwshSourcePaths,
 		variableResolver,
 		shellEnv
@@ -219,13 +219,13 @@ async function getValidatedProfile(
 	let paths: (string | ITerminalUnsafePath)[];
 	if (variableResolver) {
 		// Convert to string[] for resolve
-		const mapped = originalPaths.map(e => typeof e === 'string' ? e : e.path);
+		const mapped = originalPaths.map(e => isString(e) ? e : e.path);
 
 		const resolved = await variableResolver(mapped);
 		// Convert resolved back to (T | string)[]
 		paths = new Array(originalPaths.length);
 		for (let i = 0; i < originalPaths.length; i++) {
-			if (typeof originalPaths[i] === 'string') {
+			if (isString(originalPaths[i])) {
 				paths[i] = resolved[i];
 			} else {
 				paths[i] = {
@@ -269,7 +269,7 @@ async function getValidatedProfile(
 }
 
 function validateIcon(icon: string | TerminalIcon | undefined): TerminalIcon | undefined {
-	if (typeof icon === 'string') {
+	if (isString(icon)) {
 		return { id: icon };
 	}
 	return icon;
@@ -445,7 +445,7 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTe
 		return;
 	}
 	for (const [profileName, value] of Object.entries(configProfiles)) {
-		if (value === null || typeof value !== 'object' || (!hasKey(value, { path: true }) && !hasKey(value, { source: true }))) {
+		if (value === null || !isObject(value) || (!hasKey(value, { path: true }) && !hasKey(value, { source: true }))) {
 			profilesMap.delete(profileName);
 		} else {
 			value.icon = value.icon || profilesMap.get(profileName)?.icon;
@@ -462,8 +462,8 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 	if (path === '') {
 		return validateProfilePaths(profileName, defaultProfileName, potentialPaths, fsProvider, shellEnv, args, env, overrideName, isAutoDetected);
 	}
-	const isUnsafePath = typeof path !== 'string' && path.isUnsafe;
-	const actualPath = typeof path === 'string' ? path : path.path;
+	const isUnsafePath = !isString(path) && path.isUnsafe;
+	const actualPath = isString(path) ? path : path.path;
 
 	const profile: ITerminalProfile = {
 		profileName,

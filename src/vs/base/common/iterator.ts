@@ -7,13 +7,13 @@ import { isIterable } from './types.js';
 
 export namespace Iterable {
 
-	export function is<T = any>(thing: unknown): thing is Iterable<T> {
+	export function is<T = unknown>(thing: unknown): thing is Iterable<T> {
 		return !!thing && typeof thing === 'object' && typeof (thing as Iterable<T>)[Symbol.iterator] === 'function';
 	}
 
-	const _empty: Iterable<any> = Object.freeze([]);
-	export function empty<T = any>(): Iterable<T> {
-		return _empty;
+	const _empty: Iterable<never> = Object.freeze([]);
+	export function empty<T = never>(): Iterable<T> {
+		return _empty as Iterable<T>;
 	}
 
 	export function* single<T>(element: T): Iterable<T> {
@@ -29,7 +29,7 @@ export namespace Iterable {
 	}
 
 	export function from<T>(iterable: Iterable<T> | undefined | null): Iterable<T> {
-		return iterable || _empty;
+		return iterable ?? (_empty as Iterable<T>);
 	}
 
 	export function* reverse<T>(array: ReadonlyArray<T>): Iterable<T> {
