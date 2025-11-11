@@ -712,40 +712,27 @@ interface ISuggestedOptionResult {
 	sentToTerminal?: boolean;
 }
 
-
-
-// PowerShell-style multi-option line (supports [?] Help and optional default suffix) ending in whitespace
-const PS_CONFIRM_RE = /\s*(?:\[[^\]]\]\s+[^\[]+\s*)+(?:\(default is\s+"[^"]+"\):)?\s+$/;
-
-// Bracketed/parenthesized yes/no pairs at end of line: (y/n), [Y/n], (yes/no), [no/yes]
-const YN_PAIRED_RE = /(?:\(|\[)\s*(?:y(?:es)?\s*\/\s*n(?:o)?|n(?:o)?\s*\/\s*y(?:es)?)\s*(?:\]|\))\s+$/i;
-
-// Same as YN_PAIRED_RE but allows a preceding '?' or ':' and optional wrappers e.g. "Continue? (y/n)" or "Overwrite: [yes/no]"
-const YN_AFTER_PUNCT_RE = /[?:]\s*(?:\(|\[)?\s*y(?:es)?\s*\/\s*n(?:o)?\s*(?:\]|\))?\s+$/i;
-
-// Confirmation prompts ending with (y) e.g. "Ok to proceed? (y)"
-const CONFIRM_Y_RE = /\(y\)\s*$/i;
-
-const LINE_ENDS_WITH_COLON_RE = /:\s*$/;
-
-const END = /\(END\)$/;
-
-const PASSWORD = /password[:]?$/i;
-
-const QUESTION = /\?[\(\)\s]*$/i;
-
-const PRESS_ANY_KEY_RE = /press a(?:ny)? key/i;
-
 export function detectsInputRequiredPattern(cursorLine: string): boolean {
 	return [
-		PS_CONFIRM_RE,
-		YN_PAIRED_RE,
-		YN_AFTER_PUNCT_RE,
-		CONFIRM_Y_RE,
-		LINE_ENDS_WITH_COLON_RE,
-		END,
-		PASSWORD,
-		QUESTION,
-		PRESS_ANY_KEY_RE,
+		// PowerShell-style multi-option line (supports [?] Help and optional default suffix) ending
+		// in whitespace
+		/\s*(?:\[[^\]]\]\s+[^\[]+\s*)+(?:\(default is\s+"[^"]+"\):)?\s+$/,
+		// Bracketed/parenthesized yes/no pairs at end of line: (y/n), [Y/n], (yes/no), [no/yes]
+		/(?:\(|\[)\s*(?:y(?:es)?\s*\/\s*n(?:o)?|n(?:o)?\s*\/\s*y(?:es)?)\s*(?:\]|\))\s+$/i,
+		// Same as above but allows a preceding '?' or ':' and optional wrappers e.g.
+		// "Continue? (y/n)" or "Overwrite: [yes/no]"
+		/[?:]\s*(?:\(|\[)?\s*y(?:es)?\s*\/\s*n(?:o)?\s*(?:\]|\))?\s+$/i,
+		// Confirmation prompts ending with (y) e.g. "Ok to proceed? (y)"
+		/\(y\)\s*$/i,
+		// Line ends with ':'
+		/:\s*$/,
+		// Line contains (END) which is common in pagers
+		/\(END\)$/,
+		// Password prompt
+		/password[:]?$/i,
+		// Line ends with '?'
+		/\?[\(\)\s]*$/i,
+		// "Press a key" or "Press any key"
+		/press a(?:ny)? key/i,
 	].some(e => e.test(cursorLine));
 }
