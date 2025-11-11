@@ -1319,6 +1319,99 @@ suite('OAuth', () => {
 			assert.strictEqual(headers['X-Test-Header'], 'test-value');
 			assert.strictEqual(headers['X-Custom-Header'], 'value');
 		});
+
+		test('should handle fetchImpl throwing network error and continue to next URL', async () => {
+			const targetResource = 'https://example.com/api/v1';
+			const expectedMetadata = {
+				resource: 'https://example.com/api/v1',
+				scopes_supported: ['read', 'write']
+			};
+
+			// First call throws network error, second succeeds
+			fetchStub.onFirstCall().rejects(new Error('Network connection failed'));
+
+			fetchStub.onSecondCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 2);
+			// First attempt with path should have thrown error
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource/api/v1');
+			// Second attempt at root should succeed
+			assert.strictEqual(fetchStub.secondCall.args[0], 'https://example.com/.well-known/oauth-protected-resource');
+		});
+
+		test('should throw AggregateError when fetchImpl throws on all URLs', async () => {
+			const targetResource = 'https://example.com/api/v1';
+
+			// Both calls throw network errors
+			fetchStub.rejects(new Error('Network connection failed'));
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, undefined, { fetch: fetchStub }),
+				(error: any) => {
+					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
+					assert.strictEqual(error.errors.length, 2, 'Should contain 2 errors');
+					assert.ok(/Network connection failed/.test(error.errors[0].message), 'First error should mention network failure');
+					assert.ok(/Network connection failed/.test(error.errors[1].message), 'Second error should mention network failure');
+					return true;
+				}
+			);
+
+			assert.strictEqual(fetchStub.callCount, 2);
+		});
+
+		test('should handle mix of fetch error and non-200 response', async () => {
+			const targetResource = 'https://example.com/api/v1';
+
+			// First call throws network error
+			fetchStub.onFirstCall().rejects(new Error('Connection timeout'));
+
+			// Second call returns 404
+			fetchStub.onSecondCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found'
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, undefined, { fetch: fetchStub }),
+				(error: any) => {
+					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
+					assert.strictEqual(error.errors.length, 2, 'Should contain 2 errors');
+					assert.ok(/Connection timeout/.test(error.errors[0].message), 'First error should be network error');
+					assert.ok(/Failed to fetch resource metadata.*404/.test(error.errors[1].message), 'Second error should be 404');
+					return true;
+				}
+			);
+
+			assert.strictEqual(fetchStub.callCount, 2);
+		});
+
+		test('should handle fetchImpl throwing error with explicit resourceMetadataUrl', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+
+			fetchStub.rejects(new Error('DNS resolution failed'));
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
+				/DNS resolution failed/
+			);
+
+			// Should only try once when explicit URL is provided
+			assert.strictEqual(fetchStub.callCount, 1);
+			assert.strictEqual(fetchStub.firstCall.args[0], resourceMetadataUrl);
+		});
 	});
 
 	suite('fetchAuthorizationServerMetadata', () => {
