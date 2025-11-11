@@ -13,6 +13,7 @@ import { isUriComponents, URI } from '../../../base/common/uri.js';
 import { ILanguageService } from '../../../editor/common/languages/language.js';
 import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../editor/common/services/model.js';
+import { FileKind } from '../../../platform/files/common/files.js';
 import { ILabelService } from '../../../platform/label/common/label.js';
 import { IInputOptions, IPickOptions, IQuickInput, IQuickInputService, IQuickPick, IQuickPickItem, QuickInputButtonLocation } from '../../../platform/quickinput/common/quickInput.js';
 import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../platform/theme/common/colorRegistry.js';
@@ -281,7 +282,8 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		// Derive icon props from resourceUri if icon is set to ThemeIcon.File or ThemeIcon.Folder.
 		const icon = item.iconPathDto;
 		if (ThemeIcon.isThemeIcon(icon) && (ThemeIcon.isFile(icon) || ThemeIcon.isFolder(icon))) {
-			const iconClasses = new Lazy(() => getIconClasses(this.modelService, this.languageService, resourceUri));
+			const fileKind = ThemeIcon.isFolder(icon) ? FileKind.FOLDER : FileKind.FILE;
+			const iconClasses = new Lazy(() => getIconClasses(this.modelService, this.languageService, resourceUri, fileKind));
 			Object.defineProperty(item, 'iconClasses', { get: () => iconClasses.value });
 		} else {
 			this.expandIconPath(item);
