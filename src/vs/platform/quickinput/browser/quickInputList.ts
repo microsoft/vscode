@@ -325,7 +325,6 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate | undefined,
-		protected readonly isElementFocused?: (element: IQuickPickElement) => boolean,
 	) { }
 
 	// TODO: only do the common stuff here and have a subclass handle their specific stuff
@@ -401,10 +400,9 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 
 	constructor(
 		hoverDelegate: IHoverDelegate | undefined,
-		isElementFocused: ((element: IQuickPickElement) => boolean) | undefined,
 		@IThemeService private readonly themeService: IThemeService,
 	) {
-		super(hoverDelegate, isElementFocused);
+		super(hoverDelegate);
 	}
 
 	get templateId() {
@@ -423,6 +421,9 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			checkbox = new Checkbox(element.saneLabel, element.checked, { ...defaultCheckboxStyles, size: 15 });
 			data.checkbox.value = checkbox;
 			data.outerLabel.prepend(checkbox.domNode);
+			// Remove checkbox from tab order since tree items are navigable with arrow keys
+			// This prevents the issue where pressing Space toggles both the tabbed checkbox and the focused item
+			checkbox.domNode.tabIndex = -1;
 		} else {
 			checkbox.setTitle(element.saneLabel);
 		}
@@ -435,18 +436,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 
 		checkbox.checked = element.checked;
 		data.toDisposeElement.add(element.onChecked(checked => checkbox.checked = checked));
-		data.toDisposeElement.add(checkbox.onChange(() => {
-			// Only update element's checked state if it's focused in the tree
-			// If not focused, revert the checkbox's state to match the element
-			// This ensures that when Space is pressed, only the focused items are toggled by the tree's handler
-			if (this.isElementFocused && data.element && this.isElementFocused(data.element)) {
-				element.checked = checkbox.checked;
-			} else {
-				// Revert checkbox state to match element's state
-				// Setting checked property doesn't trigger onChange, so no recursion
-				checkbox.checked = element.checked;
-			}
-		}));
+		data.toDisposeElement.add(checkbox.onChange(() => element.checked = checkbox.checked));
 	}
 
 	renderElement(node: ITreeNode<QuickPickItemElement, void>, index: number, data: IQuickInputItemTemplateData): void {
@@ -733,10 +723,8 @@ export class QuickInputList extends Disposable {
 	) {
 		super();
 		this._container = dom.append(this.parent, $('.quick-input-list'));
-		this._separatorRenderer = new QuickPickSeparatorElementRenderer(hoverDelegate, undefined);
-		this._itemRenderer = instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate, (element: IQuickPickElement) => {
-			return this._tree.getFocus().includes(element);
-		});
+		this._separatorRenderer = new QuickPickSeparatorElementRenderer(hoverDelegate);
+		this._itemRenderer = instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate);
 		this._tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<IQuickPickElement, void>,
 			'QuickInput',
