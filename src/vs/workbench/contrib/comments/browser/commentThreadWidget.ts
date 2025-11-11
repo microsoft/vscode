@@ -20,7 +20,6 @@ import { CommentThreadHeader } from './commentThreadHeader.js';
 import { CommentThreadAdditionalActions } from './commentThreadAdditionalActions.js';
 import { CommentContextKeys } from '../common/commentContextKeys.js';
 import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
-import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ICellRange } from '../../notebook/common/notebookRange.js';
 import { FontInfo } from '../../../../editor/common/config/fontInfo.js';
@@ -375,12 +374,10 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 	}
 
-	applyTheme(theme: IColorTheme, fontInfo: FontInfo) {
+	applyTheme(fontInfo: FontInfo) {
 		const fontFamilyVar = '--comment-thread-editor-font-family';
-		const fontSizeVar = '--comment-thread-editor-font-size';
 		const fontWeightVar = '--comment-thread-editor-font-weight';
 		this.container?.style.setProperty(fontFamilyVar, fontInfo.fontFamily);
-		this.container?.style.setProperty(fontSizeVar, `${fontInfo.fontSize}px`);
 		this.container?.style.setProperty(fontWeightVar, fontInfo.fontWeight);
 
 		this._commentReply?.setCommentEditorDecorations();
