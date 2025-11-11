@@ -18,6 +18,7 @@ import { CellEditState, CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewM
 import { NotebookViewModel } from '../../viewModel/notebookViewModelImpl.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { CellKind, INotebookFindOptions, NotebookCellsChangeType } from '../../../common/notebookCommon.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 
 export class CellFindMatchModel implements CellFindMatchWithIndex {
 	readonly cell: ICellViewModel;
@@ -239,14 +240,14 @@ export class FindModel extends Disposable {
 		// let currCell;
 		if (!this._findMatchesStarts) {
 			this.set(this._findMatches, true);
-			if ('index' in option) {
+			if (hasKey(option, { index: true })) {
 				this._currentMatch = option.index;
 			}
 		} else {
 			// const currIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 			// currCell = this._findMatches[currIndex.index].cell;
 			const totalVal = this._findMatchesStarts.getTotalSum();
-			if ('index' in option) {
+			if (hasKey(option, { index: true })) {
 				this._currentMatch = option.index;
 			}
 			else if (this._currentMatch === -1) {

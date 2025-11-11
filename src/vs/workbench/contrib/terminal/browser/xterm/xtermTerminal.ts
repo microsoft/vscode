@@ -741,11 +741,13 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (this.hasSelection() || (asHtml && command)) {
 			if (asHtml) {
 				const textAsHtml = await this.getSelectionAsHtml(command);
-				function listener(e: any) {
-					if (!e.clipboardData.types.includes('text/plain')) {
-						e.clipboardData.setData('text/plain', command?.getOutput() ?? '');
+				function listener(e: ClipboardEvent) {
+					if (e.clipboardData) {
+						if (!e.clipboardData.types.includes('text/plain')) {
+							e.clipboardData.setData('text/plain', command?.getOutput() ?? '');
+						}
+						e.clipboardData.setData('text/html', textAsHtml);
 					}
-					e.clipboardData.setData('text/html', textAsHtml);
 					e.preventDefault();
 				}
 				const doc = dom.getDocument(this.raw.element);

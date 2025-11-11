@@ -89,7 +89,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 			// delete environment variables that have a null value
 			Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
 
-			const options: any = {
+			const options = {
 				cwd: dir,
 				env: env,
 				windowsVerbatimArguments: true
@@ -267,7 +267,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 				// delete environment variables that have a null value
 				Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
 
-				const options: any = {
+				const options = {
 					cwd: dir,
 					env: env
 				};

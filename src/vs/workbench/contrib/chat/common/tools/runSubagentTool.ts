@@ -32,6 +32,7 @@ import {
 	ToolSet,
 	VSCodeToolReference
 } from '../languageModelToolsService.js';
+import { ManageTodoListToolToolId } from './manageTodoListTool.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';
 
 export const RunSubagentToolId = 'runSubagent';
@@ -205,6 +206,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					}
 				}
 			};
+
+			if (modeTools) {
+				modeTools[RunSubagentToolId] = false;
+				modeTools[ManageTodoListToolToolId] = false;
+			}
 
 			// Build the agent request
 			const agentRequest: IChatAgentRequest = {

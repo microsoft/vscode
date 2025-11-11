@@ -15,7 +15,7 @@ import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollecti
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { ChatQueryTitlePart } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
-import { ChatMarkdownContentPart, EditorPool, type IChatMarkdownContentPartOptions } from '../chatMarkdownContentPart.js';
+import { ChatMarkdownContentPart, type IChatMarkdownContentPartOptions } from '../chatMarkdownContentPart.js';
 import { ChatProgressSubPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import '../media/chatTerminalToolProgressPart.css';
@@ -43,6 +43,7 @@ import { IAccessibleViewService } from '../../../../../../platform/accessibility
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
+import { EditorPool } from '../chatContentCodePools.js';
 
 const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
 

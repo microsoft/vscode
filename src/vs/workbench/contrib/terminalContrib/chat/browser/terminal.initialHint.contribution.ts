@@ -30,6 +30,7 @@ import { TerminalInstance } from '../../../terminal/browser/terminalInstance.js'
 import { TerminalInitialHintSettingId } from '../common/terminalInitialHintConfiguration.js';
 import './media/terminalInitialHint.css';
 import { TerminalChatCommandId } from './terminalChat.js';
+import { hasKey } from '../../../../../base/common/types.js';
 
 const $ = dom.$;
 
@@ -107,7 +108,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		// Don't show is the terminal was launched by an extension or a feature like debug
-		if ('shellLaunchConfig' in this._ctx.instance && (this._ctx.instance.shellLaunchConfig.isExtensionOwnedTerminal || this._ctx.instance.shellLaunchConfig.isFeatureTerminal)) {
+		if (hasKey(this._ctx.instance, { shellLaunchConfig: true }) && (this._ctx.instance.shellLaunchConfig.isExtensionOwnedTerminal || this._ctx.instance.shellLaunchConfig.isFeatureTerminal)) {
 			return;
 		}
 		// Don't show if disabled

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { createWebWorker } from '../../../base/browser/webWorkerFactory.js';
+import { createWebWorker, WebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js';
 import { URI } from '../../../base/common/uri.js';
 import { Proxied } from '../../../base/common/worker/webWorker.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
@@ -49,8 +49,10 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 	private async _withWorker<R>(callback: (worker: Proxied<IProfileAnalysisWorker>) => Promise<R>): Promise<R> {
 
 		const worker = createWebWorker<IProfileAnalysisWorker>(
-			FileAccess.asBrowserUri('vs/platform/profiling/electron-browser/profileAnalysisWorkerMain.js'),
-			'CpuProfileAnalysisWorker'
+			new WebWorkerDescriptor({
+				esmModuleLocation: FileAccess.asBrowserUri('vs/platform/profiling/electron-browser/profileAnalysisWorkerMain.js'),
+				label: 'CpuProfileAnalysisWorker'
+			})
 		);
 
 		try {

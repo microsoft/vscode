@@ -969,7 +969,7 @@ class TriggerWordHighlightAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = WordHighlighterContribution.get(editor);
 		if (!controller) {
 			return;

@@ -3855,11 +3855,11 @@ export class CommandCenter {
 			return;
 		}
 
-		// Dispose worktree repository
-		this.model.disposeRepository(repository);
-
 		try {
 			await mainRepository.deleteWorktree(repository.root);
+
+			// Dispose worktree repository
+			this.model.disposeRepository(repository);
 		} catch (err) {
 			if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
 				const forceDelete = l10n.t('Force Delete');
@@ -3867,8 +3867,9 @@ export class CommandCenter {
 				const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
 				if (choice === forceDelete) {
 					await mainRepository.deleteWorktree(repository.root, { force: true });
-				} else {
-					await this.model.openRepository(repository.root);
+
+					// Dispose worktree repository
+					this.model.disposeRepository(repository);
 				}
 
 				return;

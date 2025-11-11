@@ -27,6 +27,7 @@
 		"**/*.js"
 	],
 	"exclude": [
-		"node_modules/**"
+		"node_modules/**",
+		"monaco-editor-playground/**"
 	]
 }
