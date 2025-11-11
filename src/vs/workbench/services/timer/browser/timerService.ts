@@ -11,7 +11,7 @@ import { IUpdateService } from '../../../../platform/update/common/update.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryData, ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { Barrier, timeout } from '../../../../base/common/async.js';
 import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite.js';
@@ -644,7 +644,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				]
 			}
 		*/
-		this._telemetryService.publicLog('startupTimeVaried', metrics);
+		this._telemetryService.publicLog('startupTimeVaried', metrics as unknown as ITelemetryData);
 	}
 
 	protected _shouldReportPerfMarks(): boolean {

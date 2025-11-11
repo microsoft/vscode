@@ -84,7 +84,7 @@ import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { IHandOff, ParsedPromptFile, PromptHeader, Target } from '../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
-import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
+import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
@@ -140,11 +140,11 @@ export interface IChatWidgetLocationOptions {
 }
 
 export function isQuickChat(widget: IChatWidget): boolean {
-	return 'viewContext' in widget && 'isQuickChat' in widget.viewContext && Boolean(widget.viewContext.isQuickChat);
+	return isIChatResourceViewContext(widget.viewContext) && Boolean(widget.viewContext.isQuickChat);
 }
 
 export function isInlineChat(widget: IChatWidget): boolean {
-	return 'viewContext' in widget && 'isInlineChat' in widget.viewContext && Boolean(widget.viewContext.isInlineChat);
+	return isIChatResourceViewContext(widget.viewContext) && Boolean(widget.viewContext.isInlineChat);
 }
 
 interface IChatHistoryListItem {
@@ -790,7 +790,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	render(parent: HTMLElement): void {
-		const viewId = 'viewId' in this.viewContext ? this.viewContext.viewId : undefined;
+		const viewId = isIChatViewViewContext(this.viewContext) ? this.viewContext.viewId : undefined;
 		this.editorOptions = this._register(this.instantiationService.createInstance(ChatEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
 		const renderInputOnTop = this.viewOptions.renderInputOnTop ?? false;
 		const renderFollowups = this.viewOptions.renderFollowups ?? !renderInputOnTop;
@@ -2061,7 +2061,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private getWidgetViewKindTag(): string {
 		if (!this.viewContext) {
 			return 'editor';
-		} else if ('viewId' in this.viewContext) {
+		} else if (isIChatViewViewContext(this.viewContext)) {
 			return 'view';
 		} else {
 			return 'quick';

@@ -45,6 +45,7 @@ import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { chatSessionResourceToId } from '../../common/chatUri.js';
+import { isITextModel } from '../../../../../editor/common/model.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -747,31 +748,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			});
 		}
 	}
-
-	/**
-	 * Converts full URIs from the user's systems into workspace-relative paths for coding agent.
-	 */
-	private extractRelativeFromAttachedContext(attachedContext: ChatRequestVariableSet, workspaceContextService: IWorkspaceContextService): string[] {
-		if (!attachedContext) {
-			return [];
-		}
-		const relativePaths: string[] = [];
-		for (const contextEntry of attachedContext.asArray()) {
-			if (isChatRequestFileEntry(contextEntry)) { // TODO: Extend for more variable types as needed
-				if (!(contextEntry.value instanceof URI)) {
-					continue;
-				}
-				const workspaceFolder = workspaceContextService.getWorkspaceFolder(contextEntry.value);
-				const fileUri = contextEntry.value;
-				const relativePathResult = workspaceFolder ? relativePath(workspaceFolder.uri, fileUri) : undefined;
-				if (relativePathResult) {
-					relativePaths.push(relativePathResult);
-				}
-			}
-		}
-		return relativePaths;
-	}
-
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
@@ -822,7 +798,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				if (activeEditor) {
 					const model = activeEditor.getModel();
 					let activeEditorUri: URI | undefined = undefined;
-					if (model && 'uri' in model) {
+					if (model && isITextModel(model)) {
 						activeEditorUri = model.uri as URI;
 					}
 					const selection = activeEditor.getSelection();
@@ -907,10 +883,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			}
 
 			let summary: string = '';
-			const relativeAttachedContext = this.extractRelativeFromAttachedContext(attachedContext, workspaceContextService);
-			if (relativeAttachedContext.length) {
-				summary += `\n\n${localize('attachedFiles', "The user has attached the following files from their workspace:")}\n${relativeAttachedContext.map(file => `- ${file}`).join('\n')}\n\n`;
-			}
 
 			// Add selection or cursor information to the summary
 			attachedContext.asArray().forEach(ctx => {

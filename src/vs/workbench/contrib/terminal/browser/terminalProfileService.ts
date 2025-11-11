@@ -169,7 +169,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	private async _updateContributedProfiles(): Promise<boolean> {
 		const platformKey = await this.getPlatformKey();
 		const excludedContributedProfiles: string[] = [];
-		const configProfiles: { [key: string]: any } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
+		const configProfiles: { [key: string]: ITerminalExecutable | null | undefined } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
 		for (const [profileName, value] of Object.entries(configProfiles)) {
 			if (value === null) {
 				excludedContributedProfiles.push(profileName);

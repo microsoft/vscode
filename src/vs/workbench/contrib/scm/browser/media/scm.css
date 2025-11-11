@@ -136,15 +136,12 @@
 	height: 22px;
 }
 
-.scm-view .monaco-list-row .history,
-.scm-view .monaco-list-row .history-item-group,
 .scm-view .monaco-list-row .resource-group {
 	display: flex;
 	height: 100%;
 	align-items: center;
 }
 
-.scm-view .monaco-list-row .history-item-group .monaco-icon-label,
 .scm-view .monaco-list-row .history-item .monaco-icon-label {
 	flex-grow: 1;
 	align-items: center;
@@ -272,7 +269,6 @@
 	margin-left: 4px;
 }
 
-.scm-view .monaco-list-row .history > .name,
 .scm-view .monaco-list-row .resource-group > .name {
 	flex: 1;
 	overflow: hidden;
@@ -691,7 +687,7 @@
 	text-overflow: ellipsis;
 }
 
-.scm-history-view .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie.force-no-twistie {
+.scm-history-view .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {
 	display: none !important;
 }
 

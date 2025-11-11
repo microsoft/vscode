@@ -90,14 +90,14 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	get onProcessOrphanQuestion(): Event<{ id: number }> {
 		return this._channel.listen<{ id: number }>(RemoteTerminalChannelEvent.OnProcessOrphanQuestion);
 	}
-	get onExecuteCommand(): Event<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: any[] }> {
-		return this._channel.listen<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: any[] }>(RemoteTerminalChannelEvent.OnExecuteCommand);
+	get onExecuteCommand(): Event<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: unknown[] }> {
+		return this._channel.listen<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: unknown[] }>(RemoteTerminalChannelEvent.OnExecuteCommand);
 	}
 	get onDidRequestDetach(): Event<{ requestId: number; workspaceId: string; instanceId: number }> {
 		return this._channel.listen<{ requestId: number; workspaceId: string; instanceId: number }>(RemoteTerminalChannelEvent.OnDidRequestDetach);
 	}
-	get onDidChangeProperty(): Event<{ id: number; property: IProcessProperty<any> }> {
-		return this._channel.listen<{ id: number; property: IProcessProperty<any> }>(RemoteTerminalChannelEvent.OnDidChangeProperty);
+	get onDidChangeProperty(): Event<{ id: number; property: IProcessProperty }> {
+		return this._channel.listen<{ id: number; property: IProcessProperty }>(RemoteTerminalChannelEvent.OnDidChangeProperty);
 	}
 
 	constructor(
@@ -246,7 +246,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	orphanQuestionReply(id: number): Promise<void> {
 		return this._channel.call(RemoteTerminalChannelRequest.OrphanQuestionReply, [id]);
 	}
-	sendCommandResult(reqId: number, isError: boolean, payload: any): Promise<void> {
+	sendCommandResult(reqId: number, isError: boolean, payload: unknown): Promise<void> {
 		return this._channel.call(RemoteTerminalChannelRequest.SendCommandResult, [reqId, isError, payload]);
 	}
 	freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {

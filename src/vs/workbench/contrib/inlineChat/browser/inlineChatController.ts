@@ -1413,7 +1413,9 @@ export class InlineChatController2 implements IEditorContribution {
 			}
 
 			const entry = session.editingSession.readEntry(session.uri, r);
-			entry?.enableReviewModeUntilSettled();
+			if (entry?.state.read(r) === ModifiedFileEntryState.Modified) {
+				entry?.enableReviewModeUntilSettled();
+			}
 
 			const inProgress = session.chatModel.requestInProgressObs.read(r);
 			this._zone.value.widget.domNode.classList.toggle('request-in-progress', inProgress);

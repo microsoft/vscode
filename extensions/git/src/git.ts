@@ -1658,6 +1658,10 @@ export class Repository {
 		return result.stdout;
 	}
 
+	async diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat> {
+		return this.diffFilesShortStat(undefined, { cached: true, path });
+	}
+
 	diffIndexWith(ref: string): Promise<Change[]>;
 	diffIndexWith(ref: string, path: string): Promise<string>;
 	diffIndexWith(ref: string, path?: string | undefined): Promise<string | Change[]>;

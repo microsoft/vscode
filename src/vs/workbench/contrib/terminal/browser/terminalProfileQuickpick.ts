@@ -112,7 +112,7 @@ export class TerminalProfileQuickpick {
 				if (hasKey(context.item.profile, { id: true })) {
 					return;
 				}
-				const configProfiles: { [key: string]: any } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
+				const configProfiles: { [key: string]: ITerminalExecutable | null | undefined } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
 				const existingProfiles = !!configProfiles ? Object.keys(configProfiles) : [];
 				const name = await this._quickInputService.input({
 					prompt: nls.localize('enterTerminalProfileName', "Enter terminal profile name"),
@@ -127,7 +127,7 @@ export class TerminalProfileQuickpick {
 				if (!name) {
 					return;
 				}
-				const newConfigValue: { [key: string]: ITerminalExecutable } = {
+				const newConfigValue: { [key: string]: ITerminalExecutable | null | undefined } = {
 					...configProfiles,
 					[name]: this._createNewProfileConfig(context.item.profile)
 				};
