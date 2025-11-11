@@ -860,7 +860,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		const ret = { top: 0, left: 0 };
 
 		// Start with horizontal
-		ret.left = layout(windowDimensions.width, submenu.width, { position: expandDirection.horizontal === HorizontalDirection.Right ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, offset: entry.left, size: entry.width });
+		ret.left = layout(windowDimensions.width, submenu.width, { position: expandDirection.horizontal === HorizontalDirection.Right ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, offset: entry.left, size: entry.width }).position;
 
 		// We don't have enough room to layout the menu fully, so we are overlapping the menu
 		if (ret.left >= entry.left && ret.left < entry.left + entry.width) {
@@ -873,7 +873,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}
 
 		// Now that we have a horizontal position, try layout vertically
-		ret.top = layout(windowDimensions.height, submenu.height, { position: LayoutAnchorPosition.Before, offset: entry.top, size: 0 });
+		ret.top = layout(windowDimensions.height, submenu.height, { position: LayoutAnchorPosition.Before, offset: entry.top, size: 0 }).position;
 
 		// We didn't have enough room below, but we did above, so we shift down to align the menu
 		if (ret.top + submenu.height === entry.top && ret.top + entry.height + submenu.height <= windowDimensions.height) {

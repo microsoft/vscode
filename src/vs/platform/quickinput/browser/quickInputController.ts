@@ -37,7 +37,7 @@ import { TriStateCheckbox } from '../../../base/browser/ui/toggle/toggle.js';
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 import { QuickInputTreeController } from './tree/quickInputTreeController.js';
 import { QuickTree } from './tree/quickTree.js';
-import { layout2d } from '../../../base/common/layout.js';
+import { AnchorAlignment, AnchorPosition, layout2d } from '../../../base/common/layout.js';
 import { getAnchorRect } from '../../../base/browser/ui/contextview/contextview.js';
 
 const $ = dom.$;
@@ -838,14 +838,31 @@ export class QuickInputController extends Disposable {
 				const container = this.layoutService.getContainer(dom.getActiveWindow()).getBoundingClientRect();
 				const anchor = getAnchorRect(this.controller.anchor);
 				width = 380;
-				listHeight = (this.dimension && this.dimension?.height * 0.1) ?? 200;
-				const containerHeight = Math.floor(listHeight / 44) * 44 + 6 + 26 + 16;
+				listHeight = Math.min((this.dimension && this.dimension?.height * 0.2) ?? 200, 200);
 
-				const { top, left } = layout2d(container, { width, height: containerHeight }, anchor);
-				style.top = `${top}px`;
-				style.left = `${left}px`;
+				// Beware:
+				// We need to add some extra pixels to the height to account for the input and padding.
+				const containerHeight = Math.floor(listHeight) + 6 + 26 + 16;
+				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor);
+
+				if (anchorAlignment === AnchorAlignment.RIGHT) {
+					style.right = `${right}px`;
+					style.left = '';
+				} else {
+					style.left = `${left}px`;
+					style.right = '';
+				}
+
+				if (anchorPosition === AnchorPosition.BELOW) {
+					style.bottom = `${bottom}px`;
+					style.top = '';
+				} else {
+					style.top = `${top}px`;
+					style.bottom = '';
+				}
+
 				style.width = `${width}px`;
-				style.height = `${containerHeight}px`; // wtf
+				style.height = '';
 			} else {
 				style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
 				style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
