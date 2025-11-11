@@ -106,7 +106,7 @@ export class UriIdentityService implements IUriIdentityService {
 			return;
 		}
 
-		Entry._clock = 0;
+		Entry._clock = 1;
 		const times = [...this._canonicalUris.values()].map(e => e.time);
 		const median = quickSelect(
 			Math.floor(times.length / 2),
