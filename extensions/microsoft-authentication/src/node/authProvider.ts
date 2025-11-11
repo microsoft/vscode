@@ -209,12 +209,9 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			}
 		};
 
-		const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
 		const callbackUri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://vscode.microsoft-authentication`));
 		const flows = getMsalFlows({
-			extensionHost: isNodeEnvironment
-				? this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
-				: ExtensionHost.WebWorker,
+			extensionHost: this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote,
 			supportedClient: isSupportedClient(callbackUri),
 			isBrokerSupported: cachedPca.isBrokerAvailable
 		});
@@ -348,12 +345,9 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			}
 		};
 
-		const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
 		const callbackUri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://vscode.microsoft-authentication`));
 		const flows = getMsalFlows({
-			extensionHost: isNodeEnvironment
-				? this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
-				: ExtensionHost.WebWorker,
+			extensionHost: this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote,
 			isBrokerSupported: cachedPca.isBrokerAvailable,
 			supportedClient: isSupportedClient(callbackUri)
 		});
