@@ -3,10 +3,7 @@
 	"description": "Microsoft authentication provider",
 	"signIn": "Sign In",
 	"signOut": "Sign Out",
-	"microsoft-authentication.implementation.description": {
-		"message": "The authentication implementation to use for signing in with a Microsoft account.",
-		"comment": []
-	},
+	"microsoft-authentication.implementation.description": "The authentication implementation to use for signing in with a Microsoft account.",
 	"microsoft-authentication.implementation.enumDescriptions.msal": "Use the Microsoft Authentication Library (MSAL) to sign in with a Microsoft account.",
 	"microsoft-authentication.implementation.enumDescriptions.msal-no-broker": "Use the Microsoft Authentication Library (MSAL) to sign in with a Microsoft account using a browser. This is useful if you are having issues with the native broker.",
 	"microsoft-sovereign-cloud.environment.description": {
