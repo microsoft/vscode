@@ -998,6 +998,12 @@ class QuickInputDragAndDropController extends Disposable {
 				return;
 			}
 
+			// Ignore event if the target is a button or within an action bar to prevent
+			// double-clicking buttons from resetting the quick input position
+			if (dom.findParentWithClass(originEvent.target, 'action-item', 'quick-input-titlebar')) {
+				return;
+			}
+
 			this.dndViewState.set({ top: undefined, left: undefined, done: true }, undefined);
 		}));
 
