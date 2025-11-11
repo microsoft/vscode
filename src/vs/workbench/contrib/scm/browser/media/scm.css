@@ -687,7 +687,7 @@
 	text-overflow: ellipsis;
 }
 
-.scm-history-view .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {
+.scm-history-view .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie.force-no-twistie {
 	display: none !important;
 }
 
