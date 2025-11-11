@@ -78,6 +78,9 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 			);
 
 			// Execute the command
+			// Prefix command with space to prevent it from entering shell history when the user
+			// has configured their shell to ignore commands starting with space
+			// (e.g., HISTCONTROL=ignorespace in Bash/Zsh, or default behavior in Fish)
 			const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
 			const commandToExecute = preventShellHistory ? ` ${commandLine}` : commandLine;
 			this._log(`Executing command line \`${commandToExecute}\`${preventShellHistory ? ' (prefixed with space to prevent shell history)' : ''}`);

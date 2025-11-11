@@ -888,6 +888,9 @@ class BackgroundTerminalExecution extends Disposable {
 		super();
 
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
+		// Prefix command with space to prevent it from entering shell history when the user
+		// has configured their shell to ignore commands starting with space
+		// (e.g., HISTCONTROL=ignorespace in Bash/Zsh, or default behavior in Fish)
 		const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
 		const commandToExecute = preventShellHistory ? ` ${this._commandLine}` : this._commandLine;
 		this.instance.runCommand(commandToExecute, true, commandId);

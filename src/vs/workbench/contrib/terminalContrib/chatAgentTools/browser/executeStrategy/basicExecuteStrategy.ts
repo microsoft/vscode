@@ -120,6 +120,9 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			// is used as it's more common to not recognize the prompt input which would result in
 			// ^C being sent and also to return the exit code of 130 when from the shell when that
 			// occurs.
+			// Prefix command with space to prevent it from entering shell history when the user
+			// has configured their shell to ignore commands starting with space
+			// (e.g., HISTCONTROL=ignorespace in Bash/Zsh, or default behavior in Fish)
 			const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
 			const commandToExecute = preventShellHistory ? ` ${commandLine}` : commandLine;
 			this._log(`Executing command line \`${commandToExecute}\`${preventShellHistory ? ' (prefixed with space to prevent shell history)' : ''}`);
