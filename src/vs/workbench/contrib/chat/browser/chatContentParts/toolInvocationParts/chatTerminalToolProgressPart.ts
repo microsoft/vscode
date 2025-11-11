@@ -500,7 +500,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		scrollableDomNode.setAttribute('role', 'region');
 		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.TerminalChatOutput);
 		const label = accessibleViewHint
-			? localize('chatTerminalOutputAriaLabelWithHint', '{0}. {1}', this._outputAriaLabelBase, accessibleViewHint)
+			? this._outputAriaLabelBase + '\n' + accessibleViewHint
 			: this._outputAriaLabelBase;
 		scrollableDomNode.setAttribute('aria-label', label);
 	}
