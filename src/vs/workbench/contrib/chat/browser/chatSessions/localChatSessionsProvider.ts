@@ -20,7 +20,7 @@ import { chatSessionResourceToId } from '../../common/chatUri.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { ChatSessionItemWithProvider, isChatSession } from './common.js';
+import { ChatSessionItemWithProvider, isChatSession, processSessionsWithTimeGrouping } from './common.js';
 
 export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.localChatSessionsProvider';
@@ -263,7 +263,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			}));
 
 			// Apply sorting and time grouping
-			// processSessionsWithTimeGrouping(historyItems);
+			processSessionsWithTimeGrouping(historyItems);
 
 			return historyItems;
 
