@@ -293,7 +293,7 @@ export class SessionsViewPane extends ViewPane {
 		this.messageElement = append(container, $('.chat-sessions-message'));
 		this.messageElement.style.display = 'none';
 		// Create the tree components
-		const dataSource = new SessionsDataSource(this.provider, this.chatService, this.sessionTracker);
+		const dataSource = new SessionsDataSource(this.provider, this.sessionTracker);
 		const delegate = new SessionsDelegate(this.configurationService);
 		const identityProvider = new SessionsIdentityProvider();
 		const accessibilityProvider = new SessionsAccessibilityProvider();
@@ -329,9 +329,6 @@ export class SessionsViewPane extends ViewPane {
 						}
 					},
 					getDragURI: (element: ChatSessionItemWithProvider) => {
-						if (element.id === LocalChatSessionsProvider.HISTORY_NODE_ID) {
-							return null;
-						}
 						return getResourceForElement(element)?.toString() ?? null;
 					},
 					getDragLabel: (elements: ChatSessionItemWithProvider[]) => {
@@ -377,9 +374,7 @@ export class SessionsViewPane extends ViewPane {
 
 		// Register context menu event for right-click actions
 		this._register(this.tree.onContextMenu((e) => {
-			if (e.element && e.element.id !== LocalChatSessionsProvider.HISTORY_NODE_ID) {
-				this.showContextMenu(e);
-			}
+			this.showContextMenu(e);
 		}));
 
 		this._register(this.tree.onMouseDblClick(e => {
@@ -471,11 +466,6 @@ export class SessionsViewPane extends ViewPane {
 				return;
 			}
 			if (this.chatWidgetService.getWidgetBySessionResource(session.resource)) {
-				return;
-			}
-
-			if (session.id === LocalChatSessionsProvider.HISTORY_NODE_ID) {
-				// Don't try to open the "Show history..." node itself
 				return;
 			}
 

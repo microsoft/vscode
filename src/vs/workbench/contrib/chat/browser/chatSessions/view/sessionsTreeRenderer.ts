@@ -22,6 +22,7 @@ import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -42,14 +43,12 @@ import { IWorkbenchLayoutService, Position } from '../../../../../services/layou
 import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
 import { IChatService } from '../../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { chatSessionResourceToId } from '../../../common/chatUri.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatWidgetService } from '../../chat.js';
 import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.js';
 import '../../media/chatSessions.css';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, isLocalChatSessionItem, processSessionsWithTimeGrouping } from '../common.js';
-import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
+import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, IChatSessionGroupItem, isGroupNode, isLocalChatSessionItem, processSessionsWithTimeGrouping } from '../common.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -191,11 +190,26 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			default:
 				return Codicon.circleOutline;
 		}
+	}
 
+	private renderGroupNode(groupNode: IChatSessionGroupItem, templateData: ISessionTemplateData): void {
+		templateData.customIcon.className = '';
+		templateData.descriptionRow.style.display = 'none';
+		templateData.timestamp.parentElement!.style.display = 'none';
+
+		const childCount = groupNode.groupChildren.length;
+		templateData.iconLabel.setLabel(groupNode.label, undefined, {
+			title: `${childCount} session${childCount === 1 ? '' : 's'}`
+		});
 	}
 
 	renderElement(element: ITreeNode<IChatSessionItem, FuzzyScore>, index: number, templateData: ISessionTemplateData): void {
 		const session = element.element as ChatSessionItemWithProvider;
+
+		if (isGroupNode(session)) {
+			this.renderGroupNode(session, templateData);
+			return;
+		}
 
 		// Add CSS class for local sessions
 		let editableData: IEditableData | undefined;
@@ -220,7 +234,8 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 		// Handle different icon types
 		let iconTheme: ThemeIcon | undefined;
-		if (!session.iconPath && session.id !== LocalChatSessionsProvider.HISTORY_NODE_ID) {
+		// if (!session.iconPath && session.id !== LocalChatSessionsProvider.HISTORY_NODE_ID) {
+		if (!session.iconPath) {
 			iconTheme = this.statusToIcon(session.status);
 		} else {
 			iconTheme = session.iconPath;
@@ -514,21 +529,19 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
-		private readonly chatService: IChatService,
 		private readonly sessionTracker: ChatSessionTracker,
 	) {
 	}
 
 	hasChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider): boolean {
-		const isProvider = element === this.provider;
-		if (isProvider) {
+		if (element === this.provider) {
 			// Root provider always has children
 			return true;
 		}
 
-		// Check if this is the "Show history..." node
-		if ('id' in element && element.id === LocalChatSessionsProvider.HISTORY_NODE_ID) {
-			return true;
+		const sessionItem = element as ChatSessionItemWithProvider;
+		if (isGroupNode(sessionItem)) {
+			return sessionItem.groupChildren.length > 0;
 		}
 
 		return false;
@@ -538,71 +551,66 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 		if (element === this.provider) {
 			try {
 				const items = await this.provider.provideChatSessionItems(CancellationToken.None);
-				const itemsWithProvider = items.map(item => {
+				const groupedItems = new Map<string, ChatSessionItemWithProvider[]>();
+				const ungroupedItems: ChatSessionItemWithProvider[] = [];
+				for (const item of items) {
 					const itemWithProvider: ChatSessionItemWithProvider = { ...item, provider: this.provider };
-
-					// Extract timestamp using the helper function
 					itemWithProvider.timing = { startTime: extractTimestamp(item) ?? 0 };
 
-					return itemWithProvider;
-				});
+					if (item.groupName) {
+						if (!groupedItems.has(item.groupName)) {
+							groupedItems.set(item.groupName, []);
+						}
+						groupedItems.get(item.groupName)!.push(itemWithProvider);
+					} else {
+						ungroupedItems.push(itemWithProvider);
+					}
+				}
 
-				// Add hybrid local editor sessions for this provider using the centralized service
+				// Add hybrid local editor sessions for this provider
 				if (this.provider.chatSessionType !== localChatSessionType) {
 					const hybridSessions = await this.sessionTracker.getHybridSessionsForProvider(this.provider);
 					const existingSessions = new ResourceSet();
-					itemsWithProvider.forEach(s => existingSessions.add(s.resource));
-
+					// Iterate only over the ungrouped items, the only group we support for now is history
+					ungroupedItems.forEach(s => existingSessions.add(s.resource));
 					hybridSessions.forEach(session => {
 						if (!existingSessions.has(session.resource)) {
-							itemsWithProvider.push(session as ChatSessionItemWithProvider);
+							ungroupedItems.push(session as ChatSessionItemWithProvider);
 							existingSessions.add(session.resource);
 						}
 					});
-					processSessionsWithTimeGrouping(itemsWithProvider);
+					processSessionsWithTimeGrouping(ungroupedItems);
 				}
 
-				return itemsWithProvider;
+				const result: ChatSessionItemWithProvider[] = [];
+				result.push(...ungroupedItems);
+				for (const [groupName, children] of groupedItems) {
+					const groupNode: IChatSessionGroupItem = {
+						id: `group:${groupName}`,
+						label: groupName,
+						resource: URI.from({ scheme: 'chat-group', path: `/${groupName}` }),
+						provider: this.provider,
+						isGroupNode: true,
+						groupChildren: children,
+						timing: {
+							startTime: 0
+						}
+					};
+					result.push(groupNode);
+				}
+				return result;
 			} catch (error) {
 				return [];
 			}
 		}
 
-		// Check if this is the "Show history..." node
-		if ('id' in element && element.id === LocalChatSessionsProvider.HISTORY_NODE_ID) {
-			return this.getHistoryItems();
+		const sessionItem = element as ChatSessionItemWithProvider;
+		if (isGroupNode(sessionItem)) {
+			return sessionItem.groupChildren;
 		}
 
 		// Individual session items don't have children
 		return [];
-	}
-
-	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
-		try {
-			// Get all chat history
-			const allHistory = await this.chatService.getLocalSessionHistory();
-
-			// Create history items with provider reference and timestamps
-			const historyItems = allHistory.map((historyDetail): ChatSessionItemWithProvider => ({
-				id: chatSessionResourceToId(historyDetail.sessionResource),
-				resource: historyDetail.sessionResource,
-				label: historyDetail.title,
-				iconPath: Codicon.chatSparkle,
-				provider: this.provider,
-				timing: {
-					startTime: historyDetail.lastMessageDate ?? Date.now()
-				},
-				isHistory: true,
-			}));
-
-			// Apply sorting and time grouping
-			processSessionsWithTimeGrouping(historyItems);
-
-			return historyItems;
-
-		} catch (error) {
-			return [];
-		}
 	}
 }
 
@@ -614,6 +622,11 @@ export class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWit
 	constructor(private readonly configurationService: IConfigurationService) { }
 
 	getHeight(element: ChatSessionItemWithProvider): number {
+		// Group nodes always use single height
+		if (isGroupNode(element)) {
+			return SessionsDelegate.ITEM_HEIGHT;
+		}
+
 		// Return consistent height for all items (single-line layout)
 		if (element.description && this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && element.provider.chatSessionType !== localChatSessionType) {
 			return SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION;

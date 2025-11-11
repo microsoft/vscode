@@ -168,3 +168,12 @@ export function getSessionItemContextOverlay(
 
 	return overlay;
 }
+
+export interface IChatSessionGroupItem extends ChatSessionItemWithProvider {
+	readonly isGroupNode: true;
+	readonly groupChildren: ChatSessionItemWithProvider[];
+}
+
+export function isGroupNode(item: ChatSessionItemWithProvider): item is IChatSessionGroupItem {
+	return 'isGroupNode' in item && (item as IChatSessionGroupItem).isGroupNode === true;
+}

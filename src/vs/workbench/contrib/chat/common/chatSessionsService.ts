@@ -76,7 +76,7 @@ export interface IChatSessionItem {
 		insertions: number;
 		deletions: number;
 	};
-
+	groupName?: string;
 }
 
 export type IChatSessionHistoryItem = {
