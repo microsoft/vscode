@@ -20,7 +20,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { registerActiveInstanceAction, registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
 import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { localize2 } from '../../../../../nls.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -39,6 +39,7 @@ export class TerminalClipboardContribution extends Disposable implements ITermin
 	private _xterm: IXtermTerminal & { raw: RawXtermTerminal } | undefined;
 
 	private _overrideCopySelection: boolean | undefined = undefined;
+	private _tempDisableCopySelection: boolean = false;
 
 	private readonly _onWillPaste = this._register(new Emitter<string>());
 	readonly onWillPaste = this._onWillPaste.event;
@@ -52,23 +53,39 @@ export class TerminalClipboardContribution extends Disposable implements ITermin
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._xterm = xterm;
+
+		const findVisibleKey = TerminalContextKeys.findVisible.bindTo(this._contextKeyService);
+		this._register(xterm.raw.onData(() => {
+			const isFindVisible = findVisibleKey.get();
+			if (isFindVisible && xterm.findResult?.resultCount && xterm.findResult.resultCount > 0) {
+				this._tempDisableCopySelection = true;
+			}
+		}));
 		// TODO: This should be a different event on xterm, copying html should not share the requesting run command event
 		this._register(xterm.onDidRequestCopyAsHtml(e => this.copySelection(true, e.command)));
 		this._register(xterm.raw.onSelectionChange(async () => {
-			if (this._configurationService.getValue(TerminalSettingId.CopyOnSelection)) {
-				if (this._overrideCopySelection === false) {
-					return;
+			setTimeout(async () => { // Use 0ms timeout to ensure this runs after xterm's internal selection updates
+				if (this._configurationService.getValue(TerminalSettingId.CopyOnSelection)) {
+					if (this._overrideCopySelection === false) {
+						return;
+					}
+					if (this._tempDisableCopySelection && xterm.hasSelection()) {
+						xterm.raw.clearSelection();
+						this._tempDisableCopySelection = false;
+						return;
+					}
+					if (this._ctx.instance.hasSelection()) {
+						await this.copySelection();
+					}
 				}
-				if (this._ctx.instance.hasSelection()) {
-					await this.copySelection();
-				}
-			}
+			}, 0);
 		}));
 	}
 
