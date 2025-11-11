@@ -62,26 +62,16 @@ export class SelectionWidget extends Disposable implements IContentWidget {
 		append(this.domNode, quickEditButton);
 
 		// Add to Chat button
-		const chatKeybinding = keybindingService.lookupKeybinding('workbench.action.chat.open')?.getLabel();
+		const chatKeybinding = keybindingService.lookupKeybinding('workbench.action.chat.attachSelection')?.getLabel();
 		const addToChatButton = this.createButton(
 			Codicon.comment,
 			chatKeybinding ? localize('chat1', "Chat ({0})", chatKeybinding) : localize('chat2', "Chat"),
 			async () => {
-				const model = editor.getModel();
-				const selection = editor.getSelection();
-				if (model && selection && !selection.isEmpty()) {
-					const selectedText = model.getValueInRange(selection);
-					await commandService.executeCommand('workbench.action.chat.open', {
-						query: selectedText,
-						isPartialQuery: true
-					});
-				}
+				await commandService.executeCommand('workbench.action.chat.attachSelection');
 				EditorSelectionWidget.get(editor)?.hide();
 			}
 		);
-		append(this.domNode, addToChatButton);
-
-		// Close button
+		append(this.domNode, addToChatButton);		// Close button
 		const closeButton = this.createIconButton(
 			Codicon.close,
 			localize('close', "Don't Show Again"),
