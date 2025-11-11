@@ -60,6 +60,7 @@ interface ITerminalData {
 	lastTask: string;
 	group?: string;
 	shellIntegrationNonce?: string;
+	task?: Task;
 }
 
 interface IInstanceCount {
@@ -1575,7 +1576,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			terminal.shellLaunchConfig.reconnectionProperties = { ownerId: TaskTerminalType, data: { lastTask: task.getCommonTaskId(), group, label: task._label, id: task._id } };
 		}
 		const terminalKey = terminal.instanceId.toString();
-		const terminalData = { terminal: terminal, lastTask: taskKey, group, shellIntegrationNonce: terminal.shellLaunchConfig.shellIntegrationNonce };
+		const terminalData = { terminal: terminal, lastTask: taskKey, group, shellIntegrationNonce: terminal.shellLaunchConfig.shellIntegrationNonce, task };
 		const onDisposedListener = this._register(terminal.onDisposed(() => {
 			this._deleteTaskAndTerminal(terminal, terminalData);
 			onDisposedListener.dispose();
@@ -1945,11 +1946,17 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	public getTaskForTerminal(instanceId: number): Task | undefined {
+		// First check if there's an active task for this terminal
 		for (const key in this._activeTasks) {
 			const activeTask = this._activeTasks[key];
 			if (activeTask.terminal?.instanceId === instanceId) {
 				return activeTask.task;
 			}
+		}
+		// If no active task, check the terminals map for the last task that ran in this terminal
+		const terminalData = this._terminals[instanceId.toString()];
+		if (terminalData?.task) {
+			return terminalData.task;
 		}
 		return undefined;
 	}
