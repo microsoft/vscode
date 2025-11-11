@@ -14,14 +14,17 @@ import { getNLSLanguage, getNLSMessages } from '../../nls.js';
 import { Emitter } from '../common/event.js';
 import { getMonacoEnvironment } from './browser.js';
 
+type WorkerGlobalWithPolicy = typeof globalThis & {
+	workerttPolicy?: ReturnType<typeof createTrustedTypesPolicy>;
+};
+
 // Reuse the trusted types policy defined from worker bootstrap
 // when available.
 // Refs https://github.com/microsoft/vscode/issues/222193
 let ttPolicy: ReturnType<typeof createTrustedTypesPolicy>;
-// eslint-disable-next-line local/code-no-any-casts
-if (typeof self === 'object' && self.constructor && self.constructor.name === 'DedicatedWorkerGlobalScope' && (globalThis as any).workerttPolicy !== undefined) {
-	// eslint-disable-next-line local/code-no-any-casts
-	ttPolicy = (globalThis as any).workerttPolicy;
+const workerGlobalThis = globalThis as WorkerGlobalWithPolicy;
+if (typeof self === 'object' && self.constructor && self.constructor.name === 'DedicatedWorkerGlobalScope' && workerGlobalThis.workerttPolicy !== undefined) {
+	ttPolicy = workerGlobalThis.workerttPolicy;
 } else {
 	ttPolicy = createTrustedTypesPolicy('defaultWorkerFactory', { createScriptURL: value => value });
 }
@@ -130,7 +133,7 @@ class WebWorker extends Disposable implements IWebWorker {
 	private readonly _onMessage = this._register(new Emitter<Message>());
 	public readonly onMessage = this._onMessage.event;
 
-	private readonly _onError = this._register(new Emitter<any>());
+	private readonly _onError = this._register(new Emitter<MessageEvent | ErrorEvent>());
 	public readonly onError = this._onError.event;
 
 	constructor(descriptorOrWorker: WebWorkerDescriptor | Worker | Promise<Worker>) {
