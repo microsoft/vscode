@@ -298,10 +298,8 @@ function registerActiveEditorMoveCopyCommand(): void {
 				break;
 			case 'previous':
 				targetGroup = editorGroupsService.findGroup({ location: GroupLocation.PREVIOUS }, sourceGroup);
-				// If no previous group exists and source group has 2+ editors, create a new group to the left/up
-				if (!targetGroup && sourceGroup.count >= 2) {
-					const preferredDirection = preferredSideBySideGroupDirection(configurationService);
-					const oppositeDirection = preferredDirection === GroupDirection.RIGHT ? GroupDirection.LEFT : GroupDirection.UP;
+				if (!targetGroup) {
+					const oppositeDirection = preferredSideBySideGroupDirection(configurationService) === GroupDirection.RIGHT ? GroupDirection.LEFT : GroupDirection.UP;
 					targetGroup = editorGroupsService.addGroup(sourceGroup, oppositeDirection);
 				}
 				break;
