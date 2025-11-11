@@ -360,7 +360,8 @@ export class SettingsEditor2 extends EditorPane {
 	 * Returns true if:
 	 * - The setting is not tagged as advanced, OR
 	 * - The setting matches an ID filter (@id:settingKey), OR
-	 * - The setting key appears in the search query
+	 * - The setting key appears in the search query, OR
+	 * - The @hasPolicy filter is active (policy settings should always be shown when filtering by policy)
 	 */
 	private shouldShowSetting(setting: ISetting): boolean {
 		if (!setting.tags?.includes(ADVANCED_SETTING_TAG)) {
@@ -370,6 +371,9 @@ export class SettingsEditor2 extends EditorPane {
 			return true;
 		}
 		if (this.viewState.query?.toLowerCase().includes(setting.key.toLowerCase())) {
+			return true;
+		}
+		if (this.viewState.tagFilters?.has(POLICY_SETTING_TAG)) {
 			return true;
 		}
 		return false;

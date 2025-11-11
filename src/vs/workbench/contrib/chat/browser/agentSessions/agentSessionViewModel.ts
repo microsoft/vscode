@@ -50,6 +50,7 @@ export interface IAgentSessionViewModel {
 	};
 
 	readonly statistics?: {
+		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;
 	};
@@ -107,10 +108,6 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 	}
 
 	async resolve(provider: string | string[] | undefined): Promise<void> {
-		if (this.lifecycleService.willShutdown) {
-			return;
-		}
-
 		if (Array.isArray(provider)) {
 			for (const p of provider) {
 				this.providersToResolve.add(p);
@@ -120,7 +117,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		}
 
 		return this.resolver.trigger(async token => {
-			if (token.isCancellationRequested) {
+			if (token.isCancellationRequested || this.lifecycleService.willShutdown) {
 				return;
 			}
 
@@ -185,7 +182,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 						break;
 					case AgentSessionProviders.Background:
 						providerLabel = localize('chat.session.providerLabel.background', "Background");
-						icon = Codicon.layers;
+						icon = Codicon.serverProcess;
 						break;
 					case AgentSessionProviders.Cloud:
 						providerLabel = localize('chat.session.providerLabel.cloud', "Cloud");

@@ -24,7 +24,6 @@ import { ITerminalCompletionService } from './terminalCompletionService.js';
 import { TerminalSettingId, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType, ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { createCancelablePromise, CancelablePromise, IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
-import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
@@ -179,7 +178,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
@@ -285,10 +283,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			doNotRequestExtensionCompletions = true;
 		}
 
-		if (!doNotRequestExtensionCompletions) {
-			this._logService.trace('SuggestAddon#_handleCompletionProviders onTerminalCompletionsRequested');
-			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
-		}
 		this._currentPromptInputState = {
 			value: this._promptInputModel.value,
 			prefix: this._promptInputModel.prefix,
@@ -792,7 +786,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem> {
 		if (!this._suggestWidget) {
-			// eslint-disable-next-line local/code-no-any-casts
 			this._suggestWidget = this._register(this._instantiationService.createInstance(
 				SimpleSuggestWidget,
 				this._container!,
@@ -805,7 +798,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._getFontInfo.bind(this),
 				this._onDidFontConfigurationChange.event.bind(this),
 				this._getAdvancedExplainModeDetails.bind(this)
-			)) as any as SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem>;
+			)) as unknown as SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem>;
 			this._register(this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e)));
 			this._register(this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.reset()));
 			this._register(this._suggestWidget.onDidShow(() => this._terminalSuggestWidgetVisibleContextKey.set(true)));
