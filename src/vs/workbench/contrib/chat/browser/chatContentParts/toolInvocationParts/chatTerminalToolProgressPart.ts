@@ -58,6 +58,11 @@ const sanitizerConfig = Object.freeze<DomSanitizerConfig>({
 
 let lastFocusedProgressPart: ChatTerminalToolProgressPart | undefined;
 
+/**
+ * Remembers whether a tool invocation was last expanded so state survives virtualization re-renders.
+ */
+const expandedStateByInvocation = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, boolean>();
+
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 
@@ -182,6 +187,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
 		this.domNode = progressPart.domNode;
+
+		if (expandedStateByInvocation.get(toolInvocation)) {
+			void this._toggleOutput(true);
+		}
 	}
 
 	private async _createActionBar(elements: { actionBar: HTMLElement }): Promise<void> {
@@ -358,6 +367,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._outputContainer.classList.toggle('expanded', expanded);
 		this._outputContainer.classList.toggle('collapsed', !expanded);
 		this._titlePart.classList.toggle('expanded', expanded);
+		expandedStateByInvocation.set(this.toolInvocation, expanded);
 	}
 
 	private async _renderOutputIfNeeded(): Promise<boolean> {
