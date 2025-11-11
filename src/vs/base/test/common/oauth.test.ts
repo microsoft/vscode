@@ -1713,6 +1713,39 @@ suite('OAuth', () => {
 			assert.strictEqual(fetchStub.callCount, 3);
 		});
 
+		test('should handle mix of network error and non-200 response', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant',
+				response_types_supported: ['code']
+			};
+
+			// First call throws network error
+			fetchStub.onFirstCall().rejects(new Error('Connection timeout'));
+
+			// Second call returns 404
+			fetchStub.onSecondCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			// Third call succeeds
+			fetchStub.onThirdCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			// Should have tried all three endpoints
+			assert.strictEqual(fetchStub.callCount, 3);
+		});
+
 		test('should handle response.text() failure in error case', async () => {
 			const authorizationServer = 'https://auth.example.com';
 
