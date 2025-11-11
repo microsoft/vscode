@@ -104,6 +104,19 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			await unlink(path.join(cachePath, 'session-ending.flag'));
 		} catch { }
 
+		// Avoid scheduling update check if inno setup is already running,
+		// this can happen if the user quit the application once inno_setup.exe has started
+		// then attempted to manually start the application before inno_setup.exe finished.
+		if (this.productService.target === 'user') {
+			const readyMutexName = `${this.productService.win32MutexName}-ready`;
+			const mutex = await import('@vscode/windows-mutex');
+			if (mutex.isActive(readyMutexName)) {
+				const update: IUpdate = { version: 'unknown', productVersion: 'unknown' };
+				this.setState(State.Ready(update));
+				return;
+			}
+		}
+
 		await super.initialize();
 	}
 
@@ -120,7 +133,8 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected doCheckForUpdates(explicit: boolean): void {
-		if (!this.url || this.state.type === StateType.Updating) {
+		if (!this.url || this.state.type === StateType.Updating ||
+			this.state.type === StateType.Ready) {
 			return;
 		}
 
@@ -241,6 +255,20 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				// ignore
 			}
 		});
+
+		if (this.productService.target === 'user' && this.productService.commit) {
+			const exePath = app.getPath('exe');
+			const exeDir = path.dirname(exePath);
+			const versionedResourcesFolder = this.productService.commit.substring(0, 10);
+			const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
+			promises.push(new Promise<void>((resolve) => {
+				const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder], {
+					detached: true,
+					stdio: ['ignore', 'ignore', 'ignore']
+				});
+				child.once('exit', () => resolve());
+			}));
+		}
 
 		await Promise.all(promises);
 	}
