@@ -70,6 +70,7 @@
 	"typescript.tsc.autoDetect.build": "Only create single run compile tasks.",
 	"typescript.tsc.autoDetect.watch": "Only create compile and watch tasks.",
 	"typescript.problemMatchers.tsc.label": "TypeScript problems",
+	"typescript.problemMatchers.tsgo-watch.label": "TypeScript problems (watch mode)",
 	"typescript.problemMatchers.tscWatch.label": "TypeScript problems (watch mode)",
 	"configuration.suggest.paths": "Enable/disable suggestions for paths in import statements and require calls.",
 	"configuration.tsserver.useSeparateSyntaxServer": "Enable/disable spawning a separate TypeScript server that can more quickly respond to syntax related operations, such as calculating folding or computing document symbols.",

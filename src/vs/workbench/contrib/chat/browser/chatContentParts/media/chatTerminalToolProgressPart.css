@@ -64,7 +64,6 @@
 	border-bottom-right-radius: 4px;
 	background: var(--vscode-panel-background);
 	max-height: 300px;
-	font-family: var(--monaco-monospace-font);
 	box-sizing: border-box;
 	overflow: hidden;
 	position: relative;
