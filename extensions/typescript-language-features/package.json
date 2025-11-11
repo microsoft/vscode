@@ -1784,7 +1784,7 @@
         ],
         "pattern": "$tsc"
       },
-       {
+      {
         "name": "tsgo-watch",
         "label": "%typescript.problemMatchers.tsgo-watch.label%",
         "owner": "typescript",
