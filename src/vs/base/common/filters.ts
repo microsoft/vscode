@@ -96,6 +96,10 @@ export function matchesBaseContiguousSubString(word: string, wordToMatchAgainst:
 // Substring
 
 export function matchesSubString(word: string, wordToMatchAgainst: string): IMatch[] | null {
+	if (word.length > wordToMatchAgainst.length) {
+		return null;
+	}
+
 	return _matchesSubString(word.toLowerCase(), wordToMatchAgainst.toLowerCase(), 0, 0);
 }
 
