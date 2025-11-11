@@ -1785,8 +1785,8 @@
         "pattern": "$tsc"
       },
        {
-        "name": "tsgo",
-        "label": "%typescript.problemMatchers.tsgo.label%",
+        "name": "tsgo-watch",
+        "label": "%typescript.problemMatchers.tsgo-watch.label%",
         "owner": "typescript",
         "source": "ts",
         "applyTo": "closedDocuments",
