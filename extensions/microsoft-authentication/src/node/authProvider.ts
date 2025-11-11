@@ -36,7 +36,6 @@ export interface IStoredSession {
 	endpoint: string | undefined;
 }
 
-
 export class MsalAuthProvider implements AuthenticationProvider {
 
 	private readonly _disposables: { dispose(): void }[];
