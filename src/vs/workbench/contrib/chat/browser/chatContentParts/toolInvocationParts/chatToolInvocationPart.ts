@@ -14,7 +14,6 @@ import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollecti
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../common/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
-import { EditorPool } from '../chatMarkdownContentPart.js';
 import { CollapsibleListPool } from '../chatReferencesContentPart.js';
 import { ExtensionsInstallConfirmationWidgetSubPart } from './chatExtensionsInstallToolSubPart.js';
 import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
@@ -29,6 +28,7 @@ import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { markdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { EditorPool } from '../chatContentCodePools.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -167,7 +167,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				}
 			}
 			if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-				return this.instantiationService.createInstance(ChatToolPostExecuteConfirmationPart, this.toolInvocation, this.context, this.editorPool, this.currentWidthDelegate);
+				return this.instantiationService.createInstance(ChatToolPostExecuteConfirmationPart, this.toolInvocation, this.context);
 			}
 		}
 
