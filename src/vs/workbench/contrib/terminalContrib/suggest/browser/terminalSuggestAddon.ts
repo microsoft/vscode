@@ -794,6 +794,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					statusBarMenuId: MenuId.MenubarTerminalSuggestStatusMenu,
 					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar,
 					selectionModeSettingId: TerminalSuggestSettingId.SelectionMode,
+					preventDetailsPlacements: ['west'],
 				},
 				this._getFontInfo.bind(this),
 				this._onDidFontConfigurationChange.event.bind(this),

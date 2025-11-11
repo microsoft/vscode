@@ -21,7 +21,7 @@ import { SuggestWidgetStatus } from '../../../../editor/contrib/suggest/browser/
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { canExpandCompletionItem, SimpleSuggestDetailsOverlay, SimpleSuggestDetailsWidget } from './simpleSuggestWidgetDetails.js';
+import { canExpandCompletionItem, SimpleSuggestDetailsOverlay, SimpleSuggestDetailsWidget, type SimpleSuggestDetailsPlacement } from './simpleSuggestWidgetDetails.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import * as strings from '../../../../base/common/strings.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
@@ -80,6 +80,12 @@ export interface IWorkbenchSuggestWidgetOptions {
 	 * The setting for selection mode.
 	 */
 	selectionModeSettingId?: string;
+
+	/**
+	 * Disables specific detail placements when positioning the details overlay.
+	 * Valid values: `'east' | 'west' | 'south' | 'north'`.
+	 */
+	preventDetailsPlacements?: readonly SimpleSuggestDetailsPlacement[];
 }
 
 /**
@@ -269,7 +275,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 		const details: SimpleSuggestDetailsWidget = this._register(_instantiationService.createInstance(SimpleSuggestDetailsWidget, this._getFontInfo.bind(this), this._onDidFontConfigurationChange.bind(this), this._getAdvancedExplainModeDetails.bind(this)));
 		this._register(details.onDidClose(() => this.toggleDetails()));
-		this._details = this._register(new SimpleSuggestDetailsOverlay(details, this._listElement));
+		this._details = this._register(new SimpleSuggestDetailsOverlay(details, this._listElement, this._options.preventDetailsPlacements));
 		this._register(dom.addDisposableListener(this._details.widget.domNode, 'blur', (e) => this._onDidBlurDetails.fire(e)));
 
 		if (_options.statusBarMenuId && _options.showStatusBarSettingId && _configurationService.getValue(_options.showStatusBarSettingId)) {
