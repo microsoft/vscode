@@ -171,8 +171,17 @@ export class AccessibleContentProvider extends Disposable implements IAccessible
 	}
 }
 
-export function isIAccessibleViewContentProvider(obj: any): obj is IAccessibleViewContentProvider {
-	return obj && obj.id && obj.options && obj.provideContent && obj.onClose && obj.verbositySettingKey;
+export function isIAccessibleViewContentProvider(obj: unknown): obj is IAccessibleViewContentProvider {
+	if (!obj || typeof obj !== 'object') {
+		return false;
+	}
+
+	const candidate = obj as Partial<IAccessibleViewContentProvider>;
+	return !!candidate.id
+		&& !!candidate.options
+		&& typeof candidate.provideContent === 'function'
+		&& typeof candidate.onClose === 'function'
+		&& typeof candidate.verbositySettingKey === 'string';
 }
 
 export class ExtensionContentProvider extends Disposable implements IBasicContentProvider {
