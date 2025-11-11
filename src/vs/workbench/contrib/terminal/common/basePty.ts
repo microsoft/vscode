@@ -37,7 +37,7 @@ export abstract class BasePty extends Disposable implements Partial<ITerminalChi
 	readonly onProcessReplayComplete = this._onProcessReplayComplete.event;
 	protected readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
-	protected readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
+	protected readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	protected readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	readonly onProcessExit = this._onProcessExit.event;
@@ -68,18 +68,21 @@ export abstract class BasePty extends Disposable implements Partial<ITerminalChi
 	handleReady(e: IProcessReadyEvent) {
 		this._onProcessReady.fire(e);
 	}
-	handleDidChangeProperty({ type, value }: IProcessProperty<any>) {
+	handleDidChangeProperty({ type, value }: IProcessProperty) {
 		switch (type) {
 			case ProcessPropertyType.Cwd:
-				this._properties.cwd = value;
+				this._properties.cwd = value as IProcessPropertyMap[ProcessPropertyType.Cwd];
 				break;
 			case ProcessPropertyType.InitialCwd:
-				this._properties.initialCwd = value;
+				this._properties.initialCwd = value as IProcessPropertyMap[ProcessPropertyType.InitialCwd];
 				break;
-			case ProcessPropertyType.ResolvedShellLaunchConfig:
-				if (value.cwd && typeof value.cwd !== 'string') {
-					value.cwd = URI.revive(value.cwd);
+			case ProcessPropertyType.ResolvedShellLaunchConfig: {
+				const cast = value as IProcessPropertyMap[ProcessPropertyType.ResolvedShellLaunchConfig];
+				if (cast.cwd && typeof cast.cwd !== 'string') {
+					cast.cwd = URI.revive(cast.cwd);
 				}
+				break;
+			}
 		}
 		this._onDidChangeProperty.fire({ type, value });
 	}

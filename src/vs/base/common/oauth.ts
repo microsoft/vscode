@@ -1080,7 +1080,7 @@ export function scopesMatch(scopes1: readonly string[] | undefined, scopes2: rea
 interface CommonResponse {
 	status: number;
 	statusText: string;
-	json(): Promise<any>;
+	json(): Promise<unknown>;
 	text(): Promise<string>;
 }
 

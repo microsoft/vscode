@@ -21,6 +21,16 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
+	private readonly _confirmWidget: ChatConfirmationWidget<unknown>;
+
+	public get codeblocks() {
+		return this._confirmWidget.codeblocks;
+	}
+
+	public get codeblocksPartId() {
+		return this._confirmWidget.codeblocksPartId;
+	}
+
 	constructor(
 		elicitation: IChatElicitationRequest,
 		context: IChatContentPartRenderContext,
@@ -48,8 +58,9 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			subtitle: elicitation.subtitle,
 			buttons,
 			message: this.getMessageToRender(elicitation),
-			toolbarData: { partType: 'elicitation', partSource: elicitation.source?.type, arg: elicitation }
+			toolbarData: { partType: 'elicitation', partSource: elicitation.source?.type, arg: elicitation },
 		}));
+		this._confirmWidget = confirmationWidget;
 		confirmationWidget.setShowButtons(elicitation.state === 'pending');
 
 		if (elicitation.isHidden) {

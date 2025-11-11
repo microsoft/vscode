@@ -9,7 +9,7 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { URI } from '../../../base/common/uri.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { IProcessProperty, IProcessReadyWindowsPty, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalOutputMatch, ITerminalOutputMatcher, ProcessPropertyType, TerminalExitReason, TerminalLocation } from '../../../platform/terminal/common/terminal.js';
+import { IProcessProperty, IProcessReadyWindowsPty, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalOutputMatch, ITerminalOutputMatcher, ProcessPropertyType, TerminalExitReason, TerminalLocation, type IProcessPropertyMap } from '../../../platform/terminal/common/terminal.js';
 import { TerminalDataBufferer } from '../../../platform/terminal/common/terminalDataBuffering.js';
 import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalLink, ITerminalService } from '../../contrib/terminal/browser/terminal.js';
 import { TerminalProcessExtHostProxy } from '../../contrib/terminal/browser/terminalProcessExtHostProxy.js';
@@ -33,6 +33,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private readonly _store = new DisposableStore();
 	private readonly _proxy: ExtHostTerminalServiceShape;
+	private readonly _proxyDisposables = this._store.add(new MutableDisposable());
 
 	/**
 	 * Stores a map from a temporary terminal id (a UUID generated on the extension host side)
@@ -438,10 +439,12 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			initialDimensions
 		).then(request.callback);
 
-		proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.instanceId, data));
-		proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.instanceId, immediate));
-		proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.instanceId));
-		proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(proxy.instanceId));
+		this._proxyDisposables.value = combinedDisposable(
+			proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.instanceId, data)),
+			proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.instanceId, immediate)),
+			proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.instanceId)),
+			proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(proxy.instanceId)),
+		);
 	}
 
 	public $sendProcessData(terminalId: number, data: string): void {
@@ -452,10 +455,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._terminalProcessProxies.get(terminalId)?.emitReady(pid, cwd, windowsPty);
 	}
 
-	public $sendProcessProperty(terminalId: number, property: IProcessProperty<any>): void {
+	public $sendProcessProperty(terminalId: number, property: IProcessProperty): void {
 		if (property.type === ProcessPropertyType.Title) {
 			const instance = this._terminalService.getInstanceFromId(terminalId);
-			instance?.rename(property.value);
+			instance?.rename(property.value as IProcessPropertyMap[ProcessPropertyType.Title]);
 		}
 		this._terminalProcessProxies.get(terminalId)?.emitProcessProperty(property);
 	}
