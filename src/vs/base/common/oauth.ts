@@ -1264,16 +1264,20 @@ export async function fetchAuthorizationServerMetadata(
 	const authorizationServerUrl = new URL(authorizationServer);
 	const extraPath = authorizationServerUrl.pathname === '/' ? '' : authorizationServerUrl.pathname;
 
-	const doFetch = async (url: string): Promise<{ metadata: IAuthorizationServerMetadata | undefined; rawResponse: CommonResponse }> => {
-		const rawResponse = await fetchImpl(url, {
-			method: 'GET',
-			headers: {
-				...additionalHeaders,
-				'Accept': 'application/json'
-			}
-		});
-		const metadata = await tryParseAuthServerMetadata(rawResponse);
-		return { metadata, rawResponse };
+	const doFetch = async (url: string): Promise<{ metadata: IAuthorizationServerMetadata | undefined; rawResponse: CommonResponse | undefined; error: Error | undefined }> => {
+		try {
+			const rawResponse = await fetchImpl(url, {
+				method: 'GET',
+				headers: {
+					...additionalHeaders,
+					'Accept': 'application/json'
+				}
+			});
+			const metadata = await tryParseAuthServerMetadata(rawResponse);
+			return { metadata, rawResponse, error: undefined };
+		} catch (e) {
+			return { metadata: undefined, rawResponse: undefined, error: e instanceof Error ? e : new Error(String(e)) };
+		}
 	};
 
 	// For the oauth server metadata discovery path, we _INSERT_
@@ -1305,5 +1309,9 @@ export async function fetchAuthorizationServerMetadata(
 		return result.metadata;
 	}
 
-	throw new Error(`Failed to fetch authorization server metadata: ${result.rawResponse.status} ${await getErrText(result.rawResponse)}`);
+	// If we have an error from fetch, throw that. Otherwise, throw response error.
+	if (result.error) {
+		throw result.error;
+	}
+	throw new Error(`Failed to fetch authorization server metadata: ${result.rawResponse!.status} ${await getErrText(result.rawResponse!)}`);
 }

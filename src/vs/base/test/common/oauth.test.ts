@@ -1676,7 +1676,30 @@ suite('OAuth', () => {
 			assert.strictEqual(globalFetchStub.callCount, 1);
 		});
 
-		test('should handle network fetch failure', async () => {
+		test('should handle network fetch failure and continue to next endpoint', async () => {
+			const authorizationServer = 'https://auth.example.com';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/',
+				response_types_supported: ['code']
+			};
+
+			// First call throws network error, second succeeds
+			fetchStub.onFirstCall().rejects(new Error('Network error'));
+			fetchStub.onSecondCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			// Should have tried two endpoints
+			assert.strictEqual(fetchStub.callCount, 2);
+		});
+
+		test('should throw error when network fails on all endpoints', async () => {
 			const authorizationServer = 'https://auth.example.com';
 
 			fetchStub.rejects(new Error('Network error'));
@@ -1685,6 +1708,9 @@ suite('OAuth', () => {
 				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
 				/Network error/
 			);
+
+			// Should have tried all three endpoints
+			assert.strictEqual(fetchStub.callCount, 3);
 		});
 
 		test('should handle response.text() failure in error case', async () => {
