@@ -55,15 +55,8 @@ export const tryNormalizeToBase: (str: string) => string = function () {
 			return cached;
 		}
 
-		let result = str;
-		if (nonAsciiCharactersPattern.test(str)) {
-			const noAccents = str.normalize('NFD').replace(accentsRegex, '');
-			if (noAccents.length === str.length) {
-				result = noAccents;
-			}
-		}
-
-		result = result.toLowerCase();
+		const noAccents = normalizeNFD(str).replace(accentsRegex, '');
+		const result = (noAccents.length === str.length ? noAccents : str).toLowerCase();
 		cache.set(str, result);
 		return result;
 	};
