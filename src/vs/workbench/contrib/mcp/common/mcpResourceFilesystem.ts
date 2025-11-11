@@ -22,7 +22,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { McpServer } from './mcpServer.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { IMcpService, McpCapability, McpResourceURI } from './mcpTypes.js';
-import { ValidateHttpResources } from './mcpTypesUtils.js';
+import { canLoadMcpNetworkResourceDirectly } from './mcpTypesUtils.js';
 import { MCP } from './modelContextProtocol.js';
 
 const MOMENTARY_CACHE_DURATION = 3000;
@@ -275,16 +275,19 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 
 	private async _readURIInner(uri: URI, token?: CancellationToken): Promise<IReadData> {
 		const { resourceURI, server } = this._decodeURI(uri);
+		let fallbackToMCPServer = false;
+		let returnVal: { contents: (MCP.TextResourceContents | MCP.BlobResourceContents)[]; resourceURI: URL; forSameURI: (MCP.TextResourceContents | MCP.BlobResourceContents)[] } | undefined;
 		const matchedServer = this._mcpService.servers.get().find(s => s.definition.id === server.definition.id);
 		//check for http/https resources and use web content extractor service to fetch the contents.
-		if (ValidateHttpResources(uri, matchedServer)) {
+		if (canLoadMcpNetworkResourceDirectly(resourceURI, matchedServer)) {
 			const extractURI = URI.parse(resourceURI.toString());
 			const result = await this._webContentExtractorService.extract([extractURI], { followRedirects: false });
-			return {
+			returnVal = {
 				contents: result.map(r => {
 					if (r.status === 'ok') {
 						return { uri: resourceURI.toString(), text: r.result };
 					} else {
+						fallbackToMCPServer = true;
 						return { uri: resourceURI.toString(), text: '' };
 					}
 				}),
@@ -292,12 +295,15 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 				forSameURI: result.filter(r => r.status === 'ok').map(r => ({ uri: resourceURI.toString(), text: r.result }))
 			};
 		}
-		const res = await McpServer.callOn(server, r => r.readResource({ uri: resourceURI.toString() }, token), token);
-		return {
-			contents: res.contents,
-			resourceURI,
-			forSameURI: res.contents.filter(c => equalsUrlPath(c.uri, resourceURI))
-		};
+		if (fallbackToMCPServer || !returnVal) {
+			const res = await McpServer.callOn(server, r => r.readResource({ uri: resourceURI.toString() }, token), token);
+			returnVal = {
+				contents: res.contents,
+				resourceURI,
+				forSameURI: res.contents.filter(c => equalsUrlPath(c.uri, resourceURI))
+			};
+		}
+		return returnVal;
 	}
 }
 

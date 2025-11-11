@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../base/common/uri.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -102,14 +101,14 @@ export function mcpServerToSourceData(server: IMcpServer): ToolDataSource {
  * @param server The MCP server instance to validate against, or undefined.
  * @returns True if the resource request is valid for the server, false otherwise.
  */
-export function ValidateHttpResources(resource: URI, server: IMcpServer | undefined) {
+export function canLoadMcpNetworkResourceDirectly(resource: URL, server: IMcpServer | undefined) {
 	let isResourceRequestValid = false;
-	if (resource.path.startsWith('/http/')) {
+	if (resource.protocol === 'http:') {
 		const launch = server?.connection.get()?.launchDefinition;
-		if (launch && launch.type === McpServerTransportType.HTTP && launch.uri.authority.toLowerCase() === resource.authority.toLowerCase()) {
+		if (launch && launch.type === McpServerTransportType.HTTP && launch.uri.authority.toLowerCase() === resource.hostname.toLowerCase()) {
 			isResourceRequestValid = true;
 		}
-	} else if (resource.path.startsWith('/https/')) {
+	} else if (resource.protocol === 'https:') {
 		isResourceRequestValid = true;
 	}
 	return isResourceRequestValid;
