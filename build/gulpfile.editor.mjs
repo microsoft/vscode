@@ -5,24 +5,30 @@
 
 //@ts-check
 
-const gulp = require('gulp');
-const path = require('path');
-const util = require('./lib/util');
-const { getVersion } = require('./lib/getVersion');
-const task = require('./lib/task');
-const es = require('event-stream');
-const File = require('vinyl');
-const i18n = require('./lib/i18n');
-const standalone = require('./lib/standalone');
-const cp = require('child_process');
-const compilation = require('./lib/compilation');
-const monacoapi = require('./lib/monaco-api');
-const fs = require('fs');
-const filter = require('gulp-filter');
+import gulp from 'gulp';
+import * as path from 'path';
+import util from './lib/util.js';
+import getVersionModule from './lib/getVersion.js';
+import task from './lib/task.js';
+import es from 'event-stream';
+import File from 'vinyl';
+import i18n from './lib/i18n.js';
+import standalone from './lib/standalone.js';
+import * as cp from 'child_process';
+import compilation from './lib/compilation.js';
+import monacoapi from './lib/monaco-api.js';
+import * as fs from 'fs';
+import filter from 'gulp-filter';
+import reporterModule from './lib/reporter.js';
+import { fileURLToPath } from 'url';
+import monacoPackage from './monaco/package.json' with { type: 'json' };
 
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const { getVersion } = getVersionModule;
+const { createReporter } = reporterModule;
 const root = path.dirname(__dirname);
 const sha1 = getVersion(root);
-const semver = require('./monaco/package.json').version;
+const semver = monacoPackage.version;
 const headerVersion = semver + '(' + sha1 + ')';
 
 const BUNDLED_FILE_HEADER = [
@@ -233,8 +239,6 @@ gulp.task('monacodts', task.define('monacodts', () => {
  */
 function createTscCompileTask(watch) {
 	return () => {
-		const createReporter = require('./lib/reporter').createReporter;
-
 		return new Promise((resolve, reject) => {
 			const args = ['./node_modules/.bin/tsc', '-p', './src/tsconfig.monaco.json', '--noEmit'];
 			if (watch) {
@@ -281,11 +285,9 @@ function createTscCompileTask(watch) {
 	};
 }
 
-const monacoTypecheckWatchTask = task.define('monaco-typecheck-watch', createTscCompileTask(true));
-exports.monacoTypecheckWatchTask = monacoTypecheckWatchTask;
+export const monacoTypecheckWatchTask = task.define('monaco-typecheck-watch', createTscCompileTask(true));
 
-const monacoTypecheckTask = task.define('monaco-typecheck', createTscCompileTask(false));
-exports.monacoTypecheckTask = monacoTypecheckTask;
+export const monacoTypecheckTask = task.define('monaco-typecheck', createTscCompileTask(false));
 
 //#endregion
 
