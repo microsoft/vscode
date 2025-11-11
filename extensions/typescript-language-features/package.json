@@ -1798,10 +1798,10 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": {
-            "regexp": "^\\s*(?:message TS6032:|\\[?\\D*.{1,2}[:.].{1,2}[:.].{1,2}\\D*(├\\D*\\d{1,2}\\D+┤)?(?:\\]| -)) (Starting compilation in watch mode|File change detected\\. Starting incremental compilation)\\.\\.\\."
+            "regexp": "^build starting at .*$"
           },
           "endsPattern": {
-            "regexp": "^\\s*(?:message TS6042:|\\[?\\D*.{1,2}[:.].{1,2}[:.].{1,2}\\D*(├\\D*\\d{1,2}\\D+┤)?(?:\\]| -)) (?:Compilation complete\\.|Found \\d+ errors?\\.) Watching for file changes\\."
+            "regexp": "^build finished in .*$"
           }
         }
       }
