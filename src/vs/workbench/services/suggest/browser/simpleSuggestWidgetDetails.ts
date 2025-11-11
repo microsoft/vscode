@@ -23,6 +23,8 @@ export function canExpandCompletionItem(item: SimpleCompletionItem | undefined):
 
 export const SuggestDetailsClassName = 'suggest-details';
 
+export type SimpleSuggestDetailsSide = 'left' | 'right';
+
 export class SimpleSuggestDetailsWidget {
 
 	readonly domNode: HTMLDivElement;
@@ -280,16 +282,19 @@ export class SimpleSuggestDetailsOverlay {
 	// private _preferAlignAtTop: boolean = true;
 	private _userSize?: dom.Dimension;
 	private _topLeft?: TopLeftPosition;
+	private readonly _preferredSide?: SimpleSuggestDetailsSide;
 
 	constructor(
 		readonly widget: SimpleSuggestDetailsWidget,
 		private _container: HTMLElement,
+		preferredSide?: SimpleSuggestDetailsSide,
 	) {
 
 		this._resizable = this._disposables.add(new ResizableHTMLElement());
 		this._resizable.domNode.classList.add('suggest-details-container');
 		this._resizable.domNode.appendChild(widget.domNode);
 		this._resizable.enableSashes(false, true, true, false);
+		this._preferredSide = preferredSide;
 
 		let topLeftNow: TopLeftPosition | undefined;
 		let sizeNow: dom.Dimension | undefined;
@@ -390,21 +395,25 @@ export class SimpleSuggestDetailsOverlay {
 		type Placement = { top: number; left: number; fit: number; maxSizeTop: dom.Dimension; maxSizeBottom: dom.Dimension; minSize: dom.Dimension };
 
 		// EAST
-		const eastPlacement: Placement = (function () {
-			const width = bodyBox.width - (anchorBox.left + anchorBox.width + info.borderWidth + info.horizontalPadding);
+		const eastPlacement: Placement = (() => {
+			const availableWidth = bodyBox.width - (anchorBox.left + anchorBox.width + info.borderWidth + info.horizontalPadding);
+			const baseWidth = this._preferredSide === 'right' ? Math.max(defaultMinSize.width, availableWidth) : availableWidth;
+			const clampedWidth = Math.max(0, baseWidth);
 			const left = -info.borderWidth + anchorBox.left + anchorBox.width;
-			const maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top - info.borderHeight - info.verticalPadding);
+			const maxSizeTop = new dom.Dimension(clampedWidth, bodyBox.height - anchorBox.top - info.borderHeight - info.verticalPadding);
 			const maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height - info.borderHeight - info.verticalPadding);
-			return { top: defaultTop, left, fit: width - size.width, maxSizeTop, maxSizeBottom, minSize: defaultMinSize.with(Math.min(width, defaultMinSize.width)) };
+			return { top: defaultTop, left, fit: clampedWidth - size.width, maxSizeTop, maxSizeBottom, minSize: defaultMinSize.with(Math.min(clampedWidth, defaultMinSize.width)) };
 		})();
 
 		// WEST
-		const westPlacement: Placement = (function () {
-			const width = anchorBox.left - info.borderWidth - info.horizontalPadding;
+		const westPlacement: Placement = (() => {
+			const availableWidth = anchorBox.left - info.borderWidth - info.horizontalPadding;
+			const baseWidth = this._preferredSide === 'left' ? Math.max(defaultMinSize.width, availableWidth) : availableWidth;
+			const clampedWidth = Math.max(0, baseWidth);
 			const left = Math.max(info.horizontalPadding, anchorBox.left - size.width - info.borderWidth);
-			const maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top - info.borderHeight - info.verticalPadding);
+			const maxSizeTop = new dom.Dimension(clampedWidth, bodyBox.height - anchorBox.top - info.borderHeight - info.verticalPadding);
 			const maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height - info.borderHeight - info.verticalPadding);
-			return { top: defaultTop, left, fit: width - size.width, maxSizeTop, maxSizeBottom, minSize: defaultMinSize.with(Math.min(width, defaultMinSize.width)) };
+			return { top: defaultTop, left, fit: clampedWidth - size.width, maxSizeTop, maxSizeBottom, minSize: defaultMinSize.with(Math.min(clampedWidth, defaultMinSize.width)) };
 		})();
 
 		// SOUTH
@@ -415,9 +424,15 @@ export class SimpleSuggestDetailsOverlay {
 			return { top, left, fit: maxSizeBottom.height - size.height, maxSizeBottom, maxSizeTop: maxSizeBottom, minSize: defaultMinSize.with(maxSizeBottom.width) };
 		})();
 
-		// take first placement that fits or the first with "least bad" fit
-		const placements = [eastPlacement, westPlacement, southPacement];
-		const placement = placements.find(p => p.fit >= 0) ?? placements.sort((a, b) => b.fit - a.fit)[0];
+		let placement: Placement;
+		if (this._preferredSide === 'right') {
+			placement = eastPlacement;
+		} else if (this._preferredSide === 'left') {
+			placement = westPlacement;
+		} else {
+			const placements = [eastPlacement, westPlacement, southPacement];
+			placement = placements.find(p => p.fit >= 0) ?? placements.sort((a, b) => b.fit - a.fit)[0];
+		}
 
 		// top/bottom placement
 		const bottom = anchorBox.top + anchorBox.height - info.borderHeight;
