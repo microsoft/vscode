@@ -284,6 +284,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return this.tokenColorIndex;
 	}
 
+
 	public getTokenFontIndex(): TokenFontIndex {
 		if (!this.tokenFontIndex) {
 			const index = new TokenFontIndex();
