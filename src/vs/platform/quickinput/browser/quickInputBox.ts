@@ -119,11 +119,21 @@ export class QuickInputBox extends Disposable {
 	}
 
 	setAttribute(name: string, value: string): void {
-		this.findInput.inputBox.inputElement.setAttribute(name, value);
+		// Only update the attribute if the value has actually changed to prevent
+		// unnecessary DOM manipulation that could trigger screen reader announcements
+		// See: https://github.com/microsoft/vscode/issues/144801
+		const currentValue = this.findInput.inputBox.inputElement.getAttribute(name);
+		if (currentValue !== value) {
+			this.findInput.inputBox.inputElement.setAttribute(name, value);
+		}
 	}
 
 	removeAttribute(name: string): void {
-		this.findInput.inputBox.inputElement.removeAttribute(name);
+		// Only remove the attribute if it exists to prevent unnecessary DOM manipulation
+		// See: https://github.com/microsoft/vscode/issues/144801
+		if (this.findInput.inputBox.inputElement.hasAttribute(name)) {
+			this.findInput.inputBox.inputElement.removeAttribute(name);
+		}
 	}
 
 	showDecoration(decoration: Severity): void {
