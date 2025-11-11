@@ -20,7 +20,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { registerActiveInstanceAction, registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
 import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { localize2 } from '../../../../../nls.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -52,6 +52,7 @@ export class TerminalClipboardContribution extends Disposable implements ITermin
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 	}
@@ -65,6 +66,12 @@ export class TerminalClipboardContribution extends Disposable implements ITermin
 				if (this._overrideCopySelection === false) {
 					return;
 				}
+
+				const isFindWidgetVisible = this._contextKeyService.getContextKeyValue('terminalFindVisible');
+				if (isFindWidgetVisible && this._ctx.instance.hasSelection()) {
+					return;
+				}
+
 				if (this._ctx.instance.hasSelection()) {
 					await this.copySelection();
 				}
