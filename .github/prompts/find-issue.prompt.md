@@ -2,7 +2,7 @@
 agent: agent
 tools: ['github/github-mcp-server/issue_read', 'github/github-mcp-server/list_issues', 'github/github-mcp-server/search_issues', 'runSubagent']
 model: Claude Sonnet 4.5 (copilot)
-description: 'Describe your issue..."
+description: 'Describe your issue...'
 ---
 
 ## Role
