@@ -731,7 +731,7 @@ export function detectsInputRequiredPattern(cursorLine: string): boolean {
 		// Password prompt
 		/password[:]?$/i,
 		// Line ends with '?'
-		/\?[\(\)\s]*$/i,
+		/\?\s*(?:\([a-z\s]+\))?$/i,
 		// "Press a key" or "Press any key"
 		/press a(?:ny)? key/i,
 	].some(e => e.test(cursorLine));
