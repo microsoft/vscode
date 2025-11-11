@@ -1264,7 +1264,9 @@ export async function fetchAuthorizationServerMetadata(
 	const authorizationServerUrl = new URL(authorizationServer);
 	const extraPath = authorizationServerUrl.pathname === '/' ? '' : authorizationServerUrl.pathname;
 
-	const doFetch = async (url: string): Promise<{ metadata: IAuthorizationServerMetadata | undefined; rawResponse: CommonResponse | undefined; error: Error | undefined }> => {
+	const errors: Error[] = [];
+
+	const doFetch = async (url: string): Promise<IAuthorizationServerMetadata | undefined> => {
 		try {
 			const rawResponse = await fetchImpl(url, {
 				method: 'GET',
@@ -1274,9 +1276,16 @@ export async function fetchAuthorizationServerMetadata(
 				}
 			});
 			const metadata = await tryParseAuthServerMetadata(rawResponse);
-			return { metadata, rawResponse, error: undefined };
+			if (metadata) {
+				return metadata;
+			}
+			// No metadata found, collect error from response
+			errors.push(new Error(`Failed to fetch authorization server metadata from ${url}: ${rawResponse.status} ${await getErrText(rawResponse)}`));
+			return undefined;
 		} catch (e) {
-			return { metadata: undefined, rawResponse: undefined, error: e instanceof Error ? e : new Error(String(e)) };
+			// Collect error from fetch failure
+			errors.push(e instanceof Error ? e : new Error(String(e)));
+			return undefined;
 		}
 	};
 
@@ -1284,18 +1293,18 @@ export async function fetchAuthorizationServerMetadata(
 	// the well known path after the origin and before the path.
 	// https://datatracker.ietf.org/doc/html/rfc8414#section-3
 	const pathToFetch = new URL(AUTH_SERVER_METADATA_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
-	let result = await doFetch(pathToFetch);
-	if (result.metadata) {
-		return result.metadata;
+	let metadata = await doFetch(pathToFetch);
+	if (metadata) {
+		return metadata;
 	}
 
 	// Try fetching the OpenID Connect Discovery with path insertion.
 	// For issuer URLs with path components, this inserts the well-known path
 	// after the origin and before the path.
 	const openidPathInsertionUrl = new URL(OPENID_CONNECT_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
-	result = await doFetch(openidPathInsertionUrl);
-	if (result.metadata) {
-		return result.metadata;
+	metadata = await doFetch(openidPathInsertionUrl);
+	if (metadata) {
+		return metadata;
 	}
 
 	// Try fetching the other discovery URL. For the openid metadata discovery
@@ -1304,14 +1313,15 @@ export async function fetchAuthorizationServerMetadata(
 	const openidPathAdditionUrl = authorizationServer.endsWith('/')
 		? authorizationServer + OPENID_CONNECT_DISCOVERY_PATH.substring(1) // Remove leading slash if authServer ends with slash
 		: authorizationServer + OPENID_CONNECT_DISCOVERY_PATH;
-	result = await doFetch(openidPathAdditionUrl);
-	if (result.metadata) {
-		return result.metadata;
+	metadata = await doFetch(openidPathAdditionUrl);
+	if (metadata) {
+		return metadata;
 	}
 
-	// If we have an error from fetch, throw that. Otherwise, throw response error.
-	if (result.error) {
-		throw result.error;
+	// If we've tried all URLs and none worked, throw the error(s)
+	if (errors.length === 1) {
+		throw errors[0];
+	} else {
+		throw new AggregateError(errors, 'Failed to fetch authorization server metadata from all attempted URLs');
 	}
-	throw new Error(`Failed to fetch authorization server metadata: ${result.rawResponse!.status} ${await getErrText(result.rawResponse!)}`);
 }
