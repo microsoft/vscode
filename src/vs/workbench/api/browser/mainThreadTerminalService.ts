@@ -403,6 +403,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		if (proxy) {
 			proxy.proxy.dispose();
 			proxy.store.dispose();
+			this._terminalProcessProxies.delete(terminalInstance.instanceId);
 		}
 	}
 
