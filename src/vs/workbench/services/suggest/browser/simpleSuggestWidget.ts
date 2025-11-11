@@ -83,7 +83,6 @@ export interface IWorkbenchSuggestWidgetOptions {
 
 	/**
 	 * Disables specific detail placements when positioning the details overlay.
-	 * Valid values: `'east' | 'west' | 'south' | 'north'`.
 	 */
 	preventDetailsPlacements?: readonly SimpleSuggestDetailsPlacement[];
 }
