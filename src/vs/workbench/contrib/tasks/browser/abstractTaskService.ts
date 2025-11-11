@@ -2284,6 +2284,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				} else {
 					return undefined;
 				}
+			},
+			async (taskKey: string) => {
+				// Look up task by its map key across all workspace tasks
+				const taskMap = await this._getGroupedTasks();
+				const allTasks = taskMap.all();
+				for (const task of allTasks) {
+					if (task.getMapKey() === taskKey) {
+						return task;
+					}
+				}
+				return undefined;
 			}
 		);
 	}
@@ -3218,8 +3229,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 
-	rerun(terminalInstanceId: number): void {
-		const task = this._taskSystem?.getTaskForTerminal(terminalInstanceId);
+	async rerun(terminalInstanceId: number): Promise<void> {
+		const task = await this._taskSystem?.getTaskForTerminal(terminalInstanceId);
 		if (task) {
 			this._restart(task);
 		} else {

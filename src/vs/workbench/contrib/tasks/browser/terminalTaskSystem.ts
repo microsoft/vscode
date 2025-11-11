@@ -60,7 +60,6 @@ interface ITerminalData {
 	lastTask: string;
 	group?: string;
 	shellIntegrationNonce?: string;
-	task?: Task;
 }
 
 interface IInstanceCount {
@@ -222,6 +221,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		contextKeyService: IContextKeyService,
 		instantiationService: IInstantiationService,
 		taskSystemInfoResolver: ITaskSystemInfoResolver,
+		private _taskLookup: (taskKey: string) => Promise<Task | undefined>,
 	) {
 		super();
 
@@ -1576,7 +1576,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			terminal.shellLaunchConfig.reconnectionProperties = { ownerId: TaskTerminalType, data: { lastTask: task.getCommonTaskId(), group, label: task._label, id: task._id } };
 		}
 		const terminalKey = terminal.instanceId.toString();
-		const terminalData = { terminal: terminal, lastTask: taskKey, group, shellIntegrationNonce: terminal.shellLaunchConfig.shellIntegrationNonce, task };
+		const terminalData = { terminal: terminal, lastTask: taskKey, group, shellIntegrationNonce: terminal.shellLaunchConfig.shellIntegrationNonce };
 		const onDisposedListener = this._register(terminal.onDisposed(() => {
 			this._deleteTaskAndTerminal(terminal, terminalData);
 			onDisposedListener.dispose();
@@ -1945,7 +1945,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return 'other';
 	}
 
-	public getTaskForTerminal(instanceId: number): Task | undefined {
+	public async getTaskForTerminal(instanceId: number): Promise<Task | undefined> {
 		// First check if there's an active task for this terminal
 		for (const key in this._activeTasks) {
 			const activeTask = this._activeTasks[key];
@@ -1955,8 +1955,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		// If no active task, check the terminals map for the last task that ran in this terminal
 		const terminalData = this._terminals[instanceId.toString()];
-		if (terminalData?.task) {
-			return terminalData.task;
+		if (terminalData?.lastTask) {
+			// Look up the task using the callback provided by the task service
+			return await this._taskLookup(terminalData.lastTask);
 		}
 		return undefined;
 	}

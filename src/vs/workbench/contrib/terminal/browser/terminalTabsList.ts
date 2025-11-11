@@ -525,7 +525,7 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 		if (instance.shellLaunchConfig.tabActions) {
 			for (const action of instance.shellLaunchConfig.tabActions) {
 				actions.push(this._register(new Action(action.id, action.label, action.icon ? ThemeIcon.asClassName(action.icon) : undefined, true, async () => {
-					this._runForSelectionOrInstance(instance, e => this._commandService.executeCommand(action.id, e));
+					this._runForSelectionOrInstance(instance, e => this._commandService.executeCommand(action.id, instance));
 				})));
 			}
 		}
