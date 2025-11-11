@@ -446,7 +446,12 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 
 	renderTemplate(container: HTMLElement): HistoryItemTemplate {
 		// HACK - add .force-no-twistie class to the twistie element
-		container.previousElementSibling?.classList.add('force-no-twistie');
+		if (container.classList.contains('monaco-tl-contents')) {
+			const twistieElement = container.previousElementSibling;
+			if (twistieElement && twistieElement.classList.contains('monaco-tl-twistie')) {
+				twistieElement.classList.add('force-no-twistie');
+			}
+		}
 
 		const element = append(container, $('.history-item'));
 		const graphContainer = append(element, $('.graph-container'));
@@ -722,7 +727,12 @@ class HistoryItemLoadMoreRenderer implements ICompressibleTreeRenderer<SCMHistor
 
 	renderTemplate(container: HTMLElement): LoadMoreTemplate {
 		// HACK - add .force-no-twistie class to the twistie element
-		container.previousElementSibling?.classList.add('force-no-twistie');
+		if (container.classList.contains('monaco-tl-contents')) {
+			const twistieElement = container.previousElementSibling;
+			if (twistieElement && twistieElement.classList.contains('monaco-tl-twistie')) {
+				twistieElement.classList.add('force-no-twistie');
+			}
+		}
 
 		const element = append(container, $('.history-item-load-more'));
 		const graphPlaceholder = append(element, $('.graph-placeholder'));

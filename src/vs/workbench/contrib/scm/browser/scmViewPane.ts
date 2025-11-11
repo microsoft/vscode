@@ -191,9 +191,13 @@ export class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActio
 	) { }
 
 	renderTemplate(container: HTMLElement): ActionButtonTemplate {
-		// hack
-		// eslint-disable-next-line no-restricted-syntax
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+		// HACK - add .force-no-twistie class to the twistie element
+		if (container.classList.contains('monaco-tl-contents')) {
+			const twistieElement = container.previousElementSibling;
+			if (twistieElement && twistieElement.classList.contains('monaco-tl-twistie')) {
+				twistieElement.classList.add('force-no-twistie');
+			}
+		}
 
 		// Use default cursor & disable hover for list item
 		container.parentElement!.parentElement!.classList.add('cursor-default', 'force-no-hover');
@@ -316,9 +320,13 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	) { }
 
 	renderTemplate(container: HTMLElement): InputTemplate {
-		// hack
-		// eslint-disable-next-line no-restricted-syntax
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+		// HACK - add .force-no-twistie class to the twistie element
+		if (container.classList.contains('monaco-tl-contents')) {
+			const twistieElement = container.previousElementSibling;
+			if (twistieElement && twistieElement.classList.contains('monaco-tl-twistie')) {
+				twistieElement.classList.add('force-no-twistie');
+			}
+		}
 
 		// Disable hover for list item
 		container.parentElement!.parentElement!.classList.add('force-no-hover');
@@ -449,9 +457,13 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
-		// hack
-		// eslint-disable-next-line no-restricted-syntax
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
+		// HACK - add .force-twistie class to the twistie element
+		if (container.classList.contains('monaco-tl-contents')) {
+			const twistieElement = container.previousElementSibling;
+			if (twistieElement && twistieElement.classList.contains('monaco-tl-twistie')) {
+				twistieElement.classList.add('force-twistie');
+			}
+		}
 
 		const element = append(container, $('.resource-group'));
 		const name = append(element, $('.name'));
