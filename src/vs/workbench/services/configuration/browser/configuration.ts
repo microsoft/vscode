@@ -37,8 +37,6 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	private cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
 	private readonly cacheKey: ConfigurationKey = { type: 'defaults', key: 'configurationDefaultsOverrides' };
 
-	private updateCache: boolean = false;
-
 	constructor(
 		private readonly configurationCache: IConfigurationCache,
 		environmentService: IBrowserWorkbenchEnvironmentService,
@@ -60,7 +58,6 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	}
 
 	override reload(): ConfigurationModel {
-		this.updateCache = true;
 		this.cachedConfigurationDefaultsOverrides = {};
 		this.updateCachedConfigurationDefaultsOverrides();
 		return super.reload();
@@ -97,9 +94,6 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	}
 
 	private async updateCachedConfigurationDefaultsOverrides(): Promise<void> {
-		if (!this.updateCache) {
-			return;
-		}
 		const cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
 		const configurationDefaultsOverrides = this.configurationRegistry.getConfigurationDefaultsOverrides();
 		for (const [key, value] of configurationDefaultsOverrides) {

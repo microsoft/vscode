@@ -21,26 +21,6 @@
 	flex-direction: column;
 	height: 100%;
 
-	&.new-welcome-view {
-		.interactive-input-part {
-			.dropdown-action-container {
-				display: none;
-			}
-
-			.chat-attachments-container {
-				display: none;
-			}
-		}
-
-		.chat-input-toolbars > .chat-input-toolbar > div {
-			display: none;
-		}
-
-		.chat-input-toolbars .action-item:not(:has(.monaco-dropdown-with-primary)) {
-			display: none;
-		}
-	}
-
 	/* chat welcome container */
 	.chat-welcome-view-container {
 		display: flex;
@@ -64,12 +44,6 @@
 				margin-bottom: auto;
 			}
 		}
-	}
-
-	.new-welcome-view & > .chat-welcome-view-input-part {
-		max-width: 650px;
-		margin-bottom: 8px;
-		/* Reduced margin to make room for prompts below */
 	}
 }
 
@@ -96,6 +70,29 @@ div.chat-welcome-view {
 		font-size: 40px;
 	}
 
+	& > .chat-welcome-view-icon.custom-icon {
+		mask-size: 40px;
+		-webkit-mask-size: 40px;
+	}
+
+	& > .chat-welcome-view-icon.large-icon {
+		min-width: 72px;
+		min-height: 72px;
+	}
+
+	& > .chat-welcome-view-icon.large-icon .codicon {
+		font-size: 72px;
+		width: 72px;
+		height: 72px;
+	}
+
+	& > .chat-welcome-view-icon.large-icon.custom-icon {
+		mask-size: 72px !important;
+		-webkit-mask-size: 72px !important;
+		width: 72px;
+		height: 72px;
+	}
+
 	& > .chat-welcome-view-title {
 		font-size: 24px;
 		margin-top: 5px;
@@ -104,29 +101,11 @@ div.chat-welcome-view {
 		padding: 0 8px;
 	}
 
-	& > .chat-welcome-view-indicator-container {
-		display: flex;
-		flex-wrap: wrap;
-		margin-top: 5px;
-		gap: 9px;
-		justify-content: center;
-	}
-
 	& > .chat-welcome-view-message {
-		text-align: center;
-		max-width: 350px;
-		padding: 0 20px;
-		margin-top: 10px;
-
-		a {
-			color: var(--vscode-textLink-foreground);
-		}
-	}
-
-	& > .chat-welcome-view-message.empty-state {
 		position: relative;
 		text-align: center;
 		max-width: 100%;
+		padding: 0 20px;
 		margin: 0 auto;
 		color: var(--vscode-input-placeholderForeground);
 
@@ -165,30 +144,6 @@ div.chat-welcome-view {
 			.codicon {
 				padding-top: 1px;
 			}
-		}
-	}
-
-	& > .chat-welcome-new-view-message {
-		text-align: center;
-		max-width: 350px;
-		padding: 0 20px 32px;
-		font-size: 16px;
-
-		a {
-			color: var(--vscode-input-placeholderForeground);
-		}
-	}
-
-	& > .chat-welcome-view-additional-message {
-		color: var(--vscode-input-placeholderForeground);
-		text-align: center;
-		max-width: 400px;
-		margin-top: 8px;
-		padding: 0 12px;
-		font-size: 12px;
-
-		a {
-			color: var(--vscode-textLink-foreground);
 		}
 	}
 
@@ -268,31 +223,9 @@ div.chat-welcome-view {
 	}
 }
 
-/* Fresh login view - move prompts below input box instead of at bottom */
-.new-welcome-view .chat-welcome-view-suggested-prompts {
-	position: relative;
-	bottom: auto;
-	left: auto;
-	right: auto;
-	margin-top: 8px;
-	margin-bottom: 48px;
-	justify-content: center;
-	padding: 0 12px;
-}
-
-/* Hide the title for fresh login view */
-.new-welcome-view .chat-welcome-view-suggested-prompts .chat-welcome-view-suggested-prompts-title {
-	display: none;
-}
-
-
 .chat-welcome-history-root {
 	width: 100%;
 	padding: 8px;
-
-	&.chat-welcome-history-hidden {
-		display: none;
-	}
 
 	.chat-welcome-history-header {
 		display: flex;

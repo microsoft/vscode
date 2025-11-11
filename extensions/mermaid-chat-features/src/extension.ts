@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
+import { generateUuid } from './uuid';
 
 /**
  * View type that uniquely identifies the Mermaid chat output renderer.
@@ -42,7 +43,7 @@ export function activate(context: vscode.ExtensionContext) {
 				};
 
 				// Set the HTML content for the webview
-				const nonce = getNonce();
+				const nonce = generateUuid();
 				const mermaidScript = vscode.Uri.joinPath(mediaRoot, 'index.js');
 
 				webview.html = `
@@ -96,11 +97,4 @@ function escapeHtmlText(str: string): string {
 		.replace(/'/g, '&#39;');
 }
 
-function getNonce() {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 64; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
-	}
-	return text;
-}
+

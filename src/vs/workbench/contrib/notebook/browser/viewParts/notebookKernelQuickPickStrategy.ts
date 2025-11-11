@@ -555,8 +555,10 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			}));
 			disposables.add(quickPick.onDidTriggerItemButton(async (e) => {
 				if (isKernelSourceQuickPickItem(e.item) && e.item.documentation !== undefined) {
-					const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this._commandService.executeCommand(e.item.documentation);
-					void this._openerService.open(uri, { openExternal: true });
+					const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this._commandService.executeCommand<URI>(e.item.documentation);
+					if (uri) {
+						void this._openerService.open(uri, { openExternal: true });
+					}
 				}
 			}));
 			disposables.add(quickPick.onDidAccept(async () => {

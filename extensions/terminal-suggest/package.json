@@ -28,8 +28,7 @@
     "terminal": {
       "completionProviders": [
         {
-          "id": "terminal-suggest",
-          "description": "Provides completions for terminal commands, arguments, flags, and file paths based upon the Fig spec."
+          "description": "Show suggestions for commands, arguments, flags, and file paths based upon the Fig spec."
         }
       ]
     }

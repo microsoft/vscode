@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isObject } from '../../../../base/common/types.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorSerializer } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { ISerializedTerminalEditorInput, ITerminalEditorService, ITerminalInstance } from './terminal.js';
+import { ISerializedTerminalEditorInput, ITerminalEditorService, ITerminalInstance, type IDeserializedTerminalEditorInput } from './terminal.js';
 import { TerminalEditorInput } from './terminalEditorInput.js';
 
 export class TerminalInputSerializer implements IEditorSerializer {
@@ -26,8 +27,11 @@ export class TerminalInputSerializer implements IEditorSerializer {
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
-		const terminalInstance = JSON.parse(serializedEditorInput);
-		return this._terminalEditorService.reviveInput(terminalInstance);
+		const editorInput = JSON.parse(serializedEditorInput) as unknown;
+		if (!isDeserializedTerminalEditorInput(editorInput)) {
+			throw new Error(`Could not revive terminal editor input, ${editorInput}`);
+		}
+		return this._terminalEditorService.reviveInput(editorInput);
 	}
 
 	private _toJson(instance: ITerminalInstance): ISerializedTerminalEditorInput {
@@ -46,4 +50,8 @@ export class TerminalInputSerializer implements IEditorSerializer {
 			shellIntegrationNonce: instance.shellIntegrationNonce
 		};
 	}
+}
+
+function isDeserializedTerminalEditorInput(obj: unknown): obj is IDeserializedTerminalEditorInput {
+	return isObject(obj) && 'id' in obj && 'pid' in obj;
 }

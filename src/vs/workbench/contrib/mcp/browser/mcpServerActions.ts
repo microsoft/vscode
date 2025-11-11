@@ -36,6 +36,7 @@ import { LocalMcpServerScope } from '../../../services/mcp/common/mcpWorkbenchMa
 import { ExtensionAction } from '../../extensions/browser/extensionsActions.js';
 import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
+import Severity from '../../../../base/common/severity.js';
 
 export interface IMcpServerActionChangeEvent extends IActionChangeEvent {
 	readonly hidden?: boolean;
@@ -1158,9 +1159,9 @@ export class McpServerStatusAction extends McpServerAction {
 			}
 		}
 
-		const runtimeState = this.mcpServer.runtimeState;
-		if (runtimeState?.disabled && runtimeState.reason) {
-			this.updateStatus({ icon: warningIcon, message: runtimeState.reason }, true);
+		const runtimeState = this.mcpServer.runtimeStatus;
+		if (runtimeState?.message) {
+			this.updateStatus({ icon: runtimeState.message.severity === Severity.Warning ? warningIcon : runtimeState.message.severity === Severity.Error ? errorIcon : infoIcon, message: runtimeState.message.text }, true);
 		}
 	}
 

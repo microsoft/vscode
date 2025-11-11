@@ -7,7 +7,7 @@ import { timeout } from '../../../base/common/async.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { logOnceWebWorkerWarning, IWebWorkerClient, Proxied } from '../../../base/common/worker/webWorker.js';
-import { createWebWorker, IWebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js';
+import { createWebWorker, WebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js';
 import { Position } from '../../common/core/position.js';
 import { IRange, Range } from '../../common/core/range.js';
 import { ITextModel } from '../../common/model.js';
@@ -35,6 +35,7 @@ import { WorkerTextModelSyncClient } from '../../common/services/textModelSync/t
 import { EditorWorkerHost } from '../../common/services/editorWorkerHost.js';
 import { StringEdit } from '../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../common/core/ranges/offsetRange.js';
+import { FileAccess } from '../../../base/common/network.js';
 
 /**
  * Stop the worker if it was not needed for 5 min.
@@ -52,7 +53,7 @@ function canSyncModel(modelService: IModelService, resource: URI): boolean {
 	return true;
 }
 
-export abstract class EditorWorkerService extends Disposable implements IEditorWorkerService {
+export class EditorWorkerService extends Disposable implements IEditorWorkerService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -61,7 +62,6 @@ export abstract class EditorWorkerService extends Disposable implements IEditorW
 	private readonly _logService: ILogService;
 
 	constructor(
-		workerDescriptor: IWebWorkerDescriptor,
 		@IModelService modelService: IModelService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@ILogService logService: ILogService,
@@ -70,6 +70,13 @@ export abstract class EditorWorkerService extends Disposable implements IEditorW
 	) {
 		super();
 		this._modelService = modelService;
+
+		const workerDescriptor = new WebWorkerDescriptor({
+			esmModuleLocation: () => FileAccess.asBrowserUri('vs/editor/common/services/editorWebWorkerMain.js'),
+			esmModuleLocationBundler: () => new URL('../../common/services/editorWebWorkerMain.ts?worker', import.meta.url),
+			label: 'editorWorkerService'
+		});
+
 		this._workerManager = this._register(new WorkerManager(workerDescriptor, this._modelService));
 		this._logService = logService;
 
@@ -330,7 +337,7 @@ class WorkerManager extends Disposable {
 	private _lastWorkerUsedTime: number;
 
 	constructor(
-		private readonly _workerDescriptor: IWebWorkerDescriptor,
+		private readonly _workerDescriptor: WebWorkerDescriptor,
 		@IModelService modelService: IModelService
 	) {
 		super();
@@ -427,7 +434,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	private _disposed = false;
 
 	constructor(
-		private readonly _workerDescriptorOrWorker: IWebWorkerDescriptor | Worker | Promise<Worker>,
+		private readonly _workerDescriptorOrWorker: WebWorkerDescriptor | Worker | Promise<Worker>,
 		keepIdleModels: boolean,
 		@IModelService modelService: IModelService,
 	) {

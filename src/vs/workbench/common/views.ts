@@ -721,11 +721,9 @@ export enum TreeItemCollapsibleState {
 
 export interface ITreeItemLabel {
 
-	label: string;
+	label: string | IMarkdownString;
 
 	highlights?: [number, number][];
-
-	strikethrough?: boolean;
 
 }
 

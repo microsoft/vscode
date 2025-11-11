@@ -11,7 +11,7 @@ suite('HighlightedLabel', () => {
 	let label: HighlightedLabel;
 
 	setup(() => {
-		label = new HighlightedLabel(document.createElement('div'), { supportIcons: true });
+		label = new HighlightedLabel(document.createElement('div'));
 	});
 
 	test('empty label', function () {

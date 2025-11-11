@@ -178,8 +178,8 @@ export class CreateAndRunTaskTool implements IToolImpl {
 				title: localize('allowTaskCreationExecution', 'Allow task creation and execution?'),
 				message: new MarkdownString(
 					localize(
-						'copilotCreateTask',
-						'Copilot will create the task \`{0}\` with command \`{1}\`{2}.',
+						'createTask',
+						'A task \`{0}\` with command \`{1}\`{2} will be created.',
 						task.label,
 						task.command,
 						task.args?.length ? ` and args \`${task.args.join(' ')}\`` : ''

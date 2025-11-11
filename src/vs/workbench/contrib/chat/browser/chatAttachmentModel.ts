@@ -33,7 +33,7 @@ export class ChatAttachmentModel extends Disposable {
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
-		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService
+		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService,
 	) {
 		super();
 	}

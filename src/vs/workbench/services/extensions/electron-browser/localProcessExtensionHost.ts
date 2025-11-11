@@ -59,7 +59,7 @@ export class ExtensionHostProcess {
 		return this._extensionHostStarter.onDynamicStderr(this._id);
 	}
 
-	public get onMessage(): Event<any> {
+	public get onMessage(): Event<unknown> {
 		return this._extensionHostStarter.onDynamicMessage(this._id);
 	}
 
@@ -508,7 +508,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				sessionId: this._telemetryService.sessionId,
 				machineId: this._telemetryService.machineId,
 				sqmId: this._telemetryService.sqmId,
-				devDeviceId: this._telemetryService.devDeviceId,
+				devDeviceId: this._telemetryService.devDeviceId ?? this._telemetryService.machineId,
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},
