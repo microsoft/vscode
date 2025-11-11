@@ -24,6 +24,7 @@ import { IPromptsService } from '../../common/promptSyntax/service/promptsServic
 import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
 import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
+import { NativeEditContextRegistry } from '../../../../../editor/browser/controller/editContext/native/nativeEditContextRegistry.js';
 
 const decorationDescription = 'chat';
 const placeholderDecorationType = 'chat-session-detail';
@@ -302,15 +303,15 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private updateAriaPlaceholder(value: string | undefined): void {
-		// eslint-disable-next-line no-restricted-syntax
-		const nativeEditContext = this.widget.inputEditor.getDomNode()?.querySelector<HTMLElement>('.native-edit-context');
-		if (!nativeEditContext) {
+		const nativeEditContext = NativeEditContextRegistry.get(this.widget.inputEditor.getId());
+		const domNode = nativeEditContext?.domNode.domNode;
+		if (!domNode) {
 			return;
 		}
 		if (value && value.trim().length) {
-			nativeEditContext.setAttribute('aria-placeholder', value);
+			domNode.setAttribute('aria-placeholder', value);
 		} else {
-			nativeEditContext.removeAttribute('aria-placeholder');
+			domNode.removeAttribute('aria-placeholder');
 		}
 	}
 }
