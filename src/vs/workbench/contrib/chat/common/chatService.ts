@@ -322,7 +322,6 @@ export interface IChatTerminalToolInvocationData {
 	terminalCommandOutput?: {
 		text: string;
 		truncated?: boolean;
-		isHtml?: boolean;
 	};
 	/** Stored theme colors at execution time to style detached output */
 	terminalTheme?: {

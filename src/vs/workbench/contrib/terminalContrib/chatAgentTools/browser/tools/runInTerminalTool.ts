@@ -791,7 +791,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			const serialized = await this._tryGetSerializedCommandOutput(instance, commandId);
 			if (serialized) {
-				toolSpecificData.terminalCommandOutput = { text: serialized.text, truncated: serialized.truncated, isHtml: true };
+				toolSpecificData.terminalCommandOutput = { text: serialized.text, truncated: serialized.truncated };
 				const theme = instance.xterm?.getXtermTheme();
 				if (theme) {
 					toolSpecificData.terminalTheme = { background: theme.background, foreground: theme.foreground };
@@ -801,8 +801,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		if (fallbackOutput !== undefined) {
-			const escaped = RunInTerminalTool._escapeAsHtml(fallbackOutput);
-			toolSpecificData.terminalCommandOutput = { text: escaped, truncated: false, isHtml: true };
+			const normalized = fallbackOutput.replace(/\r\n/g, '\n');
+			toolSpecificData.terminalCommandOutput = { text: normalized, truncated: false };
 			const theme = instance.xterm?.getXtermTheme();
 			if (theme) {
 				toolSpecificData.terminalTheme = { background: theme.background, foreground: theme.foreground };
@@ -828,16 +828,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._logService.warn(`RunInTerminalTool: Failed to serialize command output for ${commandId}`, error);
 			return undefined;
 		}
-	}
-
-	private static _escapeAsHtml(value: string): string {
-		return value
-			.replace(/\r\n/g, '\n')
-			.replace(/&/g, '&amp;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;')
-			.replace(/"/g, '&quot;')
-			.replace(/'/g, '&#39;');
 	}
 
 	// #endregion
