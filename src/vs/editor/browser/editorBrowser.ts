@@ -272,7 +272,7 @@ export interface IOverlayWidgetPosition {
 	 * When set, stacks with other overlay widgets with the same preference,
 	 * in an order determined by the ordinal value.
 	 */
-	stackOridinal?: number;
+	stackOrdinal?: number;
 }
 /**
  * An overlay widgets renders on top of the text.

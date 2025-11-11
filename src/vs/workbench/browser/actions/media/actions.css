@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .quick-input-list .quick-input-list-entry.has-actions:hover .quick-input-list-entry-action-bar .action-label.dirty-workspace::before {
-	/* Close icon flips between black dot and "X" for dirty workspaces */
+.monaco-workbench .quick-input-list .quick-input-list-entry.has-actions:hover .quick-input-list-entry-action-bar .action-label.dirty-workspace::before,
+.monaco-workbench .quick-input-list .quick-input-list-entry.has-actions:hover .quick-input-list-entry-action-bar .action-label.opened-workspace::before {
+	/* Close icon flips between black dot and "X" some entries in the recently opened picker */
 	content: var(--vscode-icon-x-content);
 	font-family: var(--vscode-icon-x-font-family);
 }

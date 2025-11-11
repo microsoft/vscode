@@ -1209,7 +1209,7 @@ suite('OAuth', () => {
 			assert.deepStrictEqual(result, expectedMetadata);
 			assert.strictEqual(fetchStub.callCount, 1);
 			// Should try path-appended version first
-			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/api/v1/.well-known/oauth-protected-resource');
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource/api/v1');
 		});
 
 		test('should fallback to well-known URI at root when path version fails', async () => {
@@ -1241,7 +1241,7 @@ suite('OAuth', () => {
 			assert.deepStrictEqual(result, expectedMetadata);
 			assert.strictEqual(fetchStub.callCount, 2);
 			// First attempt with path
-			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/api/v1/.well-known/oauth-protected-resource');
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource/api/v1');
 			// Second attempt at root
 			assert.strictEqual(fetchStub.secondCall.args[0], 'https://example.com/.well-known/oauth-protected-resource');
 		});
@@ -1260,8 +1260,8 @@ suite('OAuth', () => {
 				(error: any) => {
 					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
 					assert.strictEqual(error.errors.length, 2, 'Should contain 2 errors');
-					assert.ok(/Failed to fetch resource metadata from.*\/api\/v1\/\.well-known.*404/.test(error.errors[0].message), 'First error should mention /api/v1/.well-known and 404');
-					assert.ok(/Failed to fetch resource metadata from.*https:\/\/example\.com\/\.well-known.*404/.test(error.errors[1].message), 'Second error should mention root .well-known and 404');
+					assert.ok(/Failed to fetch resource metadata from.*\/api\/v1.*404/.test(error.errors[0].message), 'First error should mention /api/v1 and 404');
+					assert.ok(/Failed to fetch resource metadata from.*\.well-known.*404/.test(error.errors[1].message), 'Second error should mention .well-known and 404');
 					return true;
 				}
 			); assert.strictEqual(fetchStub.callCount, 2);

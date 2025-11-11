@@ -63,7 +63,7 @@ export function isMergeEditorInput(editor: unknown): editor is MergeEditorInput 
 
 export class UserDataSyncWorkbenchService extends Disposable implements IUserDataSyncWorkbenchService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private static DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY = 'userDataSyncAccount.donotUseWorkbenchSession';
 	private static CACHED_AUTHENTICATION_PROVIDER_KEY = 'userDataSyncAccountProvider';

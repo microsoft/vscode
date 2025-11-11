@@ -24,6 +24,7 @@ import { IPromptsService } from '../../common/promptSyntax/service/promptsServic
 import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
 import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
+import { NativeEditContextRegistry } from '../../../../../editor/browser/controller/editContext/native/nativeEditContextRegistry.js';
 
 const decorationDescription = 'chat';
 const placeholderDecorationType = 'chat-session-detail';
@@ -134,12 +135,14 @@ class InputEditorDecorations extends Disposable {
 
 		const viewModel = this.widget.viewModel;
 		if (!viewModel) {
+			this.updateAriaPlaceholder(undefined);
 			return;
 		}
 
 		if (!inputValue) {
 			const mode = this.widget.input.currentModeObs.get();
 			const placeholder = mode.argumentHint?.get() ?? mode.description.get() ?? '';
+			const displayPlaceholder = viewModel.inputPlaceholder || placeholder;
 
 			const decoration: IDecorationOptions[] = [
 				{
@@ -151,15 +154,18 @@ class InputEditorDecorations extends Disposable {
 					},
 					renderOptions: {
 						after: {
-							contentText: viewModel.inputPlaceholder || placeholder,
+							contentText: displayPlaceholder,
 							color: this.getPlaceholderColor()
 						}
 					}
 				}
 			];
+			this.updateAriaPlaceholder(displayPlaceholder || undefined);
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, decoration);
 			return;
 		}
+
+		this.updateAriaPlaceholder(undefined);
 
 		const parsedRequest = this.widget.parsedInput.parts;
 
@@ -294,6 +300,19 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);
+	}
+
+	private updateAriaPlaceholder(value: string | undefined): void {
+		const nativeEditContext = NativeEditContextRegistry.get(this.widget.inputEditor.getId());
+		const domNode = nativeEditContext?.domNode.domNode;
+		if (!domNode) {
+			return;
+		}
+		if (value && value.trim().length) {
+			domNode.setAttribute('aria-placeholder', value);
+		} else {
+			domNode.removeAttribute('aria-placeholder');
+		}
 	}
 }
 

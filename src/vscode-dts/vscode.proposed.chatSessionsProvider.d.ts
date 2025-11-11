@@ -124,6 +124,11 @@ declare module 'vscode' {
 		 */
 		statistics?: {
 			/**
+			 * Number of files edited during the session.
+			 */
+			files: number;
+
+			/**
 			 * Number of insertions made during the session.
 			 */
 			insertions: number;

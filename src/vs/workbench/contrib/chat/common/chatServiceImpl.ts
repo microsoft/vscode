@@ -424,7 +424,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private initializeSession(model: ChatModel, token: CancellationToken): void {
-		this.trace('initializeSession', `Initialize session ${model.sessionId}`);
+		this.trace('initializeSession', `Initialize session ${model.sessionResource}`);
 
 		// Activate the default extension provided agent but do not wait
 		// for it to be ready so that the session can be used immediately
@@ -461,6 +461,10 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.get(sessionResource);
 	}
 
+	getSessionByLegacyId(sessionId: string): IChatModel | undefined {
+		return Array.from(this._sessionModels.values()).find(session => session.sessionId === sessionId);
+	}
+
 	async getOrRestoreSession(sessionResource: URI): Promise<ChatModel | undefined> {
 		this.trace('getOrRestoreSession', `${sessionResource}`);
 		const model = this._sessionModels.get(sessionResource);
@@ -484,7 +488,7 @@ export class ChatService extends Disposable implements IChatService {
 			return undefined;
 		}
 
-		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Chat, true, CancellationToken.None, { canUseTools: true });
+		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Chat, true, CancellationToken.None, { canUseTools: true, sessionResource });
 
 		const isTransferred = this.transferredSessionData?.sessionId === sessionId;
 		if (isTransferred) {
@@ -820,7 +824,7 @@ export class ChatService extends Disposable implements IChatService {
 					const progressItem = progress[i];
 
 					if (progressItem.kind === 'markdownContent') {
-						this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${progressItem.content.value.length} chars`);
+						this.trace('sendRequest', `Provider returned progress for session ${model.sessionResource}, ${progressItem.content.value.length} chars`);
 					} else {
 						this.trace('sendRequest', `Provider returned progress: ${JSON.stringify(progressItem)}`);
 					}
@@ -835,7 +839,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			const stopWatch = new StopWatch(false);
 			store.add(token.onCancellationRequested(() => {
-				this.trace('sendRequest', `Request for session ${model.sessionId} was cancelled`);
+				this.trace('sendRequest', `Request for session ${model.sessionResource} was cancelled`);
 				if (!request) {
 					return;
 				}
@@ -1016,7 +1020,7 @@ export class ChatService extends Disposable implements IChatService {
 					return;
 				} else {
 					if (!rawResult) {
-						this.trace('sendRequest', `Provider returned no response for session ${model.sessionId}`);
+						this.trace('sendRequest', `Provider returned no response for session ${model.sessionResource}`);
 						rawResult = { errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
 					}
 
@@ -1036,7 +1040,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					model.setResponse(request, rawResult);
 					completeResponseCreated();
-					this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
+					this.trace('sendRequest', `Provider returned response for session ${model.sessionResource}`);
 
 					model.completeResponse(request);
 					if (agentOrCommandFollowups) {
@@ -1257,7 +1261,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		this.storageService.store(TransferredGlobalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this.chatTransferService.addWorkspaceToTransferred(toWorkspace);
-		this.trace('transferChatSession', `Transferred session ${model.sessionId} to workspace ${toWorkspace.toString()}`);
+		this.trace('transferChatSession', `Transferred session ${model.sessionResource} to workspace ${toWorkspace.toString()}`);
 	}
 
 	getChatStorageFolder(): URI {
