@@ -91,17 +91,9 @@
 	margin-right: 4px;
 }
 
-/* .monaco-hover p:first-child .codicon {
-	margin: 0 2px;
-} */
-
 .monaco-hover p:last-child {
 	margin-bottom: 2px;
 }
-
-/* .monaco-hover p:last-child span:not(.codicon) {
-	padding: 2px 0;
-} */
 
 .monaco-hover .code:last-child,
 .monaco-hover ul:last-child {
