@@ -39,6 +39,10 @@ import * as domSanitize from '../../../../../../base/browser/domSanitize.js';
 import { DomSanitizerConfig } from '../../../../../../base/browser/domSanitize.js';
 import { allowedMarkdownHtmlAttributes } from '../../../../../../base/browser/markdownRenderer.js';
 import { stripIcons } from '../../../../../../base/common/iconLabels.js';
+import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
+import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { EditorPool } from '../chatContentCodePools.js';
 
 const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
@@ -52,6 +56,8 @@ const sanitizerConfig = Object.freeze<DomSanitizerConfig>({
 	}
 });
 
+let lastFocusedProgressPart: ChatTerminalToolProgressPart | undefined;
+
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 
@@ -64,6 +70,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private _outputContent: HTMLElement | undefined;
 	private _outputResizeObserver: ResizeObserver | undefined;
 	private _renderedOutputHeight: number | undefined;
+	private readonly _terminalOutputContextKey: IContextKey<boolean>;
+	private readonly _outputAriaLabelBase: string;
+	private readonly _displayCommand: string;
+	private _lastOutputTruncated = false;
 
 	private readonly _showOutputAction = this._register(new MutableDisposable<ToggleChatTerminalOutputAction>());
 	private _showOutputActionAdded = false;
@@ -89,6 +99,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 	) {
 		super(toolInvocation);
 
@@ -102,6 +114,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		]);
 
 		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+		this._displayCommand = stripIcons(command);
+		this._terminalOutputContextKey = ChatContextKeys.inChatTerminalToolOutput.bindTo(this._contextKeyService);
+		this._outputAriaLabelBase = localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', this._displayCommand);
 
 		this._titlePart = elements.title;
 		const titlePart = this._register(_instantiationService.createInstance(
@@ -161,6 +176,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._outputContainer = elements.output;
 		this._outputContainer.classList.add('collapsed');
 		this._outputBody = dom.$('.chat-terminal-output-body');
+		this._register(dom.addDisposableListener(this._outputContainer, dom.EventType.FOCUS_IN, () => this._handleOutputFocus()));
+		this._register(dom.addDisposableListener(this._outputContainer, dom.EventType.FOCUS_OUT, e => this._handleOutputBlur(e as FocusEvent)));
+		this._register(toDisposable(() => this._handleDispose()));
 
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
 		this.domNode = progressPart.domNode;
@@ -388,6 +406,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		} else {
 			this._ensureOutputResizeObserver();
 		}
+		this._updateOutputAriaLabel();
 
 		return true;
 	}
@@ -447,6 +466,63 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}));
 	}
 
+	private _handleOutputFocus(): void {
+		this._terminalOutputContextKey.set(true);
+		lastFocusedProgressPart = this;
+		this._updateOutputAriaLabel();
+	}
+
+	private _handleOutputBlur(event: FocusEvent): void {
+		const nextTarget = event.relatedTarget as HTMLElement | null;
+		if (nextTarget && this._outputContainer.contains(nextTarget)) {
+			return;
+		}
+		this._terminalOutputContextKey.reset();
+		this._clearLastFocusedPart();
+	}
+
+	private _handleDispose(): void {
+		this._terminalOutputContextKey.reset();
+		this._clearLastFocusedPart();
+	}
+
+	private _clearLastFocusedPart(): void {
+		if (lastFocusedProgressPart === this) {
+			lastFocusedProgressPart = undefined;
+		}
+	}
+
+	private _updateOutputAriaLabel(): void {
+		if (!this._outputScrollbar) {
+			return;
+		}
+		const scrollableDomNode = this._outputScrollbar.getDomNode();
+		scrollableDomNode.setAttribute('role', 'region');
+		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.TerminalChatOutput);
+		const label = accessibleViewHint
+			? this._outputAriaLabelBase + ', ' + accessibleViewHint
+			: this._outputAriaLabelBase;
+		scrollableDomNode.setAttribute('aria-label', label);
+	}
+
+	public getCommandAndOutputAsText(): string | undefined {
+		const commandHeader = localize('chatTerminalOutputAccessibleViewHeader', 'Command: {0}', this._displayCommand);
+		const command = this._getResolvedCommand();
+		const output = command?.getOutput()?.trimEnd();
+		if (!output) {
+			return `${commandHeader}\n${localize('chat.terminalOutputEmpty', 'No output was produced by the command.')}`;
+		}
+		let result = `${commandHeader}\n${output}`;
+		if (this._lastOutputTruncated) {
+			result += `\n\n${localize('chat.terminalOutputTruncated', 'Output truncated to first {0} lines.', CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES)}`;
+		}
+		return result;
+	}
+
+	public focusOutput(): void {
+		this._outputScrollbar?.getDomNode().focus();
+	}
+
 	private async _collectOutput(terminalInstance: ITerminalInstance | undefined): Promise<{ text: string; truncated: boolean } | undefined> {
 		const commandDetection = terminalInstance?.capabilities.get(TerminalCapability.CommandDetection);
 		const commands = commandDetection?.commands;
@@ -463,6 +539,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private _renderOutput(result: { text: string; truncated: boolean }): HTMLElement {
+		this._lastOutputTruncated = result.truncated;
 		const container = document.createElement('div');
 		container.classList.add('chat-terminal-output-content');
 
@@ -482,7 +559,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (result.truncated) {
 			const note = document.createElement('div');
 			note.classList.add('chat-terminal-output-info');
-			note.textContent = localize('chat.terminalOutputTruncated', 'Output truncated to first {0} characters.', CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
+			note.textContent = localize('chat.terminalOutputTruncated', 'Output truncated to first {0} lines.', CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
 			container.appendChild(note);
 		}
 
@@ -498,6 +575,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		return commands.find(c => c.id === this._terminalData.terminalCommandId);
 	}
+}
+
+export function getFocusedTerminalToolProgressPart(): ChatTerminalToolProgressPart | undefined {
+	return lastFocusedProgressPart;
 }
 
 export const openTerminalSettingsLinkCommandId = '_chat.openTerminalSettingsLink';
