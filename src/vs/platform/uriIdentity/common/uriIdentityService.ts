@@ -8,8 +8,8 @@ import { URI } from '../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IFileService, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent } from '../../files/common/files.js';
 import { ExtUri, IExtUri, normalizePath } from '../../../base/common/resources.js';
-import { Event, Emitter } from '../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Event } from '../../../base/common/event.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { quickSelect } from '../../../base/common/arrays.js';
 
 class Entry {
@@ -22,95 +22,62 @@ class Entry {
 	}
 }
 
-interface IFileSystemCasingChangedEvent {
-	scheme: string;
-}
-
-class PathCasingCache extends Disposable {
-	private readonly _cache = new Map<string, boolean>();
-
-	private _onFileSystemCasingChanged: Emitter<IFileSystemCasingChangedEvent>;
-	readonly onFileSystemCasingChanged: Event<IFileSystemCasingChangedEvent>;
-
-	constructor(private readonly _fileService: IFileService) {
-		super();
-
-		this._onFileSystemCasingChanged = this._register(new Emitter<IFileSystemCasingChangedEvent>());
-		this.onFileSystemCasingChanged = this._onFileSystemCasingChanged.event;
-
-		this._register(Event.any<
-			| IFileSystemProviderCapabilitiesChangeEvent
-			| IFileSystemProviderRegistrationEvent
-		>(
-			_fileService.onDidChangeFileSystemProviderRegistrations,
-			_fileService.onDidChangeFileSystemProviderCapabilities
-		)(e => this._handleFileSystemProviderChangeEvent(e)));
-	}
-
-	private _calculateIgnorePathCasing(scheme: string): boolean {
-		const uri = URI.from({ scheme });
-		return this._fileService.hasProvider(uri) &&
-			!this._fileService.hasCapability(uri, FileSystemProviderCapabilities.PathCaseSensitive);
-	}
-
-	private _handleFileSystemProviderChangeEvent(
-		event:
-			| IFileSystemProviderRegistrationEvent
-			| IFileSystemProviderCapabilitiesChangeEvent) {
-		const currentCasing = this._cache.get(event.scheme);
-		if (currentCasing === undefined) {
-			return;
-		}
-		const newCasing = this._calculateIgnorePathCasing(event.scheme);
-		if (currentCasing === newCasing) {
-			return;
-		}
-		this._cache.set(event.scheme, newCasing);
-		this._onFileSystemCasingChanged.fire({ scheme: event.scheme });
-	}
-
-	public shouldIgnorePathCasing(uri: URI): boolean {
-		const cachedValue = this._cache.get(uri.scheme);
-		if (cachedValue !== undefined) {
-			return cachedValue;
-		}
-
-		const ignorePathCasing = this._calculateIgnorePathCasing(uri.scheme);
-		this._cache.set(uri.scheme, ignorePathCasing);
-		return ignorePathCasing;
-	}
-}
-
-export class UriIdentityService extends Disposable implements IUriIdentityService {
+export class UriIdentityService implements IUriIdentityService {
 
 	declare readonly _serviceBrand: undefined;
 
 	readonly extUri: IExtUri;
 
-	private readonly _pathCasingCache: PathCasingCache;
+	private readonly _dispooables = new DisposableStore();
 	private readonly _canonicalUris: Map<string, Entry>;
 	private readonly _limit = 2 ** 16;
 
 	constructor(@IFileService private readonly _fileService: IFileService) {
-		super();
 
-		this._pathCasingCache = this._register(new PathCasingCache(this._fileService));
+		const schemeIgnoresPathCasingCache = new Map<string, boolean>();
 
-		this._register(this._pathCasingCache.onFileSystemCasingChanged(
-			e => this._handleFileSystemCasingChanged(e)));
+		// assume path casing matters unless the file system provider spec'ed the opposite.
+		// for all other cases path casing matters, e.g for
+		// * virtual documents
+		// * in-memory uris
+		// * all kind of "private" schemes
+		const ignorePathCasing = (uri: URI): boolean => {
+			let ignorePathCasing = schemeIgnoresPathCasingCache.get(uri.scheme);
+			if (ignorePathCasing === undefined) {
+				// retrieve once and then case per scheme until a change happens
+				ignorePathCasing = _fileService.hasProvider(uri) && !this._fileService.hasCapability(uri, FileSystemProviderCapabilities.PathCaseSensitive);
+				schemeIgnoresPathCasingCache.set(uri.scheme, ignorePathCasing);
+			}
+			return ignorePathCasing;
+		};
+		this._dispooables.add(Event.any<IFileSystemProviderCapabilitiesChangeEvent | IFileSystemProviderRegistrationEvent>(
+			_fileService.onDidChangeFileSystemProviderRegistrations,
+			_fileService.onDidChangeFileSystemProviderCapabilities
+		)(e => {
+			const oldIgnorePathCasingValue = schemeIgnoresPathCasingCache.get(e.scheme);
+			if (oldIgnorePathCasingValue === undefined) {
+				return;
+			}
+			schemeIgnoresPathCasingCache.delete(e.scheme);
+			const newIgnorePathCasingValue = ignorePathCasing(URI.from({ scheme: e.scheme }));
+			if (newIgnorePathCasingValue === newIgnorePathCasingValue) {
+				return;
+			}
+			for (const [key, entry] of this._canonicalUris.entries()) {
+				if (entry.uri.scheme !== e.scheme) {
+					continue;
+				}
+				this._canonicalUris.delete(key);
+			}
+		}));
 
-		this.extUri = new ExtUri(uri => this._pathCasingCache.shouldIgnorePathCasing(uri));
+		this.extUri = new ExtUri(ignorePathCasing);
 		this._canonicalUris = new Map();
-		this._register(toDisposable(() => this._canonicalUris.clear()));
 	}
 
-	private _handleFileSystemCasingChanged(e: IFileSystemCasingChangedEvent): void {
-		for (const [key, entry] of this._canonicalUris.entries()) {
-			if (entry.uri.scheme !== e.scheme) {
-				continue;
-			}
-			this._canonicalUris.delete(key);
-		}
+	dispose(): void {
+		this._dispooables.dispose();
+		this._canonicalUris.clear();
 	}
 
 	asCanonicalUri(uri: URI): URI {
