@@ -393,22 +393,28 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._onDidChangeDecorations.fire();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}));
-		this._register(this._fontDecorationProvider.onDidChangeLineHeight((affectedLineHeights) => {
-			console.log('on did change line height from font decoration provider : ', affectedLineHeights);
-			this._onDidChangeDecorations.beginDeferredEmit();
-			this._onDidChangeDecorations.fire();
-			const affectedLines = Array.from(affectedLineHeights);
-			const lineHeightChangeEvent = affectedLines.map(specialLineHeightChange => new ModelLineHeightChanged(specialLineHeightChange.ownerId, specialLineHeightChange.decorationId, specialLineHeightChange.lineNumber, specialLineHeightChange.lineHeight));
-			this._onDidChangeLineHeight.fire(new ModelLineHeightChangedEvent(lineHeightChangeEvent));
-			this._onDidChangeDecorations.endDeferredEmit();
-		}));
-		this._register(this._fontDecorationProvider.onDidChangeFont((affectedFontLines) => {
-			this._onDidChangeDecorations.beginDeferredEmit();
-			const affectedLinesArray = Array.from(affectedFontLines);
-			const fontChangeEvent = affectedLinesArray.map(specialFontChange => new ModelFontChanged(specialFontChange.ownerId, specialFontChange.lineNumber));
-			this._onDidChangeFont.fire(new ModelFontChangedEvent(fontChangeEvent));
-			this._onDidChangeDecorations.endDeferredEmit();
-		}));
+		// this._register(this._fontDecorationProvider.onDidChangeLineHeight((affectedLineHeights) => {
+		// 	console.log('on did change line height from font decoration provider : ', affectedLineHeights);
+		// 	this._onDidChangeDecorations.beginDeferredEmit();
+		// 	this._onDidChangeDecorations.fire();
+		// 	const affectedLines = Array.from(affectedLineHeights);
+		// 	const lineHeightChangeEvent = affectedLines.map(specialLineHeightChange => new ModelLineHeightChanged(specialLineHeightChange.ownerId, specialLineHeightChange.decorationId, specialLineHeightChange.lineNumber, specialLineHeightChange.lineHeight));
+		// 	this._onDidChangeLineHeight.fire(new ModelLineHeightChangedEvent(lineHeightChangeEvent));
+		// 	this._onDidChangeDecorations.endDeferredEmit();
+
+		// 	// Adding the decoration
+		// 	this.changeDecorations((accesor) => {
+		// 		// replace the fonts and the line heights on a specific line with new decorations, may have to pass in the changeDecorations method into the provider
+		// 	});
+		// }));
+		// this._register(this._fontDecorationProvider.onDidChangeFont((affectedFontLines) => {
+		// 	this._onDidChangeDecorations.beginDeferredEmit();
+		// 	const affectedLinesArray = Array.from(affectedFontLines);
+		// 	const fontChangeEvent = affectedLinesArray.map(specialFontChange => new ModelFontChanged(specialFontChange.ownerId, specialFontChange.lineNumber));
+		// 	this._onDidChangeFont.fire(new ModelFontChangedEvent(fontChangeEvent));
+		// 	this._onDidChangeDecorations.fire();
+		// 	this._onDidChangeDecorations.endDeferredEmit();
+		// }));
 
 		this._languageService.requestRichLanguageFeatures(languageId);
 

@@ -177,6 +177,8 @@ export class ViewLine implements IVisibleLine {
 			return false;
 		}
 
+		console.log('rendering line : ', lineNumber);
+
 		sb.appendString('<div ');
 		if (lineData.textDirection === TextDirection.RTL) {
 			sb.appendString('dir="rtl" ');
