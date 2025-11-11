@@ -148,7 +148,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 
 		const disclaimers: string[] = [];
 		if (fileWrites.length > 0) {
-			const fileWritesList = fileWrites.map(fw => `\`${URI.isUri(fw) ? this._labelService.getUriLabel(fw) : fw.toString()}\``).join(', ');
+			const fileWritesList = fileWrites.map(fw => `\`${URI.isUri(fw) ? this._labelService.getUriLabel(fw) : fw === nullDevice ? '/dev/null' : fw.toString()}\``).join(', ');
 			if (!isAutoApproveAllowed) {
 				disclaimers.push(localize('runInTerminal.fileWriteBlockedDisclaimer', 'File write operations detected that cannot be auto approved: {0}', fileWritesList));
 			} else {
