@@ -32,7 +32,7 @@ import { memoize } from '../../../base/common/decorators.js';
 import * as performance from '../../../base/common/performance.js';
 import pkg from '@xterm/headless';
 import { AutoRepliesPtyServiceContribution } from './terminalContrib/autoReplies/autoRepliesContribController.js';
-import { hasKey } from '../../../base/common/types.js';
+import { hasKey, isFunction, isNumber, isString } from '../../../base/common/types.js';
 
 type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
@@ -43,7 +43,7 @@ interface ITraceRpcArgs {
 }
 
 export function traceRpc(_target: Object, key: string, descriptor: PropertyDescriptor) {
-	if (typeof descriptor.value !== 'function') {
+	if (!isFunction(descriptor.value)) {
 		throw new Error('not supported');
 	}
 	const fnKey = 'value';
@@ -320,7 +320,7 @@ export class PtyService extends Disposable implements IPtyService {
 			executableEnv,
 			options
 		};
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving && typeof shellLaunchConfig.initialText === 'string' ? shellLaunchConfig.initialText : undefined, rawReviveBuffer, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving && isString(shellLaunchConfig.initialText) ? shellLaunchConfig.initialText : undefined, rawReviveBuffer, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
 		process.onProcessExit(event => {
 			for (const contrib of this._contributions) {
 				contrib.handleProcessDispose(id);
@@ -580,7 +580,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	private async _expandTerminalInstance(workspaceId: string, t: ITerminalInstanceLayoutInfoById | number, doneSet: Set<number>): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
-		const hasLayout = typeof t !== 'number';
+		const hasLayout = !isNumber(t);
 		const ptyId = hasLayout ? t.terminal : t;
 		try {
 			const oldId = this._getRevivingProcessId(workspaceId, ptyId);

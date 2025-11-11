@@ -40,11 +40,16 @@ function getWorker(descriptor: WebWorkerDescriptor, id: number): Worker | Promis
 	const monacoEnvironment = getMonacoEnvironment();
 	if (monacoEnvironment) {
 		if (typeof monacoEnvironment.getWorker === 'function') {
-			return monacoEnvironment.getWorker('workerMain.js', label);
+			const w = monacoEnvironment.getWorker('workerMain.js', label);
+			if (w !== undefined) {
+				return w;
+			}
 		}
 		if (typeof monacoEnvironment.getWorkerUrl === 'function') {
 			const workerUrl = monacoEnvironment.getWorkerUrl('workerMain.js', label);
-			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: 'module' });
+			if (workerUrl !== undefined) {
+				return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: 'module' });
+			}
 		}
 	}
 
@@ -185,20 +190,36 @@ class WebWorker extends Disposable implements IWebWorker {
 }
 
 export class WebWorkerDescriptor {
+	private static _useBundlerLocationRef = false;
+
+	/** TODO @hediet: Use web worker service! */
+	public static useBundlerLocationRef() {
+		WebWorkerDescriptor._useBundlerLocationRef = true;
+	}
+
 	public readonly esmModuleLocation: URI | (() => URI) | undefined;
+	public readonly esmModuleLocationBundler: URL | (() => URL) | undefined;
 	public readonly label: string | undefined;
 
 	constructor(args: {
 		/** The location of the esm module after transpilation */
 		esmModuleLocation?: URI | (() => URI);
+		/** The location of the esm module when used in a bundler environment. Refer to the typescript file in the src folder and use `?worker`. */
+		esmModuleLocationBundler?: URL | (() => URL);
 		label?: string;
 	}) {
 		this.esmModuleLocation = args.esmModuleLocation;
+		this.esmModuleLocationBundler = args.esmModuleLocationBundler;
 		this.label = args.label;
 	}
 
 	getUrl(): string | undefined {
-		if (this.esmModuleLocation) {
+		if (WebWorkerDescriptor._useBundlerLocationRef) {
+			if (this.esmModuleLocationBundler) {
+				const esmWorkerLocation = typeof this.esmModuleLocationBundler === 'function' ? this.esmModuleLocationBundler() : this.esmModuleLocationBundler;
+				return esmWorkerLocation.toString();
+			}
+		} else if (this.esmModuleLocation) {
 			const esmWorkerLocation = typeof this.esmModuleLocation === 'function' ? this.esmModuleLocation() : this.esmModuleLocation;
 			return esmWorkerLocation.toString(true);
 		}

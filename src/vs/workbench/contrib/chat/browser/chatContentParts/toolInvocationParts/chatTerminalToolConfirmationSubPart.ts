@@ -39,8 +39,9 @@ import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '..
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
+import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
-import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
+import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
 import { openTerminalSettingsLinkCommandId } from './chatTerminalToolProgressPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
@@ -376,7 +377,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			undefined,
 			this.currentWidthDelegate(),
 			this.codeBlockModelCollection,
-			{ codeBlockRenderOptions }
+			{ codeBlockRenderOptions },
 		));
 		append(container, part.domNode);
 		this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
