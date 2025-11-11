@@ -8,7 +8,7 @@ import { IAccessibleViewImplementation } from '../../../../platform/accessibilit
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatTerminalToolProgressPart } from './chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
+import { getFocusedTerminalToolProgressPart } from './chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
 
 export class ChatTerminalOutputAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 115;
@@ -17,7 +17,7 @@ export class ChatTerminalOutputAccessibleView implements IAccessibleViewImplemen
 	readonly when = ChatContextKeys.inChatTerminalToolOutput;
 
 	getProvider(_accessor: ServicesAccessor) {
-		const part = ChatTerminalToolProgressPart.getFocusedPart();
+		const part = getFocusedTerminalToolProgressPart();
 		if (!part) {
 			return;
 		}

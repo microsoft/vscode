@@ -56,9 +56,10 @@ const sanitizerConfig = Object.freeze<DomSanitizerConfig>({
 	}
 });
 
+let lastFocusedProgressPart: ChatTerminalToolProgressPart | undefined;
+
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
-	private static _lastFocusedPart: WeakRef<ChatTerminalToolProgressPart> | undefined;
 
 	private readonly _actionBar = this._register(new MutableDisposable<ActionBar>());
 
@@ -467,7 +468,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private _handleOutputFocus(): void {
 		this._terminalOutputContextKey.set(true);
-		ChatTerminalToolProgressPart._lastFocusedPart = new WeakRef(this);
+		lastFocusedProgressPart = this;
 		this._updateOutputAriaLabel();
 	}
 
@@ -486,9 +487,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private _clearLastFocusedPart(): void {
-		const current = ChatTerminalToolProgressPart._lastFocusedPart?.deref();
-		if (current === this) {
-			ChatTerminalToolProgressPart._lastFocusedPart = undefined;
+		if (lastFocusedProgressPart === this) {
+			lastFocusedProgressPart = undefined;
 		}
 	}
 
@@ -503,10 +503,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			? this._outputAriaLabelBase + ', ' + accessibleViewHint
 			: this._outputAriaLabelBase;
 		scrollableDomNode.setAttribute('aria-label', label);
-	}
-
-	public static getFocusedPart(): ChatTerminalToolProgressPart | undefined {
-		return this._lastFocusedPart?.deref();
 	}
 
 	public getCommandAndOutputAsText(): string | undefined {
@@ -579,6 +575,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		return commands.find(c => c.id === this._terminalData.terminalCommandId);
 	}
+}
+
+export function getFocusedTerminalToolProgressPart(): ChatTerminalToolProgressPart | undefined {
+	return lastFocusedProgressPart;
 }
 
 export const openTerminalSettingsLinkCommandId = '_chat.openTerminalSettingsLink';
