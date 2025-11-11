@@ -1084,7 +1084,7 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
-		this.mouseDownInfo = this._activeEditorHasCommentingRange.get() ? parseMouseDownInfoFromEvent(e) : null;
+		this.mouseDownInfo = (e.target.element?.className.indexOf('comment-range-glyph') ?? -1) >= 0 ? parseMouseDownInfoFromEvent(e) : null;
 	}
 
 	private onEditorMouseUp(e: IEditorMouseEvent): void {

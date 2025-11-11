@@ -786,7 +786,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem> {
 		if (!this._suggestWidget) {
-			// eslint-disable-next-line local/code-no-any-casts
 			this._suggestWidget = this._register(this._instantiationService.createInstance(
 				SimpleSuggestWidget,
 				this._container!,
@@ -799,7 +798,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._getFontInfo.bind(this),
 				this._onDidFontConfigurationChange.event.bind(this),
 				this._getAdvancedExplainModeDetails.bind(this)
-			)) as any as SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem>;
+			)) as unknown as SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem>;
 			this._register(this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e)));
 			this._register(this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.reset()));
 			this._register(this._suggestWidget.onDidShow(() => this._terminalSuggestWidgetVisibleContextKey.set(true)));

@@ -434,9 +434,16 @@ class AbstractResponse implements IResponse {
 					}
 					segment = { text: `${part.title}\n${part.message}`, isBlock: true };
 					break;
-				default:
+				case 'markdownContent':
+				case 'markdownVuln':
+				case 'progressTask':
+				case 'progressTaskSerialized':
+				case 'warning':
 					segment = { text: part.content.value };
 					break;
+				default:
+					// Ignore any unknown/obsolete parts
+					continue;
 			}
 
 			if (segment.isBlock) {

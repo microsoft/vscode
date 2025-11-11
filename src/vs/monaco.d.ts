@@ -103,7 +103,7 @@ declare namespace monaco {
 		 *
 		 * @event
 		 */
-		readonly onCancellationRequested: (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable[]) => IDisposable;
+		readonly onCancellationRequested: (listener: (e: void) => unknown, thisArgs?: unknown, disposables?: IDisposable[]) => IDisposable;
 	}
 	/**
 	 * Uniform Resource Identifier (Uri) http://tools.ietf.org/html/rfc3986.
@@ -4270,9 +4270,9 @@ declare namespace monaco.editor {
 	export interface IEditorHoverOptions {
 		/**
 		 * Enable the hover.
-		 * Defaults to true.
+		 * Defaults to 'on'.
 		 */
-		enabled?: boolean;
+		enabled?: 'on' | 'off' | 'onKeyboardModifier';
 		/**
 		 * Delay for showing the hover.
 		 * Defaults to 300.
