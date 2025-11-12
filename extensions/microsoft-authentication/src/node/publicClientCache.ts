@@ -51,9 +51,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		env: Environment
 	): Promise<CachedPublicClientApplicationManager> {
 		const pcasSecretStorage = await PublicClientApplicationsSecretStorage.create(secretStorage, env.name);
-		// TODO: Remove the migrations in a version
-		const migrations = await pcasSecretStorage.getOldValue();
-		const accountAccess = await ScopedAccountAccess.create(secretStorage, env.name, logger, migrations);
+		const accountAccess = await ScopedAccountAccess.create(secretStorage, env.name, logger);
 		const manager = new CachedPublicClientApplicationManager(env, pcasSecretStorage, accountAccess, secretStorage, logger, telemetryReporter, [pcasSecretStorage, accountAccess]);
 		await manager.initialize();
 		return manager;
@@ -234,7 +232,6 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 
 interface IPublicClientApplicationSecretStorage {
 	get(): Promise<string[] | undefined>;
-	getOldValue(): Promise<{ clientId: string; authority: string }[] | undefined>;
 	store(value: string[]): Thenable<void>;
 	delete(): Thenable<void>;
 	onDidChange: Event<void>;
@@ -246,14 +243,12 @@ class PublicClientApplicationsSecretStorage implements IPublicClientApplicationS
 	private readonly _onDidChangeEmitter = new EventEmitter<void>;
 	readonly onDidChange: Event<void> = this._onDidChangeEmitter.event;
 
-	private readonly _oldKey: string;
 	private readonly _key: string;
 
 	private constructor(
 		private readonly _secretStorage: SecretStorage,
 		private readonly _cloudName: string
 	) {
-		this._oldKey = `publicClientApplications-${this._cloudName}`;
 		this._key = `publicClients-${this._cloudName}`;
 
 		this._disposable = Disposable.from(
@@ -267,27 +262,7 @@ class PublicClientApplicationsSecretStorage implements IPublicClientApplicationS
 	}
 
 	static async create(secretStorage: SecretStorage, cloudName: string): Promise<PublicClientApplicationsSecretStorage> {
-		const storage = new PublicClientApplicationsSecretStorage(secretStorage, cloudName);
-		await storage.initialize();
-		return storage;
-	}
-
-	/**
-	 * Runs the migration.
-	 * TODO: Remove this after a version.
-	 */
-	private async initialize() {
-		const oldValue = await this.getOldValue();
-		if (!oldValue) {
-			return;
-		}
-		const newValue = await this.get() ?? [];
-		for (const { clientId } of oldValue) {
-			if (!newValue.includes(clientId)) {
-				newValue.push(clientId);
-			}
-		}
-		await this.store(newValue);
+		return new PublicClientApplicationsSecretStorage(secretStorage, cloudName);
 	}
 
 	async get(): Promise<string[] | undefined> {
@@ -296,25 +271,6 @@ class PublicClientApplicationsSecretStorage implements IPublicClientApplicationS
 			return undefined;
 		}
 		return JSON.parse(value);
-	}
-
-	/**
-	 * Old representation of data that included the authority. This should be removed in a version or 2.
-	 * @returns An array of objects with clientId and authority
-	 */
-	async getOldValue(): Promise<{ clientId: string; authority: string }[] | undefined> {
-		const value = await this._secretStorage.get(this._oldKey);
-		if (!value) {
-			return undefined;
-		}
-		const result: { clientId: string; authority: string }[] = [];
-		for (const stringifiedObj of JSON.parse(value)) {
-			const obj = JSON.parse(stringifiedObj);
-			if (obj.clientId && obj.authority) {
-				result.push(obj);
-			}
-		}
-		return result;
 	}
 
 	store(value: string[]): Thenable<void> {
