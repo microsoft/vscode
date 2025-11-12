@@ -44,6 +44,35 @@
 		text-decoration: none;
 		padding: 0 6px 0 3px;
 		cursor: pointer;
+		position: relative;
+		overflow: hidden;
+
+		.progress-fill {
+			display: none;
+			position: absolute;
+			top: 0;
+			left: 0;
+			height: 100%;
+			width: 0%;
+			background-color: var(--vscode-list-hoverBackground);
+			opacity: 0.5;
+			pointer-events: none;
+			transition: width 0.2s ease-out;
+			z-index: 0;
+		}
+
+		&.progress-filling .progress-fill {
+			display: block;
+		}
+
+		.icon,
+		.icon-label,
+		.label-detail,
+		span.label-added,
+		span.label-removed {
+			position: relative;
+			z-index: 1;
+		}
 
 		.icon {
 			vertical-align: middle;

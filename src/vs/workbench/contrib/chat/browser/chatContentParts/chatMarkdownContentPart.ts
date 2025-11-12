@@ -549,7 +549,9 @@ export class CollapsedCodeBlock extends Disposable {
 		const iconLabelEl = dom.$('span.icon-label', {}, iconText);
 		const labelDetail = dom.$('span.label-detail', {}, '');
 
-		this.pillElement.replaceChildren(iconEl, iconLabelEl, labelDetail);
+		// Create a progress fill element for the animation
+		const progressFill = dom.$('span.progress-fill');
+		this.pillElement.replaceChildren(progressFill, iconEl, iconLabelEl, labelDetail);
 		this.updateTooltip(this.labelService.getUriLabel(uri, { relative: false }));
 
 		const editSessionObservable = session?.editingSessionObs?.promiseResult.map(r => r?.data) || observableValue(this, undefined);
@@ -579,7 +581,9 @@ export class CollapsedCodeBlock extends Disposable {
 				statusIconEl.classList.add(...statusIconClasses);
 				const entry = editSessionEntry.read(r);
 				const rwRatio = Math.floor((entry?.rewriteRatio.read(r) || 0) * 100);
-				statusLabelEl.textContent = rwRatio === 0 || !rwRatio ? localize('chat.codeblock.applyingEdits', "Applying edits") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)", rwRatio);
+				statusLabelEl.textContent = localize('chat.codeblock.applyingEdits', "Applying edits");
+				progressFill.style.width = `${rwRatio}%`;
+				this.pillElement.classList.add('progress-filling');
 			} else {
 				const statusCodeicon = Codicon.check;
 				statusIconClasses = ThemeIcon.asClassNameArray(statusCodeicon);
@@ -588,6 +592,8 @@ export class CollapsedCodeBlock extends Disposable {
 				const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
 				pillIconClasses = getIconClasses(this.modelService, this.languageService, uri, fileKind);
 				iconEl.classList.add(...pillIconClasses);
+				this.pillElement.classList.remove('progress-filling');
+				progressFill.style.width = '0%';
 			}
 		}));
 
