@@ -56,6 +56,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IInlineCompletionsUnificationService private readonly _inlineCompletionsUnificationService: IInlineCompletionsUnificationService,
+		@IAiEditTelemetryService private readonly _aiEditTelemetryService: IAiEditTelemetryService,
 	) {
 		super();
 
@@ -652,21 +653,18 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				return result;
 			},
 			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, updatedInsertText: string, editDeltaInfo: EditDeltaInfo): Promise<void> => {
-				this._instantiationService.invokeFunction(accessor => {
-					const aiEditTelemetryService = accessor.getIfExists(IAiEditTelemetryService);
-					if (item.suggestionId === undefined) {
-						item.suggestionId = aiEditTelemetryService?.createSuggestionId({
-							applyCodeBlockSuggestionId: undefined,
-							feature: 'inlineSuggestion',
-							source: providerId,
-							languageId: completions.languageId,
-							editDeltaInfo: editDeltaInfo,
-							modeId: undefined,
-							modelId: undefined,
-							presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
-						});
-					}
-				});
+				if (item.suggestionId === undefined) {
+					item.suggestionId = this._aiEditTelemetryService.createSuggestionId({
+						applyCodeBlockSuggestionId: undefined,
+						feature: 'inlineSuggestion',
+						source: providerId,
+						languageId: completions.languageId,
+						editDeltaInfo: editDeltaInfo,
+						modeId: undefined,
+						modelId: undefined,
+						presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
+					});
+				}
 
 				if (supportsHandleEvents) {
 					await this._proxy.$handleInlineCompletionDidShow(handle, completions.pid, item.idx, updatedInsertText);
@@ -694,28 +692,25 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 
 				if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Accepted) {
-					this._instantiationService.invokeFunction(accessor => {
-						const aiEditTelemetryService = accessor.getIfExists(IAiEditTelemetryService);
-						if (item.suggestionId !== undefined) {
-							aiEditTelemetryService?.handleCodeAccepted({
-								suggestionId: item.suggestionId,
-								feature: 'inlineSuggestion',
-								source: providerId,
-								languageId: completions.languageId,
-								editDeltaInfo: EditDeltaInfo.tryCreate(
-									lifetimeSummary.lineCountModified,
-									lifetimeSummary.lineCountOriginal,
-									lifetimeSummary.characterCountModified,
-									lifetimeSummary.characterCountOriginal,
-								),
-								modeId: undefined,
-								modelId: undefined,
-								presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
-								acceptanceMethod: 'accept',
-								applyCodeBlockSuggestionId: undefined,
-							});
-						}
-					});
+					if (item.suggestionId !== undefined) {
+						this._aiEditTelemetryService.handleCodeAccepted({
+							suggestionId: item.suggestionId,
+							feature: 'inlineSuggestion',
+							source: providerId,
+							languageId: completions.languageId,
+							editDeltaInfo: EditDeltaInfo.tryCreate(
+								lifetimeSummary.lineCountModified,
+								lifetimeSummary.lineCountOriginal,
+								lifetimeSummary.characterCountModified,
+								lifetimeSummary.characterCountOriginal,
+							),
+							modeId: undefined,
+							modelId: undefined,
+							presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
+							acceptanceMethod: 'accept',
+							applyCodeBlockSuggestionId: undefined,
+						});
+					}
 				}
 
 				const endOfLifeSummary: InlineCompletionEndOfLifeEvent = {
