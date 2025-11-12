@@ -22,7 +22,7 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 	private readonly colorProvider = new ColorProvider();
 
 	private readonly onDidChangeEmitter = new Emitter<void>();
-	public readonly onDidChangeLineHeight = this.onDidChangeEmitter.event;
+	public readonly onDidChange = this.onDidChangeEmitter.event;
 
 	constructor(private readonly textModel: TextModel) {
 		super();

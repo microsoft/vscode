@@ -427,18 +427,18 @@ export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string
 
 export function generateTokensCSSForFontMap(fontMap: readonly ITokenFont[]): string {
 	const rules: string[] = [];
-	const consideredFonts = new Set<string>();
+	const fonts = new Set<string>();
 	for (let i = 1, len = fontMap.length; i < len; i++) {
 		const font = fontMap[i];
 		if (!font.fontFamily && !font.fontSize) {
 			continue;
 		}
-		const classForFont = classNameForFont(font.fontFamily ?? '', font.fontSize ?? '');
-		if (consideredFonts.has(classForFont)) {
+		const className = classNameForFont(font.fontFamily ?? '', font.fontSize ?? '');
+		if (fonts.has(className)) {
 			continue;
 		}
-		consideredFonts.add(classForFont);
-		let rule = `.${classForFont} {`;
+		fonts.add(className);
+		let rule = `.${className} {`;
 		if (font.fontFamily) {
 			rule += `font-family: ${font.fontFamily};`;
 		}
