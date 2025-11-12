@@ -2510,7 +2510,7 @@ class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>>
 		});
 
 		if (additionalFocus.length > 0) {
-			super.setFocus(distinct([...super.getFocus(), ...additionalFocus]));
+			super.setFocus(additionalFocus);
 		}
 
 		if (additionalSelection.length > 0) {
