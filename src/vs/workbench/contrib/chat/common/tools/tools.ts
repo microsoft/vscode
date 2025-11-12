@@ -11,7 +11,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { ConfirmationTool, ConfirmationToolData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
 import { createManageTodoListToolData, ManageTodoListTool, TodoListToolDescriptionFieldSettingId, TodoListToolWriteOnlySettingId } from './manageTodoListTool.js';
-import { RunSubagentTool, RunSubagentToolData } from './runSubagentTool.js';
+import { RunSubagentTool } from './runSubagentTool.js';
 
 export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -38,7 +38,8 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		const confirmationTool = instantiationService.createInstance(ConfirmationTool);
 		this._register(toolsService.registerTool(ConfirmationToolData, confirmationTool));
 
-		this._register(toolsService.registerTool(RunSubagentToolData, instantiationService.createInstance(RunSubagentTool)));
+		const runSubagentTool = instantiationService.createInstance(RunSubagentTool);
+		this._register(toolsService.registerTool(runSubagentTool.getToolData(), runSubagentTool));
 	}
 }
 

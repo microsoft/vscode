@@ -348,7 +348,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				}
 			} catch (e: unknown) {
-				this._logService.warn('LocalTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
+				this._logService.warn('LocalTerminalBackend#getTerminalLayoutInfo Error', (<{ message?: string }>e).message ?? e);
 			}
 		}
 

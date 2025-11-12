@@ -173,16 +173,19 @@ export class TerminalTabbedView extends Disposable {
 	private _shouldShowTabs(): boolean {
 		const enabled = this._terminalConfigurationService.config.tabs.enabled;
 		const hide = this._terminalConfigurationService.config.tabs.hideCondition;
-		const hasChatTerminals = this._terminalChatService.getToolSessionTerminalInstances().length > 0;
+		const hiddenChatTerminals = this._terminalChatService.getToolSessionTerminalInstances(true);
 		if (!enabled) {
 			return false;
+		}
+		if (hiddenChatTerminals.length > 0) {
+			return true;
 		}
 
 		if (hide === 'never') {
 			return true;
 		}
 
-		if (this._terminalGroupService.instances.length && hasChatTerminals) {
+		if (this._terminalGroupService.instances.length) {
 			return true;
 		}
 

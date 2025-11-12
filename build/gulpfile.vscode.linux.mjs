@@ -3,25 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import gulp from 'gulp';
+import replace from 'gulp-replace';
+import rename from 'gulp-rename';
+import es from 'event-stream';
+import vfs from 'vinyl-fs';
+import * as utilModule from './lib/util.js';
+import * as getVersionModule from './lib/getVersion.js';
+import * as task from './lib/task.js';
+import packageJson from '../package.json' with { type: 'json' };
+import product from '../product.json' with { type: 'json' };
+import { getDependencies } from './linux/dependencies-generator.js';
+import * as depLists from './linux/debian/dep-lists.js';
+import * as path from 'path';
+import * as cp from 'child_process';
+import { promisify } from 'util';
+import { fileURLToPath } from 'url';
 
-const gulp = require('gulp');
-const replace = require('gulp-replace');
-const rename = require('gulp-rename');
-const es = require('event-stream');
-const vfs = require('vinyl-fs');
-const { rimraf } = require('./lib/util');
-const { getVersion } = require('./lib/getVersion');
-const task = require('./lib/task');
-const packageJson = require('../package.json');
-const product = require('../product.json');
-const dependenciesGenerator = require('./linux/dependencies-generator');
-const debianRecommendedDependencies = require('./linux/debian/dep-lists').recommendedDeps;
-const path = require('path');
-const cp = require('child_process');
-const util = require('util');
-
-const exec = util.promisify(cp.exec);
+const { rimraf } = utilModule;
+const { getVersion } = getVersionModule;
+const { recommendedDeps: debianRecommendedDependencies } = depLists;
+const __dirname = import.meta.dirname
+const exec = promisify(cp.exec);
 const root = path.dirname(__dirname);
 const commit = getVersion(root);
 
@@ -40,7 +43,7 @@ function prepareDebPackage(arch) {
 	const destination = '.build/linux/deb/' + debArch + '/' + product.applicationName + '-' + debArch;
 
 	return async function () {
-		const dependencies = await dependenciesGenerator.getDependencies('deb', binaryDir, product.applicationName, debArch);
+		const dependencies = await getDependencies('deb', binaryDir, product.applicationName, debArch);
 
 		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(rename('usr/share/applications/' + product.applicationName + '.desktop'));
@@ -157,7 +160,7 @@ function prepareRpmPackage(arch) {
 	const stripBinary = process.env['STRIP'] ?? '/usr/bin/strip';
 
 	return async function () {
-		const dependencies = await dependenciesGenerator.getDependencies('rpm', binaryDir, product.applicationName, rpmArch);
+		const dependencies = await getDependencies('rpm', binaryDir, product.applicationName, rpmArch);
 
 		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '.desktop'));

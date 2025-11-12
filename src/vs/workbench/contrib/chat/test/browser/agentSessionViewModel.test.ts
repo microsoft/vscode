@@ -16,6 +16,7 @@ import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { MockChatSessionsService } from '../common/mockChatSessionsService.js';
 import { TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 suite('AgentSessionsViewModel', () => {
 
@@ -210,7 +211,7 @@ suite('AgentSessionsViewModel', () => {
 						tooltip: 'Session tooltip',
 						iconPath: ThemeIcon.fromId('check'),
 						timing: { startTime, endTime },
-						statistics: { insertions: 10, deletions: 5 }
+						statistics: { files: 1, insertions: 10, deletions: 5 }
 					}
 				]
 			};
@@ -234,7 +235,7 @@ suite('AgentSessionsViewModel', () => {
 			assert.strictEqual(session.status, ChatSessionStatus.Completed);
 			assert.strictEqual(session.timing.startTime, startTime);
 			assert.strictEqual(session.timing.endTime, endTime);
-			assert.deepStrictEqual(session.statistics, { insertions: 10, deletions: 5 });
+			assert.deepStrictEqual(session.statistics, { files: 1, insertions: 10, deletions: 5 });
 		});
 	});
 
@@ -860,6 +861,8 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
+			providerLabel: 'Local',
+			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://local-1'),
 			label: 'Local',
 			description: 'test',
@@ -872,6 +875,8 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
+			providerLabel: 'Local',
+			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://remote-1'),
 			label: 'Remote',
 			description: 'test',
@@ -889,6 +894,8 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
+			providerLabel: 'Local',
+			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://test-1'),
 			label: 'Test',
 			description: 'test',
@@ -910,6 +917,8 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
+			providerLabel: 'Local',
+			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://test-1'),
 			label: 'Test',
 			description: 'test',

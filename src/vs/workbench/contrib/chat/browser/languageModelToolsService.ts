@@ -37,7 +37,6 @@ import { ChatModel } from '../common/chatModel.js';
 import { IVariableReference } from '../common/chatModes.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } from '../common/chatService.js';
-import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
@@ -168,6 +167,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
+	flushToolUpdates(): void {
+		this._onDidChangeToolsScheduler.flush();
+	}
+
 	private _refreshAllToolContextKeys() {
 		this._toolContextKeys.clear();
 		for (const tool of this._tools.values()) {
@@ -263,7 +266,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		try {
 			if (dto.context) {
 				store = new DisposableStore();
-				const model = this._chatService.getSession(LocalChatSessionUri.forSession(dto.context.sessionId)) as ChatModel | undefined;
+				const model = this._chatService.getSessionByLegacyId(dto.context.sessionId) as ChatModel | undefined;
 				if (!model) {
 					throw new Error(`Tool called for unknown chat session`);
 				}
@@ -611,21 +614,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	};
 	private _githubPrefixToVSCodePrefix = [['github', 'github/github-mcp-server'], ['playwright', 'microsoft/playwright-mcp']] as const;
 
-	private migrateGithubToolNames(toolNames: readonly string[]): readonly string[] {
-		return toolNames.map(name => {
-			const mapped = this._githubToVSCodeToolMap[name];
-			if (mapped) {
-				return mapped;
+	mapGithubToolName(name: string): string {
+		const mapped = this._githubToVSCodeToolMap[name];
+		if (mapped) {
+			return mapped;
+		}
+		for (const [fromPrefix, toPrefix] of this._githubPrefixToVSCodePrefix) {
+			const regexp = new RegExp(`^${fromPrefix}(/[^/]+)$`);
+			const m = name.match(regexp);
+			if (m) {
+				return toPrefix + m[1];
 			}
-			for (const [fromPrefix, toPrefix] of this._githubPrefixToVSCodePrefix) {
-				const regexp = new RegExp(`^${fromPrefix}(/[^/]+)$`);
-				const m = name.match(regexp);
-				if (m) {
-					return toPrefix + m[1];
-				}
-			}
-			return name;
-		});
+		}
+		return name;
 	}
 
 	/**
@@ -635,7 +636,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	 */
 	toToolAndToolSetEnablementMap(enabledQualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap {
 		if (target === undefined || target === Target.GitHubCopilot) {
-			enabledQualifiedToolOrToolSetNames = this.migrateGithubToolNames(enabledQualifiedToolOrToolSetNames);
+			enabledQualifiedToolOrToolSetNames = enabledQualifiedToolOrToolSetNames.map(name => this.mapGithubToolName(name));
 		}
 		const toolOrToolSetNames = new Set(enabledQualifiedToolOrToolSetNames);
 		const result = new Map<ToolSet | IToolData, boolean>();

@@ -271,7 +271,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				?? this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: false });
 		} else if (!this.options.target) {
 			this.model = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: !inputType });
-		} else if ('data' in this.options.target) {
+		} else if (this.options.target.data) {
 			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
 

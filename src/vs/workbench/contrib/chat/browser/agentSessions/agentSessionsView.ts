@@ -49,7 +49,7 @@ import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatWidgetService } from '../chat.js';
-import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID } from './agentSessions.js';
+import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID, AgentSessionProviders } from './agentSessions.js';
 import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 
 export class AgentSessionsView extends ViewPane {
@@ -233,12 +233,6 @@ export class AgentSessionsView extends ViewPane {
 	private createNewSessionButton(container: HTMLElement): void {
 		this.newSessionContainer = append(container, $('.agent-sessions-new-session-container'));
 
-		const primaryAction = toAction({
-			id: 'agentSessions.newSession.primary',
-			label: localize('agentSessions.newSession', "New Session"),
-			run: () => this.commandService.executeCommand(ACTION_ID_OPEN_CHAT)
-		});
-
 		const newSessionButton = this._register(new ButtonWithDropdown(this.newSessionContainer, {
 			title: localize('agentSessions.newSession', "New Session"),
 			ariaLabel: localize('agentSessions.newSessionAriaLabel', "New Session"),
@@ -254,7 +248,7 @@ export class AgentSessionsView extends ViewPane {
 
 		newSessionButton.label = localize('agentSessions.newSession', "New Session");
 
-		this._register(newSessionButton.onDidClick(() => primaryAction.run()));
+		this._register(newSessionButton.onDidClick(() => this.commandService.executeCommand(ACTION_ID_OPEN_CHAT)));
 	}
 
 	private getNewSessionActions(): IAction[] {
@@ -263,12 +257,35 @@ export class AgentSessionsView extends ViewPane {
 		// Default action
 		actions.push(toAction({
 			id: 'newChatSession.default',
-			label: localize('newChatSessionDefault', "New Agent Session"),
+			label: localize('newChatSessionDefault', "New Local Session"),
 			run: () => this.commandService.executeCommand(ACTION_ID_OPEN_CHAT)
 		}));
-		actions.push(new Separator());
 
+		// Background (CLI)
+		actions.push(toAction({
+			id: 'newChatSessionFromProvider.background',
+			label: localize('newBackgroundSession', "New Background Session"),
+			run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Background}`)
+		}));
+
+		// Cloud
+		actions.push(toAction({
+			id: 'newChatSessionFromProvider.cloud',
+			label: localize('newCloudSession', "New Cloud Session"),
+			run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Cloud}`)
+		}));
+
+		let addedSeparator = false;
 		for (const provider of this.chatSessionsService.getAllChatSessionContributions()) {
+			if (provider.type === AgentSessionProviders.Background || provider.type === AgentSessionProviders.Cloud) {
+				continue; // already added above
+			}
+
+			if (!addedSeparator) {
+				actions.push(new Separator());
+				addedSeparator = true;
+			}
+
 			const menuActions = this.menuService.getMenuActions(MenuId.ChatSessionsCreateSubMenu, this.scopedContextKeyService.createOverlay([
 				[ChatContextKeys.sessionType.key, provider.type]
 			]));

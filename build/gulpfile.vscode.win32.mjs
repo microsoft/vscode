@@ -2,20 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+import gulp from 'gulp';
+import * as path from 'path';
+import * as fs from 'fs';
+import assert from 'assert';
+import * as cp from 'child_process';
+import * as util from './lib/util.js';
+import * as task from './lib/task.js';
+import pkg from '../package.json' with { type: 'json' };
+import product from '../product.json' with { type: 'json' };
+import vfs from 'vinyl-fs';
+import rcedit from 'rcedit';
+import { createRequire } from 'module';
 
-const gulp = require('gulp');
-const path = require('path');
-const fs = require('fs');
-const assert = require('assert');
-const cp = require('child_process');
-const util = require('./lib/util');
-const task = require('./lib/task');
-const pkg = require('../package.json');
-const product = require('../product.json');
-const vfs = require('vinyl-fs');
-const rcedit = require('rcedit');
-
+const require = createRequire(import.meta.url);
+const __dirname = import.meta.dirname;
 const repoPath = path.dirname(__dirname);
 const buildPath = (/** @type {string} */ arch) => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
 const setupDir = (/** @type {string} */ arch, /** @type {string} */ target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);

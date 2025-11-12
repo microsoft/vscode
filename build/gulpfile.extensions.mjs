@@ -4,23 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Increase max listeners for event emitters
-require('events').EventEmitter.defaultMaxListeners = 100;
+import { EventEmitter } from 'events';
+EventEmitter.defaultMaxListeners = 100;
 
-const gulp = require('gulp');
-const path = require('path');
-const nodeUtil = require('util');
-const es = require('event-stream');
-const filter = require('gulp-filter');
-const util = require('./lib/util');
-const { getVersion } = require('./lib/getVersion');
-const task = require('./lib/task');
-const watcher = require('./lib/watch');
-const createReporter = require('./lib/reporter').createReporter;
-const glob = require('glob');
+import gulp from 'gulp';
+import * as path from 'path';
+import * as nodeUtil from 'util';
+import es from 'event-stream';
+import filter from 'gulp-filter';
+import util from './lib/util.js';
+import getVersionModule from './lib/getVersion.js';
+import task from './lib/task.js';
+import watcher from './lib/watch/index.js';
+import reporterModule from './lib/reporter.js';
+import glob from 'glob';
+import plumber from 'gulp-plumber';
+import ext from './lib/extensions.js';
+import tsb from './lib/tsb/index.js';
+import sourcemaps from 'gulp-sourcemaps';
+import { fileURLToPath } from 'url';
+
+const __dirname = import.meta.dirname
+const { getVersion } = getVersionModule;
+const { createReporter } = reporterModule;
 const root = path.dirname(__dirname);
 const commit = getVersion(root);
-const plumber = require('gulp-plumber');
-const ext = require('./lib/extensions');
 
 // To save 250ms for each gulp startup, we are caching the result here
 // const compilations = glob.sync('**/tsconfig.json', {
@@ -92,9 +100,6 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const baseUrl = getBaseUrl(out);
 
 	function createPipeline(build, emitError, transpileOnly) {
-		const tsb = require('./lib/tsb');
-		const sourcemaps = require('gulp-sourcemaps');
-
 		const reporter = createReporter('extensions');
 
 		overrideOptions.inlineSources = Boolean(build);
@@ -191,30 +196,25 @@ const tasks = compilations.map(function (tsconfigFile) {
 const transpileExtensionsTask = task.define('transpile-extensions', task.parallel(...tasks.map(t => t.transpileTask)));
 gulp.task(transpileExtensionsTask);
 
-const compileExtensionsTask = task.define('compile-extensions', task.parallel(...tasks.map(t => t.compileTask)));
+export const compileExtensionsTask = task.define('compile-extensions', task.parallel(...tasks.map(t => t.compileTask)));
 gulp.task(compileExtensionsTask);
-exports.compileExtensionsTask = compileExtensionsTask;
 
-const watchExtensionsTask = task.define('watch-extensions', task.parallel(...tasks.map(t => t.watchTask)));
+export const watchExtensionsTask = task.define('watch-extensions', task.parallel(...tasks.map(t => t.watchTask)));
 gulp.task(watchExtensionsTask);
-exports.watchExtensionsTask = watchExtensionsTask;
 
 const compileExtensionsBuildLegacyTask = task.define('compile-extensions-build-legacy', task.parallel(...tasks.map(t => t.compileBuildTask)));
 gulp.task(compileExtensionsBuildLegacyTask);
 
 //#region Extension media
 
-const compileExtensionMediaTask = task.define('compile-extension-media', () => ext.buildExtensionMedia(false));
+export const compileExtensionMediaTask = task.define('compile-extension-media', () => ext.buildExtensionMedia(false));
 gulp.task(compileExtensionMediaTask);
-exports.compileExtensionMediaTask = compileExtensionMediaTask;
 
-const watchExtensionMedia = task.define('watch-extension-media', () => ext.buildExtensionMedia(true));
+export const watchExtensionMedia = task.define('watch-extension-media', () => ext.buildExtensionMedia(true));
 gulp.task(watchExtensionMedia);
-exports.watchExtensionMedia = watchExtensionMedia;
 
-const compileExtensionMediaBuildTask = task.define('compile-extension-media-build', () => ext.buildExtensionMedia(false, '.build/extensions'));
+export const compileExtensionMediaBuildTask = task.define('compile-extension-media-build', () => ext.buildExtensionMedia(false, '.build/extensions'));
 gulp.task(compileExtensionMediaBuildTask);
-exports.compileExtensionMediaBuildTask = compileExtensionMediaBuildTask;
 
 //#endregion
 
@@ -223,8 +223,7 @@ exports.compileExtensionMediaBuildTask = compileExtensionMediaBuildTask;
 /**
  * Cleans the build directory for extensions
  */
-const cleanExtensionsBuildTask = task.define('clean-extensions-build', util.rimraf('.build/extensions'));
-exports.cleanExtensionsBuildTask = cleanExtensionsBuildTask;
+export const cleanExtensionsBuildTask = task.define('clean-extensions-build', util.rimraf('.build/extensions'));
 
 /**
  * brings in the marketplace extensions for the build
@@ -235,32 +234,29 @@ const bundleMarketplaceExtensionsBuildTask = task.define('bundle-marketplace-ext
  * Compiles the non-native extensions for the build
  * @note this does not clean the directory ahead of it. See {@link cleanExtensionsBuildTask} for that.
  */
-const compileNonNativeExtensionsBuildTask = task.define('compile-non-native-extensions-build', task.series(
+export const compileNonNativeExtensionsBuildTask = task.define('compile-non-native-extensions-build', task.series(
 	bundleMarketplaceExtensionsBuildTask,
 	task.define('bundle-non-native-extensions-build', () => ext.packageNonNativeLocalExtensionsStream(false, false).pipe(gulp.dest('.build')))
 ));
 gulp.task(compileNonNativeExtensionsBuildTask);
-exports.compileNonNativeExtensionsBuildTask = compileNonNativeExtensionsBuildTask;
 
 /**
  * Compiles the native extensions for the build
  * @note this does not clean the directory ahead of it. See {@link cleanExtensionsBuildTask} for that.
  */
-const compileNativeExtensionsBuildTask = task.define('compile-native-extensions-build', () => ext.packageNativeLocalExtensionsStream(false, false).pipe(gulp.dest('.build')));
+export const compileNativeExtensionsBuildTask = task.define('compile-native-extensions-build', () => ext.packageNativeLocalExtensionsStream(false, false).pipe(gulp.dest('.build')));
 gulp.task(compileNativeExtensionsBuildTask);
-exports.compileNativeExtensionsBuildTask = compileNativeExtensionsBuildTask;
 
 /**
  * Compiles the extensions for the build.
  * This is essentially a helper task that combines {@link cleanExtensionsBuildTask}, {@link compileNonNativeExtensionsBuildTask} and {@link compileNativeExtensionsBuildTask}
  */
-const compileAllExtensionsBuildTask = task.define('compile-extensions-build', task.series(
+export const compileAllExtensionsBuildTask = task.define('compile-extensions-build', task.series(
 	cleanExtensionsBuildTask,
 	bundleMarketplaceExtensionsBuildTask,
 	task.define('bundle-extensions-build', () => ext.packageAllLocalExtensionsStream(false, false).pipe(gulp.dest('.build'))),
 ));
 gulp.task(compileAllExtensionsBuildTask);
-exports.compileAllExtensionsBuildTask = compileAllExtensionsBuildTask;
 
 // This task is run in the compilation stage of the CI pipeline. We only compile the non-native extensions since those can be fully built regardless of platform.
 // This defers the native extensions to the platform specific stage of the CI pipeline.
@@ -278,13 +274,11 @@ gulp.task(task.define('extensions-ci-pr', task.series(compileExtensionsBuildPull
 
 //#endregion
 
-const compileWebExtensionsTask = task.define('compile-web', () => buildWebExtensions(false));
+export const compileWebExtensionsTask = task.define('compile-web', () => buildWebExtensions(false));
 gulp.task(compileWebExtensionsTask);
-exports.compileWebExtensionsTask = compileWebExtensionsTask;
 
-const watchWebExtensionsTask = task.define('watch-web', () => buildWebExtensions(true));
+export const watchWebExtensionsTask = task.define('watch-web', () => buildWebExtensions(true));
 gulp.task(watchWebExtensionsTask);
-exports.watchWebExtensionsTask = watchWebExtensionsTask;
 
 /**
  * @param {boolean} isWatch

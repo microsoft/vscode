@@ -23,6 +23,52 @@ function getArtifactDescription(ref: Ref, shortCommitLength: number): string {
 	return segments.join(' \u2022 ');
 }
 
+/**
+ * Sorts refs like a directory tree: refs with more path segments (directories) appear first
+ * and are sorted alphabetically, while refs at the same level (files) maintain insertion order.
+ * Refs without '/' maintain their insertion order and appear after refs with '/'.
+ */
+function sortRefByName(refA: Ref, refB: Ref): number {
+	const nameA = refA.name ?? '';
+	const nameB = refB.name ?? '';
+
+	const lastSlashA = nameA.lastIndexOf('/');
+	const lastSlashB = nameB.lastIndexOf('/');
+
+	// Neither ref has a slash, maintain insertion order
+	if (lastSlashA === -1 && lastSlashB === -1) {
+		return 0;
+	}
+
+	// Ref with a slash comes first
+	if (lastSlashA !== -1 && lastSlashB === -1) {
+		return -1;
+	} else if (lastSlashA === -1 && lastSlashB !== -1) {
+		return 1;
+	}
+
+	// Both have slashes
+	// Get directory segments
+	const segmentsA = nameA.substring(0, lastSlashA).split('/');
+	const segmentsB = nameB.substring(0, lastSlashB).split('/');
+
+	// Compare directory segments
+	for (let index = 0; index < Math.min(segmentsA.length, segmentsB.length); index++) {
+		const result = segmentsA[index].localeCompare(segmentsB[index]);
+		if (result !== 0) {
+			return result;
+		}
+	}
+
+	// Directory with more segments comes first
+	if (segmentsA.length !== segmentsB.length) {
+		return segmentsB.length - segmentsA.length;
+	}
+
+	// Insertion order
+	return 0;
+}
+
 export class GitArtifactProvider implements SourceControlArtifactProvider, IDisposable {
 	private readonly _onDidChangeArtifacts = new EventEmitter<string[]>();
 	readonly onDidChangeArtifacts: Event<string[]> = this._onDidChangeArtifacts.event;
@@ -67,7 +113,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				const refs = await this.repository
 					.getRefs({ pattern: 'refs/heads', includeCommitDetails: true });
 
-				return refs.map(r => ({
+				return refs.sort(sortRefByName).map(r => ({
 					id: `refs/heads/${r.name}`,
 					name: r.name ?? r.commit ?? '',
 					description: getArtifactDescription(r, shortCommitLength),
@@ -79,7 +125,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				const refs = await this.repository
 					.getRefs({ pattern: 'refs/tags', includeCommitDetails: true });
 
-				return refs.map(r => ({
+				return refs.sort(sortRefByName).map(r => ({
 					id: `refs/tags/${r.name}`,
 					name: r.name ?? r.commit ?? '',
 					description: getArtifactDescription(r, shortCommitLength),

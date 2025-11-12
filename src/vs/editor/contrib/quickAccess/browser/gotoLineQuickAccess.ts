@@ -23,7 +23,8 @@ interface IGotoLineQuickPickItem extends IQuickPickItem, Partial<IPosition> { }
 
 export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
 
-	static readonly PREFIX = ':';
+	static readonly GO_TO_LINE_PREFIX = ':';
+	static readonly GO_TO_OFFSET_PREFIX = '::';
 	private static readonly ZERO_BASED_OFFSET_STORAGE_KEY = 'gotoLine.useZeroBasedOffset';
 
 	constructor() {
@@ -48,7 +49,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>): IDisposable {
-		const label = localize('cannotRunGotoLine', "Open a text editor first to go to a line.");
+		const label = localize('gotoLine.noEditor', "Open a text editor first to go to a line or an offset.");
 
 		picker.items = [{ label }];
 		picker.ariaLabel = label;
@@ -78,7 +79,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		// React to picker changes
 		const updatePickerAndEditor = () => {
-			const inputText = picker.value.trim().substring(AbstractGotoLineQuickAccessProvider.PREFIX.length);
+			const inputText = picker.value.trim().substring(AbstractGotoLineQuickAccessProvider.GO_TO_LINE_PREFIX.length);
 			const { inOffsetMode, lineNumber, column, label } = this.parsePosition(editor, inputText);
 
 			// Show toggle only when input text starts with '::'.
@@ -157,7 +158,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		const model = this.getModel(editor);
 		if (!model) {
 			return {
-				label: localize('gotoLine.noEditor', "Open a text editor first to go to a line.")
+				label: localize('gotoLine.noEditor', "Open a text editor first to go to a line or an offset.")
 			};
 		}
 

@@ -43,17 +43,6 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		this._telemetryReporter.sendTelemetryEvent('activatingmsalnobroker');
 	}
 
-	sendActivatedWithClassicImplementationEvent(reason: 'setting' | 'web'): void {
-		/* __GDPR__
-			"activatingClassic" : {
-				"owner": "TylerLeonhardt",
-				"comment": "Used to determine how often users use the classic login flow.",
-				"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why classic was used" }
-			}
-		*/
-		this._telemetryReporter.sendTelemetryEvent('activatingClassic', { reason });
-	}
-
 	sendLoginEvent(scopes: readonly string[]): void {
 		/* __GDPR__
 			"login" : {

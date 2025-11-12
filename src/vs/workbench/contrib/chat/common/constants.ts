@@ -24,6 +24,7 @@ export enum ChatConfiguration {
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
+	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 }
 
 /**
@@ -97,6 +98,7 @@ const chatAlwaysUnsupportedFileSchemes = new Set([
 	Schemas.vscodeUserData,
 	Schemas.extension,
 	'ccreq',
+	'openai-codex', // Codex session custom editor scheme
 ]);
 
 export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: string): boolean {

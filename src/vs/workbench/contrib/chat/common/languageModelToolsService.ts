@@ -19,6 +19,7 @@ import { Location } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { ByteSize } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { UserSelectedTools } from './chatAgents.js';
@@ -201,6 +202,19 @@ export interface IToolResult {
 	confirmResults?: boolean;
 }
 
+export function toolContentToA11yString(part: IToolResult['content']) {
+	return part.map(p => {
+		switch (p.kind) {
+			case 'promptTsx':
+				return stringifyPromptTsxPart(p);
+			case 'text':
+				return p.value;
+			case 'data':
+				return localize('toolResultDataPartA11y', "{0} of {1} binary data", ByteSize.formatSize(p.value.data.byteLength), p.value.mimeType || 'unknown');
+		}
+	}).join(', ');
+}
+
 export function toolResultHasBuffers(result: IToolResult): boolean {
 	return result.content.some(part => part.kind === 'data');
 }
@@ -338,6 +352,8 @@ export interface ILanguageModelToolsService {
 	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 	cancelToolCallsForRequest(requestId: string): void;
+	/** Flush any pending tool updates to the extension hosts. */
+	flushToolUpdates(): void;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSet(id: string): ToolSet | undefined;
@@ -350,6 +366,7 @@ export interface ILanguageModelToolsService {
 	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined;
 	getQualifiedToolName(tool: IToolData, toolSet?: ToolSet): string;
 	getDeprecatedQualifiedToolNames(): Map<string, string>;
+	mapGithubToolName(githubToolName: string): string;
 
 	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap;
 	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[];

@@ -47,10 +47,10 @@ export class ElementSizeObserver extends Disposable {
 			// Otherwise we will postpone to the next animation frame.
 			// We'll use `observeContentRect` to store the content rect we received.
 
-			let observedDimenstion: IDimension | null = null;
+			let observedDimension: IDimension | null = null;
 			const observeNow = () => {
-				if (observedDimenstion) {
-					this.observe({ width: observedDimenstion.width, height: observedDimenstion.height });
+				if (observedDimension) {
+					this.observe({ width: observedDimension.width, height: observedDimension.height });
 				} else {
 					this.observe();
 				}
@@ -76,9 +76,9 @@ export class ElementSizeObserver extends Disposable {
 
 			this._resizeObserver = new ResizeObserver((entries) => {
 				if (entries && entries[0] && entries[0].contentRect) {
-					observedDimenstion = { width: entries[0].contentRect.width, height: entries[0].contentRect.height };
+					observedDimension = { width: entries[0].contentRect.width, height: entries[0].contentRect.height };
 				} else {
-					observedDimenstion = null;
+					observedDimension = null;
 				}
 				shouldObserve = true;
 				update();
