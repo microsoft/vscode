@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const cp = require('child_process');
-const { dirs } = require('./dirs');
+import { readFileSync, existsSync, readdirSync, rmSync } from 'fs';
+import { dirname, resolve, join } from 'path';
+import { userInfo } from 'os';
+import { spawnSync, execSync } from 'child_process';
+import { dirs } from './dirs.js';
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const root = path.dirname(path.dirname(__dirname));
+const root = dirname(dirname(import.meta.dirname));
 
 function log(dir, message) {
 	if (process.stdout.isTTY) {
@@ -22,7 +22,7 @@ function log(dir, message) {
 function run(command, args, opts) {
 	log(opts.cwd || '.', '$ ' + command + ' ' + args.join(' '));
 
-	const result = cp.spawnSync(command, args, opts);
+	const result = spawnSync(command, args, opts);
 
 	if (result.error) {
 		console.error(`ERR Failed to spawn process: ${result.error}`);
@@ -49,7 +49,7 @@ function npmInstall(dir, opts) {
 	const command = process.env['npm_command'] || 'install';
 
 	if (process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'] && /^(.build\/distro\/npm\/)?remote$/.test(dir)) {
-		const userinfo = os.userInfo();
+		const userinfo = userInfo();
 		log(dir, `Installing dependencies inside container ${process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME']}...`);
 
 		opts.cwd = root;
@@ -62,11 +62,11 @@ function npmInstall(dir, opts) {
 			'-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`,
 			'-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`,
 			'-v', `${process.env['VSCODE_NPMRC_PATH']}:/root/.npmrc`,
-			'-w', path.resolve('/root/vscode', dir),
+			'-w', resolve('/root/vscode', dir),
 			process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'],
-			'sh', '-c', `\"chown -R root:root ${path.resolve('/root/vscode', dir)} && export PATH="/root/vscode/.build/nodejs-musl/usr/local/bin:$PATH" && npm i -g node-gyp-build && npm ci\"`
+			'sh', '-c', `\"chown -R root:root ${resolve('/root/vscode', dir)} && export PATH="/root/vscode/.build/nodejs-musl/usr/local/bin:$PATH" && npm i -g node-gyp-build && npm ci\"`
 		], opts);
-		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], opts);
+		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${resolve(root, dir)}`], opts);
 	} else {
 		log(dir, 'Installing dependencies...');
 		run(npm, command.split(' '), opts);
@@ -75,8 +75,8 @@ function npmInstall(dir, opts) {
 }
 
 function setNpmrcConfig(dir, env) {
-	const npmrcPath = path.join(root, dir, '.npmrc');
-	const lines = fs.readFileSync(npmrcPath, 'utf8').split('\n');
+	const npmrcPath = join(root, dir, '.npmrc');
+	const lines = readFileSync(npmrcPath, 'utf8').split('\n');
 
 	for (const line of lines) {
 		const trimmedLine = line.trim();
@@ -89,8 +89,8 @@ function setNpmrcConfig(dir, env) {
 	// Use our bundled node-gyp version
 	env['npm_config_node_gyp'] =
 		process.platform === 'win32'
-			? path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
-			: path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
+			? join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
+			: join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
 
 	// Force node-gyp to use process.config on macOS
 	// which defines clang variable as expected. Otherwise we
@@ -113,16 +113,16 @@ function setNpmrcConfig(dir, env) {
 }
 
 function removeParcelWatcherPrebuild(dir) {
-	const parcelModuleFolder = path.join(root, dir, 'node_modules', '@parcel');
-	if (!fs.existsSync(parcelModuleFolder)) {
+	const parcelModuleFolder = join(root, dir, 'node_modules', '@parcel');
+	if (!existsSync(parcelModuleFolder)) {
 		return;
 	}
 
-	const parcelModules = fs.readdirSync(parcelModuleFolder);
+	const parcelModules = readdirSync(parcelModuleFolder);
 	for (const moduleName of parcelModules) {
 		if (moduleName.startsWith('watcher-')) {
-			const modulePath = path.join(parcelModuleFolder, moduleName);
-			fs.rmSync(modulePath, { recursive: true, force: true });
+			const modulePath = join(parcelModuleFolder, moduleName);
+			rmSync(modulePath, { recursive: true, force: true });
 			log(dir, `Removed @parcel/watcher prebuilt module ${modulePath}`);
 		}
 	}
@@ -185,5 +185,5 @@ for (let dir of dirs) {
 	npmInstall(dir, opts);
 }
 
-cp.execSync('git config pull.rebase merges');
-cp.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
+execSync('git config pull.rebase merges');
+execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');

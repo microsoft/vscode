@@ -2,14 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-'use strict';
-
 import fs from 'fs';
 import debug from 'debug';
 import path from 'path';
 import { downloadArtifact } from '@electron/get';
-import productJson from '../../product.json';
+import productJson from '../../product.json' with { type: 'json' };
 
 interface ProductConfiguration {
 	quality?: string;
@@ -70,7 +67,8 @@ async function main(outputDir?: string): Promise<void> {
 	await downloadExplorerDll(outputDir, product.quality, arch);
 }
 
-if (require.main === module) {
+const normalizeScriptPath = (p: string) => p.replace(/\.(js|ts)$/, '');
+if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
 	main(process.argv[2]).catch(err => {
 		console.error(err);
 		process.exit(1);

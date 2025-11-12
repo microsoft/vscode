@@ -8,7 +8,7 @@ import ts from 'typescript';
 import threads from 'node:worker_threads';
 import Vinyl from 'vinyl';
 import { cpus } from 'node:os';
-import { getTargetStringFromTsConfig } from '../tsconfigUtils';
+import { getTargetStringFromTsConfig } from '../tsconfigUtils.js';
 
 interface TranspileReq {
 	readonly tsSrcs: string[];
@@ -97,7 +97,7 @@ class TranspileWorker {
 
 	readonly id = TranspileWorker.pool++;
 
-	private _worker = new threads.Worker(__filename);
+	private _worker = new threads.Worker(import.meta.filename);
 	private _pending?: [resolve: Function, reject: Function, file: Vinyl[], options: ts.TranspileOptions, t1: number];
 	private _durations: number[] = [];
 

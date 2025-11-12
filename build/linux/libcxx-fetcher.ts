@@ -11,7 +11,7 @@ import debug from 'debug';
 import extract from 'extract-zip';
 import { downloadArtifact } from '@electron/get';
 
-const root = path.dirname(path.dirname(__dirname));
+const root = path.dirname(path.dirname(import.meta.dirname));
 
 const d = debug('libcxx-fetcher');
 
@@ -71,7 +71,8 @@ async function main(): Promise<void> {
 	await downloadLibcxxHeaders(libcxxabiHeadersDownloadDir, electronVersion, 'libcxxabi');
 }
 
-if (require.main === module) {
+const normalizeScriptPath = (p: string) => p.replace(/\.(js|ts)$/, '');
+if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
 	main().catch(err => {
 		console.error(err);
 		process.exit(1);

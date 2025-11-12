@@ -5,19 +5,19 @@
 //@ts-check
 import gulp from 'gulp';
 import * as path from 'path';
-import util from './lib/util.js';
-import getVersionModule from './lib/getVersion.js';
-import task from './lib/task.js';
+import * as util from './lib/util.js';
+import * as getVersionModule from './lib/getVersion.js';
+import * as task from './lib/task.js';
 import es from 'event-stream';
 import File from 'vinyl';
-import i18n from './lib/i18n.js';
-import standalone from './lib/standalone.js';
+import * as i18n from './lib/i18n.js';
+import * as standalone from './lib/standalone.js';
 import * as cp from 'child_process';
-import compilation from './lib/compilation.js';
-import monacoapi from './lib/monaco-api.js';
+import * as compilation from './lib/compilation.js';
+import * as monacoapi from './lib/monaco-api.js';
 import * as fs from 'fs';
 import filter from 'gulp-filter';
-import reporterModule from './lib/reporter.js';
+import * as reporterModule from './lib/reporter.js';
 import monacoPackage from './monaco/package.json' with { type: 'json' };
 
 const __dirname = import.meta.dirname;

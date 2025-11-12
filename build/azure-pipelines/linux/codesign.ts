@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign';
-import { e } from '../common/publish';
+import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign.js';
+import { e } from '../common/publish.js';
 
 async function main() {
 	const esrpCliDLLPath = e('EsrpCliDllPath');

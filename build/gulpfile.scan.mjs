@@ -5,12 +5,12 @@
 
 import gulp from 'gulp';
 import * as path from 'path';
-import task from './lib/task.js';
-import util from './lib/util.js';
+import * as task from './lib/task.js';
+import * as util from './lib/util.js';
 import electron from '@vscode/gulp-electron';
-import electronConfigModule from './lib/electron.js';
+import * as electronConfigModule from './lib/electron.js';
 import filter from 'gulp-filter';
-import deps from './lib/dependencies.js';
+import * as deps from './lib/dependencies.js';
 import { existsSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 

@@ -5,8 +5,7 @@
 
 import path from 'path';
 import fs from 'fs';
-
-import { map, merge, through, ThroughStream } from 'event-stream';
+import eventStream from 'event-stream';
 import jsonMerge from 'gulp-merge-json';
 import File from 'vinyl';
 import xml2js from 'xml2js';
@@ -16,7 +15,7 @@ import ansiColors from 'ansi-colors';
 import iconv from '@vscode/iconv-lite-umd';
 import { l10nJsonFormat, getL10nXlf, l10nJsonDetails, getL10nFilesFromXlf, getL10nJson } from '@vscode/l10n-dev';
 
-const REPO_ROOT_PATH = path.join(__dirname, '../..');
+const REPO_ROOT_PATH = path.join(import.meta.dirname, '../..');
 
 function log(message: any, ...rest: unknown[]): void {
 	fancyLog(ansiColors.green('[i18n]'), message, ...rest);
@@ -345,7 +344,7 @@ function stripComments(content: string): string {
 	return result;
 }
 
-function processCoreBundleFormat(base: string, fileHeader: string, languages: Language[], json: NLSKeysFormat, emitter: ThroughStream) {
+function processCoreBundleFormat(base: string, fileHeader: string, languages: Language[], json: NLSKeysFormat, emitter: eventStream.ThroughStream) {
 	const languageDirectory = path.join(REPO_ROOT_PATH, '..', 'vscode-loc', 'i18n');
 	if (!fs.existsSync(languageDirectory)) {
 		log(`No VS Code localization repository found. Looking at ${languageDirectory}`);
@@ -385,8 +384,8 @@ globalThis._VSCODE_NLS_LANGUAGE=${JSON.stringify(language.id)};`),
 	});
 }
 
-export function processNlsFiles(opts: { out: string; fileHeader: string; languages: Language[] }): ThroughStream {
-	return through(function (this: ThroughStream, file: File) {
+export function processNlsFiles(opts: { out: string; fileHeader: string; languages: Language[] }): eventStream.ThroughStream {
+	return eventStream.through(function (this: eventStream.ThroughStream, file: File) {
 		const fileName = path.basename(file.path);
 		if (fileName === 'nls.keys.json') {
 			try {
@@ -438,8 +437,8 @@ export function getResource(sourceFile: string): Resource {
 }
 
 
-export function createXlfFilesForCoreBundle(): ThroughStream {
-	return through(function (this: ThroughStream, file: File) {
+export function createXlfFilesForCoreBundle(): eventStream.ThroughStream {
+	return eventStream.through(function (this: eventStream.ThroughStream, file: File) {
 		const basename = path.basename(file.path);
 		if (basename === 'nls.metadata.json') {
 			if (file.isBuffer()) {
@@ -495,7 +494,7 @@ function createL10nBundleForExtension(extensionFolderName: string, prefixWithBui
 			// // For any dependencies pulled in that bundle @vscode/l10n. They needed to export the bundle
 			`${prefix}extensions/${extensionFolderName}/**/bundle.l10n.json`,
 		])
-		.pipe(map(function (data, callback) {
+		.pipe(eventStream.map(function (data, callback) {
 			const file = data as File;
 			if (!file.isBuffer()) {
 				// Not a buffer so we drop it
@@ -554,11 +553,11 @@ export const EXTERNAL_EXTENSIONS = [
 	'ms-vscode.vscode-js-profile-table',
 ];
 
-export function createXlfFilesForExtensions(): ThroughStream {
+export function createXlfFilesForExtensions(): eventStream.ThroughStream {
 	let counter: number = 0;
 	let folderStreamEnded: boolean = false;
 	let folderStreamEndEmitted: boolean = false;
-	return through(function (this: ThroughStream, extensionFolder: File) {
+	return eventStream.through(function (this: eventStream.ThroughStream, extensionFolder: File) {
 		const folderStream = this;
 		const stat = fs.statSync(extensionFolder.path);
 		if (!stat.isDirectory()) {
@@ -581,10 +580,10 @@ export function createXlfFilesForExtensions(): ThroughStream {
 			}
 			return _l10nMap;
 		}
-		merge(
+		eventStream.merge(
 			gulp.src([`.build/extensions/${extensionFolderName}/package.nls.json`, `.build/extensions/${extensionFolderName}/**/nls.metadata.json`], { allowEmpty: true }),
 			createL10nBundleForExtension(extensionFolderName, EXTERNAL_EXTENSIONS.includes(extensionId))
-		).pipe(through(function (file: File) {
+		).pipe(eventStream.through(function (file: File) {
 			if (file.isBuffer()) {
 				const buffer: Buffer = file.contents as Buffer;
 				const basename = path.basename(file.path);
@@ -639,8 +638,8 @@ export function createXlfFilesForExtensions(): ThroughStream {
 	});
 }
 
-export function createXlfFilesForIsl(): ThroughStream {
-	return through(function (this: ThroughStream, file: File) {
+export function createXlfFilesForIsl(): eventStream.ThroughStream {
+	return eventStream.through(function (this: eventStream.ThroughStream, file: File) {
 		let projectName: string,
 			resourceFile: string;
 		if (path.basename(file.path) === 'messages.en.isl') {
@@ -746,7 +745,7 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 	const mainPack: I18nPack = { version: i18nPackVersion, contents: {} };
 	const extensionsPacks: Record<string, I18nPack> = {};
 	const errors: unknown[] = [];
-	return through(function (this: ThroughStream, xlf: File) {
+	return eventStream.through(function (this: eventStream.ThroughStream, xlf: File) {
 		let project = path.basename(path.dirname(path.dirname(xlf.relative)));
 		// strip `-new` since vscode-extensions-loc uses the `-new` suffix to indicate that it's from the new loc pipeline
 		const resource = path.basename(path.basename(xlf.relative, '.xlf'), '-new');
@@ -804,10 +803,10 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 	});
 }
 
-export function prepareIslFiles(language: Language, innoSetupConfig: InnoSetup): ThroughStream {
+export function prepareIslFiles(language: Language, innoSetupConfig: InnoSetup): eventStream.ThroughStream {
 	const parsePromises: Promise<l10nJsonDetails[]>[] = [];
 
-	return through(function (this: ThroughStream, xlf: File) {
+	return eventStream.through(function (this: eventStream.ThroughStream, xlf: File) {
 		const stream = this;
 		const parsePromise = XLF.parse(xlf.contents!.toString());
 		parsePromises.push(parsePromise);

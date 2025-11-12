@@ -2,17 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 import { EventEmitter } from 'events';
 import glob from 'glob';
 import gulp from 'gulp';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'url';
 import { monacoTypecheckTask /* , monacoTypecheckWatchTask */ } from './gulpfile.editor.mjs';
 import { compileExtensionMediaTask, compileExtensionsTask, watchExtensionsTask } from './gulpfile.extensions.mjs';
-import compilation from './lib/compilation.js';
-import task from './lib/task.js';
-import util from './lib/util.js';
+import * as compilation from './lib/compilation.js';
+import * as task from './lib/task.js';
+import * as util from './lib/util.js';
 
 EventEmitter.defaultMaxListeners = 100;
 
@@ -56,4 +54,6 @@ process.on('unhandledRejection', (reason, p) => {
 
 // Load all the gulpfiles only if running tasks other than the editor tasks
 glob.sync('gulpfile.*.{mjs,js}', { cwd: __dirname })
-	.forEach(f => require(`./${f}`));
+	.forEach(f => {
+		return require(`./${f}`);
+	});

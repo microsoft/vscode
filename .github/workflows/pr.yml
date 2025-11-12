@@ -68,7 +68,7 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
           set -e
-          node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+          npm run _build-script build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
           mkdir -p .build/node_modules_cache
           tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
 

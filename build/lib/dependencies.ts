@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import cp from 'child_process';
-const root = fs.realpathSync(path.dirname(path.dirname(__dirname)));
+const root = fs.realpathSync(path.dirname(path.dirname(import.meta.dirname)));
 
 function getNpmProductionDependencies(folder: string): string[] {
 	let raw: string;
@@ -51,6 +51,7 @@ export function getProductionDependencies(folderPath: string): string[] {
 	return [...new Set(result)];
 }
 
-if (require.main === module) {
+const normalizeScriptPath = (p: string) => p.replace(/\.(js|ts)$/, '');
+if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
 	console.log(JSON.stringify(getProductionDependencies(root), null, '  '));
 }

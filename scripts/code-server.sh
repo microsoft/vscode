@@ -12,7 +12,7 @@ function code() {
 
 	# Get electron, compile, built-in extensions
 	if [[ -z "${VSCODE_SKIP_PRELAUNCH}" ]]; then
-		node build/lib/preLaunch.js
+		npm run _build-script build/lib/preLaunch.js
 	fi
 
 	NODE=$(node build/lib/node.js)

@@ -30,5 +30,10 @@
 	"exclude": [
 		"node_modules/**",
 		"monaco-editor-playground/**"
-	]
+	],
+	"ts-node": {
+		// It is faster to skip typechecking.
+		// Remove if you want ts-node to do typechecking.
+		"transpileOnly": true,
+	}
 }

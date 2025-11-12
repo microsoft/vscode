@@ -5,8 +5,8 @@
 
 import fs from 'fs';
 import path from 'path';
-import type * as ts from 'typescript';
-import { IFileMap, TypeScriptLanguageServiceHost } from './typeScriptLanguageServiceHost';
+import * as ts from 'typescript';
+import { IFileMap, TypeScriptLanguageServiceHost } from './typeScriptLanguageServiceHost.js';
 
 enum ShakeLevel {
 	Files = 0,
@@ -77,7 +77,6 @@ function printDiagnostics(options: ITreeShakingOptions, diagnostics: ReadonlyArr
 }
 
 export function shake(options: ITreeShakingOptions): ITreeShakingResult {
-	const ts = require('typescript') as typeof import('typescript');
 	const languageService = createTypeScriptLanguageService(ts, options);
 	const program = languageService.getProgram()!;
 

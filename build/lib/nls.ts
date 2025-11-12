@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as ts from 'typescript';
+import * as ts from 'typescript';
 import lazy from 'lazy.js';
-import { duplex, through } from 'event-stream';
+import eventStream from 'event-stream';
 import File from 'vinyl';
 import sm from 'source-map';
 import path from 'path';
@@ -52,10 +52,10 @@ function clone<T extends object>(object: T): T {
  */
 export function nls(options: { preserveEnglish: boolean }): NodeJS.ReadWriteStream {
 	let base: string;
-	const input = through();
+	const input = eventStream.through();
 	const output = input
 		.pipe(sort()) // IMPORTANT: to ensure stable NLS metadata generation, we must sort the files because NLS messages are globally extracted and indexed across all files
-		.pipe(through(function (f: FileWithSourcemap) {
+		.pipe(eventStream.through(function (f: FileWithSourcemap) {
 			if (!f.sourceMap) {
 				return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
 			}
@@ -112,7 +112,7 @@ globalThis._VSCODE_NLS_MESSAGES=${JSON.stringify(_nls.allNLSMessages)};`),
 			this.emit('end');
 		}));
 
-	return duplex(input, output);
+	return eventStream.duplex(input, output);
 }
 
 function isImportNode(ts: typeof import('typescript'), node: ts.Node): boolean {
@@ -493,7 +493,6 @@ module _nls {
 	}
 
 	export function patchFile(javascriptFile: File, typescript: string, options: { preserveEnglish: boolean }): File {
-		const ts = require('typescript') as typeof import('typescript');
 		// hack?
 		const moduleId = javascriptFile.relative
 			.replace(/\.js$/, '')

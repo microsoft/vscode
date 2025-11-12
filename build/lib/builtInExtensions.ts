@@ -10,7 +10,7 @@ import rimraf from 'rimraf';
 import es from 'event-stream';
 import rename from 'gulp-rename';
 import vfs from 'vinyl-fs';
-import * as ext from './extensions';
+import * as ext from './extensions.js';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import { Stream } from 'stream';
@@ -34,8 +34,8 @@ export interface IExtensionDefinition {
 	};
 }
 
-const root = path.dirname(path.dirname(__dirname));
-const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
+const root = path.dirname(path.dirname(import.meta.dirname));
+const productjson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../product.json'), 'utf8'));
 const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions || [];
 const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions || [];
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
@@ -181,7 +181,8 @@ export function getBuiltInExtensions(): Promise<void> {
 	});
 }
 
-if (require.main === module) {
+const normalizeScriptPath = (p: string) => p.replace(/\.(js|ts)$/, '');
+if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
 	getBuiltInExtensions().then(() => process.exit(0)).catch(err => {
 		console.error(err);
 		process.exit(1);

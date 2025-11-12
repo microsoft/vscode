@@ -12,8 +12,8 @@ import path from 'path';
 import crypto from 'crypto';
 import { Stream } from 'stream';
 import File from 'vinyl';
-import { createStatsStream } from './stats';
-import * as util2 from './util';
+import { createStatsStream } from './stats.js';
+import * as util2 from './util.js';
 import filter from 'gulp-filter';
 import rename from 'gulp-rename';
 import fancyLog from 'fancy-log';
@@ -21,13 +21,16 @@ import ansiColors from 'ansi-colors';
 import buffer from 'gulp-buffer';
 import * as jsoncParser from 'jsonc-parser';
 import webpack from 'webpack';
-import { getProductionDependencies } from './dependencies';
-import { IExtensionDefinition, getExtensionStream } from './builtInExtensions';
-import { getVersion } from './getVersion';
-import { fetchUrls, fetchGithub } from './fetch';
-const vzip = require('gulp-vinyl-zip');
+import { getProductionDependencies } from './dependencies.js';
+import { IExtensionDefinition, getExtensionStream } from './builtInExtensions.js';
+import { getVersion } from './getVersion.js';
+import { fetchUrls, fetchGithub } from './fetch.js';
+import vzip from 'gulp-vinyl-zip';
 
-const root = path.dirname(path.dirname(__dirname));
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
+const root = path.dirname(path.dirname(import.meta.dirname));
 const commit = getVersion(root);
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 
@@ -333,7 +336,7 @@ const marketplaceWebExtensionsExclude = new Set([
 	'ms-vscode.vscode-js-profile-table'
 ]);
 
-const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
+const productJson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../product.json'), 'utf8'));
 const builtInExtensions: IExtensionDefinition[] = productJson.builtInExtensions || [];
 const webBuiltInExtensions: IExtensionDefinition[] = productJson.webBuiltInExtensions || [];
 

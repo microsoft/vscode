@@ -9,7 +9,7 @@ import es from 'event-stream';
 import * as util from './lib/util.js';
 import * as getVersionModule from './lib/getVersion.js';
 import * as task from './lib/task.js';
-import optimize from './lib/optimize.js';
+import * as optimize from './lib/optimize.js';
 import * as inlineMetaModule from './lib/inlineMeta.js';
 import product from '../product.json' with { type: 'json' };
 import rename from 'gulp-rename';

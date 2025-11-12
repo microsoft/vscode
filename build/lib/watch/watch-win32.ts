@@ -11,7 +11,7 @@ import es from 'event-stream';
 import filter from 'gulp-filter';
 import { Stream } from 'stream';
 
-const watcherPath = path.join(__dirname, 'watcher.exe');
+const watcherPath = path.join(import.meta.dirname, 'watcher.exe');
 
 function toChangeType(type: '0' | '1' | '2'): 'change' | 'add' | 'unlink' {
 	switch (type) {
@@ -70,7 +70,7 @@ function watch(root: string): Stream {
 
 const cache: { [cwd: string]: Stream } = Object.create(null);
 
-module.exports = function (pattern: string | string[] | filter.FileFunction, options?: { cwd?: string; base?: string; dot?: boolean }) {
+export default function (pattern: string | string[] | filter.FileFunction, options?: { cwd?: string; base?: string; dot?: boolean }) {
 	options = options || {};
 
 	const cwd = path.normalize(options.cwd || process.cwd());
@@ -105,4 +105,4 @@ module.exports = function (pattern: string | string[] | filter.FileFunction, opt
 			});
 		}))
 		.pipe(rebase);
-};
+}

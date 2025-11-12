@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import fs from 'fs';
-import type * as ts from 'typescript';
 import path from 'path';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
-import { IFileMap, TypeScriptLanguageServiceHost } from './typeScriptLanguageServiceHost';
+import { IFileMap, TypeScriptLanguageServiceHost } from './typeScriptLanguageServiceHost.js';
+import ts from 'typescript';
+
+import tsfmt from '../../tsfmt.json' with { type: 'json' };
 
 const dtsv = '3';
 
-const tsfmt = require('../../tsfmt.json');
-
-const SRC = path.join(__dirname, '../../src');
-export const RECIPE_PATH = path.join(__dirname, '../monaco/monaco.d.ts.recipe');
-const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
+const SRC = path.join(import.meta.dirname, '../../src');
+export const RECIPE_PATH = path.join(import.meta.dirname, '../monaco/monaco.d.ts.recipe');
+const DECLARATION_PATH = path.join(import.meta.dirname, '../../src/vs/monaco.d.ts');
 
 function logErr(message: any, ...rest: unknown[]): void {
 	fancyLog(ansiColors.yellow(`[monaco.d.ts]`), message, ...rest);
@@ -614,7 +614,7 @@ export class DeclarationResolver {
 	private _sourceFileCache: { [moduleId: string]: CacheEntry | null };
 
 	constructor(private readonly _fsProvider: FSProvider) {
-		this.ts = require('typescript') as typeof import('typescript');
+		this.ts = ts;
 		this._sourceFileCache = Object.create(null);
 	}
 

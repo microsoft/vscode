@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderADMLString } from './render';
-import { Category, LanguageTranslations, NlsString, Policy, PolicyType } from './types';
+import { renderADMLString } from './render.js';
+import { Category, LanguageTranslations, NlsString, Policy, PolicyType } from './types.js';
 
 export abstract class BasePolicy implements Policy {
 	constructor(

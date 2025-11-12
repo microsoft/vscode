@@ -11,7 +11,7 @@ if (process.argv.length !== 3) {
 	process.exit(-1);
 }
 
-const ROOT = path.join(__dirname, '../../../');
+const ROOT = path.join(import.meta.dirname, '../../../');
 
 function findNodeModulesFiles(location: string, inNodeModules: boolean, result: string[]) {
 	const entries = fs.readdirSync(path.join(ROOT, location));

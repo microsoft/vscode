@@ -5,7 +5,8 @@
 
 import fs from 'fs';
 import path from 'path';
-import * as tss from './treeshaking';
+import * as tss from './treeshaking.js';
+import ts from 'typescript';
 
 const dirCache: { [dir: string]: boolean } = {};
 
@@ -27,12 +28,11 @@ function writeFile(filePath: string, contents: Buffer | string): void {
 }
 
 export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string; tsOutDir: string; additionalFilesToCopyOut?: string[] }): void {
-	const ts = require('typescript') as typeof import('typescript');
-
 	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.monaco.json')).toString());
 	let compilerOptions: { [key: string]: any };
 	if (tsConfig.extends) {
-		compilerOptions = Object.assign({}, require(path.join(options.sourcesRoot, tsConfig.extends)).compilerOptions, tsConfig.compilerOptions);
+		const extendedConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, tsConfig.extends)).toString());
+		compilerOptions = Object.assign({}, extendedConfig.compilerOptions, tsConfig.compilerOptions);
 		delete tsConfig.extends;
 	} else {
 		compilerOptions = tsConfig.compilerOptions;

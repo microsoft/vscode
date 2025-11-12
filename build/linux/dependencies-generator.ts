@@ -7,14 +7,14 @@
 
 import { spawnSync } from 'child_process';
 import path from 'path';
-import { getChromiumSysroot, getVSCodeSysroot } from './debian/install-sysroot';
-import { generatePackageDeps as generatePackageDepsDebian } from './debian/calculate-deps';
-import { generatePackageDeps as generatePackageDepsRpm } from './rpm/calculate-deps';
-import { referenceGeneratedDepsByArch as debianGeneratedDeps } from './debian/dep-lists';
-import { referenceGeneratedDepsByArch as rpmGeneratedDeps } from './rpm/dep-lists';
-import { DebianArchString, isDebianArchString } from './debian/types';
-import { isRpmArchString, RpmArchString } from './rpm/types';
-import product = require('../../product.json');
+import { getChromiumSysroot, getVSCodeSysroot } from './debian/install-sysroot.js';
+import { generatePackageDeps as generatePackageDepsDebian } from './debian/calculate-deps.js';
+import { generatePackageDeps as generatePackageDepsRpm } from './rpm/calculate-deps.js';
+import { referenceGeneratedDepsByArch as debianGeneratedDeps } from './debian/dep-lists.js';
+import { referenceGeneratedDepsByArch as rpmGeneratedDeps } from './rpm/dep-lists.js';
+import { DebianArchString, isDebianArchString } from './debian/types.js';
+import { isRpmArchString, RpmArchString } from './rpm/types.js';
+import product from '../../product.json' with { type: 'json' };
 
 // A flag that can easily be toggled.
 // Make sure to compile the build directory after toggling the value.

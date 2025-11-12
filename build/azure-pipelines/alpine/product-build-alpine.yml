@@ -156,19 +156,19 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - script: node build/azure-pipelines/distro/mixin-npm
+      - script: npm run _build-script build/azure-pipelines/distro/mixin-npm.js
         displayName: Mixin distro node modules
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       - script: |
           set -e
-          node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+          npm run _build-script build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
           mkdir -p .build/node_modules_cache
           tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Create node_modules archive
 
-      - script: node build/azure-pipelines/distro/mixin-quality
+      - script: npm run _build-script build/azure-pipelines/distro/mixin-quality.js
         displayName: Mixin distro quality
 
       - template: ../common/install-builtin-extensions.yml@self

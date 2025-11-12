@@ -216,7 +216,8 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]) {
 	}
 }
 
-if (require.main === module) {
+const normalizeScriptPath = (p: string) => p.replace(/\.(js|ts)$/, '');
+if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
 	main(process.argv.slice(2));
 	process.exit(0);
 }

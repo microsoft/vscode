@@ -73,7 +73,7 @@ function getErrorLog(id: string = '') {
 	return errorLog;
 }
 
-const buildLogFolder = path.join(path.dirname(path.dirname(__dirname)), '.build');
+const buildLogFolder = path.join(path.dirname(path.dirname(import.meta.dirname)), '.build');
 
 try {
 	fs.mkdirSync(buildLogFolder);

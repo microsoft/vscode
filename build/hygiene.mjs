@@ -13,7 +13,7 @@ import VinylFile from 'vinyl';
 import vfs from 'vinyl-fs';
 import { all, copyrightFilter, eslintFilter, indentationFilter, stylelintFilter, tsFormattingFilter, unicodeFilter } from './filters.js';
 import eslint from './gulp-eslint.js';
-import formatter from './lib/formatter.js';
+import * as formatter from './lib/formatter.js';
 import gulpstylelint from './stylelint.js';
 
 const copyrightHeaderLines = [
@@ -269,7 +269,8 @@ function createGitIndexVinyls(paths) {
 }
 
 // this allows us to run hygiene as a git pre-commit hook
-if (import.meta.filename === process.argv[1]) {
+const normalizeScriptPath = (/** @type {string} */ p) => p.replace(/\.(js|ts)$/, '');
+if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
 	process.on('unhandledRejection', (reason, p) => {
 		console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
 		process.exit(1);

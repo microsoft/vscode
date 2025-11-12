@@ -6,13 +6,12 @@
 import v8 from 'node:v8';
 import fs from 'fs';
 import path from 'path';
-import { argv } from 'process';
 import { Mapping, SourceMapGenerator } from 'source-map';
 import ts from 'typescript';
 import { pathToFileURL } from 'url';
 import workerpool from 'workerpool';
-import { StaticLanguageServiceHost } from './staticLanguageServiceHost';
-const buildfile = require('../../buildfile');
+import { StaticLanguageServiceHost } from './staticLanguageServiceHost.js';
+import * as buildfile from '../../buildfile.js';
 
 class ShortIdent {
 
@@ -410,7 +409,7 @@ export class Mangler {
 		private readonly config: { readonly manglePrivateFields: boolean; readonly mangleExports: boolean },
 	) {
 
-		this.renameWorkerPool = workerpool.pool(path.join(__dirname, 'renameWorker.js'), {
+		this.renameWorkerPool = workerpool.pool(path.join(import.meta.dirname, 'renameWorker.js'), {
 			maxWorkers: 4,
 			minWorkers: 'max'
 		});
@@ -753,7 +752,7 @@ function normalize(path: string): string {
 }
 
 async function _run() {
-	const root = path.join(__dirname, '..', '..', '..');
+	const root = path.join(import.meta.dirname, '..', '..', '..');
 	const projectBase = path.join(root, 'src');
 	const projectPath = path.join(projectBase, 'tsconfig.json');
 	const newProjectBase = path.join(path.dirname(projectBase), path.basename(projectBase) + '2');
@@ -774,6 +773,7 @@ async function _run() {
 	}
 }
 
-if (__filename === argv[1]) {
+const normalizeScriptPath = (p: string) => p.replace(/\.(js|ts)$/, '');
+if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
 	_run();
 }

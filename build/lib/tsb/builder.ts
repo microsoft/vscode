@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import * as utils from './utils';
+import * as utils from './utils.js';
 import colors from 'ansi-colors';
 import ts from 'typescript';
 import Vinyl from 'vinyl';
