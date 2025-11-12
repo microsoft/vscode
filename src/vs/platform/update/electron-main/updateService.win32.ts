@@ -106,17 +106,6 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');
 				return;
 			}
-
-			// Avoid scheduling update check if inno setup is already running,
-			// this can happen if the user quit the application once inno_setup.exe has started
-			// then attempted to manually start the application before inno_setup.exe finished.
-			const readyMutexName = `${this.productService.win32MutexName}-ready`;
-			const mutex = await import('@vscode/windows-mutex');
-			if (mutex.isActive(readyMutexName)) {
-				const update: IUpdate = { version: 'unknown', productVersion: 'unknown' };
-				this.setState(State.Ready(update));
-				return;
-			}
 		}
 
 		await super.initialize();
@@ -135,8 +124,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected doCheckForUpdates(explicit: boolean): void {
-		if (!this.url || this.state.type === StateType.Updating ||
-			this.state.type === StateType.Ready) {
+		if (!this.url || this.state.type === StateType.Updating) {
 			return;
 		}
 
@@ -263,10 +251,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			const exeDir = path.dirname(exePath);
 			const versionedResourcesFolder = this.productService.commit.substring(0, 10);
 			const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
-			promises.push(new Promise<void>((resolve) => {
+			promises.push(new Promise<void>(resolve => {
 				const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder], {
-					detached: true,
-					stdio: ['ignore', 'ignore', 'ignore']
+					stdio: ['ignore', 'ignore', 'ignore'],
+					windowsHide: true,
+					timeout: 2 * 60 * 1000
 				});
 				child.once('exit', () => resolve());
 			}));
@@ -369,7 +358,9 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		if (fastUpdatesEnabled) {
 			if (this.productService.target === 'user') {
-				this.doApplyUpdate();
+				this.cleanup(update.version).then(() => {
+					this.doApplyUpdate();
+				});
 			}
 		} else {
 			this.setState(State.Ready(update));

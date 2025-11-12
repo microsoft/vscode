@@ -33,7 +33,7 @@ import { IDiagnosticsMainService } from '../../platform/diagnostics/electron-mai
 import { DiagnosticsService } from '../../platform/diagnostics/node/diagnosticsService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { EnvironmentMainService, IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
-import { addArg, parseMainProcessArgv } from '../../platform/environment/node/argvHelper.js';
+import { addArg, isLaunchedFromCli, parseMainProcessArgv } from '../../platform/environment/node/argvHelper.js';
 import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { FileService } from '../../platform/files/common/fileService.js';
@@ -102,6 +102,24 @@ class CodeMain {
 
 		// Create services
 		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogger, productService, userDataProfilesMainService] = this.createServices();
+
+		// Check if Inno Setup is running
+		const innoSetupActive = await this.checkInnoSetupMutex(productService);
+		if (innoSetupActive) {
+			const message = `${productService.nameShort} is currently being updated. Please wait for the update to complete before launching.`;
+
+			if (isLaunchedFromCli(process.env)) {
+				console.error(message);
+				app.exit(1);
+			} else {
+				this.showStartupWarningDialog(
+					localize('startupUpdateInProgressError', "Background update in progress."),
+					localize('startupUpdateInProgressErrorDetail', "{0}", message),
+					productService
+				);
+				app.exit(1);
+			}
+		}
 
 		try {
 
@@ -485,6 +503,21 @@ class CodeMain {
 		}
 
 		lifecycleMainService.kill(exitCode);
+	}
+
+	private async checkInnoSetupMutex(productService: IProductService): Promise<boolean> {
+		if (!isWindows || !productService.win32MutexName) {
+			return false;
+		}
+
+		try {
+			const readyMutexName = `${productService.win32MutexName}-ready`;
+			const mutex = await import('@vscode/windows-mutex');
+			return mutex.isActive(readyMutexName);
+		} catch (error) {
+			console.error('Failed to check Inno Setup mutex:', error);
+			return false;
+		}
 	}
 
 	//#region Command line arguments utilities
