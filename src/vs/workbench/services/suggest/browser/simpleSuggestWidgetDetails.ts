@@ -24,10 +24,10 @@ export function canExpandCompletionItem(item: SimpleCompletionItem | undefined):
 export const SuggestDetailsClassName = 'suggest-details';
 
 export const enum SimpleSuggestDetailsPlacement {
-	East = 'east',
-	West = 'west',
-	South = 'south',
-	North = 'north'
+	East = 0,
+	West = 1,
+	South = 2,
+	North = 3
 }
 
 export class SimpleSuggestDetailsWidget {
