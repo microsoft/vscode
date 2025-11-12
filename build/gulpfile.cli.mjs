@@ -21,7 +21,7 @@ import { fileURLToPath } from 'url';
 
 const { debounce } = utilModule;
 const { createReporter } = reporterModule;
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const __dirname = import.meta.dirname
 
 const root = 'cli';
 const rootAbs = path.resolve(__dirname, '..', root);

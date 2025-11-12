@@ -2,9 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 //@ts-check
-
 import gulp from 'gulp';
 import util from './lib/util.js';
 import date from './lib/date.js';

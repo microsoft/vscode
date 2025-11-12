@@ -23,7 +23,7 @@ import { fileURLToPath } from 'url';
 
 EventEmitter.defaultMaxListeners = 100;
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const __dirname = import.meta.dirname
 const { getVersion } = getVersionModule;
 const { createReporter } = reporterModule;
 const root = path.dirname(__dirname);

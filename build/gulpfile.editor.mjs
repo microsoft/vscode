@@ -2,9 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 //@ts-check
-
 import gulp from 'gulp';
 import * as path from 'path';
 import util from './lib/util.js';
@@ -20,10 +18,9 @@ import monacoapi from './lib/monaco-api.js';
 import * as fs from 'fs';
 import filter from 'gulp-filter';
 import reporterModule from './lib/reporter.js';
-import { fileURLToPath } from 'url';
 import monacoPackage from './monaco/package.json' with { type: 'json' };
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const __dirname = import.meta.dirname
 const { getVersion } = getVersionModule;
 const { createReporter } = reporterModule;
 const root = path.dirname(__dirname);
