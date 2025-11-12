@@ -151,7 +151,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 			requestsForCorrelation.set(path, request);
 		}
 
-		return Array.from(mapCorrelationtoRequests.values()).map(requests => Array.from(requests.values())).flat();
+		return Array.from(mapCorrelationtoRequests.values()).flatMap(requests => Array.from(requests.values()));
 	}
 
 	override async setVerboseLogging(enabled: boolean): Promise<void> {

@@ -58,4 +58,4 @@ steps:
           rootFolderOrFile: $(Build.BinariesDirectory)/sign/${{ target }}
           includeRootFolder: false
           archiveType: zip
-          archiveFile: $(Build.ArtifactStagingDirectory)/$(ASSET_ID).zip
+          archiveFile: $(Build.ArtifactStagingDirectory)/out/$(ASSET_ID).zip

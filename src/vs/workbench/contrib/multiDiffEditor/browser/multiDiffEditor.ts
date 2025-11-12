@@ -150,6 +150,14 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		return i2.multiDiffEditorItem;
 	}
 
+	public goToNextChange(): void {
+		this._multiDiffEditorWidget?.goToNextChange();
+	}
+
+	public goToPreviousChange(): void {
+		this._multiDiffEditorWidget?.goToPreviousChange();
+	}
+
 	public async showWhile(promise: Promise<unknown>): Promise<void> {
 		return this.editorProgressService.showWhile(promise);
 	}

@@ -73,6 +73,10 @@ body {
 	border-radius: 10px; /* macOS Big Sur increased rounded corners size */
 }
 
+.monaco-workbench.border.mac.macos-tahoe-or-newer {
+	border-radius: 12px; /* macOS Tahoe increased rounded corners size even more */
+}
+
 .monaco-workbench img {
 	border: 0;
 }
@@ -276,6 +280,7 @@ body {
 	outline-color: var(--vscode-focusBorder);
 }
 
+.monaco-workbench .monaco-list:not(:focus) .monaco-list-row.focused .monaco-highlighted-label .highlight,
 .monaco-workbench .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
 	color: var(--vscode-list-highlightForeground);
 }

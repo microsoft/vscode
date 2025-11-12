@@ -34,7 +34,7 @@ namespace Samples {
 
 		private readonly _onDidChange = new Emitter<string>();
 
-		onDidChange: Event<string> = this._onDidChange.event;
+		readonly onDidChange: Event<string> = this._onDidChange.event;
 
 		setText(value: string) {
 			//...

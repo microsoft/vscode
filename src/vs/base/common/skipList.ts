@@ -35,7 +35,8 @@ export class SkipList<K, V> implements Map<K, V> {
 		capacity: number = 2 ** 16
 	) {
 		this._maxLevel = Math.max(1, Math.log2(capacity) | 0);
-		this._header = <any>new Node(this._maxLevel, NIL, NIL);
+
+		this._header = new Node(this._maxLevel, <K>NIL, <V>NIL);
 	}
 
 	get size(): number {
@@ -43,7 +44,8 @@ export class SkipList<K, V> implements Map<K, V> {
 	}
 
 	clear(): void {
-		this._header = <any>new Node(this._maxLevel, NIL, NIL);
+
+		this._header = new Node(this._maxLevel, <K>NIL, <V>NIL);
 		this._size = 0;
 	}
 
@@ -72,7 +74,7 @@ export class SkipList<K, V> implements Map<K, V> {
 
 	// --- iteration
 
-	forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: unknown): void {
 		let node = this._header.forward[0];
 		while (node) {
 			callbackfn.call(thisArg, node.value, node.key, this);
@@ -167,7 +169,7 @@ export class SkipList<K, V> implements Map<K, V> {
 		}
 	}
 
-	private static _randomLevel(list: SkipList<any, any>, p: number = 0.5): number {
+	private static _randomLevel<K, V>(list: SkipList<K, V>, p: number = 0.5): number {
 		let lvl = 1;
 		while (Math.random() < p && lvl < list._maxLevel) {
 			lvl += 1;

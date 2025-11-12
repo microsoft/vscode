@@ -25,7 +25,7 @@ fi
 
 if [ "$npm_config_arch" == "x64" ]; then
   # Download clang based on chromium revision used by vscode
-  curl -s https://raw.githubusercontent.com/chromium/chromium/138.0.7204.235/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
+  curl -s https://raw.githubusercontent.com/chromium/chromium/138.0.7204.251/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
 
   # Download libcxx headers and objects from upstream electron releases
   DEBUG=libcxx-fetcher \
@@ -37,9 +37,9 @@ if [ "$npm_config_arch" == "x64" ]; then
 
   # Set compiler toolchain
   # Flags for the client build are based on
-  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/138.0.7204.235:build/config/arm.gni
-  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/138.0.7204.235:build/config/compiler/BUILD.gn
-  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/138.0.7204.235:build/config/c++/BUILD.gn
+  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/138.0.7204.251:build/config/arm.gni
+  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/138.0.7204.251:build/config/compiler/BUILD.gn
+  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/138.0.7204.251:build/config/c++/BUILD.gn
   export CC="$PWD/.build/CR_Clang/bin/clang --gcc-toolchain=$VSCODE_CLIENT_SYSROOT_DIR/x86_64-linux-gnu"
   export CXX="$PWD/.build/CR_Clang/bin/clang++ --gcc-toolchain=$VSCODE_CLIENT_SYSROOT_DIR/x86_64-linux-gnu"
   export CXXFLAGS="-nostdinc++ -D__NO_INLINE__ -DSPDLOG_USE_STD_FORMAT -I$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit -D_LIBCPP_ABI_NAMESPACE=Cr -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE --sysroot=$VSCODE_CLIENT_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"

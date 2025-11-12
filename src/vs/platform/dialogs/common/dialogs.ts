@@ -456,12 +456,12 @@ export interface IDialogService {
 	/**
 	 * An event that fires when a dialog is about to show.
 	 */
-	onWillShowDialog: Event<void>;
+	readonly onWillShowDialog: Event<void>;
 
 	/**
 	 * An event that fires when a dialog did show (closed).
 	 */
-	onDidShowDialog: Event<void>;
+	readonly onDidShowDialog: Event<void>;
 
 	/**
 	 * Ask the user for confirmation with a modal dialog.

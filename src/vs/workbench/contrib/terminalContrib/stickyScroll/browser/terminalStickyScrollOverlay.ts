@@ -20,7 +20,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ICommandDetectionCapability, ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { ICurrentPartialCommand, isFullTerminalCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ITerminalConfigurationService, ITerminalInstance, IXtermColorProvider, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { openContextMenu } from '../../../terminal/browser/terminalContextMenu.js';
@@ -177,6 +177,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 					// scrolling horizontally in a pager
 					this._xterm.raw.onCursorMove,
 				)(() => this._refresh()),
+				// eslint-disable-next-line no-restricted-syntax
 				addStandardDisposableListener(this._xterm.raw.element!.querySelector('.xterm-viewport')!, 'scroll', () => this._refresh()),
 			);
 		}
@@ -227,14 +228,14 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// scroll.
 		this._currentStickyCommand = undefined;
 
-		// No command
-		if (!command) {
+		// No command or clear command
+		if (!command || this._isClearCommand(command)) {
 			this._setVisible(false);
 			return;
 		}
 
 		// Partial command
-		if (!('marker' in command)) {
+		if (!isFullTerminalCommand(command)) {
 			const partialCommand = this._commandDetection.currentCommand;
 			if (partialCommand?.commandStartMarker && partialCommand.commandExecutedMarker) {
 				this._updateContent(partialCommand, partialCommand.commandStartMarker);
@@ -278,7 +279,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// of the sticky overlay because we do not want to show any content above the bounds of the
 		// original terminal. This is done because it seems like scrolling flickers more when a
 		// partial line can be drawn on the top.
-		const isPartialCommand = !('getOutput' in command);
+		const isPartialCommand = !isFullTerminalCommand(command);
 		const rowOffset = !isPartialCommand && command.endMarker ? Math.max(buffer.viewportY - command.endMarker.line + 1, 0) : 0;
 		const maxLineCount = Math.min(this._rawMaxLineCount, Math.floor(xterm.rows * Constants.StickyScrollPercentageCap));
 		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, maxLineCount) - rowOffset;
@@ -406,7 +407,10 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 		hoverOverlay.title = hoverTitle;
 
-		const scrollBarWidth = (this._xterm.raw as any as { _core: IXtermCore })._core.viewport?.scrollBarWidth;
+		interface XtermWithCore extends XTermTerminal {
+			_core: IXtermCore;
+		}
+		const scrollBarWidth = (this._xterm.raw as XtermWithCore)._core.viewport?.scrollBarWidth;
 		if (scrollBarWidth !== undefined) {
 			this._element.style.right = `${scrollBarWidth}px`;
 		}
@@ -520,6 +524,20 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			selectionBackground: undefined,
 			selectionInactiveBackground: undefined
 		};
+	}
+
+	private _isClearCommand(command: ITerminalCommand | ICurrentPartialCommand): boolean {
+		if (!command.command) {
+			return false;
+		}
+		const trimmedCommand = command.command.trim().toLowerCase();
+		const clearCommands = [
+			'clear',
+			'cls',
+			'clear-host',
+		];
+
+		return clearCommands.includes(trimmedCommand);
 	}
 }
 

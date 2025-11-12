@@ -101,7 +101,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 
 			copilotExtensionVersion = copilotExtension?.version;
 			copilotChatExtensionVersion = copilotChatExtension?.version;
-			copilotCompletionsVersion = (copilotChatExtension as any)?.completionsCoreVersion;
+			copilotCompletionsVersion = (copilotChatExtension as typeof copilotChatExtension & { completionsCoreVersion?: string })?.completionsCoreVersion;
 		} catch (error) {
 			this._logService.error('Failed to update extension version assignments', error);
 		}
@@ -175,8 +175,8 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		}
 	}
 
-	getFilters(): Map<string, any> {
-		const filters: Map<string, any> = new Map<string, any>();
+	getFilters(): Map<string, string | null> {
+		const filters = new Map<string, string | null>();
 		const filterValues = Object.values(ExtensionsFilter);
 		for (const value of filterValues) {
 			filters.set(value, this.getFilterValue(value));

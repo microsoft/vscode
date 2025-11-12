@@ -69,10 +69,10 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, seen: Set<any>):
 			throw new Error('Cannot clone recursive data-structure');
 		}
 		seen.add(obj);
-		const r2 = {};
+		const r2: Record<string, unknown> = {};
 		for (const i2 in obj) {
 			if (_hasOwnProperty.call(obj, i2)) {
-				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, seen);
+				r2[i2] = _cloneAndChange(obj[i2], changer, seen);
 			}
 		}
 		seen.delete(obj);

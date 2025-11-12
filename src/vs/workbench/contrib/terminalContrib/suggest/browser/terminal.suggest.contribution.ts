@@ -21,8 +21,9 @@ import { registerActiveInstanceAction, registerTerminalAction } from '../../../t
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalSuggestCommandId } from '../common/terminal.suggest.js';
-import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration, registerTerminalSuggestProvidersConfiguration } from '../common/terminalSuggestConfiguration.js';
+import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration, registerTerminalSuggestProvidersConfiguration, type ITerminalSuggestProviderInfo } from '../common/terminalSuggestConfiguration.js';
 import { ITerminalCompletionService, TerminalCompletionService } from './terminalCompletionService.js';
+import { ITerminalContributionService } from '../../../terminal/common/terminalExtensionPoints.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { SuggestAddon } from './terminalSuggestAddon.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
@@ -164,6 +165,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			}
 		}
 		addon.setContainerWithOverflow(container);
+		// eslint-disable-next-line no-restricted-syntax
 		addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
 
 		this.add(dom.addDisposableListener(this._ctx.instance.domElement, dom.EventType.FOCUS_OUT, (e) => {
@@ -274,8 +276,9 @@ registerTerminalAction({
 });
 
 registerActiveInstanceAction({
-	id: TerminalSuggestCommandId.RequestCompletions,
-	title: localize2('workbench.action.terminal.requestCompletions', 'Request Completions'),
+	id: TerminalSuggestCommandId.TriggerSuggest,
+	title: localize2('workbench.action.terminal.triggerSuggest', 'Trigger Suggest'),
+	f1: false,
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space },
@@ -468,10 +471,14 @@ class TerminalSuggestProvidersConfigurationManager extends Disposable {
 	}
 
 	constructor(
-		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService
+		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
+		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService
 	) {
 		super();
 		this._register(this._terminalCompletionService.onDidChangeProviders(() => {
+			this._updateConfiguration();
+		}));
+		this._register(this._terminalContributionService.onDidChangeTerminalCompletionProviders(() => {
 			this._updateConfiguration();
 		}));
 		// Initial configuration
@@ -479,9 +486,18 @@ class TerminalSuggestProvidersConfigurationManager extends Disposable {
 	}
 
 	private _updateConfiguration(): void {
-		const providers = Array.from(this._terminalCompletionService.providers);
-		const providerIds = providers.map(p => p.id).filter((id): id is string => typeof id === 'string');
-		registerTerminalSuggestProvidersConfiguration(providerIds);
+		// Add statically declared providers from package.json contributions
+		const providers = new Map<string, ITerminalSuggestProviderInfo>();
+		this._terminalContributionService.terminalCompletionProviders.forEach(o => providers.set(o.extensionIdentifier, { ...o, id: o.extensionIdentifier }));
+
+		// Add dynamically registered providers (that aren't already declared statically)
+		for (const { id } of this._terminalCompletionService.providers) {
+			if (id && !providers.has(id)) {
+				providers.set(id, { id });
+			}
+		}
+
+		registerTerminalSuggestProvidersConfiguration(providers);
 	}
 }
 

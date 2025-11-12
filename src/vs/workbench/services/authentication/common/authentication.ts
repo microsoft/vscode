@@ -313,7 +313,7 @@ export interface IAuthenticationExtensionsService {
 	 * * A session preference is changed (because it's deprecated)
 	 * * A session preference is removed (because it's deprecated)
 	 */
-	onDidChangeAccountPreference: Event<{ extensionIds: string[]; providerId: string }>;
+	readonly onDidChangeAccountPreference: Event<{ extensionIds: string[]; providerId: string }>;
 	/**
 	 * Returns the accountName (also known as account.label) to pair with `IAuthenticationAccessService` to get the account preference
 	 * @param providerId The authentication provider id

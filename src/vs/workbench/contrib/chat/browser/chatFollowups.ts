@@ -47,7 +47,7 @@ export class ChatFollowups<T extends IChatFollowup> extends Disposable {
 			: followup.title;
 		const message = followup.kind === 'reply' ? followup.message : followup.title;
 		const tooltip = (tooltipPrefix +
-			('tooltip' in followup && followup.tooltip || message)).trim();
+			(followup.tooltip || message)).trim();
 		const button = this._register(new Button(container, { ...this.options, title: tooltip }));
 		if (followup.kind === 'reply') {
 			button.element.classList.add('interactive-followup-reply');

@@ -498,6 +498,7 @@ suite('Buffer', () => {
 
 		// Test invalid input
 		assert.throws(() => {
+			// eslint-disable-next-line local/code-no-any-casts
 			buff.set({} as any);
 		});
 	});

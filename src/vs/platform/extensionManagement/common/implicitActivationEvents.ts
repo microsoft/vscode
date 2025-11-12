@@ -70,6 +70,7 @@ export class ImplicitActivationEventsImpl {
 				// There's no generator for this extension point
 				continue;
 			}
+			// eslint-disable-next-line local/code-no-any-casts
 			const contrib = (desc.contributes as any)[extPointName];
 			const contribArr = Array.isArray(contrib) ? contrib : [contrib];
 			try {

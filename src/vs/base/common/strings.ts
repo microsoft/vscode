@@ -23,6 +23,7 @@ const _formatRegexp = /{(\d+)}/g;
  * @param value string to which formatting is applied
  * @param args replacements for {n}-entries
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function format(value: string, ...args: any[]): string {
 	if (args.length === 0) {
 		return value;
@@ -322,7 +323,7 @@ export function getIndentationLength(str: string): number {
  * Function that works identically to String.prototype.replace, except, the
  * replace function is allowed to be async and return a Promise.
  */
-export function replaceAsync(str: string, search: RegExp, replacer: (match: string, ...args: any[]) => Promise<string>): Promise<string> {
+export function replaceAsync(str: string, search: RegExp, replacer: (match: string, ...args: unknown[]) => Promise<string>): Promise<string> {
 	const parts: (string | Promise<string>)[] = [];
 
 	let last = 0;
@@ -438,13 +439,19 @@ export function equalsIgnoreCase(a: string, b: string): boolean {
 	return a.length === b.length && compareSubstringIgnoreCase(a, b) === 0;
 }
 
-export function startsWithIgnoreCase(str: string, candidate: string): boolean {
-	const candidateLength = candidate.length;
-	if (candidate.length > str.length) {
-		return false;
-	}
+export function equals(a: string | undefined, b: string | undefined, ignoreCase?: boolean): boolean {
+	return a === b || (!!ignoreCase && a !== undefined && b !== undefined && equalsIgnoreCase(a, b));
+}
 
-	return compareSubstringIgnoreCase(str, candidate, 0, candidateLength) === 0;
+export function startsWithIgnoreCase(str: string, candidate: string): boolean {
+	const len = candidate.length;
+	return len <= str.length && compareSubstringIgnoreCase(str, candidate, 0, len) === 0;
+}
+
+export function endsWithIgnoreCase(str: string, candidate: string): boolean {
+	const len = str.length;
+	const start = len - candidate.length;
+	return start >= 0 && compareSubstringIgnoreCase(str, candidate, start, len) === 0;
 }
 
 /**
@@ -1232,7 +1239,7 @@ export class AmbiguousCharacters {
 		const data = this.ambiguousCharacterData.value;
 
 		let filteredLocales = locales.filter(
-			(l) => !l.startsWith('_') && l in data
+			(l) => !l.startsWith('_') && Object.hasOwn(data, l)
 		);
 		if (filteredLocales.length === 0) {
 			filteredLocales = ['_default'];

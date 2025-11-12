@@ -12,13 +12,19 @@ import { Disposable, toDisposable } from '../common/lifecycle.js';
 import { coalesce } from '../common/arrays.js';
 import { getNLSLanguage, getNLSMessages } from '../../nls.js';
 import { Emitter } from '../common/event.js';
+import { getMonacoEnvironment } from './browser.js';
+
+type WorkerGlobalWithPolicy = typeof globalThis & {
+	workerttPolicy?: ReturnType<typeof createTrustedTypesPolicy>;
+};
 
 // Reuse the trusted types policy defined from worker bootstrap
 // when available.
 // Refs https://github.com/microsoft/vscode/issues/222193
 let ttPolicy: ReturnType<typeof createTrustedTypesPolicy>;
-if (typeof self === 'object' && self.constructor && self.constructor.name === 'DedicatedWorkerGlobalScope' && (globalThis as any).workerttPolicy !== undefined) {
-	ttPolicy = (globalThis as any).workerttPolicy;
+const workerGlobalThis = globalThis as WorkerGlobalWithPolicy;
+if (typeof self === 'object' && self.constructor && self.constructor.name === 'DedicatedWorkerGlobalScope' && workerGlobalThis.workerttPolicy !== undefined) {
+	ttPolicy = workerGlobalThis.workerttPolicy;
 } else {
 	ttPolicy = createTrustedTypesPolicy('defaultWorkerFactory', { createScriptURL: value => value });
 }
@@ -30,28 +36,29 @@ export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Work
 	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, { ...options, type: 'module' });
 }
 
-function getWorker(descriptor: IWebWorkerDescriptor, id: number): Worker | Promise<Worker> {
+function getWorker(descriptor: WebWorkerDescriptor, id: number): Worker | Promise<Worker> {
 	const label = descriptor.label || 'anonymous' + id;
 
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
-	interface IMonacoEnvironment {
-		getWorker?(moduleId: string, label: string): Worker | Promise<Worker>;
-		getWorkerUrl?(moduleId: string, label: string): string;
-	}
-	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
+	const monacoEnvironment = getMonacoEnvironment();
 	if (monacoEnvironment) {
 		if (typeof monacoEnvironment.getWorker === 'function') {
-			return monacoEnvironment.getWorker('workerMain.js', label);
+			const w = monacoEnvironment.getWorker('workerMain.js', label);
+			if (w !== undefined) {
+				return w;
+			}
 		}
 		if (typeof monacoEnvironment.getWorkerUrl === 'function') {
 			const workerUrl = monacoEnvironment.getWorkerUrl('workerMain.js', label);
-			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: 'module' });
+			if (workerUrl !== undefined) {
+				return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: 'module' });
+			}
 		}
 	}
 
-	const esmWorkerLocation = descriptor.esmModuleLocation;
+	const esmWorkerLocation = descriptor.getUrl();
 	if (esmWorkerLocation) {
-		const workerUrl = getWorkerBootstrapUrl(label, esmWorkerLocation.toString(true));
+		const workerUrl = getWorkerBootstrapUrl(label, esmWorkerLocation);
 		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: 'module' });
 		return whenESMWorkerReady(worker);
 	}
@@ -126,10 +133,10 @@ class WebWorker extends Disposable implements IWebWorker {
 	private readonly _onMessage = this._register(new Emitter<Message>());
 	public readonly onMessage = this._onMessage.event;
 
-	private readonly _onError = this._register(new Emitter<any>());
+	private readonly _onError = this._register(new Emitter<MessageEvent | ErrorEvent>());
 	public readonly onError = this._onError.event;
 
-	constructor(descriptorOrWorker: IWebWorkerDescriptor | Worker | Promise<Worker>) {
+	constructor(descriptorOrWorker: WebWorkerDescriptor | Worker | Promise<Worker>) {
 		super();
 		this.id = ++WebWorker.LAST_WORKER_ID;
 		const workerOrPromise = (
@@ -185,21 +192,45 @@ class WebWorker extends Disposable implements IWebWorker {
 	}
 }
 
-export interface IWebWorkerDescriptor {
-	readonly esmModuleLocation: URI | undefined;
-	readonly label: string | undefined;
+export class WebWorkerDescriptor {
+	private static _useBundlerLocationRef = false;
+
+	/** TODO @hediet: Use web worker service! */
+	public static useBundlerLocationRef() {
+		WebWorkerDescriptor._useBundlerLocationRef = true;
+	}
+
+	public readonly esmModuleLocation: URI | (() => URI) | undefined;
+	public readonly esmModuleLocationBundler: URL | (() => URL) | undefined;
+	public readonly label: string | undefined;
+
+	constructor(args: {
+		/** The location of the esm module after transpilation */
+		esmModuleLocation?: URI | (() => URI);
+		/** The location of the esm module when used in a bundler environment. Refer to the typescript file in the src folder and use `?worker`. */
+		esmModuleLocationBundler?: URL | (() => URL);
+		label?: string;
+	}) {
+		this.esmModuleLocation = args.esmModuleLocation;
+		this.esmModuleLocationBundler = args.esmModuleLocationBundler;
+		this.label = args.label;
+	}
+
+	getUrl(): string | undefined {
+		if (WebWorkerDescriptor._useBundlerLocationRef) {
+			if (this.esmModuleLocationBundler) {
+				const esmWorkerLocation = typeof this.esmModuleLocationBundler === 'function' ? this.esmModuleLocationBundler() : this.esmModuleLocationBundler;
+				return esmWorkerLocation.toString();
+			}
+		} else if (this.esmModuleLocation) {
+			const esmWorkerLocation = typeof this.esmModuleLocation === 'function' ? this.esmModuleLocation() : this.esmModuleLocation;
+			return esmWorkerLocation.toString(true);
+		}
+
+		return undefined;
+	}
 }
 
-export class WebWorkerDescriptor implements IWebWorkerDescriptor {
-	constructor(
-		public readonly esmModuleLocation: URI,
-		public readonly label: string | undefined,
-	) { }
-}
-
-export function createWebWorker<T extends object>(esmModuleLocation: URI, label: string | undefined): IWebWorkerClient<T>;
-export function createWebWorker<T extends object>(workerDescriptor: IWebWorkerDescriptor | Worker | Promise<Worker>): IWebWorkerClient<T>;
-export function createWebWorker<T extends object>(arg0: URI | IWebWorkerDescriptor | Worker | Promise<Worker>, arg1?: string | undefined): IWebWorkerClient<T> {
-	const workerDescriptorOrWorker = (URI.isUri(arg0) ? new WebWorkerDescriptor(arg0, arg1) : arg0);
-	return new WebWorkerClient<T>(new WebWorker(workerDescriptorOrWorker));
+export function createWebWorker<T extends object>(workerDescriptor: WebWorkerDescriptor | Worker | Promise<Worker>): IWebWorkerClient<T> {
+	return new WebWorkerClient<T>(new WebWorker(workerDescriptor));
 }

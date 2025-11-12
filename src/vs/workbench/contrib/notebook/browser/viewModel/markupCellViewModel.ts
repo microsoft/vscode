@@ -326,6 +326,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 
 	override dispose() {
 		super.dispose();
+		// eslint-disable-next-line local/code-no-any-casts
 		(this.foldingDelegate as any) = null;
 	}
 }

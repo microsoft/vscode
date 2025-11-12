@@ -63,12 +63,12 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		const activeComposite = this.getActivePaneComposite();
 
 		if (!activeComposite) {
-			return;
+			return undefined;
 		}
 
 		const width = activeComposite.getOptimalWidth();
 		if (typeof width !== 'number') {
-			return;
+			return undefined;
 		}
 
 		return Math.max(width, 300);
@@ -98,6 +98,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			Parts.AUXILIARYBAR_PART,
 			{
 				hasTitle: true,
+				trailingSeparator: true,
 				borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0,
 			},
 			AuxiliaryBarPart.activeViewSettingsKey,

@@ -83,9 +83,10 @@ suite('InternalTerminalShellIntegration', () => {
 	}
 
 	setup(() => {
+		// eslint-disable-next-line local/code-no-any-casts
 		terminal = Symbol('testTerminal') as any;
 		onDidStartTerminalShellExecution = store.add(new Emitter());
-		si = store.add(new InternalTerminalShellIntegration(terminal, onDidStartTerminalShellExecution));
+		si = store.add(new InternalTerminalShellIntegration(terminal, true, onDidStartTerminalShellExecution));
 
 		trackedEvents = [];
 		readIteratorsFlushed = [];

@@ -12,8 +12,6 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
 import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
-import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { inputPlaceholderForeground } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -22,9 +20,11 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../comm
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
 import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
+import { NativeEditContextRegistry } from '../../../../../editor/browser/controller/editContext/native/nativeEditContextRegistry.js';
 
 const decorationDescription = 'chat';
 const placeholderDecorationType = 'chat-session-detail';
@@ -33,6 +33,10 @@ const variableTextDecorationType = 'chat-variable-text';
 
 function agentAndCommandToKey(agent: IChatAgentData, subcommand: string | undefined): string {
 	return subcommand ? `${agent.id}__${subcommand}` : agent.id;
+}
+
+function isWhitespaceOrPromptPart(p: IParsedChatRequestPart): boolean {
+	return (p instanceof ChatRequestTextPart && !p.text.trim().length) || (p instanceof ChatRequestSlashPromptPart);
 }
 
 class InputEditorDecorations extends Disposable {
@@ -48,8 +52,8 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 
@@ -69,6 +73,7 @@ class InputEditorDecorations extends Disposable {
 			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
+		this._register(this.promptsService.onDidChangeParsedPromptFilesCache(() => this.updateInputEditorDecorations()));
 		this._register(autorun(reader => {
 			// Watch for changes to the current mode and its properties
 			const currentMode = this.widget.input.currentModeObs.read(reader);
@@ -123,20 +128,21 @@ class InputEditorDecorations extends Disposable {
 		return transparentForeground?.toString();
 	}
 
+
+
 	private async updateInputEditorDecorations() {
 		const inputValue = this.widget.inputEditor.getValue();
 
 		const viewModel = this.widget.viewModel;
 		if (!viewModel) {
+			this.updateAriaPlaceholder(undefined);
 			return;
 		}
 
 		if (!inputValue) {
 			const mode = this.widget.input.currentModeObs.get();
-			let description = mode.description.get();
-			if (this.configurationService.getValue<boolean>('chat.emptyChatState.enabled')) {
-				description = localize('chatPlaceholderHint', "Add context (#), extensions (@), commands (/)");
-			}
+			const placeholder = mode.argumentHint?.get() ?? mode.description.get() ?? '';
+			const displayPlaceholder = viewModel.inputPlaceholder || placeholder;
 
 			const decoration: IDecorationOptions[] = [
 				{
@@ -148,15 +154,18 @@ class InputEditorDecorations extends Disposable {
 					},
 					renderOptions: {
 						after: {
-							contentText: viewModel.inputPlaceholder || (description ?? ''),
+							contentText: displayPlaceholder,
 							color: this.getPlaceholderColor()
 						}
 					}
 				}
 			];
+			this.updateAriaPlaceholder(displayPlaceholder || undefined);
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, decoration);
 			return;
 		}
+
+		this.updateAriaPlaceholder(undefined);
 
 		const parsedRequest = this.widget.parsedInput.parts;
 
@@ -235,6 +244,26 @@ class InputEditorDecorations extends Disposable {
 			}
 		}
 
+		const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(isWhitespaceOrPromptPart);
+		if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(slashPromptPart)) {
+			// Prompt slash command with no other text - show the placeholder
+			// Resolve the prompt file (this will use cache if available)
+			const promptFile = this.promptsService.resolvePromptSlashCommandFromCache(slashPromptPart.slashPromptCommand.command);
+
+			const description = promptFile?.header?.argumentHint ?? promptFile?.header?.description;
+			if (description) {
+				placeholderDecoration = [{
+					range: getRangeForPlaceholder(slashPromptPart),
+					renderOptions: {
+						after: {
+							contentText: description,
+							color: this.getPlaceholderColor(),
+						}
+					}
+				}];
+			}
+		}
+
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
 
 		const textDecorations: IDecorationOptions[] | undefined = [];
@@ -271,6 +300,19 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);
+	}
+
+	private updateAriaPlaceholder(value: string | undefined): void {
+		const nativeEditContext = NativeEditContextRegistry.get(this.widget.inputEditor.getId());
+		const domNode = nativeEditContext?.domNode.domNode;
+		if (!domNode) {
+			return;
+		}
+		if (value && value.trim().length) {
+			domNode.setAttribute('aria-placeholder', value);
+		} else {
+			domNode.removeAttribute('aria-placeholder');
+		}
 	}
 }
 
@@ -340,7 +382,7 @@ class ChatTokenDeleter extends Disposable {
 
 			// If this was a simple delete, try to find out whether it was inside a token
 			if (!change.text && this.widget.viewModel) {
-				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentModeKind });
+				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionResource, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentModeKind });
 
 				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
 				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestSlashPromptPart || p instanceof ChatRequestToolPart);

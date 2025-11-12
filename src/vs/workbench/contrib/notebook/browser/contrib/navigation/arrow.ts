@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
-import { localize } from '../../../../../../nls.js';
+import { localize, localize2 } from '../../../../../../nls.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
@@ -18,11 +18,10 @@ import { ServicesAccessor } from '../../../../../../platform/instantiation/commo
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { InlineChatController } from '../../../../inlineChat/browser/inlineChatController.js';
-import { CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION } from '../../controller/chat/notebookChatContext.js';
 import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, findTargetCellEditor } from '../../controller/coreActions.js';
 import { CellEditState } from '../../notebookBrowser.js';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY } from '../../../common/notebookCommon.js';
-import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED, IS_COMPOSITE_NOTEBOOK } from '../../../common/notebookContextKeys.js';
+import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED, IS_COMPOSITE_NOTEBOOK, NOTEBOOK_OR_COMPOSITE_IS_ACTIVE_EDITOR } from '../../../common/notebookContextKeys.js';
 
 const NOTEBOOK_FOCUS_TOP = 'notebook.focusTop';
 const NOTEBOOK_FOCUS_BOTTOM = 'notebook.focusBottom';
@@ -237,7 +236,7 @@ registerAction2(class extends NotebookAction {
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				{
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey), CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION.isEqualTo('')),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 					mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
 					weight: KeybindingWeight.WorkbenchContrib
 				}
@@ -269,7 +268,7 @@ registerAction2(class extends NotebookAction {
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				{
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey), CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION.isEqualTo('')),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 					mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
 					weight: KeybindingWeight.WorkbenchContrib
 				}
@@ -297,9 +296,10 @@ registerAction2(class extends NotebookCellAction {
 	constructor() {
 		super({
 			id: FOCUS_IN_OUTPUT_COMMAND_ID,
-			title: localize('focusOutput', 'Focus In Active Cell Output'),
+			title: localize2('focusOutput', 'Focus In Active Cell Output'),
+			f1: true,
 			keybinding: [{
-				when: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK.negate(), IsWindowsContext),
+				when: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK.negate(), IsWindowsContext, NOTEBOOK_CELL_HAS_OUTPUTS),
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 				weight: KeybindingWeight.WorkbenchContrib
 			}, {
@@ -307,7 +307,7 @@ registerAction2(class extends NotebookCellAction {
 				mac: { primary: KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.DownArrow, },
 				weight: KeybindingWeight.WorkbenchContrib
 			}],
-			precondition: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS)
+			precondition: NOTEBOOK_OR_COMPOSITE_IS_ACTIVE_EDITOR
 		});
 	}
 

@@ -67,6 +67,12 @@
 	border-bottom-left-radius: 10px;
 }
 
+.mac:not(.fullscreen).macos-tahoe-or-newer .process-explorer .monaco-list:focus::before {
+	/* macOS Tahoe increased rounded corners size even more */
+	border-bottom-right-radius: 12px;
+	border-bottom-left-radius: 12px;
+}
+
 .process-explorer .monaco-list-row:first-of-type {
 	border-bottom: 1px solid var(--vscode-tree-tableColumnsBorder);
 }

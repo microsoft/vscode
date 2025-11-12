@@ -18,8 +18,8 @@ import { ChatResponseResource } from '../../../common/chatModel.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
 import { IToolResultInputOutputDetails } from '../../../common/languageModelToolsService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
+import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
-import { EditorPool } from '../chatMarkdownContentPart.js';
 import { ChatCollapsibleInputOutputContentPart, ChatCollapsibleIOPart, IChatCollapsibleIOCodePart } from '../chatToolInputOutputContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
@@ -78,10 +78,9 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 					codemapperUri: undefined,
 					elementId: context.element.id,
 					focus: () => { },
-					isStreaming: false,
 					ownerMarkdownPartId: this.codeblocksPartId,
 					uri: model.uri,
-					chatSessionId: context.element.sessionId,
+					chatSessionResource: context.element.sessionResource,
 					uriPromise: Promise.resolve(model.uri)
 				}
 			};
@@ -97,7 +96,6 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			message,
 			subtitle,
 			context,
-			editorPool,
 			toCodePart(input),
 			processedOutput && {
 				parts: processedOutput.map((o, i): ChatCollapsibleIOPart => {
@@ -130,21 +128,20 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			},
 			isError,
 			ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false,
-			currentWidthDelegate(),
 		));
 		this._codeblocks.push(...collapsibleListPart.codeblocks);
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._register(toDisposable(() => ChatInputOutputMarkdownProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));
 
-		const progressObservable = toolInvocation.kind === 'toolInvocation' ? toolInvocation.progress : undefined;
+		const progressObservable = toolInvocation.kind === 'toolInvocation' ? toolInvocation.state.map((s, r) => s.type === IChatToolInvocation.StateKind.Executing ? s.progress.read(r) : undefined) : undefined;
 		const progressBar = new Lazy(() => this._register(new ProgressBar(collapsibleListPart.domNode)));
 		if (progressObservable) {
 			this._register(autorun(reader => {
 				const progress = progressObservable?.read(reader);
-				if (progress.message) {
+				if (progress?.message) {
 					collapsibleListPart.title = progress.message;
 				}
-				if (progress.progress && !toolInvocation.isComplete) {
+				if (progress?.progress && !IChatToolInvocation.isComplete(toolInvocation, reader)) {
 					progressBar.value.setWorked(progress.progress * 100);
 				}
 			}));

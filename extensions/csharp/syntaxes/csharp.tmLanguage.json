@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/1381bedfb087c18aca67af8278050d11bc9d9349",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/965478e687f08d3b2ee4fe17104d3f41638bdca2",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -3423,7 +3423,7 @@
 			]
 		},
 		"interpolation": {
-			"name": "meta.interpolation.cs",
+			"name": "meta.embedded.interpolation.cs",
 			"begin": "(?<=[^\\{]|^)((?:\\{\\{)*)(\\{)(?=[^\\{])",
 			"beginCaptures": {
 				"1": {
@@ -3578,7 +3578,7 @@
 			}
 		},
 		"raw-interpolation": {
-			"name": "meta.interpolation.cs",
+			"name": "meta.embedded.interpolation.cs",
 			"begin": "(?<=[^\\{]|^)((?:\\{)*)(\\{)(?=[^\\{])",
 			"beginCaptures": {
 				"1": {
@@ -3601,7 +3601,7 @@
 			]
 		},
 		"double-raw-interpolation": {
-			"name": "meta.interpolation.cs",
+			"name": "meta.embedded.interpolation.cs",
 			"begin": "(?<=[^\\{][^\\{]|^)((?:\\{)*)(\\{\\{)(?=[^\\{])",
 			"beginCaptures": {
 				"1": {
@@ -5238,6 +5238,9 @@
 				},
 				{
 					"include": "#preprocessor-pragma-checksum"
+				},
+				{
+					"include": "#preprocessor-app-directive"
 				}
 			]
 		},
@@ -5444,6 +5447,129 @@
 				},
 				"5": {
 					"name": "string.quoted.double.cs"
+				}
+			}
+		},
+		"preprocessor-app-directive": {
+			"begin": "\\s*(:)\\s*",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.separator.colon.cs"
+				}
+			},
+			"end": "(?=$)",
+			"patterns": [
+				{
+					"include": "#preprocessor-app-directive-package"
+				},
+				{
+					"include": "#preprocessor-app-directive-property"
+				},
+				{
+					"include": "#preprocessor-app-directive-project"
+				},
+				{
+					"include": "#preprocessor-app-directive-sdk"
+				},
+				{
+					"include": "#preprocessor-app-directive-generic"
+				}
+			]
+		},
+		"preprocessor-app-directive-package": {
+			"match": "\\b(package)\\b\\s*([_[:alpha:]][_.[:alnum:]]*)?(@)?(.*)?\\s*",
+			"captures": {
+				"1": {
+					"name": "keyword.preprocessor.package.cs"
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "#preprocessor-app-directive-package-name"
+						}
+					]
+				},
+				"3": {
+					"name": "punctuation.separator.at.cs"
+				},
+				"4": {
+					"name": "string.unquoted.preprocessor.message.cs"
+				}
+			}
+		},
+		"preprocessor-app-directive-property": {
+			"match": "\\b(property)\\b\\s*([_[:alpha:]][_[:alnum:]]*)?(=)?(.*)?\\s*",
+			"captures": {
+				"1": {
+					"name": "keyword.preprocessor.property.cs"
+				},
+				"2": {
+					"name": "entity.name.variable.preprocessor.symbol.cs"
+				},
+				"3": {
+					"name": "punctuation.separator.equals.cs"
+				},
+				"4": {
+					"name": "string.unquoted.preprocessor.message.cs"
+				}
+			}
+		},
+		"preprocessor-app-directive-project": {
+			"match": "\\b(project)\\b\\s*(.*)?\\s*",
+			"captures": {
+				"1": {
+					"name": "keyword.preprocessor.project.cs"
+				},
+				"2": {
+					"name": "string.unquoted.preprocessor.message.cs"
+				}
+			}
+		},
+		"preprocessor-app-directive-sdk": {
+			"match": "\\b(sdk)\\b\\s*([_[:alpha:]][_.[:alnum:]]*)?(@)?(.*)?\\s*",
+			"captures": {
+				"1": {
+					"name": "keyword.preprocessor.sdk.cs"
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "#preprocessor-app-directive-package-name"
+						}
+					]
+				},
+				"3": {
+					"name": "punctuation.separator.at.cs"
+				},
+				"4": {
+					"name": "string.unquoted.preprocessor.message.cs"
+				}
+			}
+		},
+		"preprocessor-app-directive-package-name": {
+			"patterns": [
+				{
+					"match": "(\\.)([_[:alpha:]][_[:alnum:]]*)",
+					"captures": {
+						"1": {
+							"name": "punctuation.dot.cs"
+						},
+						"2": {
+							"name": "entity.name.variable.preprocessor.symbol.cs"
+						}
+					}
+				},
+				{
+					"name": "entity.name.variable.preprocessor.symbol.cs",
+					"match": "[_[:alpha:]][_[:alnum:]]*"
+				}
+			]
+		},
+		"preprocessor-app-directive-generic": {
+			"match": "\\b(.*)?\\s*",
+			"captures": {
+				"1": {
+					"name": "string.unquoted.preprocessor.message.cs"
 				}
 			}
 		},

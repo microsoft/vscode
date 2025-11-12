@@ -9,28 +9,29 @@ import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { autorun } from '../../../../base/common/observable.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { localize } from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import product from '../../../../platform/product/common/product.js';
 import { IQuickInputService, IQuickWidget } from '../../../../platform/quickinput/common/quickInput.js';
 import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from '../../../../platform/theme/common/colorRegistry.js';
-import product from '../../../../platform/product/common/product.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ChatModel, isCellTextEditOperation } from '../common/chatModel.js';
+import { ChatModel, isCellTextEditOperationArray } from '../common/chatModel.js';
+import { ChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatAgentLocation } from '../common/constants.js';
 import { IQuickChatOpenOptions, IQuickChatService, showChatView } from './chat.js';
 import { ChatWidget } from './chatWidget.js';
-import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;
@@ -159,9 +160,10 @@ class QuickChat extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
-		@ILayoutService private readonly layoutService: ILayoutService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 	}
@@ -228,7 +230,14 @@ class QuickChat extends Disposable {
 				ChatWidget,
 				ChatAgentLocation.Chat,
 				{ isQuickChat: true },
-				{ autoScroll: true, renderInputOnTop: true, renderStyle: 'compact', menus: { inputSideToolbar: MenuId.ChatInputSide, telemetrySource: 'chatQuick' }, enableImplicitContext: true },
+				{
+					autoScroll: true,
+					renderInputOnTop: true,
+					renderStyle: 'compact',
+					menus: { inputSideToolbar: MenuId.ChatInputSide, telemetrySource: 'chatQuick' },
+					enableImplicitContext: true,
+					defaultMode: ChatMode.Ask
+				},
 				{
 					listForeground: quickInputForeground,
 					listBackground: quickInputBackground,
@@ -261,8 +270,7 @@ class QuickChat extends Disposable {
 			disclaimerElement.classList.toggle('hidden', !showDisclaimer);
 
 			if (showDisclaimer) {
-				const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
-				const renderedMarkdown = disposables.add(markdown.render(new MarkdownString(localize({ key: 'termsDisclaimer', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.termsStatementUrl ?? '', product.defaultChatAgent?.privacyStatementUrl ?? ''), { isTrusted: true })));
+				const renderedMarkdown = disposables.add(this.markdownRendererService.render(new MarkdownString(localize({ key: 'termsDisclaimer', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.termsStatementUrl ?? '', product.defaultChatAgent?.privacyStatementUrl ?? ''), { isTrusted: true })));
 				disclaimerElement.appendChild(renderedMarkdown.element);
 			}
 		}));
@@ -310,7 +318,7 @@ class QuickChat extends Disposable {
 	}
 
 	async openChatView(): Promise<void> {
-		const widget = await showChatView(this.viewsService);
+		const widget = await showChatView(this.viewsService, this.layoutService);
 		if (!widget?.viewModel || !this.model) {
 			return;
 		}
@@ -331,16 +339,16 @@ class QuickChat extends Disposable {
 						}
 					} else if (item.kind === 'notebookEditGroup') {
 						for (const group of item.edits) {
-							if (isCellTextEditOperation(group)) {
+							if (isCellTextEditOperationArray(group)) {
 								message.push({
 									kind: 'textEdit',
-									edits: [group.edit],
-									uri: group.uri
+									edits: group.map(e => e.edit),
+									uri: group[0].uri
 								});
 							} else {
 								message.push({
 									kind: 'notebookEdit',
-									edits: [group],
+									edits: group,
 									uri: item.uri
 								});
 							}
@@ -350,7 +358,7 @@ class QuickChat extends Disposable {
 					}
 				}
 
-				this.chatService.addCompleteRequest(widget.viewModel.sessionId,
+				this.chatService.addCompleteRequest(widget.viewModel.sessionResource,
 					request.message as IParsedChatRequest,
 					request.variableData,
 					request.attempt,

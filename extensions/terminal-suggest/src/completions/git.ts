@@ -74,46 +74,67 @@ const postProcessBranches =
 			const seen = new Set<string>();
 			return output
 				.split("\n")
-				.filter((line) => !line.trim().startsWith("HEAD"))
+				.filter((line) => line.trim() && !line.trim().startsWith("HEAD"))
 				.map((branch) => {
-					let name = branch.trim();
-					const parts = branch.match(/\S+/g);
-					if (parts && parts.length > 1) {
-						if (parts[0] === "*") {
-							// We are in a detached HEAD state
-							if (branch.includes("HEAD detached")) {
-								return null;
+					// Parse the format: branchName|author|hash|subject|timeAgo
+					const parts = branch.split("|");
+					if (parts.length < 5) {
+						// Fallback to old parsing if format doesn't match
+						let name = branch.trim();
+						const oldParts = branch.match(/\S+/g);
+						if (oldParts && oldParts.length > 1) {
+							if (oldParts[0] === "*") {
+								if (branch.includes("HEAD detached")) {
+									return null;
+								}
+								return {
+									name: branch.replaceAll("*", "").trim(),
+									description: "Current branch",
+									priority: 100,
+									icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`
+								};
+							} else if (oldParts[0] === "+") {
+								name = branch.replaceAll("+", "").trim();
 							}
-							// Current branch
-							return {
-								name: branch.replace("*", "").trim(),
-								description: "Current branch",
-								priority: 100,
-								icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Branch}`
-							};
-						} else if (parts[0] === "+") {
-							// Branch checked out in another worktree.
-							name = branch.replace("+", "").trim();
 						}
+
+						let description = "Branch";
+						if (insertWithoutRemotes && name.startsWith("remotes/")) {
+							name = name.slice(name.indexOf("/", 8) + 1);
+							description = "Remote branch";
+						}
+
+						const space = name.indexOf(" ");
+						if (space !== -1) {
+							name = name.slice(0, space);
+						}
+
+						return {
+							name,
+							description,
+							icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`,
+							priority: 75,
+						};
 					}
 
-					let description = "Branch";
+					let name = parts[0].trim();
+					const author = parts[1].trim();
+					const hash = parts[2].trim();
+					const subject = parts[3].trim();
+					const timeAgo = parts[4].trim();
+
+					const description = `${timeAgo} • ${author} • ${hash} • ${subject}`;
+					const priority = 75;
 
 					if (insertWithoutRemotes && name.startsWith("remotes/")) {
 						name = name.slice(name.indexOf("/", 8) + 1);
-						description = "Remote branch";
-					}
-
-					const space = name.indexOf(" ");
-					if (space !== -1) {
-						name = name.slice(0, space);
 					}
 
 					return {
 						name,
 						description,
-						icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Branch}`,
-						priority: 75,
+						icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`,
+						priority,
 					};
 				})
 				.filter((suggestion) => {
@@ -127,6 +148,15 @@ const postProcessBranches =
 					return true;
 				});
 		};
+
+// Common git for-each-ref arguments for branch queries with commit details
+const gitBranchForEachRefArgs = [
+	"git",
+	"--no-optional-locks",
+	"for-each-ref",
+	"--sort=-committerdate",
+	"--format=%(refname:short)|%(authorname)|%(objectname:short)|%(subject)|%(committerdate:relative)",
+] as const;
 
 export const gitGenerators = {
 	// Commit history
@@ -148,7 +178,7 @@ export const gitGenerators = {
 			return lines.map((line) => {
 				return {
 					name: line.substring(0, hashLength),
-					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Commit}`,
+					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmCommit}`,
 					description: line.substring(descriptionStart),
 				};
 			});
@@ -194,7 +224,7 @@ export const gitGenerators = {
 			return output.split("\n").map((line) => {
 				return {
 					name: line.substring(0, 7),
-					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Commit}`,
+					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmCommit}`,
 					description: line.substring(7),
 				};
 			});
@@ -217,7 +247,7 @@ export const gitGenerators = {
 					// account for conventional commit messages
 					name: file.split(":").slice(2).join(":"),
 					insertValue: file.split(":")[0],
-					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Stash}`,
+					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmStash}`,
 				};
 			});
 		},
@@ -252,23 +282,17 @@ export const gitGenerators = {
 	// All branches
 	remoteLocalBranches: {
 		script: [
-			"git",
-			"--no-optional-locks",
-			"branch",
-			"-a",
-			"--no-color",
-			"--sort=-committerdate",
+			...gitBranchForEachRefArgs,
+			"refs/heads/",
+			"refs/remotes/",
 		],
 		postProcess: postProcessBranches({ insertWithoutRemotes: true }),
 	} satisfies Fig.Generator,
 
 	localBranches: {
 		script: [
-			"git",
-			"--no-optional-locks",
-			"branch",
-			"--no-color",
-			"--sort=-committerdate",
+			...gitBranchForEachRefArgs,
+			"refs/heads/",
 		],
 		postProcess: postProcessBranches({ insertWithoutRemotes: true }),
 	} satisfies Fig.Generator,
@@ -278,37 +302,19 @@ export const gitGenerators = {
 	localOrRemoteBranches: {
 		custom: async (tokens, executeShellCommand) => {
 			const pp = postProcessBranches({ insertWithoutRemotes: true });
-			if (tokens.includes("-r")) {
-				return pp?.(
-					(
-						await executeShellCommand({
-							command: "git",
-							args: [
-								"--no-optional-locks",
-								"-r",
-								"--no-color",
-								"--sort=-committerdate",
-							],
-						})
-					).stdout,
-					tokens
-				);
-			} else {
-				return pp?.(
-					(
-						await executeShellCommand({
-							command: "git",
-							args: [
-								"--no-optional-locks",
-								"branch",
-								"--no-color",
-								"--sort=-committerdate",
-							],
-						})
-					).stdout,
-					tokens
-				);
-			}
+			const refs = tokens.includes("-r") ? "refs/remotes/" : "refs/heads/";
+			return pp?.(
+				(
+					await executeShellCommand({
+						command: gitBranchForEachRefArgs[0],
+						args: [
+							...gitBranchForEachRefArgs.slice(1),
+							refs,
+						],
+					})
+				).stdout,
+				tokens
+			);
 		},
 	} satisfies Fig.Generator,
 
@@ -329,7 +335,7 @@ export const gitGenerators = {
 			return Object.keys(remoteURLs).map((remote) => {
 				return {
 					name: remote,
-					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Remote}`,
+					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmRemote}`,
 					description: "Remote",
 				};
 			});
@@ -347,7 +353,7 @@ export const gitGenerators = {
 		postProcess: function (output) {
 			return output.split("\n").map((tag) => ({
 				name: tag,
-				icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Tag}`
+				icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmTag}`
 			}));
 		},
 	} satisfies Fig.Generator,
@@ -6450,7 +6456,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ["rm", "remove"],
-					description: "Removes given remote [name]",
+					description: "Removes the given remote",
 					args: {
 						name: "remote",
 						generators: gitGenerators.remotes,
@@ -6459,7 +6465,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: "rename",
-					description: "Removes given remote [name]",
+					description: "Renames the given remote",
 					args: [
 						{
 							name: "old remote",
@@ -8117,7 +8123,7 @@ const completionSpec: Fig.Spec = {
 						{
 							name: "-",
 							description: "Switch to the last used branch",
-							icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Branch}`
+							icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`
 						},
 						{
 							name: "--",
@@ -9283,7 +9289,7 @@ const completionSpec: Fig.Spec = {
 						{
 							name: "-",
 							description: "Switch to the last used branch",
-							icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Branch}`
+							icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`
 						},
 					],
 				},
