@@ -1035,7 +1035,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		if (!latestVersionResourceUriTemplate) {
 			return undefined;
 		}
-		return format2(latestVersionResourceUriTemplate, { name });
+		return format2(latestVersionResourceUriTemplate, { name: encodeURIComponent(name) });
 	}
 
 	private getWebUrl(name: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
