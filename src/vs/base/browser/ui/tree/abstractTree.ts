@@ -468,7 +468,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	}
 
 	private renderTreeElement(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>): void {
-		templateData.twistie.className = 'monaco-tl-twistie';
+		templateData.twistie.className = templateData.twistie.classList.item(0)!;
 		templateData.twistie.style.paddingLeft = `${templateData.indentSize}px`;
 		templateData.indent.style.width = `${templateData.indentSize + this.indent - 16}px`;
 
