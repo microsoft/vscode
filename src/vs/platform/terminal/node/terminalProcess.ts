@@ -315,7 +315,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
 		this._register(this._childProcessMonitor.onDidChangeHasChildProcesses(value => this._onDidChangeProperty.fire({ type: ProcessPropertyType.HasChildProcesses, value })));
 		this._processStartupComplete = new Promise<void>(c => {
-			this.onProcessReady(() => c());
+			this._register(this.onProcessReady(() => c()));
 		});
 		this._register(ptyProcess.onData(data => {
 			// Handle flow control
