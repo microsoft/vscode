@@ -396,7 +396,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			});
 		}
 
-		editorInfo.render(data, currentWidth);
+		editorInfo.render(data, currentWidth).then(() => {
+			this._onDidChangeHeight.fire();
+		});
 
 		return ref;
 	}

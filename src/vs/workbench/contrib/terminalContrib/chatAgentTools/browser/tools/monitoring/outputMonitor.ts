@@ -21,7 +21,6 @@ import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/languageModelToolsService.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
-import { detectsInputRequiredPattern } from '../../executeStrategy/executeStrategy.js';
 import { ILinkLocation } from '../../taskHelpers.js';
 import { IConfirmationPrompt, IExecution, IPollingResult, OutputMonitorState, PollingConsts } from './types.js';
 import { getTextResponseFromStream } from './utils.js';
@@ -134,6 +133,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					case OutputMonitorState.Idle: {
 						const idleResult = await this._handleIdleState(token);
 						if (idleResult.shouldContinuePollling) {
+							this._state = OutputMonitorState.PollingForIdle;
 							continue;
 						} else {
 							resources = idleResult.resources;
@@ -385,7 +385,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!model) {
 			return undefined;
 		}
-		const lastFiveLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-5).join('\n');
+		const lastLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-15).join('\n');
 		const promptText =
 			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null. If the option is ambiguous, return null.
 			Examples:
@@ -413,13 +413,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			8. Output: "Terminal will be reused by tasks, press any key to close it."
 				Response: {"prompt": "Terminal will be reused by tasks, press any key to close it.", "options": ["a"], "freeFormInput": false}
 
+			9. Output: "Password:"
+				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
+
 			Alternatively, the prompt may request free form input, for example:
 			1. Output: "Enter your username:"
 				Response: {"prompt": "Enter your username:", "freeFormInput": true, "options": []}
 			2. Output: "Password:"
 				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
 			Now, analyze this output:
-			${lastFiveLines}
+			${lastLines}
 			`;
 
 		const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('core'), [{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }], {}, token);
@@ -438,9 +441,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					if (this._lastPrompt === obj.prompt) {
 						return;
 					}
-
+					if (obj.freeFormInput === true) {
+						return { prompt: obj.prompt, options: [], detectedRequestForFreeFormInput: true };
+					}
 					if (Array.isArray(obj.options) && obj.options.every(isString)) {
-
 						return { prompt: obj.prompt, options: obj.options, detectedRequestForFreeFormInput: obj.freeFormInput };
 					} else if (isObject(obj.options) && Object.values(obj.options).every(isString)) {
 						const keys = Object.keys(obj.options);
@@ -706,4 +710,29 @@ type SuggestedOption = string | { description: string; option: string };
 interface ISuggestedOptionResult {
 	suggestedOption?: SuggestedOption;
 	sentToTerminal?: boolean;
+}
+
+export function detectsInputRequiredPattern(cursorLine: string): boolean {
+	return [
+		// PowerShell-style multi-option line (supports [?] Help and optional default suffix) ending
+		// in whitespace
+		/\s*(?:\[[^\]]\]\s+[^\[]+\s*)+(?:\(default is\s+"[^"]+"\):)?\s+$/,
+		// Bracketed/parenthesized yes/no pairs at end of line: (y/n), [Y/n], (yes/no), [no/yes]
+		/(?:\(|\[)\s*(?:y(?:es)?\s*\/\s*n(?:o)?|n(?:o)?\s*\/\s*y(?:es)?)\s*(?:\]|\))\s+$/i,
+		// Same as above but allows a preceding '?' or ':' and optional wrappers e.g.
+		// "Continue? (y/n)" or "Overwrite: [yes/no]"
+		/[?:]\s*(?:\(|\[)?\s*y(?:es)?\s*\/\s*n(?:o)?\s*(?:\]|\))?\s+$/i,
+		// Confirmation prompts ending with (y) e.g. "Ok to proceed? (y)"
+		/\(y\)\s*$/i,
+		// Line ends with ':'
+		/:\s*$/,
+		// Line contains (END) which is common in pagers
+		/\(END\)$/,
+		// Password prompt
+		/password[:]?$/i,
+		// Line ends with '?'
+		/\?\s*(?:\([a-z\s]+\))?$/i,
+		// "Press a key" or "Press any key"
+		/press a(?:ny)? key/i,
+	].some(e => e.test(cursorLine));
 }

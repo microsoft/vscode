@@ -60,7 +60,7 @@ export interface IChatSessionsExtensionPoint {
 }
 export interface IChatSessionItem {
 	/** @deprecated Use {@link resource} instead */
-	id: string;
+	id?: string;
 	resource: URI;
 	label: string;
 	iconPath?: ThemeIcon;

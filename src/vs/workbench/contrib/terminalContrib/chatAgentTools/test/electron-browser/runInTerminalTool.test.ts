@@ -98,7 +98,8 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 			},
 		});
 		instantiationService.stub(ITerminalService, {
-			onDidDisposeInstance: terminalServiceDisposeEmitter.event
+			onDidDisposeInstance: terminalServiceDisposeEmitter.event,
+			setNextCommandId: async () => { }
 		});
 		instantiationService.stub(IChatService, {
 			onDidDisposeSession: chatServiceDisposeEmitter.event

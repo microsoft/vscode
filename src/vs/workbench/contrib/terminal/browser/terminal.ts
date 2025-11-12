@@ -432,6 +432,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	moveIntoNewEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source: ITerminalInstance | URI): Promise<void>;
 	getPrimaryBackend(): ITerminalBackend | undefined;
+	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void>;
 
 	/**
 	 * Fire the onActiveTabChanged event, this will trigger the terminal dropdown to be updated,

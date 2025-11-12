@@ -75,7 +75,7 @@ export default tseslint.config(
 				'context'
 			], // non-complete list of globals that are easy to access unintentionally
 			'no-var': 'warn',
-			'semi': 'off',
+			'semi': 'warn',
 			'local/code-translation-remind': 'warn',
 			'local/code-no-native-private': 'warn',
 			'local/code-parameter-properties-must-have-explicit-accessibility': 'warn',
@@ -131,7 +131,7 @@ export default tseslint.config(
 	// TS
 	{
 		files: [
-			'**/*.ts',
+			'**/*.{ts,tsx,mts,cts}',
 		],
 		languageOptions: {
 			parser: tseslint.parser,
@@ -143,6 +143,8 @@ export default tseslint.config(
 			'jsdoc': pluginJsdoc,
 		},
 		rules: {
+			// Disable built-in semi rules in favor of stylistic
+			'semi': 'off',
 			'@stylistic/ts/semi': 'warn',
 			'@stylistic/ts/member-delimiter-style': 'warn',
 			'local/code-no-unused-expressions': [
@@ -206,7 +208,6 @@ export default tseslint.config(
 			'src/vs/base/browser/dom.ts',
 			'src/vs/base/browser/markdownRenderer.ts',
 			'src/vs/base/browser/touch.ts',
-			'src/vs/base/browser/webWorkerFactory.ts',
 			'src/vs/base/common/async.ts',
 			'src/vs/base/common/desktopEnvironmentInfo.ts',
 			'src/vs/base/common/objects.ts',
@@ -404,15 +405,6 @@ export default tseslint.config(
 			'src/vs/base/browser/ui/list/rowCache.ts',
 			'src/vs/base/browser/ui/sash/sash.ts',
 			'src/vs/base/browser/ui/table/tableWidget.ts',
-			'src/vs/base/browser/ui/tree/abstractTree.ts',
-			'src/vs/base/browser/ui/tree/asyncDataTree.ts',
-			'src/vs/base/browser/ui/tree/compressedObjectTreeModel.ts',
-			'src/vs/base/browser/ui/tree/dataTree.ts',
-			'src/vs/base/browser/ui/tree/indexTree.ts',
-			'src/vs/base/browser/ui/tree/indexTreeModel.ts',
-			'src/vs/base/browser/ui/tree/objectTree.ts',
-			'src/vs/base/browser/ui/tree/objectTreeModel.ts',
-			'src/vs/base/browser/ui/tree/tree.ts',
 			'src/vs/base/parts/ipc/common/ipc.net.ts',
 			'src/vs/base/parts/ipc/common/ipc.ts',
 			'src/vs/base/parts/ipc/electron-main/ipcMain.ts',
@@ -451,19 +443,6 @@ export default tseslint.config(
 			'src/vs/platform/diagnostics/common/diagnostics.ts',
 			'src/vs/platform/diagnostics/node/diagnosticsService.ts',
 			'src/vs/platform/download/common/downloadIpc.ts',
-			'src/vs/platform/extensionManagement/common/abstractExtensionManagementService.ts',
-			'src/vs/platform/extensionManagement/common/allowedExtensionsService.ts',
-			'src/vs/platform/extensionManagement/common/extensionGalleryManifestServiceIpc.ts',
-			'src/vs/platform/extensionManagement/common/extensionGalleryService.ts',
-			'src/vs/platform/extensionManagement/common/extensionManagement.ts',
-			'src/vs/platform/extensionManagement/common/extensionManagementIpc.ts',
-			'src/vs/platform/extensionManagement/common/extensionManagementUtil.ts',
-			'src/vs/platform/extensionManagement/common/extensionNls.ts',
-			'src/vs/platform/extensionManagement/common/extensionStorage.ts',
-			'src/vs/platform/extensionManagement/common/extensionsProfileScannerService.ts',
-			'src/vs/platform/extensionManagement/common/implicitActivationEvents.ts',
-			'src/vs/platform/extensionManagement/node/extensionManagementService.ts',
-			'src/vs/platform/extensionRecommendations/common/extensionRecommendationsIpc.ts',
 			'src/vs/platform/extensions/common/extensionValidator.ts',
 			'src/vs/platform/extensions/common/extensions.ts',
 			'src/vs/platform/instantiation/common/descriptors.ts',
@@ -1564,7 +1543,7 @@ export default tseslint.config(
 						'readline',
 						'stream',
 						'string_decoder',
-						'tas-client-umd',
+						'tas-client',
 						'tls',
 						'undici',
 						'undici-types',
@@ -1653,7 +1632,7 @@ export default tseslint.config(
 						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
-						'tas-client-umd', // node module allowed even in /common/
+						'tas-client', // node module allowed even in /common/
 						'@microsoft/1ds-core-js', // node module allowed even in /common/
 						'@microsoft/1ds-post-js', // node module allowed even in /common/
 						'@xterm/headless' // node module allowed even in /common/
@@ -1771,7 +1750,7 @@ export default tseslint.config(
 							'when': 'test',
 							'pattern': 'vs/workbench/contrib/*/~'
 						}, // TODO@layers
-						'tas-client-umd', // node module allowed even in /common/
+						'tas-client', // node module allowed even in /common/
 						'vscode-textmate', // node module allowed even in /common/
 						'@vscode/vscode-languagedetection', // node module allowed even in /common/
 						'@vscode/tree-sitter-wasm', // type import
