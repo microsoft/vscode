@@ -158,8 +158,21 @@ const policies: ExportedPolicyDataDto = {
 					value: 'Global auto approve also known as "YOLO mode" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine.'
 				}
 			},
-			type: 'boolean',
-			default: false
+			type: 'boolean'
+		},
+		{
+			key: 'chat.tools.eligibleForAutoApproval',
+			name: 'ChatToolsEligibleForAutoApproval',
+			category: 'InteractiveSession',
+			minimumVersion: '1.100',
+			localization: {
+				description: {
+					key: 'eligibleForAutoApproval.description',
+					value: 'Controls which tools are eligible for automatic approval. This is a key/value store where keys are tool reference names and values are booleans. If a tool is not listed, it defaults to being eligible for auto-approval.'
+				}
+			},
+			type: 'object',
+			default: {}
 		},
 		{
 			key: 'chat.mcp.access',

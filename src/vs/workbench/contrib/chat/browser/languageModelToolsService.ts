@@ -510,6 +510,20 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return reason;
 		}
 
+		// Check if the tool is eligible for auto-approval based on its reference name
+		const tool = this._tools.get(toolId);
+		const toolReferenceName = tool?.data.toolReferenceName ?? tool?.data.displayName;
+
+		const eligibilityConfig = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);
+		const isEligible = eligibilityConfig && typeof eligibilityConfig === 'object' && toolReferenceName
+			? (eligibilityConfig[toolReferenceName] ?? true) // Default to true if not specified
+			: true; // Default to eligible if the setting is not an object or no reference name
+
+		if (!isEligible) {
+			// Tool is explicitly marked as not eligible for auto-approval
+			return undefined;
+		}
+
 		const config = this._configurationService.inspect<boolean | Record<string, boolean>>(ChatConfiguration.GlobalAutoApprove);
 
 		// If we know the tool runs at a global level, only consider the global config.
