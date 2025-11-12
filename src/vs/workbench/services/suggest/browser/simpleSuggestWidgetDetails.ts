@@ -23,7 +23,12 @@ export function canExpandCompletionItem(item: SimpleCompletionItem | undefined):
 
 export const SuggestDetailsClassName = 'suggest-details';
 
-export type SimpleSuggestDetailsPlacement = 'east' | 'west' | 'south' | 'north';
+export const enum SimpleSuggestDetailsPlacement {
+	East = 'east',
+	West = 'west',
+	South = 'south',
+	North = 'north'
+}
 
 export class SimpleSuggestDetailsWidget {
 
@@ -413,7 +418,7 @@ export class SimpleSuggestDetailsOverlay {
 		})();
 
 		// SOUTH
-		const southPacement: Placement = (function () {
+		const southPlacement: Placement = (function () {
 			const left = anchorBox.left;
 			const top = -info.borderWidth + anchorBox.top + anchorBox.height;
 			const maxSizeBottom = new dom.Dimension(anchorBox.width - info.borderHeight, bodyBox.height - anchorBox.top - anchorBox.height - info.verticalPadding);
@@ -433,16 +438,18 @@ export class SimpleSuggestDetailsOverlay {
 
 		// take first placement that fits or the first with "least bad" fit
 		const placementEntries: [SimpleSuggestDetailsPlacement, Placement][] = [
-			['east', eastPlacement],
-			['south', southPacement],
-			['north', northPlacement],
-			['west', westPlacement]
+			[SimpleSuggestDetailsPlacement.East, eastPlacement],
+			[SimpleSuggestDetailsPlacement.South, southPlacement],
+			[SimpleSuggestDetailsPlacement.North, northPlacement],
+			[SimpleSuggestDetailsPlacement.West, westPlacement]
 		];
-		const filteredEntries = this._preventPlacements
+		const orientations = (this._preventPlacements
 			? placementEntries.filter(([direction]) => !this._preventPlacements!.has(direction))
-			: placementEntries;
-		const placements = (filteredEntries.length ? filteredEntries : placementEntries).map(([, entry]) => entry);
-		const placement = placements.find(p => p.fit >= 0) ?? placements.sort((a, b) => b.fit - a.fit)[0];
+			: placementEntries).map(([, entry]) => entry);
+		const candidates = orientations.length ? orientations : placementEntries.map(([, entry]) => entry);
+		const placement = candidates.find(p => p.fit >= 0)
+			?? candidates.reduce<Placement | undefined>((best, current) => !best || current.fit > best.fit ? current : best, undefined)
+			?? eastPlacement;
 
 		// top/bottom placement
 		const bottom = anchorBox.top + anchorBox.height - info.borderHeight;
