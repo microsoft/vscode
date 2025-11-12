@@ -305,6 +305,7 @@
 		"--vscode-editorOverviewRuler-bracketMatchForeground",
 		"--vscode-editorOverviewRuler-commentForeground",
 		"--vscode-editorOverviewRuler-commentUnresolvedForeground",
+		"--vscode-editorOverviewRuler-commentDraftForeground",
 		"--vscode-editorOverviewRuler-commonContentForeground",
 		"--vscode-editorOverviewRuler-currentContentForeground",
 		"--vscode-editorOverviewRuler-deletedForeground",
