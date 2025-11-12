@@ -3473,26 +3473,52 @@ export class CommandCenter {
 			}
 		}
 
-		await worktreeRepository.createStash(undefined, true);
-		const stashes = await worktreeRepository.getStashes();
+		const message = l10n.t('There are merge conflicts from migrating changes. Please resolve them before committing.');
+		await this.migrateStashBetweenRepositories(worktreeRepository, repository, message);
+	}
+
+	private async migrateChangesToWorktree(repository: Repository, worktreePath: string): Promise<void> {
+		if (repository.indexGroup.resourceStates.length === 0 &&
+			repository.workingTreeGroup.resourceStates.length === 0 &&
+			repository.untrackedGroup.resourceStates.length === 0) {
+			return;
+		}
+
+		await this.model.openRepository(worktreePath, true);
+
+		const worktreeRepository = this.model.getRepository(worktreePath);
+		if (!worktreeRepository || worktreeRepository.kind !== 'worktree') {
+			return;
+		}
+
+		const message = l10n.t('There are merge conflicts from migrating changes to the worktree. Please resolve them before committing.');
+		await this.migrateStashBetweenRepositories(repository, worktreeRepository, message);
+	}
+
+	private async migrateStashBetweenRepositories(
+		sourceRepository: Repository,
+		targetRepository: Repository,
+		conflictMessage: string
+	): Promise<void> {
+		await sourceRepository.createStash(undefined, true);
+		const stashes = await sourceRepository.getStashes();
 
 		try {
-			await repository.applyStash(stashes[0].index);
-			worktreeRepository.dropStash(stashes[0].index);
+			await targetRepository.applyStash(stashes[0].index);
+			sourceRepository.dropStash(stashes[0].index);
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.StashConflict) {
-				await worktreeRepository.popStash();
+				await sourceRepository.popStash();
 				throw err;
 			}
-			repository.isWorktreeMigrating = true;
+			targetRepository.isWorktreeMigrating = true;
 
-			const message = l10n.t('There are merge conflicts from migrating changes. Please resolve them before committing.');
 			const show = l10n.t('Show Changes');
-			const choice = await window.showWarningMessage(message, show);
+			const choice = await window.showWarningMessage(conflictMessage, show);
 			if (choice === show) {
 				await commands.executeCommand('workbench.view.scm');
 			}
-			worktreeRepository.dropStash(stashes[0].index);
+			sourceRepository.dropStash(stashes[0].index);
 		}
 	}
 
@@ -3599,53 +3625,6 @@ export class CommandCenter {
 		} catch (err) {
 			// Return undefined on failure
 			return undefined;
-		}
-	}
-
-	private async migrateChangesToWorktree(repository: Repository, worktreePath: string): Promise<void> {
-		// Check if there are any uncommitted changes to migrate
-		if (repository.indexGroup.resourceStates.length === 0 &&
-			repository.workingTreeGroup.resourceStates.length === 0 &&
-			repository.untrackedGroup.resourceStates.length === 0) {
-			// No changes to migrate
-			return;
-		}
-
-		// Ensure the worktree repository is opened and available
-		await this.model.openRepository(worktreePath, true);
-
-		// Get the worktree repository
-		const worktreeRepository = this.model.getRepository(worktreePath);
-		if (!worktreeRepository || worktreeRepository.kind !== 'worktree') {
-			return;
-		}
-
-		// Create a stash in the current repository with all changes
-		await repository.createStash(undefined, true);
-		const stashes = await repository.getStashes();
-
-		try {
-			// Apply the stash to the worktree
-			await worktreeRepository.applyStash(stashes[0].index);
-			// Drop the stash from the current repository
-			repository.dropStash(stashes[0].index);
-		} catch (err) {
-			if (err.gitErrorCode !== GitErrorCodes.StashConflict) {
-				// If not a conflict, restore the stash to the current repository
-				await repository.popStash();
-				throw err;
-			}
-			// Mark worktree as migrating for conflict handling
-			worktreeRepository.isWorktreeMigrating = true;
-
-			const message = l10n.t('There are merge conflicts from migrating changes to the worktree. Please resolve them before committing.');
-			const show = l10n.t('Show Changes');
-			const choice = await window.showWarningMessage(message, show);
-			if (choice === show) {
-				await commands.executeCommand('workbench.view.scm');
-			}
-			// Drop the stash as it's been applied (with conflicts)
-			repository.dropStash(stashes[0].index);
 		}
 	}
 
