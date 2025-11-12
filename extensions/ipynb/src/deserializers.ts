@@ -151,7 +151,7 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 	}
 }
 
-function getNotebookCellMetadata(cell: nbformat.IBaseCell): {
+function getNotebookCellMetadata(cell: nbformat.ICell): {
 	[key: string]: any;
 } {
 	// We put this only for VSC to display in diff view.
@@ -169,7 +169,7 @@ function getNotebookCellMetadata(cell: nbformat.IBaseCell): {
 		cellMetadata['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
 	}
 
-	if ('id' in cell && typeof cell.id === 'string') {
+	if (typeof cell.id === 'string') {
 		cellMetadata.id = cell.id;
 	}
 

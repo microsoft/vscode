@@ -132,13 +132,13 @@ export class TelemetryService implements ITelemetryService {
 		data = mixin(data, this._experimentProperties);
 
 		// remove all PII from data
-		data = cleanData(data as Record<string, any>, this._cleanupPatterns);
+		data = cleanData(data, this._cleanupPatterns);
 
 		// add common properties
 		data = mixin(data, this._commonProperties);
 
 		// Log to the appenders of sufficient level
-		this._appenders.forEach(a => a.log(eventName, data));
+		this._appenders.forEach(a => a.log(eventName, data ?? {}));
 	}
 
 	publicLog(eventName: string, data?: ITelemetryData) {

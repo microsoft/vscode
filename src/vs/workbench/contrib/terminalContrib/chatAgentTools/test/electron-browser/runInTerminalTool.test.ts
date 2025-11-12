@@ -35,6 +35,10 @@ import { arch } from '../../../../../../base/common/process.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
 import type { SingleOrMany } from '../../../../../../base/common/types.js';
+import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IHistoryService } from '../../../../../services/history/common/history.js';
+import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
+import { Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -55,6 +59,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	let configurationService: TestConfigurationService;
 	let fileService: IFileService;
 	let storageService: IStorageService;
+	let workspaceContextService: TestContextService;
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionResource: URI; reason: 'cleared' }>;
 
@@ -62,6 +67,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
+		workspaceContextService = new TestContextService();
 
 		const logService = new NullLogService();
 		fileService = store.add(new FileService(logService));
@@ -77,6 +83,11 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 			fileService: () => fileService,
 		}, store);
 
+		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
+		instantiationService.stub(IHistoryService, {
+			getLastActiveWorkspaceRoot: () => undefined
+		});
+
 		const treeSitterLibraryService = store.add(instantiationService.createInstance(TreeSitterLibraryService));
 		treeSitterLibraryService.isTest = true;
 		instantiationService.stub(ITreeSitterLibraryService, treeSitterLibraryService);
@@ -87,7 +98,8 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 			},
 		});
 		instantiationService.stub(ITerminalService, {
-			onDidDisposeInstance: terminalServiceDisposeEmitter.event
+			onDidDisposeInstance: terminalServiceDisposeEmitter.event,
+			setNextCommandId: async () => { }
 		});
 		instantiationService.stub(IChatService, {
 			onDidDisposeSession: chatServiceDisposeEmitter.event
@@ -838,6 +850,25 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 			assertDropdownActions(result, [
 				'configure',
 			]);
+		});
+
+		test('should prevent auto approval when writing to a file outside the workspace', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
+			setAutoApprove({});
+
+			const workspaceFolder = URI.file(isWindows ? 'C:/workspace/project' : '/workspace/project');
+			const workspace = new Workspace('test', [toWorkspaceFolder(workspaceFolder)]);
+			workspaceContextService.setWorkspace(workspace);
+			instantiationService.stub(IHistoryService, {
+				getLastActiveWorkspaceRoot: () => workspaceFolder
+			});
+
+			const result = await executeToolTest({
+				command: 'echo "abc" > ../file.txt'
+			});
+
+			assertConfirmationRequired(result);
+			strictEqual(result?.confirmationMessages?.terminalCustomActions, undefined, 'Expected no custom actions when file write is blocked');
 		});
 	});
 

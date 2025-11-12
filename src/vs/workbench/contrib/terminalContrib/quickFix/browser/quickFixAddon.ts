@@ -33,7 +33,7 @@ import { CodeActionKind } from '../../../../../editor/contrib/codeAction/common/
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import type { SingleOrMany } from '../../../../../base/common/types.js';
+import { hasKey, type SingleOrMany } from '../../../../../base/common/types.js';
 
 const enum QuickFixDecorationSelector {
 	QuickFix = 'quick-fix'
@@ -380,7 +380,7 @@ export async function getQuickFixesForCommand(
 			if (quickFixes) {
 				for (const quickFix of asArray(quickFixes)) {
 					let action: ITerminalAction | undefined;
-					if ('type' in quickFix) {
+					if (hasKey(quickFix, { type: true })) {
 						switch (quickFix.type) {
 							case TerminalQuickFixType.TerminalCommand: {
 								const fix = quickFix as ITerminalQuickFixTerminalCommandAction;
@@ -536,7 +536,7 @@ function getQuickFixIcon(quickFix: TerminalQuickFixItem): ThemeIcon {
 	}
 	switch (quickFix.type) {
 		case TerminalQuickFixType.Opener:
-			if ('uri' in quickFix.action && quickFix.action.uri) {
+			if (quickFix.action.uri) {
 				const isUrl = (quickFix.action.uri.scheme === Schemas.http || quickFix.action.uri.scheme === Schemas.https);
 				return isUrl ? Codicon.linkExternal : Codicon.goToFile;
 			}

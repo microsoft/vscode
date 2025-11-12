@@ -93,7 +93,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		commands.registerArgumentProcessor({
 			processArgument: (arg) => {
 				if (arg && arg.$mid === MarshalledId.ChatSessionContext) {
-					const id = arg.session.id;
+					const id = arg.session.resource || arg.sessionId;
 					const sessionContent = this._sessionItems.get(id);
 					if (sessionContent) {
 						return sessionContent;
@@ -178,6 +178,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				endTime: sessionContent.timing?.endTime
 			},
 			statistics: sessionContent.statistics ? {
+				files: sessionContent.statistics?.files ?? 0,
 				insertions: sessionContent.statistics?.insertions ?? 0,
 				deletions: sessionContent.statistics?.deletions ?? 0
 			} : undefined

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct, coalesce } from '../../../../../base/common/arrays.js';
-import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from '../../../../../base/common/filters.js';
+import { IMatch, IFilter, or, matchesCamelCase, matchesWords, matchesBaseContiguousSubString } from '../../../../../base/common/filters.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { EditorModel } from '../../../../common/editor/editorModel.js';
 import { ILanguageModelsService, ILanguageModelChatMetadata, IUserFriendlyLanguageModel } from '../../../chat/common/languageModels.js';
@@ -13,7 +13,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 export const MODEL_ENTRY_TEMPLATE_ID = 'model.entry.template';
 export const VENDOR_ENTRY_TEMPLATE_ID = 'vendor.entry.template';
 
-const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
+const wordFilter = or(matchesBaseContiguousSubString, matchesWords);
 const CAPABILITY_REGEX = /@capability:\s*([^\s]+)/gi;
 const VISIBLE_REGEX = /@visible:\s*(true|false)/i;
 

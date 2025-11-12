@@ -9,7 +9,8 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ToolDataSource } from '../../chat/common/languageModelToolsService.js';
-import { IMcpServer, IMcpServerStartOpts, IMcpService, McpConnectionState, McpServerCacheState } from './mcpTypes.js';
+import { IMcpServer, IMcpServerStartOpts, IMcpService, McpConnectionState, McpServerCacheState, McpServerTransportType } from './mcpTypes.js';
+
 
 /**
  * Waits up to `timeout` for a server passing the filter to be discovered,
@@ -90,4 +91,25 @@ export function mcpServerToSourceData(server: IMcpServer): ToolDataSource {
 		collectionId: server.collection.id,
 		definitionId: server.definition.id
 	};
+}
+
+
+/**
+ * Validates whether the given HTTP or HTTPS resource is allowed for the specified MCP server.
+ *
+ * @param resource The URI of the resource to validate.
+ * @param server The MCP server instance to validate against, or undefined.
+ * @returns True if the resource request is valid for the server, false otherwise.
+ */
+export function canLoadMcpNetworkResourceDirectly(resource: URL, server: IMcpServer | undefined) {
+	let isResourceRequestValid = false;
+	if (resource.protocol === 'http:') {
+		const launch = server?.connection.get()?.launchDefinition;
+		if (launch && launch.type === McpServerTransportType.HTTP && launch.uri.authority.toLowerCase() === resource.hostname.toLowerCase()) {
+			isResourceRequestValid = true;
+		}
+	} else if (resource.protocol === 'https:') {
+		isResourceRequestValid = true;
+	}
+	return isResourceRequestValid;
 }

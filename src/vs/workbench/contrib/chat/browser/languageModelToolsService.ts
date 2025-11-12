@@ -37,11 +37,11 @@ import { ChatModel } from '../common/chatModel.js';
 import { IVariableReference } from '../common/chatModes.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } from '../common/chatService.js';
-import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
-import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, GithubCopilotToolReference, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../common/languageModelToolsService.js';
+import { Target } from '../common/promptSyntax/promptFileParser.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -167,6 +167,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
+	flushToolUpdates(): void {
+		this._onDidChangeToolsScheduler.flush();
+	}
+
 	private _refreshAllToolContextKeys() {
 		this._toolContextKeys.clear();
 		for (const tool of this._tools.values()) {
@@ -262,7 +266,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		try {
 			if (dto.context) {
 				store = new DisposableStore();
-				const model = this._chatService.getSession(LocalChatSessionUri.forSession(dto.context.sessionId)) as ChatModel | undefined;
+				const model = this._chatService.getSessionByLegacyId(dto.context.sessionId) as ChatModel | undefined;
 				if (!model) {
 					throw new Error(`Tool called for unknown chat session`);
 				}
@@ -602,15 +606,40 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
+	private _githubToVSCodeToolMap: Record<string, string> = {
+		[GithubCopilotToolReference.shell]: VSCodeToolReference.runCommands,
+		[GithubCopilotToolReference.customAgent]: VSCodeToolReference.runSubagent,
+		'github/*': 'github/github-mcp-server/*',
+		'playwright/*': 'microsoft/playwright-mcp/*',
+	};
+	private _githubPrefixToVSCodePrefix = [['github', 'github/github-mcp-server'], ['playwright', 'microsoft/playwright-mcp']] as const;
+
+	mapGithubToolName(name: string): string {
+		const mapped = this._githubToVSCodeToolMap[name];
+		if (mapped) {
+			return mapped;
+		}
+		for (const [fromPrefix, toPrefix] of this._githubPrefixToVSCodePrefix) {
+			const regexp = new RegExp(`^${fromPrefix}(/[^/]+)$`);
+			const m = name.match(regexp);
+			if (m) {
+				return toPrefix + m[1];
+			}
+		}
+		return name;
+	}
+
 	/**
 	 * Create a map that contains all tools and toolsets with their enablement state.
 	 * @param toolOrToolSetNames A list of tool or toolset names that are enabled.
 	 * @returns A map of tool or toolset instances to their enablement state.
 	 */
-	toToolAndToolSetEnablementMap(enabledQualifiedToolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
+	toToolAndToolSetEnablementMap(enabledQualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap {
+		if (target === undefined || target === Target.GitHubCopilot) {
+			enabledQualifiedToolOrToolSetNames = enabledQualifiedToolOrToolSetNames.map(name => this.mapGithubToolName(name));
+		}
 		const toolOrToolSetNames = new Set(enabledQualifiedToolOrToolSetNames);
 		const result = new Map<ToolSet | IToolData, boolean>();
-
 		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
 			if (tool instanceof ToolSet) {
 				const enabled = toolOrToolSetNames.has(toolReferenceName) || toolOrToolSetNames.has(tool.referenceName);
@@ -718,7 +747,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return result;
 	}
 
-	private *getPromptReferencableTools(): Iterable<[IToolData | ToolSet, string]> {
+	private * getPromptReferencableTools(): Iterable<[IToolData | ToolSet, string]> {
 		const coveredByToolSets = new Set<IToolData>();
 		for (const toolSet of this.toolSets.get()) {
 			if (toolSet.source.type !== 'user') {
@@ -736,7 +765,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	*getQualifiedToolNames(): Iterable<string> {
+	* getQualifiedToolNames(): Iterable<string> {
 		for (const [, toolReferenceName] of this.getPromptReferencableTools()) {
 			yield toolReferenceName;
 		}

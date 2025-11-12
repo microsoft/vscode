@@ -160,6 +160,11 @@ export class ChatTodoListWidget extends Disposable {
 		return this.domNode.style.display === 'none' ? 0 : this.domNode.offsetHeight;
 	}
 
+	private hideWidget(): void {
+		this.domNode.style.display = 'none';
+		this._onDidChangeHeight.fire();
+	}
+
 	private createChatTodoWidget(): HTMLElement {
 		const container = dom.$('.chat-todo-list-widget');
 		container.style.display = 'none';
@@ -223,8 +228,7 @@ export class ChatTodoListWidget extends Disposable {
 
 	public render(sessionResource: URI | undefined): void {
 		if (!sessionResource) {
-			this.domNode.style.display = 'none';
-			this._onDidChangeHeight.fire();
+			this.hideWidget();
 			return;
 		}
 
@@ -242,9 +246,11 @@ export class ChatTodoListWidget extends Disposable {
 		}
 
 		const currentTodos = this.chatTodoListService.getTodos(sessionResource);
-		const shouldClear = force || !currentTodos.some(todo => todo.status !== 'completed');
+		const shouldClear = force || (currentTodos.length > 0 && !currentTodos.some(todo => todo.status !== 'completed'));
 		if (shouldClear) {
 			this.clearAllTodos();
+		} else {
+			this.hideWidget();
 		}
 	}
 
@@ -350,8 +356,7 @@ export class ChatTodoListWidget extends Disposable {
 		}
 
 		this.chatTodoListService.setTodos(this._currentSessionResource, []);
-		this.domNode.style.display = 'none';
-		this._onDidChangeHeight.fire();
+		this.hideWidget();
 	}
 
 	private updateClearButtonState(): void {

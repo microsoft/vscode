@@ -171,6 +171,11 @@
 	overflow: hidden;
 }
 
+.monaco-workbench .split-view-view:has(.integrated-terminal) {
+	/** The suggest widget is a child of the split-view-view element so it needs to match z-index of the terminal to not be obstructed. */
+	z-index: 32;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .split-view-view:first-child .tabs-container {
 	border-right-width: 1px;
 	border-right-style: solid;
@@ -356,6 +361,10 @@
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-entry:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-list-container.drop-target {
+	background-color: var(--vscode-list-dropBackground);
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-label {

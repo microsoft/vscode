@@ -15,6 +15,9 @@ import { FetchWebPageTool } from '../../electron-browser/tools/fetchPageTool.js'
 import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { MockTrustedDomainService } from '../../../url/test/browser/mockTrustedDomainService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
+import { MockChatService } from '../common/mockChatService.js';
+import { upcastDeepPartial } from '../../../../../base/test/common/mock.js';
+import { IChatService } from '../../common/chatService.js';
 
 class TestWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;
@@ -85,6 +88,7 @@ suite('FetchWebPageTool', () => {
 			new TestWebContentExtractorService(webContentMap),
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
+			new MockChatService(),
 		);
 
 		const testUrls = [
@@ -133,6 +137,7 @@ suite('FetchWebPageTool', () => {
 			new TestWebContentExtractorService(new ResourceMap<string>()),
 			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
 			new MockTrustedDomainService([]),
+			new MockChatService(),
 		);
 
 		// Test empty array
@@ -181,6 +186,7 @@ suite('FetchWebPageTool', () => {
 			new TestWebContentExtractorService(webContentMap),
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
+			new MockChatService(),
 		);
 
 		const preparation = await tool.prepareToolInvocation(
@@ -193,6 +199,49 @@ suite('FetchWebPageTool', () => {
 		const messageText = typeof preparation.pastTenseMessage === 'string' ? preparation.pastTenseMessage : preparation.pastTenseMessage!.value;
 		assert.ok(messageText.includes('Fetched'), 'Should mention fetched resources');
 		assert.ok(messageText.includes('invalid://invalid'), 'Should mention invalid URL');
+	});
+
+	test('should approve when all URLs were mentioned in chat', async () => {
+		const webContentMap = new ResourceMap<string>([
+			[URI.parse('https://valid.com'), 'Valid content']
+		]);
+
+		const fileContentMap = new ResourceMap<string | VSBuffer>([
+			[URI.parse('test://valid/resource'), 'Valid MCP content']
+		]);
+
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(webContentMap),
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService(),
+			upcastDeepPartial<IChatService>({
+				getSession: () => {
+					return {
+						getRequests: () => [{
+							message: {
+								text: 'fetch https://example.com'
+							}
+						}],
+					};
+				},
+			}),
+		);
+
+		const preparation1 = await tool.prepareToolInvocation(
+			{ parameters: { urls: ['https://example.com'] }, chatSessionId: 'a' },
+			CancellationToken.None
+		);
+
+		assert.ok(preparation1, 'Should return prepared invocation');
+		assert.strictEqual(preparation1.confirmationMessages?.title, undefined);
+
+		const preparation2 = await tool.prepareToolInvocation(
+			{ parameters: { urls: ['https://other.com'] }, chatSessionId: 'a' },
+			CancellationToken.None
+		);
+
+		assert.ok(preparation2, 'Should return prepared invocation');
+		assert.ok(preparation2.confirmationMessages?.title);
 	});
 
 	test('should return message for binary files indicating they are not supported', async () => {
@@ -209,6 +258,7 @@ suite('FetchWebPageTool', () => {
 			new TestWebContentExtractorService(new ResourceMap<string>()),
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
+			new MockChatService(),
 		);
 
 		const result = await tool.invoke(
@@ -256,6 +306,7 @@ suite('FetchWebPageTool', () => {
 			new TestWebContentExtractorService(new ResourceMap<string>()),
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
+			new MockChatService(),
 		);
 
 		const result = await tool.invoke(
@@ -296,6 +347,7 @@ suite('FetchWebPageTool', () => {
 			new TestWebContentExtractorService(new ResourceMap<string>()),
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
+			new MockChatService(),
 		);
 
 		const result = await tool.invoke(
@@ -342,6 +394,7 @@ suite('FetchWebPageTool', () => {
 			new TestWebContentExtractorService(new ResourceMap<string>()),
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
+			new MockChatService(),
 		);
 
 		const result = await tool.invoke(
@@ -407,6 +460,7 @@ suite('FetchWebPageTool', () => {
 			new TestWebContentExtractorService(new ResourceMap<string>()),
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
+			new MockChatService(),
 		);
 
 		const result = await tool.invoke(
@@ -446,6 +500,7 @@ suite('FetchWebPageTool', () => {
 			new TestWebContentExtractorService(new ResourceMap<string>()),
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
+			new MockChatService(),
 		);
 
 		const result = await tool.invoke(
@@ -489,6 +544,7 @@ suite('FetchWebPageTool', () => {
 				new TestWebContentExtractorService(webContentMap),
 				new ExtendedTestFileService(fileContentMap),
 				new MockTrustedDomainService(),
+				new MockChatService(),
 			);
 
 			const testUrls = [
@@ -547,6 +603,7 @@ suite('FetchWebPageTool', () => {
 				new TestWebContentExtractorService(webContentMap),
 				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
 				new MockTrustedDomainService([]),
+				new MockChatService(),
 			);
 
 			const testUrls = [
@@ -582,6 +639,7 @@ suite('FetchWebPageTool', () => {
 				new TestWebContentExtractorService(new ResourceMap<string>()),
 				new ExtendedTestFileService(fileContentMap),
 				new MockTrustedDomainService(),
+				new MockChatService(),
 			);
 
 			const testUrls = [
@@ -623,6 +681,7 @@ suite('FetchWebPageTool', () => {
 				new TestWebContentExtractorService(webContentMap),
 				new ExtendedTestFileService(fileContentMap),
 				new MockTrustedDomainService(),
+				new MockChatService(),
 			);
 
 			const testUrls = [
@@ -670,6 +729,7 @@ suite('FetchWebPageTool', () => {
 				new TestWebContentExtractorService(new ResourceMap<string>()), // Empty - all web requests fail
 				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()), // Empty - all file ,
 				new MockTrustedDomainService([]),
+				new MockChatService(),
 			);
 
 			const testUrls = [
@@ -703,6 +763,7 @@ suite('FetchWebPageTool', () => {
 				new TestWebContentExtractorService(new ResourceMap<string>()),
 				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
 				new MockTrustedDomainService([]),
+				new MockChatService(),
 			);
 
 			const result = await tool.invoke(
@@ -728,6 +789,7 @@ suite('FetchWebPageTool', () => {
 				new TestWebContentExtractorService(new ResourceMap<string>()),
 				new ExtendedTestFileService(fileContentMap),
 				new MockTrustedDomainService(),
+				new MockChatService(),
 			);
 
 			const result = await tool.invoke(
@@ -764,6 +826,7 @@ suite('FetchWebPageTool', () => {
 				}(),
 				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
 				new MockTrustedDomainService(),
+				new MockChatService(),
 			);
 
 			const result = await tool.invoke(
@@ -790,6 +853,7 @@ suite('FetchWebPageTool', () => {
 				}(),
 				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
 				new MockTrustedDomainService(),
+				new MockChatService(),
 			);
 
 			const result = await tool.invoke(
@@ -821,6 +885,7 @@ suite('FetchWebPageTool', () => {
 				}(),
 				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
 				new MockTrustedDomainService(),
+				new MockChatService(),
 			);
 
 			const result = await tool.invoke(
@@ -846,6 +911,7 @@ suite('FetchWebPageTool', () => {
 				}(),
 				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
 				new MockTrustedDomainService(),
+				new MockChatService(),
 			);
 
 			const result = await tool.invoke(

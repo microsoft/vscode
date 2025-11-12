@@ -272,7 +272,7 @@ export interface IOverlayWidgetPosition {
 	 * When set, stacks with other overlay widgets with the same preference,
 	 * in an order determined by the ordinal value.
 	 */
-	stackOridinal?: number;
+	stackOrdinal?: number;
 }
 /**
  * An overlay widgets renders on top of the text.
@@ -824,6 +824,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Fires after the editor completes the operation it fired `onBeginUpdate` for.
 	*/
 	readonly onEndUpdate: Event<void>;
+
+	readonly onDidChangeViewZones: Event<void>;
 
 	/**
 	 * Saves current view state of the editor in a serializable object.
