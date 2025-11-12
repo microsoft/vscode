@@ -599,13 +599,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return -1;
 		}
-		// Validate the lineNumber first to avoid "Illegal value for lineNumber" errors
 		const validatedPosition = this._modelData.model.validatePosition({
 			lineNumber: lineNumber,
-			column: 1
+			column: Number.MAX_SAFE_INTEGER
 		});
-		const maxCol = this._modelData.model.getLineMaxColumn(validatedPosition.lineNumber);
-		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, validatedPosition.lineNumber, maxCol, includeViewZones);
+		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, validatedPosition.lineNumber, validatedPosition.column, includeViewZones);
 	}
 
 	public getLineHeightForPosition(position: IPosition): number {
