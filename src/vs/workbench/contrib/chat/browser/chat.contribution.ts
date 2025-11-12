@@ -295,7 +295,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EligibleForAutoApproval]: {
 			default: {},
-			markdownDescription: nls.localize('chat.tools.eligibleForAutoApproval', "Controls which tools are eligible for automatic approval. This is a key/value store where keys are tool reference names .\n\nSet to `true` to allow a tool to be automatically approved (when global auto-approve is enabled), `false` to always require explicit approval for that specific tool."),
+			markdownDescription: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval. This is a key/value store where keys are tool reference names (e.g., `runInTerminal`, `fetch`, `runTask`, `runTest`) and values are booleans.\n\nSet to `true` to allow a tool to be automatically approved (when global auto-approve is enabled), `false` to always require explicit approval for that specific tool.'),
 			type: 'object',
 			additionalProperties: {
 				type: 'boolean',
@@ -306,7 +306,18 @@ configurationRegistry.registerConfiguration({
 					'fetch': false,
 					'runTests': false
 				}
-			]
+			],
+			policy: {
+				name: 'ChatToolsEligibleForAutoApproval',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.100',
+				localization: {
+					description: {
+						key: 'chat.tools.eligibleForAutoApproval',
+						value: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval. This is a key/value store where keys are tool reference names (e.g., `runInTerminal`, `fetch`, `runTask`, `runTest`) and values are booleans.\n\nSet to `true` to allow a tool to be automatically approved (when global auto-approve is enabled), `false` to always require explicit approval for that specific tool.')
+					}
+				}
+			}
 		},
 		'chat.sendElementsToChat.enabled': {
 			default: true,
