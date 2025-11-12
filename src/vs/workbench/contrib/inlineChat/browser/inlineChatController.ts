@@ -881,6 +881,7 @@ export class InlineChatController1 implements IEditorContribution {
 		this._resetWidget();
 
 		this._strategy?.dispose?.();
+		this._strategy = undefined;
 		this._session = undefined;
 	}
 
