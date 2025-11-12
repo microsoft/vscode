@@ -56,4 +56,4 @@ process.on('unhandledRejection', (reason, p) => {
 
 // Load all the gulpfiles only if running tasks other than the editor tasks
 glob.sync('gulpfile.*.{mjs,js}', { cwd: __dirname })
-	.map(f => require(`./${f}`));
+	.forEach(f => require(`./${f}`));
