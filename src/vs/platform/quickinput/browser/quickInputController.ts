@@ -15,7 +15,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, dispose } from '../../../base/common/lifecycle.js';
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
-import { KeyCode } from '../../../base/common/keyCodes.js';
+import { isModifierKey } from '../../../base/common/keyCodes.js';
 import { localize } from '../../../nls.js';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType, IQuickTree, IQuickTreeItem } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
@@ -322,8 +322,7 @@ export class QuickInputController extends Disposable {
 			// Don't remove aria-activedescendant when only modifier keys are pressed
 			// to prevent screen reader re-announcements when users press Ctrl to silence speech.
 			// See: https://github.com/microsoft/vscode/issues/271032
-			const keyCode = e.keyCode;
-			if (keyCode !== KeyCode.Ctrl && keyCode !== KeyCode.Shift && keyCode !== KeyCode.Alt && keyCode !== KeyCode.Meta) {
+			if (!isModifierKey(e.keyCode)) {
 				inputBox.removeAttribute('aria-activedescendant');
 			}
 		}));
