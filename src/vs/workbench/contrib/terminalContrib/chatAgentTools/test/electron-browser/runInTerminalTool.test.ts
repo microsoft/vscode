@@ -1049,7 +1049,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			// Manually add a background execution with disposed terminal
 			// Note: In reality, this would be cleaned up by onDidDisposeInstance, but we're testing the fallback
-			(RunInTerminalTool as any)._backgroundExecutions.set(termId, {
+			(RunInTerminalTool as unknown as { _backgroundExecutions: Map<string, unknown> })._backgroundExecutions.set(termId, {
 				instance: mockTerminal,
 				getOutput: () => 'some output',
 				dispose: () => { }
@@ -1068,7 +1068,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 			strictEqual(caughtError!.message, 'Terminal has been closed', 'Error message should indicate terminal is closed');
 
 			// Clean up
-			(RunInTerminalTool as any)._backgroundExecutions.delete(termId);
+			(RunInTerminalTool as unknown as { _backgroundExecutions: Map<string, unknown> })._backgroundExecutions.delete(termId);
 		});
 	});
 });
