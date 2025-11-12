@@ -75,7 +75,8 @@ export class InlineEditsView extends Disposable {
 			isInDiffEditor: boolean;
 		} | undefined>(this, reader => {
 			const model = this._model.read(reader);
-			if (!model || !this._constructorDone.read(reader)) {
+			const textModel = this._editorObs.model.read(reader);
+			if (!model || !textModel || !this._constructorDone.read(reader)) {
 				return undefined;
 			}
 
@@ -317,16 +318,17 @@ export class InlineEditsView extends Disposable {
 			);
 		}).recomputeInitiallyAndOnChange(this._store);
 
-		const textModel = this._editor.getModel()!;
-
 		let viewZoneId: string | undefined;
 		this._register(autorun(reader => {
 			const minScrollHeight = minEditorScrollHeight.read(reader);
+			const textModel = this._editorObs.model.read(reader);
+			if (!textModel) { return; }
+
 			this._editor.changeViewZones(accessor => {
 				const scrollHeight = this._editor.getScrollHeight();
 				const viewZoneHeight = minScrollHeight - scrollHeight + 1 /* Add 1px so there is a small gap */;
 
-				if (viewZoneHeight !== 0 && viewZoneId) {
+				if (viewZoneHeight !== 0 && viewZoneId !== undefined) {
 					accessor.removeZone(viewZoneId);
 					viewZoneId = undefined;
 				}
