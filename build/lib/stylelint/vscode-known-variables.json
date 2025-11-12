@@ -239,6 +239,7 @@
 		"--vscode-editorGutter-addedBackground",
 		"--vscode-editorGutter-addedSecondaryBackground",
 		"--vscode-editorGutter-background",
+		"--vscode-editorGutter-commentDraftGlyphForeground",
 		"--vscode-editorGutter-commentGlyphForeground",
 		"--vscode-editorGutter-commentRangeForeground",
 		"--vscode-editorGutter-commentUnresolvedGlyphForeground",
