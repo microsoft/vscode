@@ -7,7 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IChannel, IServerChannel, getDelayedChannel, IPCLogger } from '../../../../base/parts/ipc/common/ipc.js';
 import { Client } from '../../../../base/parts/ipc/common/ipc.net.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
-import { connectRemoteAgentManagement, IConnectionOptions, ManagementPersistentConnection, PersistentConnection, PersistentConnectionEvent } from '../../../../platform/remote/common/remoteAgentConnection.js';
+import { connectRemoteAgentManagement, IConnectionOptions, ManagementPersistentConnection, PersistentConnectionEvent } from '../../../../platform/remote/common/remoteAgentConnection.js';
 import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from './remoteAgentService.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
@@ -35,11 +35,11 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 		@IProductService productService: IProductService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ISignService signService: ISignService,
-		@ILogService logService: ILogService
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		if (this._environmentService.remoteAuthority) {
-			this._connection = this._register(new RemoteAgentConnection(this._environmentService.remoteAuthority, productService.commit, productService.quality, this.remoteSocketFactoryService, this._remoteAuthorityResolverService, signService, logService));
+			this._connection = this._register(new RemoteAgentConnection(this._environmentService.remoteAuthority, productService.commit, productService.quality, this.remoteSocketFactoryService, this._remoteAuthorityResolverService, signService, this._logService));
 		} else {
 			this._connection = null;
 		}
@@ -61,10 +61,10 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 					const env = await RemoteExtensionEnvironmentChannelClient.getEnvironmentData(channel, connection.remoteAuthority, this.userDataProfileService.currentProfile.isDefault ? undefined : this.userDataProfileService.currentProfile.id);
 					this._remoteAuthorityResolverService._setAuthorityConnectionToken(connection.remoteAuthority, env.connectionToken);
 					if (typeof env.reconnectionGraceTime === 'number') {
-						console.log(`[reconnection-grace-time] Client received grace time from server: ${env.reconnectionGraceTime}ms (${Math.floor(env.reconnectionGraceTime / 1000)}s)`);
-						PersistentConnection.updateDefaultGraceTime(env.reconnectionGraceTime);
+						this._logService.info(`[reconnection-grace-time] Client received grace time from server: ${env.reconnectionGraceTime}ms (${Math.floor(env.reconnectionGraceTime / 1000)}s)`);
+						connection.updateGraceTime(env.reconnectionGraceTime);
 					} else {
-						console.log(`[reconnection-grace-time] Server did not provide grace time, using default`);
+						this._logService.info(`[reconnection-grace-time] Server did not provide grace time, using default`);
 					}
 					return env;
 				},
@@ -155,6 +155,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 
 	readonly remoteAuthority: string;
 	private _connection: Promise<Client<RemoteAgentConnectionContext>> | null;
+	private _managementConnection: ManagementPersistentConnection | null = null;
 
 	private _initialConnectionMs: number | undefined;
 
@@ -198,6 +199,16 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		return this._initialConnectionMs!;
 	}
 
+	getManagementConnection(): ManagementPersistentConnection | null {
+		return this._managementConnection;
+	}
+
+	updateGraceTime(graceTime: number): void {
+		if (this._managementConnection) {
+			this._managementConnection.updateGraceTime(graceTime);
+		}
+	}
+
 	private _getOrCreateConnection(): Promise<Client<RemoteAgentConnectionContext>> {
 		if (!this._connection) {
 			this._connection = this._createConnection();
@@ -230,6 +241,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		const start = Date.now();
 		try {
 			connection = this._register(await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`));
+			this._managementConnection = connection;
 		} finally {
 			this._initialConnectionMs = Date.now() - start;
 		}

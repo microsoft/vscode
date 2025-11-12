@@ -552,14 +552,6 @@ export abstract class PersistentConnection extends Disposable {
 	private static _permanentFailureAttempt: number = 0;
 	private static _permanentFailureHandled: boolean = false;
 	private static _instances: PersistentConnection[] = [];
-	private static _defaultReconnectionGraceTime: number = ProtocolConstants.ReconnectionGraceTime;
-
-	public static updateDefaultGraceTime(graceTime: number): void {
-		const sanitizedGrace = sanitizeGraceTime(graceTime, ProtocolConstants.ReconnectionGraceTime);
-		console.log(`[reconnection-grace-time] Updating default grace time: ${graceTime}ms -> ${sanitizedGrace}ms (${Math.floor(sanitizedGrace / 1000)}s), updating ${this._instances.length} existing connection(s)`);
-		this._defaultReconnectionGraceTime = sanitizedGrace;
-		this._instances.forEach(instance => instance._applyGraceTimes(sanitizedGrace));
-	}
 
 	private readonly _onDidStateChange = this._register(new Emitter<PersistentConnectionEvent>());
 	public readonly onDidStateChange = this._onDidStateChange.event;
@@ -581,7 +573,7 @@ export abstract class PersistentConnection extends Disposable {
 		private readonly _reconnectionFailureIsFatal: boolean
 	) {
 		super();
-		this._applyGraceTimes(PersistentConnection._defaultReconnectionGraceTime);
+		this._reconnectionGraceTime = ProtocolConstants.ReconnectionGraceTime;
 
 		this._onDidStateChange.fire(new ConnectionGainEvent(this.reconnectionToken, 0, 0));
 
@@ -621,10 +613,11 @@ export abstract class PersistentConnection extends Disposable {
 		}
 	}
 
-	private _applyGraceTimes(graceTime: number): void {
+	public updateGraceTime(graceTime: number): void {
+		const sanitizedGrace = sanitizeGraceTime(graceTime, ProtocolConstants.ReconnectionGraceTime);
 		const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, false);
-		this._options.logService.trace(`${logPrefix} Applying reconnection grace time: ${graceTime}ms (${Math.floor(graceTime / 1000)}s)`);
-		this._reconnectionGraceTime = graceTime;
+		this._options.logService.trace(`${logPrefix} Applying reconnection grace time: ${sanitizedGrace}ms (${Math.floor(sanitizedGrace / 1000)}s)`);
+		this._reconnectionGraceTime = sanitizedGrace;
 	}
 
 	public override dispose(): void {
