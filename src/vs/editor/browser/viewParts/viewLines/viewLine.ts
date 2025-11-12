@@ -113,11 +113,14 @@ export class ViewLine implements IVisibleLine {
 
 		this._isMaybeInvalid = false;
 
+		// console.log('renderLine for lineNumber : ', lineNumber);
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
 		const options = this._options;
 		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
 		const renderWhitespace = (lineData.hasVariableFonts || options.experimentalWhitespaceRendering === 'off') ? options.renderWhitespace : 'none';
 		const allowFastRendering = !lineData.hasVariableFonts;
+		// console.log('lineData.inlineDecorations : ', JSON.stringify(lineData.inlineDecorations));
+		// console.log('allowFastRendering ', allowFastRendering);
 
 		// Only send selection information when needed for rendering whitespace
 		let selectionsOnLine: OffsetRange[] | null = null;
@@ -174,8 +177,11 @@ export class ViewLine implements IVisibleLine {
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
 			// no need to do anything, we have the same render input
+			// console.log('early return for lineNumber : ', lineNumber);
 			return false;
 		}
+
+		// console.log('actualInlineDecorations : ', actualInlineDecorations);
 
 		sb.appendString('<div ');
 		if (lineData.textDirection === TextDirection.RTL) {

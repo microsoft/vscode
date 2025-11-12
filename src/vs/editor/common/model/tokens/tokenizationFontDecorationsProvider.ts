@@ -4,59 +4,136 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IModelDecorationOptions, IModelDeltaDecoration } from '../../model.js';
+import { IModelDecoration } from '../../model.js';
 import { TokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { Range } from '../../core/range.js';
+import { DecorationProvider } from '../decorationProvider.js';
 import { TextModel } from '../textModel.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IModelOptionsChangedEvent } from '../../textModelEvents.js';
 import { classNameForFont } from '../../languages/supports/tokenization.js';
 import { Position } from '../../core/position.js';
+import { IFontOption } from '../../languages.js';
 
-export class TokenizationFontDecorationProvider extends Disposable {
+export class LineHeightChangingDecoration {
 
-	private readonly fontDecorationIds = new Set<string>();
+	public static toKey(obj: LineHeightChangingDecoration): string {
+		return `${obj.ownerId};${obj.decorationId};${obj.lineNumber}`;
+	}
+
+	constructor(
+		public readonly ownerId: number,
+		public readonly decorationId: string,
+		public readonly lineNumber: number,
+		public readonly lineHeight: number | null
+	) { }
+}
+
+export class LineFontChangingDecoration {
+
+	public static toKey(obj: LineFontChangingDecoration): string {
+		return `${obj.ownerId};${obj.decorationId};${obj.lineNumber}`;
+	}
+
+	constructor(
+		public readonly ownerId: number,
+		public readonly decorationId: string,
+		public readonly lineNumber: number
+	) { }
+}
+
+export class TokenizationFontDecorationProvider extends Disposable implements DecorationProvider {
+
+	private readonly _onDidChangeLineHeight = new Emitter<Set<LineHeightChangingDecoration>>();
+	public readonly onDidChangeLineHeight = this._onDidChangeLineHeight.event;
+
+	private readonly _onDidChangeFont = new Emitter<Set<LineFontChangingDecoration>>();
+	public readonly onDidChangeFont = this._onDidChangeFont.event;
+
+	private readonly fontInfo = new Map<number, IFontOption[]>();
 
 	constructor(
 		private readonly textModel: TextModel,
 		private readonly tokenizationTextModelPart: TokenizationTextModelPart
 	) {
 		super();
-		this._register(this.tokenizationTextModelPart.onDidChangeFontInfo(fontChanges => {
-			textModel.changeDecorations((accessor) => {
-				for (const fontChange of fontChanges) {
+		this.tokenizationTextModelPart.onDidChangeFontInfo(fontChanges => {
+			console.log('fontChanges : ', fontChanges);
+			const changedLineNumberHeights = new Map<number, number | null>();
+			const changedLineNumberFonts = new Set<number>();
+			for (const fontChange of fontChanges) {
+				if (!fontChange.options) {
+					changedLineNumberHeights.set(fontChange.lineNumber, null);
+					changedLineNumberFonts.add(fontChange.lineNumber);
+					continue;
+				}
+				this.fontInfo.set(fontChange.lineNumber, fontChange.options);
+				for (const option of fontChange.options) {
 					const lineNumber = fontChange.lineNumber;
-					const newDecorations: IModelDeltaDecoration[] = fontChange.options.map(fontOption => {
-						const lastOffset = lineNumber > 1 ? this.textModel.getOffsetAt(new Position(lineNumber - 1, this.textModel.getLineMaxColumn(lineNumber - 1))) + 1 : 0;
+					if (changedLineNumberHeights.has(lineNumber)) {
+						const currentLineHeight = changedLineNumberHeights.get(lineNumber);
+						if (!currentLineHeight || (option.lineHeight && option.lineHeight > currentLineHeight)) {
+							changedLineNumberHeights.set(lineNumber, option.lineHeight); // we take the maximum line height
+						}
+					} else {
+						changedLineNumberHeights.set(fontChange.lineNumber, option.lineHeight);
+					}
+					changedLineNumberFonts.add(lineNumber);
+				}
+			}
+			const affectedLineHeights = new Set<LineHeightChangingDecoration>();
+			for (const [lineNumber, lineHeight] of changedLineNumberHeights) {
+				affectedLineHeights.add(new LineHeightChangingDecoration(0, `tokenization-line-decoration-${lineNumber}`, lineNumber, lineHeight));
+			}
+			const affectedLineFonts = new Set<LineFontChangingDecoration>();
+			for (const lineNumber of changedLineNumberFonts) {
+				affectedLineFonts.add(new LineFontChangingDecoration(0, `tokenization-line-decoration-${lineNumber}`, lineNumber));
+			}
+			this._onDidChangeLineHeight.fire(affectedLineHeights);
+			this._onDidChangeFont.fire(affectedLineFonts);
+		});
+	}
+
+	public handleDidChangeOptions(e: IModelOptionsChangedEvent): void { }
+
+	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
+		console.log('getDecorationsInRange - range : ', range);
+		const decorations: IModelDecoration[] = [];
+		for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
+			if (this.fontInfo.has(i)) {
+				const fontOptions = this.fontInfo.get(i)!;
+				if (fontOptions) {
+					for (const fontOption of fontOptions) {
+						const lastOffset = i > 1 ? this.textModel.getOffsetAt(new Position(i - 1, this.textModel.getLineMaxColumn(i - 1))) + 1 : 0;
 						const startOffset = lastOffset + fontOption.startIndex;
 						const endOffset = lastOffset + fontOption.endIndex;
 						const startPosition = this.textModel.getPositionAt(startOffset);
 						const endPosition = this.textModel.getPositionAt(endOffset);
-						const range = Range.fromPositions(startPosition, endPosition);
-						const options: IModelDecorationOptions = {
-							description: 'FontOptionDecoration',
-							inlineClassName: classNameForFont(fontOption.fontFamily ?? '', fontOption.fontSize ?? ''),
-							fontFamily: fontOption.fontFamily,
-							fontSize: fontOption.fontSize,
-							lineHeight: fontOption.lineHeight,
-							affectsFont: true,
-						};
-						const decoration: IModelDeltaDecoration = { range, options };
-						return decoration;
-					});
-
-					const decorationsOnLine = textModel.getDecorationsInRange(new Range(lineNumber, 1, lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
-					const oldDecorationIds: string[] = [];
-					for (const decorationOnLine of decorationsOnLine) {
-						if (this.fontDecorationIds.has(decorationOnLine.id)) {
-							oldDecorationIds.push(decorationOnLine.id);
-							this.fontDecorationIds.delete(decorationOnLine.id);
-						}
-					}
-					const newDecorationIds = accessor.deltaDecorations(oldDecorationIds, newDecorations);
-					for (const newDecorationId of newDecorationIds) {
-						this.fontDecorationIds.add(newDecorationId);
+						const className = classNameForFont(fontOption.fontFamily ?? '', fontOption.fontSize ?? '');
+						const id = `font-decoration-${i}-${fontOption.startIndex}-${fontOption.endIndex}`;
+						decorations.push({
+							id: id,
+							options: {
+								description: 'FontOptionDecoration',
+								inlineClassName: className,
+								affectsFont: true
+							},
+							ownerId: 0,
+							range: Range.fromPositions(startPosition, endPosition)
+						});
 					}
 				}
-			});
-		}));
+			}
+		}
+		console.log('decorations : ', JSON.stringify(decorations));
+		return decorations;
+	}
+
+	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
+		return this.getDecorationsInRange(
+			new Range(1, 1, this.textModel.getLineCount(), 1),
+			ownerId,
+			filterOutValidation
+		);
 	}
 }

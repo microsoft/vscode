@@ -910,6 +910,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
+		// console.log('getDecorationsInRange for range : ', JSON.stringify(range));
 		const modelStart = this.convertViewPositionToModelPosition(range.startLineNumber, range.startColumn);
 		const modelEnd = this.convertViewPositionToModelPosition(range.endLineNumber, range.endColumn);
 

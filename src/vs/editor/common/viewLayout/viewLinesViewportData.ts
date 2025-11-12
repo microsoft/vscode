@@ -74,6 +74,7 @@ export class ViewportData {
 	}
 
 	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
+		// lconsole.log('getViewLineRenderingData for lineNumber : ', lineNumber);
 		return this._model.getViewportViewLineRenderingData(this.visibleRange, lineNumber);
 	}
 

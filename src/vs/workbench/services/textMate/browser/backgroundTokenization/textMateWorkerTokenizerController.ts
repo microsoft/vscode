@@ -141,8 +141,8 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		}
 
 		// Apply past changes to _states
-		console.log('this._pendingChanges : ', this._pendingChanges);
-		console.log('versionId : ', versionId);
+		// console.log('this._pendingChanges : ', this._pendingChanges);
+		// console.log('versionId : ', versionId);
 		while (
 			this._pendingChanges.length > 0 &&
 			this._pendingChanges[0].versionId <= versionId
@@ -151,7 +151,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			this._states.acceptChanges(change.changes);
 		}
 
-		console.log('this._pendingChanges : ', this._pendingChanges);
+		// console.log('this._pendingChanges : ', this._pendingChanges);
 		if (this._pendingChanges.length > 0) {
 			if (this._shouldLog) {
 				const changes = this._pendingChanges.map(c => c.changes).map(c => changesToString(c)).join(' then ');
@@ -177,7 +177,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			}
 			tokens = b.finalize();
 
-			console.log('tokens after filtering: ', tokens);
+			// console.log('tokens after filtering: ', tokens);
 
 			// Apply future changes to tokens
 			for (const change of this._pendingChanges) {
@@ -192,7 +192,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		const curToFutureTransformerStates = MonotonousIndexTransformer.fromMany(
 			this._pendingChanges.map((c) => linesLengthEditFromModelContentChange(c.changes))
 		);
-		console.log('curToFutureTransformerStates: ', curToFutureTransformerStates);
+		// console.log('curToFutureTransformerStates: ', curToFutureTransformerStates);
 
 		if (!this._applyStateStackDiffFn || !this._initialState) {
 			const { applyStateStackDiff, INITIAL } = await importAMDNodeModule<typeof import('vscode-textmate')>('vscode-textmate', 'release/main.js');
@@ -215,7 +215,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 				}
 
 				const offset = curToFutureTransformerStates.transform(d.startLineNumber + i - 1);
-				console.log('offset : ', offset);
+				// console.log('offset : ', offset);
 				if (offset !== undefined) {
 					// Only set the state if there is no future change in this line,
 					// as this might make consumers believe that the state/tokens are accurate
@@ -226,7 +226,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 					this._backgroundTokenizationStore.backgroundTokenizationFinished();
 				}
 
-				console.log('state : ', state);
+				// console.log('state : ', state);
 				prevState = state;
 			}
 		}

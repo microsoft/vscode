@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../base/common/event.js';
 import { Range } from '../core/range.js';
 import { IModelDecoration } from '../model.js';
 
@@ -25,5 +24,4 @@ export interface DecorationProvider {
 	 */
 	getAllDecorations(ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[];
 
-	onDidChange: Event<void>;
 }
