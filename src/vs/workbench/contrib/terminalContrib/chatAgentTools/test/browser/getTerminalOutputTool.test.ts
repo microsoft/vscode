@@ -39,8 +39,8 @@ suite('GetTerminalOutputTool', () => {
 		ok(result.content, 'Result should have content');
 		strictEqual(result.content.length, 1, 'Result should have one content item');
 		strictEqual(result.content[0].kind, 'text', 'Content should be text');
-		ok((result.content[0] as any).value.includes('Error'), 'Error message should be present');
-		ok((result.content[0] as any).value.includes('Invalid terminal ID'), 'Error should mention invalid terminal ID');
+		ok((result.content[0]).value.includes('Error'), 'Error message should be present');
+		ok((result.content[0]).value.includes('Invalid terminal ID'), 'Error should mention invalid terminal ID');
 	});
 
 	test('should return error message when terminal is disposed', async () => {
@@ -53,7 +53,7 @@ suite('GetTerminalOutputTool', () => {
 		const termId = 'disposed-terminal-test-id';
 
 		// Manually add a background execution with disposed terminal
-		(RunInTerminalTool as any)._backgroundExecutions.set(termId, {
+		(RunInTerminalTool as unknown as { _backgroundExecutions: Map<string, any> })._backgroundExecutions.set(termId, {
 			instance: mockTerminal,
 			getOutput: () => 'some output',
 			dispose: () => { }
@@ -72,12 +72,12 @@ suite('GetTerminalOutputTool', () => {
 		const result = await getTerminalOutputTool.invoke(invocation, async () => 0, mockProgress, CancellationToken.None);
 
 		// Clean up
-		(RunInTerminalTool as any)._backgroundExecutions.delete(termId);
+		(RunInTerminalTool as unknown as { _backgroundExecutions: Map<string, any> })._backgroundExecutions.delete(termId);
 
 		ok(result.content, 'Result should have content');
 		strictEqual(result.content.length, 1, 'Result should have one content item');
 		strictEqual(result.content[0].kind, 'text', 'Content should be text');
-		ok((result.content[0] as any).value.includes('Error'), 'Error message should be present');
-		ok((result.content[0] as any).value.includes('Terminal has been closed'), 'Error should mention terminal is closed');
+		ok((result.content[0]).value.includes('Error'), 'Error message should be present');
+		ok((result.content[0]).value.includes('Terminal has been closed'), 'Error should mention terminal is closed');
 	});
 });
