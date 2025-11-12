@@ -52,7 +52,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		this._register(toDisposable(() => hasElicitationKey.reset()));
 
 		const acceptKeybinding = this.keybindingService.lookupKeybinding(AcceptElicitationRequestActionId);
-		const acceptTooltip = acceptKeybinding ? `${elicitation.acceptButtonLabel} (${acceptKeybinding.getLabel()})` : undefined;
+		const acceptTooltip = acceptKeybinding ? `${elicitation.acceptButtonLabel} (${acceptKeybinding.getLabel()})` : elicitation.acceptButtonLabel;
 
 		const buttons: IChatConfirmationButton<unknown>[] = [
 			{
