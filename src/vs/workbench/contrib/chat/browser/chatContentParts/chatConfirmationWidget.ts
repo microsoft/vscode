@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import type { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -177,6 +179,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private readonly messageElement: HTMLElement;
+	private readonly buttons: IChatConfirmationButton<T>[];
 
 	private readonly silent: boolean;
 	private readonly notificationManager: ChatConfirmationNotifier;
@@ -194,6 +197,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 
 		const { title, subtitle, message, buttons, silent } = options;
 		this.silent = !!silent;
+		this.buttons = buttons;
 
 		this.notificationManager = this._register(instantiationService.createInstance(ChatConfirmationNotifier));
 
@@ -258,6 +262,20 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 				this._register(buttonData.onDidChangeDisablement(disabled => button.enabled = !disabled));
 			}
 		});
+
+		// Add keyboard shortcut handler for cmd+enter
+		this._register(dom.addStandardDisposableListener(elements.container, dom.EventType.KEY_DOWN, (e: StandardKeyboardEvent) => {
+			// Check for cmd+enter (Mac) or ctrl+enter (Windows/Linux)
+			if (e.keyCode === KeyCode.Enter && (e.ctrlKey || e.metaKey)) {
+				// Find the first non-secondary button (the primary action)
+				const primaryButton = this.buttons.find(btn => !btn.isSecondary);
+				if (primaryButton && !primaryButton.disabled && this.showingButtons) {
+					e.preventDefault();
+					e.stopPropagation();
+					this._onDidClick.fire(primaryButton);
+				}
+			}
+		}));
 
 		// Create toolbar if actions are provided
 		if (options?.toolbarData) {
@@ -343,6 +361,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private _buttonsDomNode: HTMLElement;
+	private buttons: IChatConfirmationButton<T>[] = [];
 
 	private get showingButtons() {
 		return !this.domNode.classList.contains('hideButtons');
@@ -410,6 +429,20 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 
 		this.updateButtons(buttons);
 
+		// Add keyboard shortcut handler for cmd+enter
+		this._register(dom.addStandardDisposableListener(elements.container, dom.EventType.KEY_DOWN, (e: StandardKeyboardEvent) => {
+			// Check for cmd+enter (Mac) or ctrl+enter (Windows/Linux)
+			if (e.keyCode === KeyCode.Enter && (e.ctrlKey || e.metaKey)) {
+				// Find the first non-secondary button (the primary action)
+				const primaryButton = this.buttons.find(btn => !btn.isSecondary);
+				if (primaryButton && !primaryButton.disabled && this.showingButtons) {
+					e.preventDefault();
+					e.stopPropagation();
+					this._onDidClick.fire(primaryButton);
+				}
+			}
+		}));
+
 		// Create toolbar if actions are provided
 		if (options?.toolbarData) {
 			const overlay = contextKeyService.createOverlay([
@@ -433,6 +466,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	updateButtons(buttons: IChatConfirmationButton<T>[]) {
+		this.buttons = buttons;
 		while (this._buttonsDomNode.children.length > 0) {
 			this._buttonsDomNode.children[0].remove();
 		}
