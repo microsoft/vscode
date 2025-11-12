@@ -258,8 +258,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 				timing: {
 					startTime: historyDetail.lastMessageDate ?? Date.now()
 				},
-				isHistory: true,
-				groupName: 'History'
+				archived: true,
 			}));
 
 			// Apply sorting and time grouping

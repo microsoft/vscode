@@ -22,7 +22,6 @@ import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { URI } from '../../../../../../base/common/uri.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -48,8 +47,7 @@ import { IChatWidgetService } from '../../chat.js';
 import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.js';
 import '../../media/chatSessions.css';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, IChatSessionGroupItem, isGroupNode, isLocalChatSessionItem, processSessionsWithTimeGrouping } from '../common.js';
-import { Schemas } from '../../../../../../base/common/network.js';
+import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, isLocalChatSessionItem, processSessionsWithTimeGrouping } from '../common.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -62,6 +60,19 @@ interface ISessionTemplateData {
 	readonly statisticsLabel: HTMLElement;
 	readonly customIcon: HTMLElement;
 }
+
+export class ArchivedSessionItems {
+	constructor(private readonly items: ChatSessionItemWithProvider[], public readonly label: string) { }
+
+	pushItem(item: ChatSessionItemWithProvider): void {
+		this.items.push(item);
+	}
+
+	getItems(): ChatSessionItemWithProvider[] {
+		return this.items;
+	}
+}
+
 
 export interface IGettingStartedItem {
 	id: string;
@@ -193,25 +204,24 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		}
 	}
 
-	private renderGroupNode(groupNode: IChatSessionGroupItem, templateData: ISessionTemplateData): void {
+	private renderArchivedNode(node: ArchivedSessionItems, templateData: ISessionTemplateData): void {
 		templateData.customIcon.className = '';
 		templateData.descriptionRow.style.display = 'none';
 		templateData.timestamp.parentElement!.style.display = 'none';
 
-		const childCount = groupNode.groupChildren.length;
-		templateData.iconLabel.setLabel(groupNode.label, undefined, {
-			title: `${childCount} session${childCount === 1 ? '' : 's'}`
+		const childCount = node.getItems().length;
+		templateData.iconLabel.setLabel(node.label, undefined, {
+			title: childCount === 1 ? nls.localize('chat.sessions.groupNode.single', '1 session') : nls.localize('chat.sessions.groupNode.multiple', '{0} sessions', childCount)
 		});
 	}
 
 	renderElement(element: ITreeNode<IChatSessionItem, FuzzyScore>, index: number, templateData: ISessionTemplateData): void {
-		const session = element.element as ChatSessionItemWithProvider;
-
-		if (isGroupNode(session)) {
-			this.renderGroupNode(session, templateData);
+		if (element.element instanceof ArchivedSessionItems) {
+			this.renderArchivedNode(element.element, templateData);
 			return;
 		}
 
+		const session = element.element as ChatSessionItemWithProvider;
 		// Add CSS class for local sessions
 		let editableData: IEditableData | undefined;
 		if (isLocalChatSessionItem(session)) {
@@ -525,47 +535,39 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 }
 
 // Chat sessions item data source for the tree
-export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, ChatSessionItemWithProvider> {
-
+export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, ChatSessionItemWithProvider | ArchivedSessionItems> {
+	private archivedItems = new ArchivedSessionItems([], nls.localize('chat.sessions.archivedSessions', 'Archived'));
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
 		private readonly sessionTracker: ChatSessionTracker,
 	) {
 	}
 
-	hasChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider): boolean {
+	hasChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider | ArchivedSessionItems): boolean {
 		if (element === this.provider) {
 			// Root provider always has children
 			return true;
 		}
 
-		const sessionItem = element as ChatSessionItemWithProvider;
-		if (isGroupNode(sessionItem)) {
-			return sessionItem.groupChildren.length > 0;
+		if (element instanceof ArchivedSessionItems) {
+			return element.getItems().length > 0;
 		}
 
 		return false;
 	}
 
-	async getChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider): Promise<ChatSessionItemWithProvider[]> {
+	async getChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider | ArchivedSessionItems): Promise<(ChatSessionItemWithProvider | ArchivedSessionItems)[]> {
 		if (element === this.provider) {
 			try {
 				const items = await this.provider.provideChatSessionItems(CancellationToken.None);
-				const groupedItems = new Map<string, ChatSessionItemWithProvider[]>();
-				const ungroupedItems: ChatSessionItemWithProvider[] = [];
-				for (const item of items) {
-					const itemWithProvider: ChatSessionItemWithProvider = { ...item, provider: this.provider };
-					itemWithProvider.timing = { startTime: extractTimestamp(item) ?? 0 };
-
-					if (item.groupName) {
-						if (!groupedItems.has(item.groupName)) {
-							groupedItems.set(item.groupName, []);
-						}
-						groupedItems.get(item.groupName)!.push(itemWithProvider);
-					} else {
-						ungroupedItems.push(itemWithProvider);
+				const ungroupedItems = items.map(item => {
+					const itemWithProvider = { ...item, provider: this.provider, timing: { startTime: extractTimestamp(item) ?? 0 } };
+					if (itemWithProvider.archived) {
+						this.archivedItems.pushItem(itemWithProvider);
+						return;
 					}
-				}
+					return itemWithProvider;
+				}).filter(item => item !== undefined);
 
 				// Add hybrid local editor sessions for this provider
 				if (this.provider.chatSessionType !== localChatSessionType) {
@@ -582,30 +584,20 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 					processSessionsWithTimeGrouping(ungroupedItems);
 				}
 
-				const result: ChatSessionItemWithProvider[] = [];
+				const result = [];
 				result.push(...ungroupedItems);
-				for (const [groupName, children] of groupedItems) {
-					const groupNode: IChatSessionGroupItem = {
-						label: groupName,
-						resource: URI.parse(`${Schemas.vscodeLocalChatSession}://history`),
-						provider: this.provider,
-						isGroupNode: true,
-						groupChildren: children,
-						timing: {
-							startTime: 0
-						}
-					};
-					result.push(groupNode);
+				if (this.archivedItems.getItems().length > 0) {
+					result.push(this.archivedItems);
 				}
+
 				return result;
 			} catch (error) {
 				return [];
 			}
 		}
 
-		const sessionItem = element as ChatSessionItemWithProvider;
-		if (isGroupNode(sessionItem)) {
-			return sessionItem.groupChildren;
+		if (element instanceof ArchivedSessionItems) {
+			return element.getItems();
 		}
 
 		// Individual session items don't have children

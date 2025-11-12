@@ -46,15 +46,19 @@ import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { ChatSessionItemWithProvider, findExistingChatEditorByUri, getSessionItemContextOverlay, isGroupNode, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
+import { ChatSessionItemWithProvider, findExistingChatEditorByUri, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
-import { GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
+import { ArchivedSessionItems, GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 
 // Identity provider for session items
 class SessionsIdentityProvider {
-	getId(element: ChatSessionItemWithProvider): string {
+	getId(element: ChatSessionItemWithProvider | ArchivedSessionItems): string {
+		if (element instanceof ArchivedSessionItems) {
+			return 'archived-session-items';
+		}
 		return element.resource.toString();
 	}
+
 }
 
 // Accessibility provider for session items
@@ -63,7 +67,7 @@ class SessionsAccessibilityProvider {
 		return nls.localize('chatSessions', 'Chat Sessions');
 	}
 
-	getAriaLabel(element: ChatSessionItemWithProvider): string | null {
+	getAriaLabel(element: ChatSessionItemWithProvider | ArchivedSessionItems): string | null {
 		return element.label;
 	}
 }
@@ -329,9 +333,6 @@ export class SessionsViewPane extends ViewPane {
 						}
 					},
 					getDragURI: (element: ChatSessionItemWithProvider) => {
-						if (isGroupNode(element)) {
-							return null;
-						}
 						return getResourceForElement(element)?.toString() ?? null;
 					},
 					getDragLabel: (elements: ChatSessionItemWithProvider[]) => {
@@ -377,7 +378,10 @@ export class SessionsViewPane extends ViewPane {
 
 		// Register context menu event for right-click actions
 		this._register(this.tree.onContextMenu((e) => {
-			if (e.element && !isGroupNode(e.element)) {
+			if (e.element && !(e.element instanceof ArchivedSessionItems)) {
+				this.showContextMenu(e);
+			}
+			if (e.element) {
 				this.showContextMenu(e);
 			}
 		}));
@@ -473,7 +477,7 @@ export class SessionsViewPane extends ViewPane {
 			if (this.chatWidgetService.getWidgetBySessionResource(session.resource)) {
 				return;
 			}
-			if (isGroupNode(session)) {
+			if (session instanceof ArchivedSessionItems) {
 				return;
 			}
 

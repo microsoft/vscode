@@ -20,7 +20,6 @@ export const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionE
 
 export type ChatSessionItemWithProvider = IChatSessionItem & {
 	readonly provider: IChatSessionItemProvider;
-	isHistory?: boolean;
 	relativeTime?: string;
 	relativeTimeFullWord?: string;
 	hideRelativeTime?: boolean;
@@ -145,15 +144,15 @@ export function getSessionItemContextOverlay(
 	}
 
 	// Mark history items
-	overlay.push([ChatContextKeys.isHistoryItem.key, session.isHistory]);
+	overlay.push([ChatContextKeys.isArchivedItem.key, session.archived]);
 
 	// Mark active sessions - check if session is currently open in editor or widget
 	let isActiveSession = false;
 
-	if (!session.isHistory && provider?.chatSessionType === localChatSessionType) {
+	if (!session.archived && provider?.chatSessionType === localChatSessionType) {
 		// Local non-history sessions are always active
 		isActiveSession = true;
-	} else if (session.isHistory && chatWidgetService && chatService && editorGroupsService) {
+	} else if (session.archived && chatWidgetService && chatService && editorGroupsService) {
 		// Check if session is open in a chat widget
 		const widget = chatWidgetService.getWidgetBySessionResource(session.resource);
 		if (widget) {
@@ -167,13 +166,4 @@ export function getSessionItemContextOverlay(
 	overlay.push([ChatContextKeys.isActiveSession.key, isActiveSession]);
 
 	return overlay;
-}
-
-export interface IChatSessionGroupItem extends ChatSessionItemWithProvider {
-	readonly isGroupNode: true;
-	readonly groupChildren: ChatSessionItemWithProvider[];
-}
-
-export function isGroupNode(item: ChatSessionItemWithProvider): item is IChatSessionGroupItem {
-	return 'isGroupNode' in item && (item as IChatSessionGroupItem).isGroupNode === true;
 }
