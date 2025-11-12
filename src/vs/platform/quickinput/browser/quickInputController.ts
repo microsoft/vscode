@@ -215,7 +215,10 @@ export class QuickInputController extends Disposable {
 		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
-			if (inputBox.hasFocus()) {
+			// Don't update aria-activedescendant when Ctrl is pressed to prevent screen readers
+			// from re-announcing the placeholder when the user is trying to silence speech.
+			// See: https://github.com/microsoft/vscode/issues/271032
+			if (inputBox.hasFocus() && !this.keyMods.ctrlCmd) {
 				inputBox.setAttribute('aria-activedescendant', list.getActiveDescendant() ?? '');
 			}
 		}));
@@ -253,7 +256,10 @@ export class QuickInputController extends Disposable {
 			this.options.hoverDelegate
 		));
 		this._register(tree.tree.onDidChangeFocus(() => {
-			if (inputBox.hasFocus()) {
+			// Don't update aria-activedescendant when Ctrl is pressed to prevent screen readers
+			// from re-announcing the placeholder when the user is trying to silence speech.
+			// See: https://github.com/microsoft/vscode/issues/271032
+			if (inputBox.hasFocus() && !this.keyMods.ctrlCmd) {
 				inputBox.setAttribute('aria-activedescendant', tree.getActiveDescendant() ?? '');
 			}
 		}));
