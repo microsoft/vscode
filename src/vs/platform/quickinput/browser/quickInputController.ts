@@ -323,7 +323,7 @@ export class QuickInputController extends Disposable {
 			// to prevent screen reader re-announcements when users press Ctrl to silence speech.
 			// See: https://github.com/microsoft/vscode/issues/271032
 			const keyCode = e.keyCode;
-			if (keyCode !== KeyCode.Ctrl && keyCode !== KeyCode.Shift && keyCode !== KeyCode.Alt && keyCode !== KeyCode.Meta) {
+			if (!isModifierKey(keyCode)) {
 				inputBox.removeAttribute('aria-activedescendant');
 			}
 		}));
