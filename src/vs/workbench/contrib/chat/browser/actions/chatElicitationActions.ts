@@ -43,16 +43,18 @@ class AcceptElicitationRequestAction extends Action2 {
 			return;
 		}
 
-		const lastItem = items.at(-1);
-		if (!isResponseVM(lastItem)) {
-			return;
-		}
+		for (let i = items.length - 1; i >= 0; i--) {
+			const item = items[i];
+			if (!isResponseVM(item)) {
+				continue;
+			}
 
-		for (const content of lastItem.response.value) {
-			if (content.kind === 'elicitation' && content.state === 'pending') {
-				await content.accept(true);
-				widget.focusInput();
-				return;
+			for (const content of item.response.value) {
+				if (content.kind === 'elicitation' && content.state === 'pending') {
+					await content.accept(true);
+					widget.focusInput();
+					return;
+				}
 			}
 		}
 	}
