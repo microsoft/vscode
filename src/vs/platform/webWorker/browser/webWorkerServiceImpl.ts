@@ -31,14 +31,14 @@ export class WebWorkerService implements IWebWorkerService {
 	}
 
 	protected _createWorker(descriptor: WebWorkerDescriptor): Promise<Worker> {
-		const workerRunnerUrl = this._getUrl(descriptor);
+		const workerRunnerUrl = this.getWorkerUrl(descriptor);
 
-		const workerUrl = getWorkerBootstrapUrl(descriptor.label, workerRunnerUrl);
-		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: descriptor.label, type: 'module' });
+		const workerUrlWithNls = getWorkerBootstrapUrl(descriptor.label, workerRunnerUrl);
+		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrlWithNls) as unknown as string : workerUrlWithNls, { name: descriptor.label, type: 'module' });
 		return whenESMWorkerReady(worker);
 	}
 
-	protected _getUrl(descriptor: WebWorkerDescriptor): string {
+	getWorkerUrl(descriptor: WebWorkerDescriptor): string {
 		if (!descriptor.esmModuleLocation) {
 			throw new Error('Missing esmModuleLocation in WebWorkerDescriptor');
 		}

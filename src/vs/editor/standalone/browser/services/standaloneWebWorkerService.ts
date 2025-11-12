@@ -22,13 +22,14 @@ export class StandaloneWebWorkerService extends WebWorkerService {
 		return super._createWorker(descriptor);
 	}
 
-	protected override _getUrl(descriptor: WebWorkerDescriptor): string {
+	override getWorkerUrl(descriptor: WebWorkerDescriptor): string {
 		const monacoEnvironment = getMonacoEnvironment();
 		if (monacoEnvironment) {
 			if (typeof monacoEnvironment.getWorkerUrl === 'function') {
 				const workerUrl = monacoEnvironment.getWorkerUrl('workerMain.js', descriptor.label);
 				if (workerUrl !== undefined) {
-					return workerUrl;
+					const absoluteUrl = new URL(workerUrl, document.baseURI).toString();
+					return absoluteUrl;
 				}
 			}
 		}
