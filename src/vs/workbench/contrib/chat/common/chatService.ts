@@ -316,6 +316,18 @@ export interface IChatTerminalToolInvocationData {
 	terminalToolSessionId?: string;
 	/** The predefined command ID that will be used for this terminal command */
 	terminalCommandId?: string;
+	/** Serialized URI for the command that was executed in the terminal */
+	terminalCommandUri?: UriComponents;
+	/** Serialized output of the executed command */
+	terminalCommandOutput?: {
+		text: string;
+		truncated?: boolean;
+	};
+	/** Stored theme colors at execution time to style detached output */
+	terminalTheme?: {
+		background?: string;
+		foreground?: string;
+	};
 	autoApproveInfo?: IMarkdownString;
 }
 

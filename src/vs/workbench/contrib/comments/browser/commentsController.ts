@@ -463,7 +463,6 @@ export class CommentController implements IEditorContribution {
 	private _computeAndSetPromise: Promise<void> | undefined;
 	private _addInProgress!: boolean;
 	private _emptyThreadsToAddQueue: [Range | undefined, IEditorMouseEvent | undefined][] = [];
-	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
 	private _computeCommentingRangeScheduler!: Delayer<Array<ICommentInfo | null>> | null;
 	private _pendingNewCommentCache: { [key: string]: { [key: string]: languages.PendingComment } };
 	private _pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: languages.PendingComment } } }; // uniqueOwner -> threadId -> uniqueIdInThread -> pending comment
@@ -694,11 +693,6 @@ export class CommentController implements IEditorContribution {
 
 	private beginComputeCommentingRanges() {
 		if (this._computeCommentingRangeScheduler) {
-			if (this._computeCommentingRangePromise) {
-				this._computeCommentingRangePromise.cancel();
-				this._computeCommentingRangePromise = null;
-			}
-
 			this._computeCommentingRangeScheduler.trigger(() => {
 				const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
 

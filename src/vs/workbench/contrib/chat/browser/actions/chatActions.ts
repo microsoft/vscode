@@ -24,13 +24,12 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
-import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, ICommandPaletteOptions, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
@@ -1805,99 +1804,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 		ChatContextKeys.Setup.disabled.negate()
 	)
 });
-
-// TODO@bpasero remove these when Chat extension is built-in
-{
-	function registerGenerateCodeCommand(coreCommand: string, actualCommand: string): void {
-		CommandsRegistry.registerCommand(coreCommand, async accessor => {
-			const commandService = accessor.get(ICommandService);
-			const editorGroupService = accessor.get(IEditorGroupsService);
-
-			if (editorGroupService.activeGroup.activeEditor) {
-				// Pinning the editor helps when the Chat extension welcome kicks in after install to keep context
-				editorGroupService.activeGroup.pinEditor(editorGroupService.activeGroup.activeEditor);
-			}
-
-			const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
-			if (!result) {
-				return;
-			}
-
-			await commandService.executeCommand(actualCommand);
-		});
-	}
-	registerGenerateCodeCommand('chat.internal.explain', 'github.copilot.chat.explain');
-	registerGenerateCodeCommand('chat.internal.fix', 'github.copilot.chat.fix');
-	registerGenerateCodeCommand('chat.internal.review', 'github.copilot.chat.review');
-	registerGenerateCodeCommand('chat.internal.generateDocs', 'github.copilot.chat.generateDocs');
-	registerGenerateCodeCommand('chat.internal.generateTests', 'github.copilot.chat.generateTests');
-
-	const internalGenerateCodeContext = ContextKeyExpr.and(
-		ChatContextKeys.Setup.hidden.negate(),
-		ChatContextKeys.Setup.disabled.negate(),
-		ChatContextKeys.Setup.installed.negate(),
-	);
-
-	MenuRegistry.appendMenuItem(MenuId.EditorContext, {
-		command: {
-			id: 'chat.internal.explain',
-			title: localize('explain', "Explain"),
-		},
-		group: '1_chat',
-		order: 4,
-		when: internalGenerateCodeContext
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
-		command: {
-			id: 'chat.internal.fix',
-			title: localize('fix', "Fix"),
-		},
-		group: '1_action',
-		order: 1,
-		when: ContextKeyExpr.and(
-			internalGenerateCodeContext,
-			EditorContextKeys.readOnly.negate()
-		)
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
-		command: {
-			id: 'chat.internal.review',
-			title: localize('review', "Code Review"),
-		},
-		group: '1_action',
-		order: 2,
-		when: internalGenerateCodeContext
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
-		command: {
-			id: 'chat.internal.generateDocs',
-			title: localize('generateDocs', "Generate Docs"),
-		},
-		group: '2_generate',
-		order: 1,
-		when: ContextKeyExpr.and(
-			internalGenerateCodeContext,
-			EditorContextKeys.readOnly.negate()
-		)
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
-		command: {
-			id: 'chat.internal.generateTests',
-			title: localize('generateTests', "Generate Tests"),
-		},
-		group: '2_generate',
-		order: 2,
-		when: ContextKeyExpr.and(
-			internalGenerateCodeContext,
-			EditorContextKeys.readOnly.negate()
-		)
-	});
-}
-
 
 // --- Chat Default Visibility
 

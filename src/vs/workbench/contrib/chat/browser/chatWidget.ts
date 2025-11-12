@@ -2452,15 +2452,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return inputState;
 	}
 
-	private _findPromptFileInContext(attachedContext: ChatRequestVariableSet): URI | undefined {
-		for (const item of attachedContext.asArray()) {
-			if (isPromptFileVariableEntry(item) && item.isRoot && this.promptsService.getPromptFileType(item.value) === PromptsType.prompt) {
-				return item.value;
-			}
-		}
-		return undefined;
-	}
-
 	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<void> {
 		let parseResult: ParsedPromptFile | undefined;
 
@@ -2476,16 +2467,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 				// remove the slash command from the input
 				requestInput.input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
-			}
-		} else {
-			// if not, check if the context contains a prompt file: This is the old workflow that we still support for legacy reasons
-			const uri = this._findPromptFileInContext(requestInput.attachedContext);
-			if (uri) {
-				try {
-					parseResult = await this.promptsService.parseNew(uri, CancellationToken.None);
-				} catch (error) {
-					this.logService.error(`[_applyPromptFileIfSet] Failed to parse prompt file: ${uri}`, error);
-				}
 			}
 		}
 

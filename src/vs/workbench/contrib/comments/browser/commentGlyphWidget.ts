@@ -21,12 +21,14 @@ const overviewRulerCommentUnresolvedForeground = registerColor('editorOverviewRu
 
 const editorGutterCommentGlyphForeground = registerColor('editorGutter.commentGlyphForeground', { dark: editorForeground, light: editorForeground, hcDark: Color.black, hcLight: Color.white }, nls.localize('editorGutterCommentGlyphForeground', 'Editor gutter decoration color for commenting glyphs.'));
 registerColor('editorGutter.commentUnresolvedGlyphForeground', editorGutterCommentGlyphForeground, nls.localize('editorGutterCommentUnresolvedGlyphForeground', 'Editor gutter decoration color for commenting glyphs for unresolved comment threads.'));
+registerColor('editorGutter.commentDraftGlyphForeground', editorGutterCommentGlyphForeground, nls.localize('editorGutterCommentDraftGlyphForeground', 'Editor gutter decoration color for commenting glyphs for comment threads with draft comments.'));
 
 export class CommentGlyphWidget extends Disposable {
 	public static description = 'comment-glyph-widget';
 	private _lineNumber!: number;
 	private _editor: ICodeEditor;
 	private _threadState: CommentThreadState | undefined;
+	private _threadHasDraft: boolean = false;
 	private readonly _commentsDecorations: IEditorDecorationsCollection;
 	private _commentsOptions: ModelDecorationOptions;
 
@@ -50,24 +52,33 @@ export class CommentGlyphWidget extends Disposable {
 	}
 
 	private createDecorationOptions(): ModelDecorationOptions {
-		const unresolved = this._threadState === CommentThreadState.Unresolved;
+		// Priority: draft > unresolved > resolved
+		let className: string;
+		if (this._threadHasDraft) {
+			className = 'comment-range-glyph comment-thread-draft';
+		} else {
+			const unresolved = this._threadState === CommentThreadState.Unresolved;
+			className = `comment-range-glyph comment-thread${unresolved ? '-unresolved' : ''}`;
+		}
+
 		const decorationOptions: IModelDecorationOptions = {
 			description: CommentGlyphWidget.description,
 			isWholeLine: true,
 			overviewRuler: {
-				color: themeColorFromId(unresolved ? overviewRulerCommentUnresolvedForeground : overviewRulerCommentForeground),
+				color: themeColorFromId(this._threadState === CommentThreadState.Unresolved ? overviewRulerCommentUnresolvedForeground : overviewRulerCommentForeground),
 				position: OverviewRulerLane.Center
 			},
 			collapseOnReplaceEdit: true,
-			linesDecorationsClassName: `comment-range-glyph comment-thread${unresolved ? '-unresolved' : ''}`
+			linesDecorationsClassName: className
 		};
 
 		return ModelDecorationOptions.createDynamic(decorationOptions);
 	}
 
-	setThreadState(state: CommentThreadState | undefined): void {
-		if (this._threadState !== state) {
+	setThreadState(state: CommentThreadState | undefined, hasDraft: boolean = false): void {
+		if (this._threadState !== state || this._threadHasDraft !== hasDraft) {
 			this._threadState = state;
+			this._threadHasDraft = hasDraft;
 			this._commentsOptions = this.createDecorationOptions();
 			this._updateDecorations();
 		}
