@@ -43,6 +43,7 @@ if (process.env.VSCODE_DEV) {
 	process.removeAllListeners('warning');
 	process.on('warning', (warning: any) => {
 		if (warning.code === 'ExperimentalWarning' || warning.name === 'ExperimentalWarning' || warning.name === 'DeprecationWarning') {
+			console.debug(warning);
 			return;
 		}
 
