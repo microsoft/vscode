@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// Increase max listeners for event emitters
 import { EventEmitter } from 'events';
+EventEmitter.defaultMaxListeners = 100;
+
 import gulp from 'gulp';
 import * as path from 'path';
 import * as nodeUtil from 'util';
@@ -20,8 +23,6 @@ import ext from './lib/extensions.js';
 import tsb from './lib/tsb/index.js';
 import sourcemaps from 'gulp-sourcemaps';
 import { fileURLToPath } from 'url';
-
-EventEmitter.defaultMaxListeners = 100;
 
 const __dirname = import.meta.dirname
 const { getVersion } = getVersionModule;
