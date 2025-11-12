@@ -526,7 +526,8 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 }
 
 .monaco-editor .comment-thread:before,
-.monaco-editor .comment-thread-unresolved:before {
+.monaco-editor .comment-thread-unresolved:before,
+.monaco-editor .comment-thread-draft:before {
 	background: var(--vscode-editorGutter-commentRangeForeground);
 }
 

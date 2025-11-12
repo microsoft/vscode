@@ -11,7 +11,7 @@ import { ModelDecorationOptions } from '../../../../editor/common/model/textMode
 import { darken, editorBackground, editorForeground, listInactiveSelectionBackground, opaque, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
-import { CommentThreadState, CommentState } from '../../../../editor/common/languages.js';
+import { CommentThreadState } from '../../../../editor/common/languages.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../base/common/event.js';
 
