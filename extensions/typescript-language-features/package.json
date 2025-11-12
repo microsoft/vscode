@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "@types/node": "22.x",
+    "@types/resolve": "^1.20.6",
     "@types/semver": "^5.5.0"
   },
   "scripts": {

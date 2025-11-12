@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { coalesce } from '../utils/arrays';
 import { exists, looksLikeAbsoluteWindowsPath } from '../utils/fs';
+import resolve from 'resolve';
 
 function mapChildren<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): R[] {
 	return node && node.type === 'array' && node.children
@@ -118,49 +119,64 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 	}
 }
 
+// async function resolveNodeModulesPath(baseDirUri: vscode.Uri, pathCandidates: string[]): Promise<vscode.Uri | undefined> {
+// 	let currentUri = baseDirUri;
+// 	const baseCandidate = pathCandidates[0];
+// 	const sepIndex = baseCandidate.startsWith('@') ? 2 : 1;
+// 	const moduleBasePath = baseCandidate.split(posix.sep).slice(0, sepIndex).join(posix.sep);
+// 	while (true) {
+// 		const moduleAbsoluteUrl = vscode.Uri.joinPath(currentUri, 'node_modules', moduleBasePath);
+// 		let moduleStat: vscode.FileStat | undefined;
+// 		try {
+// 			moduleStat = await vscode.workspace.fs.stat(moduleAbsoluteUrl);
+// 		} catch (err) {
+// 			// noop
+// 		}
+
+// 		if (moduleStat && (moduleStat.type & vscode.FileType.Directory)) {
+// 			for (const uriCandidate of pathCandidates
+// 				.map((relativePath) => relativePath.split(posix.sep).slice(sepIndex).join(posix.sep))
+// 				// skip empty paths within module
+// 				.filter(Boolean)
+// 				.map((relativeModulePath) => vscode.Uri.joinPath(moduleAbsoluteUrl, relativeModulePath))
+// 			) {
+// 				if (await exists(uriCandidate)) {
+// 					return uriCandidate;
+// 				}
+// 			}
+// 			// Continue to looking for potentially another version
+// 		}
+
+// 		const oldUri = currentUri;
+// 		currentUri = vscode.Uri.joinPath(currentUri, '..');
+
+// 		// Can't go next. Reached the system root
+// 		if (oldUri.path === currentUri.path) {
+// 			return;
+// 		}
+// 	}
+// }
+
 async function resolveNodeModulesPath(baseDirUri: vscode.Uri, pathCandidates: string[]): Promise<vscode.Uri | undefined> {
-	let currentUri = baseDirUri;
-	const baseCandidate = pathCandidates[0];
-	const sepIndex = baseCandidate.startsWith('@') ? 2 : 1;
-	const moduleBasePath = baseCandidate.split(posix.sep).slice(0, sepIndex).join(posix.sep);
-	while (true) {
-		const moduleAbsoluteUrl = vscode.Uri.joinPath(currentUri, 'node_modules', moduleBasePath);
-		let moduleStat: vscode.FileStat | undefined;
+	for (const candidate of pathCandidates) {
 		try {
-			moduleStat = await vscode.workspace.fs.stat(moduleAbsoluteUrl);
-		} catch (err) {
-			// noop
-		}
-
-		if (moduleStat && (moduleStat.type & vscode.FileType.Directory)) {
-			for (const uriCandidate of pathCandidates
-				.map((relativePath) => relativePath.split(posix.sep).slice(sepIndex).join(posix.sep))
-				// skip empty paths within module
-				.filter(Boolean)
-				.map((relativeModulePath) => vscode.Uri.joinPath(moduleAbsoluteUrl, relativeModulePath))
-			) {
-				if (await exists(uriCandidate)) {
-					return uriCandidate;
-				}
-			}
-			// Continue to looking for potentially another version
-		}
-
-		const oldUri = currentUri;
-		currentUri = vscode.Uri.joinPath(currentUri, '..');
-
-		// Can't go next. Reached the system root
-		if (oldUri.path === currentUri.path) {
-			return;
+			const resolvedPath = resolve.sync(candidate, {
+				basedir: baseDirUri.fsPath,
+				extensions: ['.json', '.ts', '.js']
+			});
+			return vscode.Uri.file(resolvedPath);
+		} catch {
+			// try next candidate
 		}
 	}
+	return undefined;
 }
-
 // Reference Extends:https://github.com/microsoft/TypeScript/blob/febfd442cdba343771f478cf433b0892f213ad2f/src/compiler/commandLineParser.ts#L3005
 // Reference Project References: https://github.com/microsoft/TypeScript/blob/7377f5cb9db19d79a6167065b323a45611c812b5/src/compiler/tsbuild.ts#L188C1-L194C2
 /**
 * @returns Returns undefined in case of lack of result while trying to resolve from node_modules
 */
+//souhil
 async function getTsconfigPath(baseDirUri: vscode.Uri, pathValue: string, linkType: TsConfigLinkType): Promise<vscode.Uri | undefined> {
 	async function resolve(absolutePath: vscode.Uri): Promise<vscode.Uri> {
 		if (absolutePath.path.endsWith('.json') || await exists(absolutePath)) {
