@@ -313,11 +313,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		const ptyProcess = spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
-		this._childProcessMonitor.onDidChangeHasChildProcesses(value => this._onDidChangeProperty.fire({ type: ProcessPropertyType.HasChildProcesses, value }));
+		this._register(this._childProcessMonitor.onDidChangeHasChildProcesses(value => this._onDidChangeProperty.fire({ type: ProcessPropertyType.HasChildProcesses, value })));
 		this._processStartupComplete = new Promise<void>(c => {
-			this.onProcessReady(() => c());
+			this._register(this.onProcessReady(() => c()));
 		});
-		ptyProcess.onData(data => {
+		this._register(ptyProcess.onData(data => {
 			// Handle flow control
 			this._unacknowledgedCharCount += data.length;
 			if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
@@ -334,11 +334,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 			this._windowsShellHelper?.checkShell();
 			this._childProcessMonitor?.handleOutput();
-		});
-		ptyProcess.onExit(e => {
+		}));
+		this._register(ptyProcess.onExit(e => {
 			this._exitCode = e.exitCode;
 			this._queueProcessExit();
-		});
+		}));
 		this._sendProcessId(ptyProcess.pid);
 		this._setupTitlePolling(ptyProcess);
 	}
