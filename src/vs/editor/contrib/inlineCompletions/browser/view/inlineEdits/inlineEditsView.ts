@@ -440,7 +440,7 @@ export class InlineEditsView extends Disposable {
 	private determineView(model: ModelPerInlineEdit, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText): InlineCompletionViewKind {
 		// Check if we can use the previous view if it is the same InlineCompletion as previously shown
 		const inlineEdit = model.inlineEdit;
-		const canUseCache = this._previousView?.id === this.getCacheId(model) && !model.displayLocation?.jumpToEdit;
+		const canUseCache = this._previousView?.id === this.getCacheId(model);
 		const reconsiderViewEditorWidthChange = this._previousView?.editorWidth !== this._editorObs.layoutInfoWidth.read(reader) &&
 			(
 				this._previousView?.view === InlineCompletionViewKind.SideBySide ||

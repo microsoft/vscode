@@ -7573,7 +7573,6 @@ declare namespace monaco.languages {
 		range: IRange;
 		style: InlineCompletionHintStyle;
 		content: string;
-		jumpToEdit: boolean;
 	}
 
 	export type IconPath = editor.ThemeIcon;
