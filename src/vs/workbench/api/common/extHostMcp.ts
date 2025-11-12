@@ -518,8 +518,14 @@ export class McpHTTPHandle extends Disposable {
 	 */
 	private async _attachStreamableBackchannel() {
 		let lastEventId: string | undefined;
+		let canReconnectAt: number | undefined;
 		for (let retry = 0; !this._store.isDisposed; retry++) {
-			await timeout(Math.min(retry * 1000, 30_000), this._cts.token);
+			if (canReconnectAt !== undefined) {
+				await timeout(Math.max(0, canReconnectAt - Date.now()), this._cts.token);
+				canReconnectAt = undefined;
+			} else {
+				await timeout(Math.min(retry * 1000, 30_000), this._cts.token);
+			}
 
 			let res: CommonResponse;
 			try {
@@ -561,7 +567,10 @@ export class McpHTTPHandle extends Disposable {
 			}
 
 			const parser = new SSEParser(event => {
-				if (event.type === 'message') {
+				if (event.retry) {
+					canReconnectAt = Date.now() + event.retry;
+				}
+				if (event.type === 'message' && event.data) {
 					this._proxy.$onDidReceiveMessage(this._id, event.data);
 				}
 				if (event.id) {
