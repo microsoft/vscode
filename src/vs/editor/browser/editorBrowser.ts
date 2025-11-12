@@ -825,6 +825,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	*/
 	readonly onEndUpdate: Event<void>;
 
+	readonly onDidChangeViewZones: Event<void>;
+
 	/**
 	 * Saves current view state of the editor in a serializable object.
 	 */

@@ -24,7 +24,8 @@ import { EditorOption, RenderLineNumbersType } from '../../../../../../common/co
 import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
-import { IInlineEditModel, InlineEditTabAction } from '../inlineEditsViewInterface.js';
+import { InlineEditTabAction } from '../inlineEditsViewInterface.js';
+import { ModelPerInlineEdit } from '../inlineEditsModel.js';
 import { getEditorBlendedColor, inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryBorder, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulBorder, inlineEditIndicatorsuccessfulForeground } from '../theme.js';
 import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
@@ -45,7 +46,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		private readonly _editorObs: ObservableCodeEditor,
 		private readonly _originalRange: IObservable<LineRange | undefined>,
 		private readonly _verticalOffset: IObservable<number>,
-		private readonly _model: IObservable<IInlineEditModel | undefined>,
+		private readonly _model: IObservable<ModelPerInlineEdit | undefined>,
 		private readonly _isHoveringOverInlineEdit: IObservable<boolean>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 		@IHoverService private readonly _hoverService: HoverService,
