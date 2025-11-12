@@ -159,7 +159,10 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 
 	private readonly compressedStickyNodes = new Map<ITreeNode<T, TFilterData>, ITreeNode<ICompressedTreeNode<T>, TFilterData>>();
 
-	constructor(private readonly modelProvider: () => CompressibleObjectTreeModel<T, TFilterData>) { }
+	constructor(
+		private readonly modelProvider: () => CompressibleObjectTreeModel<T, TFilterData>,
+		private readonly baseDelegate?: IStickyScrollDelegate<T, TFilterData>
+	) { }
 
 	getCompressedNode(node: ITreeNode<T, TFilterData>): ITreeNode<ICompressedTreeNode<T>, TFilterData> | undefined {
 		return this.compressedStickyNodes.get(node);
@@ -236,6 +239,28 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 
 		return compressedStickyNode;
 	}
+
+	shouldStick(node: ITreeNode<T, TFilterData>): boolean {
+		if (!this.baseDelegate?.shouldStick) {
+			return false;
+		}
+
+		// Get the compressed node structure which contains ICompressedTreeNode<T>
+		const compressionModel = this.modelProvider();
+		const compressedNode = compressionModel.getCompressedTreeNode(node.element);
+		
+		// Check if any of the unwrapped elements should stick
+		// We create a node for each element to pass to the base delegate
+		if (compressedNode.element) {
+			for (const element of compressedNode.element.elements) {
+				if (this.baseDelegate.shouldStick({ ...compressedNode, element } as ITreeNode<T, TFilterData>)) {
+					return true;
+				}
+			}
+		}
+		
+		return false;
+	}
 }
 
 export interface ICompressibleKeyboardNavigationLabelProvider<T> extends IKeyboardNavigationLabelProvider<T> {
@@ -287,7 +312,7 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 		options: ICompressibleObjectTreeOptions<T, TFilterData> = {}
 	) {
 		const compressedTreeNodeProvider = () => this;
-		const stickyScrollDelegate = new CompressibleStickyScrollDelegate<T, TFilterData>(() => this.model);
+		const stickyScrollDelegate = new CompressibleStickyScrollDelegate<T, TFilterData>(() => this.model, options.stickyScrollDelegate);
 		const compressibleRenderers = renderers.map(r => new CompressibleRenderer<T, TFilterData, any>(compressedTreeNodeProvider, stickyScrollDelegate, r));
 
 		super(user, container, delegate, compressibleRenderers, { ...asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider, options), stickyScrollDelegate });

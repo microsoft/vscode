@@ -68,7 +68,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer.js';
 import { isDark } from '../../../../platform/theme/common/theme.js';
-import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
+import { LabelFuzzyScore, DefaultStickyScrollDelegate } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { createActionViewItem, getFlatActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -2138,6 +2138,14 @@ class SCMInputWidget {
 	}
 }
 
+class SCMStickyScrollDelegate extends DefaultStickyScrollDelegate<TreeElement, FuzzyScore> {
+
+	shouldStick(node: ITreeNode<TreeElement, FuzzyScore>): boolean {
+		// SCM input nodes should stick
+		return isSCMInput(node.element);
+	}
+}
+
 export class SCMViewPane extends ViewPane {
 
 	private _onDidLayout: Emitter<void>;
@@ -2427,7 +2435,8 @@ export class SCMViewPane extends ViewPane {
 					// History Item Group, History Item, or History Item Change
 					return (viewState?.expanded ?? []).indexOf(getSCMResourceId(e as TreeElement)) === -1;
 				},
-				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
+				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider),
+				stickyScrollDelegate: new SCMStickyScrollDelegate()
 			}) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 
 		this.disposables.add(this.tree);

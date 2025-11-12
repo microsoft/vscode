@@ -1299,9 +1299,10 @@ class StickyScrollState<T, TFilterData, TRef> {
 
 export interface IStickyScrollDelegate<T, TFilterData> {
 	constrainStickyScrollNodes(stickyNodes: StickyScrollNode<T, TFilterData>[], stickyScrollMaxItemCount: number, maxWidgetHeight: number): StickyScrollNode<T, TFilterData>[];
+	shouldStick?(node: ITreeNode<T, TFilterData>): boolean;
 }
 
-class DefaultStickyScrollDelegate<T, TFilterData> implements IStickyScrollDelegate<T, TFilterData> {
+export class DefaultStickyScrollDelegate<T, TFilterData> implements IStickyScrollDelegate<T, TFilterData> {
 
 	constrainStickyScrollNodes(stickyNodes: StickyScrollNode<T, TFilterData>[], stickyScrollMaxItemCount: number, maxWidgetHeight: number): StickyScrollNode<T, TFilterData>[] {
 
@@ -1425,21 +1426,30 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		const stickyNodes: StickyScrollNode<T, TFilterData>[] = [];
 		let firstVisibleNodeUnderWidget: ITreeNode<T, TFilterData> | undefined = firstVisibleNode;
 		let stickyNodesHeight = 0;
+		let previousStickyNode: ITreeNode<T, TFilterData> | undefined = undefined;
+		const processedShouldStickNodes = new Set<ITreeNode<T, TFilterData>>();
 
-		let nextStickyNode = this.getNextStickyNode(firstVisibleNodeUnderWidget, undefined, stickyNodesHeight);
-		while (nextStickyNode) {
+		let nextStickyNodeResult = this.getNextStickyNode(firstVisibleNodeUnderWidget, previousStickyNode, stickyNodesHeight, processedShouldStickNodes);
+		while (nextStickyNodeResult) {
 
-			stickyNodes.push(nextStickyNode);
-			stickyNodesHeight += nextStickyNode.height;
+			stickyNodes.push(nextStickyNodeResult.stickyNode);
+			stickyNodesHeight += nextStickyNodeResult.stickyNode.height;
 
 			if (stickyNodes.length <= this.stickyScrollMaxItemCount) {
-				firstVisibleNodeUnderWidget = this.getNextVisibleNode(nextStickyNode);
+				firstVisibleNodeUnderWidget = this.getNextVisibleNode(nextStickyNodeResult.stickyNode);
 				if (!firstVisibleNodeUnderWidget) {
 					break;
 				}
 			}
 
-			nextStickyNode = this.getNextStickyNode(firstVisibleNodeUnderWidget, nextStickyNode.node, stickyNodesHeight);
+			// Track shouldStick nodes and only update previousStickyNode for parent nodes
+			if (nextStickyNodeResult.isShouldStickNode) {
+				processedShouldStickNodes.add(nextStickyNodeResult.stickyNode.node);
+			} else {
+				previousStickyNode = nextStickyNodeResult.stickyNode.node;
+			}
+
+			nextStickyNodeResult = this.getNextStickyNode(firstVisibleNodeUnderWidget, previousStickyNode, stickyNodesHeight, processedShouldStickNodes);
 		}
 
 		const contrainedStickyNodes = this.constrainStickyNodes(stickyNodes);
@@ -1450,23 +1460,72 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		return this.getNodeAtHeight(previousStickyNode.position + previousStickyNode.height);
 	}
 
-	private getNextStickyNode(firstVisibleNodeUnderWidget: ITreeNode<T, TFilterData>, previousStickyNode: ITreeNode<T, TFilterData> | undefined, stickyNodesHeight: number): StickyScrollNode<T, TFilterData> | undefined {
+	private getNextStickyNode(firstVisibleNodeUnderWidget: ITreeNode<T, TFilterData>, previousStickyNode: ITreeNode<T, TFilterData> | undefined, stickyNodesHeight: number, processedShouldStickNodes: Set<ITreeNode<T, TFilterData>>): { stickyNode: StickyScrollNode<T, TFilterData>; isShouldStickNode: boolean } | undefined {
+		// Check for nodes that should stick even though they are not parents
+		const shouldStickNode = this.getShouldStickNode(firstVisibleNodeUnderWidget, previousStickyNode, stickyNodesHeight, processedShouldStickNodes);
+
+		// Get the ancestor node (parent) that would normally stick
 		const nextStickyNode = this.getAncestorUnderPrevious(firstVisibleNodeUnderWidget, previousStickyNode);
 		if (!nextStickyNode) {
-			return undefined;
+			return shouldStickNode ? { stickyNode: shouldStickNode, isShouldStickNode: true } : undefined;
 		}
 
 		if (nextStickyNode === firstVisibleNodeUnderWidget) {
 			if (!this.nodeIsUncollapsedParent(firstVisibleNodeUnderWidget)) {
-				return undefined;
+				return shouldStickNode ? { stickyNode: shouldStickNode, isShouldStickNode: true } : undefined;
 			}
 
 			if (this.nodeTopAlignsWithStickyNodesBottom(firstVisibleNodeUnderWidget, stickyNodesHeight)) {
-				return undefined;
+				return shouldStickNode ? { stickyNode: shouldStickNode, isShouldStickNode: true } : undefined;
 			}
 		}
 
-		return this.createStickyScrollNode(nextStickyNode, stickyNodesHeight);
+		// If we have both a parent node and a should-stick node, compare which comes first
+		if (shouldStickNode) {
+			const nextStickyNodeIndex = this.getNodeIndex(nextStickyNode);
+			const shouldStickNodeIndex = this.getNodeIndex(shouldStickNode.node);
+			if (shouldStickNodeIndex < nextStickyNodeIndex) {
+				return { stickyNode: shouldStickNode, isShouldStickNode: true };
+			}
+		}
+
+		return { stickyNode: this.createStickyScrollNode(nextStickyNode, stickyNodesHeight), isShouldStickNode: false };
+	}
+
+	private getShouldStickNode(firstVisibleNodeUnderWidget: ITreeNode<T, TFilterData>, previousStickyNode: ITreeNode<T, TFilterData> | undefined, stickyNodesHeight: number, processedShouldStickNodes: Set<ITreeNode<T, TFilterData>>): StickyScrollNode<T, TFilterData> | undefined {
+		if (!this.stickyScrollDelegate.shouldStick) {
+			return undefined;
+		}
+
+		const parentNode = previousStickyNode ?? this.model.getNode();
+		const scrollTop = this.view.scrollTop;
+		const firstVisibleIndex = this.getNodeIndex(firstVisibleNodeUnderWidget);
+
+		// Find the first unprocessed child that should stick
+		for (const childNode of parentNode.children) {
+			// Skip already processed nodes
+			if (processedShouldStickNodes.has(childNode)) {
+				continue;
+			}
+
+			// Check if this child should stick
+			if (!this.stickyScrollDelegate.shouldStick(childNode)) {
+				continue;
+			}
+
+			const childIndex = this.getNodeIndex(childNode);
+			if (childIndex < 0) {
+				continue;
+			}
+
+			// Check if scrolled past and visible
+			const childTop = this.view.getElementTop(childIndex);
+			if (scrollTop > childTop && childIndex <= firstVisibleIndex) {
+				return this.createStickyScrollNode(childNode, stickyNodesHeight);
+			}
+		}
+
+		return undefined;
 	}
 
 	private nodeTopAlignsWithStickyNodesBottom(node: ITreeNode<T, TFilterData>, stickyNodesHeight: number): boolean {
