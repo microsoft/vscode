@@ -10,10 +10,11 @@ import { Range } from '../../core/range.js';
 import { DecorationProvider } from '../decorationProvider.js';
 import { TextModel } from '../textModel.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { IModelOptionsChangedEvent } from '../../textModelEvents.js';
+import { IModelContentChangedEvent, IModelOptionsChangedEvent } from '../../textModelEvents.js';
 import { classNameForFont } from '../../languages/supports/tokenization.js';
 import { Position } from '../../core/position.js';
 import { IFontOption } from '../../languages.js';
+import { IModelContentChange } from '../mirrorTextModel.js';
 
 export class LineHeightChangingDecoration {
 
@@ -50,7 +51,10 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	private readonly _onDidChangeFont = new Emitter<Set<LineFontChangingDecoration>>();
 	public readonly onDidChangeFont = this._onDidChangeFont.event;
 
-	private readonly fontInfo = new Map<number, IFontOption[]>();
+	private readonly _fontInfo = new Map<number, IFontOption[]>();
+
+	// Find a way to combine the model content change events
+	private _queuedContentChangeEvents: IModelContentChange[] = [];
 
 	constructor(
 		private readonly textModel: TextModel,
@@ -67,7 +71,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 					changedLineNumberFonts.add(fontChange.lineNumber);
 					continue;
 				}
-				this.fontInfo.set(fontChange.lineNumber, fontChange.options);
+				this._fontInfo.set(fontChange.lineNumber, fontChange.options);
 				for (const option of fontChange.options) {
 					const lineNumber = fontChange.lineNumber;
 					if (changedLineNumberHeights.has(lineNumber)) {
@@ -94,14 +98,20 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 		});
 	}
 
+	public handleDidChangeContent(change: IModelContentChangedEvent) {
+		// apply the edits lazily only when the decorations will be needed
+		this._queuedContentChangeEvents.push(...change.changes);
+	}
+
 	public handleDidChangeOptions(e: IModelOptionsChangedEvent): void { }
 
-	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
+	public getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
+		this._resolveDecorations();
 		console.log('getDecorationsInRange - range : ', range);
 		const decorations: IModelDecoration[] = [];
 		for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
-			if (this.fontInfo.has(i)) {
-				const fontOptions = this.fontInfo.get(i)!;
+			if (this._fontInfo.has(i)) {
+				const fontOptions = this._fontInfo.get(i)!;
 				if (fontOptions) {
 					for (const fontOption of fontOptions) {
 						const lastOffset = i > 1 ? this.textModel.getOffsetAt(new Position(i - 1, this.textModel.getLineMaxColumn(i - 1))) + 1 : 0;
@@ -129,11 +139,19 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 		return decorations;
 	}
 
-	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
+	public getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
 		return this.getDecorationsInRange(
 			new Range(1, 1, this.textModel.getLineCount(), 1),
 			ownerId,
 			filterOutValidation
 		);
+	}
+
+	private _resolveDecorations(): void {
+		// Take the queued edits and apply them to the font infos
+		console.log('queuedTextEdits : ', this._queuedContentChangeEvents);
+		console.log('queuedTextEdits.length > 0 : ', this._queuedContentChangeEvents.length > 0);
+		console.log('this.fontInfo before edits: ', this._fontInfo);
+		this._queuedContentChangeEvents = [];
 	}
 }

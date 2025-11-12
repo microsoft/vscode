@@ -109,11 +109,13 @@ export class BracketPairsTree extends Disposable {
 	}
 
 	public handleContentChanged(change: IModelContentChangedEvent) {
+		console.log('handleContentChanged - change : ', change);
 		const edits = TextEditInfo.fromModelContentChanges(change.changes);
 		this.handleEdits(edits, false);
 	}
 
 	private handleEdits(edits: TextEditInfo[], tokenChange: boolean): void {
+		console.log('handleEdits - edits : ', edits, ' tokenChange: ', tokenChange);
 		// Lazily queue the edits and only apply them when the tree is accessed.
 		const result = combineTextEditInfos(this.queuedTextEdits, edits);
 

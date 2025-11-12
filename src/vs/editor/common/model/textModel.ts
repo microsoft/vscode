@@ -472,6 +472,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		this._tokenizationTextModelPart.handleDidChangeContent(change);
 		this._bracketPairs.handleDidChangeContent(change);
+		this._fontDecorationProvider.handleDidChangeContent(change);
 		this._eventEmitter.fire(new InternalModelContentChangeEvent(rawChange, change));
 	}
 
@@ -705,6 +706,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._options = newOpts;
 
 		this._bracketPairs.handleDidChangeOptions(e);
+		this._fontDecorationProvider.handleDidChangeOptions(e);
 		this._decorationProvider.handleDidChangeOptions(e);
 		this._onDidChangeOptions.fire(e);
 	}
