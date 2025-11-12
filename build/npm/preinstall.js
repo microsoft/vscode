@@ -15,6 +15,22 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	}
 }
 
+// Check npm version
+const { execSync } = require('child_process');
+try {
+	const npmVersion = execSync('npm -v', { encoding: 'utf8' }).trim();
+	const [major, minor, patch] = npmVersion.split('.').map(Number);
+
+	// Require npm 10.0.0 or later
+	if (major < 10) {
+		console.error('\x1b[1;31m*** Please use npm v10.0.0 or later for development.\x1b[0;0m');
+		throw new Error();
+	}
+} catch (error) {
+	console.error('\x1b[1;31m*** Failed to check npm version.\x1b[0;0m');
+	throw error;
+}
+
 if (process.env['npm_execpath'].includes('yarn')) {
 	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo any more, please use `npm i` instead. ***\x1b[0;0m');
 	throw new Error();
