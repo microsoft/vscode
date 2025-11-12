@@ -615,10 +615,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		// No-op
 	}
 
-	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
-		// No-op: command IDs are tracked on the renderer and serializer only.
-	}
-
 	getInitialCwd(): Promise<string> {
 		return Promise.resolve(this._initialCwd);
 	}
