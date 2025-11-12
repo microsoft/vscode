@@ -807,7 +807,7 @@ export class InlineCompletionsModel extends Disposable {
 			return true;
 		}
 
-		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader) && !s.inlineCompletion.hint?.jumpToEdit) {
+		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader)) {
 			return false;
 		}
 
@@ -825,7 +825,7 @@ export class InlineCompletionsModel extends Disposable {
 		if (this._tabShouldIndent.read(reader)) {
 			return false;
 		}
-		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader) && !s.inlineCompletion.hint?.jumpToEdit) {
+		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader)) {
 			return true;
 		}
 		if (s.inlineCompletion.targetRange.startLineNumber === this._editorObs.cursorLineNumber.read(reader)) {
