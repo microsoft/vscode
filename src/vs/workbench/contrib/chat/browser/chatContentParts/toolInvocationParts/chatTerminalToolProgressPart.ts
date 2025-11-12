@@ -220,11 +220,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				this._addActions(undefined, terminalToolSessionId);
 				return;
 			}
-			if (this._terminalInstance === instance) {
-				return;
+			const isNewInstance = this._terminalInstance !== instance;
+			if (isNewInstance) {
+				this._terminalInstance = instance;
+				this._registerInstanceListener(instance);
 			}
-			this._terminalInstance = instance;
-			this._registerInstanceListener(instance);
+			// Always call _addActions to ensure actions are added, even if instance was set earlier
+			// (e.g., by _renderOutputIfNeeded during expanded state restoration)
 			this._addActions(instance, terminalToolSessionId);
 		};
 
