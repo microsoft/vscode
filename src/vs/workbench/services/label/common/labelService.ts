@@ -192,11 +192,9 @@ export class LabelService extends Disposable implements ILabelService {
 					continue;
 				}
 
-				if (
-					match(formatter.authority.toLowerCase(), resource.authority.toLowerCase()) &&
+				if (match(formatter.authority, resource.authority, { ignoreCase: true }) &&
 					(
-						!bestResult ||
-						!bestResult.authority ||
+						!bestResult?.authority ||
 						formatter.authority.length > bestResult.authority.length ||
 						((formatter.authority.length === bestResult.authority.length) && formatter.priority)
 					)

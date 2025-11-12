@@ -66,6 +66,13 @@ export class LazyCreateExtensionHostManager extends Disposable implements IExten
 		this._actual = null;
 	}
 
+	override dispose(): void {
+		if (!this._actual) {
+			this._extensionHost.dispose();
+		}
+		super.dispose();
+	}
+
 	private _createActual(reason: string): ExtensionHostManager {
 		this._logService.info(`Creating lazy extension host (${this.friendyName}). Reason: ${reason}`);
 		this._actual = this._register(this._instantiationService.createInstance(ExtensionHostManager, this._extensionHost, this._initialActivationEvents, this._internalExtensionService));

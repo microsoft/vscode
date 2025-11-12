@@ -24,7 +24,7 @@ export const enum ServerConnectionTokenType {
 export class NoneServerConnectionToken {
 	public readonly type = ServerConnectionTokenType.None;
 
-	public validate(connectionToken: any): boolean {
+	public validate(connectionToken: unknown): boolean {
 		return true;
 	}
 }
@@ -35,7 +35,7 @@ export class MandatoryServerConnectionToken {
 	constructor(public readonly value: string) {
 	}
 
-	public validate(connectionToken: any): boolean {
+	public validate(connectionToken: unknown): boolean {
 		return (connectionToken === this.value);
 	}
 }

@@ -63,37 +63,37 @@ suite('CommandLineAutoApprover', () => {
 	suite('autoApprove with allow patterns only', () => {
 		test('should auto-approve exact command match', () => {
 			setAutoApprove({
-				"echo": true
+				'echo': true
 			});
 			ok(isAutoApproved('echo'));
 		});
 
 		test('should auto-approve command with arguments', () => {
 			setAutoApprove({
-				"echo": true
+				'echo': true
 			});
 			ok(isAutoApproved('echo hello world'));
 		});
 
 		test('should not auto-approve when there is no match', () => {
 			setAutoApprove({
-				"echo": true
+				'echo': true
 			});
 			ok(!isAutoApproved('ls'));
 		});
 
 		test('should not auto-approve partial command matches', () => {
 			setAutoApprove({
-				"echo": true
+				'echo': true
 			});
 			ok(!isAutoApproved('echotest'));
 		});
 
 		test('should handle multiple commands in autoApprove', () => {
 			setAutoApprove({
-				"echo": true,
-				"ls": true,
-				"pwd": true
+				'echo': true,
+				'ls': true,
+				'pwd': true
 			});
 			ok(isAutoApproved('echo'));
 			ok(isAutoApproved('ls -la'));
@@ -105,8 +105,8 @@ suite('CommandLineAutoApprover', () => {
 	suite('autoApprove with deny patterns only', () => {
 		test('should deny commands in autoApprove', () => {
 			setAutoApprove({
-				"rm": false,
-				"del": false
+				'rm': false,
+				'del': false
 			});
 			ok(!isAutoApproved('rm file.txt'));
 			ok(!isAutoApproved('del file.txt'));
@@ -114,7 +114,7 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should not auto-approve safe commands when no allow patterns are present', () => {
 			setAutoApprove({
-				"rm": false
+				'rm': false
 			});
 			ok(!isAutoApproved('echo hello'));
 			ok(!isAutoApproved('ls'));
@@ -124,8 +124,8 @@ suite('CommandLineAutoApprover', () => {
 	suite('autoApprove with mixed allow and deny patterns', () => {
 		test('should deny commands set to false even if other commands are set to true', () => {
 			setAutoApprove({
-				"echo": true,
-				"rm": false
+				'echo': true,
+				'rm': false
 			});
 			ok(isAutoApproved('echo hello'));
 			ok(!isAutoApproved('rm file.txt'));
@@ -133,11 +133,11 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should auto-approve allow patterns not set to false', () => {
 			setAutoApprove({
-				"echo": true,
-				"ls": true,
-				"pwd": true,
-				"rm": false,
-				"del": false
+				'echo': true,
+				'ls': true,
+				'pwd': true,
+				'rm': false,
+				'del': false
 			});
 			ok(isAutoApproved('echo'));
 			ok(isAutoApproved('ls'));
@@ -150,7 +150,7 @@ suite('CommandLineAutoApprover', () => {
 	suite('regex patterns', () => {
 		test('should handle /.*/', () => {
 			setAutoApprove({
-				"/.*/": true,
+				'/.*/': true,
 			});
 
 			ok(isAutoApproved('echo hello'));
@@ -158,9 +158,9 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle regex patterns in autoApprove', () => {
 			setAutoApprove({
-				"/^echo/": true,
-				"/^ls/": true,
-				"pwd": true
+				'/^echo/': true,
+				'/^ls/': true,
+				'pwd': true
 			});
 
 			ok(isAutoApproved('echo hello'));
@@ -171,10 +171,10 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle regex patterns for deny', () => {
 			setAutoApprove({
-				"echo": true,
-				"rm": true,
-				"/^rm\\s+/": false,
-				"/^del\\s+/": false
+				'echo': true,
+				'rm': true,
+				'/^rm\\s+/': false,
+				'/^del\\s+/': false
 			});
 
 			ok(isAutoApproved('echo hello'));
@@ -185,9 +185,9 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle complex regex patterns', () => {
 			setAutoApprove({
-				"/^(echo|ls|pwd)\\b/": true,
-				"/^git (status|show\\b.*)$/": true,
-				"/rm|del|kill/": false
+				'/^(echo|ls|pwd)\\b/': true,
+				'/^git (status|show\\b.*)$/': true,
+				'/rm|del|kill/': false
 			});
 
 			ok(isAutoApproved('echo test'));
@@ -204,9 +204,9 @@ suite('CommandLineAutoApprover', () => {
 		suite('flags', () => {
 			test('should handle case-insensitive regex patterns with i flag', () => {
 				setAutoApprove({
-					"/^echo/i": true,
-					"/^ls/i": true,
-					"/rm|del/i": false
+					'/^echo/i': true,
+					'/^ls/i': true,
+					'/rm|del/i': false
 				});
 
 				ok(isAutoApproved('echo hello'));
@@ -223,8 +223,8 @@ suite('CommandLineAutoApprover', () => {
 
 			test('should handle multiple regex flags', () => {
 				setAutoApprove({
-					"/^git\\s+/gim": true,
-					"/dangerous/gim": false
+					'/^git\\s+/gim': true,
+					'/dangerous/gim': false
 				});
 
 				ok(isAutoApproved('git status'));
@@ -236,9 +236,9 @@ suite('CommandLineAutoApprover', () => {
 
 			test('should handle various regex flags', () => {
 				setAutoApprove({
-					"/^echo.*/s": true,  // dotall flag
-					"/^git\\s+/i": true, // case-insensitive flag
-					"/rm|del/g": false   // global flag
+					'/^echo.*/s': true,  // dotall flag
+					'/^git\\s+/i': true, // case-insensitive flag
+					'/rm|del/g': false   // global flag
 				});
 
 				ok(isAutoApproved('echo hello\nworld'));
@@ -250,8 +250,8 @@ suite('CommandLineAutoApprover', () => {
 
 			test('should handle regex patterns without flags', () => {
 				setAutoApprove({
-					"/^echo/": true,
-					"/rm|del/": false
+					'/^echo/': true,
+					'/rm|del/': false
 				});
 
 				ok(isAutoApproved('echo hello'));
@@ -273,7 +273,7 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle empty command strings', () => {
 			setAutoApprove({
-				"echo": true
+				'echo': true
 			});
 
 			ok(!isAutoApproved(''));
@@ -282,7 +282,7 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle whitespace in commands', () => {
 			setAutoApprove({
-				"echo": true
+				'echo': true
 			});
 
 			ok(isAutoApproved('echo   hello   world'));
@@ -290,7 +290,7 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should be case-sensitive by default', () => {
 			setAutoApprove({
-				"echo": true
+				'echo': true
 			});
 
 			ok(isAutoApproved('echo hello'));
@@ -301,7 +301,7 @@ suite('CommandLineAutoApprover', () => {
 		// https://github.com/microsoft/vscode/issues/252411
 		test('should handle string-based values with special regex characters', () => {
 			setAutoApprove({
-				"pwsh.exe -File D:\\foo.bar\\a-script.ps1": true
+				'pwsh.exe -File D:\\foo.bar\\a-script.ps1': true
 			});
 
 			ok(isAutoApproved('pwsh.exe -File D:\\foo.bar\\a-script.ps1'));
@@ -310,7 +310,7 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should ignore the empty string key', () => {
 			setAutoApprove({
-				"": true
+				'': true
 			});
 
 			ok(!isAutoApproved('echo hello'));
@@ -318,10 +318,10 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle empty regex patterns that could cause endless loops', () => {
 			setAutoApprove({
-				"//": true,
-				"/(?:)/": true,
-				"/*/": true,            // Invalid regex pattern
-				"/.**/": true           // Invalid regex pattern
+				'//': true,
+				'/(?:)/': true,
+				'/*/': true,            // Invalid regex pattern
+				'/.**/': true           // Invalid regex pattern
 			});
 
 			// These patterns should not cause endless loops and should not match any commands
@@ -333,10 +333,10 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle regex patterns that would cause endless loops', () => {
 			setAutoApprove({
-				"/a*/": true,
-				"/b?/": true,
-				"/(x|)*/": true,
-				"/(?:)*/": true
+				'/a*/': true,
+				'/b?/': true,
+				'/(x|)*/': true,
+				'/(?:)*/': true
 			});
 
 			// Commands should still work normally, endless loop patterns should be safely handled
@@ -348,11 +348,11 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle mixed valid and problematic regex patterns', () => {
 			setAutoApprove({
-				"/^echo/": true,        // Valid pattern
-				"//": true,             // Empty pattern
-				"/^ls/": true,          // Valid pattern
-				"/a*/": true,           // Potential endless loop
-				"pwd": true             // Valid string pattern
+				'/^echo/': true,        // Valid pattern
+				'//': true,             // Empty pattern
+				'/^ls/': true,          // Valid pattern
+				'/a*/': true,           // Potential endless loop
+				'pwd': true             // Valid string pattern
 			});
 
 			ok(isAutoApproved('echo hello'));
@@ -363,11 +363,11 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle invalid regex patterns gracefully', () => {
 			setAutoApprove({
-				"/*/": true,                    // Invalid regex - nothing to repeat
-				"/(?:+/": true,                 // Invalid regex - incomplete quantifier
-				"/[/": true,                    // Invalid regex - unclosed character class
-				"/^echo/": true,                // Valid pattern
-				"ls": true                      // Valid string pattern
+				'/*/': true,                    // Invalid regex - nothing to repeat
+				'/(?:+/': true,                 // Invalid regex - incomplete quantifier
+				'/[/': true,                    // Invalid regex - unclosed character class
+				'/^echo/': true,                // Valid pattern
+				'ls': true                      // Valid string pattern
 			});
 
 			// Valid patterns should still work
@@ -381,7 +381,7 @@ suite('CommandLineAutoApprover', () => {
 	suite('path-aware auto approval', () => {
 		test('should handle path variations with forward slashes', () => {
 			setAutoApprove({
-				"bin/foo": true
+				'bin/foo': true
 			});
 
 			// Should approve the exact match
@@ -405,7 +405,7 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle path variations with backslashes', () => {
 			setAutoApprove({
-				"bin\\script.bat": true
+				'bin\\script.bat': true
 			});
 
 			// Should approve the exact match
@@ -425,7 +425,7 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle deep paths', () => {
 			setAutoApprove({
-				"src/utils/helper.js": true
+				'src/utils/helper.js': true
 			});
 
 			ok(isAutoApproved('src/utils/helper.js'));
@@ -438,9 +438,9 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should not treat non-paths as paths', () => {
 			setAutoApprove({
-				"echo": true,  // Not a path
-				"ls": true,    // Not a path
-				"git": true    // Not a path
+				'echo': true,  // Not a path
+				'ls': true,    // Not a path
+				'git': true    // Not a path
 			});
 
 			// These should work as normal command matching, not path matching
@@ -455,7 +455,7 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle paths with mixed separators in config', () => {
 			setAutoApprove({
-				"bin/foo\\bar": true  // Mixed separators in config
+				'bin/foo\\bar': true  // Mixed separators in config
 			});
 
 			ok(isAutoApproved('bin/foo\\bar'));
@@ -468,7 +468,7 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should work with command line auto approval for paths', () => {
 			setAutoApproveWithCommandLine({
-				"bin/deploy": { approve: true, matchCommandLine: true }
+				'bin/deploy': { approve: true, matchCommandLine: true }
 			});
 
 			ok(isCommandLineAutoApproved('bin/deploy --prod'));
@@ -479,9 +479,9 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle special characters in paths', () => {
 			setAutoApprove({
-				"bin/my-script.sh": true,
-				"scripts/build_all.py": true,
-				"tools/run (debug).exe": true
+				'bin/my-script.sh': true,
+				'scripts/build_all.py': true,
+				'tools/run (debug).exe': true
 			});
 
 			ok(isAutoApproved('bin/my-script.sh'));
@@ -503,11 +503,11 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle Windows PowerShell commands', () => {
 			setAutoApprove({
-				"Get-ChildItem": true,
-				"Get-Content": true,
-				"Get-Location": true,
-				"Remove-Item": false,
-				"del": false
+				'Get-ChildItem': true,
+				'Get-Content': true,
+				'Get-Location': true,
+				'Remove-Item': false,
+				'del': false
 			});
 
 			ok(isAutoApproved('Get-ChildItem'));
@@ -518,7 +518,7 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle ( prefixes', () => {
 			setAutoApprove({
-				"Get-Content": true
+				'Get-Content': true
 			});
 
 			ok(isAutoApproved('Get-Content file.txt'));
@@ -529,9 +529,9 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should be case-insensitive for PowerShell commands', () => {
 			setAutoApprove({
-				"Get-ChildItem": true,
-				"Get-Content": true,
-				"Remove-Item": false
+				'Get-ChildItem': true,
+				'Get-Content': true,
+				'Remove-Item': false
 			});
 
 			ok(isAutoApproved('Get-ChildItem'));
@@ -553,10 +553,10 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should be case-insensitive for PowerShell aliases', () => {
 			setAutoApprove({
-				"ls": true,
-				"dir": true,
-				"rm": false,
-				"del": false
+				'ls': true,
+				'dir': true,
+				'rm': false,
+				'del': false
 			});
 
 			// Test case-insensitive matching for aliases
@@ -579,8 +579,8 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should be case-insensitive with regex patterns', () => {
 			setAutoApprove({
-				"/^Get-/": true,
-				"/Remove-Item|rm/": false
+				'/^Get-/': true,
+				'/Remove-Item|rm/': false
 			});
 
 			ok(isAutoApproved('Get-ChildItem'));
@@ -596,8 +596,8 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle case-insensitive PowerShell commands on different OS', () => {
 			setAutoApprove({
-				"Get-Process": true,
-				"Stop-Process": false
+				'Get-Process': true,
+				'Stop-Process': false
 			});
 
 			for (const currnetOS of [OperatingSystem.Windows, OperatingSystem.Linux, OperatingSystem.Macintosh]) {
@@ -614,7 +614,7 @@ suite('CommandLineAutoApprover', () => {
 	suite('isCommandLineAutoApproved - matchCommandLine functionality', () => {
 		test('should auto-approve command line patterns with matchCommandLine: true', () => {
 			setAutoApproveWithCommandLine({
-				"echo": { approve: true, matchCommandLine: true }
+				'echo': { approve: true, matchCommandLine: true }
 			});
 
 			ok(isCommandLineAutoApproved('echo hello'));
@@ -623,7 +623,7 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should not auto-approve regular patterns with isCommandLineAutoApproved', () => {
 			setAutoApprove({
-				"echo": true
+				'echo': true
 			});
 
 			// Regular patterns should not be matched by isCommandLineAutoApproved
@@ -632,7 +632,7 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle regex patterns with matchCommandLine: true', () => {
 			setAutoApproveWithCommandLine({
-				"/echo.*world/": { approve: true, matchCommandLine: true }
+				'/echo.*world/': { approve: true, matchCommandLine: true }
 			});
 
 			ok(isCommandLineAutoApproved('echo hello world'));
@@ -641,7 +641,7 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle case-insensitive regex with matchCommandLine: true', () => {
 			setAutoApproveWithCommandLine({
-				"/echo/i": { approve: true, matchCommandLine: true }
+				'/echo/i': { approve: true, matchCommandLine: true }
 			});
 
 			ok(isCommandLineAutoApproved('echo hello'));
@@ -651,8 +651,8 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle complex command line patterns', () => {
 			setAutoApproveWithCommandLine({
-				"/^npm run build/": { approve: true, matchCommandLine: true },
-				"/\.ps1/i": { approve: true, matchCommandLine: true }
+				'/^npm run build/': { approve: true, matchCommandLine: true },
+				'/\.ps1/i': { approve: true, matchCommandLine: true }
 			});
 
 			ok(isCommandLineAutoApproved('npm run build --production'));
@@ -663,7 +663,7 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should return false for empty command line', () => {
 			setAutoApproveWithCommandLine({
-				"echo": { approve: true, matchCommandLine: true }
+				'echo': { approve: true, matchCommandLine: true }
 			});
 
 			ok(!isCommandLineAutoApproved(''));
@@ -672,9 +672,9 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle mixed configuration with matchCommandLine entries', () => {
 			setAutoApproveWithCommandLine({
-				"echo": true,  // Regular pattern
-				"ls": { approve: true, matchCommandLine: true },  // Command line pattern
-				"rm": { approve: true, matchCommandLine: false }  // Explicit regular pattern
+				'echo': true,  // Regular pattern
+				'ls': { approve: true, matchCommandLine: true },  // Command line pattern
+				'rm': { approve: true, matchCommandLine: false }  // Explicit regular pattern
 			});
 
 			// Only the matchCommandLine: true entry should work with isCommandLineAutoApproved
@@ -685,8 +685,8 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle deny patterns with matchCommandLine: true', () => {
 			setAutoApproveWithCommandLine({
-				"echo": { approve: true, matchCommandLine: true },
-				"/dangerous/": { approve: false, matchCommandLine: true }
+				'echo': { approve: true, matchCommandLine: true },
+				'/dangerous/': { approve: false, matchCommandLine: true }
 			});
 
 			ok(isCommandLineAutoApproved('echo hello'));
@@ -696,8 +696,8 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should prioritize deny list over allow list for command line patterns', () => {
 			setAutoApproveWithCommandLine({
-				"/echo/": { approve: true, matchCommandLine: true },
-				"/echo.*dangerous/": { approve: false, matchCommandLine: true }
+				'/echo/': { approve: true, matchCommandLine: true },
+				'/echo.*dangerous/': { approve: false, matchCommandLine: true }
 			});
 
 			ok(isCommandLineAutoApproved('echo hello'));
@@ -706,9 +706,9 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle complex deny patterns with matchCommandLine', () => {
 			setAutoApproveWithCommandLine({
-				"npm": { approve: true, matchCommandLine: true },
-				"/npm.*--force/": { approve: false, matchCommandLine: true },
-				"/\.ps1.*-ExecutionPolicy/i": { approve: false, matchCommandLine: true }
+				'npm': { approve: true, matchCommandLine: true },
+				'/npm.*--force/': { approve: false, matchCommandLine: true },
+				'/\.ps1.*-ExecutionPolicy/i': { approve: false, matchCommandLine: true }
 			});
 
 			ok(isCommandLineAutoApproved('npm install'));
@@ -719,10 +719,10 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle empty regex patterns with matchCommandLine that could cause endless loops', () => {
 			setAutoApproveWithCommandLine({
-				"//": { approve: true, matchCommandLine: true },
-				"/(?:)/": { approve: true, matchCommandLine: true },
-				"/*/": { approve: true, matchCommandLine: true },            // Invalid regex pattern
-				"/.**/": { approve: true, matchCommandLine: true }           // Invalid regex pattern
+				'//': { approve: true, matchCommandLine: true },
+				'/(?:)/': { approve: true, matchCommandLine: true },
+				'/*/': { approve: true, matchCommandLine: true },            // Invalid regex pattern
+				'/.**/': { approve: true, matchCommandLine: true }           // Invalid regex pattern
 			});
 
 			// These patterns should not cause endless loops and should not match any commands
@@ -734,10 +734,10 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle regex patterns with matchCommandLine that would cause endless loops', () => {
 			setAutoApproveWithCommandLine({
-				"/a*/": { approve: true, matchCommandLine: true },
-				"/b?/": { approve: true, matchCommandLine: true },
-				"/(x|)*/": { approve: true, matchCommandLine: true },
-				"/(?:)*/": { approve: true, matchCommandLine: true }
+				'/a*/': { approve: true, matchCommandLine: true },
+				'/b?/': { approve: true, matchCommandLine: true },
+				'/(x|)*/': { approve: true, matchCommandLine: true },
+				'/(?:)*/': { approve: true, matchCommandLine: true }
 			});
 
 			// Commands should still work normally, endless loop patterns should be safely handled
@@ -749,11 +749,11 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle mixed valid and problematic regex patterns with matchCommandLine', () => {
 			setAutoApproveWithCommandLine({
-				"/^echo/": { approve: true, matchCommandLine: true },        // Valid pattern
-				"//": { approve: true, matchCommandLine: true },             // Empty pattern
-				"/^ls/": { approve: true, matchCommandLine: true },          // Valid pattern
-				"/a*/": { approve: true, matchCommandLine: true },           // Potential endless loop
-				"pwd": { approve: true, matchCommandLine: true }             // Valid string pattern
+				'/^echo/': { approve: true, matchCommandLine: true },        // Valid pattern
+				'//': { approve: true, matchCommandLine: true },             // Empty pattern
+				'/^ls/': { approve: true, matchCommandLine: true },          // Valid pattern
+				'/a*/': { approve: true, matchCommandLine: true },           // Potential endless loop
+				'pwd': { approve: true, matchCommandLine: true }             // Valid string pattern
 			});
 
 			ok(isCommandLineAutoApproved('echo hello'));
@@ -764,11 +764,11 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle invalid regex patterns with matchCommandLine gracefully', () => {
 			setAutoApproveWithCommandLine({
-				"/*/": { approve: true, matchCommandLine: true },                    // Invalid regex - nothing to repeat
-				"/(?:+/": { approve: true, matchCommandLine: true },                 // Invalid regex - incomplete quantifier
-				"/[/": { approve: true, matchCommandLine: true },                    // Invalid regex - unclosed character class
-				"/^echo/": { approve: true, matchCommandLine: true },                // Valid pattern
-				"ls": { approve: true, matchCommandLine: true }                      // Valid string pattern
+				'/*/': { approve: true, matchCommandLine: true },                    // Invalid regex - nothing to repeat
+				'/(?:+/': { approve: true, matchCommandLine: true },                 // Invalid regex - incomplete quantifier
+				'/[/': { approve: true, matchCommandLine: true },                    // Invalid regex - unclosed character class
+				'/^echo/': { approve: true, matchCommandLine: true },                // Valid pattern
+				'ls': { approve: true, matchCommandLine: true }                      // Valid string pattern
 			});
 
 			// Valid patterns should still work
@@ -913,8 +913,8 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should correctly identify default rules vs user-defined rules', () => {
 			setAutoApproveWithDefaults(
-				{ "echo": true, "ls": true, "pwd": false },
-				{ "echo": true, "cat": true }
+				{ 'echo': true, 'ls': true, 'pwd': false },
+				{ 'echo': true, 'cat': true }
 			);
 
 			strictEqual(getIsDefaultRule('echo hello'), true, 'echo is in both default and user config with same value - should be marked as default');
@@ -925,8 +925,8 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should mark as default when command is only in default config but not in user config', () => {
 			setAutoApproveWithDefaults(
-				{ "echo": true, "ls": true },  // User config (cat is NOT here)
-				{ "echo": true, "cat": true }  // Default config (cat IS here)
+				{ 'echo': true, 'ls': true },  // User config (cat is NOT here)
+				{ 'echo': true, 'cat': true }  // Default config (cat IS here)
 			);
 
 			// Test that merged config includes all commands
@@ -943,8 +943,8 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle default rules with different values', () => {
 			setAutoApproveWithDefaults(
-				{ "echo": true, "rm": true },
-				{ "echo": false, "rm": true }
+				{ 'echo': true, 'rm': true },
+				{ 'echo': false, 'rm': true }
 			);
 
 			strictEqual(getIsDefaultRule('echo hello'), false, 'echo has different values in default vs user - should be marked as user-defined');
@@ -953,8 +953,8 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle regex patterns as default rules', () => {
 			setAutoApproveWithDefaults(
-				{ "/^git/": true, "/^npm/": false },
-				{ "/^git/": true, "/^docker/": true }
+				{ '/^git/': true, '/^npm/': false },
+				{ '/^git/': true, '/^docker/': true }
 			);
 
 			strictEqual(getIsDefaultRule('git status'), true, 'git pattern matches default - should be marked as default');
@@ -963,8 +963,8 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle mixed string and regex patterns', () => {
 			setAutoApproveWithDefaults(
-				{ "echo": true, "/^ls/": false },
-				{ "echo": true, "cat": true }
+				{ 'echo': true, '/^ls/': false },
+				{ 'echo': true, 'cat': true }
 			);
 
 			strictEqual(getIsDefaultRule('echo hello'), true, 'String pattern matching default');
@@ -974,12 +974,12 @@ suite('CommandLineAutoApprover', () => {
 		test('should handle command line rules with isDefaultRule', () => {
 			setAutoApproveWithDefaultsCommandLine(
 				{
-					"echo": { approve: true, matchCommandLine: true },
-					"ls": { approve: false, matchCommandLine: true }
+					'echo': { approve: true, matchCommandLine: true },
+					'ls': { approve: false, matchCommandLine: true }
 				},
 				{
-					"echo": { approve: true, matchCommandLine: true },
-					"cat": { approve: true, matchCommandLine: true }
+					'echo': { approve: true, matchCommandLine: true },
+					'cat': { approve: true, matchCommandLine: true }
 				}
 			);
 
@@ -990,12 +990,12 @@ suite('CommandLineAutoApprover', () => {
 		test('should handle command line rules with different matchCommandLine values', () => {
 			setAutoApproveWithDefaultsCommandLine(
 				{
-					"echo": { approve: true, matchCommandLine: true },
-					"ls": { approve: true, matchCommandLine: false }
+					'echo': { approve: true, matchCommandLine: true },
+					'ls': { approve: true, matchCommandLine: false }
 				},
 				{
-					"echo": { approve: true, matchCommandLine: false },
-					"ls": { approve: true, matchCommandLine: false }
+					'echo': { approve: true, matchCommandLine: false },
+					'ls': { approve: true, matchCommandLine: false }
 				}
 			);
 
@@ -1006,12 +1006,12 @@ suite('CommandLineAutoApprover', () => {
 		test('should handle boolean vs object format consistency', () => {
 			setAutoApproveWithDefaultsCommandLine(
 				{
-					"echo": true,
-					"ls": { approve: true, matchCommandLine: true }
+					'echo': true,
+					'ls': { approve: true, matchCommandLine: true }
 				},
 				{
-					"echo": true,
-					"ls": { approve: true, matchCommandLine: true }
+					'echo': true,
+					'ls': { approve: true, matchCommandLine: true }
 				}
 			);
 
@@ -1021,8 +1021,8 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should return undefined for noMatch cases', () => {
 			setAutoApproveWithDefaults(
-				{ "echo": true },
-				{ "cat": true }
+				{ 'echo': true },
+				{ 'cat': true }
 			);
 
 			strictEqual(getIsDefaultRule('unknown-command'), undefined, 'Command that matches neither user nor default config');
@@ -1042,7 +1042,7 @@ suite('CommandLineAutoApprover', () => {
 		test('should handle only default config with no user overrides', () => {
 			setAutoApproveWithDefaults(
 				{},
-				{ "echo": true, "ls": false }
+				{ 'echo': true, 'ls': false }
 			);
 
 			strictEqual(getIsDefaultRule('echo hello'), true, 'Commands in default config should be marked as default rules even with empty user config');
@@ -1052,12 +1052,12 @@ suite('CommandLineAutoApprover', () => {
 		test('should handle complex nested object rules', () => {
 			setAutoApproveWithDefaultsCommandLine(
 				{
-					"npm": { approve: true, matchCommandLine: true },
-					"git": { approve: false, matchCommandLine: false }
+					'npm': { approve: true, matchCommandLine: true },
+					'git': { approve: false, matchCommandLine: false }
 				},
 				{
-					"npm": { approve: true, matchCommandLine: true },
-					"docker": { approve: true, matchCommandLine: true }
+					'npm': { approve: true, matchCommandLine: true },
+					'docker': { approve: true, matchCommandLine: true }
 				}
 			);
 
@@ -1070,8 +1070,8 @@ suite('CommandLineAutoApprover', () => {
 			os = OperatingSystem.Windows;
 
 			setAutoApproveWithDefaults(
-				{ "Get-Process": true },
-				{ "Get-Process": true }
+				{ 'Get-Process': true },
+				{ 'Get-Process': true }
 			);
 
 			strictEqual(getIsDefaultRule('Get-Process'), true, 'Case-insensitive PowerShell command matching default');
@@ -1081,8 +1081,8 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should use structural equality for object comparison', () => {
 			// Test that objects with same content but different instances are treated as equal
-			const userConfig = { "test": { approve: true, matchCommandLine: true } };
-			const defaultConfig = { "test": { approve: true, matchCommandLine: true } };
+			const userConfig = { 'test': { approve: true, matchCommandLine: true } };
+			const defaultConfig = { 'test': { approve: true, matchCommandLine: true } };
 
 			setAutoApproveWithDefaultsCommandLine(userConfig, defaultConfig);
 
@@ -1090,8 +1090,8 @@ suite('CommandLineAutoApprover', () => {
 		});
 
 		test('should detect structural differences in objects', () => {
-			const userConfig = { "test": { approve: true, matchCommandLine: true } };
-			const defaultConfig = { "test": { approve: true, matchCommandLine: false } };
+			const userConfig = { 'test': { approve: true, matchCommandLine: true } };
+			const defaultConfig = { 'test': { approve: true, matchCommandLine: false } };
 
 			setAutoApproveWithDefaultsCommandLine(userConfig, defaultConfig);
 
@@ -1100,18 +1100,88 @@ suite('CommandLineAutoApprover', () => {
 
 		test('should handle mixed types correctly', () => {
 			const userConfig = {
-				"cmd1": true,
-				"cmd2": { approve: false, matchCommandLine: true }
+				'cmd1': true,
+				'cmd2': { approve: false, matchCommandLine: true }
 			};
 			const defaultConfig = {
-				"cmd1": true,
-				"cmd2": { approve: false, matchCommandLine: true }
+				'cmd1': true,
+				'cmd2': { approve: false, matchCommandLine: true }
 			};
 
 			setAutoApproveWithDefaultsCommandLine(userConfig, defaultConfig);
 
 			strictEqual(getIsDefaultRule('cmd1 arg'), true, 'Boolean type should match default');
 			strictEqual(getCommandLineIsDefaultRule('cmd2 arg'), true, 'Object type should match default using structural equality (even though it\'s a deny rule)');
+		});
+	});
+
+	suite('ignoreDefaultAutoApproveRules', () => {
+		function setAutoApproveWithDefaults(userConfig: { [key: string]: boolean }, defaultConfig: { [key: string]: boolean }) {
+			// Set up mock configuration with default values
+			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AutoApprove, userConfig);
+
+			// Mock the inspect method to return default values
+			const originalInspect = configurationService.inspect;
+			const originalGetValue = configurationService.getValue;
+
+			configurationService.inspect = (key: string): any => {
+				if (key === TerminalChatAgentToolsSettingId.AutoApprove) {
+					return {
+						default: { value: defaultConfig },
+						user: { value: userConfig },
+						workspace: undefined,
+						workspaceFolder: undefined,
+						application: undefined,
+						policy: undefined,
+						memory: undefined,
+						value: { ...defaultConfig, ...userConfig }
+					};
+				}
+				return originalInspect.call(configurationService, key);
+			};
+
+			configurationService.getValue = (key: string): any => {
+				if (key === TerminalChatAgentToolsSettingId.AutoApprove) {
+					return { ...defaultConfig, ...userConfig };
+				}
+				return originalGetValue.call(configurationService, key);
+			};
+
+			// Trigger configuration update
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: () => true,
+				affectedKeys: new Set([TerminalChatAgentToolsSettingId.AutoApprove]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
+		}
+
+		function setIgnoreDefaultAutoApproveRules(value: boolean) {
+			setConfig(TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules, value);
+		}
+
+		test('should include default rules when ignoreDefaultAutoApproveRules is false (default behavior)', () => {
+			setAutoApproveWithDefaults(
+				{ 'ls': true },
+				{ 'echo': true, 'cat': true }
+			);
+			setIgnoreDefaultAutoApproveRules(false);
+
+			ok(isAutoApproved('ls -la'), 'User-defined rule should work');
+			ok(isAutoApproved('echo hello'), 'Default rule should work when not ignored');
+			ok(isAutoApproved('cat file.txt'), 'Default rule should work when not ignored');
+		});
+
+		test('should exclude default rules when ignoreDefaultAutoApproveRules is true', () => {
+			setAutoApproveWithDefaults(
+				{ 'ls': true },
+				{ 'echo': true, 'cat': true }
+			);
+			setIgnoreDefaultAutoApproveRules(true);
+
+			ok(isAutoApproved('ls -la'), 'User-defined rule should still work');
+			ok(!isAutoApproved('echo hello'), 'Default rule should be ignored');
+			ok(!isAutoApproved('cat file.txt'), 'Default rule should be ignored');
 		});
 	});
 });

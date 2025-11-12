@@ -1,12 +1,12 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.printBanner = printBanner;
-exports.streamProcessOutputAndCheckResult = streamProcessOutputAndCheckResult;
-exports.spawnCodesignProcess = spawnCodesignProcess;
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.printBanner = printBanner;
+exports.streamProcessOutputAndCheckResult = streamProcessOutputAndCheckResult;
+exports.spawnCodesignProcess = spawnCodesignProcess;
 const zx_1 = require("zx");
 function printBanner(title) {
     title = `${title} (${new Date().toISOString()})`;

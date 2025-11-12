@@ -22,13 +22,13 @@ suite('QueryBuilderCommon', () => {
 	});
 
 	test('resolveResourcesForSearchIncludes passes through paths without special glob characters', () => {
-		const actual = resolveResourcesForSearchIncludes([URI.file(isWindows ? "C:\\testWorkspace\\pages\\blog" : "/testWorkspace/pages/blog")], context);
-		assert.deepStrictEqual(actual, ["./pages/blog"]);
+		const actual = resolveResourcesForSearchIncludes([URI.file(isWindows ? 'C:\\testWorkspace\\pages\\blog' : '/testWorkspace/pages/blog')], context);
+		assert.deepStrictEqual(actual, ['./pages/blog']);
 	});
 
 	test('resolveResourcesForSearchIncludes escapes paths with special characters', () => {
-		const actual = resolveResourcesForSearchIncludes([URI.file(isWindows ? "C:\\testWorkspace\\pages\\blog\\[postId]" : "/testWorkspace/pages/blog/[postId]")], context);
-		assert.deepStrictEqual(actual, ["./pages/blog/[[]postId[]]"]);
+		const actual = resolveResourcesForSearchIncludes([URI.file(isWindows ? 'C:\\testWorkspace\\pages\\blog\\[postId]' : '/testWorkspace/pages/blog/[postId]')], context);
+		assert.deepStrictEqual(actual, ['./pages/blog/[[]postId[]]']);
 	});
 
 	test('escapeGlobPattern properly escapes square brackets for literal matching', () => {

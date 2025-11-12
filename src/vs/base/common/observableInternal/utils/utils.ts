@@ -225,7 +225,8 @@ export function mapObservableArrayCached<TIn, TOut, TKey = TIn>(owner: DebugOwne
 			m = new ArrayMap(map);
 		}
 	}, (reader) => {
-		m.setItems(items.read(reader));
+		const i = items.read(reader);
+		m.setItems(i);
 		return m.getItems();
 	});
 	return self;

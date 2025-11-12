@@ -348,6 +348,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('revealIfOpen', "Controls whether an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, such as when forcing an editor to open in a specific group or to the side of the currently active group."),
 				'default': false
 			},
+			'workbench.editor.swipeToNavigate': {
+				'type': 'boolean',
+				'description': localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally. Note that System Preferences > Trackpad > More Gestures must be set to 'Swipe with two or three fingers'."),
+				'default': false,
+				'included': isMacintosh && !isWeb
+			},
 			'workbench.editor.mouseBackForwardToNavigate': {
 				'type': 'boolean',
 				'description': localize('mouseBackForwardToNavigate', "Enables the use of mouse buttons four and five for commands 'Go Back' and 'Go Forward'."),
@@ -512,12 +518,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('workbench.quickOpen.preserveInput', "Controls whether the last typed input to Quick Open should be restored when opening it the next time."),
 				'default': false
 			},
-			'workbench.quickOpen.useZeroBasedOffset': {
-				'type': 'boolean',
-				tags: ['experimental'],
-				'description': localize('workbench.quickOpen.useZeroBasedOffset', "Controls whether 'Go To' character offset in Quick Open will use zero-based offset (default is one-based)."),
-				'default': false
-			},
 			'workbench.settings.openDefaultSettings': {
 				'type': 'boolean',
 				'description': localize('openDefaultSettings', "Controls whether opening settings also opens an editor showing all default settings."),
@@ -573,6 +573,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.secondarySideBar.defaultVisibility.maximizedInWorkspace', "The secondary side bar is visible and maximized by default if a workspace is opened."),
 					localize('workbench.secondarySideBar.defaultVisibility.maximized', "The secondary side bar is visible and maximized by default.")
 				]
+			},
+			'workbench.secondarySideBar.enableDefaultVisibilityInOldWorkspace': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('enableDefaultVisibilityInOldWorkspace', "Enables the default secondary sidebar visibility in older workspaces before we had default visibility support."),
+				'tags': ['advanced'],
+				'experiment': {
+					'mode': 'auto'
+				}
 			},
 			'workbench.secondarySideBar.showLabels': {
 				'type': 'boolean',

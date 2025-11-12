@@ -170,10 +170,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._globalToDispose.add(this.themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._globalToDispose.add(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
-				this._applyTheme(this.themeService.getColorTheme());
+				this._applyTheme();
 			}
 		}));
-		this._applyTheme(this.themeService.getColorTheme());
+		this._applyTheme();
 
 	}
 
@@ -519,7 +519,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	private _applyTheme(theme: IColorTheme) {
+	private _applyTheme() {
 		const borderColor = getCommentThreadWidgetStateColor(this._commentThread.state, this.themeService.getColorTheme()) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
@@ -527,8 +527,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		});
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 
-		// Editor decorations should also be responsive to theme changes
-		this._commentThreadWidget.applyTheme(theme, fontInfo);
+		this._commentThreadWidget.applyTheme(fontInfo);
 	}
 
 	override show(rangeOrPos: IRange | IPosition | undefined, heightInLines: number): void {

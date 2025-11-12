@@ -153,14 +153,28 @@ declare module 'vscode' {
 		title: string;
 
 		/**
+		 * Whether the multi diff editor should be read-only.
+		 * When true, users cannot open individual files or interact with file navigation.
+		 */
+		readOnly?: boolean;
+
+		/**
 		 * Create a new ChatResponseMultiDiffPart.
 		 * @param value Array of file diff entries.
 		 * @param title The title for the multi diff editor.
+		 * @param readOnly Optional flag to make the multi diff editor read-only.
 		 */
-		constructor(value: ChatResponseDiffEntry[], title: string);
+		constructor(value: ChatResponseDiffEntry[], title: string, readOnly?: boolean);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart;
+	export class ChatResponseExternalEditPart {
+		uris: Uri[];
+		callback: () => Thenable<unknown>;
+		applied: Thenable<void>;
+		constructor(uris: Uri[], callback: () => Thenable<unknown>);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart;
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -293,6 +307,14 @@ declare module 'vscode' {
 		notebookEdit(target: Uri, edits: NotebookEdit | NotebookEdit[]): void;
 
 		notebookEdit(target: Uri, isDone: true): void;
+
+		/**
+		 * Makes an external edit to one or more resources. Changes to the
+		 * resources made within the `callback` and before it resolves will be
+		 * tracked as agent edits. This can be used to track edits made from
+		 * external tools that don't generate simple {@link textEdit textEdits}.
+		 */
+		externalEdit<T>(target: Uri | Uri[], callback: () => Thenable<T>): Thenable<T>;
 
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
 		codeblockUri(uri: Uri, isEdit?: boolean): void;
@@ -652,6 +674,7 @@ declare module 'vscode' {
 	}
 
 	export interface ChatRequestModeInstructions {
+		readonly name: string;
 		readonly content: string;
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 		readonly metadata?: Record<string, boolean | string | number>;

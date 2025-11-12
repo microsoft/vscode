@@ -62,6 +62,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 					registryType: RegistryType.NODE,
 					registryBaseUrl: 'https://registry.npmjs.org',
 					identifier: '@modelcontextprotocol/server-brave-search',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.2',
 					environmentVariables: [{
 						name: 'BRAVE_API_KEY',
@@ -87,7 +88,8 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 					registryType: RegistryType.NODE,
 					registryBaseUrl: 'https://registry.npmjs.org',
 					identifier: '@modelcontextprotocol/everything',
-					version: ''
+					version: '',
+					transport: { type: TransportType.STDIO }
 				}]
 			};
 
@@ -104,6 +106,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0',
 					environmentVariables: [{
@@ -137,6 +140,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: '@modelcontextprotocol/server-brave-search',
 					version: '1.0.2',
 					environmentVariables: [{
@@ -169,6 +173,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0',
 					environmentVariables: [{
@@ -202,6 +207,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'snyk',
 					version: '1.1298.0',
 					packageArguments: [
@@ -230,6 +236,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.PYTHON,
+					transport: { type: TransportType.STDIO },
 					registryBaseUrl: 'https://pypi.org',
 					identifier: 'weather-mcp-server',
 					version: '0.5.0',
@@ -260,6 +267,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.PYTHON,
+					transport: { type: TransportType.STDIO },
 					identifier: 'weather-mcp-server',
 					version: ''
 				}]
@@ -278,6 +286,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.DOCKER,
+					transport: { type: TransportType.STDIO },
 					registryBaseUrl: 'https://docker.io',
 					identifier: 'mcp/filesystem',
 					version: '1.0.2',
@@ -320,6 +329,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.DOCKER,
+					transport: { type: TransportType.STDIO },
 					identifier: 'example/database-manager-mcp',
 					version: '3.1.0',
 					runtimeArguments: [{
@@ -358,6 +368,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.DOCKER,
+					transport: { type: TransportType.STDIO },
 					identifier: 'example/database-manager-mcp',
 					version: '3.1.0',
 					packageArguments: [{
@@ -410,6 +421,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.DOCKER,
 					identifier: 'example/test-image',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0'
 				}]
 			};
@@ -432,6 +444,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NUGET,
+					transport: { type: TransportType.STDIO },
 					registryBaseUrl: 'https://api.nuget.org',
 					identifier: 'Knapcode.SampleMcpServer',
 					version: '0.5.0',
@@ -456,6 +469,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NUGET,
+					transport: { type: TransportType.STDIO },
 					identifier: 'Knapcode.SampleMcpServer',
 					version: '0.4.0-beta',
 					packageArguments: [{
@@ -610,6 +624,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					environmentVariables: [{
 						name: 'CONNECTION_STRING',
@@ -658,6 +673,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					runtimeArguments: [{
 						type: 'named',
@@ -688,6 +704,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.DOCKER,
 					identifier: 'test-image',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					packageArguments: [{
 						type: 'named',
@@ -733,6 +750,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: '@example/math-tool',
+					transport: { type: TransportType.STDIO },
 					version: '2.0.1',
 					packageArguments: [{
 						type: 'positional',
@@ -777,6 +795,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.PYTHON,
+					transport: { type: TransportType.STDIO },
 					identifier: 'python-server',
 					version: '1.0.0'
 				}]
@@ -795,10 +814,12 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.PYTHON,
+					transport: { type: TransportType.STDIO },
 					identifier: 'python-server',
 					version: '1.0.0'
 				}, {
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'node-server',
 					version: '2.0.0'
 				}]
@@ -816,6 +837,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0'
 				}]
@@ -832,6 +854,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0',
 					runtimeArguments: [{
@@ -854,6 +877,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					packageArguments: [{
 						type: 'positional',
@@ -875,6 +899,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					runtimeArguments: [{
 						type: 'named',
@@ -901,6 +926,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					runtimeArguments: [{
 						type: 'named',
@@ -930,6 +956,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					environmentVariables: [{
 						name: 'API_KEY',

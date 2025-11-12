@@ -196,6 +196,7 @@ export interface IConfigurationService {
 
 	keys(): {
 		default: string[];
+		policy: string[];
 		user: string[];
 		workspace: string[];
 		workspaceFolder: string[];

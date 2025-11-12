@@ -12,6 +12,7 @@ import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSyst
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatResponseResource } from './chatModel.js';
 import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from './chatService.js';
+import { LocalChatSessionUri } from './chatUri.js';
 import { isToolResultInputOutputDetails } from './languageModelToolsService.js';
 
 export class ChatResponseResourceFileSystemProvider extends Disposable implements
@@ -90,7 +91,7 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 		}
 		const { sessionId, toolCallId, index } = parsed;
-		const session = this.chatService.getSession(sessionId);
+		const session = this.chatService.getSession(LocalChatSessionUri.forSession(sessionId));
 		if (!session) {
 			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 		}
@@ -109,11 +110,12 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 
 	private lookupURI(uri: URI): Uint8Array | Promise<Uint8Array> {
 		const { result, index } = this.findMatchingInvocation(uri);
-		if (!isToolResultInputOutputDetails(result.resultDetails)) {
+		const details = IChatToolInvocation.resultDetails(result);
+		if (!isToolResultInputOutputDetails(details)) {
 			throw createFileSystemProviderError(`Tool does not have I/O`, FileSystemProviderErrorCode.FileNotFound);
 		}
 
-		const part = result.resultDetails.output.at(index);
+		const part = details.output.at(index);
 		if (!part) {
 			throw createFileSystemProviderError(`Tool does not have part`, FileSystemProviderErrorCode.FileNotFound);
 		}

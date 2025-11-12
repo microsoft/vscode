@@ -317,11 +317,20 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 	}
 
 	shouldHideText(): boolean {
-		return this._container ? this._container.clientWidth < TerminalTabsListSizes.MidpointViewWidth : false;
+		return this._container ? this.getContainerWidthCachedForTask() < TerminalTabsListSizes.MidpointViewWidth : false;
 	}
 
 	shouldHideActionBar(): boolean {
-		return this._container ? this._container.clientWidth <= TerminalTabsListSizes.ActionbarMinimumWidth : false;
+		return this._container ? this.getContainerWidthCachedForTask() <= TerminalTabsListSizes.ActionbarMinimumWidth : false;
+	}
+
+	private _cachedContainerWidth = -1;
+	getContainerWidthCachedForTask(): number {
+		if (this._cachedContainerWidth === -1) {
+			this._cachedContainerWidth = this._container.clientWidth;
+			queueMicrotask(() => this._cachedContainerWidth = -1);
+		}
+		return this._cachedContainerWidth;
 	}
 
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
@@ -411,6 +420,7 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 		const editableData = this._terminalEditingService.getEditableData(instance);
 		template.label.element.classList.toggle('editable-tab', !!editableData);
 		if (editableData) {
+			// eslint-disable-next-line no-restricted-syntax
 			template.elementDisposables.add(this._renderInputBox(template.label.element.querySelector('.monaco-icon-label-container')!, instance, editableData));
 			template.actionBar.clear();
 		}
@@ -634,9 +644,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 			return;
 		}
 		// Attach terminals type to event
-		const terminals: ITerminalInstance[] = (dndData as unknown[]).filter(e => (
-			isObject(e) && 'instanceId' in e
-		)) as ITerminalInstance[];
+		const terminals = (dndData as unknown[]).filter(isTerminalInstance);
 		if (terminals.length > 0) {
 			originalEvent.dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify(terminals.map(e => e.resource.toString())));
 		}
@@ -725,7 +733,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 
 			sourceInstances = [];
 			for (const e of draggedElement) {
-				if ('instanceId' in e) {
+				if (isTerminalInstance(e)) {
 					sourceInstances.push(e as ITerminalInstance);
 				}
 			}
@@ -818,4 +826,8 @@ class TabDecorationsProvider extends Disposable implements IDecorationsProvider 
 			tooltip: primaryStatus.tooltip
 		};
 	}
+}
+
+function isTerminalInstance(obj: unknown): obj is ITerminalInstance {
+	return isObject(obj) && 'instanceId' in obj;
 }

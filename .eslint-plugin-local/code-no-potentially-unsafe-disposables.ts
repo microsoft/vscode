@@ -28,10 +28,10 @@ export = new class implements eslint.Rule.RuleModule {
 		}
 
 		return {
-			'VariableDeclaration[kind!="const"] NewExpression[callee.name="DisposableStore"]': checkVariableDeclaration,
+			'VariableDeclaration[kind!="const"] > VariableDeclarator > NewExpression[callee.name="DisposableStore"]': checkVariableDeclaration,
 
 			'PropertyDefinition[readonly!=true][typeAnnotation.typeAnnotation.typeName.name=/DisposableStore|MutableDisposable/]': checkProperty,
-			'PropertyDefinition[readonly!=true] NewExpression[callee.name=/DisposableStore|MutableDisposable/]': checkProperty,
+			'PropertyDefinition[readonly!=true] > NewExpression[callee.name=/DisposableStore|MutableDisposable/]': checkProperty,
 		};
 	}
 };

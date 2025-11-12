@@ -43,7 +43,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		@IProductService productService: IProductService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
@@ -119,6 +119,12 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			try {
 				const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
 				this.update(manifest);
+				this.telemetryService.publicLog2<
+					{},
+					{
+						owner: 'sandy081';
+						comment: 'Reports when a user successfully accesses a custom marketplace';
+					}>('galleryservice:custom:marketplace');
 			} catch (error) {
 				this.logService.error('[Marketplace] Error retrieving enterprise gallery manifest', error);
 				this.update(null, ExtensionGalleryManifestStatus.AccessDenied);

@@ -103,6 +103,10 @@ class OutlineItem extends BreadcrumbsItem {
 			filterData: undefined
 		}, 0, template, undefined);
 
+		if (!this.options.showSymbolIcons) {
+			dom.hide(template.iconClass);
+		}
+
 		this._disposables.add(toDisposable(() => { renderer.disposeTemplate(template); }));
 
 		if (element instanceof OutlineElement && outline.uri) {
@@ -185,7 +189,7 @@ function createBreadcrumbDndObserver(accessor: ServicesAccessor, container: HTML
 					}], event);
 				}
 
-				if (dragEditor && model.editor && model.editor?.input) {
+				if (dragEditor && model.editor?.input) {
 					const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 					editorTransfer.setData([new DraggedEditorIdentifier({ editor: model.editor.input, groupId: model.editor.group.id })], DraggedEditorIdentifier.prototype);
 				}
@@ -313,6 +317,8 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.reset();
 		this._cfUseQuickPick.dispose();
 		this._cfShowIcons.dispose();
+		this._cfTitleScrollbarSizing.dispose();
+		this._cfTitleScrollbarVisibility.dispose();
 		this._widget.dispose();
 		this._labels.dispose();
 		this.domNode.remove();

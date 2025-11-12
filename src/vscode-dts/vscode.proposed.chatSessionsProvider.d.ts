@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 2
+// version: 3
 
 declare module 'vscode' {
 	/**
@@ -36,6 +36,14 @@ declare module 'vscode' {
 		readonly onDidChangeChatSessionItems: Event<void>;
 
 		/**
+		 * Provides a list of chat sessions.
+		 */
+		// TODO: Do we need a flag to try auth if needed?
+		provideChatSessionItems(token: CancellationToken): ProviderResult<ChatSessionItem[]>;
+
+		// #region Unstable parts of API
+
+		/**
 		 * Event that the provider can fire to signal that the current (original) chat session should be replaced with a new (modified) chat session.
 		 * The UI can use this information to gracefully migrate the user to the new session.
 		 */
@@ -61,18 +69,16 @@ declare module 'vscode' {
 			metadata?: any;
 		}, token: CancellationToken): ProviderResult<ChatSessionItem>;
 
-		/**
-		 * Provides a list of chat sessions.
-		 */
-		// TODO: Do we need a flag to try auth if needed?
-		provideChatSessionItems(token: CancellationToken): ProviderResult<ChatSessionItem[]>;
+		// #endregion
 	}
 
 	export interface ChatSessionItem {
 		/**
-		 * Unique identifier for the chat session.
+		 * The resource associated with the chat session.
+		 *
+		 * This is uniquely identifies the chat session and is used to open the chat session.
 		 */
-		id: string;
+		resource: Uri;
 
 		/**
 		 * Human readable name of the session shown in the UI
@@ -118,6 +124,11 @@ declare module 'vscode' {
 		 */
 		statistics?: {
 			/**
+			 * Number of files edited during the session.
+			 */
+			files: number;
+
+			/**
 			 * Number of insertions made during the session.
 			 */
 			insertions: number;
@@ -140,6 +151,14 @@ declare module 'vscode' {
 		readonly history: ReadonlyArray<ChatRequestTurn | ChatResponseTurn2>;
 
 		/**
+		 * Options configured for this session as key-value pairs.
+		 * Keys correspond to option group IDs (e.g., 'models', 'subagents')
+		 * and values are the selected option item IDs.
+		 * TODO: Strongly type the keys
+		 */
+		readonly options?: Record<string, string>;
+
+		/**
 		 * Callback invoked by the editor for a currently running response. This allows the session to push items for the
 		 * current response and stream these in as them come in. The current response will be considered complete once the
 		 * callback resolved.
@@ -158,14 +177,46 @@ declare module 'vscode' {
 		readonly requestHandler: ChatRequestHandler | undefined;
 	}
 
+	/**
+	 * Provides the content for a chat session rendered using the native chat UI.
+	 */
 	export interface ChatSessionContentProvider {
 		/**
-		 * Resolves a chat session into a full `ChatSession` object.
+		 * Provides the chat session content for a given uri.
 		 *
-		 * @param sessionId The id of the chat session to open.
+		 * The returned {@linkcode ChatSession} is used to populate the history of the chat UI.
+		 *
+		 * @param resource The URI of the chat session to resolve.
 		 * @param token A cancellation token that can be used to cancel the operation.
+		 *
+		 * @return The {@link ChatSession chat session} associated with the given URI.
 		 */
-		provideChatSessionContent(sessionId: string, token: CancellationToken): Thenable<ChatSession> | ChatSession;
+		provideChatSessionContent(resource: Uri, token: CancellationToken): Thenable<ChatSession> | ChatSession;
+
+		/**
+		 * @param resource Identifier of the chat session being updated.
+		 * @param updates Collection of option identifiers and their new values. Only the options that changed are included.
+		 * @param token A cancellation token that can be used to cancel the notification if the session is disposed.
+		 */
+		provideHandleOptionsChange?(resource: Uri, updates: ReadonlyArray<ChatSessionOptionUpdate>, token: CancellationToken): void;
+
+		/**
+		 * Called as soon as you register (call me once)
+		 * @param token
+		 */
+		provideChatSessionProviderOptions?(token: CancellationToken): Thenable<ChatSessionProviderOptions> | ChatSessionProviderOptions;
+	}
+
+	export interface ChatSessionOptionUpdate {
+		/**
+		 * Identifier of the option that changed (for example `model`).
+		 */
+		readonly optionId: string;
+
+		/**
+		 * The new value assigned to the option. When `undefined`, the option is cleared.
+		 */
+		readonly value: string | undefined;
 	}
 
 	export namespace chat {
@@ -184,12 +235,12 @@ declare module 'vscode' {
 		/**
 		 * Registers a new {@link ChatSessionContentProvider chat session content provider}.
 		 *
-		 * @param chatSessionType A unique identifier for the chat session type. This is used to differentiate between different chat session providers.
+		 * @param scheme The uri-scheme to register for. This must be unique.
 		 * @param provider The provider to register.
 		 *
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerChatSessionContentProvider(chatSessionType: string, provider: ChatSessionContentProvider, chatParticipant: ChatParticipant, capabilities?: ChatSessionCapabilities): Disposable;
+		export function registerChatSessionContentProvider(scheme: string, provider: ChatSessionContentProvider, chatParticipant: ChatParticipant, capabilities?: ChatSessionCapabilities): Disposable;
 	}
 
 	export interface ChatContext {
@@ -212,19 +263,51 @@ declare module 'vscode' {
 		supportsInterruptions?: boolean;
 	}
 
-	export interface ChatSessionShowOptions {
+	/**
+	 * Represents a single selectable item within a provider option group.
+	 */
+	export interface ChatSessionProviderOptionItem {
 		/**
-		 * The editor view column to show the chat session in.
-		 *
-		 * If not provided, the chat session will be shown in the chat panel instead.
+		 * Unique identifier for the option item.
 		 */
-		readonly viewColumn?: ViewColumn;
+		readonly id: string;
+
+		/**
+		 * Human-readable name displayed in the UI.
+		 */
+		readonly name: string;
 	}
 
-	export namespace window {
+	/**
+	 * Represents a group of related provider options (e.g., models, sub-agents).
+	 */
+	export interface ChatSessionProviderOptionGroup {
 		/**
-		 * Shows a chat session in the panel or editor.
+		 * Unique identifier for the option group (e.g., "models", "subagents").
 		 */
-		export function showChatSession(chatSessionType: string, sessionId: string, options: ChatSessionShowOptions): Thenable<void>;
+		readonly id: string;
+
+		/**
+		 * Human-readable name for the option group.
+		 */
+		readonly name: string;
+
+		/**
+		 * Optional description providing context about this option group.
+		 */
+		readonly description?: string;
+
+		/**
+		 * The selectable items within this option group.
+		 */
+		readonly items: ChatSessionProviderOptionItem[];
+	}
+
+	export interface ChatSessionProviderOptions {
+		/**
+		 * Provider-defined option groups (0-2 groups supported).
+		 * Examples: models picker, sub-agents picker, etc.
+		 */
+		optionGroups?: ChatSessionProviderOptionGroup[];
 	}
 }

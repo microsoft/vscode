@@ -21,6 +21,9 @@ import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPic
 import { ManageModelsAction } from '../actions/manageModelsActions.js';
 import { IActionProvider } from '../../../../../base/browser/ui/dropdown/dropdown.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
+import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -37,8 +40,8 @@ type ChatModelChangeClassification = {
 };
 
 type ChatModelChangeEvent = {
-	fromModel: string | undefined;
-	toModel: string;
+	fromModel: string | TelemetryTrustedValue<string> | undefined;
+	toModel: string | TelemetryTrustedValue<string>;
 };
 
 
@@ -57,9 +60,10 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					tooltip: model.metadata.tooltip ?? model.metadata.name,
 					label: model.metadata.name,
 					run: () => {
+						const previousModel = delegate.getCurrentModel();
 						telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
-							fromModel: delegate.getCurrentModel()?.identifier,
-							toModel: model.identifier
+							fromModel: previousModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(previousModel.identifier) : 'unknown',
+							toModel: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(model.identifier) : 'unknown'
 						});
 						delegate.setModel(model);
 					}
@@ -69,7 +73,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 	};
 }
 
-function getModelPickerActionBarActionProvider(commandService: ICommandService, chatEntitlementService: IChatEntitlementService): IActionProvider {
+function getModelPickerActionBarActionProvider(commandService: ICommandService, chatEntitlementService: IChatEntitlementService, productService: IProductService): IActionProvider {
 
 	const actionProvider: IActionProvider = {
 		getActions: () => {
@@ -84,25 +88,29 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					id: 'manageModels',
 					label: localize('chat.manageModels', "Manage Models..."),
 					enabled: true,
-					tooltip: localize('chat.manageModels.tooltip', "Manage language models"),
+					tooltip: localize('chat.manageModels.tooltip', "Manage Language Models"),
 					class: undefined,
 					run: () => {
 						const commandId = ManageModelsAction.ID;
-						commandService.executeCommand(commandId);
+						commandService.executeCommand(productService.quality === 'stable' ? commandId : MANAGE_CHAT_COMMAND_ID);
 					}
 				});
 			}
 
-			// Add sign-in / upgrade option if entitlement is anonymous / free
-			if (chatEntitlementService.anonymous || chatEntitlementService.entitlement === ChatEntitlement.Free) {
+			// Add sign-in / upgrade option if entitlement is anonymous / free / new user
+			const isNewOrAnonymousUser = !chatEntitlementService.sentiment.installed ||
+				chatEntitlementService.entitlement === ChatEntitlement.Available ||
+				chatEntitlementService.anonymous ||
+				chatEntitlementService.entitlement === ChatEntitlement.Unknown;
+			if (isNewOrAnonymousUser || chatEntitlementService.entitlement === ChatEntitlement.Free) {
 				additionalActions.push({
 					id: 'moreModels',
-					label: localize('chat.moreModels', "Add Premium Models"),
+					label: isNewOrAnonymousUser ? localize('chat.moreModels', "Add Language Models") : localize('chat.morePremiumModels', "Add Premium Models"),
 					enabled: true,
-					tooltip: localize('chat.moreModels.tooltip', "Add premium models"),
+					tooltip: isNewOrAnonymousUser ? localize('chat.moreModels.tooltip', "Add Language Models") : localize('chat.morePremiumModels.tooltip', "Add Premium Models"),
 					class: undefined,
 					run: () => {
-						const commandId = chatEntitlementService.anonymous ? 'workbench.action.chat.triggerSetup' : 'workbench.action.chat.upgradePlan';
+						const commandId = isNewOrAnonymousUser ? 'workbench.action.chat.triggerSetup' : 'workbench.action.chat.upgradePlan';
 						commandService.executeCommand(commandId);
 					}
 				});
@@ -120,14 +128,16 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	constructor(
 		action: IAction,
-		private currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		protected currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		widgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> | undefined,
 		delegate: IModelPickerDelegate,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IProductService productService: IProductService,
 	) {
 		// Modify the original action with a different label and make it show the current model
 		const actionWithLabel: IAction = {
@@ -139,10 +149,10 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService),
-			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService)
+			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService)
 		};
 
-		super(actionWithLabel, modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(actionWithLabel, widgetOptions ?? modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
 
 		// Listen for model changes from the delegate
 		this._register(delegate.onDidChangeModel(model => {

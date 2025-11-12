@@ -9,11 +9,14 @@ import { ITransaction, autorun, transaction } from '../../../../../base/common/o
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { TextEdit as EditorTextEdit } from '../../../../../editor/common/core/edits/textEdit.js';
+import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
 import { Location, TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { SingleModelEditStackElement } from '../../../../../editor/common/model/editStack.js';
 import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
@@ -35,6 +38,10 @@ import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileE
 import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
+interface IMultiDiffEntryDelegate {
+	collapse: (transaction: ITransaction | undefined) => void;
+}
+
 
 export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifiedFileEntry implements IModifiedFileEntry {
 
@@ -47,6 +54,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	override get changesCount() {
 		return this._textModelChangeService.diffInfo.map(diff => diff.changes.length);
+	}
+
+	get diffInfo() {
+		return this._textModelChangeService.diffInfo;
 	}
 
 	get linesAdded() {
@@ -73,7 +84,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
-		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
+		private readonly _multiDiffEntryDelegate: IMultiDiffEntryDelegate,
 		telemetryInfo: IModifiedEntryTelemetryInfo,
 		kind: ChatEditKind,
 		initialContent: string | undefined,
@@ -89,6 +100,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAiEditTelemetryService aiEditTelemetryService: IAiEditTelemetryService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 	) {
 		super(
 			resourceRef.object.textEditorModel.uri,
@@ -110,7 +122,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this.initialContent = initialContent ?? this.modifiedModel.getValue();
 		const docSnapshot = this.originalModel = this._register(
 			modelService.createModel(
-				createTextBufferFactoryFromSnapshot(initialContent ? stringToSnapshot(initialContent) : this.modifiedModel.createSnapshot()),
+				createTextBufferFactoryFromSnapshot(initialContent !== undefined ? stringToSnapshot(initialContent) : this.modifiedModel.createSnapshot()),
 				languageService.createById(this.modifiedModel.getLanguageId()),
 				this.originalURI,
 				false
@@ -118,7 +130,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		);
 
 		this._textModelChangeService = this._register(instantiationService.createInstance(ChatEditingTextModelChangeService,
-			this.originalModel, this.modifiedModel, this._stateObs));
+			this.originalModel, this.modifiedModel, this._stateObs, () => this._isExternalEditInProgress));
 
 		this._register(this._textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
 			this._stateObs.set(action, undefined);
@@ -176,16 +188,20 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			this.state.get() === snapshot.state;
 	}
 
-	createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
+	createSnapshot(sessionId: string, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
 		return {
 			resource: this.modifiedURI,
 			languageId: this.modifiedModel.getLanguageId(),
-			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this._telemetryInfo.sessionId, requestId, undoStop, this.modifiedURI.path),
+			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionId, requestId, undoStop, this.modifiedURI.path),
 			original: this.originalModel.getValue(),
 			current: this.modifiedModel.getValue(),
 			state: this.state.get(),
 			telemetryInfo: this._telemetryInfo
 		};
+	}
+
+	public getCurrentContents() {
+		return this.modifiedModel.getValue();
 	}
 
 	public override hasModificationAt(location: Location): boolean {
@@ -216,7 +232,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return new SingleModelEditStackElement(label, 'chat.edit', this.modifiedModel, null);
 	}
 
-	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<void> {
 
 		const result = await this._textModelChangeService.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
 
@@ -225,7 +241,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			this._stateObs.set(ModifiedFileEntryState.Modified, tx);
 
 			if (!isLastEdits) {
-				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 				this._rewriteRatioObs.set(result.rewriteRatio, tx);
 			} else {
 				this._resetEditsState(tx);
@@ -265,7 +280,9 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		if (this.createdInRequestId === this._telemetryInfo.requestId) {
 			if (isTextFileEditorModel(this._docFileEditorModel)) {
 				await this._docFileEditorModel.revert({ soft: true });
-				await this._fileService.del(this.modifiedURI);
+				await this._fileService.del(this.modifiedURI).catch(err => {
+					// don't block if file is already deleted
+				});
 			}
 			this._onDidDelete.fire();
 		} else {
@@ -290,5 +307,43 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	private _shouldAutoSave() {
 		return this.modifiedURI.scheme !== Schemas.untitled;
+	}
+
+	async computeEditsFromSnapshots(beforeSnapshot: string, afterSnapshot: string): Promise<(TextEdit | ICellEditOperation)[]> {
+		const stringEdit = await this._editorWorkerService.computeStringEditFromDiff(
+			beforeSnapshot,
+			afterSnapshot,
+			{ maxComputationTimeMs: 5000 },
+			'advanced'
+		);
+
+		const editorTextEdit = EditorTextEdit.fromStringEdit(stringEdit, new StringText(beforeSnapshot));
+		return editorTextEdit.replacements.slice();
+	}
+
+	async save(): Promise<void> {
+		if (this.modifiedModel.uri.scheme === Schemas.untitled) {
+			return;
+		}
+
+		// Save the current model state to disk if dirty
+		if (this._textFileService.isDirty(this.modifiedModel.uri)) {
+			await this._textFileService.save(this.modifiedModel.uri, {
+				reason: SaveReason.EXPLICIT,
+				skipSaveParticipants: true
+			});
+		}
+	}
+
+	async revertToDisk(): Promise<void> {
+		if (this.modifiedModel.uri.scheme === Schemas.untitled) {
+			return;
+		}
+
+		// Revert to reload from disk, ensuring in-memory model matches disk
+		const fileModel = this._textFileService.files.get(this.modifiedModel.uri);
+		if (fileModel && !fileModel.isDisposed()) {
+			await fileModel.revert({ soft: false });
+		}
 	}
 }

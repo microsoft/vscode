@@ -16,7 +16,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/chatEditingService.js';
-import { ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -82,7 +82,7 @@ export function registerNewChatActions() {
 				title: localize2('chat.newEdits.label', "New Chat"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled),
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
 				f1: true,
 				menu: [
 					{
@@ -94,12 +94,12 @@ export function registerNewChatActions() {
 						group: '1_open',
 						order: 1,
 					},
-					...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
-						id,
+					{
+						id: MenuId.CompactWindowEditorTitle,
 						group: 'navigation',
 						when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.lockedToCodingAgent.negate()),
 						order: 1
-					}))
+					}
 				],
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib + 1,

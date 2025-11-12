@@ -8,9 +8,9 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const enum McpGalleryResourceType {
 	McpServersQueryService = 'McpServersQueryService',
-	McpServersSearchService = 'McpServersSearchService',
 	McpServerWebUri = 'McpServerWebUriTemplate',
 	McpServerVersionUri = 'McpServerVersionUriTemplate',
+	McpServerIdUri = 'McpServerIdUriTemplate',
 	McpServerLatestVersionUri = 'McpServerLatestVersionUriTemplate',
 	McpServerNamedResourceUri = 'McpServerNamedResourceUriTemplate',
 	PublisherUriTemplate = 'PublisherUriTemplate',
