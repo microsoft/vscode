@@ -62,17 +62,23 @@ interface ISessionTemplateData {
 }
 
 export class ArchivedSessionItems {
-	constructor(private readonly items: ChatSessionItemWithProvider[], public readonly label: string) { }
+	private readonly items: Map<string, ChatSessionItemWithProvider> = new Map();
+	constructor(public readonly label: string) {
+	}
 
 	pushItem(item: ChatSessionItemWithProvider): void {
-		this.items.push(item);
+		const key = item.resource.toString();
+		this.items.set(key, item);
 	}
 
 	getItems(): ChatSessionItemWithProvider[] {
-		return this.items;
+		return Array.from(this.items.values());
+	}
+
+	clear(): void {
+		this.items.clear();
 	}
 }
-
 
 export interface IGettingStartedItem {
 	id: string;
@@ -536,7 +542,8 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 // Chat sessions item data source for the tree
 export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, ChatSessionItemWithProvider | ArchivedSessionItems> {
-	private archivedItems = new ArchivedSessionItems([], nls.localize('chat.sessions.archivedSessions', 'Archived'));
+	// For now call it History until we support archive on all providers
+	private archivedItems = new ArchivedSessionItems(nls.localize('chat.sessions.archivedSessions', 'History'));
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
 		private readonly sessionTracker: ChatSessionTracker,
@@ -560,7 +567,9 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 		if (element === this.provider) {
 			try {
 				const items = await this.provider.provideChatSessionItems(CancellationToken.None);
-				const ungroupedItems = items.map(item => {
+				// Clear archived items from previous calls
+				this.archivedItems.clear();
+				let ungroupedItems = items.map(item => {
 					const itemWithProvider = { ...item, provider: this.provider, timing: { startTime: extractTimestamp(item) ?? 0 } };
 					if (itemWithProvider.archived) {
 						this.archivedItems.pushItem(itemWithProvider);
@@ -581,7 +590,7 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 							existingSessions.add(session.resource);
 						}
 					});
-					processSessionsWithTimeGrouping(ungroupedItems);
+					ungroupedItems = processSessionsWithTimeGrouping(ungroupedItems);
 				}
 
 				const result = [];
@@ -597,7 +606,7 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 		}
 
 		if (element instanceof ArchivedSessionItems) {
-			return element.getItems();
+			return processSessionsWithTimeGrouping(element.getItems());
 		}
 
 		// Individual session items don't have children

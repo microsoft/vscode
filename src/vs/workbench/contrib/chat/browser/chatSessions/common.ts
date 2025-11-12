@@ -117,12 +117,14 @@ function applyTimeGrouping(sessions: ChatSessionItemWithProvider[]): void {
 }
 
 // Helper function to process session items with timestamps, sorting, and grouping
-export function processSessionsWithTimeGrouping(sessions: ChatSessionItemWithProvider[]): void {
+export function processSessionsWithTimeGrouping(sessions: ChatSessionItemWithProvider[]): ChatSessionItemWithProvider[] {
+	const sessionsTemp = [...sessions];
 	// Only process if we have sessions with timestamps
 	if (sessions.some(session => session.timing?.startTime !== undefined)) {
-		sortSessionsByTimestamp(sessions);
-		applyTimeGrouping(sessions);
+		sortSessionsByTimestamp(sessionsTemp);
+		applyTimeGrouping(sessionsTemp);
 	}
+	return sessionsTemp;
 }
 
 // Helper function to create context overlay for session items
