@@ -51,7 +51,8 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	public readonly onDidChangeFont = this._onDidChangeFont.event;
 	//
 
-	private readonly fontDecorations = new Map<number, string[]>();
+	//private readonly fontDecorations = new Map<number, string[]>();
+	private readonly tokenizationFontDecorationsIds = new Set<string>();
 
 	constructor(
 		private readonly textModel: TextModel,
@@ -63,11 +64,10 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			textModel.changeDecorations((accessor) => {
 				for (const fontChange of fontChanges) {
 					const lineNumber = fontChange.lineNumber;
-					const oldDecorationIds = this.fontDecorations.get(lineNumber) ?? [];
 					const newDecorations: IModelDeltaDecoration[] = fontChange.options.map(fontOption => {
-						const lastOffset = lineNumber > 1 ? this.textModel.getOffsetAt(new Position(lineNumber - 1, this.textModel.getLineMaxColumn(lineNumber - 1))) : 0;
-						const startOffset = lastOffset + fontOption.startIndex + 1;
-						const endOffset = lastOffset + fontOption.endIndex + 1;
+						const lastOffset = lineNumber > 1 ? this.textModel.getOffsetAt(new Position(lineNumber - 1, this.textModel.getLineMaxColumn(lineNumber - 1))) + 1 : 0;
+						const startOffset = lastOffset + fontOption.startIndex;
+						const endOffset = lastOffset + fontOption.endIndex;
 						const startPosition = this.textModel.getPositionAt(startOffset);
 						const endPosition = this.textModel.getPositionAt(endOffset);
 						const range = Range.fromPositions(startPosition, endPosition);
@@ -82,8 +82,23 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 						const decoration: IModelDeltaDecoration = { range, options };
 						return decoration;
 					});
+
+					const decorationsOnLine = textModel.getDecorationsInRange(new Range(lineNumber, 1, lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
+					const oldDecorationIds: string[] = [];
+					for (const decorationOnLine of decorationsOnLine) {
+						if (this.tokenizationFontDecorationsIds.has(decorationOnLine.id)) {
+							oldDecorationIds.push(decorationOnLine.id);
+							this.tokenizationFontDecorationsIds.delete(decorationOnLine.id);
+						}
+					}
 					const newDecorationIds = accessor.deltaDecorations(oldDecorationIds, newDecorations);
-					this.fontDecorations.set(lineNumber, newDecorationIds);
+					for (const newDecorationId of newDecorationIds) {
+						this.tokenizationFontDecorationsIds.add(newDecorationId);
+					}
+					console.log('fontChange for line ', lineNumber, ': ', fontChange);
+					console.log('newDecorations for line ', lineNumber, ': ', newDecorations);
+					console.log('oldDecorationIds for line ', lineNumber, ': ', oldDecorationIds);
+					//this.fontDecorations.set(lineNumber, newDecorationIds);
 				}
 			});
 
