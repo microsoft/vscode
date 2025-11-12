@@ -3611,6 +3611,9 @@ export class CommandCenter {
 			return;
 		}
 
+		// Ensure the worktree repository is opened and available
+		await this.model.openRepository(worktreePath, true);
+
 		// Get the worktree repository
 		const worktreeRepository = this.model.getRepository(worktreePath);
 		if (!worktreeRepository || worktreeRepository.kind !== 'worktree') {
