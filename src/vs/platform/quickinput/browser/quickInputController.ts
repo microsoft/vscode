@@ -304,7 +304,7 @@ export class QuickInputController extends Disposable {
 			if (this.endOfQuickInputBoxContext.get() !== value) {
 				this.endOfQuickInputBoxContext.set(value);
 			}
-			// Allow screenreaders to read what's in the input
+			// Allow screen readers to read what's in the input
 			// Note: this works for arrow keys and selection changes,
 			// but not for deletions since that often triggers a
 			// change in the list.
