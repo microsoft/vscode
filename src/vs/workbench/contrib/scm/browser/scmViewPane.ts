@@ -2407,7 +2407,7 @@ export class SCMViewPane extends ViewPane {
 				twistieAdditionalCssClass: (e: unknown) => {
 					if (isSCMRepository(e)) {
 						return 'force-twistie';
-					} if (isSCMActionButton(e) || isSCMInput(e)) {
+					} else if (isSCMActionButton(e) || isSCMInput(e)) {
 						return 'force-no-twistie';
 					}
 
