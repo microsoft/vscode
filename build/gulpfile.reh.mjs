@@ -3,35 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import gulp from 'gulp';
+import * as path from 'path';
+import es from 'event-stream';
+import * as util from './lib/util.js';
+import * as getVersionModule from './lib/getVersion.js';
+import * as task from './lib/task.js';
+import optimize from './lib/optimize.js';
+import * as inlineMetaModule from './lib/inlineMeta.js';
+import product from '../product.json' with { type: 'json' };
+import rename from 'gulp-rename';
+import replace from 'gulp-replace';
+import filter from 'gulp-filter';
+import * as dependenciesModule from './lib/dependencies.js';
+import * as dateModule from './lib/date.js';
+import vfs from 'vinyl-fs';
+import packageJson from '../package.json' with { type: 'json' };
+import flatmap from 'gulp-flatmap';
+import gunzip from 'gulp-gunzip';
+import untar from 'gulp-untar';
+import File from 'vinyl';
+import * as fs from 'fs';
+import glob from 'glob';
+import { compileBuildWithManglingTask } from './gulpfile.compile.mjs';
+import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask } from './gulpfile.extensions.mjs';
+import { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } from './gulpfile.vscode.web.mjs';
+import * as cp from 'child_process';
+import log from 'fancy-log';
+import buildfile from './buildfile.js';
+import { fileURLToPath } from 'url';
+import * as fetchModule from './lib/fetch.js';
+import jsonEditor from 'gulp-json-editor';
 
-const gulp = require('gulp');
-const path = require('path');
-const es = require('event-stream');
-const util = require('./lib/util');
-const { getVersion } = require('./lib/getVersion');
-const task = require('./lib/task');
-const optimize = require('./lib/optimize');
-const { inlineMeta } = require('./lib/inlineMeta');
-const product = require('../product.json');
-const rename = require('gulp-rename');
-const replace = require('gulp-replace');
-const filter = require('gulp-filter');
-const { getProductionDependencies } = require('./lib/dependencies');
-const { readISODate } = require('./lib/date');
-const vfs = require('vinyl-fs');
-const packageJson = require('../package.json');
-const flatmap = require('gulp-flatmap');
-const gunzip = require('gulp-gunzip');
-const File = require('vinyl');
-const fs = require('fs');
-const glob = require('glob');
-const { compileBuildWithManglingTask } = require('./gulpfile.compile');
-const { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
-const { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } = require('./gulpfile.vscode.web');
-const cp = require('child_process');
-const log = require('fancy-log');
-const buildfile = require('./buildfile');
+const { inlineMeta } = inlineMetaModule;
+const { getVersion } = getVersionModule;
+const { getProductionDependencies } = dependenciesModule;
+const { readISODate } = dateModule;
+const { fetchUrls, fetchGithub } = fetchModule;
+const __dirname = import.meta.dirname
 
 const REPO_ROOT = path.dirname(__dirname);
 const commit = getVersion(REPO_ROOT);
@@ -185,8 +194,6 @@ if (defaultNodeTask) {
 }
 
 function nodejs(platform, arch) {
-	const { fetchUrls, fetchGithub } = require('./lib/fetch');
-	const untar = require('gulp-untar');
 
 	if (arch === 'armhf') {
 		arch = 'armv7l';
@@ -253,8 +260,6 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 	const destination = path.join(BUILD_ROOT, destinationFolderName);
 
 	return () => {
-		const json = require('gulp-json-editor');
-
 		const src = gulp.src(sourceFolderName + '/**', { base: '.' })
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + sourceFolderName), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']))
@@ -312,7 +317,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		let packageJsonContents;
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
-			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined, type: 'module' }))
+			.pipe(jsonEditor({ name, version, dependencies: undefined, optionalDependencies: undefined, type: 'module' }))
 			.pipe(es.through(function (file) {
 				packageJsonContents = file.contents.toString();
 				this.emit('data', file);
@@ -320,7 +325,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		let productJsonContents;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date: readISODate('out-build'), version }))
+			.pipe(jsonEditor({ commit, date: readISODate('out-build'), version }))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);

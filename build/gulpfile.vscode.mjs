@@ -3,38 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import gulp from 'gulp';
+import * as fs from 'fs';
+import * as path from 'path';
+import es from 'event-stream';
+import vfs from 'vinyl-fs';
+import rename from 'gulp-rename';
+import replace from 'gulp-replace';
+import filter from 'gulp-filter';
+import electron from '@vscode/gulp-electron';
+import jsonEditor from 'gulp-json-editor';
+import * as util from './lib/util.js';
+import * as getVersionModule from './lib/getVersion.js';
+import * as dateModule from './lib/date.js';
+import * as task from './lib/task.js';
+import buildfile from './buildfile.js';
+import optimize from './lib/optimize.js';
+import * as inlineMetaModule from './lib/inlineMeta.js';
+import packageJson from '../package.json' with { type: 'json' };
+import product from '../product.json' with { type: 'json' };
+import * as crypto from 'crypto';
+import i18n from './lib/i18n.js';
+import * as dependenciesModule from './lib/dependencies.js';
+import electronModule from './lib/electron.js';
+import asarModule from './lib/asar.js';
+import minimist from 'minimist';
+import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.mjs';
+import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.mjs';
+import { promisify } from 'util';
+import globCallback from 'glob';
+import rceditCallback from 'rcedit';
+import { fileURLToPath } from 'url';
 
-const gulp = require('gulp');
-const fs = require('fs');
-const path = require('path');
-const es = require('event-stream');
-const vfs = require('vinyl-fs');
-const rename = require('gulp-rename');
-const replace = require('gulp-replace');
-const filter = require('gulp-filter');
-const util = require('./lib/util');
-const { getVersion } = require('./lib/getVersion');
-const { readISODate } = require('./lib/date');
-const task = require('./lib/task');
-const buildfile = require('./buildfile');
-const optimize = require('./lib/optimize');
-const { inlineMeta } = require('./lib/inlineMeta');
+const { getVersion } = getVersionModule;
+const { readISODate } = dateModule;
+const { inlineMeta } = inlineMetaModule;
+const { getProductionDependencies } = dependenciesModule;
+const { config } = electronModule;
+const { createAsar } = asarModule;
+const glob = promisify(globCallback);
+const rcedit = promisify(rceditCallback);
+const __dirname = import.meta.dirname
 const root = path.dirname(__dirname);
 const commit = getVersion(root);
-const packageJson = require('../package.json');
-const product = require('../product.json');
-const crypto = require('crypto');
-const i18n = require('./lib/i18n');
-const { getProductionDependencies } = require('./lib/dependencies');
-const { config } = require('./lib/electron');
-const createAsar = require('./lib/asar').createAsar;
-const minimist = require('minimist');
-const { compileBuildWithoutManglingTask, compileBuildWithManglingTask } = require('./gulpfile.compile');
-const { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } = require('./gulpfile.extensions');
-const { promisify } = require('util');
-const glob = promisify(require('glob'));
-const rcedit = promisify(require('rcedit'));
 
 // Build
 const vscodeEntryPoints = [
@@ -214,9 +225,6 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 	platform = platform || process.platform;
 
 	const task = () => {
-		const electron = require('@vscode/gulp-electron');
-		const json = require('gulp-json-editor');
-
 		const out = sourceFolderName;
 
 		const checksums = computeChecksums(out, [
@@ -262,7 +270,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		let packageJsonContents;
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
-			.pipe(json(packageJsonUpdates))
+			.pipe(jsonEditor(packageJsonUpdates))
 			.pipe(es.through(function (file) {
 				packageJsonContents = file.contents.toString();
 				this.emit('data', file);
@@ -270,7 +278,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		let productJsonContents;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date: readISODate('out-build'), checksums, version }))
+			.pipe(jsonEditor({ commit, date: readISODate('out-build'), checksums, version }))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);

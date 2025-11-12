@@ -3,21 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import es from 'event-stream';
+import gulp from 'gulp';
+import * as path from 'path';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
+import * as cp from 'child_process';
+import { tmpdir } from 'os';
+import { existsSync, mkdirSync, rmSync } from 'fs';
+import task from './lib/task.js';
+import watcher from './lib/watch/index.js';
+import utilModule from './lib/util.js';
+import reporterModule from './lib/reporter.js';
+import untar from 'gulp-untar';
+import gunzip from 'gulp-gunzip';
+import { fileURLToPath } from 'url';
 
-const es = require('event-stream');
-const gulp = require('gulp');
-const path = require('path');
-const fancyLog = require('fancy-log');
-const ansiColors = require('ansi-colors');
-const cp = require('child_process');
-const { tmpdir } = require('os');
-const { existsSync, mkdirSync, rmSync } = require('fs');
-
-const task = require('./lib/task');
-const watcher = require('./lib/watch');
-const { debounce } = require('./lib/util');
-const createReporter = require('./lib/reporter').createReporter;
+const { debounce } = utilModule;
+const { createReporter } = reporterModule;
+const __dirname = import.meta.dirname
 
 const root = 'cli';
 const rootAbs = path.resolve(__dirname, '..', root);
@@ -80,8 +84,6 @@ const compileFromSources = (callback) => {
 };
 
 const acquireBuiltOpenSSL = (callback) => {
-	const untar = require('gulp-untar');
-	const gunzip = require('gulp-gunzip');
 	const dir = path.join(tmpdir(), 'vscode-openssl-download');
 	mkdirSync(dir, { recursive: true });
 

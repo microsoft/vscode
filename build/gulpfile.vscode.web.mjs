@@ -3,25 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import gulp from 'gulp';
+import * as path from 'path';
+import es from 'event-stream';
+import * as util from './lib/util.js';
+import * as getVersionModule from './lib/getVersion.js';
+import * as task from './lib/task.js';
+import optimize from './lib/optimize.js';
+import * as dateModule from './lib/date.js';
+import product from '../product.json' with { type: 'json' };
+import rename from 'gulp-rename';
+import filter from 'gulp-filter';
+import * as dependenciesModule from './lib/dependencies.js';
+import vfs from 'vinyl-fs';
+import packageJson from '../package.json' with { type: 'json' };
+import { compileBuildWithManglingTask } from './gulpfile.compile.mjs';
+import extensions from './lib/extensions.js';
+import VinylFile from 'vinyl';
+import jsonEditor from 'gulp-json-editor';
+import buildfile from './buildfile.js';
+import { fileURLToPath } from 'url';
 
-const gulp = require('gulp');
-const path = require('path');
-const es = require('event-stream');
-const util = require('./lib/util');
-const { getVersion } = require('./lib/getVersion');
-const task = require('./lib/task');
-const optimize = require('./lib/optimize');
-const { readISODate } = require('./lib/date');
-const product = require('../product.json');
-const rename = require('gulp-rename');
-const filter = require('gulp-filter');
-const { getProductionDependencies } = require('./lib/dependencies');
-const vfs = require('vinyl-fs');
-const packageJson = require('../package.json');
-const { compileBuildWithManglingTask } = require('./gulpfile.compile');
-const extensions = require('./lib/extensions');
-const VinylFile = require('vinyl');
+const { getVersion } = getVersionModule;
+const { readISODate } = dateModule;
+const { getProductionDependencies } = dependenciesModule;
+const __dirname = import.meta.dirname
 
 const REPO_ROOT = path.dirname(__dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
@@ -31,7 +37,7 @@ const commit = getVersion(REPO_ROOT);
 const quality = product.quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
-const vscodeWebResourceIncludes = [
+export const vscodeWebResourceIncludes = [
 
 	// NLS
 	'out-build/nls.messages.js',
@@ -58,7 +64,6 @@ const vscodeWebResourceIncludes = [
 	// Extension Host Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html'
 ];
-exports.vscodeWebResourceIncludes = vscodeWebResourceIncludes;
 
 const vscodeWebResources = [
 
@@ -72,8 +77,6 @@ const vscodeWebResources = [
 	'!out-build/vs/code/**/*-dev.html',
 	'!**/test/**'
 ];
-
-const buildfile = require('./buildfile');
 
 const vscodeWebEntryPoints = [
 	buildfile.workerEditor,
@@ -92,7 +95,7 @@ const vscodeWebEntryPoints = [
  * @param extensionsRoot {string} The location where extension will be read from
  * @param {object} product The parsed product.json file contents
  */
-const createVSCodeWebFileContentMapper = (extensionsRoot, product) => {
+export const createVSCodeWebFileContentMapper = (extensionsRoot, product) => {
 	/**
 	 * @param {string} path
 	 * @returns {((content: string) => string) | undefined}
@@ -118,7 +121,6 @@ const createVSCodeWebFileContentMapper = (extensionsRoot, product) => {
 		return undefined;
 	};
 };
-exports.createVSCodeWebFileContentMapper = createVSCodeWebFileContentMapper;
 
 const bundleVSCodeWebTask = task.define('bundle-vscode-web', task.series(
 	util.rimraf('out-vscode-web'),
@@ -150,8 +152,6 @@ function packageTask(sourceFolderName, destinationFolderName) {
 	const destination = path.join(BUILD_ROOT, destinationFolderName);
 
 	return () => {
-		const json = require('gulp-json-editor');
-
 		const src = gulp.src(sourceFolderName + '/**', { base: '.' })
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + sourceFolderName), 'out'); }));
 
@@ -175,7 +175,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		const name = product.nameShort;
 		const packageJsonStream = gulp.src(['remote/web/package.json'], { base: 'remote/web' })
-			.pipe(json({ name, version, type: 'module' }));
+			.pipe(jsonEditor({ name, version, type: 'module' }));
 
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
 
