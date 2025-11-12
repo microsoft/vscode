@@ -5,12 +5,16 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatElicitationRequest } from '../../common/chatService.js';
 import { IChatAccessibilityService } from '../chat.js';
+import { AcceptElicitationRequestActionId } from '../actions/chatElicitationActions.js';
 import { ChatConfirmationWidget, IChatConfirmationButton } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IAction } from '../../../../../base/common/actions.js';
@@ -35,13 +39,25 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		elicitation: IChatElicitationRequest,
 		context: IChatContentPartRenderContext,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService
+		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
+
+		const hasElicitationKey = ChatContextKeys.Editing.hasElicitationRequest.bindTo(this.contextKeyService);
+		if (elicitation.state === 'pending') {
+			hasElicitationKey.set(true);
+		}
+		this._register(toDisposable(() => hasElicitationKey.reset()));
+
+		const acceptKeybinding = this.keybindingService.lookupKeybinding(AcceptElicitationRequestActionId);
+		const acceptTooltip = acceptKeybinding ? `${elicitation.acceptButtonLabel} (${acceptKeybinding.getLabel()})` : elicitation.acceptButtonLabel;
 
 		const buttons: IChatConfirmationButton<unknown>[] = [
 			{
 				label: elicitation.acceptButtonLabel,
+				tooltip: acceptTooltip,
 				data: true,
 				moreActions: elicitation.moreActions?.map((action: IAction) => ({
 					label: action.label,
