@@ -66,7 +66,7 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 		if (allApproved) {
 			return {
 				type: ToolConfirmKind.Setting,
-				id: ChatConfiguration.ApprovedFetchUrls
+				id: ChatConfiguration.AutoApprovedUrls
 			};
 		}
 
@@ -205,7 +205,7 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 					}
 				}
 
-				return this._configurationService.updateValue(ChatConfiguration.ApprovedFetchUrls, current);
+				return this._configurationService.updateValue(ChatConfiguration.AutoApprovedUrls, current);
 			};
 
 			disposables.add(quickTree.onDidAccept(async () => {
@@ -239,7 +239,7 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 		approvedUrls[pattern] = value;
 
 		await this._configurationService.updateValue(
-			ChatConfiguration.ApprovedFetchUrls,
+			ChatConfiguration.AutoApprovedUrls,
 			approvedUrls
 		);
 	}
@@ -281,7 +281,7 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 						delete approvedUrls[pattern];
 					}
 
-					this._configurationService.updateValue(ChatConfiguration.ApprovedFetchUrls, approvedUrls);
+					this._configurationService.updateValue(ChatConfiguration.AutoApprovedUrls, approvedUrls);
 				}
 			};
 
@@ -293,7 +293,7 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 			label: localize('moreOptionsManage', "More Options..."),
 			description: localize('openSettings', "Open settings"),
 			onDidOpen: () => {
-				this._preferencesService.openUserSettings({ query: ChatConfiguration.ApprovedFetchUrls });
+				this._preferencesService.openUserSettings({ query: ChatConfiguration.AutoApprovedUrls });
 			}
 		});
 
@@ -302,14 +302,14 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 
 	async reset(): Promise<void> {
 		await this._configurationService.updateValue(
-			ChatConfiguration.ApprovedFetchUrls,
+			ChatConfiguration.AutoApprovedUrls,
 			{}
 		);
 	}
 
 	private _getApprovedUrls(): Readonly<Record<string, boolean | IUrlApprovalSettings>> {
 		return this._configurationService.getValue<Record<string, boolean | IUrlApprovalSettings>>(
-			ChatConfiguration.ApprovedFetchUrls
+			ChatConfiguration.AutoApprovedUrls
 		) || {};
 	}
 }
