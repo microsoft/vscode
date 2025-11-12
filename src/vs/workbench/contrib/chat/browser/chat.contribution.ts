@@ -274,6 +274,14 @@ configurationRegistry.registerConfiguration({
 				type: 'boolean',
 			}
 		},
+		[ChatConfiguration.EligibleForAutoApproval]: {
+			default: {},
+			markdownDescription: nls.localize('chat.tools.eligibleForAutoApproval', "Controls which tools are eligible for automatic approval. This is a key/value store where keys are tool reference names (e.g., `runInTerminal`, `fetch`, `runTask`, `runTest`) and values are booleans.\n\nSet to `true` to allow a tool to be automatically approved (when global auto-approve is enabled), `false` to always require explicit approval for that specific tool. If a tool is not listed, it defaults to `true` (eligible for auto-approval)."),
+			type: 'object',
+			additionalProperties: {
+				type: 'boolean',
+			}
+		},
 		'chat.sendElementsToChat.enabled': {
 			default: true,
 			description: nls.localize('chat.sendElementsToChat.enabled', "Controls whether elements can be sent to chat from the Simple Browser."),

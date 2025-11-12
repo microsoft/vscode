@@ -1062,6 +1062,75 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(unspecifiedResult.content[0].value, 'unspecified');
 	});
 
+	test('eligibleForAutoApproval setting controls tool eligibility', async () => {
+		// Test the new eligibleForAutoApproval setting
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.global.autoApprove', true); // Global enabled
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'eligibleTool': true,
+			'ineligibleTool': false
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool explicitly marked as eligible
+		const eligibleTool = registerToolForTest(testService, store, 'eligibleTool', {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Test', message: 'Should auto-approve' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'eligible and approved' }] })
+		});
+
+		const sessionId = 'test-eligible';
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Eligible tool should auto-approve (global auto-approve is enabled)
+		const eligibleResult = await testService.invokeTool(
+			eligibleTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(eligibleResult.content[0].value, 'eligible and approved');
+
+		// Tool explicitly marked as ineligible
+		const ineligibleTool = registerToolForTest(testService, store, 'ineligibleTool', {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Test', message: 'Should require confirmation' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'ineligible requires confirmation' }] })
+		});
+
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId + '2', { requestId: 'req2', capture });
+		const ineligiblePromise = testService.invokeTool(
+			ineligibleTool.makeDto({ test: 2 }, { sessionId: sessionId + '2' }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'ineligible tool should require confirmation even with global auto-approve enabled');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const ineligibleResult = await ineligiblePromise;
+		assert.strictEqual(ineligibleResult.content[0].value, 'ineligible requires confirmation');
+
+		// Tool not specified should default to eligible
+		const unspecifiedTool = registerToolForTest(testService, store, 'unspecifiedTool', {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Test', message: 'Should auto-approve by default' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'unspecified defaults to eligible' }] })
+		});
+
+		const unspecifiedResult = await testService.invokeTool(
+			unspecifiedTool.makeDto({ test: 3 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(unspecifiedResult.content[0].value, 'unspecified defaults to eligible');
+	});
+
+
 	test('tool content formatting with alwaysDisplayInputOutput', async () => {
 		// Test ensureToolDetails, formatToolInput, and toolResultToIO
 		const toolData: IToolData = {
