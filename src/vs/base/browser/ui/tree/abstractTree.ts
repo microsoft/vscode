@@ -304,11 +304,12 @@ export enum RenderIndentGuides {
 	Always = 'always'
 }
 
-interface ITreeRendererOptions {
+interface ITreeRendererOptions<T> {
 	readonly indent?: number;
 	readonly renderIndentGuides?: RenderIndentGuides;
 	// TODO@joao replace this with collapsible: boolean | 'ondemand'
 	readonly hideTwistiesOfChildlessElements?: boolean;
+	readonly twistieAdditionalCssClass?: (element: T) => string | undefined;
 }
 
 interface Collection<T> {
@@ -343,6 +344,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	private renderedNodes = new Map<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>>();
 	private indent: number = TreeRenderer.DefaultIndent;
 	private hideTwistiesOfChildlessElements: boolean = false;
+	private twistieAdditionalCssClass?: (element: T) => string | undefined;
 
 	private shouldRenderIndentGuides: boolean = false;
 	private activeIndentNodes = new Set<ITreeNode<T, TFilterData>>();
@@ -356,7 +358,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>,
 		private readonly activeNodes: Collection<ITreeNode<T, TFilterData>>,
 		private readonly renderedIndentGuides: SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>,
-		options: ITreeRendererOptions = {}
+		options: ITreeRendererOptions<T> = {}
 	) {
 		this.templateId = renderer.templateId;
 		this.updateOptions(options);
@@ -365,7 +367,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		renderer.onDidChangeTwistieState?.(this.onDidChangeTwistieState, this, this.disposables);
 	}
 
-	updateOptions(options: ITreeRendererOptions = {}): void {
+	updateOptions(options: ITreeRendererOptions<T> = {}): void {
 		if (typeof options.indent !== 'undefined') {
 			const indent = clamp(options.indent, 0, 40);
 
@@ -403,6 +405,10 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 
 		if (typeof options.hideTwistiesOfChildlessElements !== 'undefined') {
 			this.hideTwistiesOfChildlessElements = options.hideTwistiesOfChildlessElements;
+		}
+
+		if (typeof options.twistieAdditionalCssClass !== 'undefined') {
+			this.twistieAdditionalCssClass = options.twistieAdditionalCssClass;
 		}
 	}
 
@@ -486,6 +492,13 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 
 			templateData.twistie.classList.add('collapsible');
 			templateData.twistie.classList.toggle('collapsed', node.collapsed);
+
+			if (this.twistieAdditionalCssClass) {
+				const additionalClass = this.twistieAdditionalCssClass(node.element);
+				if (additionalClass) {
+					templateData.twistie.classList.add(additionalClass);
+				}
+			}
 		} else {
 			templateData.twistie.classList.remove('collapsible', 'collapsed');
 		}
@@ -2172,7 +2185,7 @@ function asTreeContextMenuEvent<T, TFilterData = void>(event: IListContextMenuEv
 	};
 }
 
-export interface IAbstractTreeOptionsUpdate<T> extends ITreeRendererOptions {
+export interface IAbstractTreeOptionsUpdate<T> extends ITreeRendererOptions<T> {
 	readonly multipleSelectionSupport?: boolean;
 	readonly typeNavigationEnabled?: boolean;
 	readonly typeNavigationMode?: TypeNavigationMode;
