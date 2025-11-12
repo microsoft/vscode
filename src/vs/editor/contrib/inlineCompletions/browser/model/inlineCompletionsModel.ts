@@ -96,6 +96,10 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _suppressInSnippetMode;
 	private readonly _isInSnippetMode;
 
+	get editor() {
+		return this._editor;
+	}
+
 	constructor(
 		public readonly textModel: ITextModel,
 		private readonly _selectedSuggestItem: IObservable<SuggestItemInfo | undefined>,
@@ -1206,13 +1210,22 @@ class FadeoutDecoration extends Disposable {
 	}
 }
 
-function isSuggestionInViewport(editor: ICodeEditor, suggestion: InlineSuggestionItem): boolean {
+export function isSuggestionInViewport(editor: ICodeEditor, suggestion: InlineSuggestionItem, reader: IReader | undefined = undefined): boolean {
 	const targetRange = suggestion.targetRange;
+
+	// TODO make getVisibleRanges reactive!
+	observableCodeEditor(editor).scrollTop.read(reader);
 	const visibleRanges = editor.getVisibleRanges();
+
 	if (visibleRanges.length < 1) {
 		return false;
 	}
 
-	const viewportRange = new Range(visibleRanges[0].startLineNumber, visibleRanges[0].startColumn, visibleRanges[visibleRanges.length - 1].endLineNumber, visibleRanges[visibleRanges.length - 1].endColumn);
+	const viewportRange = new Range(
+		visibleRanges[0].startLineNumber,
+		visibleRanges[0].startColumn,
+		visibleRanges[visibleRanges.length - 1].endLineNumber,
+		visibleRanges[visibleRanges.length - 1].endColumn
+	);
 	return viewportRange.containsRange(targetRange);
 }

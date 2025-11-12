@@ -4442,6 +4442,8 @@ export interface IInlineSuggestOptions {
 
 		showCollapsed?: boolean;
 
+		showLongDistanceHint?: boolean;
+
 		/**
 		* @internal
 		*/
@@ -4500,6 +4502,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				showCollapsed: false,
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
+				showLongDistanceHint: false,
 			},
 			triggerCommandOnProviderChange: false,
 			experimental: {
@@ -4599,6 +4602,12 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					enum: ['always', 'horizontal', 'never'],
 					tags: ['nextEditSuggestions']
 				},
+				'editor.inlineSuggest.edits.showLongDistanceHint': {
+					type: 'boolean',
+					default: defaults.edits.showLongDistanceHint,
+					description: nls.localize('inlineSuggest.edits.showLongDistanceHint', "Controls whether long distance inline suggestions are shown."),
+					tags: ['nextEditSuggestions', 'experimental']
+				},
 				'editor.inlineSuggest.edits.renderSideBySide': {
 					type: 'string',
 					default: defaults.edits.renderSideBySide,
@@ -4650,6 +4659,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			enabled: boolean(input.enabled, this.defaultValue.edits.enabled),
 			showCollapsed: boolean(input.showCollapsed, this.defaultValue.edits.showCollapsed),
 			allowCodeShifting: stringSet(input.allowCodeShifting, this.defaultValue.edits.allowCodeShifting, ['always', 'horizontal', 'never']),
+			showLongDistanceHint: boolean(input.showLongDistanceHint, this.defaultValue.edits.showLongDistanceHint),
 			renderSideBySide: stringSet(input.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
 		};
 	}
