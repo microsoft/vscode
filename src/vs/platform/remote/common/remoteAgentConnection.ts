@@ -573,7 +573,7 @@ export abstract class PersistentConnection extends Disposable {
 		private readonly _reconnectionFailureIsFatal: boolean
 	) {
 		super();
-		this._reconnectionGraceTime = ProtocolConstants.ReconnectionGraceTime;
+
 
 		this._onDidStateChange.fire(new ConnectionGainEvent(this.reconnectionToken, 0, 0));
 
