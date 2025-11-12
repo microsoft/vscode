@@ -180,6 +180,10 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 							},
 						}
 					}
+				},
+				canDelegate: {
+					description: localize('chatSessionsExtPoint.canDelegate', 'Whether this chat session can be shown in the delegate menu. Defaults to true if not specified.'),
+					type: 'boolean'
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],

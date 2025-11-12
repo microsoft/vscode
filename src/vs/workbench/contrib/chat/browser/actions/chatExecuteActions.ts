@@ -821,7 +821,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const contributions = chatSessionsService.getAllChatSessionContributions();
 
 			// Sort contributions by order, then alphabetically by display name
-			const sortedContributions = [...contributions].sort((a, b) => {
+			// Filter out contributions that have canDelegate set to false
+			const sortedContributions = [...contributions]
+				.filter(contrib => contrib.canDelegate !== false) // Default to true if not specified
+				.sort((a, b) => {
 				// Both have no order - sort by display name
 				if (a.order === undefined && b.order === undefined) {
 					return a.displayName.localeCompare(b.displayName);
