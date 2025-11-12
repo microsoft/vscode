@@ -20,7 +20,7 @@ import filter from 'gulp-filter';
 import reporterModule from './lib/reporter.js';
 import monacoPackage from './monaco/package.json' with { type: 'json' };
 
-const __dirname = import.meta.dirname
+const __dirname = import.meta.dirname;
 const { getVersion } = getVersionModule;
 const { createReporter } = reporterModule;
 const root = path.dirname(__dirname);

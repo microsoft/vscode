@@ -75,7 +75,7 @@ export default tseslint.config(
 				'context'
 			], // non-complete list of globals that are easy to access unintentionally
 			'no-var': 'warn',
-			'semi': 'off',
+			'semi': 'warn',
 			'local/code-translation-remind': 'warn',
 			'local/code-no-native-private': 'warn',
 			'local/code-parameter-properties-must-have-explicit-accessibility': 'warn',
@@ -131,7 +131,7 @@ export default tseslint.config(
 	// TS
 	{
 		files: [
-			'**/*.ts',
+			'**/*.{ts,tsx,mts,cts}',
 		],
 		languageOptions: {
 			parser: tseslint.parser,
@@ -143,6 +143,8 @@ export default tseslint.config(
 			'jsdoc': pluginJsdoc,
 		},
 		rules: {
+			// Disable built-in semi rules in favor of stylistic
+			'semi': 'off',
 			'@stylistic/ts/semi': 'warn',
 			'@stylistic/ts/member-delimiter-style': 'warn',
 			'local/code-no-unused-expressions': [

@@ -305,7 +305,7 @@ if (import.meta.filename === process.argv[1]) {
 									hygiene(es.readArray(vinyls).pipe(filter(all)))
 										.on('end', () => c())
 										.on('error', e)
-								))
+								));
 							}
 						)
 						.catch((err) => {
