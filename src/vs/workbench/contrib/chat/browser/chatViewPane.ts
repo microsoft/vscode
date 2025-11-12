@@ -37,6 +37,7 @@ import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 import { LocalChatSessionUri } from '../common/chatUri.js';
+import { autorun } from '../../../../base/common/observable.js';
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
@@ -183,8 +184,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	protected override async renderBody(parent: HTMLElement): Promise<void> {
 		super.renderBody(parent);
 
-		this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, this.chatOptions.location));
-
+		const welcomeController = this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, this.chatOptions.location));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		const locationBasedColors = this.getLocationBasedColors();
 		const editorOverflowNode = this.layoutService.getContainer(getWindow(parent)).appendChild($('.chat-editor-overflow.monaco-editor'));
@@ -218,6 +218,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				resultEditorBackground: editorBackground,
 
 			}));
+		this._register(autorun(r => {
+			const showingWelcome = welcomeController.isShowingWelcome.read(r);
+			this._widget.setVisible(!showingWelcome);
+		}));
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			this._widget.setVisible(visible);
 		}));
