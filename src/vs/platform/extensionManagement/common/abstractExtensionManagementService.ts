@@ -611,7 +611,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		const allDependenciesAndPacks: { gallery: IGalleryExtension; manifest: IExtensionManifest }[] = [];
 		const collectDependenciesAndPackExtensionsToInstall = async (extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest): Promise<void> => {
 			knownIdentifiers.push(extensionIdentifier);
-			const dependecies: string[] = manifest.extensionDependencies || [];
+			const dependecies: string[] = manifest.extensionDependencies ? manifest.extensionDependencies.filter(dep => !installed.some(e => areSameExtensions(e.identifier, { id: dep }))) : [];
 			const dependenciesAndPackExtensions = [...dependecies];
 			if (manifest.extensionPack) {
 				const existing = installed.find(e => areSameExtensions(e.identifier, extensionIdentifier));
