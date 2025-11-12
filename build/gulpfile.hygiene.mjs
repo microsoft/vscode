@@ -2,19 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import gulp from 'gulp';
+import es from 'event-stream';
+import path from 'path';
+import fs from 'fs';
+import task from './lib/task.js';
+import { hygiene } from './hygiene.mjs';
 
-const gulp = require('gulp');
-const es = require('event-stream');
-const path = require('path');
-const task = require('./lib/task');
-const { hygiene } = require('./hygiene');
+const dirName = path.dirname(new URL(import.meta.url).pathname);
 
 /**
  * @param {string} actualPath
  */
 function checkPackageJSON(actualPath) {
-	const actual = require(path.join(__dirname, '..', actualPath));
-	const rootPackageJSON = require('../package.json');
+	const actual = JSON.parse(fs.readFileSync(path.join(dirName, '..', actualPath), 'utf8'));
+	const rootPackageJSON = JSON.parse(fs.readFileSync(path.join(dirName, '..', 'package.json'), 'utf8'));
 	const checkIncluded = (set1, set2) => {
 		for (const depName in set1) {
 			const depVersion = set1[depName];

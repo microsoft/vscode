@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-
-const filter = require('gulp-filter');
-const es = require('event-stream');
-const VinylFile = require('vinyl');
-const vfs = require('vinyl-fs');
-const path = require('path');
-const fs = require('fs');
-const pall = require('p-all');
-
-const { all, copyrightFilter, unicodeFilter, indentationFilter, tsFormattingFilter, eslintFilter, stylelintFilter } = require('./filters');
+import cp from 'child_process';
+import es from 'event-stream';
+import fs from 'fs';
+import filter from 'gulp-filter';
+import pall from 'p-all';
+import path from 'path';
+import VinylFile from 'vinyl';
+import vfs from 'vinyl-fs';
+import { all, copyrightFilter, eslintFilter, indentationFilter, stylelintFilter, tsFormattingFilter, unicodeFilter } from './filters.js';
+import eslint from './gulp-eslint.js';
+import formatter from './lib/formatter.js';
+import gulpstylelint from './stylelint.js';
 
 const copyrightHeaderLines = [
 	'/*---------------------------------------------------------------------------------------------',
@@ -25,11 +27,8 @@ const copyrightHeaderLines = [
  * @param {string[] | NodeJS.ReadWriteStream} some
  * @param {boolean} runEslint
  */
-function hygiene(some, runEslint = true) {
-	const eslint = require('./gulp-eslint');
-	const gulpstylelint = require('./stylelint');
-	const formatter = require('./lib/formatter');
-
+export function hygiene(some, runEslint = true) {
+	console.log('Starting hygiene...');
 	let errorCount = 0;
 
 	const productJson = es.through(function (file) {
@@ -226,13 +225,10 @@ function hygiene(some, runEslint = true) {
 	);
 }
 
-module.exports.hygiene = hygiene;
-
 /**
  * @param {string[]} paths
  */
 function createGitIndexVinyls(paths) {
-	const cp = require('child_process');
 	const repositoryPath = process.cwd();
 
 	const fns = paths.map((relativePath) => () =>
@@ -273,9 +269,7 @@ function createGitIndexVinyls(paths) {
 }
 
 // this allows us to run hygiene as a git pre-commit hook
-if (require.main === module) {
-	const cp = require('child_process');
-
+if (import.meta.filename === process.argv[1]) {
 	process.on('unhandledRejection', (reason, p) => {
 		console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
 		process.exit(1);
