@@ -304,7 +304,7 @@ export class QuickInputController extends Disposable {
 			if (this.endOfQuickInputBoxContext.get() !== value) {
 				this.endOfQuickInputBoxContext.set(value);
 			}
-			// Allow screenreaders to read what's in the input
+			// Allow screen readers to read what's in the input
 			// Note: this works for arrow keys and selection changes,
 			// but not for deletions since that often triggers a
 			// change in the list.
@@ -322,7 +322,8 @@ export class QuickInputController extends Disposable {
 			[
 				{
 					node: titleBar,
-					includeChildren: true
+					includeChildren: true,
+					excludeNodes: [leftActionBar.domNode, rightActionBar.domNode]
 				},
 				{
 					node: headerContainer,
@@ -923,7 +924,7 @@ class QuickInputDragAndDropController extends Disposable {
 	constructor(
 		private _container: HTMLElement,
 		private readonly _quickInputContainer: HTMLElement,
-		private _quickInputDragAreas: { node: HTMLElement; includeChildren: boolean }[],
+		private _quickInputDragAreas: { node: HTMLElement; includeChildren: boolean; excludeNodes?: HTMLElement[] }[],
 		initialViewState: QuickInputViewState | undefined,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -994,13 +995,8 @@ class QuickInputDragAndDropController extends Disposable {
 			}
 
 			// Ignore event if the target is not the drag area
-			if (!this._quickInputDragAreas.some(({ node, includeChildren }) => includeChildren ? dom.isAncestor(originEvent.target, node) : originEvent.target === node)) {
-				return;
-			}
-
-			// Ignore event if the target is a button or within an action bar to prevent
-			// double-clicking buttons from resetting the quick input position
-			if (dom.findParentWithClass(originEvent.target, 'action-item', 'quick-input-titlebar')) {
+			const area = this._quickInputDragAreas.find(({ node, includeChildren }) => includeChildren ? dom.isAncestor(originEvent.target, node) : originEvent.target === node);
+			if (!area || area.excludeNodes?.some(node => dom.isAncestor(originEvent.target, node))) {
 				return;
 			}
 
@@ -1013,7 +1009,8 @@ class QuickInputDragAndDropController extends Disposable {
 			const originEvent = new StandardMouseEvent(activeWindow, e);
 
 			// Ignore event if the target is not the drag area
-			if (!this._quickInputDragAreas.some(({ node, includeChildren }) => includeChildren ? dom.isAncestor(originEvent.target, node) : originEvent.target === node)) {
+			const area = this._quickInputDragAreas.find(({ node, includeChildren }) => includeChildren ? dom.isAncestor(originEvent.target, node) : originEvent.target === node);
+			if (!area || area.excludeNodes?.some(node => dom.isAncestor(originEvent.target, node))) {
 				return;
 			}
 
