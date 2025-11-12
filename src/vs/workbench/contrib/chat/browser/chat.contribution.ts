@@ -276,7 +276,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ApprovedFetchUrls]: {
 			default: {},
-			markdownDescription: nls.localize('chat.tools.fetchPage.approvedUrls', "Controls which URLs are automatically approved when the fetch page tool is invoked. Keys are URL patterns (domain, wildcard domain, or full URL), and values can be `true` to approve both requests and responses, `false` to deny, or an object with `approveRequest` and `approveResponse` properties for granular control.\n\nExamples:\n- `\"example.com\": true` - Approve all requests to example.com\n- `\"*.example.com\": true` - Approve all requests to any subdomain of example.com\n- `\"example.com/api/*\": { \"approveRequest\": true, \"approveResponse\": false }` - Approve requests but not responses for example.com/api paths"),
+			markdownDescription: nls.localize('chat.tools.fetchPage.approvedUrls', "Controls which URLs are automatically approved when the fetch page tool is invoked. Keys are URL patterns and values can be `true` to approve both requests and responses, `false` to deny, or an object with `approveRequest` and `approveResponse` properties for granular control.\n\nExamples:\n- `\"https://example.com\": true` - Approve all requests to example.com\n- `\"https://*.example.com\": true` - Approve all requests to any subdomain of example.com\n- `\"https://example.com/api/*\": { \"approveRequest\": true, \"approveResponse\": false }` - Approve requests but not responses for example.com/api paths"),
 			type: 'object',
 			additionalProperties: {
 				oneOf: [

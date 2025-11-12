@@ -38,8 +38,10 @@ export function extractUrlPatterns(url: URI): string[] {
 	const domainParts = authority.split('.');
 
 	// Only add wildcard subdomain if there are at least 2 parts and it's not an IP
-	const isIP = domainParts.length === 4 && domainParts.every((segment: string) =>
-		Number.isInteger(+segment) || Number.isInteger(+segment.split(':')[0]));
+	const isIPv4 = domainParts.length === 4 && domainParts.every((segment: string) =>
+		Number.isInteger(+segment));
+	const isIPv6 = authority.includes(':') && authority.match(/^(\[)?[0-9a-fA-F:]+(\])?(?::\d+)?$/);
+	const isIP = isIPv4 || isIPv6;
 
 	// Only emit subdomain patterns if there are actually subdomains (more than 2 parts)
 	if (!isIP && domainParts.length > 2) {

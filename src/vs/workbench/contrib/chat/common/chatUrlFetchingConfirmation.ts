@@ -230,13 +230,10 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 
 		// Create the approval settings
 		let value: boolean | IUrlApprovalSettings;
-		if (approveRequest && approveResponse) {
-			value = true;
+		if (approveRequest === approveResponse) {
+			value = approveRequest;
 		} else {
-			value = {
-				approveRequest,
-				approveResponse
-			};
+			value = { approveRequest, approveResponse };
 		}
 
 		approvedUrls[pattern] = value;
