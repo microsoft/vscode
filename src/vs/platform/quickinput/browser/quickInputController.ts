@@ -15,6 +15,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, dispose } from '../../../base/common/lifecycle.js';
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
 import { localize } from '../../../nls.js';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType, IQuickTree, IQuickTreeItem } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
@@ -215,10 +216,7 @@ export class QuickInputController extends Disposable {
 		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
-			// Don't update aria-activedescendant when Ctrl is pressed to prevent screen readers
-			// from re-announcing the placeholder when the user is trying to silence speech.
-			// See: https://github.com/microsoft/vscode/issues/271032
-			if (inputBox.hasFocus() && !this.keyMods.ctrlCmd) {
+			if (inputBox.hasFocus()) {
 				inputBox.setAttribute('aria-activedescendant', list.getActiveDescendant() ?? '');
 			}
 		}));
@@ -256,10 +254,7 @@ export class QuickInputController extends Disposable {
 			this.options.hoverDelegate
 		));
 		this._register(tree.tree.onDidChangeFocus(() => {
-			// Don't update aria-activedescendant when Ctrl is pressed to prevent screen readers
-			// from re-announcing the placeholder when the user is trying to silence speech.
-			// See: https://github.com/microsoft/vscode/issues/271032
-			if (inputBox.hasFocus() && !this.keyMods.ctrlCmd) {
+			if (inputBox.hasFocus()) {
 				inputBox.setAttribute('aria-activedescendant', tree.getActiveDescendant() ?? '');
 			}
 		}));
@@ -305,7 +300,7 @@ export class QuickInputController extends Disposable {
 			this.endOfQuickInputBoxContext.set(false);
 			this.previousFocusElement = undefined;
 		}));
-		this._register(inputBox.onKeyDown(_ => {
+		this._register(inputBox.onKeyDown(e => {
 			const value = this.getUI().inputBox.isSelectionAtEnd();
 			if (this.endOfQuickInputBoxContext.get() !== value) {
 				this.endOfQuickInputBoxContext.set(value);
@@ -314,7 +309,13 @@ export class QuickInputController extends Disposable {
 			// Note: this works for arrow keys and selection changes,
 			// but not for deletions since that often triggers a
 			// change in the list.
-			inputBox.removeAttribute('aria-activedescendant');
+			// Don't remove aria-activedescendant when only modifier keys are pressed
+			// to prevent screen reader re-announcements when users press Ctrl to silence speech.
+			// See: https://github.com/microsoft/vscode/issues/271032
+			const keyCode = e.keyCode;
+			if (keyCode !== KeyCode.Ctrl && keyCode !== KeyCode.Shift && keyCode !== KeyCode.Alt && keyCode !== KeyCode.Meta) {
+				inputBox.removeAttribute('aria-activedescendant');
+			}
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
