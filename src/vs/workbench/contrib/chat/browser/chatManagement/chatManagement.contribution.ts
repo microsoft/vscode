@@ -119,7 +119,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, args: string | IOpenManageCopilotEditorActionOptions) {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		args = sanitizeOpenManageCopilotEditorArgs(args);
-		return editorGroupsService.activeGroup.openEditor(new ModelsManagementEditorInput());
+		return editorGroupsService.activeGroup.openEditor(new ModelsManagementEditorInput(), { pinned: true });
 	}
 });
 

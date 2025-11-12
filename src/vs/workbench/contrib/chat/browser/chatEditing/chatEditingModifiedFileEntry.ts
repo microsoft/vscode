@@ -198,6 +198,11 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	enableReviewModeUntilSettled(): void {
 
+		if (this.state.get() !== ModifiedFileEntryState.Modified) {
+			// nothing to do
+			return;
+		}
+
 		this._reviewModeTempObs.set(true, undefined);
 
 		const cleanup = autorun(r => {

@@ -7,7 +7,7 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../base/common/errors.js';
-import { IMatch, matchesContiguousSubString, matchesPrefix, matchesWords, or } from '../../../base/common/filters.js';
+import { IMatch, matchesBaseContiguousSubString, matchesWords, or } from '../../../base/common/filters.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../base/common/map.js';
@@ -25,7 +25,6 @@ import { IQuickAccessProviderRunOptions } from '../common/quickAccess.js';
 import { IQuickPickSeparator } from '../common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../storage/common/storage.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { removeAccents } from '../../../base/common/normalization.js';
 import { Categories } from '../../action/common/actionCommonCategories.js';
 
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
@@ -38,10 +37,6 @@ export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	readonly args?: unknown[];
 
 	tfIdfScore?: number;
-
-	// These fields are lazy initialized during filtering process.
-	labelNoAccents?: string;
-	aliasNoAccents?: string;
 }
 
 export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions<ICommandQuickPick> {
@@ -56,7 +51,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 	private static readonly TFIDF_THRESHOLD = 0.5;
 	private static readonly TFIDF_MAX_RESULTS = 5;
 
-	private static WORD_FILTER = or(matchesPrefix, matchesWords, matchesContiguousSubString);
+	private static WORD_FILTER = or(matchesBaseContiguousSubString, matchesWords);
 
 	private readonly commandsHistory: CommandsHistory;
 
@@ -99,18 +94,14 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				.slice(0, AbstractCommandsQuickAccessProvider.TFIDF_MAX_RESULTS);
 		});
 
-		const noAccentsFilter = this.normalizeForFiltering(filter);
-
 		// Filter
 		const filteredCommandPicks: ICommandQuickPick[] = [];
 		for (const commandPick of allCommandPicks) {
-			commandPick.labelNoAccents ??= this.normalizeForFiltering(commandPick.label);
-			const labelHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(noAccentsFilter, commandPick.labelNoAccents) ?? undefined;
+			const labelHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.label) ?? undefined;
 
 			let aliasHighlights: IMatch[] | undefined;
 			if (commandPick.commandAlias) {
-				commandPick.aliasNoAccents ??= this.normalizeForFiltering(commandPick.commandAlias);
-				aliasHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(noAccentsFilter, commandPick.aliasNoAccents) ?? undefined;
+				aliasHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias) ?? undefined;
 			}
 
 			// Add if matching in label or alias
@@ -327,36 +318,6 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			chunk += ` - ${commandDescription.value === commandDescription.original ? commandDescription.value : `${commandDescription.value} (${commandDescription.original})`}`;
 		}
 		return chunk;
-	}
-
-	/**
-	 * Normalizes a string for filtering by removing accents, but only if
-	 * the result has the same length, otherwise returns the original string.
-	 */
-	private normalizeForFiltering(value: string): string {
-		const withoutAccents = removeAccents(value);
-		if (withoutAccents.length !== value.length) {
-			type QuickAccessTelemetry = {
-				originalLength: number;
-				normalizedLength: number;
-			};
-
-			type QuickAccessTelemetryMeta = {
-				originalLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Length of the original filter string' };
-				normalizedLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Length of the normalized filter string' };
-				owner: 'dmitriv';
-				comment: 'Helps to gain insights on cases where the normalized filter string length differs from the original';
-			};
-
-			this.telemetryService.publicLog2<QuickAccessTelemetry, QuickAccessTelemetryMeta>('QuickAccess:FilterLengthMismatch', {
-				originalLength: value.length,
-				normalizedLength: withoutAccents.length
-			});
-
-			return value;
-		} else {
-			return withoutAccents;
-		}
 	}
 
 	protected abstract getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>>;

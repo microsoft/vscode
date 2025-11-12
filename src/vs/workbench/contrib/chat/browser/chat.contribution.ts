@@ -50,6 +50,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/co
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
+import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
@@ -100,12 +101,14 @@ import { SimpleBrowserOverlay } from './chatEditing/simpleBrowserEditorOverlay.j
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './chatEditorInput.js';
 import { ChatLayoutService } from './chatLayoutService.js';
+import './chatManagement/chatManagement.contribution.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './chatMarkdownDecorationsRenderer.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
 import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 import { QuickChatService } from './chatQuick.js';
 import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
+import { ChatTerminalOutputAccessibleView } from './chatTerminalOutputAccessibleView.js';
 import { LocalChatSessionsProvider } from './chatSessions/localChatSessionsProvider.js';
 import { ChatSessionsView, ChatSessionsViewContrib } from './chatSessions/view/chatSessionsView.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup.js';
@@ -119,15 +122,13 @@ import './contrib/chatInputCompletions.js';
 import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
+import { LanguageModelToolsConfirmationService } from './languageModelToolsConfirmationService.js';
 import { LanguageModelToolsService, globalAutoApproveDescription } from './languageModelToolsService.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
-import './chatManagement/chatManagement.contribution.js';
-import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
-import { LanguageModelToolsConfirmationService } from './languageModelToolsConfirmationService.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -181,7 +182,6 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.implicitContext.enabled': {
 			type: 'object',
-			tags: ['experimental'],
 			description: nls.localize('chat.implicitContext.enabled.1', "Enables automatically using the active editor as chat context for specified chat locations."),
 			additionalProperties: {
 				type: 'string',
@@ -199,7 +199,6 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.implicitContext.suggestedContext': {
 			type: 'boolean',
-			tags: ['experimental'],
 			markdownDescription: nls.localize('chat.implicitContext.suggestedContext', "Controls whether the new implicit context flow is shown. In Ask and Edit modes, the context will automatically be included. When using an agent, context will be suggested as an attachment. Selections are always included as context."),
 			default: true,
 		},
@@ -280,13 +279,13 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.sendElementsToChat.enabled', "Controls whether elements can be sent to chat from the Simple Browser."),
 			type: 'boolean',
-			tags: ['experimental']
+			tags: ['preview']
 		},
 		'chat.sendElementsToChat.attachCSS': {
 			default: true,
 			markdownDescription: nls.localize('chat.sendElementsToChat.attachCSS', "Controls whether CSS of the selected element will be added to the chat. {0} must be enabled.", '`#chat.sendElementsToChat.enabled#`'),
 			type: 'boolean',
-			tags: ['experimental']
+			tags: ['preview']
 		},
 		'chat.sendElementsToChat.attachImages': {
 			default: true,
@@ -298,7 +297,6 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			markdownDescription: nls.localize('chat.undoRequests.restoreInput', "Controls whether the input of the chat should be restored when an undo request is made. The input will be filled with the text of the request that was restored."),
 			type: 'boolean',
-			tags: ['experimental']
 		},
 		'chat.editRequests': {
 			markdownDescription: nls.localize('chat.editRequests', "Enables editing of requests in the chat. This allows you to change the request content and resubmit it to the model."),
@@ -310,7 +308,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: product.quality === 'insiders',
 			description: nls.localize('chat.emptyState.history.enabled', "Show recent chat history on the empty chat state."),
-			tags: ['experimental']
+			tags: ['preview']
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
@@ -740,6 +738,12 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'auto'
 			}
+		},
+		[ChatConfiguration.SubagentToolCustomAgents]: {
+			type: 'boolean',
+			description: nls.localize('chat.subagentTool.customAgents', "Whether the runSubagent tool is able to use custom agents. When enabled, the tool can take the name of a custom agent, but it must be given the exact name of the agent."),
+			default: false,
+			tags: ['experimental'],
 		}
 	}
 });
@@ -867,6 +871,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 	}
 }
 
+AccessibleViewRegistry.register(new ChatTerminalOutputAccessibleView());
 AccessibleViewRegistry.register(new ChatResponseAccessibleView());
 AccessibleViewRegistry.register(new PanelChatAccessibilityHelp());
 AccessibleViewRegistry.register(new QuickChatAccessibilityHelp());

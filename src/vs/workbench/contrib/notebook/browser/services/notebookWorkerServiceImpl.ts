@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWebWorkerClient, Proxied } from '../../../../../base/common/worker/webWorker.js';
-import { createWebWorker } from '../../../../../base/browser/webWorkerFactory.js';
+import { createWebWorker, WebWorkerDescriptor } from '../../../../../base/browser/webWorkerFactory.js';
 import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { CellUri, IMainCellDto, INotebookDiffResult, NotebookCellsChangeType, NotebookRawContentEventDto } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';
@@ -274,8 +274,10 @@ class NotebookWorkerClient extends Disposable {
 		if (!this._worker) {
 			try {
 				this._worker = this._register(createWebWorker<NotebookWorker>(
-					FileAccess.asBrowserUri('vs/workbench/contrib/notebook/common/services/notebookWebWorkerMain.js'),
-					'NotebookEditorWorker'
+					new WebWorkerDescriptor({
+						esmModuleLocation: FileAccess.asBrowserUri('vs/workbench/contrib/notebook/common/services/notebookWebWorkerMain.js'),
+						label: 'NotebookEditorWorker'
+					})
 				));
 			} catch (err) {
 				throw (err);

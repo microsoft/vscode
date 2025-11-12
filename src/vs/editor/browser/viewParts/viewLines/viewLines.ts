@@ -245,12 +245,10 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return r;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		if (true/*e.inlineDecorationsChanged*/) {
-			const rendStartLineNumber = this._visibleLines.getStartLineNumber();
-			const rendEndLineNumber = this._visibleLines.getEndLineNumber();
-			for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
-				this._visibleLines.getVisibleLine(lineNumber).onDecorationsChanged();
-			}
+		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
+		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
+		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
+			this._visibleLines.getVisibleLine(lineNumber).onDecorationsChanged();
 		}
 		return true;
 	}
@@ -541,7 +539,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 			// only proceed if we just did a layout
 			return;
 		}
-		if (this._asyncUpdateLineWidths.isScheduled()) {
+		if (!this._asyncUpdateLineWidths.isScheduled()) {
 			// reading widths is not scheduled => widths are up-to-date
 			return;
 		}

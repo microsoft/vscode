@@ -657,7 +657,7 @@ export class ResetMcpTrustCommand extends Action2 {
 			title: localize2('mcp.resetTrust', "Reset Trust"),
 			category,
 			f1: true,
-			precondition: McpContextKeys.toolsCount.greater(0),
+			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate()),
 		});
 	}
 
@@ -885,7 +885,7 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 			id: McpCommandIds.ShowInstalled,
 			title: localize2('mcp.command.show.installed', "Show Installed Servers"),
 			category,
-			precondition: HasInstalledMcpServersContext,
+			precondition: ContextKeyExpr.and(HasInstalledMcpServersContext, ChatContextKeys.Setup.hidden.negate()),
 			f1: true,
 		});
 	}
@@ -1019,7 +1019,7 @@ export class McpBrowseResourcesCommand extends Action2 {
 			id: McpCommandIds.BrowseResources,
 			title: localize2('mcp.browseResources', "Browse Resources..."),
 			category,
-			precondition: McpContextKeys.serverCount.greater(0),
+			precondition: ContextKeyExpr.and(McpContextKeys.serverCount.greater(0), ChatContextKeys.Setup.hidden.negate()),
 			f1: true,
 		});
 	}

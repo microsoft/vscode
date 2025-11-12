@@ -11,7 +11,7 @@ export const ITelemetryService = createDecorator<ITelemetryService>('telemetrySe
 export interface ITelemetryData {
 	from?: string;
 	target?: string;
-	[key: string]: any;
+	[key: string]: string | unknown | undefined;
 }
 
 export interface ITelemetryService {

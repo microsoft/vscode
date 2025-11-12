@@ -1785,6 +1785,27 @@
         "pattern": "$tsc"
       },
       {
+        "name": "tsgo-watch",
+        "label": "%typescript.problemMatchers.tsgo-watch.label%",
+        "owner": "typescript",
+        "source": "ts",
+        "applyTo": "closedDocuments",
+        "fileLocation": [
+          "relative",
+          "${cwd}"
+        ],
+        "pattern": "$tsc",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": {
+            "regexp": "^build starting at .*$"
+          },
+          "endsPattern": {
+            "regexp": "^build finished in .*$"
+          }
+        }
+      },
+      {
         "name": "tsc-watch",
         "label": "%typescript.problemMatchers.tscWatch.label%",
         "owner": "typescript",
