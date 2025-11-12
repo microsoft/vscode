@@ -3515,7 +3515,8 @@ export class CommandCenter {
 	@command('git.createWorktreeWithDefaults', { repository: true, repositoryFilter: ['repository'] })
 	async createWorktreeWithDefaults(
 		repository: Repository,
-		commitish: string = 'HEAD'
+		commitish: string = 'HEAD',
+		migrateUncommittedChanges: boolean = false
 	): Promise<string | undefined> {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix', '');
@@ -3568,6 +3569,11 @@ export class CommandCenter {
 					this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
 				}
 
+				// Migrate uncommitted changes if requested
+				if (migrateUncommittedChanges) {
+					await this.migrateChangesToWorktree(repository, finalWorktreePath);
+				}
+
 				return finalWorktreePath;
 			} catch (err) {
 				// Return undefined on failure
@@ -3584,10 +3590,59 @@ export class CommandCenter {
 				this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
 			}
 
+			// Migrate uncommitted changes if requested
+			if (migrateUncommittedChanges) {
+				await this.migrateChangesToWorktree(repository, defaultWorktreePath);
+			}
+
 			return defaultWorktreePath;
 		} catch (err) {
 			// Return undefined on failure
 			return undefined;
+		}
+	}
+
+	private async migrateChangesToWorktree(repository: Repository, worktreePath: string): Promise<void> {
+		// Check if there are any uncommitted changes to migrate
+		if (repository.indexGroup.resourceStates.length === 0 &&
+			repository.workingTreeGroup.resourceStates.length === 0 &&
+			repository.untrackedGroup.resourceStates.length === 0) {
+			// No changes to migrate
+			return;
+		}
+
+		// Get the worktree repository
+		const worktreeRepository = this.model.getRepository(worktreePath);
+		if (!worktreeRepository || worktreeRepository.kind !== 'worktree') {
+			return;
+		}
+
+		// Create a stash in the current repository with all changes
+		await repository.createStash(undefined, true);
+		const stashes = await repository.getStashes();
+
+		try {
+			// Apply the stash to the worktree
+			await worktreeRepository.applyStash(stashes[0].index);
+			// Drop the stash from the current repository
+			repository.dropStash(stashes[0].index);
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.StashConflict) {
+				// If not a conflict, restore the stash to the current repository
+				await repository.popStash();
+				throw err;
+			}
+			// Mark worktree as migrating for conflict handling
+			worktreeRepository.isWorktreeMigrating = true;
+
+			const message = l10n.t('There are merge conflicts from migrating changes to the worktree. Please resolve them before committing.');
+			const show = l10n.t('Show Changes');
+			const choice = await window.showWarningMessage(message, show);
+			if (choice === show) {
+				await commands.executeCommand('workbench.view.scm');
+			}
+			// Drop the stash as it's been applied (with conflicts)
+			repository.dropStash(stashes[0].index);
 		}
 	}
 
