@@ -442,7 +442,6 @@ export default tseslint.config(
 			'src/vs/platform/diagnostics/common/diagnostics.ts',
 			'src/vs/platform/diagnostics/node/diagnosticsService.ts',
 			'src/vs/platform/download/common/downloadIpc.ts',
-			'src/vs/platform/extensionRecommendations/common/extensionRecommendationsIpc.ts',
 			'src/vs/platform/extensions/common/extensionValidator.ts',
 			'src/vs/platform/extensions/common/extensions.ts',
 			'src/vs/platform/instantiation/common/descriptors.ts',
