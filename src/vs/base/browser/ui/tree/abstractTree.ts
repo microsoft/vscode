@@ -492,15 +492,15 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 
 			templateData.twistie.classList.add('collapsible');
 			templateData.twistie.classList.toggle('collapsed', node.collapsed);
-
-			if (this.twistieAdditionalCssClass) {
-				const additionalClass = this.twistieAdditionalCssClass(node.element);
-				if (additionalClass) {
-					templateData.twistie.classList.add(additionalClass);
-				}
-			}
 		} else {
 			templateData.twistie.classList.remove('collapsible', 'collapsed');
+		}
+
+		if (this.twistieAdditionalCssClass) {
+			const additionalClass = this.twistieAdditionalCssClass(node.element);
+			if (additionalClass) {
+				templateData.twistie.classList.add(additionalClass);
+			}
 		}
 
 		this._renderIndentGuides(node, templateData);
