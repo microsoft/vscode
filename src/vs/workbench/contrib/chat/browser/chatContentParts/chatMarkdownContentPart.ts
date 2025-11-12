@@ -581,7 +581,7 @@ export class CollapsedCodeBlock extends Disposable {
 				statusIconEl.classList.add(...statusIconClasses);
 				const entry = editSessionEntry.read(r);
 				const rwRatio = Math.floor((entry?.rewriteRatio.read(r) || 0) * 100);
-				statusLabelEl.textContent = localize('chat.codeblock.applyingEdits', "Applying edits");
+				statusLabelEl.textContent = localize('chat.codeblock.applyingEdits', 'Applying edits');
 				progressFill.style.width = `${rwRatio}%`;
 				this.pillElement.classList.add('progress-filling');
 			} else {
