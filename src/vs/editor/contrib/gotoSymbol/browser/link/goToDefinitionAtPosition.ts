@@ -235,10 +235,19 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	}
 
 	private stripIndentationFromPreviewRange(textEditorModel: ITextModel, startLineNumber: number, previewRange: IRange) {
+		const lineCount = textEditorModel.getLineCount();
+		
+		// Ensure startLineNumber is within valid range
+		if (startLineNumber < 1 || startLineNumber > lineCount) {
+			return textEditorModel.getValueInRange(previewRange).trim();
+		}
+		
 		const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
 		let minIndent = startIndent;
 
-		for (let endLineNumber = startLineNumber + 1; endLineNumber < previewRange.endLineNumber; endLineNumber++) {
+		// Ensure loop bounds stay within valid range
+		const maxEndLineNumber = Math.min(previewRange.endLineNumber, lineCount + 1);
+		for (let endLineNumber = startLineNumber + 1; endLineNumber < maxEndLineNumber; endLineNumber++) {
 			const endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
 			minIndent = Math.min(minIndent, endIndent);
 		}
@@ -248,8 +257,15 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	}
 
 	private getPreviewRangeBasedOnIndentation(textEditorModel: ITextModel, startLineNumber: number) {
+		const lineCount = textEditorModel.getLineCount();
+		
+		// Ensure startLineNumber is within valid range
+		if (startLineNumber < 1 || startLineNumber > lineCount) {
+			return new Range(1, 1, Math.min(2, lineCount + 1), 1);
+		}
+		
 		const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
-		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES);
+		const maxLineNumber = Math.min(lineCount, startLineNumber + GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES);
 		let endLineNumber = startLineNumber + 1;
 
 		for (; endLineNumber < maxLineNumber; endLineNumber++) {
