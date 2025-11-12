@@ -678,13 +678,15 @@ class ChatCodeActionsProvider {
 	async provideCodeActions(model: ITextModel, range: Range | Selection): Promise<CodeActionList | undefined> {
 		const actions: CodeAction[] = [];
 
-		// "Modify"
-		actions.push({
-			kind: CodeActionKind.RefactorRewrite.value,
-			isAI: true,
-			title: localize('modify', "Modify"),
-			command: AICodeActionsHelper.modify(range),
-		});
+		// "Modify" if there is a selection
+		if (!range.isEmpty()) {
+			actions.push({
+				kind: CodeActionKind.RefactorRewrite.value,
+				isAI: true,
+				title: localize('modify', "Modify"),
+				command: AICodeActionsHelper.modify(range),
+			});
+		}
 
 		const markers = AICodeActionsHelper.markersAtRange(this.markerService, model.uri, range);
 		if (markers.length > 0) {
