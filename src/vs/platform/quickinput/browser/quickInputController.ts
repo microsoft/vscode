@@ -217,7 +217,12 @@ export class QuickInputController extends Disposable {
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
 			if (inputBox.hasFocus()) {
-				inputBox.setAttribute('aria-activedescendant', list.getActiveDescendant() ?? '');
+				const activeDescendant = list.getActiveDescendant();
+				if (activeDescendant) {
+					inputBox.setAttribute('aria-activedescendant', activeDescendant);
+				} else {
+					inputBox.removeAttribute('aria-activedescendant');
+				}
 			}
 		}));
 		this._register(list.onChangedAllVisibleChecked(checked => {
@@ -255,7 +260,12 @@ export class QuickInputController extends Disposable {
 		));
 		this._register(tree.tree.onDidChangeFocus(() => {
 			if (inputBox.hasFocus()) {
-				inputBox.setAttribute('aria-activedescendant', tree.getActiveDescendant() ?? '');
+				const activeDescendant = tree.getActiveDescendant();
+				if (activeDescendant) {
+					inputBox.setAttribute('aria-activedescendant', activeDescendant);
+				} else {
+					inputBox.removeAttribute('aria-activedescendant');
+				}
 			}
 		}));
 		this._register(tree.onLeave(() => {
