@@ -14,7 +14,7 @@ import { IWebContentExtractorService, WebContentExtractResult } from '../../../.
 import { detectEncodingFromBuffer } from '../../../../services/textfile/common/encoding.js';
 import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
 import { ChatImageMimeType } from '../../common/languageModels.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultReference, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
 
 export const FetchWebPageToolData: IToolData = {
@@ -110,6 +110,17 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		}
 
+		// Build references with titles for web URIs
+		const webReferences: IToolResultReference[] = [];
+		let webRefIndex = 0;
+		for (const uri of webUris.values()) {
+			const content = webContents[webRefIndex];
+			if (content && content.status === 'ok') {
+				webReferences.push({ uri, title: content.title });
+			}
+			webRefIndex++;
+		}
+
 		// Build results array in original order
 		const results: ResultType[] = [];
 		let webIndex = 0;
@@ -135,12 +146,32 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 
-		// Only include URIs that actually had content successfully fetched
-		const actuallyValidUris = [...webUris.values(), ...successfulFileUris];
+		// Build the toolResultDetails with references and titles
+		const actuallyValidUris: Array<URI | IToolResultReference> = [...webReferences, ...successfulFileUris];
+
+		// Create toolResultMessage with title for single web resource
+		let toolResultMessage: MarkdownString | undefined;
+		if (webReferences.length === 1 && successfulFileUris.length === 0 && webReferences[0].title) {
+			const title = webReferences[0].title;
+			const url = webReferences[0].uri.toString();
+			toolResultMessage = new MarkdownString();
+			if (url.length > 400) {
+				toolResultMessage.appendMarkdown(localize({
+					key: 'fetchWebPage.toolResultMessage.singularAsLink',
+					comment: [
+						// Make sure the link syntax is correct
+						'{Locked="]({0})"}',
+					]
+				}, 'Fetched [{0}]({1})', title, url));
+			} else {
+				toolResultMessage.appendMarkdown(localize('fetchWebPage.toolResultMessage.singular', 'Fetched {0}', title));
+			}
+		}
 
 		return {
 			content: this._getPromptPartsForResults(results),
 			toolResultDetails: actuallyValidUris,
+			toolResultMessage,
 			confirmResults,
 		};
 	}

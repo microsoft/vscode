@@ -192,10 +192,19 @@ export function isToolResultOutputDetails(obj: any): obj is IToolResultOutputDet
 	return typeof obj === 'object' && typeof obj?.output === 'object' && typeof obj?.output?.mimeType === 'string' && obj?.output?.type === 'data';
 }
 
+export interface IToolResultReference {
+	readonly uri: URI;
+	readonly title?: string;
+}
+
+export function isToolResultReference(obj: any): obj is IToolResultReference {
+	return typeof obj === 'object' && URI.isUri(obj?.uri);
+}
+
 export interface IToolResult {
 	content: (IToolResultPromptTsxPart | IToolResultTextPart | IToolResultDataPart)[];
 	toolResultMessage?: string | IMarkdownString;
-	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails;
+	toolResultDetails?: Array<URI | Location | IToolResultReference> | IToolResultInputOutputDetails | IToolResultOutputDetails;
 	toolResultError?: string;
 	toolMetadata?: unknown;
 	/** Whether to ask the user to confirm these tool results. Overrides {@link IToolConfirmationMessages.confirmResults}. */

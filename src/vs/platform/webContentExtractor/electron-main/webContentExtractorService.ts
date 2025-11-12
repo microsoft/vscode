@@ -18,6 +18,7 @@ interface CacheEntry {
 	result: string;
 	timestamp: number;
 	finalURI: URI;
+	title?: string;
 }
 
 export class NativeWebContentExtractorService implements IWebContentExtractorService {
@@ -54,7 +55,7 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 			} else if (!options?.followRedirects && cached.finalURI.authority !== uri.authority) {
 				return { status: 'redirect', toURI: cached.finalURI };
 			} else {
-				return { status: 'ok', result: cached.result };
+				return { status: 'ok', result: cached.result, title: cached.title };
 			}
 		}
 
@@ -81,7 +82,7 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 				: await Promise.race([this.interceptRedirects(win, uri, store), this.extractAX(win, uri)]);
 
 			if (result.status === 'ok') {
-				this._webContentsCache.set(uri, { result: result.result, timestamp: Date.now(), finalURI: URI.parse(win.webContents.getURL()) });
+				this._webContentsCache.set(uri, { result: result.result, timestamp: Date.now(), finalURI: URI.parse(win.webContents.getURL()), title: result.title });
 			}
 
 			return result;
@@ -95,12 +96,13 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 
 	private async extractAX(win: BrowserWindow, uri: URI): Promise<WebContentExtractResult> {
 		await win.loadURL(uri.toString(true));
+		const title = win.webContents.getTitle();
 		win.webContents.debugger.attach('1.1');
 		const result: { nodes: AXNode[] } = await win.webContents.debugger.sendCommand('Accessibility.getFullAXTree');
 		const str = convertAXTreeToMarkdown(uri, result.nodes);
 		this._logger.info(`[NativeWebContentExtractorService] Content extracted from ${uri}`);
 		this._logger.trace(`[NativeWebContentExtractorService] Extracted content: ${str}`);
-		return { status: 'ok', result: str };
+		return { status: 'ok', result: str, title };
 	}
 
 	private interceptRedirects(win: BrowserWindow, uri: URI, store: DisposableStore) {
