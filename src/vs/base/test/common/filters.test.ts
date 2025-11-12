@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesCamelCase, matchesContiguousSubString, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from '../../common/filters.js';
+import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesBaseContiguousSubString, matchesCamelCase, matchesContiguousSubString, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from '../../common/filters.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number }[]) {
@@ -155,6 +155,30 @@ suite('Filters', () => {
 	test('matchesContiguousSubString', () => {
 		filterOk(matchesContiguousSubString, 'cela', 'cancelAnimationFrame()', [
 			{ start: 3, end: 7 }
+		]);
+	});
+
+	test('matchesBaseContiguousSubString', () => {
+		filterOk(matchesBaseContiguousSubString, 'cela', 'cancelAnimationFrame()', [
+			{ start: 3, end: 7 }
+		]);
+		filterOk(matchesBaseContiguousSubString, 'cafe', 'café', [
+			{ start: 0, end: 4 }
+		]);
+		filterOk(matchesBaseContiguousSubString, 'cafe', 'caféBar', [
+			{ start: 0, end: 4 }
+		]);
+		filterOk(matchesBaseContiguousSubString, 'resume', 'résumé', [
+			{ start: 0, end: 6 }
+		]);
+		filterOk(matchesBaseContiguousSubString, 'naïve', 'naïve', [
+			{ start: 0, end: 5 }
+		]);
+		filterOk(matchesBaseContiguousSubString, 'naive', 'naïve', [
+			{ start: 0, end: 5 }
+		]);
+		filterOk(matchesBaseContiguousSubString, 'aeou', 'àéöü', [
+			{ start: 0, end: 4 }
 		]);
 	});
 

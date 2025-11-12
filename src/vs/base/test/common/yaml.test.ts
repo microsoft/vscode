@@ -6,6 +6,7 @@ import { deepStrictEqual, strictEqual, ok } from 'assert';
 import { parse, ParseOptions, YamlParseError, Position, YamlNode } from '../../common/yaml.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
+
 function assertValidParse(input: string[], expected: YamlNode, expectedErrors: YamlParseError[], options?: ParseOptions): void {
 	const errors: YamlParseError[] = [];
 	const text = input.join('\n');
@@ -83,6 +84,36 @@ suite('YAML Parser', () => {
 					}
 				]
 			}, []);
+		});
+
+		test('value on next line', () => {
+			assertValidParse(
+				[
+					'name:',
+					'  John Doe',
+					'colors:',
+					'  [ Red, Green, Blue ]',
+				],
+				{
+					type: 'object', start: pos(0, 0), end: pos(3, 22), properties: [
+						{
+							key: { type: 'string', start: pos(0, 0), end: pos(0, 4), value: 'name' },
+							value: { type: 'string', start: pos(1, 2), end: pos(1, 10), value: 'John Doe' }
+						},
+						{
+							key: { type: 'string', start: pos(2, 0), end: pos(2, 6), value: 'colors' },
+							value: {
+								type: 'array', start: pos(3, 2), end: pos(3, 22), items: [
+									{ type: 'string', start: pos(3, 4), end: pos(3, 7), value: 'Red' },
+									{ type: 'string', start: pos(3, 9), end: pos(3, 14), value: 'Green' },
+									{ type: 'string', start: pos(3, 16), end: pos(3, 20), value: 'Blue' }
+								]
+							}
+						}
+					]
+				},
+				[]
+			);
 		});
 
 		test('multiple properties', () => {
@@ -759,7 +790,7 @@ suite('YAML Parser', () => {
 				},
 				[
 					{
-						message: `Duplicate key 'key'`,
+						message: 'Duplicate key \'key\'',
 						code: 'duplicateKey',
 						start: pos(1, 0),
 						end: pos(1, 3)

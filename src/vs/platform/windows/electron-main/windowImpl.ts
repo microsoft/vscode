@@ -1042,6 +1042,16 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
 
+		// Swipe command support (macOS)
+		if (isMacintosh && (!e || e.affectsConfiguration('workbench.editor.swipeToNavigate'))) {
+			const swipeToNavigate = this.configurationService.getValue<boolean>('workbench.editor.swipeToNavigate');
+			if (swipeToNavigate) {
+				this.registerSwipeListener();
+			} else {
+				this.swipeListenerDisposable.clear();
+			}
+		}
+
 		// Menubar
 		if (!e || e.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
 			const newMenuBarVisibility = this.getMenuBarVisibility();
@@ -1083,6 +1093,22 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				electron.app.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 			}
 		}
+	}
+
+	private readonly swipeListenerDisposable = this._register(new MutableDisposable());
+
+	private registerSwipeListener(): void {
+		this.swipeListenerDisposable.value = Event.fromNodeEventEmitter<string>(this._win, 'swipe', (event: Electron.Event, cmd: string) => cmd)(cmd => {
+			if (!this.isReady) {
+				return; // window must be ready
+			}
+
+			if (cmd === 'left') {
+				this.send('vscode:runAction', { id: 'workbench.action.openPreviousRecentlyUsedEditor', from: 'mouse' });
+			} else if (cmd === 'right') {
+				this.send('vscode:runAction', { id: 'workbench.action.openNextRecentlyUsedEditor', from: 'mouse' });
+			}
+		});
 	}
 
 	addTabbedWindow(window: ICodeWindow): void {
@@ -1405,7 +1431,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return menuBarVisibility;
 	}
 
-	private setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
+	private setMenuBarVisibility(visibility: MenuBarVisibility, notify = true): void {
 		if (isMacintosh) {
 			return; // ignore for macOS platform
 		}
@@ -1632,7 +1658,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 class UnresponsiveError extends Error {
 
-	constructor(sample: string, windowId: number, pid: number = 0) {
+	constructor(sample: string, windowId: number, pid = 0) {
 		// Since the stacks are available via the sample
 		// we can avoid collecting them when constructing the error.
 		const stackTraceLimit = Error.stackTraceLimit;

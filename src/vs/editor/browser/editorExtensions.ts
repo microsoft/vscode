@@ -25,6 +25,7 @@ import { IDisposable } from '../../base/common/lifecycle.js';
 import { KeyMod, KeyCode } from '../../base/common/keyCodes.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import { getActiveElement } from '../../base/browser/dom.js';
+import { TriggerInlineEditCommandsRegistry } from './triggerInlineEditCommandsRegistry.js';
 
 export type ServicesAccessor = InstantiationServicesAccessor;
 export type EditorContributionCtor = IConstructorSignature<IEditorContribution, [ICodeEditor]>;
@@ -98,6 +99,7 @@ export interface ICommandOptions {
 	kbOpts?: ICommandKeybindingsOptions | ICommandKeybindingsOptions[];
 	metadata?: ICommandMetadata;
 	menuOpts?: ICommandMenuOptions | ICommandMenuOptions[];
+	canTriggerInlineEdits?: boolean;
 }
 export abstract class Command {
 	public readonly id: string;
@@ -105,6 +107,7 @@ export abstract class Command {
 	private readonly _kbOpts: ICommandKeybindingsOptions | ICommandKeybindingsOptions[] | undefined;
 	private readonly _menuOpts: ICommandMenuOptions | ICommandMenuOptions[] | undefined;
 	public readonly metadata: ICommandMetadata | undefined;
+	public readonly canTriggerInlineEdits: boolean | undefined;
 
 	constructor(opts: ICommandOptions) {
 		this.id = opts.id;
@@ -112,6 +115,7 @@ export abstract class Command {
 		this._kbOpts = opts.kbOpts;
 		this._menuOpts = opts.menuOpts;
 		this.metadata = opts.metadata;
+		this.canTriggerInlineEdits = opts.canTriggerInlineEdits;
 	}
 
 	public register(): void {
@@ -155,6 +159,10 @@ export abstract class Command {
 			handler: (accessor, args) => this.runCommand(accessor, args),
 			metadata: this.metadata
 		});
+
+		if (this.canTriggerInlineEdits) {
+			TriggerInlineEditCommandsRegistry.registerCommand(this.id);
+		}
 	}
 
 	private _registerMenuItem(item: ICommandMenuOptions): void {

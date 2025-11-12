@@ -109,7 +109,7 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title {
 	position: relative;
-	box-sizing:	border-box;
+	box-sizing: border-box;
 	overflow: hidden;
 }
 
@@ -157,7 +157,7 @@
 
 /* Editor */
 
-.monaco-workbench .part.editor > .content .editor-group-container.empty > .editor-container  {
+.monaco-workbench .part.editor > .content .editor-group-container.empty > .editor-container {
 	display: none;
 }
 

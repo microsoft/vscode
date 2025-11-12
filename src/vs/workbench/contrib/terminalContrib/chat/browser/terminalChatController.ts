@@ -16,6 +16,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import type { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import type { IChatModel } from '../../../chat/common/chatModel.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.chat';
@@ -76,7 +77,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 					code: editor.getValue(),
 					codeBlockIndex: 0,
 					languageId: editor.getModel()!.getLanguageId(),
-					chatSessionId: this._terminalChatWidget.value.inlineChatWidget.chatWidget.viewModel?.sessionId
+					chatSessionResource: this._terminalChatWidget.value.inlineChatWidget.chatWidget.viewModel?.sessionResource
 				};
 			}
 		}, 'terminal'));
@@ -153,15 +154,15 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 }
 
 async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | undefined) {
-
 	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
+	const layoutService = accessor.get(IWorkbenchLayoutService);
 
-	const widget = await showChatView(viewsService);
+	const widget = await showChatView(viewsService, layoutService);
 
 	if (widget && widget.viewModel && model) {
 		for (const request of model.getRequests().slice()) {
-			await chatService.adoptRequest(widget.viewModel.model.sessionId, request);
+			await chatService.adoptRequest(widget.viewModel.model.sessionResource, request);
 		}
 		widget.focusResponseItem();
 	}

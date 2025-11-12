@@ -8,12 +8,13 @@ import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTyp
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IMarkdownCodeBlockRenderer, IMarkdownRendererExtraOptions } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { EditorOption, IEditorOptions } from '../../../../common/config/editorOptions.js';
-import { EDITOR_FONT_DEFAULTS } from '../../../../common/config/fontInfo.js';
+import { BareFontInfo } from '../../../../common/config/fontInfo.js';
+import { createBareFontInfoFromRawSettings } from '../../../../common/config/fontInfoFromSettings.js';
 import { ILanguageService } from '../../../../common/languages/language.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../common/languages/modesRegistry.js';
 import { tokenizeToString } from '../../../../common/languages/textToHtmlTokenizer.js';
 import { applyFontInfo } from '../../../config/domFontInfo.js';
-import { isCodeEditor } from '../../../editorBrowser.js';
+import { ICodeEditor, isCodeEditor } from '../../../editorBrowser.js';
 import './renderedMarkdown.css';
 
 /**
@@ -52,19 +53,27 @@ export class EditorMarkdownCodeBlockRenderer implements IMarkdownCodeBlockRender
 
 		const root = document.createElement('span');
 		root.innerHTML = content as string;
+		// eslint-disable-next-line no-restricted-syntax
 		const codeElement = root.querySelector('.monaco-tokenized-source');
 		if (!isHTMLElement(codeElement)) {
 			return document.createElement('span');
 		}
 
-		// use "good" font
-		if (editor) {
-			const fontInfo = editor.getOption(EditorOption.fontInfo);
-			applyFontInfo(codeElement, fontInfo);
-		} else {
-			codeElement.style.fontFamily = this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
-		}
+		applyFontInfo(codeElement, this.getFontInfo(editor));
 
 		return root;
+	}
+
+	private getFontInfo(editor: ICodeEditor | undefined): BareFontInfo {
+		// Use editor's font if we have one
+		if (editor) {
+			return editor.getOption(EditorOption.fontInfo);
+		} else {
+			// Otherwise use the global font settings.
+			// Pass in fake pixel ratio of 1 since we only need the font info to apply font family
+			return createBareFontInfoFromRawSettings({
+				fontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily
+			}, 1);
+		}
 	}
 }

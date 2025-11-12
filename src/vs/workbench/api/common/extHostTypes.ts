@@ -940,25 +940,23 @@ export enum TerminalCompletionItemKind {
 
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	label: string | CompletionItemLabel;
-	icon?: ThemeIcon | undefined;
+	replacementRange: readonly [number, number];
 	detail?: string | undefined;
 	documentation?: string | vscode.MarkdownString | undefined;
+	kind?: TerminalCompletionItemKind | undefined;
 	isFile?: boolean | undefined;
 	isDirectory?: boolean | undefined;
 	isKeyword?: boolean | undefined;
-	replacementIndex: number;
-	replacementLength: number;
 
-	constructor(label: string | CompletionItemLabel, icon?: ThemeIcon, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, replacementIndex?: number, replacementLength?: number) {
+	constructor(label: string | CompletionItemLabel, replacementRange: readonly [number, number], kind?: TerminalCompletionItemKind, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean) {
 		this.label = label;
-		this.icon = icon;
+		this.replacementRange = replacementRange;
+		this.kind = kind;
 		this.detail = detail;
 		this.documentation = documentation;
 		this.isFile = isFile;
 		this.isDirectory = isDirectory;
 		this.isKeyword = isKeyword;
-		this.replacementIndex = replacementIndex ?? 0;
-		this.replacementLength = replacementLength ?? 0;
 	}
 }
 
@@ -2544,7 +2542,8 @@ export class DebugVisualization {
 
 export enum QuickInputButtonLocation {
 	Title = 1,
-	Inline = 2
+	Inline = 2,
+	Input = 3
 }
 
 @es5ClassCompat
@@ -3158,9 +3157,25 @@ export class ChatResponseFileTreePart {
 export class ChatResponseMultiDiffPart {
 	value: vscode.ChatResponseDiffEntry[];
 	title: string;
-	constructor(value: vscode.ChatResponseDiffEntry[], title: string) {
+	readOnly?: boolean;
+	constructor(value: vscode.ChatResponseDiffEntry[], title: string, readOnly?: boolean) {
 		this.value = value;
 		this.title = title;
+		this.readOnly = readOnly;
+	}
+}
+
+export class ChatResponseExternalEditPart {
+	applied: Thenable<void>;
+	didGetApplied!: () => void;
+
+	constructor(
+		public uris: vscode.Uri[],
+		public callback: () => Thenable<unknown>,
+	) {
+		this.applied = new Promise<void>((resolve) => {
+			this.didGetApplied = resolve;
+		});
 	}
 }
 
@@ -3841,6 +3856,11 @@ export enum KeywordRecognitionStatus {
 //#endregion
 
 //#region MCP
+export enum McpToolAvailability {
+	Initial = 0,
+	Dynamic = 1,
+}
+
 export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition {
 	cwd?: URI;
 
@@ -3850,6 +3870,7 @@ export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition
 		public args: string[],
 		public env: Record<string, string | number | null> = {},
 		public version?: string,
+		public metadata?: vscode.McpServerMetadata,
 	) { }
 }
 
@@ -3859,6 +3880,7 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 		public uri: URI,
 		public headers: Record<string, string> = {},
 		public version?: string,
+		public metadata?: vscode.McpServerMetadata,
 	) { }
 }
 //#endregion

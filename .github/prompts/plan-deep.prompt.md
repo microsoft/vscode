@@ -1,7 +1,9 @@
 ---
-mode: Plan
+agent: Plan
 description: Clarify before planning in more detail
 ---
-Before doing your research look up related code (max 5 tool calls!) to get a high-level overview, then ask 3 clarifying questions. Once the user answered, go to *Context gathering and research*.
+Before doing your research workflow, gather preliminary context using #runSubagent (instructed to use max 5 tool calls) to get a high-level overview.
 
-Be extra detailed in your planning draft.
+Then ask 3 clarifying questions and PAUSE for the user to answer them.
+
+AFTER the user has answered, start the <workflow>. Add extra details to your planning draft.

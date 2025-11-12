@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 tools: ['edit', 'search', 'runCommands', 'fetch', 'todos']
 ---
 

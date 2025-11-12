@@ -10,12 +10,11 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
-import { autorun, autorunSelfDisposable } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IImageResizeService } from '../../../../platform/imageResize/common/imageResizeService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -24,9 +23,9 @@ import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatResponseResource, getAttachableImageExtension } from '../../chat/common/chatModel.js';
 import { LanguageModelPartAudience } from '../../chat/common/languageModels.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpResourceURI, McpServerCacheState, McpToolResourceLinkMimeType } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpResourceURI, McpToolResourceLinkMimeType } from './mcpTypes.js';
 import { mcpServerToSourceData } from './mcpTypesUtils.js';
 
 interface ISyncedToolData {
@@ -89,25 +88,6 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 		const collectionObservable = this._mcpRegistry.collections.map(collections =>
 			collections.find(c => c.id === server.collection.id));
 
-		// If the server is extension-provided and was marked outdated automatically start it
-		store.add(autorunSelfDisposable(reader => {
-			const collection = collectionObservable.read(reader);
-			if (!collection) {
-				return;
-			}
-
-			if (!(collection.source instanceof ExtensionIdentifier)) {
-				reader.dispose();
-				return;
-			}
-
-			const cacheState = server.cacheState.read(reader);
-			if (cacheState === McpServerCacheState.Unknown || cacheState === McpServerCacheState.Outdated) {
-				reader.dispose();
-				server.start();
-			}
-		}));
-
 		store.add(autorun(reader => {
 			const toDelete = new Set(tools.keys());
 
@@ -135,6 +115,8 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 					inputSchema: tool.definition.inputSchema,
 					canBeReferencedInPrompt: true,
 					alwaysDisplayInputOutput: true,
+					canRequestPreApproval: !tool.definition.annotations?.readOnlyHint,
+					canRequestPostApproval: !!tool.definition.annotations?.openWorldHint,
 					runsInWorkspace: collection?.scope === StorageScope.WORKSPACE || !!collection?.remoteAuthority,
 					tags: ['mcp'],
 				};
@@ -166,6 +148,10 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 			for (const fn of toRegister) {
 				fn();
 			}
+
+			// Important: flush tool updates when the server is fully registered so that
+			// any consuming (e.g. autostarting) requests have the tools available immediately.
+			this._toolsService.flushToolUpdates();
 		}));
 
 		store.add(toDisposable(() => {
@@ -195,17 +181,22 @@ class McpToolImplementation implements IToolImpl {
 			this._productService.nameShort
 		);
 
-		const needsConfirmation = !tool.definition.annotations?.readOnlyHint || !!tool.definition.annotations.openWorldHint;
 		// duplicative: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/813
 		const title = tool.definition.annotations?.title || tool.definition.title || ('`' + tool.definition.name + '`');
 
+		const confirm: IToolConfirmationMessages = {};
+		if (!tool.definition.annotations?.readOnlyHint) {
+			confirm.title = new MarkdownString(localize('msg.title', "Run {0}", title));
+			confirm.message = new MarkdownString(tool.definition.description, { supportThemeIcons: true });
+			confirm.disclaimer = mcpToolWarning;
+			confirm.allowAutoConfirm = true;
+		}
+		if (tool.definition.annotations?.openWorldHint) {
+			confirm.confirmResults = true;
+		}
+
 		return {
-			confirmationMessages: needsConfirmation ? {
-				title: new MarkdownString(localize('msg.title', "Run {0}", title)),
-				message: new MarkdownString(tool.definition.description, { supportThemeIcons: true }),
-				disclaimer: mcpToolWarning,
-				allowAutoConfirm: true,
-			} : undefined,
+			confirmationMessages: confirm,
 			invocationMessage: new MarkdownString(localize('msg.run', "Running {0}", title)),
 			pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran {0} ", title)),
 			originMessage: localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),

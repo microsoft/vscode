@@ -206,7 +206,9 @@ export class DisposableTracker implements IDisposableTracker {
 				const continuations = groupBy([...prevStarts].map(d => getStackTracePath(d)[i]), v => v);
 				delete continuations[stackTracePath[i]];
 				for (const [cont, set] of Object.entries(continuations)) {
-					stackTraceFormattedLines.unshift(`    - stacktraces of ${set.length} other leaks continue with ${cont}`);
+					if (set) {
+						stackTraceFormattedLines.unshift(`    - stacktraces of ${set.length} other leaks continue with ${cont}`);
+					}
 				}
 
 				stackTraceFormattedLines.unshift(line);
@@ -313,7 +315,7 @@ export interface IDisposable {
 /**
  * Check if `thing` is {@link IDisposable disposable}.
  */
-export function isDisposable<E extends any>(thing: E): thing is E & IDisposable {
+export function isDisposable<E>(thing: E): thing is E & IDisposable {
 	// eslint-disable-next-line local/code-no-any-casts
 	return typeof thing === 'object' && thing !== null && typeof (<IDisposable><any>thing).dispose === 'function' && (<IDisposable><any>thing).dispose.length === 0;
 }

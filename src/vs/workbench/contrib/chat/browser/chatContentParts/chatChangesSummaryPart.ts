@@ -31,6 +31,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { Emitter } from '../../../../../base/common/event.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize2 } from '../../../../../nls.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 
 export class ChatCheckpointFileChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
@@ -83,7 +84,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 			const lastRequestId = changes[changes.length - 1].requestId;
 			for (const change of changes) {
 				const sessionId = change.sessionId;
-				const session = this.chatService.getSession(sessionId);
+				const session = this.chatService.getSession(LocalChatSessionUri.forSession(sessionId));
 				if (!session || !session.editingSessionObs) {
 					continue;
 				}
@@ -338,6 +339,7 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IChatFileCh
 			title: data.reference.path
 		});
 		const labelElement = label.element;
+		// eslint-disable-next-line no-restricted-syntax
 		labelElement.querySelector(`.${CollapsibleChangesSummaryListRenderer.CHANGES_SUMMARY_CLASS_NAME}`)?.remove();
 		if (!data.additionalLabels) {
 			return;

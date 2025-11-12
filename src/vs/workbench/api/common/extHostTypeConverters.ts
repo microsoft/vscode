@@ -53,6 +53,7 @@ import { McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/commo
 import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
 import { CellEditType } from '../../contrib/notebook/common/notebookCommon.js';
 import { ICellRange } from '../../contrib/notebook/common/notebookRange.js';
+import { InputValidationType } from '../../contrib/scm/common/scm.js';
 import * as search from '../../contrib/search/common/search.js';
 import { TestId } from '../../contrib/testing/common/testId.js';
 import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestRunProfileReference, ITestTag, TestMessageType, TestResultItem, TestRunProfileBitset, denamespaceTestTag, namespaceTestTag } from '../../contrib/testing/common/testTypes.js';
@@ -66,7 +67,6 @@ import { CommandsConverter } from './extHostCommands.js';
 import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
 import { LanguageModelDataPart, LanguageModelPromptTsxPart, LanguageModelTextPart } from './extHostTypes.js';
-import { InputValidationType } from '../../contrib/scm/common/scm.js';
 
 export namespace Command {
 
@@ -369,7 +369,7 @@ export namespace MarkdownString {
 			const { language, value } = markup;
 			res = { value: '```' + language + '\n' + value + '\n```\n' };
 		} else if (types.MarkdownString.isMarkdownString(markup)) {
-			res = { value: markup.value, isTrusted: markup.isTrusted, supportThemeIcons: markup.supportThemeIcons, supportHtml: markup.supportHtml, baseUri: markup.baseUri };
+			res = { value: markup.value, isTrusted: markup.isTrusted, supportThemeIcons: markup.supportThemeIcons, supportHtml: markup.supportHtml, supportAlertSyntax: markup.supportAlertSyntax, baseUri: markup.baseUri };
 		} else if (typeof markup === 'string') {
 			res = { value: markup };
 		} else {
@@ -440,6 +440,7 @@ export namespace MarkdownString {
 		const result = new types.MarkdownString(value.value, value.supportThemeIcons);
 		result.isTrusted = value.isTrusted;
 		result.supportHtml = value.supportHtml;
+		result.supportAlertSyntax = value.supportAlertSyntax;
 		result.baseUri = value.baseUri ? URI.from(value.baseUri) : undefined;
 		return result;
 	}
@@ -2691,7 +2692,8 @@ export namespace ChatResponseMultiDiffPart {
 					added: entry.added,
 					removed: entry.removed,
 				}))
-			}
+			},
+			readOnly: part.readOnly
 		};
 	}
 	export function to(part: Dto<IChatMultiDiffData>): vscode.ChatResponseMultiDiffPart {
@@ -2702,7 +2704,7 @@ export namespace ChatResponseMultiDiffPart {
 			added: resource.added,
 			removed: resource.removed,
 		}));
-		return new types.ChatResponseMultiDiffPart(resources, part.multiDiffData.title);
+		return new types.ChatResponseMultiDiffPart(resources, part.multiDiffData.title, part.readOnly);
 	}
 }
 
@@ -3167,6 +3169,7 @@ export namespace ChatAgentRequest {
 			editedFileEvents: request.editedFileEvents,
 			modeInstructions: request.modeInstructions?.content,
 			modeInstructions2: ChatRequestModeInstructions.to(request.modeInstructions),
+			isSubagent: request.isSubagent,
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
@@ -3186,6 +3189,8 @@ export namespace ChatAgentRequest {
 			delete (requestWithAllProps as any).editedFileEvents;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).sessionId;
+			// eslint-disable-next-line local/code-no-any-casts
+			delete (requestWithAllProps as any).isSubagent;
 		}
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {
@@ -3327,6 +3332,7 @@ export namespace ChatRequestModeInstructions {
 	export function to(mode: IChatRequestModeInstructions | undefined): vscode.ChatRequestModeInstructions | undefined {
 		if (mode) {
 			return {
+				name: mode.name,
 				content: mode.content,
 				toolReferences: ChatLanguageModelToolReferences.to(mode.toolReferences),
 				metadata: mode.metadata
@@ -3535,18 +3541,18 @@ export namespace InlineCompletionEndOfLifeReason {
 	}
 }
 
-export namespace InlineCompletionDisplayLocationKind {
-	export function from(value: vscode.InlineCompletionDisplayLocationKind): types.InlineCompletionDisplayLocationKind {
+export namespace InlineCompletionHintStyle {
+	export function from(value: vscode.InlineCompletionDisplayLocationKind): languages.InlineCompletionHintStyle {
 		if (value === types.InlineCompletionDisplayLocationKind.Label) {
-			return types.InlineCompletionDisplayLocationKind.Label;
+			return languages.InlineCompletionHintStyle.Label;
 		} else {
-			return types.InlineCompletionDisplayLocationKind.Code;
+			return languages.InlineCompletionHintStyle.Code;
 		}
 	}
 
-	export function to(kind: languages.InlineCompletionDisplayLocationKind): types.InlineCompletionDisplayLocationKind {
+	export function to(kind: languages.InlineCompletionHintStyle): types.InlineCompletionDisplayLocationKind {
 		switch (kind) {
-			case languages.InlineCompletionDisplayLocationKind.Label:
+			case languages.InlineCompletionHintStyle.Label:
 				return types.InlineCompletionDisplayLocationKind.Label;
 			default:
 				return types.InlineCompletionDisplayLocationKind.Code;
@@ -3731,6 +3737,56 @@ export namespace LanguageModelToolResult2 {
 export namespace IconPath {
 	export function fromThemeIcon(iconPath: vscode.ThemeIcon): languages.IconPath {
 		return iconPath;
+	}
+
+	/**
+	 * Converts a {@link vscode.IconPath} to an {@link extHostProtocol.IconPathDto}.
+	 * @note This function will tolerate strings specified instead of URIs in IconPath for historical reasons.
+	 * Such strings are treated as file paths and converted using {@link URI.file} function, not {@link URI.from}.
+	 * See https://github.com/microsoft/vscode/issues/110432#issuecomment-726144556 for context.
+	 */
+	export function from(value: undefined): undefined;
+	export function from(value: vscode.IconPath): extHostProtocol.IconPathDto;
+	export function from(value: vscode.IconPath | undefined): extHostProtocol.IconPathDto | undefined;
+	export function from(value: vscode.IconPath | undefined): extHostProtocol.IconPathDto | undefined {
+		if (!value) {
+			return undefined;
+		} else if (ThemeIcon.isThemeIcon(value)) {
+			return value;
+		} else if (URI.isUri(value)) {
+			return value;
+		} else if (typeof value === 'string') {
+			return URI.file(value);
+		} else if (typeof value === 'object' && value !== null && 'dark' in value) {
+			const dark = typeof value.dark === 'string' ? URI.file(value.dark) : value.dark;
+			const light = typeof value.light === 'string' ? URI.file(value.light) : value.light;
+			return !dark ? undefined : { dark, light: light ?? dark };
+		} else {
+			return undefined;
+		}
+	}
+
+	/**
+	 * Converts a {@link extHostProtocol.IconPathDto} to a {@link vscode.IconPath}.
+	 * @note This is a strict conversion and we assume types are correct in this case.
+	 */
+	export function to(value: undefined): undefined;
+	export function to(value: extHostProtocol.IconPathDto): vscode.IconPath;
+	export function to(value: extHostProtocol.IconPathDto | undefined): vscode.IconPath | undefined;
+	export function to(value: extHostProtocol.IconPathDto | undefined): vscode.IconPath | undefined {
+		if (!value) {
+			return undefined;
+		} else if (ThemeIcon.isThemeIcon(value)) {
+			return value;
+		} else if (isUriComponents(value)) {
+			return URI.revive(value);
+		} else {
+			const icon = value as { light: UriComponents; dark: UriComponents };
+			return {
+				light: URI.revive(icon.light),
+				dark: URI.revive(icon.dark)
+			};
+		}
 	}
 }
 

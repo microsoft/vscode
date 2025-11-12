@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IExtensionTerminalProfile, ITerminalProfile } from '../../../../platform/terminal/common/terminal.js';
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { ColorScheme, isDark } from '../../../../platform/theme/common/theme.js';
 import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ITerminalInstance } from './terminal.js';
@@ -16,6 +16,7 @@ import { ITerminalProfileResolverService } from '../common/terminal.js';
 import { ansiColorMap } from '../common/terminalColorRegistry.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { isString } from '../../../../base/common/types.js';
 
 
 export function getColorClass(colorKey: string): string;
@@ -108,10 +109,10 @@ export function getUriClasses(terminal: ITerminalInstance | IExtensionTerminalPr
 		}
 	}
 
-	if (icon instanceof URI) {
+	if (URI.isUri(icon)) {
 		uri = icon;
-	} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
-		uri = colorScheme === ColorScheme.LIGHT ? icon.light : icon.dark;
+	} else if (!ThemeIcon.isThemeIcon(icon) && !isString(icon)) {
+		uri = isDark(colorScheme) ? icon.dark : icon.light;
 	}
 	if (uri instanceof URI) {
 		const uriIconKey = hash(uri.path).toString(36);
@@ -123,8 +124,11 @@ export function getUriClasses(terminal: ITerminalInstance | IExtensionTerminalPr
 }
 
 export function getIconId(accessor: ServicesAccessor, terminal: ITerminalInstance | IExtensionTerminalProfile | ITerminalProfile): string {
-	if (!terminal.icon || (terminal.icon instanceof Object && !('id' in terminal.icon))) {
-		return accessor.get(ITerminalProfileResolverService).getDefaultIcon().id;
+	if (isString(terminal.icon)) {
+		return terminal.icon;
 	}
-	return typeof terminal.icon === 'string' ? terminal.icon : terminal.icon.id;
+	if (ThemeIcon.isThemeIcon(terminal.icon)) {
+		return terminal.icon.id;
+	}
+	return accessor.get(ITerminalProfileResolverService).getDefaultIcon().id;
 }

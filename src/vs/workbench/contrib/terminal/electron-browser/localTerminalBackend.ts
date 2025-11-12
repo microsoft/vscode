@@ -300,7 +300,8 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId(),
-			tabs: layoutInfo ? layoutInfo.tabs : []
+			tabs: layoutInfo ? layoutInfo.tabs : [],
+			background: layoutInfo ? layoutInfo.background : null
 		};
 		await this._proxy.setTerminalLayoutInfo(args);
 		// Store in the storage service as well to be used when reviving processes as normally this
@@ -347,7 +348,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				}
 			} catch (e: unknown) {
-				this._logService.warn('LocalTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
+				this._logService.warn('LocalTerminalBackend#getTerminalLayoutInfo Error', (<{ message?: string }>e).message ?? e);
 			}
 		}
 

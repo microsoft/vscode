@@ -46,6 +46,7 @@ import { IInlineCompletionsService } from '../../../../editor/browser/services/i
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { AGENT_SESSIONS_VIEWLET_ID } from '../common/constants.js';
 
 const gaugeForeground = registerColor('gauge.foreground', {
 	dark: inputValidationInfoBorder,
@@ -99,7 +100,6 @@ registerColor('gauge.errorBackground', {
 //#endregion
 
 const defaultChat = {
-	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	completionsEnablementSetting: product.defaultChatAgent?.completionsEnablementSetting ?? '',
 	nextEditSuggestionsSetting: product.defaultChatAgent?.nextEditSuggestionsSetting ?? '',
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
@@ -181,7 +181,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	private getEntryProps(): IStatusbarEntry {
 		let text = '$(copilot)';
-		let ariaLabel = localize('chatStatus', "Copilot Status");
+		let ariaLabel = localize('chatStatusAria', "Copilot status");
 		let kind: StatusbarEntryKind | undefined;
 
 		if (isNewUser(this.chatEntitlementService)) {
@@ -194,7 +194,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				isProUser(entitlement) ||						// user is already pro
 				entitlement === ChatEntitlement.Free			// user is already free
 			) {
-				const finishSetup = localize('copilotLaterStatus', "Finish Setup");
+				const finishSetup = localize('finishSetup', "Finish Setup");
 
 				text = `$(copilot) ${finishSetup}`;
 				ariaLabel = finishSetup;
@@ -215,15 +215,15 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			else if (chatSessionsInProgressCount > 0) {
 				text = '$(copilot-in-progress)';
 				if (chatSessionsInProgressCount > 1) {
-					ariaLabel = localize('chatSessionsInProgressStatus', "{0} chat sessions in progress", chatSessionsInProgressCount);
+					ariaLabel = localize('chatSessionsInProgressStatus', "{0} agent sessions in progress", chatSessionsInProgressCount);
 				} else {
-					ariaLabel = localize('chatSessionInProgressStatus', "1 chat session in progress");
+					ariaLabel = localize('chatSessionInProgressStatus', "1 agent session in progress");
 				}
 			}
 
 			// Signed out
 			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
-				const signedOutWarning = localize('notSignedIntoCopilot', "Signed out");
+				const signedOutWarning = localize('notSignedIn', "Signed out");
 
 				text = `${this.chatEntitlementService.anonymous ? '$(copilot)' : '$(copilot-not-connected)'} ${signedOutWarning}`;
 				ariaLabel = signedOutWarning;
@@ -236,7 +236,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				if (chatQuotaExceeded && !completionsQuotaExceeded) {
 					quotaWarning = localize('chatQuotaExceededStatus', "Chat quota reached");
 				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-					quotaWarning = localize('completionsQuotaExceededStatus', "Completions quota reached");
+					quotaWarning = localize('completionsQuotaExceededStatus', "Inline suggestions quota reached");
 				} else {
 					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
 				}
@@ -249,13 +249,13 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			// Completions Disabled
 			else if (this.editorService.activeTextEditorLanguageId && !isCompletionsEnabled(this.configurationService, this.editorService.activeTextEditorLanguageId)) {
 				text = '$(copilot-unavailable)';
-				ariaLabel = localize('completionsDisabledStatus', "Code completions disabled");
+				ariaLabel = localize('completionsDisabledStatus', "Inline suggestions disabled");
 			}
 
 			// Completions Snoozed
 			else if (this.completionsService.isSnoozing()) {
 				text = '$(copilot-snooze)';
-				ariaLabel = localize('completionsSnoozedStatus', "Code completions snoozed");
+				ariaLabel = localize('completionsSnoozedStatus', "Inline suggestions snoozed");
 			}
 		}
 
@@ -281,18 +281,24 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 }
 
 function isNewUser(chatEntitlementService: IChatEntitlementService): boolean {
-	return !chatEntitlementService.sentiment.installed ||					// copilot not installed
-		chatEntitlementService.entitlement === ChatEntitlement.Available;	// not yet signed up to copilot
+	return !chatEntitlementService.sentiment.installed ||					// chat not installed
+		chatEntitlementService.entitlement === ChatEntitlement.Available;	// not yet signed up to chat
 }
 
-function canUseCopilot(chatEntitlementService: IChatEntitlementService): boolean {
-	const newUser = isNewUser(chatEntitlementService);
-	const disabled = chatEntitlementService.sentiment.disabled || chatEntitlementService.sentiment.untrusted;
-	const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-	const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
-	const allFreeQuotaReached = free && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0;
+function canUseChat(chatEntitlementService: IChatEntitlementService): boolean {
+	if (!chatEntitlementService.sentiment.installed || chatEntitlementService.sentiment.disabled || chatEntitlementService.sentiment.untrusted) {
+		return false; // chat not installed or not enabled
+	}
 
-	return !newUser && !signedOut && !allFreeQuotaReached && !disabled;
+	if (chatEntitlementService.entitlement === ChatEntitlement.Unknown || chatEntitlementService.entitlement === ChatEntitlement.Available) {
+		return chatEntitlementService.anonymous; // signed out or not-yet-signed-up users can only use Chat if anonymous access is allowed
+	}
+
+	if (chatEntitlementService.entitlement === ChatEntitlement.Free && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0) {
+		return false; // free user with no quota left
+	}
+
+	return true;
 }
 
 function isCompletionsEnabled(configurationService: IConfigurationService, modeId: string = '*'): boolean {
@@ -386,7 +392,7 @@ class ChatStatusDashboard extends Disposable {
 				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
 
-			const completionsQuotaIndicator = completionsQuota && (completionsQuota.total > 0 || completionsQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, completionsQuota, localize('completionsLabel', "Code completions"), false) : undefined;
+			const completionsQuotaIndicator = completionsQuota && (completionsQuota.total > 0 || completionsQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, completionsQuota, localize('completionsLabel', "Inline Suggestions"), false) : undefined;
 			const chatQuotaIndicator = chatQuota && (chatQuota.total > 0 || chatQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, chatQuota, localize('chatsLabel', "Chat messages"), false) : undefined;
 			const premiumChatQuotaIndicator = premiumChatQuota && (premiumChatQuota.total > 0 || premiumChatQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), true) : undefined;
 
@@ -395,7 +401,7 @@ class ChatStatusDashboard extends Disposable {
 			}
 
 			if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (Number(chatQuota?.percentRemaining) <= 25 || Number(completionsQuota?.percentRemaining) <= 25)) {
-				const upgradeProButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
+				const upgradeProButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: canUseChat(this.chatEntitlementService) /* use secondary color when chat can still be used */ }));
 				upgradeProButton.label = localize('upgradeToCopilotPro', "Upgrade to GitHub Copilot Pro");
 				disposables.add(upgradeProButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
 			}
@@ -423,7 +429,7 @@ class ChatStatusDashboard extends Disposable {
 		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed) {
 			addSeparator(localize('anonymousTitle', "Copilot Usage"));
 
-			this.createQuotaIndicator(this.element, disposables, localize('quotaDisabled', "Disabled"), localize('completionsLabel', "Code completions"), false); // TODO@bpasero revisit this in the future when Completions are supported
+			this.createQuotaIndicator(this.element, disposables, localize('quotaLimited', "Limited"), localize('completionsLabel', "Inline Suggestions"), false);
 			this.createQuotaIndicator(this.element, disposables, localize('quotaLimited', "Limited"), localize('chatsLabel', "Chat messages"), false);
 		}
 
@@ -435,12 +441,19 @@ class ChatStatusDashboard extends Disposable {
 				const inProgress = this.chatSessionsService.getInProgress();
 				if (inProgress.some(item => item.count > 0)) {
 
-					addSeparator(localize('chatSessionsTitle', "Chat Sessions"), toAction({
+					addSeparator(localize('chatAgentSessionsTitle', "Agent Sessions"), toAction({
 						id: 'workbench.view.chat.status.sessions',
-						label: localize('viewChatSessionsLabel', "View Chat Sessions"),
-						tooltip: localize('viewChatSessionsTooltip', "View Chat Sessions"),
+						label: localize('viewChatSessionsLabel', "View Agent Sessions"),
+						tooltip: localize('viewChatSessionsTooltip', "View Agent Sessions"),
 						class: ThemeIcon.asClassName(Codicon.eye),
-						run: () => this.runCommandAndClose('workbench.view.chat.sessions'),
+						run: () => {
+							// TODO@bpasero remove this check once settled
+							if (this.configurationService.getValue('chat.agentSessionsViewLocation') === 'single-view') {
+								this.runCommandAndClose('workbench.view.agentSessions');
+							} else {
+								this.runCommandAndClose(AGENT_SESSIONS_VIEWLET_ID);
+							}
+						}
 					}));
 
 					for (const { displayName, count } of inProgress) {
@@ -487,7 +500,7 @@ class ChatStatusDashboard extends Disposable {
 		// Settings
 		{
 			const chatSentiment = this.chatEntitlementService.sentiment;
-			addSeparator(localize('codeCompletions', "Code Completions"), chatSentiment.installed && !chatSentiment.disabled && !chatSentiment.untrusted ? toAction({
+			addSeparator(localize('inlineSuggestions', "Inline Suggestions"), chatSentiment.installed && !chatSentiment.disabled && !chatSentiment.untrusted ? toAction({
 				id: 'workbench.action.openChatSettings',
 				label: localize('settingsLabel', "Settings"),
 				tooltip: localize('settingsTooltip', "Open Settings"),
@@ -499,12 +512,12 @@ class ChatStatusDashboard extends Disposable {
 		}
 
 		// Completions Snooze
-		if (canUseCopilot(this.chatEntitlementService)) {
+		if (canUseChat(this.chatEntitlementService)) {
 			const snooze = append(this.element, $('div.snooze-completions'));
 			this.createCompletionsSnooze(snooze, localize('settings.snooze', "Snooze"), disposables);
 		}
 
-		// New to Copilot / Signed out
+		// New to Chat / Signed out
 		{
 			const newUser = isNewUser(this.chatEntitlementService);
 			const anonymousUser = this.chatEntitlementService.anonymous;
@@ -530,13 +543,13 @@ class ChatStatusDashboard extends Disposable {
 
 				let buttonLabel: string;
 				if (newUser) {
-					buttonLabel = localize('activateCopilotButton', "Set up Copilot");
+					buttonLabel = localize('enableAIFeatures', "Use AI Features");
 				} else if (anonymousUser) {
-					buttonLabel = localize('enableMoreCopilotButton', "Enable more AI Features");
+					buttonLabel = localize('enableMoreAIFeatures', "Enable more AI Features");
 				} else if (disabled) {
-					buttonLabel = localize('enableCopilotButton', "Enable Copilot");
+					buttonLabel = localize('enableCopilotButton', "Enable AI Features");
 				} else {
-					buttonLabel = localize('signInToUseCopilotButton', "Sign in to use Copilot");
+					buttonLabel = localize('signInToUseAIFeatures', "Sign in to use AI Features");
 				}
 
 				let commandId: string;
@@ -693,14 +706,14 @@ class ChatStatusDashboard extends Disposable {
 		const modeId = this.editorService.activeTextEditorLanguageId;
 		const settings = container.appendChild($('div.settings'));
 
-		// --- Code completions
+		// --- Inline Suggestions
 		{
 			const globalSetting = append(settings, $('div.setting'));
-			this.createCodeCompletionsSetting(globalSetting, localize('settings.codeCompletions.allFiles', "All files"), '*', disposables);
+			this.createInlineSuggestionsSetting(globalSetting, localize('settings.codeCompletions.allFiles', "All files"), '*', disposables);
 
 			if (modeId) {
 				const languageSetting = append(settings, $('div.setting'));
-				this.createCodeCompletionsSetting(languageSetting, localize('settings.codeCompletions.language', "{0}", this.languageService.getLanguageName(modeId) ?? modeId), modeId, disposables);
+				this.createInlineSuggestionsSetting(languageSetting, localize('settings.codeCompletions.language', "{0}", this.languageService.getLanguageName(modeId) ?? modeId), modeId, disposables);
 			}
 		}
 
@@ -714,7 +727,7 @@ class ChatStatusDashboard extends Disposable {
 	}
 
 	private createSetting(container: HTMLElement, settingIdsToReEvaluate: string[], label: string, accessor: ISettingsAccessor, disposables: DisposableStore): Checkbox {
-		const checkbox = disposables.add(new Checkbox(label, Boolean(accessor.readSetting()), { ...defaultCheckboxStyles, hoverDelegate: nativeHoverDelegate }));
+		const checkbox = disposables.add(new Checkbox(label, Boolean(accessor.readSetting()), { ...defaultCheckboxStyles }));
 		container.appendChild(checkbox.domNode);
 
 		const settingLabel = append(container, $('span.setting-label', undefined, label));
@@ -741,7 +754,7 @@ class ChatStatusDashboard extends Disposable {
 			}
 		}));
 
-		if (!canUseCopilot(this.chatEntitlementService)) {
+		if (!canUseChat(this.chatEntitlementService)) {
 			container.classList.add('disabled');
 			checkbox.disable();
 			checkbox.checked = false;
@@ -750,7 +763,7 @@ class ChatStatusDashboard extends Disposable {
 		return checkbox;
 	}
 
-	private createCodeCompletionsSetting(container: HTMLElement, label: string, modeId: string | undefined, disposables: DisposableStore): void {
+	private createInlineSuggestionsSetting(container: HTMLElement, label: string, modeId: string | undefined, disposables: DisposableStore): void {
 		this.createSetting(container, [defaultChat.completionsEnablementSetting], label, this.getCompletionsSettingAccessor(modeId), disposables);
 	}
 
@@ -803,7 +816,7 @@ class ChatStatusDashboard extends Disposable {
 
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(completionsSettingId)) {
-				if (completionsSettingAccessor.readSetting() && canUseCopilot(this.chatEntitlementService)) {
+				if (completionsSettingAccessor.readSetting() && canUseChat(this.chatEntitlementService)) {
 					checkbox.enable();
 					container.classList.remove('disabled');
 				} else {
@@ -840,10 +853,10 @@ class ChatStatusDashboard extends Disposable {
 
 			const timeLeftMs = this.inlineCompletionsService.snoozeTimeLeft;
 			if (!isEnabled || timeLeftMs <= 0) {
-				timerDisplay.textContent = localize('completions.snooze5minutesTitle', "Hide completions for 5 min");
+				timerDisplay.textContent = localize('completions.snooze5minutesTitle', "Hide suggestions for 5 min");
 				timerDisplay.title = '';
 				button.label = label;
-				button.setTitle(localize('completions.snooze5minutes', "Hide completions and NES for 5 min"));
+				button.setTitle(localize('completions.snooze5minutes', "Hide inline suggestions for 5 min"));
 				return true;
 			}
 
@@ -852,7 +865,7 @@ class ChatStatusDashboard extends Disposable {
 			const seconds = timeLeftSeconds % 60;
 
 			timerDisplay.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds} ${localize('completions.remainingTime', "remaining")}`;
-			timerDisplay.title = localize('completions.snoozeTimeDescription', "Completions are hidden for the remaining duration");
+			timerDisplay.title = localize('completions.snoozeTimeDescription', "Inline suggestions are hidden for the remaining duration");
 			button.label = localize('completions.plus5min', "+5 min");
 			button.setTitle(localize('completions.snoozeAdditional5minutes', "Snooze additional 5 min"));
 			toolbar.push([cancelAction], { icon: true, label: false });

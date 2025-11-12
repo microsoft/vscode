@@ -24,9 +24,11 @@
 	},
 	"include": [
 		"**/*.ts",
-		"**/*.js"
+		"**/*.js",
+		"**/*.mjs",
 	],
 	"exclude": [
-		"node_modules/**"
+		"node_modules/**",
+		"monaco-editor-playground/**"
 	]
 }

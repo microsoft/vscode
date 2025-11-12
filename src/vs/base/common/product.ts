@@ -212,6 +212,7 @@ export interface IProductConfiguration {
 			readonly id: string;
 			readonly enterpriseProviderId: string;
 			readonly enterpriseProviderConfig: string;
+			readonly enterpriseProviderUriSetting: string;
 			readonly scopes: string[];
 		};
 		readonly tokenEntitlementUrl: string;

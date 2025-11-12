@@ -1,4 +1,8 @@
 "use strict";
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -37,10 +41,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.extractEditor = extractEditor;
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const tss = __importStar(require("./treeshaking"));
@@ -85,8 +85,11 @@ function extractEditor(options) {
     const result = tss.shake(options);
     for (const fileName in result) {
         if (result.hasOwnProperty(fileName)) {
+            let fileContents = result[fileName];
+            // Replace .ts? with .js? in new URL() patterns
+            fileContents = fileContents.replace(/(new\s+URL\s*\(\s*['"`][^'"`]*?)\.ts(\?[^'"`]*['"`])/g, '$1.js$2');
             const relativePath = path_1.default.relative(options.sourcesRoot, fileName);
-            writeFile(path_1.default.join(options.destRoot, relativePath), result[fileName]);
+            writeFile(path_1.default.join(options.destRoot, relativePath), fileContents);
         }
     }
     const copied = {};
