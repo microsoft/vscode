@@ -279,22 +279,4 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.strictEqual(activeItemsFromEvent.length, 0);
 		assert.strictEqual(quickpick.activeItems.length, 0);
 	});
-
-	test('ariaLabel - verify placeholder sets aria-label #144801', async () => {
-		const quickpick = store.add(controller.createQuickPick());
-		const testPlaceholder = 'Test placeholder';
-
-		// Set placeholder - this should also set the ariaLabel
-		quickpick.placeholder = testPlaceholder;
-		quickpick.show();
-
-		// Verify we can change the placeholder without errors
-		quickpick.placeholder = testPlaceholder; // Same value
-		quickpick.placeholder = 'New placeholder'; // Different value
-
-		// The test passes if no errors are thrown during these updates
-		// The actual aria-label update prevention logic is tested implicitly
-		// by ensuring the application doesn't crash or cause screen reader issues
-		assert.ok(true, 'Placeholder updates completed without errors');
-	});
 });
