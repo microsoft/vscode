@@ -24,7 +24,7 @@ import tsb from './lib/tsb/index.js';
 import sourcemaps from 'gulp-sourcemaps';
 import { fileURLToPath } from 'url';
 
-const __dirname = import.meta.dirname
+const __dirname = import.meta.dirname;
 const { getVersion } = getVersionModule;
 const { createReporter } = reporterModule;
 const root = path.dirname(__dirname);
