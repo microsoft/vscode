@@ -15,6 +15,7 @@ import { basename } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -45,6 +46,7 @@ import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineF
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
 import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
+import { CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES } from '../../../../chat/common/constants.js';
 import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';
 import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
 import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
@@ -460,6 +462,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}
+		const commandId = toolSpecificData.terminalCommandId;
 		if (toolSpecificData.alternativeRecommendation) {
 			return {
 				content: [{
@@ -528,7 +531,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-				const commandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId, commandId);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
@@ -539,6 +541,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
+
+				await this._captureCommandArtifacts(toolSpecificData, toolTerminal.instance, commandId, pollingResult?.output);
 
 				let resultText = (
 					didUserEditCommand
@@ -627,13 +631,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context, token, command));
 					}
 				}));
-				const commandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
 				const executeResult = await strategy.execute(command, token, commandId);
 				// Reset user input state after command execution completes
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
+
+				await this._captureCommandArtifacts(toolSpecificData, toolTerminal.instance, commandId, executeResult.output);
 
 				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
 				outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
@@ -761,6 +766,69 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._register(toolTerminal.instance.onDisposed(() => disposable.dispose()));
 	}
 
+
+	// #endregion
+
+	// #region Command serialization
+
+	private _createTerminalCommandUri(instance: ITerminalInstance, commandId: string): URI {
+		const params = new URLSearchParams(instance.resource.query);
+		params.set('command', commandId);
+		return instance.resource.with({ query: params.toString() });
+	}
+
+	private async _captureCommandArtifacts(
+		toolSpecificData: IChatTerminalToolInvocationData,
+		instance: ITerminalInstance,
+		commandId: string | undefined,
+		fallbackOutput?: string
+	): Promise<void> {
+		if (commandId) {
+			try {
+				toolSpecificData.terminalCommandUri = this._createTerminalCommandUri(instance, commandId);
+			} catch (error) {
+				this._logService.warn(`RunInTerminalTool: Failed to create terminal command URI for ${commandId}`, error);
+			}
+			const serialized = await this._tryGetSerializedCommandOutput(instance, commandId);
+			if (serialized) {
+				toolSpecificData.terminalCommandOutput = { text: serialized.text, truncated: serialized.truncated };
+				const theme = instance.xterm?.getXtermTheme();
+				if (theme) {
+					toolSpecificData.terminalTheme = { background: theme.background, foreground: theme.foreground };
+				}
+				return;
+			}
+		}
+
+		if (fallbackOutput !== undefined) {
+			const normalized = fallbackOutput.replace(/\r\n/g, '\n');
+			toolSpecificData.terminalCommandOutput = { text: normalized, truncated: false };
+			const theme = instance.xterm?.getXtermTheme();
+			if (theme) {
+				toolSpecificData.terminalTheme = { background: theme.background, foreground: theme.foreground };
+			}
+		}
+	}
+
+	private async _tryGetSerializedCommandOutput(instance: ITerminalInstance, commandId: string): Promise<{ text: string; truncated?: boolean } | undefined> {
+		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
+		const command = commandDetection?.commands.find(c => c.id === commandId);
+		if (!command?.endMarker) {
+			return undefined;
+		}
+
+		const xterm = await instance.xtermReadyPromise;
+		if (!xterm) {
+			return undefined;
+		}
+
+		try {
+			return await xterm.getCommandOutputAsHtml(command, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
+		} catch (error) {
+			this._logService.warn(`RunInTerminalTool: Failed to serialize command output for ${commandId}`, error);
+			return undefined;
+		}
+	}
 
 	// #endregion
 
