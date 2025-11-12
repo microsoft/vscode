@@ -934,11 +934,11 @@ export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilter
 	}
 }
 
-export interface IWorkbenchDataTreeOptionsUpdate<T> extends IAbstractTreeOptionsUpdate<T | null> {
+export interface IWorkbenchDataTreeOptionsUpdate<T> extends IAbstractTreeOptionsUpdate<T> {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 }
 
-export interface IWorkbenchDataTreeOptions<T, TFilterData> extends IWorkbenchDataTreeOptionsUpdate<T>, IDataTreeOptions<T | null, TFilterData>, IResourceNavigatorOptions {
+export interface IWorkbenchDataTreeOptions<T, TFilterData> extends IWorkbenchDataTreeOptionsUpdate<T>, IDataTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
 	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly selectionNavigation?: boolean;
 }
@@ -981,11 +981,11 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 	}
 }
 
-export interface IWorkbenchAsyncDataTreeOptionsUpdate<T> extends IAsyncDataTreeOptionsUpdate<T | null> {
+export interface IWorkbenchAsyncDataTreeOptionsUpdate<T> extends IAsyncDataTreeOptionsUpdate<T> {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 }
 
-export interface IWorkbenchAsyncDataTreeOptions<T, TFilterData> extends IWorkbenchAsyncDataTreeOptionsUpdate<T>, IAsyncDataTreeOptions<T | null, TFilterData>, IResourceNavigatorOptions {
+export interface IWorkbenchAsyncDataTreeOptions<T, TFilterData> extends IWorkbenchAsyncDataTreeOptionsUpdate<T>, IAsyncDataTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
 	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly selectionNavigation?: boolean;
 }
