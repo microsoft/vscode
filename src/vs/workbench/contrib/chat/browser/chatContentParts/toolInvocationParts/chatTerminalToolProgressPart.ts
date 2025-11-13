@@ -322,7 +322,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 		let showOutputAction = this._showOutputAction.value;
 		if (!showOutputAction) {
-			showOutputAction = this._instantiationService.createInstance(ToggleChatTerminalOutputAction, () => this.toggleOutputAndFocus());
+			showOutputAction = this._instantiationService.createInstance(ToggleChatTerminalOutputAction, () => this._toggleOutputFromAction());
 			this._showOutputAction.value = showOutputAction;
 			if (command?.exitCode) {
 				this._toggleOutput(true);
@@ -473,21 +473,21 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 	}
 
-	public async expandOutputAndFocus(): Promise<void> {
+	public async toggleOutputFromKeyboard(): Promise<void> {
 		if (!this._outputView.isExpanded) {
 			await this._toggleOutput(true);
-		} else {
-			await this._outputView.ensureRendered();
-		}
-		this.focusOutput();
-	}
-
-	public async toggleOutputAndFocus(): Promise<void> {
-		if (this._outputView.isExpanded) {
-			await this._collapseOutputAndFocusInput();
+			this.focusOutput();
 			return;
 		}
-		await this.expandOutputAndFocus();
+		await this._collapseOutputAndFocusInput();
+	}
+
+	private async _toggleOutputFromAction(): Promise<void> {
+		if (!this._outputView.isExpanded) {
+			await this._toggleOutput(true);
+			return;
+		}
+		await this._toggleOutput(false);
 	}
 
 	private async _collapseOutputAndFocusInput(): Promise<void> {
@@ -836,7 +836,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!part) {
 			return;
 		}
-		await part.toggleOutputAndFocus();
+		await part.toggleOutputFromKeyboard();
 	}
 });
 
@@ -892,6 +892,7 @@ CommandsRegistry.registerCommand(openTerminalSettingsLinkCommandId, async (acces
 		}
 	}
 });
+
 
 class ToggleChatTerminalOutputAction extends Action implements IAction {
 	private _expanded = false;

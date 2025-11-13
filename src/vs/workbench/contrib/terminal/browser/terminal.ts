@@ -109,8 +109,8 @@ export interface ITerminalInstanceService {
 export interface IChatTerminalToolProgressPart {
 	readonly elementIndex: number;
 	readonly contentIndex: number;
-	toggleOutputAndFocus(): Promise<void>;
 	focusTerminal(): Promise<void>;
+	toggleOutputFromKeyboard(): Promise<void>;
 	focusOutput(): void;
 	getCommandAndOutputAsText(): string | undefined;
 }
