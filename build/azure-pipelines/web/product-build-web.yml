@@ -116,6 +116,18 @@ jobs:
       - script: node build/azure-pipelines/distro/mixin-quality
         displayName: Mixin distro quality
 
+      - script: |
+          set -e
+          if [ "$VSCODE_QUALITY" = "insider" ] || [ "$VSCODE_QUALITY" = "exploration" ]; then
+            node build/azure-pipelines/common/apply-patch-version.js $VSCODE_PATCH_VERSION
+          else
+            echo "Skipping patch version update for quality: $VSCODE_QUALITY"
+          fi
+        displayName: Apply auto-incremented patch version
+        env:
+          VSCODE_QUALITY: $(VSCODE_QUALITY)
+          VSCODE_PATCH_VERSION: $(VSCODE_PATCH_VERSION)
+
       - template: ../common/install-builtin-extensions.yml@self
 
       - script: |

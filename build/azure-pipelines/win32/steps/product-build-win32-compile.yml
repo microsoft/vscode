@@ -117,6 +117,17 @@ steps:
   - powershell: node build/azure-pipelines/distro/mixin-quality
     displayName: Mixin distro quality
 
+  - powershell: |
+      if ($env:VSCODE_QUALITY -eq "insider" -or $env:VSCODE_QUALITY -eq "exploration") {
+        node build/azure-pipelines/common/apply-patch-version.js $env:VSCODE_PATCH_VERSION
+      } else {
+        Write-Host "Skipping patch version update for quality: $env:VSCODE_QUALITY"
+      }
+    displayName: Apply auto-incremented patch version
+    env:
+      VSCODE_QUALITY: $(VSCODE_QUALITY)
+      VSCODE_PATCH_VERSION: $(VSCODE_PATCH_VERSION)
+
   - template: ../../common/install-builtin-extensions.yml@self
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
