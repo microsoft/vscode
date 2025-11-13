@@ -445,6 +445,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			prepared = await preparePromise;
 		}
 
+		// TODO: If the user has _previously_ auto-approved this tool, I don't think we make it to this check.
 		const isEligibleForAutoApproval = this.isToolEligibleForAutoApproval(tool.data);
 
 		// Default confirmation messages if tool is not eligible for auto-approval
