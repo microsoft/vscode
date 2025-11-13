@@ -699,15 +699,15 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const commands = commandDetection?.commands;
 		const xterm = await terminalInstance?.xtermReadyPromise;
 		if (!commands || commands.length === 0 || !terminalInstance || !xterm) {
-			return undefined;
+			return;
 		}
 		const commandId = this._terminalData.terminalCommandId ?? this._getStoredCommandId();
 		if (!commandId) {
-			return undefined;
+			return;
 		}
 		const command = commands.find(c => c.id === commandId);
 		if (!command?.endMarker) {
-			return undefined;
+			return;
 		}
 		const result = await xterm.getCommandOutputAsHtml(command, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
 		return { text: result.text, truncated: result.truncated ?? false };
@@ -716,7 +716,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _getStoredCommandOutput(): { text: string; truncated: boolean } | undefined {
 		const stored = this._terminalData.terminalCommandOutput;
 		if (!stored?.text) {
-			return undefined;
+			return;
 		}
 		return {
 			text: stored.text,
