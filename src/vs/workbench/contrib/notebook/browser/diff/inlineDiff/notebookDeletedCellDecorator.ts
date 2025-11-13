@@ -21,6 +21,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { overviewRulerDeletedForeground } from '../../../../scm/common/quickDiff.js';
+import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 
 const ttPolicy = createTrustedTypesPolicy('notebookRenderer', { createHTML: value => value });
 
@@ -228,6 +229,16 @@ export class NotebookDeletedCellWidget extends Disposable {
 				telemetrySource: this._toolbarOptions.telemetrySource,
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				toolbarOptions: { primaryGroup: () => true },
+				actionViewItemProvider: (action, options) => {
+					if (action.id === 'chatEditor.action.acceptHunk' || action.id === 'chatEditor.action.undoHunk') {
+						return new class extends ActionViewItem {
+							constructor() {
+								super(undefined, action, { ...options, keybindingNotRenderedWithLabel: true, icon: false, label: true });
+							}
+						};
+					}
+					return undefined;
+				},
 				menuOptions: {
 					renderShortTitle: true,
 					arg: this._toolbarOptions.argFactory(this._originalIndex),
