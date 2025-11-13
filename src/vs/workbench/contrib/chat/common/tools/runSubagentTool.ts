@@ -15,7 +15,6 @@ import { IChatAgentRequest, IChatAgentService } from '../chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../chatModel.js';
 import { IChatModeService } from '../chatModes.js';
 import { IChatProgress, IChatService } from '../chatService.js';
-import { LocalChatSessionUri } from '../chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../languageModels.js';
 import {
@@ -115,7 +114,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		}
 
 		// Get the chat model and request for writing progress
-		const model = this.chatService.getSession(LocalChatSessionUri.forSession(invocation.context.sessionId)) as ChatModel | undefined;
+		const model = this.chatService.getSession(invocation.context.sessionResource) as ChatModel | undefined;
 		if (!model) {
 			throw new Error('Chat model not found for session');
 		}

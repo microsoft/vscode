@@ -63,8 +63,6 @@ export interface IChatSetCheckpointEvent {
 
 export interface IChatViewModel {
 	readonly model: IChatModel;
-	/** @deprecated Use {@link sessionResource} instead */
-	readonly sessionId: string;
 	readonly sessionResource: URI;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
@@ -262,11 +260,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	resetInputPlaceholder(): void {
 		this._inputPlaceholder = undefined;
 		this._onDidChange.fire({ kind: 'changePlaceholder' });
-	}
-
-	/** @deprecated Use {@link sessionResource} instead */
-	get sessionId() {
-		return this._model.sessionId;
 	}
 
 	get sessionResource(): URI {

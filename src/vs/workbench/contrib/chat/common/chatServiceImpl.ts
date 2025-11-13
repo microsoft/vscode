@@ -461,10 +461,6 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.get(sessionResource);
 	}
 
-	getSessionByLegacyId(sessionId: string): IChatModel | undefined {
-		return Array.from(this._sessionModels.values()).find(session => session.sessionId === sessionId);
-	}
-
 	async getOrRestoreSession(sessionResource: URI): Promise<ChatModel | undefined> {
 		this.trace('getOrRestoreSession', `${sessionResource}`);
 		const model = this._sessionModels.get(sessionResource);
