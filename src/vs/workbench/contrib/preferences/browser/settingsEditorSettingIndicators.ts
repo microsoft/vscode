@@ -480,7 +480,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					...this.defaultHoverOptions,
 					content,
 					linkHandler: (url: string) => {
-						const [scope, language] = SettingScopeLink.parse(url)?.split(':');
+						const [scope, language] = SettingScopeLink.parse(url).split(':');
 						onDidClickOverrideElement.fire({
 							settingKey: element.setting.key,
 							scope: scope as ScopeString,
