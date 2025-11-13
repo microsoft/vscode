@@ -1749,6 +1749,10 @@ export interface IEditorFindOptions {
 	 * Controls how the replace widget search history should be stored
 	 */
 	replaceHistory?: 'never' | 'workspace';
+	/**
+	 * Controls the maximum time in milliseconds a find operation can take before being timed out. A value of `-1` means no timeout.
+	 */
+	timeoutPeriod?: number;
 }
 
 /**
@@ -1769,6 +1773,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			loop: true,
 			history: 'workspace',
 			replaceHistory: 'workspace',
+			timeoutPeriod: -1,
 		};
 		super(
 			EditorOption.find, 'find', defaults,
@@ -1841,6 +1846,11 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 					default: defaults.findOnType,
 					description: nls.localize('find.findOnType', "Controls whether the Find Widget should search as you type.")
 				},
+				'editor.find.timeoutPeriod': {
+					type: 'number',
+					default: defaults.timeoutPeriod,
+					markdownDescription: nls.localize('find.timeoutPeriod', "Controls the maximum time in milliseconds a find operation can take before being timed out. A value of `-1` means no timeout.")
+				},
 			}
 		);
 	}
@@ -1864,6 +1874,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			loop: boolean(input.loop, this.defaultValue.loop),
 			history: stringSet<'never' | 'workspace'>(input.history, this.defaultValue.history, ['never', 'workspace']),
 			replaceHistory: stringSet<'never' | 'workspace'>(input.replaceHistory, this.defaultValue.replaceHistory, ['never', 'workspace']),
+			timeoutPeriod: EditorIntOption.clampedInt(input.timeoutPeriod, this.defaultValue.timeoutPeriod, -1, 2147483647),
 		};
 	}
 }

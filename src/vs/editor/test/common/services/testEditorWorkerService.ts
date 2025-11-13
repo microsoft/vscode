@@ -13,6 +13,9 @@ import { SectionHeader } from '../../../common/services/findSectionHeaders.js';
 import { StringEdit } from '../../../common/core/edits/stringEdit.js';
 
 export class TestEditorWorkerService implements IEditorWorkerService {
+	performRegexSearch(text: string, regexSource: string, regexFlags: string, timeoutMs: number): Promise<RegExpExecArray[] | null> {
+		throw new Error('Method not implemented.');
+	}
 
 	declare readonly _serviceBrand: undefined;
 

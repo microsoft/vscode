@@ -244,6 +244,11 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		return worker.$computeDefaultDocumentColors(uri.toString());
 	}
 
+	public async performRegexSearch(text: string, regexSource: string, regexFlags: string, timeoutMs: number): Promise<RegExpExecArray[] | null> {
+		const worker = await this._workerWithResources([]);
+		return worker.$performRegexSearch(text, regexSource, regexFlags, timeoutMs);
+	}
+
 	private async _workerWithResources(resources: URI[], forceLargeModels: boolean = false): Promise<Proxied<EditorWorker>> {
 		const worker = await this._workerManager.withWorker();
 		return await worker.workerWithSyncedResources(resources, forceLargeModels);

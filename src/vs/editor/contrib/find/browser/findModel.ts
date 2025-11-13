@@ -208,26 +208,66 @@ export class FindModelBoundToEditorModel {
 			});
 		}
 
-		const findMatches = this._findMatches(findScopes, false, MATCHES_LIMIT);
-		this._decorations.set(findMatches, findScopes);
+		const timeoutPeriod = this._editor.getOption(EditorOption.find).timeoutPeriod;
+		if (timeoutPeriod > -1) {
+			let searchPromise = new Promise<FindMatch[]>((resolve) => {
+				setTimeout(() => {
+					const matches = this._findMatches(findScopes, false, MATCHES_LIMIT);
+					resolve(matches);
+				}, 0);
+			});
 
-		const editorSelection = this._editor.getSelection();
-		let currentMatchesPosition = this._decorations.getCurrentMatchesPosition(editorSelection);
-		if (currentMatchesPosition === 0 && findMatches.length > 0) {
-			// current selection is not on top of a match
-			// try to find its nearest result from the top of the document
-			const matchAfterSelection = findFirstIdxMonotonousOrArrLen(findMatches.map(match => match.range), range => Range.compareRangesUsingStarts(range, editorSelection) >= 0);
-			currentMatchesPosition = matchAfterSelection > 0 ? matchAfterSelection - 1 + 1 /** match position is one based */ : currentMatchesPosition;
-		}
+			const timeoutPromise = new Promise<FindMatch[]>((resolve) => {
+				setTimeout(() => {
+					resolve([]); // Return empty results on timeout
+				}, timeoutPeriod);
+			});
 
-		this._state.changeMatchInfo(
-			currentMatchesPosition,
-			this._decorations.getCount(),
-			undefined
-		);
+			Promise.race([searchPromise, timeoutPromise]).then((findMatches) => {
+				this._decorations.set(findMatches, findScopes);
+				searchPromise = new Promise<any>(() => { });
 
-		if (moveCursor && this._editor.getOption(EditorOption.find).cursorMoveOnType) {
-			this._moveToNextMatch(this._decorations.getStartPosition());
+				const editorSelection = this._editor.getSelection();
+				let currentMatchesPosition = this._decorations.getCurrentMatchesPosition(editorSelection);
+				if (currentMatchesPosition === 0 && findMatches.length > 0) {
+					// current selection is not on top of a match
+					// try to find its nearest result from the top of the document
+					const matchAfterSelection = findFirstIdxMonotonousOrArrLen(findMatches.map(match => match.range), range => Range.compareRangesUsingStarts(range, editorSelection) >= 0);
+					currentMatchesPosition = matchAfterSelection > 0 ? matchAfterSelection - 1 + 1 /** match position is one based */ : currentMatchesPosition;
+				}
+
+				this._state.changeMatchInfo(
+					currentMatchesPosition,
+					this._decorations.getCount(),
+					undefined
+				);
+
+				if (moveCursor && this._editor.getOption(EditorOption.find).cursorMoveOnType) {
+					this._moveToNextMatch(this._decorations.getStartPosition());
+				}
+			});
+		} else {
+			const findMatches = this._findMatches(findScopes, false, MATCHES_LIMIT);
+			this._decorations.set(findMatches, findScopes);
+
+			const editorSelection = this._editor.getSelection();
+			let currentMatchesPosition = this._decorations.getCurrentMatchesPosition(editorSelection);
+			if (currentMatchesPosition === 0 && findMatches.length > 0) {
+				// current selection is not on top of a match
+				// try to find its nearest result from the top of the document
+				const matchAfterSelection = findFirstIdxMonotonousOrArrLen(findMatches.map(match => match.range), range => Range.compareRangesUsingStarts(range, editorSelection) >= 0);
+				currentMatchesPosition = matchAfterSelection > 0 ? matchAfterSelection - 1 + 1 /** match position is one based */ : currentMatchesPosition;
+			}
+
+			this._state.changeMatchInfo(
+				currentMatchesPosition,
+				this._decorations.getCount(),
+				undefined
+			);
+
+			if (moveCursor && this._editor.getOption(EditorOption.find).cursorMoveOnType) {
+				this._moveToNextMatch(this._decorations.getStartPosition());
+			}
 		}
 	}
 

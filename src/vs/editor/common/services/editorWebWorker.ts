@@ -510,6 +510,50 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 		return result;
 	}
 
+	// ---- BEGIN regex search in worker --------------------------------------------------------------------------
+
+	public async $performRegexSearch(text: string, regexSource: string, regexFlags: string, timeoutMs: number): Promise<RegExpExecArray[] | null> {
+		const startTime = Date.now();
+		const results: RegExpExecArray[] = [];
+
+		try {
+			const regex = new RegExp(regexSource, regexFlags);
+			let match: RegExpExecArray | null;
+
+			while ((match = regex.exec(text)) !== null) {
+				// Check timeout
+				if (Date.now() - startTime > timeoutMs) {
+					// Timeout reached, return null to indicate search was aborted
+					return null;
+				}
+
+				// Store match data (need to create a new array as RegExpExecArray is reused)
+				const matchData: RegExpExecArray = Array.from(match) as RegExpExecArray;
+				matchData.index = match.index;
+				matchData.input = match.input;
+				matchData.groups = match.groups;
+				results.push(matchData);
+
+				// Prevent infinite loops on zero-length matches
+				if (match[0].length === 0) {
+					regex.lastIndex++;
+				}
+
+				// Limit results to prevent memory issues
+				if (results.length > 10000) {
+					break;
+				}
+			}
+
+			return results;
+		} catch (err) {
+			// Invalid regex or execution error
+			return null;
+		}
+	}
+
+	// ---- END regex search in worker --------------------------------------------------------------------------
+
 	// ---- BEGIN foreign module support --------------------------------------------------------------------------
 
 	// foreign method request

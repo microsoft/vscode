@@ -491,13 +491,20 @@ export function isValidMatch(wordSeparators: WordCharacterClassifier, text: stri
 	);
 }
 
+/**
+ * Searcher performs regex search operations.
+ *
+ * **Important**: For user-provided regex patterns that could cause ReDoS (Regular Expression Denial of Service) attacks,
+ * consider using `IEditorWorkerService.performRegexSearch()` which executes the regex in a worker thread with timeout protection.
+ * This synchronous Searcher is suitable for trusted/internal regex patterns only.
+ */
 export class Searcher {
 	public readonly _wordSeparators: WordCharacterClassifier | null;
 	private readonly _searchRegex: RegExp;
 	private _prevMatchStartIndex: number;
 	private _prevMatchLength: number;
 
-	constructor(wordSeparators: WordCharacterClassifier | null, searchRegex: RegExp,) {
+	constructor(wordSeparators: WordCharacterClassifier | null, searchRegex: RegExp) {
 		this._wordSeparators = wordSeparators;
 		this._searchRegex = searchRegex;
 		this._prevMatchStartIndex = -1;
@@ -520,6 +527,10 @@ export class Searcher {
 				return null;
 			}
 
+			// NOTE: For user-provided regex patterns, this exec() call can cause ReDoS attacks.
+			// Consider using IEditorWorkerService.performRegexSearch() which executes regex in a
+			// worker thread with timeout protection. See REGEX_WORKER_USAGE.md for details.
+			// This synchronous method is suitable for trusted/internal patterns only.
 			m = this._searchRegex.exec(text);
 			if (!m) {
 				return null;

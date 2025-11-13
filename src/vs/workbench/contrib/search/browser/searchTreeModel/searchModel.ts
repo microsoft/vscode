@@ -179,7 +179,6 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 
 		const syncResults = textResult.syncResults.results;
 		syncResults.forEach(p => { if (p) { syncGenerateOnProgress(p); } });
-
 		const getAsyncResults = async (): Promise<ISearchComplete> => {
 			const searchStart = Date.now();
 
@@ -197,9 +196,9 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 			this.logService.trace(`whole search time | ${searchLength}ms`);
 			return resolvedResult;
 		};
+
 		return {
-			asyncResults: getAsyncResults()
-				.finally(() => tokenSource.dispose(true)),
+			asyncResults: getAsyncResults().finally(() => tokenSource.dispose(true)),
 			syncResults
 		};
 	}

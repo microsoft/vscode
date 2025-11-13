@@ -4241,6 +4241,10 @@ declare namespace monaco.editor {
 		 * Controls whether the search result and diff result automatically restarts from the beginning (or the end) when no further matches can be found
 		 */
 		loop?: boolean;
+		/**
+		 * Controls the maximum time in milliseconds a find operation can take before being timed out. A value of `-1` means no timeout.
+		 */
+		timeoutPeriod?: number;
 	}
 
 	export type GoToLocationValues = 'peek' | 'gotoAndPeek' | 'goto';

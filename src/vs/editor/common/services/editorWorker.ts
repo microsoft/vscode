@@ -45,6 +45,12 @@ export interface IEditorWorkerService {
 
 	computeDefaultDocumentColors(uri: URI): Promise<IColorInformation[] | null>;
 
+	/**
+	 * Perform regex search on text in the worker thread to prevent ReDoS attacks.
+	 * Returns match results or null if timeout occurs.
+	 */
+	performRegexSearch(text: string, regexSource: string, regexFlags: string, timeoutMs: number): Promise<RegExpExecArray[] | null>;
+
 }
 
 export interface IDiffComputationResult {
