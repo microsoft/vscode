@@ -7,7 +7,6 @@ import { $, getWindow } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -33,7 +32,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
-import { IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
+import { IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
@@ -260,15 +259,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		// Handle locking for contributed chat sessions
-		if (sessionId.scheme === Schemas.vscodeLocalChatSession) {
-			const parsed = LocalChatSessionUri.parse(sessionId);
-			if (parsed?.chatSessionType) {
-				await this.chatSessionsService.canResolveChatSession(sessionId);
-				const contributions = this.chatSessionsService.getAllChatSessionContributions();
-				const contribution = contributions.find((c: IChatSessionsExtensionPoint) => c.type === parsed.chatSessionType);
-				if (contribution) {
-					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
-				}
+		// TODO: Is this logic still correct with sessions from different schemes?
+		const local = LocalChatSessionUri.parseLocalSessionId(sessionId);
+		if (local) {
+			await this.chatSessionsService.canResolveChatSession(sessionId);
+			const contributions = this.chatSessionsService.getAllChatSessionContributions();
+			const contribution = contributions.find((c: IChatSessionsExtensionPoint) => c.type === localChatSessionType);
+			if (contribution) {
+				this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
 			}
 		}
 

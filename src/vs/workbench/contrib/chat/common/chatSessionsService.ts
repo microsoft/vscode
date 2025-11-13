@@ -59,8 +59,6 @@ export interface IChatSessionsExtensionPoint {
 	readonly commands?: IChatSessionCommandContribution[];
 }
 export interface IChatSessionItem {
-	/** @deprecated Use {@link resource} instead */
-	id?: string;
 	resource: URI;
 	label: string;
 	iconPath?: ThemeIcon;
@@ -76,7 +74,7 @@ export interface IChatSessionItem {
 		insertions: number;
 		deletions: number;
 	};
-
+	archived?: boolean;
 }
 
 export type IChatSessionHistoryItem = {

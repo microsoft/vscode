@@ -148,7 +148,7 @@ const compileCliTask = task.define('compile-cli', () => {
 
 const watchCliTask = task.define('watch-cli', () => {
 	warnIfRustNotInstalled();
-	return watcher(`${src}/**`, { read: false })
+	return watcher.default(`${src}/**`, { read: false })
 		.pipe(debounce(compileCliTask));
 });
 

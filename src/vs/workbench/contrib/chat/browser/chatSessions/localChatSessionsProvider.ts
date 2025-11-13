@@ -6,6 +6,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -24,7 +25,7 @@ import { ChatSessionItemWithProvider, isChatSession } from './common.js';
 export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.localChatSessionsProvider';
 	static readonly CHAT_WIDGET_VIEW_ID = 'workbench.panel.chat.view.copilot';
-	static readonly HISTORY_NODE_ID = 'show-history';
+	static readonly CHAT_WIDGET_VIEW_RESOURCE = URI.parse(`${Schemas.vscodeLocalChatSession}://widget`);
 	readonly chatSessionType = localChatSessionType;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -195,8 +196,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			.find(widget => typeof widget.viewContext === 'object' && 'viewId' in widget.viewContext && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
 		const status = chatWidget?.viewModel?.model ? this.modelToStatus(chatWidget.viewModel.model) : undefined;
 		const widgetSession: ChatSessionItemWithProvider = {
-			id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
-			resource: URI.parse(`${Schemas.vscodeLocalChatSession}://widget`),
+			resource: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE,
 			label: chatWidget?.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat").value,
 			description: nls.localize('chat.sessions.chatView.description', "Chat View"),
 			iconPath: Codicon.chatSparkle,
@@ -213,7 +213,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 				// Determine status and timestamp for editor-based session
 				let status: ChatSessionStatus | undefined;
 				let startTime: number | undefined;
-				if (editorInfo.editor instanceof ChatEditorInput && editorInfo.editor.sessionResource && editorInfo.editor.sessionId) {
+				if (editorInfo.editor instanceof ChatEditorInput && editorInfo.editor.sessionResource) {
 					const model = this.chatService.getSession(editorInfo.editor.sessionResource);
 					if (model) {
 						status = this.modelToStatus(model);
@@ -227,7 +227,6 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 						}
 					}
 					const editorSession: ChatSessionItemWithProvider = {
-						id: editorInfo.editor.sessionId,
 						resource: editorInfo.editor.resource,
 						label: editorInfo.editor.getName(),
 						iconPath: Codicon.chatSparkle,
@@ -241,16 +240,30 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 				}
 			}
 		});
+		const history = await this.getHistoryItems();
+		const existingIds = new ResourceSet(sessions.map(s => s.resource));
+		sessions.push(...history.filter(h => !existingIds.has(h.resource)));
+		return sessions;
+	}
 
-		// TODO: This should not be a session items
-		const historyNode: IChatSessionItem = {
-			id: LocalChatSessionsProvider.HISTORY_NODE_ID,
-			resource: URI.parse(`${Schemas.vscodeLocalChatSession}://history`),
-			label: nls.localize('chat.sessions.showHistory', "History"),
-			timing: { startTime: 0 }
-		};
+	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
+		try {
+			const allHistory = await this.chatService.getLocalSessionHistory();
+			const historyItems = allHistory.map((historyDetail): ChatSessionItemWithProvider => ({
+				resource: historyDetail.sessionResource,
+				label: historyDetail.title,
+				iconPath: Codicon.chatSparkle,
+				provider: this,
+				timing: {
+					startTime: historyDetail.lastMessageDate ?? Date.now()
+				},
+				archived: true,
+			}));
 
-		// Add "Show history..." node at the end
-		return [...sessions, historyNode];
+			return historyItems;
+
+		} catch (error) {
+			return [];
+		}
 	}
 }

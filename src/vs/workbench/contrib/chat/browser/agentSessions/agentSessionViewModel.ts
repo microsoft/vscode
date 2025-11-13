@@ -9,11 +9,13 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { LocalChatSessionsProvider } from '../chatSessions/localChatSessionsProvider.js';
 import { AgentSessionProviders } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -152,7 +154,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 			}
 
 			for (const session of sessions) {
-				if (session.id === 'show-history' || session.id === 'workbench.panel.chat.view.copilot') {
+				if (isEqual(session.resource, LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE)) {
 					continue; // TODO@bpasero this needs to be fixed at the provider level
 				}
 

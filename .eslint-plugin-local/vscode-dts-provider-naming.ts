@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
 import { TSESTree } from '@typescript-eslint/utils';
+import * as eslint from 'eslint';
 
 export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 
@@ -23,7 +23,7 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 		const allowed = new Set(config.allowed);
 
 		return {
-			['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature']: (node: any) => {
+			['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature']: (node: TSESTree.Node) => {
 				const interfaceName = (<TSESTree.TSInterfaceDeclaration>(<TSESTree.Identifier>node).parent?.parent).id.name;
 				if (allowed.has(interfaceName)) {
 					// allowed
