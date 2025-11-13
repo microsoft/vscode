@@ -274,12 +274,6 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'show-history',
-						resource: URI.parse('test://show-history'),
-						label: 'Show History',
-						timing: { startTime: Date.now() }
-					},
-					{
 						id: 'workbench.panel.chat.view.copilot',
 						resource: URI.parse('test://copilot'),
 						label: 'Copilot',

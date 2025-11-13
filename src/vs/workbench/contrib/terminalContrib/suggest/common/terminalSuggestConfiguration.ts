@@ -197,7 +197,6 @@ let terminalSuggestProvidersConfiguration: IConfigurationNode | undefined;
 
 export function registerTerminalSuggestProvidersConfiguration(providers?: Map<string, ITerminalSuggestProviderInfo>) {
 	const oldProvidersConfiguration = terminalSuggestProvidersConfiguration;
-	const enableByDefault = product.quality !== 'stable';
 
 	providers ??= new Map();
 	if (!providers.has('lsp')) {
@@ -211,7 +210,7 @@ export function registerTerminalSuggestProvidersConfiguration(providers?: Map<st
 	for (const id of Array.from(providers.keys()).sort()) {
 		providersProperties[id] = {
 			type: 'boolean',
-			default: enableByDefault,
+			default: true,
 			description:
 				providers.get(id)?.description ??
 				localize('suggest.provider.title', "Show suggestions from {0}.", id)
@@ -231,13 +230,7 @@ export function registerTerminalSuggestProvidersConfiguration(providers?: Map<st
 		properties: {
 			[TerminalSuggestSettingId.Providers]: {
 				restricted: true,
-				markdownDescription: enableByDefault ?
-					localize(
-						'suggest.providersEnabledByDefault',
-						"Controls which suggestions automatically show up while typing. Suggestion providers are enabled by default.") :
-					localize(
-						'suggest.providersDisabledByDefault',
-						"Controls which suggestions automatically show up while typing. Suggestion providers are disabled by default."),
+				markdownDescription: localize('suggest.providersEnabledByDefault', "Controls which suggestions automatically show up while typing. Suggestion providers are enabled by default."),
 				type: 'object',
 				properties: providersProperties,
 				default: defaultValue,

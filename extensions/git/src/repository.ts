@@ -692,11 +692,7 @@ interface BranchProtectionMatcher {
 }
 
 export interface IRepositoryResolver {
-	getRepository(sourceControl: SourceControl): Repository | undefined;
-	getRepository(resourceGroup: SourceControlResourceGroup): Repository | undefined;
-	getRepository(path: string): Repository | undefined;
-	getRepository(resource: Uri): Repository | undefined;
-	getRepository(hint: any): Repository | undefined;
+	getRepository(hint: SourceControl | SourceControlResourceGroup | Uri | string): Repository | undefined;
 }
 
 export class Repository implements Disposable {
@@ -940,7 +936,9 @@ export class Repository implements Disposable {
 			: repository.kind === 'worktree' && repository.dotGit.commonPath
 				? path.dirname(repository.dotGit.commonPath)
 				: undefined;
-		const parent = this.repositoryResolver.getRepository(parentRoot)?.sourceControl;
+		const parent = parentRoot
+			? this.repositoryResolver.getRepository(parentRoot)?.sourceControl
+			: undefined;
 
 		// Icon
 		const icon = repository.kind === 'submodule'

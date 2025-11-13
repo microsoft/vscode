@@ -242,7 +242,8 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			}
 		});
 		const history = await this.getHistoryItems();
-		sessions.push(...history);
+		const existingIds = new Set(sessions.map(s => s.id));
+		sessions.push(...history.filter(h => !existingIds.has(h.id)));
 		return sessions;
 	}
 
