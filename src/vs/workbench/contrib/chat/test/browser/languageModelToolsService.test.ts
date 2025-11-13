@@ -1137,7 +1137,6 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(unspecifiedResult.content[0].value, 'unspecified defaults to eligible');
 	});
 
-
 	test('tool content formatting with alwaysDisplayInputOutput', async () => {
 		// Test ensureToolDetails, formatToolInput, and toolResultToIO
 		const toolData: IToolData = {
