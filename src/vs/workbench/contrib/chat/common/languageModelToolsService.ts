@@ -140,6 +140,7 @@ export interface IToolInvocation {
 }
 
 export interface IToolInvocationContext {
+	/** @deprecated Use {@link sessionResource} instead */
 	readonly sessionId: string;
 	readonly sessionResource: URI;
 }

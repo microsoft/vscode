@@ -140,6 +140,14 @@ export interface IAgentInstructions {
 	readonly metadata?: Record<string, boolean | string | number>;
 }
 
+export interface IChatPromptSlashCommand {
+	readonly name: string;
+	readonly description: string | undefined;
+	readonly argumentHint: string | undefined;
+	readonly promptPath: IPromptPath;
+	readonly parsedPromptFile: ParsedPromptFile;
+}
+
 /**
  * Provides prompt services.
  */
@@ -168,37 +176,30 @@ export interface IPromptsService extends IDisposable {
 	getSourceFolders(type: PromptsType): readonly IPromptPath[];
 
 	/**
-	 * Returns a prompt command if the command name.
-	 * Undefined is returned if the name does not look like a file name of a prompt file.
+	 * Validates if the provided command name is a valid prompt slash command.
 	 */
-	asPromptSlashCommand(name: string): IChatPromptSlashCommand | undefined;
+	isValidSlashCommandName(name: string): boolean;
 
 	/**
 	 * Gets the prompt file for a slash command.
 	 */
-	resolvePromptSlashCommand(data: IChatPromptSlashCommand, _token: CancellationToken): Promise<ParsedPromptFile | undefined>;
+	resolvePromptSlashCommand(command: string, token: CancellationToken): Promise<IChatPromptSlashCommand | undefined>;
 
 	/**
-	 * Gets the prompt file for a slash command from cache if available.
-	 * @param command - name of the prompt command without slash
+	 * Event that is triggered when the slash command to ParsedPromptFile cache is updated.
+	 * Event handlers can use {@link resolvePromptSlashCommand} to retrieve the latest data.
 	 */
-	resolvePromptSlashCommandFromCache(command: string): ParsedPromptFile | undefined;
-
-	/**
-	 * Event that is triggered when slash command -> ParsedPromptFile cache is updated.
-	 * Event handler can call resolvePromptSlashCommandFromCache in case there is new value populated.
-	 */
-	readonly onDidChangeParsedPromptFilesCache: Event<void>;
+	readonly onDidChangeSlashCommands: Event<void>;
 
 	/**
 	 * Returns a prompt command if the command name is valid.
 	 */
-	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]>;
+	getPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
 
 	/**
 	 * Returns the prompt command name for the given URI.
 	 */
-	getPromptCommandName(uri: URI): Promise<string>;
+	getPromptSlashCommandName(uri: URI, token: CancellationToken): Promise<string>;
 
 	/**
 	 * Event that is triggered when the list of custom agents changes.
@@ -256,10 +257,4 @@ export interface IPromptsService extends IDisposable {
 	 * Persists the set of disabled prompt file URIs for the given type.
 	 */
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
-}
-
-export interface IChatPromptSlashCommand {
-	readonly command: string;
-	readonly detail: string;
-	readonly promptPath?: IPromptPath;
 }
