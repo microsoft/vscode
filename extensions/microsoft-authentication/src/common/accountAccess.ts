@@ -36,7 +36,7 @@ export class ScopedAccountAccess implements IAccountAccess, Disposable {
 		cloudName: string,
 		logger: LogOutputChannel
 	): Promise<ScopedAccountAccess> {
-		const storage = await AccountAccessSecretStorage.create(secretStorage, cloudName, logger);
+		const storage = new AccountAccessSecretStorage(secretStorage, cloudName, logger);
 		const access = new ScopedAccountAccess(storage, [storage]);
 		await access.initialize();
 		return access;
@@ -91,7 +91,7 @@ class AccountAccessSecretStorage implements IAccountAccessSecretStorage, Disposa
 
 	private readonly _key: string;
 
-	private constructor(
+	constructor(
 		private readonly _secretStorage: SecretStorage,
 		private readonly _cloudName: string,
 		private readonly _logger: LogOutputChannel
@@ -106,14 +106,6 @@ class AccountAccessSecretStorage implements IAccountAccessSecretStorage, Disposa
 				}
 			})
 		);
-	}
-
-	static async create(
-		secretStorage: SecretStorage,
-		cloudName: string,
-		logger: LogOutputChannel
-	): Promise<AccountAccessSecretStorage> {
-		return new AccountAccessSecretStorage(secretStorage, cloudName, logger);
 	}
 
 	async get(): Promise<string[] | undefined> {

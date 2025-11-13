@@ -50,7 +50,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		telemetryReporter: MicrosoftAuthenticationTelemetryReporter,
 		env: Environment
 	): Promise<CachedPublicClientApplicationManager> {
-		const pcasSecretStorage = await PublicClientApplicationsSecretStorage.create(secretStorage, env.name);
+		const pcasSecretStorage = new PublicClientApplicationsSecretStorage(secretStorage, env.name);
 		const accountAccess = await ScopedAccountAccess.create(secretStorage, env.name, logger);
 		const manager = new CachedPublicClientApplicationManager(env, pcasSecretStorage, accountAccess, secretStorage, logger, telemetryReporter, [pcasSecretStorage, accountAccess]);
 		await manager.initialize();
@@ -245,7 +245,7 @@ class PublicClientApplicationsSecretStorage implements IPublicClientApplicationS
 
 	private readonly _key: string;
 
-	private constructor(
+	constructor(
 		private readonly _secretStorage: SecretStorage,
 		private readonly _cloudName: string
 	) {
@@ -259,10 +259,6 @@ class PublicClientApplicationsSecretStorage implements IPublicClientApplicationS
 				}
 			})
 		);
-	}
-
-	static async create(secretStorage: SecretStorage, cloudName: string): Promise<PublicClientApplicationsSecretStorage> {
-		return new PublicClientApplicationsSecretStorage(secretStorage, cloudName);
 	}
 
 	async get(): Promise<string[] | undefined> {
