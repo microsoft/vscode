@@ -58,7 +58,7 @@ abstract class InlineSuggestionItemBase {
 	public get isFromExplicitRequest(): boolean { return this._data.context.triggerKind === InlineCompletionTriggerKind.Explicit; }
 	public get forwardStable(): boolean { return this.source.inlineSuggestions.enableForwardStability ?? false; }
 	public get editRange(): Range { return this.getSingleTextEdit().range; }
-	public get targetRange(): Range { return this.hint?.range && !this.hint.jumpToEdit ? this.hint?.range : this.editRange; }
+	public get targetRange(): Range { return this.hint?.range ?? this.editRange; }
 	public get insertText(): string { return this.getSingleTextEdit().text; }
 	public get semanticId(): string { return this.hash; }
 	public get action(): Command | undefined { return this._sourceInlineCompletion.gutterMenuLinkAction; }
@@ -171,7 +171,6 @@ export class InlineSuggestHint {
 			Range.lift(displayLocation.range),
 			displayLocation.content,
 			displayLocation.style,
-			displayLocation.jumpToEdit
 		);
 	}
 
@@ -179,7 +178,6 @@ export class InlineSuggestHint {
 		public readonly range: Range,
 		public readonly content: string,
 		public readonly style: InlineCompletionHintStyle,
-		public readonly jumpToEdit: boolean,
 	) { }
 
 	public withEdit(edit: StringEdit, positionOffsetTransformer: PositionOffsetTransformerBase): InlineSuggestHint | undefined {
@@ -195,7 +193,7 @@ export class InlineSuggestHint {
 
 		const newRange = positionOffsetTransformer.getRange(newOffsetRange);
 
-		return new InlineSuggestHint(newRange, this.content, this.style, this.jumpToEdit);
+		return new InlineSuggestHint(newRange, this.content, this.style);
 	}
 }
 

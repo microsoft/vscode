@@ -56,7 +56,7 @@ import { IRevealOptions, ITreeItem, IViewBadge } from '../../common/views.js';
 import { CallHierarchyItem } from '../../contrib/callHierarchy/common/callHierarchy.js';
 import { IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, UserSelectedTools } from '../../contrib/chat/common/chatAgents.js';
 import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
-import { IChatContextItem, IChatContextSupport } from '../../services/chat/common/chatContext.js';
+import { IChatContextItem, IChatContextSupport } from '../../contrib/chat/common/chatContext.js';
 import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatProgressHistoryResponseContent, IChatRequestVariableData } from '../../contrib/chat/common/chatModel.js';
 import { ChatResponseClearToPreviousToolInvocationReason, IChatContentInlineReference, IChatExternalEditsDto, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
@@ -1310,7 +1310,7 @@ export interface ExtHostLanguageModelsShape {
 
 export interface ExtHostChatContextShape {
 	$provideChatContext(handle: number, token: CancellationToken): Promise<IChatContextItem[]>;
-	$provideChatContextForResource(handle: number, options: { resource: UriComponents }, token: CancellationToken): Promise<IChatContextItem | undefined>;
+	$provideChatContextForResource(handle: number, options: { resource: UriComponents; withValue: boolean }, token: CancellationToken): Promise<IChatContextItem | undefined>;
 	$resolveChatContext(handle: number, context: IChatContextItem, token: CancellationToken): Promise<IChatContextItem>;
 }
 
@@ -2539,6 +2539,7 @@ export interface ITerminalCompletionItemDto {
 	detail?: string;
 	documentation?: string | IMarkdownString;
 	icon?: ThemeIcon | undefined;
+	kind?: number | undefined;
 	isFile?: boolean | undefined;
 	isDirectory?: boolean | undefined;
 	isKeyword?: boolean | undefined;
@@ -2619,8 +2620,8 @@ export interface ExtHostTerminalServiceShape {
 }
 
 export interface ExtHostTerminalShellIntegrationShape {
-	$shellIntegrationChange(instanceId: number): void;
-	$shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: string | undefined): void;
+	$shellIntegrationChange(instanceId: number, supportsExecuteCommandApi: boolean): void;
+	$shellExecutionStart(instanceId: number, supportsExecuteCommandApi: boolean, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: string | undefined): void;
 	$shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, exitCode: number | undefined): void;
 	$shellExecutionData(instanceId: number, data: string): void;
 	$shellEnvChange(instanceId: number, shellEnvKeys: string[], shellEnvValues: string[], isTrusted: boolean): void;

@@ -18,7 +18,7 @@ import { IWorkbenchLayoutService } from '../../../../services/layout/browser/lay
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatWidgetService, showChatView } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
-import { ILanguageModelToolsService, ToolDataSource } from '../../../chat/common/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolDataSource, VSCodeToolReference } from '../../../chat/common/languageModelToolsService.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
@@ -69,16 +69,16 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
 		this._register(toolsService.registerTool(GetTerminalOutputToolData, getTerminalOutputTool));
 
-		const runCommandsToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'runCommands', 'runCommands', {
+		const runCommandsToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'runCommands', VSCodeToolReference.runCommands, {
 			icon: ThemeIcon.fromId(Codicon.terminal.id),
 			description: localize('toolset.runCommands', 'Runs commands in the terminal')
 		}));
-		runCommandsToolSet.addTool(GetTerminalOutputToolData);
+		this._register(runCommandsToolSet.addTool(GetTerminalOutputToolData));
 
 		instantiationService.invokeFunction(createRunInTerminalToolData).then(runInTerminalToolData => {
 			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
 			this._register(toolsService.registerTool(runInTerminalToolData, runInTerminalTool));
-			runCommandsToolSet.addTool(runInTerminalToolData);
+			this._register(runCommandsToolSet.addTool(runInTerminalToolData));
 		});
 
 		const getTerminalSelectionTool = instantiationService.createInstance(GetTerminalSelectionTool);
@@ -87,8 +87,8 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		const getTerminalLastCommandTool = instantiationService.createInstance(GetTerminalLastCommandTool);
 		this._register(toolsService.registerTool(GetTerminalLastCommandToolData, getTerminalLastCommandTool));
 
-		runCommandsToolSet.addTool(GetTerminalSelectionToolData);
-		runCommandsToolSet.addTool(GetTerminalLastCommandToolData);
+		this._register(runCommandsToolSet.addTool(GetTerminalSelectionToolData));
+		this._register(runCommandsToolSet.addTool(GetTerminalLastCommandToolData));
 
 		// #endregion
 

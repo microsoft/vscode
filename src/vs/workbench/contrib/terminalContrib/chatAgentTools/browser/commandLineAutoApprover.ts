@@ -187,13 +187,13 @@ export class CommandLineAutoApprover extends Disposable {
 			const defaultValue = configInspectValue?.default?.value;
 			const isDefaultRule = !!(
 				isObject(defaultValue) &&
-				key in defaultValue &&
+				Object.prototype.hasOwnProperty.call(defaultValue, key) &&
 				structuralEquals((defaultValue as Record<string, unknown>)[key], value)
 			);
 			function checkTarget(inspectValue: Readonly<unknown> | undefined): boolean {
 				return (
 					isObject(inspectValue) &&
-					key in inspectValue &&
+					Object.prototype.hasOwnProperty.call(inspectValue, key) &&
 					structuralEquals((inspectValue as Record<string, unknown>)[key], value)
 				);
 			}

@@ -860,7 +860,6 @@ export interface InlineCompletionHint {
 	range: IRange;
 	style: InlineCompletionHintStyle;
 	content: string;
-	jumpToEdit: boolean;
 }
 
 // TODO: add `| URI | { light: URI; dark: URI }`.
@@ -2283,6 +2282,7 @@ export interface Comment {
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 	readonly mode?: CommentMode;
+	readonly state?: CommentState;
 	readonly timestamp?: string;
 }
 

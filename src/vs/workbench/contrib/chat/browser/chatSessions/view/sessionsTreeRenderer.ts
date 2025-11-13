@@ -42,14 +42,12 @@ import { IWorkbenchLayoutService, Position } from '../../../../../services/layou
 import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
 import { IChatService } from '../../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { chatSessionResourceToId } from '../../../common/chatUri.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatWidgetService } from '../../chat.js';
 import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.js';
 import '../../media/chatSessions.css';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, isLocalChatSessionItem, processSessionsWithTimeGrouping } from '../common.js';
-import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -61,6 +59,25 @@ interface ISessionTemplateData {
 	readonly descriptionLabel: HTMLElement;
 	readonly statisticsLabel: HTMLElement;
 	readonly customIcon: HTMLElement;
+}
+
+export class ArchivedSessionItems {
+	private readonly items: Map<string, ChatSessionItemWithProvider> = new Map();
+	constructor(public readonly label: string) {
+	}
+
+	pushItem(item: ChatSessionItemWithProvider): void {
+		const key = item.resource.toString();
+		this.items.set(key, item);
+	}
+
+	getItems(): ChatSessionItemWithProvider[] {
+		return Array.from(this.items.values());
+	}
+
+	clear(): void {
+		this.items.clear();
+	}
 }
 
 export interface IGettingStartedItem {
@@ -191,12 +208,26 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			default:
 				return Codicon.circleOutline;
 		}
+	}
 
+	private renderArchivedNode(node: ArchivedSessionItems, templateData: ISessionTemplateData): void {
+		templateData.customIcon.className = '';
+		templateData.descriptionRow.style.display = 'none';
+		templateData.timestamp.parentElement!.style.display = 'none';
+
+		const childCount = node.getItems().length;
+		templateData.iconLabel.setLabel(node.label, undefined, {
+			title: childCount === 1 ? nls.localize('chat.sessions.groupNode.single', '1 session') : nls.localize('chat.sessions.groupNode.multiple', '{0} sessions', childCount)
+		});
 	}
 
 	renderElement(element: ITreeNode<IChatSessionItem, FuzzyScore>, index: number, templateData: ISessionTemplateData): void {
-		const session = element.element as ChatSessionItemWithProvider;
+		if (element.element instanceof ArchivedSessionItems) {
+			this.renderArchivedNode(element.element, templateData);
+			return;
+		}
 
+		const session = element.element as ChatSessionItemWithProvider;
 		// Add CSS class for local sessions
 		let editableData: IEditableData | undefined;
 		if (isLocalChatSessionItem(session)) {
@@ -220,7 +251,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 		// Handle different icon types
 		let iconTheme: ThemeIcon | undefined;
-		if (!session.iconPath && session.id !== LocalChatSessionsProvider.HISTORY_NODE_ID) {
+		if (!session.iconPath) {
 			iconTheme = this.statusToIcon(session.status);
 		} else {
 			iconTheme = session.iconPath;
@@ -510,99 +541,76 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 }
 
 // Chat sessions item data source for the tree
-export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, ChatSessionItemWithProvider> {
-
+export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, ChatSessionItemWithProvider | ArchivedSessionItems> {
+	// For now call it History until we support archive on all providers
+	private archivedItems = new ArchivedSessionItems(nls.localize('chat.sessions.archivedSessions', 'History'));
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
-		private readonly chatService: IChatService,
 		private readonly sessionTracker: ChatSessionTracker,
 	) {
 	}
 
-	hasChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider): boolean {
-		const isProvider = element === this.provider;
-		if (isProvider) {
+	hasChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider | ArchivedSessionItems): boolean {
+		if (element === this.provider) {
 			// Root provider always has children
 			return true;
 		}
 
-		// Check if this is the "Show history..." node
-		if ('id' in element && element.id === LocalChatSessionsProvider.HISTORY_NODE_ID) {
-			return true;
+		if (element instanceof ArchivedSessionItems) {
+			return element.getItems().length > 0;
 		}
 
 		return false;
 	}
 
-	async getChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider): Promise<ChatSessionItemWithProvider[]> {
+	async getChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider | ArchivedSessionItems): Promise<(ChatSessionItemWithProvider | ArchivedSessionItems)[]> {
 		if (element === this.provider) {
 			try {
 				const items = await this.provider.provideChatSessionItems(CancellationToken.None);
-				const itemsWithProvider = items.map(item => {
-					const itemWithProvider: ChatSessionItemWithProvider = { ...item, provider: this.provider };
-
-					// Extract timestamp using the helper function
-					itemWithProvider.timing = { startTime: extractTimestamp(item) ?? 0 };
-
+				// Clear archived items from previous calls
+				this.archivedItems.clear();
+				let ungroupedItems = items.map(item => {
+					const itemWithProvider = { ...item, provider: this.provider, timing: { startTime: extractTimestamp(item) ?? 0 } };
+					if (itemWithProvider.archived) {
+						this.archivedItems.pushItem(itemWithProvider);
+						return;
+					}
 					return itemWithProvider;
-				});
+				}).filter(item => item !== undefined);
 
-				// Add hybrid local editor sessions for this provider using the centralized service
+				// Add hybrid local editor sessions for this provider
 				if (this.provider.chatSessionType !== localChatSessionType) {
 					const hybridSessions = await this.sessionTracker.getHybridSessionsForProvider(this.provider);
 					const existingSessions = new ResourceSet();
-					itemsWithProvider.forEach(s => existingSessions.add(s.resource));
-
+					// Iterate only over the ungrouped items, the only group we support for now is history
+					ungroupedItems.forEach(s => existingSessions.add(s.resource));
 					hybridSessions.forEach(session => {
 						if (!existingSessions.has(session.resource)) {
-							itemsWithProvider.push(session as ChatSessionItemWithProvider);
+							ungroupedItems.push(session as ChatSessionItemWithProvider);
 							existingSessions.add(session.resource);
 						}
 					});
-					processSessionsWithTimeGrouping(itemsWithProvider);
+					ungroupedItems = processSessionsWithTimeGrouping(ungroupedItems);
 				}
 
-				return itemsWithProvider;
+				const result = [];
+				result.push(...ungroupedItems);
+				if (this.archivedItems.getItems().length > 0) {
+					result.push(this.archivedItems);
+				}
+
+				return result;
 			} catch (error) {
 				return [];
 			}
 		}
 
-		// Check if this is the "Show history..." node
-		if ('id' in element && element.id === LocalChatSessionsProvider.HISTORY_NODE_ID) {
-			return this.getHistoryItems();
+		if (element instanceof ArchivedSessionItems) {
+			return processSessionsWithTimeGrouping(element.getItems());
 		}
 
 		// Individual session items don't have children
 		return [];
-	}
-
-	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
-		try {
-			// Get all chat history
-			const allHistory = await this.chatService.getLocalSessionHistory();
-
-			// Create history items with provider reference and timestamps
-			const historyItems = allHistory.map((historyDetail): ChatSessionItemWithProvider => ({
-				id: chatSessionResourceToId(historyDetail.sessionResource),
-				resource: historyDetail.sessionResource,
-				label: historyDetail.title,
-				iconPath: Codicon.chatSparkle,
-				provider: this.provider,
-				timing: {
-					startTime: historyDetail.lastMessageDate ?? Date.now()
-				},
-				isHistory: true,
-			}));
-
-			// Apply sorting and time grouping
-			processSessionsWithTimeGrouping(historyItems);
-
-			return historyItems;
-
-		} catch (error) {
-			return [];
-		}
 	}
 }
 

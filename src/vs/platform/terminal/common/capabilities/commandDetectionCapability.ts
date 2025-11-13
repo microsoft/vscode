@@ -8,12 +8,12 @@ import { debounce } from '../../../../base/common/decorators.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, MandatoryMutableDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../log/common/log.js';
+import { isString } from '../../../../base/common/types.js';
 import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, TerminalCapability } from './capabilities.js';
 import { ITerminalOutputMatcher } from '../terminal.js';
-import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from './commandDetection/terminalCommand.js';
+import { ICurrentPartialCommand, isFullTerminalCommand, PartialTerminalCommand, TerminalCommand } from './commandDetection/terminalCommand.js';
 import { PromptInputModel, type IPromptInputModel } from './commandDetection/promptInputModel.js';
 import type { IBuffer, IDisposable, IMarker, Terminal } from '@xterm/headless';
-import { isString } from '../../../../base/common/types.js';
 
 interface ITerminalDimensions {
 	cols: number;
@@ -53,7 +53,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 	get executingCommandConfidence(): 'low' | 'medium' | 'high' | undefined {
 		const casted = this._currentCommand as PartialTerminalCommand | ITerminalCommand;
-		return 'commandLineConfidence' in casted ? casted.commandLineConfidence : undefined;
+		return isFullTerminalCommand(casted) ? casted.commandLineConfidence : undefined;
 	}
 	get currentCommand(): ICurrentPartialCommand {
 		return this._currentCommand;
@@ -95,7 +95,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				command.commandLineConfidence = 'low';
 
 				// ITerminalCommand
-				if ('getOutput' in typedCommand) {
+				if (isFullTerminalCommand(typedCommand)) {
 					if (
 						// Markers exist
 						typedCommand.promptStartMarker && typedCommand.marker && typedCommand.executedMarker &&
@@ -273,7 +273,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 
 		const command = this.getCommandForLine(line);
-		if (command && 'cwd' in command) {
+		if (command && isFullTerminalCommand(command)) {
 			return command.cwd;
 		}
 
@@ -355,6 +355,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
 		this._ptyHeuristics.value.handleCommandExecuted(options);
 		this._currentCommand.markExecutedTime();
+		this._ensureCurrentCommandId(this._currentCommand.command ?? this._currentCommand.extractCommandLine());
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
@@ -364,20 +365,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// therefore cannot be trusted anyway.
 		if (!this._currentCommand.commandExecutedMarker) {
 			this.handleCommandExecuted();
-		}
-		// If a custom command ID is provided, use it for the current command
-		// Otherwise, check if there's a pending next command ID
-		if (options?.commandId) {
-			this._currentCommand.id = options.commandId;
-			this._nextCommandId = undefined; // Clear the pending ID
-		} else if (
-			this._nextCommandId &&
-			isString(this.currentCommand.command) &&
-			isString(this._nextCommandId.command) &&
-			this.currentCommand.command.trim() === this._nextCommandId.command.trim()
-		) {
-			this._currentCommand.id = this._nextCommandId.commandId;
-			this._nextCommandId = undefined; // Clear after use
 		}
 		this._currentCommand.markFinishedTime();
 		this._ptyHeuristics.value.preHandleCommandFinished?.();
@@ -415,10 +402,19 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
 		}
-		// Create new command for next execution, preserving command ID if one was specified
-		const nextCommandId = this._handleCommandStartOptions?.commandId;
-		this._currentCommand = new PartialTerminalCommand(this._terminal, nextCommandId);
+		// Create new command for next execution
+		this._currentCommand = new PartialTerminalCommand(this._terminal);
 		this._handleCommandStartOptions = undefined;
+	}
+
+	private _ensureCurrentCommandId(commandLine: string | undefined): void {
+		if (this._nextCommandId?.commandId && isString(commandLine) && commandLine.trim() === this._nextCommandId.command.trim()) {
+			if (this._currentCommand.id !== this._nextCommandId.commandId) {
+				this._currentCommand.id = this._nextCommandId.commandId;
+			}
+			this._nextCommandId = undefined;
+			return;
+		}
 	}
 
 	setCommandLine(commandLine: string, isTrusted: boolean) {
@@ -738,9 +734,9 @@ class WindowsPtyHeuristics extends Disposable {
 			if (this._cursorOnNextLine()) {
 				const prompt = this._getWindowsPrompt(start.line + scannedLineCount);
 				if (prompt) {
-					const adjustedPrompt = typeof prompt === 'string' ? prompt : prompt.prompt;
+					const adjustedPrompt = isString(prompt) ? prompt : prompt.prompt;
 					this._capability.currentCommand.commandStartMarker = this._terminal.registerMarker(0)!;
-					if (typeof prompt === 'object' && prompt.likelySingleLine) {
+					if (!isString(prompt) && prompt.likelySingleLine) {
 						this._logService.debug('CommandDetectionCapability#_tryAdjustCommandStartMarker adjusted promptStart', `${this._capability.currentCommand.promptStartMarker?.line} -> ${this._capability.currentCommand.commandStartMarker.line}`);
 						this._capability.currentCommand.promptStartMarker?.dispose();
 						this._capability.currentCommand.promptStartMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker);

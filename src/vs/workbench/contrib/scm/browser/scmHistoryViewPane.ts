@@ -29,7 +29,7 @@ import { IFileIconTheme, IThemeService } from '../../../../platform/theme/common
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverLabelForeground, historyItemHoverDefaultLabelBackground, getHistoryItemIndex } from './scmHistory.js';
-import { getHistoryItemEditorTitle, getProviderKey, isSCMHistoryItemChangeNode, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
+import { addClassToTwistieElement, getHistoryItemEditorTitle, getProviderKey, isSCMHistoryItemChangeNode, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement, SCMIncomingHistoryItemId, SCMOutgoingHistoryItemId } from '../common/history.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService, ViewMode } from '../common/scm.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
@@ -445,9 +445,8 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 	}
 
 	renderTemplate(container: HTMLElement): HistoryItemTemplate {
-		// HACK
-		// eslint-disable-next-line no-restricted-syntax
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+		// HACK - use helper function as there is no tree API
+		addClassToTwistieElement(container, 'force-no-twistie');
 
 		const element = append(container, $('.history-item'));
 		const graphContainer = append(element, $('.graph-container'));
@@ -722,9 +721,8 @@ class HistoryItemLoadMoreRenderer implements ICompressibleTreeRenderer<SCMHistor
 	) { }
 
 	renderTemplate(container: HTMLElement): LoadMoreTemplate {
-		// HACK
-		// eslint-disable-next-line no-restricted-syntax
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+		// HACK - use helper function as there is no tree API
+		addClassToTwistieElement(container, 'force-no-twistie');
 
 		const element = append(container, $('.history-item-load-more'));
 		const graphPlaceholder = append(element, $('.graph-placeholder'));
@@ -1250,14 +1248,22 @@ class SCMHistoryViewModel extends Disposable {
 			// Create the color map
 			const colorMap = this._getGraphColorMap(historyItemRefs);
 
+			// Only show incoming changes node if the remote history item reference is part of the graph
+			const addIncomingChangesNode = this._scmViewService.graphShowIncomingChangesConfig.get()
+				&& historyItemRefs.some(ref => ref.id === historyItemRemoteRef?.id);
+
+			// Only show outgoing changes node if the history item reference is part of the graph
+			const addOutgoingChangesNode = this._scmViewService.graphShowOutgoingChangesConfig.get()
+				&& historyItemRefs.some(ref => ref.id === historyItemRef?.id);
+
 			const viewModels = toISCMHistoryItemViewModelArray(
 				historyItems,
 				colorMap,
 				historyProvider.historyItemRef.get(),
 				historyProvider.historyItemRemoteRef.get(),
 				historyProvider.historyItemBaseRef.get(),
-				this._scmViewService.graphShowIncomingChangesConfig.get(),
-				this._scmViewService.graphShowOutgoingChangesConfig.get(),
+				addIncomingChangesNode,
+				addOutgoingChangesNode,
 				mergeBase)
 				.map(historyItemViewModel => ({
 					repository,

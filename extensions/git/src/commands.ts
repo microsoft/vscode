@@ -9,7 +9,7 @@ import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem,
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
-import { Git, Stash, Worktree } from './git';
+import { Git, GitError, Stash, Worktree } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
@@ -365,8 +365,8 @@ interface ScmCommand {
 const Commands: ScmCommand[] = [];
 
 function command(commandId: string, options: ScmCommandOptions = {}): Function {
-	return (value: any, context: ClassMethodDecoratorContext) => {
-		if (context.kind !== 'method') {
+	return (value: unknown, context: ClassMethodDecoratorContext) => {
+		if (typeof value !== 'function' || context.kind !== 'method') {
 			throw new Error('not supported');
 		}
 		const key = context.name.toString();
@@ -3118,10 +3118,14 @@ export class CommandCenter {
 
 		await this._openChangesBetweenRefs(
 			repository,
-			repository.historyProvider.currentHistoryItemRemoteRef.revision,
-			historyItem.id,
-			repository.historyProvider.currentHistoryItemRemoteRef.name,
-			getHistoryItemDisplayName(historyItem));
+			{
+				id: repository.historyProvider.currentHistoryItemRemoteRef.revision,
+				displayId: repository.historyProvider.currentHistoryItemRemoteRef.name
+			},
+			{
+				id: historyItem.id,
+				displayId: getHistoryItemDisplayName(historyItem)
+			});
 	}
 
 	@command('git.graph.compareWithMergeBase', { repository: true })
@@ -3132,10 +3136,14 @@ export class CommandCenter {
 
 		await this._openChangesBetweenRefs(
 			repository,
-			repository.historyProvider.currentHistoryItemBaseRef.name,
-			historyItem.id,
-			repository.historyProvider.currentHistoryItemBaseRef.name,
-			getHistoryItemDisplayName(historyItem));
+			{
+				id: repository.historyProvider.currentHistoryItemBaseRef.revision,
+				displayId: repository.historyProvider.currentHistoryItemBaseRef.name
+			},
+			{
+				id: historyItem.id,
+				displayId: getHistoryItemDisplayName(historyItem)
+			});
 	}
 
 	@command('git.graph.compareRef', { repository: true })
@@ -3168,35 +3176,39 @@ export class CommandCenter {
 
 		await this._openChangesBetweenRefs(
 			repository,
-			sourceRef.ref.commit,
-			historyItem.id,
-			sourceRef.ref.name,
-			getHistoryItemDisplayName(historyItem));
+			{
+				id: sourceRef.ref.commit,
+				displayId: sourceRef.ref.name
+			},
+			{
+				id: historyItem.id,
+				displayId: getHistoryItemDisplayName(historyItem)
+			});
 	}
 
-	private async _openChangesBetweenRefs(repository: Repository, ref1: string | undefined, ref2: string | undefined, ref1DisplayId: string | undefined, ref2DisplayId: string | undefined): Promise<void> {
-		if (!repository || !ref1 || !ref2) {
+	private async _openChangesBetweenRefs(repository: Repository, ref1: { id: string | undefined; displayId: string | undefined }, ref2: { id: string | undefined; displayId: string | undefined }): Promise<void> {
+		if (!repository || !ref1.id || !ref2.id) {
 			return;
 		}
 
 		try {
-			const changes = await repository.diffBetween2(ref1, ref2);
+			const changes = await repository.diffBetween2(ref1.id, ref2.id);
 
 			if (changes.length === 0) {
-				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref1DisplayId ?? ref1, ref2DisplayId ?? ref2));
+				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref1.displayId ?? ref1.id, ref2.displayId ?? ref2.id));
 				return;
 			}
 
-			const multiDiffSourceUri = Uri.from({ scheme: 'git-ref-compare', path: `${repository.root}/${ref1}..${ref2}` });
-			const resources = changes.map(change => toMultiFileDiffEditorUris(change, ref1, ref2));
+			const multiDiffSourceUri = Uri.from({ scheme: 'git-ref-compare', path: `${repository.root}/${ref1.id}..${ref2.id}` });
+			const resources = changes.map(change => toMultiFileDiffEditorUris(change, ref1.id!, ref2.id!));
 
 			await commands.executeCommand('_workbench.openMultiDiffEditor', {
 				multiDiffSourceUri,
-				title: `${ref1DisplayId} \u2194 ${ref2DisplayId}`,
+				title: `${ref1.displayId ?? ref1.id} \u2194 ${ref2.displayId ?? ref2.id}`,
 				resources
 			});
 		} catch (err) {
-			window.showErrorMessage(l10n.t('Failed to open changes between "{0}" and "{1}": {2}', ref1DisplayId ?? ref1, ref2DisplayId ?? ref2, err.message));
+			window.showErrorMessage(l10n.t('Failed to open changes between "{0}" and "{1}": {2}', ref1.displayId ?? ref1.id, ref2.displayId ?? ref2.id, err.message));
 		}
 	}
 
@@ -3385,23 +3397,33 @@ export class CommandCenter {
 	}
 
 	@command('git.migrateWorktreeChanges', { repository: true, repositoryFilter: ['repository', 'submodule'] })
-	async migrateWorktreeChanges(repository: Repository): Promise<void> {
-		const worktreePicks = async (): Promise<WorktreeItem[] | QuickPickItem[]> => {
+	async migrateWorktreeChanges(repository: Repository, worktreeUri?: Uri): Promise<void> {
+		let worktreeRepository: Repository | undefined;
+		if (worktreeUri !== undefined) {
+			worktreeRepository = this.model.getRepository(worktreeUri);
+		} else {
 			const worktrees = await repository.getWorktrees();
-			return worktrees.length === 0
-				? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
-				: worktrees.map(worktree => new WorktreeItem(worktree));
-		};
+			if (worktrees.length === 1) {
+				worktreeRepository = this.model.getRepository(worktrees[0].path);
+			} else {
+				const worktreePicks = async (): Promise<WorktreeItem[] | QuickPickItem[]> => {
+					return worktrees.length === 0
+						? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
+						: worktrees.map(worktree => new WorktreeItem(worktree));
+				};
 
-		const placeHolder = l10n.t('Select a worktree to migrate changes from');
-		const choice = await this.pickRef<WorktreeItem | QuickPickItem>(worktreePicks(), placeHolder);
+				const placeHolder = l10n.t('Select a worktree to migrate changes from');
+				const choice = await this.pickRef<WorktreeItem | QuickPickItem>(worktreePicks(), placeHolder);
 
-		if (!choice || !(choice instanceof WorktreeItem)) {
-			return;
+				if (!choice || !(choice instanceof WorktreeItem)) {
+					return;
+				}
+
+				worktreeRepository = this.model.getRepository(choice.worktree.path);
+			}
 		}
 
-		const worktreeRepository = this.model.getRepository(choice.worktree.path);
-		if (!worktreeRepository) {
+		if (!worktreeRepository || worktreeRepository.kind !== 'worktree') {
 			return;
 		}
 
@@ -3440,12 +3462,15 @@ export class CommandCenter {
 			return;
 		}
 
-		const message = l10n.t('Proceed with migrating changes to the current repository?');
-		const detail = l10n.t('This will apply the worktree\'s changes to this repository and discard changes in the worktree.\nThis is IRREVERSIBLE!');
-		const proceed = l10n.t('Proceed');
-		const pick = await window.showWarningMessage(message, { modal: true, detail }, proceed);
-		if (pick !== proceed) {
-			return;
+		if (worktreeUri === undefined) {
+			// Non-interactive migration, do not show confirmation dialog
+			const message = l10n.t('Proceed with migrating changes to the current repository?');
+			const detail = l10n.t('This will apply the worktree\'s changes to this repository and discard changes in the worktree.\nThis is IRREVERSIBLE!');
+			const proceed = l10n.t('Proceed');
+			const pick = await window.showWarningMessage(message, { modal: true, detail }, proceed);
+			if (pick !== proceed) {
+				return;
+			}
 		}
 
 		await worktreeRepository.createStash(undefined, true);
@@ -3566,10 +3591,8 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.createWorktree')
-	async createWorktree(repository: any): Promise<void> {
-		repository = this.model.getRepository(repository);
-
+	@command('git.createWorktree', { repository: true })
+	async createWorktree(repository?: Repository): Promise<void> {
 		if (!repository) {
 			// Single repository/submodule/worktree
 			if (this.model.repositories.length === 1) {
@@ -3761,9 +3784,9 @@ export class CommandCenter {
 				this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
 			}
 		} catch (err) {
-			if (err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
+			if (err instanceof GitError && err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
 				await this.handleWorktreeAlreadyExists(err);
-			} else if (err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
+			} else if (err instanceof GitError && err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
 				await this.handleWorktreeBranchAlreadyUsed(err);
 			} else {
 				throw err;
@@ -3773,8 +3796,8 @@ export class CommandCenter {
 		}
 	}
 
-	private async handleWorktreeBranchAlreadyUsed(err: any): Promise<void> {
-		const match = err.stderr.match(/fatal: '([^']+)' is already used by worktree at '([^']+)'/);
+	private async handleWorktreeBranchAlreadyUsed(err: GitError): Promise<void> {
+		const match = err.stderr?.match(/fatal: '([^']+)' is already used by worktree at '([^']+)'/);
 
 		if (!match) {
 			return;
@@ -3785,8 +3808,8 @@ export class CommandCenter {
 		await this.handleWorktreeConflict(path, message);
 	}
 
-	private async handleWorktreeAlreadyExists(err: any): Promise<void> {
-		const match = err.stderr.match(/fatal: '([^']+)'/);
+	private async handleWorktreeAlreadyExists(err: GitError): Promise<void> {
+		const match = err.stderr?.match(/fatal: '([^']+)'/);
 
 		if (!match) {
 			return;
@@ -3830,11 +3853,11 @@ export class CommandCenter {
 			return;
 		}
 
-		// Dispose worktree repository
-		this.model.disposeRepository(repository);
-
 		try {
 			await mainRepository.deleteWorktree(repository.root);
+
+			// Dispose worktree repository
+			this.model.disposeRepository(repository);
 		} catch (err) {
 			if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
 				const forceDelete = l10n.t('Force Delete');
@@ -3842,8 +3865,9 @@ export class CommandCenter {
 				const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
 				if (choice === forceDelete) {
 					await mainRepository.deleteWorktree(repository.root, { force: true });
-				} else {
-					await this.model.openRepository(repository.root);
+
+					// Dispose worktree repository
+					this.model.disposeRepository(repository);
 				}
 
 				return;
@@ -5332,10 +5356,14 @@ export class CommandCenter {
 
 		await this._openChangesBetweenRefs(
 			repository,
-			sourceRef.ref.commit,
-			artifact.id,
-			sourceRef.ref.name,
-			artifact.name);
+			{
+				id: sourceRef.ref.commit,
+				displayId: sourceRef.ref.name
+			},
+			{
+				id: artifact.id,
+				displayId: artifact.name
+			});
 	}
 
 	private async _createTag(repository: Repository, ref?: string): Promise<void> {

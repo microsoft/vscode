@@ -146,9 +146,10 @@ export interface IChatContentInlineReference {
 }
 
 export interface IChatMarkdownContent {
+	kind: 'markdownContent';
 	content: IMarkdownString;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
-	kind: 'markdownContent';
+	fromSubagent?: boolean;
 }
 
 export interface IChatTreeData {
@@ -315,6 +316,18 @@ export interface IChatTerminalToolInvocationData {
 	terminalToolSessionId?: string;
 	/** The predefined command ID that will be used for this terminal command */
 	terminalCommandId?: string;
+	/** Serialized URI for the command that was executed in the terminal */
+	terminalCommandUri?: UriComponents;
+	/** Serialized output of the executed command */
+	terminalCommandOutput?: {
+		text: string;
+		truncated?: boolean;
+	};
+	/** Stored theme colors at execution time to style detached output */
+	terminalTheme?: {
+		background?: string;
+		foreground?: string;
+	};
 	autoApproveInfo?: IMarkdownString;
 }
 
@@ -671,6 +684,15 @@ export interface IChatFollowup {
 	tooltip?: string;
 }
 
+export function isChatFollowup(obj: unknown): obj is IChatFollowup {
+	return (
+		!!obj &&
+		(obj as IChatFollowup).kind === 'reply' &&
+		typeof (obj as IChatFollowup).message === 'string' &&
+		typeof (obj as IChatFollowup).agentId === 'string'
+	);
+}
+
 export enum ChatAgentVoteDirection {
 	Down = 0,
 	Up = 1
@@ -907,6 +929,7 @@ export interface IChatService {
 	hasSessions(): boolean;
 	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean, options?: { canUseTools?: boolean }): ChatModel;
 	getSession(sessionResource: URI): IChatModel | undefined;
+	getSessionByLegacyId(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionResource: URI): Promise<IChatModel | undefined>;
 	getPersistedSessionTitle(sessionResource: URI): string | undefined;
 	isPersistedSessionEmpty(sessionResource: URI): boolean;

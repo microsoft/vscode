@@ -151,6 +151,9 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 	flex-wrap: nowrap;
+}
+
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item.no-twisty {
 	padding-left: 3px;
 }
 

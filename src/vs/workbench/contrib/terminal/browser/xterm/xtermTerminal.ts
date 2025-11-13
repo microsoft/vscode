@@ -404,7 +404,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		let emptyLinesFromStart = 0;
 		for (let i = startLine; i <= endLine; i++) {
 			const line = this.raw.buffer.active.getLine(i);
-			if (line && line.translateToString(true).trim() === '') {
+			if (line && line.translateToString(true, i === startLine ? startCol : undefined).trim() === '') {
+				if (i === startLine) {
+					startCol = 0;
+				}
 				emptyLinesFromStart++;
 			} else {
 				break;
@@ -738,11 +741,13 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (this.hasSelection() || (asHtml && command)) {
 			if (asHtml) {
 				const textAsHtml = await this.getSelectionAsHtml(command);
-				function listener(e: any) {
-					if (!e.clipboardData.types.includes('text/plain')) {
-						e.clipboardData.setData('text/plain', command?.getOutput() ?? '');
+				function listener(e: ClipboardEvent) {
+					if (e.clipboardData) {
+						if (!e.clipboardData.types.includes('text/plain')) {
+							e.clipboardData.setData('text/plain', command?.getOutput() ?? '');
+						}
+						e.clipboardData.setData('text/html', textAsHtml);
 					}
-					e.clipboardData.setData('text/html', textAsHtml);
 					e.preventDefault();
 				}
 				const doc = dom.getDocument(this.raw.element);

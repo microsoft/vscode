@@ -9,6 +9,7 @@ const fs = require('fs');
 const dirs = [
 	'',
 	'build',
+	'build/monaco-editor-playground',
 	'extensions',
 	'extensions/configuration-editing',
 	'extensions/css-language-features',

@@ -139,8 +139,6 @@ import { IAllowedExtensionsService, IGlobalExtensionEnablementService } from '..
 import { ContextViewService } from '../platform/contextview/browser/contextViewService.js';
 import { IContextViewService } from '../platform/contextview/browser/contextView.js';
 import { IListService, ListService } from '../platform/list/browser/listService.js';
-import { IEditorWorkerService } from '../editor/common/services/editorWorker.js';
-import { WorkbenchEditorWorkerService } from './contrib/codeEditor/browser/workbenchEditorWorkerService.js';
 import { MarkerDecorationsService } from '../editor/common/services/markerDecorationsService.js';
 import { IMarkerDecorationsService } from '../editor/common/services/markerDecorations.js';
 import { IMarkerService } from '../platform/markers/common/markers.js';
@@ -161,6 +159,8 @@ import { AllowedExtensionsService } from '../platform/extensionManagement/common
 import { IAllowedMcpServersService, IMcpGalleryService } from '../platform/mcp/common/mcpManagement.js';
 import { McpGalleryService } from '../platform/mcp/common/mcpGalleryService.js';
 import { AllowedMcpServersService } from '../platform/mcp/common/allowedMcpServersService.js';
+import { IWebWorkerService } from '../platform/webWorker/browser/webWorkerService.js';
+import { WebWorkerService } from '../platform/webWorker/browser/webWorkerServiceImpl.js';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
 registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
@@ -169,13 +169,13 @@ registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementSe
 registerSingleton(IExtensionStorageService, ExtensionStorageService, InstantiationType.Delayed);
 registerSingleton(IContextViewService, ContextViewService, InstantiationType.Delayed);
 registerSingleton(IListService, ListService, InstantiationType.Delayed);
-registerSingleton(IEditorWorkerService, WorkbenchEditorWorkerService, InstantiationType.Eager /* registers link detection and word based suggestions for any document */);
 registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, InstantiationType.Delayed);
 registerSingleton(IMarkerService, MarkerService, InstantiationType.Delayed);
 registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Delayed);
 registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, InstantiationType.Delayed);
 registerSingleton(IDownloadService, DownloadService, InstantiationType.Delayed);
 registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
+registerSingleton(IWebWorkerService, WebWorkerService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryService, McpGalleryService, InstantiationType.Delayed);
 registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, InstantiationType.Delayed);
 

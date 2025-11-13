@@ -93,6 +93,7 @@ import type { IProgressState } from '@xterm/addon-progress';
 import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { PromptInputState } from '../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
+import { hasKey } from '../../../../base/common/types.js';
 
 const enum Constants {
 	/**
@@ -481,6 +482,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						e.capability.promptInputModel.onDidChangeInput,
 						e.capability.promptInputModel.onDidFinishInput
 					)(refreshInfo));
+					this._register(e.capability.onCommandExecuted(async (command) => {
+						// Only generate ID if command doesn't already have one (i.e., it's a manual command, not Copilot-initiated)
+						// The tool terminal sets the command ID before command start, so this won't override it
+						if (!command.id && command.command) {
+							const commandId = generateUuid();
+							this.xterm?.shellIntegration.setNextCommandId(command.command, commandId);
+							await this._processManager.setNextCommandId(command.command, commandId);
+						}
+					}));
 					break;
 				}
 				case TerminalCapability.PromptTypeDetection: {
@@ -636,13 +646,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._register(this.onDisposed(() => {
 				contribution.dispose();
 				this._contributions.delete(desc.id);
-				// Just in case to prevent potential future memory leaks due to cyclic dependency.
-				if ('instance' in contribution) {
-					delete contribution.instance;
-				}
-				if ('_instance' in contribution) {
-					delete contribution._instance;
-				}
 			}));
 		}
 	}
@@ -1465,36 +1468,36 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(processManager.onDidChangeProperty(({ type, value }) => {
 			switch (type) {
 				case ProcessPropertyType.Cwd:
-					this._cwd = value;
+					this._cwd = value as IProcessPropertyMap[ProcessPropertyType.Cwd];
 					this._labelComputer?.refreshLabel(this);
 					break;
 				case ProcessPropertyType.InitialCwd:
-					this._initialCwd = value;
+					this._initialCwd = value as IProcessPropertyMap[ProcessPropertyType.InitialCwd];
 					this._cwd = this._initialCwd;
 					this._setTitle(this.title, TitleEventSource.Config);
 					this._icon = this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon;
 					this._onIconChanged.fire({ instance: this, userInitiated: false });
 					break;
 				case ProcessPropertyType.Title:
-					this._setTitle(value ?? '', TitleEventSource.Process);
+					this._setTitle(value as IProcessPropertyMap[ProcessPropertyType.Title] ?? '', TitleEventSource.Process);
 					break;
 				case ProcessPropertyType.OverrideDimensions:
-					this.setOverrideDimensions(value, true);
+					this.setOverrideDimensions(value as IProcessPropertyMap[ProcessPropertyType.OverrideDimensions], true);
 					break;
 				case ProcessPropertyType.ResolvedShellLaunchConfig:
-					this._setResolvedShellLaunchConfig(value);
+					this._setResolvedShellLaunchConfig(value as IProcessPropertyMap[ProcessPropertyType.ResolvedShellLaunchConfig]);
 					break;
 				case ProcessPropertyType.ShellType:
-					this.setShellType(value);
+					this.setShellType(value as IProcessPropertyMap[ProcessPropertyType.ShellType]);
 					break;
 				case ProcessPropertyType.HasChildProcesses:
-					this._onDidChangeHasChildProcesses.fire(value);
+					this._onDidChangeHasChildProcesses.fire(value as IProcessPropertyMap[ProcessPropertyType.HasChildProcesses]);
 					break;
 				case ProcessPropertyType.UsedShellIntegrationInjection:
 					this._usedShellIntegrationInjection = true;
 					break;
 				case ProcessPropertyType.ShellIntegrationInjectionFailureReason:
-					this._shellIntegrationInjectionInfo = value;
+					this._shellIntegrationInjectionInfo = value as IProcessPropertyMap[ProcessPropertyType.ShellIntegrationInjectionFailureReason];
 					break;
 			}
 		}));
@@ -1547,9 +1550,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const originalIcon = this.shellLaunchConfig.icon;
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows).then(result => {
 			if (result) {
-				if ('message' in result) {
+				if (hasKey(result, { message: true })) {
 					this._onProcessExit(result);
-				} else if ('injectedArgs' in result) {
+				} else if (hasKey(result, { injectedArgs: true })) {
 					this._injectedArgs = result.injectedArgs;
 				}
 			}
@@ -1823,9 +1826,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 		await this._processManager.relaunch(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, reset).then(result => {
 			if (result) {
-				if ('message' in result) {
+				if (hasKey(result, { message: true })) {
 					this._onProcessExit(result);
-				} else if ('injectedArgs' in result) {
+				} else if (hasKey(result, { injectedArgs: true })) {
 					this._injectedArgs = result.injectedArgs;
 				}
 			}
@@ -1834,7 +1837,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	@debounce(1000)
 	relaunch(): void {
-		this.reuseTerminal(this._shellLaunchConfig, true);
+		// Clear the attachPersistentProcess flag to ensure we create a new process
+		// instead of trying to reattach to the existing one during relaunch.
+		const shellLaunchConfig = { ...this._shellLaunchConfig };
+		delete shellLaunchConfig.attachPersistentProcess;
+
+		this.reuseTerminal(shellLaunchConfig, true);
 	}
 
 	private _onTitleChange(title: string): void {

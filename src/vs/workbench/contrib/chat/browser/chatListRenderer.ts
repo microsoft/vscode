@@ -53,7 +53,7 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../common/chatService.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
@@ -73,7 +73,7 @@ import { ChatElicitationContentPart } from './chatContentParts/chatElicitationCo
 import { ChatErrorConfirmationContentPart } from './chatContentParts/chatErrorConfirmationPart.js';
 import { ChatErrorContentPart } from './chatContentParts/chatErrorContentPart.js';
 import { ChatExtensionsContentPart } from './chatContentParts/chatExtensionsContentPart.js';
-import { ChatMarkdownContentPart, EditorPool } from './chatContentParts/chatMarkdownContentPart.js';
+import { ChatMarkdownContentPart } from './chatContentParts/chatMarkdownContentPart.js';
 import { ChatMcpServersInteractionContentPart } from './chatContentParts/chatMcpServersInteractionContentPart.js';
 import { ChatMultiDiffContentPart } from './chatContentParts/chatMultiDiffContentPart.js';
 import { ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
@@ -81,7 +81,7 @@ import { ChatPullRequestContentPart } from './chatContentParts/chatPullRequestCo
 import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.js';
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
-import { ChatTextEditContentPart, DiffEditorPool } from './chatContentParts/chatTextEditContentPart.js';
+import { ChatTextEditContentPart } from './chatContentParts/chatTextEditContentPart.js';
 import { ChatThinkingContentPart } from './chatContentParts/chatThinkingContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
@@ -91,6 +91,7 @@ import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './codeBlockPart.js';
 import { ChatAnonymousRateLimitedPart } from './chatContentParts/chatAnonymousRateLimitedPart.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { EditorPool, DiffEditorPool } from './chatContentParts/chatContentCodePools.js';
 
 const $ = dom.$;
 
@@ -835,7 +836,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		let content: IChatRendererContent[] = [];
 		if (!element.confirmation) {
-			const markdown = 'message' in element.message ?
+			const markdown = isChatFollowup(element.message) ?
 				element.message.message :
 				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.message);
 			content = [{ content: new MarkdownString(markdown), kind: 'markdownContent' }];
@@ -861,6 +862,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				content: content,
 				preceedingContentParts: parts,
 				container: templateData.rowContainer,
+				editorPool: this._editorPool,
+				diffEditorPool: this._diffEditorPool,
+				codeBlockModelCollection: this.codeBlockModelCollection,
+				currentWidth: () => this._currentLayoutWidth,
+				get codeBlockStartIndex() {
+					return context.preceedingContentParts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
+				},
 			};
 			const newPart = this.renderChatContentPart(data, templateData, context);
 			if (newPart) {
@@ -1019,6 +1027,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				preceedingContentParts,
 				contentIndex: contentIndex,
 				container: templateData.rowContainer,
+				editorPool: this._editorPool,
+				diffEditorPool: this._diffEditorPool,
+				codeBlockModelCollection: this.codeBlockModelCollection,
+				currentWidth: () => this._currentLayoutWidth,
+				get codeBlockStartIndex() {
+					return context.preceedingContentParts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
+				},
 			};
 
 			// combine tool invocations into thinking part if needed. render the tool, but do not replace the working spinner with the new part's dom node since it is already inside the thinking part.
@@ -1281,13 +1296,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Special handling for "create" tool invocations- do not end thinking if previous part is a create tool invocation and config is set.
 			const shouldKeepThinkingForCreateTool = collapsedTools !== 'none' && lastRenderedPart instanceof ChatToolInvocationPart && this.isCreateToolInvocationContent(previousContent);
 
-			if (!shouldKeepThinkingForCreateTool) {
+			if (!shouldKeepThinkingForCreateTool && this._currentThinkingPart && !this._streamingThinking) {
 				const isResponseElement = isResponseVM(context.element);
 				const isThinkingContent = content.kind === 'working' || content.kind === 'thinking';
-				const toolInvocationContext = isResponseElement ? context.element : undefined;
-				const isToolStreamingContent = isResponseElement && this.shouldPinPart(content, toolInvocationContext);
-				if (this._currentThinkingPart && !this._streamingThinking && !isThinkingContent && !isToolStreamingContent) {
-					this.finalizeCurrentThinkingPart();
+				const isToolStreamingContent = isResponseElement && this.shouldPinPart(content, isResponseElement ? context.element : undefined);
+
+				if (!isThinkingContent && !isToolStreamingContent) {
+					const followsThinkingPart = previousContent?.kind === 'thinking' || previousContent?.kind === 'toolInvocation' || previousContent?.kind === 'prepareToolInvocation' || previousContent?.kind === 'toolInvocationSerialized';
+
+					if (context.element.isComplete || followsThinkingPart) {
+						this.finalizeCurrentThinkingPart();
+					}
 				}
 			}
 
@@ -1444,10 +1463,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return citationsPart;
 	}
 
-	private getCodeBlockStartIndex(context: IChatContentPartRenderContext): number {
-		return context.preceedingContentParts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
-	}
-
 	private handleRenderedCodeblocks(element: ChatTreeItem, part: IChatContentPart, codeBlockStartIndex: number): void {
 		if (!part.addDisposable || part.codeblocksPartId === undefined) {
 			return;
@@ -1488,7 +1503,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
-		const codeBlockStartIndex = this.getCodeBlockStartIndex(context);
+		const codeBlockStartIndex = context.codeBlockStartIndex;
 		const part = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth, this._toolInvocationCodeBlockCollection, this._announcedToolProgressKeys, codeBlockStartIndex);
 		part.addDisposable(part.onDidChangeHeight(() => {
 			this.updateItemHeight(templateData);
@@ -1498,7 +1513,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// handling for when we want to put tool invocations inside a thinking part
 		if (isResponseVM(context.element) && this.configService.getValue<string>('chat.agent.thinking.collapsedTools') !== 'none') {
 			if (this.shouldPinPart(toolInvocation, context.element)) {
-				if (this._currentThinkingPart && part?.domNode) {
+				if (this._currentThinkingPart && part?.domNode && toolInvocation.presentation !== 'hidden') {
 					this._currentThinkingPart.appendItem(part?.domNode);
 				}
 			} else {
@@ -1573,7 +1588,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderMarkdown(markdown: IChatMarkdownContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
 		const element = context.element;
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
-		const codeBlockStartIndex = this.getCodeBlockStartIndex(context);
+		const codeBlockStartIndex = context.codeBlockStartIndex;
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;
@@ -1725,7 +1740,7 @@ export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 
 	getHeight(element: ChatTreeItem): number {
 		const kind = isRequestVM(element) ? 'request' : 'response';
-		const height = ('currentRenderedHeight' in element ? element.currentRenderedHeight : undefined) ?? this.defaultElementHeight;
+		const height = element.currentRenderedHeight ?? this.defaultElementHeight;
 		this._traceLayout('getHeight', `${kind}, height=${height}`);
 		return height;
 	}

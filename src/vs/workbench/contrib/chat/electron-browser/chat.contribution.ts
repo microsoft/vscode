@@ -29,11 +29,14 @@ import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '.
 import { showChatView } from '../browser/chat.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatService } from '../common/chatService.js';
+import { ChatUrlFetchingConfirmationContribution } from '../common/chatUrlFetchingConfirmation.js';
 import { ChatModeKind } from '../common/constants.js';
+import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
+import { InternalFetchWebPageToolId } from '../common/tools/tools.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
-import { FetchWebPageTool, FetchWebPageToolData } from './tools/fetchPageTool.js';
+import { FetchWebPageTool, FetchWebPageToolData, IFetchWebPageToolParams } from './tools/fetchPageTool.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -42,11 +45,20 @@ class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchCon
 	constructor(
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ILanguageModelToolsConfirmationService confirmationService: ILanguageModelToolsConfirmationService,
 	) {
 		super();
 
 		const editTool = instantiationService.createInstance(FetchWebPageTool);
 		this._register(toolsService.registerTool(FetchWebPageToolData, editTool));
+
+		this._register(confirmationService.registerConfirmationContribution(
+			InternalFetchWebPageToolId,
+			instantiationService.createInstance(
+				ChatUrlFetchingConfirmationContribution,
+				params => (params as IFetchWebPageToolParams).urls
+			)
+		));
 	}
 }
 

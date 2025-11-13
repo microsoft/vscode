@@ -16,6 +16,7 @@ import { INotebookExecutionStateService } from '../../../common/notebookExecutio
 import { executingStateIcon } from '../../notebookIcons.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CellViewModelStateChangeEvent } from '../../notebookViewEvents.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 
 const UPDATE_EXECUTION_ORDER_GRACE_PERIOD = 200;
 
@@ -38,7 +39,7 @@ export class CellExecutionPart extends CellContentPart {
 
 		// Add a method to watch for cell execution state changes
 		this._register(this._notebookExecutionStateService.onDidChangeExecution(e => {
-			if (this.currentCell && 'affectsCell' in e && e.affectsCell(this.currentCell.uri)) {
+			if (this.currentCell && hasKey(e, { affectsCell: true }) && e.affectsCell(this.currentCell.uri)) {
 				this._updatePosition();
 			}
 		}));

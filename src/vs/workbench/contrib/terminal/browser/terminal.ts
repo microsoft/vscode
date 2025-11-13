@@ -132,7 +132,7 @@ export interface ITerminalChatService {
 	 * Returns the list of terminal instances that have been registered with a tool session id.
 	 * This is used for surfacing tool-driven/background terminals in UI (eg. quick picks).
 	 */
-	getToolSessionTerminalInstances(): readonly ITerminalInstance[];
+	getToolSessionTerminalInstances(hiddenOnly?: boolean): readonly ITerminalInstance[];
 
 	/**
 	 * Returns the tool session ID for a given terminal instance, if it has been registered.
@@ -432,6 +432,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	moveIntoNewEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source: ITerminalInstance | URI): Promise<void>;
 	getPrimaryBackend(): ITerminalBackend | undefined;
+	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void>;
 
 	/**
 	 * Fire the onActiveTabChanged event, this will trigger the terminal dropdown to be updated,

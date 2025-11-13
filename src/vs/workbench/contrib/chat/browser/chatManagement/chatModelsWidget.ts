@@ -7,7 +7,6 @@ import './media/chatModelsWidget.css';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Button, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
@@ -36,6 +35,8 @@ import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
 import { preferencesClearInputIcon } from '../../../preferences/browser/preferencesIcons.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
 
 const $ = DOM.$;
 
@@ -696,6 +697,8 @@ export class ChatModelsWidget extends Disposable {
 	private viewModel: ChatModelsViewModel;
 	private delayedFiltering: Delayer<void>;
 
+	private readonly searchFocusContextKey: IContextKey<boolean>;
+
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -704,9 +707,11 @@ export class ChatModelsWidget extends Disposable {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
+		this.searchFocusContextKey = CONTEXT_MODELS_SEARCH_FOCUS.bindTo(contextKeyService);
 		this.delayedFiltering = new Delayer<void>(300);
 		this.viewModel = this._register(this.instantiationService.createInstance(ChatModelsViewModel));
 		this.element = DOM.$('.models-widget');
@@ -756,8 +761,9 @@ export class ChatModelsWidget extends Disposable {
 				placeholderText: placeholder,
 				styleOverrides: {
 					inputBorder: settingsTextInputBorder
-				}
-			}
+				},
+				focusContextKey: this.searchFocusContextKey,
+			},
 		));
 		this._register(this.searchWidget.onInputDidChange(() => this.filterModels()));
 
@@ -775,17 +781,6 @@ export class ChatModelsWidget extends Disposable {
 
 		this._register(this.searchWidget.onInputDidChange(() => {
 			clearSearchAction.enabled = !!this.searchWidget.getValue();
-		}));
-
-		this._register(this.searchWidget.inputWidget.onKeyDown((e) => {
-			if (e.keyCode === KeyCode.Escape) {
-				e.preventDefault();
-				e.stopPropagation();
-				if (this.searchWidget.getValue()) {
-					this.searchWidget.setValue('');
-					this.searchWidget.focus();
-				}
-			}
 		}));
 
 		this.searchActionsContainer = DOM.append(searchContainer, $('.models-search-actions'));
@@ -976,11 +971,8 @@ export class ChatModelsWidget extends Disposable {
 		const modelItems = this.viewModel.fetch(searchValue);
 
 		const vendors = this.viewModel.getVendors();
-		const vendorsWithModels = new Set(modelItems
-			.filter((item): item is IModelItemEntry => !isVendorEntry(item))
-			.map(item => item.modelEntry.vendor)
-		);
-		const vendorsWithoutModels = vendors.filter(v => !vendorsWithModels.has(v.vendor));
+		const configuredVendors = new Set(this.viewModel.getConfiguredVendors().map(cv => cv.vendorEntry.vendor));
+		const vendorsWithoutModels = vendors.filter(v => !configuredVendors.has(v.vendor));
 
 		this.table.splice(0, this.table.length, modelItems);
 

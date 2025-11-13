@@ -91,7 +91,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		}
 	}
 
-	private traverseTree(tree: any): string {
+	private traverseTree(tree: WindowsProcessTreeType.IProcessTreeNode | undefined): string {
 		if (!tree) {
 			return '';
 		}

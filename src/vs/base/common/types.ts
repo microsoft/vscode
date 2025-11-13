@@ -372,7 +372,7 @@ export type PartialExcept<T, K extends keyof T> = Partial<Omit<T, K>> & Pick<T, 
 
 type KeysOfUnionType<T> = T extends T ? keyof T : never;
 type FilterType<T, TTest> = T extends TTest ? T : never;
-type MakeOptionalAndBool<T extends object> = { [K in keyof T]?: boolean };
+type MakeOptionalAndTrue<T extends object> = { [K in keyof T]?: true };
 
 /**
  * Type guard that checks if an object has specific keys and narrows the type accordingly.
@@ -393,7 +393,7 @@ type MakeOptionalAndBool<T extends object> = { [K in keyof T]?: boolean };
  * }
  * ```
  */
-export function hasKey<T extends object, TKeys>(x: T, key: TKeys & MakeOptionalAndBool<T>): x is FilterType<T, { [K in KeysOfUnionType<T> & keyof TKeys]: unknown }> {
+export function hasKey<T extends object, TKeys extends MakeOptionalAndTrue<T>>(x: T, key: TKeys): x is FilterType<T, { [K in KeysOfUnionType<T> & keyof TKeys]: unknown }> {
 	for (const k in key) {
 		if (!(k in x)) {
 			return false;

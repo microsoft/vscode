@@ -227,7 +227,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			return Promise.resolve();
 		}
 
-		return eventToPromise(filterEvent(this.onDidChangeState, s => s === 'initialized')) as Promise<any>;
+		return eventToPromise(filterEvent(this.onDidChangeState, s => s === 'initialized') as Event<unknown>) as Promise<void>;
 	}
 
 	private remoteSourcePublishers = new Set<RemoteSourcePublisher>();
@@ -835,7 +835,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			commands.executeCommand('setContext', 'operationInProgress', operationInProgress);
 		};
 
-		const operationEvent = anyEvent(repository.onDidRunOperation as Event<any>, repository.onRunOperation as Event<any>);
+		const operationEvent = anyEvent(repository.onDidRunOperation as Event<unknown>, repository.onRunOperation as Event<unknown>);
 		const operationListener = operationEvent(() => updateOperationInProgressContext());
 		updateOperationInProgressContext();
 
@@ -901,11 +901,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		return pick && pick.repository;
 	}
 
-	getRepository(sourceControl: SourceControl): Repository | undefined;
-	getRepository(resourceGroup: SourceControlResourceGroup): Repository | undefined;
-	getRepository(path: string): Repository | undefined;
-	getRepository(resource: Uri): Repository | undefined;
-	getRepository(hint: any): Repository | undefined {
+	getRepository(hint: SourceControl | SourceControlResourceGroup | Uri | string): Repository | undefined {
 		const liveRepository = this.getOpenRepository(hint);
 		return liveRepository && liveRepository.repository;
 	}
@@ -932,12 +928,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 	}
 
-	private getOpenRepository(repository: Repository): OpenRepository | undefined;
-	private getOpenRepository(sourceControl: SourceControl): OpenRepository | undefined;
-	private getOpenRepository(resourceGroup: SourceControlResourceGroup): OpenRepository | undefined;
-	private getOpenRepository(path: string): OpenRepository | undefined;
-	private getOpenRepository(resource: Uri): OpenRepository | undefined;
-	private getOpenRepository(hint: any): OpenRepository | undefined {
+	private getOpenRepository(hint: SourceControl | SourceControlResourceGroup | Repository | Uri | string): OpenRepository | undefined {
 		if (!hint) {
 			return undefined;
 		}
