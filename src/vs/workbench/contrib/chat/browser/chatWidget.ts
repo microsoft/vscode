@@ -2440,13 +2440,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// first check if the input has a prompt slash command
 		const agentSlashPromptPart = this.parsedInput.parts.find((r): r is ChatRequestSlashPromptPart => r instanceof ChatRequestSlashPromptPart);
 		if (!agentSlashPromptPart) {
-			return undefined;
+			return;
 		}
 
 		// need to resolve the slash command to get the prompt file
 		const slashCommand = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.name, CancellationToken.None);
 		if (!slashCommand) {
-			return undefined;
+			return;
 		}
 		const parseResult = slashCommand.parsedPromptFile;
 		// add the prompt file to the context
