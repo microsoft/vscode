@@ -349,9 +349,7 @@ export class ChatService extends Disposable implements IChatService {
 					isImported: metadata.isImported || false,
 					initialLocation: metadata.initialLocation,
 					requests: [], // Empty requests array - this is just for title lookup
-					requesterUsername: '',
 					responderUsername: '',
-					requesterAvatarIconUri: undefined,
 					responderAvatarIconUri: undefined,
 				};
 
