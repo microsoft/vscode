@@ -43,8 +43,7 @@ const { config } = electronModule;
 const { createAsar } = asarModule;
 const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
-const __dirname = import.meta.dirname;
-const root = path.dirname(__dirname);
+const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 
 // Build
@@ -292,14 +291,14 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const telemetry = gulp.src('.build/telemetry/**', { base: '.build/telemetry', dot: true });
 
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
-		const root = path.resolve(path.join(__dirname, '..'));
+		const root = path.resolve(path.join(import.meta.dirname, '..'));
 		const productionDependencies = getProductionDependencies(root);
 		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat().concat('!**/*.mk');
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
 			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.{js,css}.map']))
-			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
-			.pipe(util.cleanNodeModules(path.join(__dirname, `.moduleignore.${process.platform}`)))
+			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
+			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)

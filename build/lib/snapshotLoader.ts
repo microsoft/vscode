@@ -10,7 +10,7 @@ export namespace snaps {
 	const os = require('os');
 	const cp = require('child_process');
 
-	const mksnapshot = path.join(__dirname, `../../node_modules/.bin/${process.platform === 'win32' ? 'mksnapshot.cmd' : 'mksnapshot'}`);
+	const mksnapshot = path.join(import.meta.dirname, `../../node_modules/.bin/${process.platform === 'win32' ? 'mksnapshot.cmd' : 'mksnapshot'}`);
 	const product = require('../../product.json');
 	const arch = (process.argv.join('').match(/--arch=(.*)/) || [])[1];
 
@@ -34,8 +34,8 @@ export namespace snaps {
 			throw new Error('Unknown platform');
 	}
 
-	loaderFilepath = path.join(__dirname, '../../../', loaderFilepath);
-	startupBlobFilepath = path.join(__dirname, '../../../', startupBlobFilepath);
+	loaderFilepath = path.join(import.meta.dirname, '../../../', loaderFilepath);
+	startupBlobFilepath = path.join(import.meta.dirname, '../../../', startupBlobFilepath);
 
 	snapshotLoader(loaderFilepath, startupBlobFilepath);
 

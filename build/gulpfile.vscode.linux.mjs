@@ -23,9 +23,8 @@ import { fileURLToPath } from 'url';
 const { rimraf } = utilModule;
 const { getVersion } = getVersionModule;
 const { recommendedDeps: debianRecommendedDependencies } = depLists;
-const __dirname = import.meta.dirname;
 const exec = promisify(cp.exec);
-const root = path.dirname(__dirname);
+const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);

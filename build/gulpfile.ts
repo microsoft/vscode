@@ -15,7 +15,6 @@ import * as util from './lib/util.js';
 EventEmitter.defaultMaxListeners = 100;
 
 const require = createRequire(import.meta.url);
-const __dirname = import.meta.dirname;
 
 const { transpileTask, compileTask, watchTask, compileApiProposalNamesTask, watchApiProposalNamesTask } = compilation;
 
@@ -53,7 +52,7 @@ process.on('unhandledRejection', (reason, p) => {
 });
 
 // Load all the gulpfiles only if running tasks other than the editor tasks
-glob.sync('gulpfile.*.{mjs,js}', { cwd: __dirname })
+glob.sync('gulpfile.*.{mjs,js}', { cwd: import.meta.dirname })
 	.forEach(f => {
 		return require(`./${f}`);
 	});

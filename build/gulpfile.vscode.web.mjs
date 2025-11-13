@@ -27,9 +27,8 @@ import { fileURLToPath } from 'url';
 const { getVersion } = getVersionModule;
 const { readISODate } = dateModule;
 const { getProductionDependencies } = dependenciesModule;
-const __dirname = import.meta.dirname;
 
-const REPO_ROOT = path.dirname(__dirname);
+const REPO_ROOT = path.dirname(import.meta.dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const WEB_FOLDER = path.join(REPO_ROOT, 'remote', 'web');
 
@@ -184,7 +183,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		const deps = gulp.src(dependenciesSrc, { base: 'remote/web', dot: true })
 			.pipe(filter(['**', '!**/package-lock.json']))
-			.pipe(util.cleanNodeModules(path.join(__dirname, '.webignore')));
+			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.webignore')));
 
 		const favicon = gulp.src('resources/server/favicon.ico', { base: 'resources/server' });
 		const manifest = gulp.src('resources/server/manifest.json', { base: 'resources/server' });

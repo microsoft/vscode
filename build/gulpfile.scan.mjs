@@ -16,8 +16,7 @@ import { fileURLToPath } from 'url';
 
 const { config } = electronConfigModule;
 
-const __dirname = import.meta.dirname;
-const root = path.dirname(__dirname);
+const root = path.dirname(import.meta.dirname);
 
 const BUILD_TARGETS = [
 	{ platform: 'win32', arch: 'x64' },

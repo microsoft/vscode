@@ -21,10 +21,9 @@ import { fileURLToPath } from 'url';
 
 const { debounce } = utilModule;
 const { createReporter } = reporterModule;
-const __dirname = import.meta.dirname;
 
 const root = 'cli';
-const rootAbs = path.resolve(__dirname, '..', root);
+const rootAbs = path.resolve(import.meta.dirname, '..', root);
 const src = `${root}/src`;
 
 const platformOpensslDirName =

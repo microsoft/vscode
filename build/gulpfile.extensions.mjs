@@ -24,10 +24,9 @@ import * as tsb from './lib/tsb/index.js';
 import sourcemaps from 'gulp-sourcemaps';
 import { fileURLToPath } from 'url';
 
-const __dirname = import.meta.dirname;
 const { getVersion } = getVersionModule;
 const { createReporter } = reporterModule;
-const root = path.dirname(__dirname);
+const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 
 // To save 250ms for each gulp startup, we are caching the result here

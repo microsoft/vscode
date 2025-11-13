@@ -26,7 +26,7 @@ export async function downloadExplorerDll(outDir: string, quality: string = 'sta
 	}
 
 	// Read and parse checksums file
-	const checksumsFilePath = path.join(path.dirname(__dirname), 'checksums', 'explorer-dll.txt');
+	const checksumsFilePath = path.join(path.dirname(import.meta.dirname), 'checksums', 'explorer-dll.txt');
 	const checksumsContent = fs.readFileSync(checksumsFilePath, 'utf8');
 	const checksums: Record<string, string> = {};
 

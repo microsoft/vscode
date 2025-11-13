@@ -20,10 +20,9 @@ import filter from 'gulp-filter';
 import * as reporterModule from './lib/reporter.js';
 import monacoPackage from './monaco/package.json' with { type: 'json' };
 
-const __dirname = import.meta.dirname;
 const { getVersion } = getVersionModule;
 const { createReporter } = reporterModule;
-const root = path.dirname(__dirname);
+const root = path.dirname(import.meta.dirname);
 const sha1 = getVersion(root);
 const semver = monacoPackage.version;
 const headerVersion = semver + '(' + sha1 + ')';
@@ -242,7 +241,7 @@ function createTscCompileTask(watch) {
 				args.push('-w');
 			}
 			const child = cp.spawn(`node`, args, {
-				cwd: path.join(__dirname, '..'),
+				cwd: path.join(import.meta.dirname, '..'),
 				// stdio: [null, 'pipe', 'inherit']
 			});
 			const errors = [];
