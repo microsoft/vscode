@@ -75,7 +75,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _outputView: ChatTerminalToolOutputSection;
 	private readonly _terminalOutputContextKey: IContextKey<boolean>;
 	private _terminalSessionRegistration: IDisposable | undefined;
-	private _currentFocusAction: FocusChatInstanceAction | undefined;
 
 	private readonly _showOutputAction = this._register(new MutableDisposable<ToggleChatTerminalOutputAction>());
 	private _showOutputActionAdded = false;
@@ -277,17 +276,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const actionBar = this._actionBar.value;
 		this._removeFocusAction();
 
-		const canFocus = !!terminalInstance;
-		if (canFocus) {
+		if (terminalInstance) {
 			const isTerminalHidden = terminalInstance && terminalToolSessionId ? this._terminalChatService.isBackgroundTerminal(terminalToolSessionId) : false;
 			const resolvedCommand = this._getResolvedCommand(terminalInstance);
 			const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, resolvedCommand, this._terminalCommandUri, this._storedCommandId, isTerminalHidden);
 			this._focusAction.value = focusAction;
-			this._currentFocusAction = focusAction;
 			actionBar.push(focusAction, { icon: true, label: false, index: 0 });
-		} else {
-			this._focusAction.clear();
-			this._currentFocusAction = undefined;
 		}
 
 		this._ensureShowOutputAction();
@@ -394,17 +388,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private _removeFocusAction(): void {
 		const actionBar = this._actionBar.value;
-		const focusAction = this._currentFocusAction ?? this._focusAction.value;
+		const focusAction = this._focusAction.value;
 		if (actionBar && focusAction) {
 			const existingIndex = actionBar.viewItems.findIndex(item => item.action === focusAction);
 			if (existingIndex >= 0) {
 				actionBar.pull(existingIndex);
 			}
 		}
-		if (this._focusAction.value === focusAction) {
-			this._focusAction.clear();
-		}
-		this._currentFocusAction = undefined;
+		this._focusAction.clear();
 	}
 
 	private async _toggleOutput(expanded: boolean): Promise<boolean> {
