@@ -65,7 +65,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly cachedFileLocations: { [key in PromptsType]?: Promise<readonly IPromptPath[]> } = {};
 
 	/**
-	 * Lazily created file locator events for each prompt type.
+	 * Lazily created events that notify listeners when the file locations for a given prompt type change.
+	 * An event is created on demand for each prompt type and can be used by consumers to react to updates
+	 * in the set of prompt files (e.g., when prompt files are added, removed, or modified).
 	 */
 	private readonly fileLocatorEvents: { [key in PromptsType]?: Event<void> } = {};
 
