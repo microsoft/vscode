@@ -42,10 +42,11 @@
 		width: fit-content;
 		font-weight: normal;
 		text-decoration: none;
-		padding: 0 6px 0 3px;
+		padding: 1px 3px;
 		cursor: pointer;
 		position: relative;
 		overflow: hidden;
+		line-height: 1em;
 
 		.progress-fill {
 			display: none;
@@ -78,11 +79,15 @@
 			vertical-align: middle;
 			line-height: 1em;
 			overflow: hidden;
+			font-size: 90%;
+			top: 1px;
 		}
 
 		.icon-label {
 			padding: 0px 3px;
 			text-wrap: wrap;
+			vertical-align: middle;
+			line-height: 1em;
 		}
 
 		.icon::before {
@@ -92,7 +97,8 @@
 			background-size: contain;
 			background-position: center;
 			background-repeat: no-repeat;
-			font-size: 90%;
+			font-size: 100% !important;
+			margin-bottom: 1px;
 		}
 
 		span.label-detail {
@@ -105,10 +111,12 @@
 			}
 		}
 
-		span.label-added {
-			/* font-weight: bold; */
+		span.label-added,
+		span.label-removed {
 			padding-left: 4px;
-			color: var(--vscode-chat-linesAddedForeground);
+			font-size: var(--vscode-chat-font-size-body-s);
+			vertical-align: middle;
+			line-height: 1em;
 
 			&:empty {
 				padding: 0;
@@ -116,13 +124,12 @@
 		}
 
 		span.label-removed {
-			/* font-weight: bold; */
-			padding-left: 4px;
+			padding-right: 2px;
 			color: var(--vscode-chat-linesRemovedForeground);
+		}
 
-			&:empty {
-				padding: 0;
-			}
+		span.label-added {
+			color: var(--vscode-chat-linesAddedForeground);
 		}
 
 		&:hover {
