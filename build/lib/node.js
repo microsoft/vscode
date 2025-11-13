@@ -9,7 +9,7 @@ import fs from 'fs';
 const root = path.dirname(path.dirname(import.meta.dirname));
 const npmrcPath = path.join(root, 'remote', '.npmrc');
 const npmrc = fs.readFileSync(npmrcPath, 'utf8');
-const version = /^target="(.*)"$/m.exec(npmrc)![1];
+const version = /^target="(.*)"$/m.exec(npmrc)[1];
 
 const platform = process.platform;
 const arch = process.arch;
