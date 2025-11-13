@@ -350,12 +350,26 @@ export default tseslint.config(
 			'local/code-no-in-operator': 'warn',
 		}
 	},
-	// vscode TS: strict no explicit `any`
+	// Strict no explicit `any`
 	{
 		files: [
+			// Extensions
+			'extensions/git/src/**/*.ts',
+			'extensions/git-base/src/**/*.ts',
+			'extensions/github/src/**/*.ts',
+			// vscode
 			'src/**/*.ts',
 		],
 		ignores: [
+			// Extensions
+			'extensions/git/src/commands.ts',
+			'extensions/git/src/decorators.ts',
+			'extensions/git/src/git.ts',
+			'extensions/git/src/repository.ts',
+			'extensions/git/src/util.ts',
+			'extensions/git-base/src/decorators.ts',
+			'extensions/github/src/util.ts',
+			// vscode d.ts
 			'src/vs/amdX.ts',
 			'src/vs/monaco.d.ts',
 			'src/vscode-dts/**',
