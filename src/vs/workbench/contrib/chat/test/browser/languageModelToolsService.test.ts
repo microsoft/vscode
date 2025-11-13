@@ -74,7 +74,10 @@ function registerToolForTest(service: LanguageModelToolsService, store: any, id:
 			toolId: id,
 			tokenBudget: 100,
 			parameters,
-			context,
+			context: context ? {
+				sessionId: context.sessionId,
+				sessionResource: LocalChatSessionUri.forSession(context.sessionId),
+			} : undefined,
 		}),
 	};
 }

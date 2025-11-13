@@ -883,6 +883,7 @@ export class ChatService extends Disposable implements IChatService {
 
 						const agentRequest: IChatAgentRequest = {
 							sessionId: model.sessionId,
+							sessionResource: model.sessionResource,
 							requestId: request.id,
 							agentId: agent.id,
 							message,
@@ -1132,6 +1133,7 @@ export class ChatService extends Disposable implements IChatService {
 			const promptTextResult = getPromptText(request.message);
 			const historyRequest: IChatAgentRequest = {
 				sessionId: sessionId,
+				sessionResource: request.session.sessionResource,
 				requestId: request.id,
 				agentId: request.response.agent?.id ?? '',
 				message: promptTextResult.message,
