@@ -295,7 +295,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EligibleForAutoApproval]: {
 			default: {},
-			markdownDescription: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval.  Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve.  The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options '),
+			markdownDescription: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval.  Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve.  The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options.'),
 			type: 'object',
 			additionalProperties: {
 				type: 'boolean',
