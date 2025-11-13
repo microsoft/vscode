@@ -365,7 +365,6 @@ export default tseslint.config(
 			'extensions/git/src/commands.ts',
 			'extensions/git/src/decorators.ts',
 			'extensions/git/src/git.ts',
-			'extensions/git/src/repository.ts',
 			'extensions/git/src/util.ts',
 			'extensions/git-base/src/decorators.ts',
 			'extensions/github/src/util.ts',
