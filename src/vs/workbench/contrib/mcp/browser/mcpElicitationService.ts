@@ -7,6 +7,7 @@ import { Action } from '../../../../base/common/actions.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isDefined } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -19,6 +20,31 @@ import { mcpServerToSourceData } from '../common/mcpTypesUtils.js';
 import { MCP } from '../common/modelContextProtocol.js';
 
 const noneItem: IQuickPickItem = { id: undefined, label: localize('mcp.elicit.enum.none', 'None'), description: localize('mcp.elicit.enum.none.description', 'No selection'), alwaysShow: true };
+
+function isLegacyTitledEnumSchema(schema: MCP.PrimitiveSchemaDefinition): schema is MCP.LegacyTitledEnumSchema & { enumNames: string[] } {
+	const cast = schema as MCP.LegacyTitledEnumSchema;
+	return cast.type === 'string' && Array.isArray(cast.enum) && Array.isArray(cast.enumNames);
+}
+
+function isUntitledEnumSchema(schema: MCP.PrimitiveSchemaDefinition): schema is MCP.LegacyTitledEnumSchema | MCP.UntitledSingleSelectEnumSchema {
+	const cast = schema as MCP.LegacyTitledEnumSchema | MCP.UntitledSingleSelectEnumSchema;
+	return cast.type === 'string' && Array.isArray(cast.enum);
+}
+
+function isTitledSingleEnumSchema(schema: MCP.PrimitiveSchemaDefinition): schema is MCP.TitledSingleSelectEnumSchema {
+	const cast = schema as MCP.TitledSingleSelectEnumSchema;
+	return cast.type === 'string' && Array.isArray(cast.oneOf);
+}
+
+function isUntitledMultiEnumSchema(schema: MCP.PrimitiveSchemaDefinition): schema is MCP.UntitledMultiSelectEnumSchema {
+	const cast = schema as MCP.UntitledMultiSelectEnumSchema;
+	return cast.type === 'array' && !!cast.items?.enum;
+}
+
+function isTitledMultiEnumSchema(schema: MCP.PrimitiveSchemaDefinition): schema is MCP.TitledMultiSelectEnumSchema {
+	const cast = schema as MCP.TitledMultiSelectEnumSchema;
+	return cast.type === 'array' && !!cast.items?.anyOf;
+}
 
 export class McpElicitationService implements IMcpElicitationService {
 	declare readonly _serviceBrand: undefined;
@@ -82,7 +108,7 @@ export class McpElicitationService implements IMcpElicitationService {
 		try {
 			const properties = Object.entries(elicitation.requestedSchema.properties);
 			const requiredFields = new Set(elicitation.requestedSchema.required || []);
-			const results: Record<string, string | number | boolean> = {};
+			const results: Record<string, string | number | boolean | string[]> = {};
 			const backSnapshots: { value: string; validationMessage?: string }[] = [];
 
 			quickPick.title = elicitation.message;
@@ -102,12 +128,20 @@ export class McpElicitationService implements IMcpElicitationService {
 				quickPick.validationMessage = '';
 				quickPick.buttons = i > 0 ? [this._quickInputService.backButton] : [];
 
-				let result: { type: 'value'; value: string | number | boolean | undefined } | { type: 'back' } | { type: 'cancel' };
+				let result: { type: 'value'; value: string | number | boolean | undefined | string[] } | { type: 'back' } | { type: 'cancel' };
 				if (schema.type === 'boolean') {
-					result = await this._handleEnumField(quickPick, { ...schema, type: 'string', enum: ['true', 'false'], default: schema.default ? String(schema.default) : undefined }, isRequired, store, token);
+					result = await this._handleEnumField(quickPick, { enum: [{ const: 'true' }, { const: 'false' }], default: schema.default ? String(schema.default) : undefined }, isRequired, store, token);
 					if (result.type === 'value') { result.value = result.value === 'true' ? true : false; }
-				} else if (schema.type === 'string' && 'enum' in schema) {
-					result = await this._handleEnumField(quickPick, schema, isRequired, store, token);
+				} else if (isLegacyTitledEnumSchema(schema)) {
+					result = await this._handleEnumField(quickPick, { enum: schema.enum.map((v, i) => ({ const: v, title: schema.enumNames[i] })), default: schema.default }, isRequired, store, token);
+				} else if (isUntitledEnumSchema(schema)) {
+					result = await this._handleEnumField(quickPick, { enum: schema.enum.map(v => ({ const: v })), default: schema.default }, isRequired, store, token);
+				} else if (isTitledSingleEnumSchema(schema)) {
+					result = await this._handleEnumField(quickPick, { enum: schema.oneOf, default: schema.default }, isRequired, store, token);
+				} else if (isTitledMultiEnumSchema(schema)) {
+					result = await this._handleMultiEnumField(quickPick, { enum: schema.items.anyOf, default: schema.default }, isRequired, store, token);
+				} else if (isUntitledMultiEnumSchema(schema)) {
+					result = await this._handleMultiEnumField(quickPick, { enum: schema.items.enum.map(v => ({ const: v })), default: schema.default }, isRequired, store, token);
 				} else {
 					result = await this._handleInputField(quickPick, schema, isRequired, store, token);
 					if (result.type === 'value' && (schema.type === 'number' || schema.type === 'integer')) {
@@ -152,23 +186,23 @@ export class McpElicitationService implements IMcpElicitationService {
 
 	private async _handleEnumField(
 		quickPick: IQuickPick<IQuickPickItem>,
-		schema: MCP.EnumSchema,
+		schema: { default?: string; enum: { const: string; title?: string }[] },
 		required: boolean,
 		store: DisposableStore,
 		token: CancellationToken
 	) {
-		const items: IQuickPickItem[] = schema.enum.map((value, index) => ({
+		const items: IQuickPickItem[] = schema.enum.map(({ const: value, title }) => ({
 			id: value,
 			label: value,
-			description: schema.enumNames?.[index],
+			description: title,
 		}));
 
 		if (!required) {
 			items.push(noneItem);
 		}
 
-		quickPick.items = items;
 		quickPick.canSelectMany = false;
+		quickPick.items = items;
 		if (schema.default !== undefined) {
 			quickPick.activeItems = items.filter(item => item.id === schema.default);
 		}
@@ -179,6 +213,45 @@ export class McpElicitationService implements IMcpElicitationService {
 				const selected = quickPick.selectedItems[0];
 				if (selected) {
 					resolve({ type: 'value', value: selected.id });
+				}
+			}));
+			store.add(quickPick.onDidTriggerButton(() => resolve({ type: 'back' })));
+			store.add(quickPick.onDidHide(() => resolve({ type: 'cancel' })));
+
+			quickPick.show();
+		});
+	}
+
+	private async _handleMultiEnumField(
+		quickPick: IQuickPick<IQuickPickItem>,
+		schema: { default?: string[]; enum: { const: string; title?: string }[] },
+		required: boolean,
+		store: DisposableStore,
+		token: CancellationToken
+	) {
+		const items: IQuickPickItem[] = schema.enum.map(({ const: value, title }) => ({
+			id: value,
+			label: value,
+			description: title,
+			picked: !!schema.default?.includes(value),
+			pickable: true,
+		}));
+
+		if (!required) {
+			items.push(noneItem);
+		}
+
+		quickPick.canSelectMany = true;
+		quickPick.items = items;
+
+		return new Promise<{ type: 'value'; value: string[] | undefined } | { type: 'back' } | { type: 'cancel' }>(resolve => {
+			store.add(token.onCancellationRequested(() => resolve({ type: 'cancel' })));
+			store.add(quickPick.onDidAccept(() => {
+				const selected = quickPick.selectedItems[0];
+				if (selected.id === undefined) {
+					resolve({ type: 'value', value: undefined });
+				} else {
+					resolve({ type: 'value', value: quickPick.selectedItems.map(i => i.id).filter(isDefined) });
 				}
 			}));
 			store.add(quickPick.onDidTriggerButton(() => resolve({ type: 'back' })));

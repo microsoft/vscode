@@ -196,7 +196,9 @@ export class GitBlameController {
 		} satisfies BlameInformationTemplateTokens;
 
 		return template.replace(/\$\{(.+?)\}/g, (_, token) => {
-			return token in templateTokens ? templateTokens[token as keyof BlameInformationTemplateTokens] : `\${${token}}`;
+			return templateTokens.hasOwnProperty(token)
+				? templateTokens[token as keyof BlameInformationTemplateTokens]
+				: `\${${token}}`;
 		});
 	}
 

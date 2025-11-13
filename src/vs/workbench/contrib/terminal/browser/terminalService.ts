@@ -340,6 +340,13 @@ export class TerminalService extends Disposable implements ITerminalService {
 		return this._primaryBackend;
 	}
 
+	async setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
+		if (!this._primaryBackend || id <= 0) {
+			return;
+		}
+		await this._primaryBackend.setNextCommandId(id, commandLine, commandId);
+	}
+
 	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
 		this._register(host.onDidChangeInstances(this._onDidChangeInstances.fire, this._onDidChangeInstances));
 		this._register(host.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance));

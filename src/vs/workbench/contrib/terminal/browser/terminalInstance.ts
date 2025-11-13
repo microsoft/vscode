@@ -1837,7 +1837,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	@debounce(1000)
 	relaunch(): void {
-		this.reuseTerminal(this._shellLaunchConfig, true);
+		// Clear the attachPersistentProcess flag to ensure we create a new process
+		// instead of trying to reattach to the existing one during relaunch.
+		const shellLaunchConfig = { ...this._shellLaunchConfig };
+		delete shellLaunchConfig.attachPersistentProcess;
+
+		this.reuseTerminal(shellLaunchConfig, true);
 	}
 
 	private _onTitleChange(title: string): void {

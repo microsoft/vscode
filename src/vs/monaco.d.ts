@@ -6129,6 +6129,7 @@ declare namespace monaco.editor {
 		 * Fires after the editor completes the operation it fired `onBeginUpdate` for.
 		*/
 		readonly onEndUpdate: IEvent<void>;
+		readonly onDidChangeViewZones: IEvent<void>;
 		/**
 		 * Saves current view state of the editor in a serializable object.
 		 */
@@ -7572,7 +7573,6 @@ declare namespace monaco.languages {
 		range: IRange;
 		style: InlineCompletionHintStyle;
 		content: string;
-		jumpToEdit: boolean;
 	}
 
 	export type IconPath = editor.ThemeIcon;

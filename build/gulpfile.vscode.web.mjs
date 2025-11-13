@@ -27,7 +27,7 @@ import { fileURLToPath } from 'url';
 const { getVersion } = getVersionModule;
 const { readISODate } = dateModule;
 const { getProductionDependencies } = dependenciesModule;
-const __dirname = import.meta.dirname
+const __dirname = import.meta.dirname;
 
 const REPO_ROOT = path.dirname(__dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
