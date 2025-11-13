@@ -40,15 +40,20 @@ export async function getAccessToken(endpoint: string, tenantId: string, clientI
 
 async function main() {
 	const cosmosDBAccessToken = await getAccessToken(e('AZURE_DOCUMENTDB_ENDPOINT')!, e('AZURE_TENANT_ID')!, e('AZURE_CLIENT_ID')!, e('AZURE_ID_TOKEN')!);
-	const blobServiceAccessToken = await getAccessToken(`https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`, process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_ID_TOKEN']!);
+	const blobServiceAccessToken = await getAccessToken(`https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`, e('AZURE_TENANT_ID')!, e('AZURE_CLIENT_ID')!, e('AZURE_ID_TOKEN')!);
 	console.log(JSON.stringify({ cosmosDBAccessToken, blobServiceAccessToken }));
 }
 
 const normalizeScriptPath = (p: string) => p.replace(/\.(js|ts)$/, '');
+console.log('import.meta.filename:', normalizeScriptPath(import.meta.filename));
+console.log('process.argv[1]:', normalizeScriptPath(process.argv[1]));
 if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
+	console.log('running main');
 	main().then(() => {
+		console.log('done');
 		process.exit(0);
 	}, err => {
+		console.log('error', err);
 		console.error(err);
 		process.exit(1);
 	});
