@@ -197,7 +197,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	// slash prompt commands
 
 	/**
-	 * Emitter slash commands change events.
+	 * Emitter for slash commands change events.
 	 */
 	public get onDidChangeSlashCommands(): Event<void> {
 		return this.cachedSlashCommands.onDidChange;
