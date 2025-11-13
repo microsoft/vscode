@@ -29,8 +29,10 @@ import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManag
 import { GitBlameController } from './blame';
 import { CloneManager } from './cloneManager';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const deactivateTasks: { (): Promise<any> }[] = [];
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function deactivate(): Promise<any> {
 	for (const task of deactivateTasks) {
 		await task();

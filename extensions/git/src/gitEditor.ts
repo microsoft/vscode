@@ -34,6 +34,7 @@ export class GitEditor implements IIPCHandler, ITerminalEnvironmentProvider {
 		};
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async handle({ commitMessagePath }: GitEditorRequest): Promise<any> {
 		if (commitMessagePath) {
 			const uri = Uri.file(commitMessagePath);

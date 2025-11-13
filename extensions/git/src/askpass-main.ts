@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import { IPCClient } from './ipc/ipcClient';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function fatal(err: any): void {
 	console.error('Missing or invalid credentials.');
 	console.error(err);

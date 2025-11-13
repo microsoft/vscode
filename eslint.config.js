@@ -350,9 +350,14 @@ export default tseslint.config(
 			'local/code-no-in-operator': 'warn',
 		}
 	},
-	// vscode TS: strict no explicit `any`
+	// Strict no explicit `any`
 	{
 		files: [
+			// Extensions
+			'extensions/git/src/**/*.ts',
+			'extensions/git-base/src/**/*.ts',
+			'extensions/github/src/**/*.ts',
+			// vscode
 			'src/**/*.ts',
 		],
 		ignores: [

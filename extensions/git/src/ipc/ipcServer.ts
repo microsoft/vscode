@@ -25,6 +25,7 @@ function getIPCHandlePath(id: string): string {
 }
 
 export interface IIPCHandler {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	handle(request: any): Promise<any>;
 }
 

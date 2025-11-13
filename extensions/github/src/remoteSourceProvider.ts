@@ -10,6 +10,7 @@ import { Octokit } from '@octokit/rest';
 import { getRepositoryFromQuery, getRepositoryFromUrl } from './util.js';
 import { getBranchLink, getVscodeDevHost } from './links.js';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function asRemoteSource(raw: any): RemoteSource {
 	const protocol = workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
 	return {

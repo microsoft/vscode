@@ -117,6 +117,7 @@ function findGitDarwin(onValidate: (path: string) => boolean): Promise<IGit> {
 			}
 
 			// must check if XCode is installed
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			cp.exec('xcode-select -p', (err: any) => {
 				if (err && err.code === 2) {
 					// git is not installed, and launching /usr/bin/git
@@ -182,6 +183,7 @@ export interface IExecutionResult<T extends string | Buffer> {
 	stderr: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function cpErrorHandler(cb: (reason?: any) => void): (reason?: any) => void {
 	return err => {
 		if (/ENOENT/.test(err.message)) {
@@ -214,16 +216,19 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 
 	const disposables: IDisposable[] = [];
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const once = (ee: NodeJS.EventEmitter, name: string, fn: (...args: any[]) => void) => {
 		ee.once(name, fn);
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const on = (ee: NodeJS.EventEmitter, name: string, fn: (...args: any[]) => void) => {
 		ee.on(name, fn);
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let result = Promise.all<any>([
 		new Promise<number>((c, e) => {
 			once(child, 'error', cpErrorHandler(e));
@@ -1278,6 +1283,7 @@ export class Repository {
 		return this.git.spawn(args, options);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async config(command: string, scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
 		const args = ['config', `--${command}`];
 
@@ -1975,6 +1981,7 @@ export class Repository {
 		}
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private async handleCommitError(commitErr: any): Promise<void> {
 		if (/not possible because you have unmerged files/.test(commitErr.stderr || '')) {
 			commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
@@ -2114,6 +2121,7 @@ export class Repository {
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
 
 		const limiter = new Limiter(5);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const promises: Promise<any>[] = [];
 		const args = ['clean', '-f', '-q'];
 

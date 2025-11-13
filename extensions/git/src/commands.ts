@@ -365,6 +365,7 @@ interface ScmCommand {
 const Commands: ScmCommand[] = [];
 
 function command(commandId: string, options: ScmCommandOptions = {}): Function {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return (value: any, context: ClassMethodDecoratorContext) => {
 		if (context.kind !== 'method') {
 			throw new Error('not supported');
@@ -3592,6 +3593,7 @@ export class CommandCenter {
 	}
 
 	@command('git.createWorktree')
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async createWorktree(repository: any): Promise<void> {
 		repository = this.model.getRepository(repository);
 
@@ -3798,6 +3800,7 @@ export class CommandCenter {
 		}
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private async handleWorktreeBranchAlreadyUsed(err: any): Promise<void> {
 		const match = err.stderr.match(/fatal: '([^']+)' is already used by worktree at '([^']+)'/);
 
@@ -3810,6 +3813,7 @@ export class CommandCenter {
 		await this.handleWorktreeConflict(path, message);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private async handleWorktreeAlreadyExists(err: any): Promise<void> {
 		const match = err.stderr.match(/fatal: '([^']+)'/);
 
@@ -5421,8 +5425,11 @@ export class CommandCenter {
 		await repository.deleteTag(artifact.name);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const result = (...args: any[]) => {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			let result: Promise<any>;
 
 			if (!options.repository) {
@@ -5642,6 +5649,7 @@ export class CommandCenter {
 
 	private runByRepository<T>(resource: Uri, fn: (repository: Repository, resource: Uri) => Promise<T>): Promise<T[]>;
 	private runByRepository<T>(resources: Uri[], fn: (repository: Repository, resources: Uri[]) => Promise<T>): Promise<T[]>;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private async runByRepository<T>(arg: Uri | Uri[], fn: (repository: Repository, resources: any) => Promise<T>): Promise<T[]> {
 		const resources = arg instanceof Uri ? [arg] : arg;
 		const isSingleResource = arg instanceof Uri;

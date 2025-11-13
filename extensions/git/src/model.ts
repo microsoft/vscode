@@ -227,6 +227,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			return Promise.resolve();
 		}
 
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		return eventToPromise(filterEvent(this.onDidChangeState, s => s === 'initialized')) as Promise<any>;
 	}
 
@@ -835,6 +836,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			commands.executeCommand('setContext', 'operationInProgress', operationInProgress);
 		};
 
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const operationEvent = anyEvent(repository.onDidRunOperation as Event<any>, repository.onRunOperation as Event<any>);
 		const operationListener = operationEvent(() => updateOperationInProgressContext());
 		updateOperationInProgressContext();
@@ -905,6 +907,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	getRepository(resourceGroup: SourceControlResourceGroup): Repository | undefined;
 	getRepository(path: string): Repository | undefined;
 	getRepository(resource: Uri): Repository | undefined;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	getRepository(hint: any): Repository | undefined {
 		const liveRepository = this.getOpenRepository(hint);
 		return liveRepository && liveRepository.repository;
@@ -937,6 +940,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	private getOpenRepository(resourceGroup: SourceControlResourceGroup): OpenRepository | undefined;
 	private getOpenRepository(path: string): OpenRepository | undefined;
 	private getOpenRepository(resource: Uri): OpenRepository | undefined;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private getOpenRepository(hint: any): OpenRepository | undefined {
 		if (!hint) {
 			return undefined;

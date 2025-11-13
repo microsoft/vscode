@@ -200,6 +200,7 @@ export const Operation = {
 
 export interface OperationResult {
 	operation: Operation;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	error: any;
 }
 

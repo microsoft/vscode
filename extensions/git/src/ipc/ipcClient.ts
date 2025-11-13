@@ -19,6 +19,7 @@ export class IPCClient {
 		this.ipcHandlePath = ipcHandlePath;
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	call(request: any): Promise<any> {
 		const opts: http.RequestOptions = {
 			socketPath: this.ipcHandlePath,
