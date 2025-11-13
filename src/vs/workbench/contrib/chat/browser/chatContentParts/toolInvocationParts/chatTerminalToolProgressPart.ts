@@ -75,6 +75,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _outputView: ChatTerminalToolOutputSection;
 	private readonly _terminalOutputContextKey: IContextKey<boolean>;
 	private _terminalSessionRegistration: IDisposable | undefined;
+	private readonly _elementIndex: number;
+	private readonly _contentIndex: number;
 
 	private readonly _showOutputAction = this._register(new MutableDisposable<ToggleChatTerminalOutputAction>());
 	private _showOutputActionAdded = false;
@@ -89,6 +91,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
 		return this.markdownPart?.codeblocks ?? [];
+	}
+
+	public get elementIndex(): number {
+		return this._elementIndex;
+	}
+
+	public get contentIndex(): number {
+		return this._contentIndex;
 	}
 
 	constructor(
@@ -108,6 +118,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super(toolInvocation);
+
+		this._elementIndex = context.elementIndex;
+		this._contentIndex = context.contentIndex;
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 		this._terminalData = terminalData;

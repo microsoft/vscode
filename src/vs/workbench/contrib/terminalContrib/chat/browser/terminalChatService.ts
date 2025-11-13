@@ -161,7 +161,9 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	registerChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): IDisposable {
 		this._activeProgressParts.add(part);
-		this._mostRecentProgressPart = part;
+		if (this._isAfter(part, this._mostRecentProgressPart)) {
+			this._mostRecentProgressPart = part;
+		}
 		return toDisposable(() => {
 			this._activeProgressParts.delete(part);
 			if (this._focusedProgressPart === part) {
@@ -192,7 +194,23 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	}
 
 	private _getLastActiveProgressPart(): IChatTerminalToolProgressPart | undefined {
-		return Array.from(this._activeProgressParts).at(-1);
+		let latest: IChatTerminalToolProgressPart | undefined;
+		for (const part of this._activeProgressParts) {
+			if (this._isAfter(part, latest)) {
+				latest = part;
+			}
+		}
+		return latest;
+	}
+
+	private _isAfter(candidate: IChatTerminalToolProgressPart, current: IChatTerminalToolProgressPart | undefined): boolean {
+		if (!current) {
+			return true;
+		}
+		if (candidate.elementIndex === current.elementIndex) {
+			return candidate.contentIndex >= current.contentIndex;
+		}
+		return candidate.elementIndex > current.elementIndex;
 	}
 
 	private _restoreFromStorage(): void {
