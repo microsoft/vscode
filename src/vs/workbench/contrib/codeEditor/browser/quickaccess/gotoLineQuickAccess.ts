@@ -10,7 +10,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { AbstractGotoLineQuickAccessProvider } from '../../../../../editor/contrib/quickAccess/browser/gotoLineQuickAccess.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IQuickAccessRegistry, Extensions as QuickaccesExtensions } from '../../../../../platform/quickinput/common/quickAccess.js';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchEditorConfiguration } from '../../../../common/editor.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -89,15 +89,41 @@ class GotoLineAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(IQuickInputService).quickAccess.show(GotoLineQuickAccessProvider.PREFIX);
+		accessor.get(IQuickInputService).quickAccess.show(GotoLineQuickAccessProvider.GO_TO_LINE_PREFIX);
 	}
 }
 
 registerAction2(GotoLineAction);
 
-Registry.as<IQuickAccessRegistry>(QuickaccesExtensions.Quickaccess).registerQuickAccessProvider({
+Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
 	ctor: GotoLineQuickAccessProvider,
-	prefix: AbstractGotoLineQuickAccessProvider.PREFIX,
+	prefix: AbstractGotoLineQuickAccessProvider.GO_TO_LINE_PREFIX,
 	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. :42:5 for line 42, column 5). Type :: to go to a character offset (e.g. ::1024 for character 1024 from the start of the file). Use negative values to navigate backwards."),
 	helpEntries: [{ description: localize('gotoLineQuickAccess', "Go to Line/Column"), commandId: GotoLineAction.ID }]
+});
+
+class GotoOffsetAction extends Action2 {
+
+	static readonly ID = 'workbench.action.gotoOffset';
+
+	constructor() {
+		super({
+			id: GotoOffsetAction.ID,
+			title: localize2('gotoOffset', 'Go to Offset...'),
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(IQuickInputService).quickAccess.show(GotoLineQuickAccessProvider.GO_TO_OFFSET_PREFIX);
+	}
+}
+
+registerAction2(GotoOffsetAction);
+
+Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
+	ctor: GotoLineQuickAccessProvider,
+	prefix: GotoLineQuickAccessProvider.GO_TO_OFFSET_PREFIX,
+	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. :42:5 for line 42, column 5). Type :: to go to a character offset (e.g. ::1024 for character 1024 from the start of the file). Use negative values to navigate backwards."),
+	helpEntries: [{ description: localize('gotoOffsetQuickAccess', "Go to Offset"), commandId: GotoOffsetAction.ID }]
 });

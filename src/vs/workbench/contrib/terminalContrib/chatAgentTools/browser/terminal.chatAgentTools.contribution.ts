@@ -73,12 +73,12 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 			icon: ThemeIcon.fromId(Codicon.terminal.id),
 			description: localize('toolset.runCommands', 'Runs commands in the terminal')
 		}));
-		runCommandsToolSet.addTool(GetTerminalOutputToolData);
+		this._register(runCommandsToolSet.addTool(GetTerminalOutputToolData));
 
 		instantiationService.invokeFunction(createRunInTerminalToolData).then(runInTerminalToolData => {
 			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
 			this._register(toolsService.registerTool(runInTerminalToolData, runInTerminalTool));
-			runCommandsToolSet.addTool(runInTerminalToolData);
+			this._register(runCommandsToolSet.addTool(runInTerminalToolData));
 		});
 
 		const getTerminalSelectionTool = instantiationService.createInstance(GetTerminalSelectionTool);
@@ -87,8 +87,8 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		const getTerminalLastCommandTool = instantiationService.createInstance(GetTerminalLastCommandTool);
 		this._register(toolsService.registerTool(GetTerminalLastCommandToolData, getTerminalLastCommandTool));
 
-		runCommandsToolSet.addTool(GetTerminalSelectionToolData);
-		runCommandsToolSet.addTool(GetTerminalLastCommandToolData);
+		this._register(runCommandsToolSet.addTool(GetTerminalSelectionToolData));
+		this._register(runCommandsToolSet.addTool(GetTerminalLastCommandToolData));
 
 		// #endregion
 

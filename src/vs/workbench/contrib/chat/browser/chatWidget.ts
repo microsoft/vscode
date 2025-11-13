@@ -3,9 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chat.css';
-import './media/chatAgentHover.css';
-import './media/chatViewWelcome.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { IMouseWheelEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -53,18 +50,20 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { EditorResourceAccessor } from '../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ViewContainerLocation } from '../../../common/views.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { katexContainerClassName } from '../../markdown/common/markedKatexExtension.js';
 import { checkModeOption } from '../common/chat.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
-import { IChatTodoListService } from '../common/chatTodoListService.js';
 import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
 import { ChatMode, IChatModeService } from '../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
@@ -72,6 +71,7 @@ import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
+import { IChatTodoListService } from '../common/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
@@ -80,7 +80,6 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/co
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { IHandOff, ParsedPromptFile, PromptHeader, Target } from '../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
@@ -92,10 +91,10 @@ import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './chatIn
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewPane } from './chatViewPane.js';
+import './media/chat.css';
+import './media/chatAgentHover.css';
+import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { katexContainerClassName } from '../../markdown/common/markedKatexExtension.js';
 
 const $ = dom.$;
 
@@ -1673,15 +1672,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.input.setVisible(visible);
 
 		if (visible) {
-			this.timeoutDisposable.value = disposableTimeout(() => {
-				// Progressive rendering paused while hidden, so start it up again.
-				// Do it after a timeout because the container is not visible yet (it should be but offsetHeight returns 0 here)
-				if (this._visible) {
-					this.onDidChangeItems(true);
-				}
-			}, 0);
-
 			if (!wasVisible) {
+				this.timeoutDisposable.value = disposableTimeout(() => {
+					// Progressive rendering paused while hidden, so start it up again.
+					// Do it after a timeout because the container is not visible yet (it should be but offsetHeight returns 0 here)
+					if (this._visible) {
+						this.onDidChangeItems(true);
+					}
+				}, 0);
+
 				dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 					this._onDidShow.fire();
 				});
@@ -2452,15 +2451,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return inputState;
 	}
 
-	private _findPromptFileInContext(attachedContext: ChatRequestVariableSet): URI | undefined {
-		for (const item of attachedContext.asArray()) {
-			if (isPromptFileVariableEntry(item) && item.isRoot && this.promptsService.getPromptFileType(item.value) === PromptsType.prompt) {
-				return item.value;
-			}
-		}
-		return undefined;
-	}
-
 	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<void> {
 		let parseResult: ParsedPromptFile | undefined;
 
@@ -2476,16 +2466,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 				// remove the slash command from the input
 				requestInput.input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
-			}
-		} else {
-			// if not, check if the context contains a prompt file: This is the old workflow that we still support for legacy reasons
-			const uri = this._findPromptFileInContext(requestInput.attachedContext);
-			if (uri) {
-				try {
-					parseResult = await this.promptsService.parseNew(uri, CancellationToken.None);
-				} catch (error) {
-					this.logService.error(`[_applyPromptFileIfSet] Failed to parse prompt file: ${uri}`, error);
-				}
 			}
 		}
 
