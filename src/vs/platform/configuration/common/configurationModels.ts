@@ -76,11 +76,14 @@ export class ConfigurationModel implements IConfigurationModel {
 		return this._keys;
 	}
 
-	get raw(): IStringDictionary<unknown> | undefined {
-		if (this._raw && !Array.isArray(this._raw)) {
-			return this._raw as IStringDictionary<unknown>;
+	get raw(): IStringDictionary<unknown> | IStringDictionary<unknown>[] | undefined {
+		if (!this._raw) {
+			return undefined;
 		}
-		return undefined;
+		if (Array.isArray(this._raw) && this._raw.every(raw => raw instanceof ConfigurationModel)) {
+			return undefined;
+		}
+		return this._raw as IStringDictionary<unknown> | IStringDictionary<unknown>[];
 	}
 
 	isEmpty(): boolean {

@@ -210,7 +210,7 @@ export interface IConfigurationModel {
 	contents: IStringDictionary<unknown>;
 	keys: string[];
 	overrides: IOverrides[];
-	raw?: IStringDictionary<unknown>;
+	raw?: ReadonlyArray<IStringDictionary<unknown>> | IStringDictionary<unknown>;
 }
 
 export interface IOverrides {
