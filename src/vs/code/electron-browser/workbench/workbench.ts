@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { env } from '../../../base/common/process.js';
+
 /* eslint-disable no-restricted-globals */
 
 (async function () {
@@ -290,7 +292,7 @@
 		// Compute base URL and set as global
 		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
 		globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
-		const useCSSImportMap = !process.env.DEV_WINDOW_SRC;
+		const useCSSImportMap = !env.DEV_WINDOW_SRC;
 		if (useCSSImportMap) {
 			// Dev only: CSS import map tricks
 			setupCSSImportMaps<T>(configuration, baseUrl);
@@ -298,7 +300,7 @@
 
 		// ESM Import
 		try {
-			const importTsSource = !!process.env.DEV_WINDOW_SRC;
+			const importTsSource = !!env.DEV_WINDOW_SRC;
 			const result = await import(
 				importTsSource
 					? new URL(`../../../workbench/workbench.desktop.main.ts`, import.meta.url).href
