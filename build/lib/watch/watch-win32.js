@@ -13,7 +13,11 @@ import { Stream } from 'stream';
 
 const watcherPath = path.join(import.meta.dirname, 'watcher.exe');
 
-function toChangeType(type: '0' | '1' | '2'): 'change' | 'add' | 'unlink' {
+/**
+ * @param {('0' | '1' | '2')} type
+ * @returns {('change' | 'add' | 'unlink')}
+ */
+function toChangeType(type) {
 	switch (type) {
 		case '0': return 'change';
 		case '1': return 'add';
@@ -21,19 +25,26 @@ function toChangeType(type: '0' | '1' | '2'): 'change' | 'add' | 'unlink' {
 	}
 }
 
-function watch(root: string): Stream {
+/**
+ * @param {string} root
+ * @returns {Stream}
+ */
+function watch(root) {
 	const result = es.through();
-	let child: cp.ChildProcess | null = cp.spawn(watcherPath, [root]);
+	/** @type {cp.ChildProcess | null} */
+	let child = cp.spawn(watcherPath, [root]);
 
-	child.stdout!.on('data', function (data) {
-		const lines: string[] = data.toString('utf8').split('\n');
+	child.stdout.on('data', function (data) {
+		/** @type {string[]} */
+		const lines = data.toString('utf8').split('\n');
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i].trim();
 			if (line.length === 0) {
 				continue;
 			}
 
-			const changeType = <'0' | '1' | '2'>line[0];
+			/** @type {'0' | '1' | '2'} */
+			const changeType = line[0];
 			const changePath = line.substr(2);
 
 			// filter as early as possible
@@ -52,7 +63,7 @@ function watch(root: string): Stream {
 		}
 	});
 
-	child.stderr!.on('data', function (data) {
+	child.stderr.on('data', function (data) {
 		result.emit('error', data);
 	});
 
@@ -68,9 +79,15 @@ function watch(root: string): Stream {
 	return result;
 }
 
-const cache: { [cwd: string]: Stream } = Object.create(null);
+/** @type {{ [cwd: string]: Stream }} */
+const cache = Object.create(null);
 
-export default function (pattern: string | string[] | filter.FileFunction, options?: { cwd?: string; base?: string; dot?: boolean }) {
+/**
+ * @param {string | string[] | filter.FileFunction} pattern
+ * @param {{ cwd?: string; base?: string; dot?: boolean }} [options]
+ * @returns {Stream}
+ */
+export default function (pattern, options) {
 	options = options || {};
 
 	const cwd = path.normalize(options.cwd || process.cwd());
@@ -80,15 +97,15 @@ export default function (pattern: string | string[] | filter.FileFunction, optio
 		watcher = cache[cwd] = watch(cwd);
 	}
 
-	const rebase = !options.base ? es.through() : es.mapSync(function (f: File) {
-		f.base = options!.base!;
+	const rebase = !options.base ? es.through() : es.mapSync(function (f) {
+		f.base = options.base;
 		return f;
 	});
 
 	return watcher
 		.pipe(filter(['**', '!.git{,/**}'], { dot: options.dot })) // ignore all things git
 		.pipe(filter(pattern, { dot: options.dot }))
-		.pipe(es.map(function (file: File, cb) {
+		.pipe(es.map(function (file, cb) {
 			fs.stat(file.path, function (err, stat) {
 				if (err && err.code === 'ENOENT') { return cb(undefined, file); }
 				if (err) { return cb(); }
