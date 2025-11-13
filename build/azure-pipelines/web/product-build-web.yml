@@ -1,31 +1,5 @@
 jobs:
-  - job: ReadVersion_Web
-    displayName: Read Version
-    pool:
-      name: 1es-ubuntu-22.04-x64
-      os: linux
-    steps:
-      - checkout: self
-        fetchDepth: 1
-        fetchTags: false
-
-      - task: NodeTool@0
-        inputs:
-          versionSource: fromFile
-          versionFilePath: .nvmrc
-
-      - script: |
-          set -e
-          VERSION=$(node -p "require('./package.json').version")
-          MAJOR_MINOR=$(echo $VERSION | cut -d. -f1,2)
-          echo "Package.json version: $VERSION"
-          echo "Major.Minor version: $MAJOR_MINOR"
-          echo "##vso[task.setvariable variable=VSCODE_MAJOR_MINOR_VERSION;isOutput=true]$MAJOR_MINOR"
-        name: SetVersion
-        displayName: Extract and export major.minor version
-
   - job: Web
-    dependsOn: ReadVersion_Web
     displayName: Web
     timeoutInMinutes: 30
     pool:
@@ -33,7 +7,7 @@ jobs:
       os: linux
     variables:
       VSCODE_ARCH: x64
-      VSCODE_MAJOR_MINOR_VERSION: $[ dependencies.ReadVersion_Web.outputs['SetVersion.VSCODE_MAJOR_MINOR_VERSION'] ]
+      VSCODE_MAJOR_MINOR_VERSION: $[ stageDependencies.Compile.ReadVersion.outputs['SetVersion.VSCODE_MAJOR_MINOR_VERSION'] ]
       VSCODE_PATCH_VERSION_COUNTER: ${{ counter(variables.VSCODE_MAJOR_MINOR_VERSION, 0) }}
     templateContext:
       outputs:

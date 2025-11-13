@@ -14,39 +14,13 @@ parameters:
     default: false
 
 jobs:
-  - job: ReadVersion_macOS
-    displayName: Read Version
-    pool:
-      name: 1es-ubuntu-22.04-x64
-      os: linux
-    steps:
-      - checkout: self
-        fetchDepth: 1
-        fetchTags: false
-
-      - task: NodeTool@0
-        inputs:
-          versionSource: fromFile
-          versionFilePath: .nvmrc
-
-      - script: |
-          set -e
-          VERSION=$(node -p "require('./package.json').version")
-          MAJOR_MINOR=$(echo $VERSION | cut -d. -f1,2)
-          echo "Package.json version: $VERSION"
-          echo "Major.Minor version: $MAJOR_MINOR"
-          echo "##vso[task.setvariable variable=VSCODE_MAJOR_MINOR_VERSION;isOutput=true]$MAJOR_MINOR"
-        name: SetVersion
-        displayName: Extract and export major.minor version
-
   - job: macOS_${{ parameters.VSCODE_ARCH }}
-    dependsOn: ReadVersion_macOS
     displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }})
     timeoutInMinutes: 90
     variables:
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
-      VSCODE_MAJOR_MINOR_VERSION: $[ dependencies.ReadVersion_macOS.outputs['SetVersion.VSCODE_MAJOR_MINOR_VERSION'] ]
+      VSCODE_MAJOR_MINOR_VERSION: $[ stageDependencies.Compile.ReadVersion.outputs['SetVersion.VSCODE_MAJOR_MINOR_VERSION'] ]
       VSCODE_PATCH_VERSION_COUNTER: ${{ counter(variables.VSCODE_MAJOR_MINOR_VERSION, 0) }}
     templateContext:
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
