@@ -267,6 +267,46 @@ suite('AgentSessionsViewModel', () => {
 		});
 	});
 
+	test('should filter out special session IDs', async () => {
+		return runWithFakedTimers({}, async () => {
+			const provider: IChatSessionItemProvider = {
+				chatSessionType: 'test-type',
+				onDidChangeChatSessionItems: Event.None,
+				provideChatSessionItems: async () => [
+					{
+						id: 'show-history',
+						resource: URI.parse('test://show-history'),
+						label: 'Show History',
+						timing: { startTime: Date.now() }
+					},
+					{
+						id: 'workbench.panel.chat.view.copilot',
+						resource: URI.parse('test://copilot'),
+						label: 'Copilot',
+						timing: { startTime: Date.now() }
+					},
+					{
+						id: 'valid-session',
+						resource: URI.parse('test://valid'),
+						label: 'Valid Session',
+						timing: { startTime: Date.now() }
+					}
+				]
+			};
+
+			mockChatSessionsService.registerChatSessionItemProvider(provider);
+			viewModel = disposables.add(new AgentSessionsViewModel(
+				mockChatSessionsService,
+				mockLifecycleService
+			));
+
+			await viewModel.resolve(undefined);
+
+			assert.strictEqual(viewModel.sessions.length, 1);
+			assert.strictEqual(viewModel.sessions[0].resource.toString(), 'test://valid');
+		});
+	});
+
 	test('should handle resolve with specific provider', async () => {
 		return runWithFakedTimers({}, async () => {
 			const provider1: IChatSessionItemProvider = {
