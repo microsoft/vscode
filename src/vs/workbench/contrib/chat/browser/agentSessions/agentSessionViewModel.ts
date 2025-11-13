@@ -152,10 +152,6 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 			}
 
 			for (const session of sessions) {
-				if (session.id === 'show-history' || session.id === 'workbench.panel.chat.view.copilot') {
-					continue; // TODO@bpasero this needs to be fixed at the provider level
-				}
-
 				let description;
 				if (session.description) {
 					description = session.description;
