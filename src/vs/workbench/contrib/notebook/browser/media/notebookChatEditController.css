@@ -53,3 +53,11 @@
 .monaco-workbench .notebookOverlay .view-zones .cell-editor-part {
 	outline: solid 1px var(--vscode-notebook-cellBorderColor);
 }
+
+/** Toolbar styling for deleted cells */
+.monaco-workbench .notebookOverlay .view-zones .cell-inner-container .chat-diff-change-content-widget {
+	position: absolute;
+	right: 40px;
+	top: 18px;
+	z-index: 10;
+}

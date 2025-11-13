@@ -218,10 +218,13 @@ export class NotebookDeletedCellWidget extends Disposable {
 		const rootContainer = this.container;
 		rootContainer.classList.add('code-cell-row');
 
+		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
+		container.style.position = 'relative';
+
 		if (this._toolbarOptions) {
 			const toolbar = document.createElement('div');
 			toolbar.className = this._toolbarOptions.className;
-			rootContainer.appendChild(toolbar);
+			container.appendChild(toolbar);
 
 			const scopedInstaService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this._notebookEditor.scopedContextKeyService])));
 			const toolbarWidget = scopedInstaService.createInstance(MenuWorkbenchToolBar, toolbar, this._toolbarOptions.menuId, {
@@ -237,13 +240,11 @@ export class NotebookDeletedCellWidget extends Disposable {
 			this._store.add(toolbarWidget);
 
 			toolbar.style.position = 'absolute';
+			toolbar.style.top = '18px';
 			toolbar.style.right = '40px';
 			toolbar.style.zIndex = '10';
 			toolbar.classList.add('hover'); // Show by default
 		}
-
-		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
-		container.style.position = 'relative'; // Add this line
 
 		const focusIndicatorLeft = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		const cellContainer = DOM.append(container, DOM.$('.cell.code'));
