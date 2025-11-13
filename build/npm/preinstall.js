@@ -81,19 +81,19 @@ function hasSupportedVisualStudioVersion() {
 function installHeaders() {
 	execSync(`npm.cmd ${process.env['npm_command'] || 'ci'}`, {
 		env: process.env,
-		cwd: join(__dirname, 'gyp'),
+		cwd: join(import.meta.dirname, 'gyp'),
 		stdio: 'inherit'
 	});
 
 	// The node gyp package got installed using the above npm command using the gyp/package.json
 	// file checked into our repository. So from that point it is save to construct the path
 	// to that executable
-	const node_gyp = join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd');
+	const node_gyp = join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd');
 	const result = execFileSync(node_gyp, ['list'], { encoding: 'utf8', shell: true });
 	const versions = new Set(result.split(/\n/g).filter(line => !line.startsWith('gyp info')).map(value => value));
 
-	const local = getHeaderInfo(join(__dirname, '..', '..', '.npmrc'));
-	const remote = getHeaderInfo(join(__dirname, '..', '..', 'remote', '.npmrc'));
+	const local = getHeaderInfo(join(import.meta.dirname, '..', '..', '.npmrc'));
+	const remote = getHeaderInfo(join(import.meta.dirname, '..', '..', 'remote', '.npmrc'));
 
 	if (local !== undefined && !versions.has(local.target)) {
 		// Both disturl and target come from a file checked into our repository
