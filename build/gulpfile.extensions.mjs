@@ -168,7 +168,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		const pipeline = createPipeline(false);
 		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
 		const input = es.merge(nonts, pipeline.tsProjectSrc());
-		const watchInput = watcher(src, { ...srcOpts, ...{ readDelay: 200 } });
+		const watchInput = watcher.default(src, { ...srcOpts, ...{ readDelay: 200 } });
 
 		return watchInput
 			.pipe(util.incremental(pipeline, input))
