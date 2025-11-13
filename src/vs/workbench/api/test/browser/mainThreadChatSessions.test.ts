@@ -31,6 +31,7 @@ import { mock, TestExtensionService } from '../../../test/common/workbenchTestSe
 import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
 import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { isEqual } from '../../../../base/common/resources.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -56,7 +57,7 @@ suite('ObservableChatSession', function () {
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
 			$provideChatSessionItems: sinon.stub(),
-			$provideNewChatSessionItem: sinon.stub().resolves({ id: 'new-session-id', label: 'New Session' } as IChatSessionItem)
+			$provideNewChatSessionItem: sinon.stub().resolves({ label: 'New Session' } as IChatSessionItem)
 		};
 	});
 
@@ -342,6 +343,8 @@ suite('MainThreadChatSessions', function () {
 	let chatSessionsService: IChatSessionsService;
 	let disposables: DisposableStore;
 
+	const exampleSessionResource = LocalChatSessionUri.forSession('new-session-id');
+
 	setup(function () {
 		disposables = new DisposableStore();
 		instantiationService = new TestInstantiationService();
@@ -354,7 +357,7 @@ suite('MainThreadChatSessions', function () {
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
 			$provideChatSessionItems: sinon.stub(),
-			$provideNewChatSessionItem: sinon.stub().resolves({ id: 'new-session-id', label: 'New Session' } as IChatSessionItem)
+			$provideNewChatSessionItem: sinon.stub().resolves({ resource: exampleSessionResource, label: 'New Session' } as IChatSessionItem)
 		};
 
 		const extHostContext = new class implements IExtHostContext {
@@ -420,7 +423,7 @@ suite('MainThreadChatSessions', function () {
 			request: mockRequest,
 			metadata: {}
 		}, CancellationToken.None);
-		assert.strictEqual(chatSessionItem.id, 'new-session-id');
+		assert.ok(isEqual(chatSessionItem.resource, exampleSessionResource));
 		assert.strictEqual(chatSessionItem.label, 'New Session');
 
 		// Invalid session type should throw
