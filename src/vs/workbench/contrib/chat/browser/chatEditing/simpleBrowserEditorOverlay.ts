@@ -145,9 +145,8 @@ class SimpleBrowserOverlayWidget {
 		const cancelButtonLabel = localize('cancelSelectionLabel', 'Cancel');
 		cancelButton.label = cancelButtonLabel;
 
-		const attachLogs = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.attachLogs', "Attach Logs") }));
-		attachLogs.icon = Codicon.terminal;
-
+		const attachLogs = this._showStore.add(new Button(mainContent, { supportIcons: true, title: localize('chat.attachLogs', "Attach Logs") }));
+		attachLogs.icon = Codicon.bug;
 
 		const configure = this._showStore.add(new Button(mainContent, { supportIcons: true, title: localize('chat.configureElements', "Configure Attachments Sent") }));
 		configure.icon = Codicon.gear;
@@ -266,7 +265,7 @@ class SimpleBrowserOverlayWidget {
 			fullName: localize('consoleLogs', 'Console Logs'),
 			value: logs,
 			kind: 'element',
-			icon: ThemeIcon.fromId(Codicon.terminal.id),
+			icon: ThemeIcon.fromId(Codicon.bug.id),
 		});
 
 		const widget = await showChatView(this._viewService, this._layoutService) ?? this._chatWidgetService.lastFocusedWidget;

@@ -157,7 +157,6 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		let sessionId: string | undefined;
 		const onMessage = (event: any, method: string, params: any, sessionIdFromMessage?: string) => {
 			if (sessionIdFromMessage === sessionId && (method === 'Runtime.consoleAPICalled' || method === 'Runtime.exceptionThrown' || method === 'Log.entryAdded')) {
-				console.log('listener was hit here', method, params);
 				const current = allConsole.get(windowId!) ?? [];
 
 				let logEntry: LogEntry;
@@ -248,7 +247,6 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 			await debuggers.sendCommand('Debugger.enable', {}, sessionId);
 			await debuggers.sendCommand('Runtime.enable', {}, sessionId);
 			await debuggers.sendCommand('Log.enable', {}, sessionId);
-			console.log('turning on debugger');
 			debuggers.on('message', onMessage);
 
 		} catch (e) {
