@@ -14,7 +14,7 @@ import vfs from 'vinyl-fs';
 import { all, copyrightFilter, eslintFilter, indentationFilter, stylelintFilter, tsFormattingFilter, unicodeFilter } from './filters.js';
 import eslint from './gulp-eslint.js';
 import formatter from './lib/formatter.js';
-import gulpstylelint from './stylelint.js';
+import gulpstylelint from './stylelint.mjs';
 
 const copyrightHeaderLines = [
 	'/*---------------------------------------------------------------------------------------------',
@@ -305,7 +305,7 @@ if (import.meta.filename === process.argv[1]) {
 									hygiene(es.readArray(vinyls).pipe(filter(all)))
 										.on('end', () => c())
 										.on('error', e)
-								))
+								));
 							}
 						)
 						.catch((err) => {

@@ -7,9 +7,9 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { LanguageSelector, score } from '../../../../editor/common/languageSelector.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatContextPicker, IChatContextPickerItem, IChatContextPickService } from './chatContextPickService.js';
-import { IChatContextItem, IChatContextProvider } from '../../../services/chat/common/chatContext.js';
+import { IChatContextItem, IChatContextProvider } from '../common/chatContext.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IGenericChatRequestVariableEntry } from '../common/chatVariableEntries.js';
+import { IGenericChatRequestVariableEntry, StringChatContextValue } from '../common/chatVariableEntries.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -32,6 +32,7 @@ export class ChatContextService extends Disposable {
 
 	private readonly _providers = new Map<string, IChatContextProviderEntry>();
 	private readonly _registeredPickers = this._register(new DisposableMap<string, IDisposable>());
+	private _lastResourceCountext: Map<StringChatContextValue, { originalItem: IChatContextItem; provider: IChatContextProvider }> = new Map();
 
 	constructor(
 		@IChatContextPickService private readonly _contextPickService: IChatContextPickService,
@@ -67,7 +68,11 @@ export class ChatContextService extends Disposable {
 		this._registeredPickers.deleteAndDispose(id);
 	}
 
-	async contextForResource(uri: URI): Promise<IChatContextItem | undefined> {
+	async contextForResource(uri: URI): Promise<StringChatContextValue | undefined> {
+		return this._contextForResource(uri, false);
+	}
+
+	private async _contextForResource(uri: URI, withValue: boolean): Promise<StringChatContextValue | undefined> {
 		const scoredProviders: Array<{ score: number; provider: IChatContextProvider }> = [];
 		for (const providerEntry of this._providers.values()) {
 			if (!providerEntry.chatContextProvider?.provider.provideChatContextForResource) {
@@ -80,7 +85,39 @@ export class ChatContextService extends Disposable {
 		if (scoredProviders.length === 0 || scoredProviders[0].score <= 0) {
 			return;
 		}
-		const context = (await scoredProviders[0].provider.provideChatContextForResource!(uri, {}, CancellationToken.None));
+		const context = (await scoredProviders[0].provider.provideChatContextForResource!(uri, withValue, CancellationToken.None));
+		if (!context) {
+			return;
+		}
+		const contextValue: StringChatContextValue = {
+			value: undefined,
+			name: context.label,
+			icon: context.icon,
+			uri: uri,
+			modelDescription: context.modelDescription
+		};
+		this._lastResourceCountext.clear();
+		this._lastResourceCountext.set(contextValue, { originalItem: context, provider: scoredProviders[0].provider });
+		return contextValue;
+	}
+
+	async resolveChatContext(context: StringChatContextValue): Promise<StringChatContextValue> {
+		if (context.value !== undefined) {
+			return context;
+		}
+
+		const item = this._lastResourceCountext.get(context);
+		if (!item) {
+			const resolved = await this._contextForResource(context.uri, true);
+			context.value = resolved?.value;
+			return context;
+		} else if (item.provider.resolveChatContext) {
+			const resolved = await item.provider.resolveChatContext(item.originalItem, CancellationToken.None);
+			if (resolved) {
+				context.value = resolved.value;
+				return context;
+			}
+		}
 		return context;
 	}
 

@@ -73,6 +73,11 @@ function getLastActiveProgressPart(): ChatTerminalToolProgressPart | undefined {
 	return result;
 }
 
+/**
+ * Remembers whether a tool invocation was last expanded so state survives virtualization re-renders.
+ */
+const expandedStateByInvocation = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, boolean>();
+
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 
@@ -210,6 +215,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this.domNode = progressPart.domNode;
 		activeTerminalToolProgressParts.add(this);
 		mostRecentProgressPart = this;
+
+		if (expandedStateByInvocation.get(toolInvocation)) {
+			void this._toggleOutput(true);
+		}
 	}
 
 	private async _createActionBar(elements: { actionBar: HTMLElement }): Promise<void> {
@@ -232,11 +241,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				this._addActions(undefined, terminalToolSessionId);
 				return;
 			}
-			if (this._terminalInstance === instance) {
-				return;
+			const isNewInstance = this._terminalInstance !== instance;
+			if (isNewInstance) {
+				this._terminalInstance = instance;
+				this._registerInstanceListener(instance);
 			}
-			this._terminalInstance = instance;
-			this._registerInstanceListener(instance);
+			// Always call _addActions to ensure actions are added, even if instance was set earlier
+			// (e.g., by _renderOutputIfNeeded during expanded state restoration)
 			this._addActions(instance, terminalToolSessionId);
 		};
 
@@ -418,6 +429,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._outputContainer.classList.toggle('expanded', expanded);
 		this._outputContainer.classList.toggle('collapsed', !expanded);
 		this._titlePart.classList.toggle('expanded', expanded);
+		expandedStateByInvocation.set(this.toolInvocation, expanded);
 	}
 
 	private async _renderOutputIfNeeded(): Promise<boolean> {

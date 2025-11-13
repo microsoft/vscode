@@ -281,8 +281,6 @@ suite('NotebookFileWorkingCopyModel', function () {
 				return Promise.resolve({ name: 'savedFile' } as IFileStatWithMetadata);
 			}
 		};
-		// eslint-disable-next-line local/code-no-any-casts
-		(serializer as any).test = 'yes';
 
 		let resolveSerializer: (serializer: INotebookSerializer) => void = () => { };
 		const serializerPromise = new Promise<INotebookSerializer>(resolve => {
@@ -305,8 +303,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 		resolveSerializer(serializer);
 		await model.getNotebookSerializer();
-		// eslint-disable-next-line local/code-no-any-casts
-		const result = await model.save?.({} as any, {} as any);
+		const result = await model.save?.({} as IFileStatWithMetadata, {} as CancellationToken);
 
 		assert.strictEqual(result!.name, 'savedFile');
 	});

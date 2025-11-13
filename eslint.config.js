@@ -75,7 +75,7 @@ export default tseslint.config(
 				'context'
 			], // non-complete list of globals that are easy to access unintentionally
 			'no-var': 'warn',
-			'semi': 'off',
+			'semi': 'warn',
 			'local/code-translation-remind': 'warn',
 			'local/code-no-native-private': 'warn',
 			'local/code-parameter-properties-must-have-explicit-accessibility': 'warn',
@@ -131,7 +131,7 @@ export default tseslint.config(
 	// TS
 	{
 		files: [
-			'**/*.ts',
+			'**/*.{ts,tsx,mts,cts}',
 		],
 		languageOptions: {
 			parser: tseslint.parser,
@@ -143,6 +143,8 @@ export default tseslint.config(
 			'jsdoc': pluginJsdoc,
 		},
 		rules: {
+			// Disable built-in semi rules in favor of stylistic
+			'semi': 'off',
 			'@stylistic/ts/semi': 'warn',
 			'@stylistic/ts/member-delimiter-style': 'warn',
 			'local/code-no-unused-expressions': [
@@ -190,8 +192,6 @@ export default tseslint.config(
 			'extensions/debug-auto-launch/src/extension.ts',
 			'extensions/emmet/src/updateImageSize.ts',
 			'extensions/emmet/src/util.ts',
-			'extensions/git/src/blame.ts',
-			'extensions/github/src/links.ts',
 			'extensions/github-authentication/src/node/fetch.ts',
 			'extensions/terminal-suggest/src/fig/figInterface.ts',
 			'extensions/terminal-suggest/src/fig/fig-autocomplete-shared/mixins.ts',
@@ -350,12 +350,25 @@ export default tseslint.config(
 			'local/code-no-in-operator': 'warn',
 		}
 	},
-	// vscode TS: strict no explicit `any`
+	// Strict no explicit `any`
 	{
 		files: [
+			// Extensions
+			'extensions/git/src/**/*.ts',
+			'extensions/git-base/src/**/*.ts',
+			'extensions/github/src/**/*.ts',
+			// vscode
 			'src/**/*.ts',
 		],
 		ignores: [
+			// Extensions
+			'extensions/git/src/commands.ts',
+			'extensions/git/src/decorators.ts',
+			'extensions/git/src/git.ts',
+			'extensions/git/src/util.ts',
+			'extensions/git-base/src/decorators.ts',
+			'extensions/github/src/util.ts',
+			// vscode d.ts
 			'src/vs/amdX.ts',
 			'src/vs/monaco.d.ts',
 			'src/vscode-dts/**',
@@ -428,11 +441,6 @@ export default tseslint.config(
 			// Platform
 			'src/vs/platform/browserElements/electron-main/nativeBrowserElementsMainService.ts',
 			'src/vs/platform/commands/common/commands.ts',
-			'src/vs/platform/configuration/common/configuration.ts',
-			'src/vs/platform/configuration/common/configurationModels.ts',
-			'src/vs/platform/configuration/common/configurationRegistry.ts',
-			'src/vs/platform/configuration/common/configurationService.ts',
-			'src/vs/platform/configuration/common/configurations.ts',
 			'src/vs/platform/contextkey/browser/contextKeyService.ts',
 			'src/vs/platform/contextkey/common/contextkey.ts',
 			'src/vs/platform/contextview/browser/contextView.ts',
@@ -543,7 +551,6 @@ export default tseslint.config(
 			'src/vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/utils/utils.ts',
 			// Workbench
 			'src/vs/workbench/api/browser/mainThreadChatSessions.ts',
-			'src/vs/workbench/api/common/configurationExtensionPoint.ts',
 			'src/vs/workbench/api/common/extHost.api.impl.ts',
 			'src/vs/workbench/api/common/extHost.protocol.ts',
 			'src/vs/workbench/api/common/extHostChatSessions.ts',
@@ -798,9 +805,6 @@ export default tseslint.config(
 			'src/vs/workbench/services/authentication/common/authentication.ts',
 			'src/vs/workbench/services/authentication/test/browser/authenticationQueryServiceMocks.ts',
 			'src/vs/workbench/services/commands/common/commandService.ts',
-			'src/vs/workbench/services/configuration/browser/configuration.ts',
-			'src/vs/workbench/services/configuration/browser/configurationService.ts',
-			'src/vs/workbench/services/configuration/common/configurationModels.ts',
 			'src/vs/workbench/services/configurationResolver/common/configurationResolver.ts',
 			'src/vs/workbench/services/configurationResolver/common/configurationResolverExpression.ts',
 			'src/vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.ts',

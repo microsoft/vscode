@@ -17,7 +17,7 @@ import util from './lib/util.js';
 EventEmitter.defaultMaxListeners = 100;
 
 const require = createRequire(import.meta.url);
-const __dirname = import.meta.dirname
+const __dirname = import.meta.dirname;
 
 const { transpileTask, compileTask, watchTask, compileApiProposalNamesTask, watchApiProposalNamesTask } = compilation;
 

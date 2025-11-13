@@ -452,7 +452,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	group: 'inline',
 	order: 2,
 	when: ContextKeyExpr.and(
-		ChatContextKeys.isHistoryItem.isEqualTo(true),
+		ChatContextKeys.isArchivedItem.isEqualTo(true),
 		ChatContextKeys.isActiveSession.isEqualTo(false)
 	)
 });

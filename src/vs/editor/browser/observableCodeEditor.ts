@@ -5,7 +5,7 @@
 
 import { equalsIfDefined, itemsEquals } from '../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
-import { DebugLocation, IObservable, IObservableWithChange, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
+import { DebugLocation, IObservable, IObservableWithChange, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts } from '../../base/common/observable.js';
 import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
 import { LineRange } from '../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../common/core/ranges/offsetRange.js';
@@ -148,6 +148,9 @@ export class ObservableCodeEditor extends Disposable {
 		this.layoutInfoVerticalScrollbarWidth = this.layoutInfo.map(l => l.verticalScrollbarWidth);
 		this.contentWidth = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
 		this.contentHeight = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentHeight());
+		this._onDidChangeViewZones = observableSignalFromEvent(this, this.editor.onDidChangeViewZones);
+		this._onDidHiddenAreasChanged = observableSignalFromEvent(this, this.editor.onDidChangeHiddenAreas);
+		this._onDidLineHeightChanged = observableSignalFromEvent(this, this.editor.onDidChangeLineHeight);
 
 		this._widgetCounter = 0;
 		this.openedPeekWidgets = observableValue(this, 0);
@@ -456,6 +459,37 @@ export class ObservableCodeEditor extends Disposable {
 		});
 	}
 
+	private readonly _onDidChangeViewZones;
+	private readonly _onDidHiddenAreasChanged;
+	private readonly _onDidLineHeightChanged;
+
+	/**
+	 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
+	 */
+	observeTopForLineNumber(lineNumber: number): IObservable<number> {
+		return derived(reader => {
+			this.layoutInfo.read(reader);
+			this._onDidChangeViewZones.read(reader);
+			this._onDidHiddenAreasChanged.read(reader);
+			this._onDidLineHeightChanged.read(reader);
+			this._versionId.read(reader);
+			return this.editor.getTopForLineNumber(lineNumber);
+		});
+	}
+
+	/**
+	 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
+	 */
+	observeBottomForLineNumber(lineNumber: number): IObservable<number> {
+		return derived(reader => {
+			this.layoutInfo.read(reader);
+			this._onDidChangeViewZones.read(reader);
+			this._onDidHiddenAreasChanged.read(reader);
+			this._onDidLineHeightChanged.read(reader);
+			this._versionId.read(reader);
+			return this.editor.getBottomForLineNumber(lineNumber);
+		});
+	}
 }
 
 interface IObservableOverlayWidget {

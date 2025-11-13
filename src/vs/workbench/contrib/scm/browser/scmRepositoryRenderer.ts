@@ -199,7 +199,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 				menuPrimaryActions = primary;
 				menuSecondaryActions = secondary;
 				updateToolbar();
-			}, 'inline'));
+			}, this.toolbarMenuId === MenuId.SCMTitle ? 'navigation' : 'inline'));
 		}));
 
 		templateData.toolBar.context = repository.provider;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import * as ESTree from 'estree';
 
 export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 
@@ -17,13 +18,13 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
 		return {
-			['PropertyDefinition PrivateIdentifier']: (node: any) => {
+			['PropertyDefinition PrivateIdentifier']: (node: ESTree.Node) => {
 				context.report({
 					node,
 					messageId: 'slow'
 				});
 			},
-			['MethodDefinition PrivateIdentifier']: (node: any) => {
+			['MethodDefinition PrivateIdentifier']: (node: ESTree.Node) => {
 				context.report({
 					node,
 					messageId: 'slow'
