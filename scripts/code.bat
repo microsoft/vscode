@@ -6,7 +6,9 @@ title VSCode Dev
 pushd %~dp0\..
 
 :: Get electron, compile, built-in extensions
-if "%VSCODE_SKIP_PRELAUNCH%"=="" npm run _build-script build/lib/preLaunch.js
+if "%VSCODE_SKIP_PRELAUNCH%"=="" (
+	node .\build\runBuildScript.js build/lib/preLaunch.js
+)
 
 for /f "tokens=2 delims=:," %%a in ('findstr /R /C:"\"nameShort\":.*" product.json') do set NAMESHORT=%%~a
 set NAMESHORT=%NAMESHORT: "=%
