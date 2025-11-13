@@ -206,13 +206,14 @@ export class McpElicitationService implements IMcpElicitationService {
 		}
 
 		try {
-			// Open the URL using IOpenerService which handles security validations
-			await this._openerService.open(elicitation.url, { allowCommands: false });
-			return { action: 'accept' };
-		} catch (err) {
-			// If opening fails, decline the elicitation
-			return { action: 'decline' };
+			if (await this._openerService.open(elicitation.url, { allowCommands: false })) {
+				return { action: 'accept' };
+			}
+		} catch {
+			// ignored
 		}
+
+		return { action: 'decline' };
 	}
 
 	private async _doElicitForm(elicitation: MCP.ElicitRequestFormParams, token: CancellationToken): Promise<MCP.ElicitResult> {
