@@ -9,7 +9,6 @@ export function debounce(delay: number): Function {
 	return decorate((fn, key) => {
 		const timerKey = `$debounce$${key}`;
 
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		return function (this: any, ...args: any[]) {
 			clearTimeout(this[timerKey]);
 			this[timerKey] = setTimeout(() => fn.apply(this, args), delay);
@@ -23,7 +22,6 @@ function _throttle<T>(fn: Function, key: string): Function {
 	const currentKey = `$throttle$current$${key}`;
 	const nextKey = `$throttle$next$${key}`;
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const trigger = function (this: any, ...args: any[]) {
 		if (this[nextKey]) {
 			return this[nextKey];
@@ -50,7 +48,6 @@ function _throttle<T>(fn: Function, key: string): Function {
 }
 
 function decorate(decorator: (fn: Function, key: string) => Function): Function {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return function (original: any, context: ClassMethodDecoratorContext) {
 		if (context.kind !== 'method') {
 			throw new Error('not supported');

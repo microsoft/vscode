@@ -182,7 +182,6 @@ export interface IExecutionResult<T extends string | Buffer> {
 	stderr: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function cpErrorHandler(cb: (reason?: any) => void): (reason?: any) => void {
 	return err => {
 		if (/ENOENT/.test(err.message)) {
@@ -215,19 +214,16 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 
 	const disposables: IDisposable[] = [];
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const once = (ee: NodeJS.EventEmitter, name: string, fn: (...args: any[]) => void) => {
 		ee.once(name, fn);
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const on = (ee: NodeJS.EventEmitter, name: string, fn: (...args: any[]) => void) => {
 		ee.on(name, fn);
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let result = Promise.all<any>([
 		new Promise<number>((c, e) => {
 			once(child, 'error', cpErrorHandler(e));
@@ -1282,7 +1278,6 @@ export class Repository {
 		return this.git.spawn(args, options);
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async config(command: string, scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
 		const args = ['config', `--${command}`];
 

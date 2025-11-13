@@ -361,6 +361,15 @@ export default tseslint.config(
 			'src/**/*.ts',
 		],
 		ignores: [
+			// Extensions
+			'extensions/git/src/commands.ts',
+			'extensions/git/src/decorators.ts',
+			'extensions/git/src/git.ts',
+			'extensions/git/src/repository.ts',
+			'extensions/git/src/util.ts',
+			'extensions/git-base/src/decorators.ts',
+			'extensions/github/src/util.ts',
+			// vscode d.ts
 			'src/vs/amdX.ts',
 			'src/vs/monaco.d.ts',
 			'src/vscode-dts/**',

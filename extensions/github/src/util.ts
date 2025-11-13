@@ -24,7 +24,6 @@ export class DisposableStore {
 }
 
 function decorate(decorator: (fn: Function, key: string) => Function): Function {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return function (original: any, context: ClassMethodDecoratorContext) {
 		if (context.kind === 'method' || context.kind === 'getter' || context.kind === 'setter') {
 			return decorator(original, context.name.toString());
@@ -36,9 +35,7 @@ function decorate(decorator: (fn: Function, key: string) => Function): Function 
 function _sequentialize(fn: Function, key: string): Function {
 	const currentKey = `__$sequence$${key}`;
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return function (this: any, ...args: any[]) {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const currentPromise = this[currentKey] as Promise<any> || Promise.resolve(null);
 		const run = async () => await fn.apply(this, args);
 		this[currentKey] = currentPromise.then(run, run);

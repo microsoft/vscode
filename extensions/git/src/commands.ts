@@ -365,8 +365,8 @@ interface ScmCommand {
 const Commands: ScmCommand[] = [];
 
 function command(commandId: string, options: ScmCommandOptions = {}): Function {
-	return (value: Function, context: ClassMethodDecoratorContext) => {
-		if (context.kind !== 'method') {
+	return (value: unknown, context: ClassMethodDecoratorContext) => {
+		if (typeof value !== 'function' || context.kind !== 'method') {
 			throw new Error('not supported');
 		}
 		const key = context.name.toString();
@@ -5419,11 +5419,8 @@ export class CommandCenter {
 		await repository.deleteTag(artifact.name);
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const result = (...args: any[]) => {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			let result: Promise<any>;
 
 			if (!options.repository) {
@@ -5643,7 +5640,6 @@ export class CommandCenter {
 
 	private runByRepository<T>(resource: Uri, fn: (repository: Repository, resource: Uri) => Promise<T>): Promise<T[]>;
 	private runByRepository<T>(resources: Uri[], fn: (repository: Repository, resources: Uri[]) => Promise<T>): Promise<T[]>;
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private async runByRepository<T>(arg: Uri | Uri[], fn: (repository: Repository, resources: any) => Promise<T>): Promise<T[]> {
 		const resources = arg instanceof Uri ? [arg] : arg;
 		const isSingleResource = arg instanceof Uri;

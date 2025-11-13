@@ -901,7 +901,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		return pick && pick.repository;
 	}
 
-	getRepository(hint: Uri | SourceControl | SourceControlResourceGroup | string): Repository | undefined {
+	getRepository(hint: SourceControl | SourceControlResourceGroup | Uri | string): Repository | undefined {
 		const liveRepository = this.getOpenRepository(hint);
 		return liveRepository && liveRepository.repository;
 	}
@@ -928,7 +928,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 	}
 
-	private getOpenRepository(hint: Uri | SourceControl | SourceControlResourceGroup | Repository | string): OpenRepository | undefined {
+	private getOpenRepository(hint: SourceControl | SourceControlResourceGroup | Repository | Uri | string): OpenRepository | undefined {
 		if (!hint) {
 			return undefined;
 		}

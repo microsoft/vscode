@@ -186,7 +186,6 @@ export class Resource implements SourceControlResourceState {
 	get renameResourceUri(): Uri | undefined { return this._renameResourceUri; }
 	get contextValue(): string | undefined { return this._repositoryKind; }
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private static Icons: any = {
 		light: {
 			Modified: getIconUri('status-modified', 'light'),
@@ -693,11 +692,7 @@ interface BranchProtectionMatcher {
 }
 
 export interface IRepositoryResolver {
-	getRepository(sourceControl: SourceControl): Repository | undefined;
-	getRepository(resourceGroup: SourceControlResourceGroup): Repository | undefined;
-	getRepository(path: string): Repository | undefined;
-	getRepository(resource: Uri): Repository | undefined;
-	getRepository(hint: unknown): Repository | undefined;
+	getRepository(hint: SourceControl | SourceControlResourceGroup | Uri | string): Repository | undefined;
 }
 
 export class Repository implements Disposable {
@@ -725,7 +720,6 @@ export class Repository implements Disposable {
 
 	@memoize
 	get onDidChangeOperations(): Event<void> {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		return anyEvent(this.onRunOperation as Event<any>, this.onDidRunOperation as Event<any>);
 	}
 
@@ -942,7 +936,9 @@ export class Repository implements Disposable {
 			: repository.kind === 'worktree' && repository.dotGit.commonPath
 				? path.dirname(repository.dotGit.commonPath)
 				: undefined;
-		const parent = this.repositoryResolver.getRepository(parentRoot)?.sourceControl;
+		const parent = parentRoot
+			? this.repositoryResolver.getRepository(parentRoot)?.sourceControl
+			: undefined;
 
 		// Icon
 		const icon = repository.kind === 'submodule'
@@ -2328,7 +2324,6 @@ export class Repository implements Disposable {
 
 	private async run<T>(
 		operation: Operation,
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		runOperation: () => Promise<T> = () => Promise.resolve<any>(null),
 		getOptimisticResourceGroups: () => GitResourceGroups | undefined = () => undefined): Promise<T> {
 
@@ -2336,7 +2331,6 @@ export class Repository implements Disposable {
 			throw new Error('Repository not initialized');
 		}
 
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		let error: any = null;
 
 		this._operations.start(operation);
@@ -2368,7 +2362,6 @@ export class Repository implements Disposable {
 		}
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private async retryRun<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
 		let attempt = 0;
 

@@ -19,7 +19,6 @@ export type Mutable<T> = {
 	-readonly [P in keyof T]: T[P]
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
 }
@@ -44,27 +43,21 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 export const EmptyDisposable = toDisposable(() => null);
 
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return (listener: (e: O) => any, thisArgs?: any, disposables?: Disposable[]) => event(i => listener.call(thisArgs, map(i)), null, disposables);
 }
 
 export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function runAndSubscribeEvent<T>(event: Event<T>, handler: (e: T) => any, initial: T): IDisposable;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function runAndSubscribeEvent<T>(event: Event<T>, handler: (e: T | undefined) => any): IDisposable;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function runAndSubscribeEvent<T>(event: Event<T>, handler: (e: T | undefined) => any, initial?: T): IDisposable {
 	handler(initial);
 	return event(e => handler(e));
 }
 
 export function anyEvent<T>(...events: Event<T>[]): Event<T> {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
 		const result = combinedDisposable(events.map(event => event(i => listener.call(thisArgs, i))));
 
@@ -79,7 +72,6 @@ export function done<T>(promise: Promise<T>): Promise<void> {
 }
 
 export function onceEvent<T>(event: Event<T>): Event<T> {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
 		const result = event(e => {
 			result.dispose();
@@ -91,7 +83,6 @@ export function onceEvent<T>(event: Event<T>): Event<T> {
 }
 
 export function debounceEvent<T>(event: Event<T>, delay: number): Event<T> {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
 		let timer: NodeJS.Timeout;
 		return event(e => {
@@ -105,7 +96,6 @@ export function eventToPromise<T>(event: Event<T>): Promise<T> {
 	return new Promise<T>(c => onceEvent(event)(c));
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function once(fn: (...args: any[]) => any): (...args: any[]) => any {
 	const didRun = false;
 
@@ -118,7 +108,6 @@ export function once(fn: (...args: any[]) => any): (...args: any[]) => any {
 	};
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function assign<T>(destination: T, ...sources: any[]): T {
 	for (const source of sources) {
 		Object.keys(source).forEach(key =>
@@ -422,7 +411,6 @@ export function isUndefined(obj: unknown): obj is undefined {
 interface ILimitedTaskFactory<T> {
 	factory: () => Promise<T>;
 	c: (value: T | Promise<T>) => void;
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	e: (error?: any) => void;
 }
 
@@ -465,7 +453,6 @@ export class Limiter<T> {
 	}
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Completion<T> = { success: true; value: T } | { success: false; err: any };
 
 export class PromiseSource<T> {
@@ -494,7 +481,6 @@ export class PromiseSource<T> {
 		}
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	reject(err: any): void {
 		if (!this._promise) {
 			this._promise = Promise.reject(err);
