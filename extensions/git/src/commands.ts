@@ -9,7 +9,7 @@ import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem,
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
-import { Git, Stash, Worktree } from './git';
+import { Git, GitError, Stash, Worktree } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
@@ -365,8 +365,7 @@ interface ScmCommand {
 const Commands: ScmCommand[] = [];
 
 function command(commandId: string, options: ScmCommandOptions = {}): Function {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	return (value: any, context: ClassMethodDecoratorContext) => {
+	return (value: Function, context: ClassMethodDecoratorContext) => {
 		if (context.kind !== 'method') {
 			throw new Error('not supported');
 		}
@@ -3592,11 +3591,8 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.createWorktree')
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	async createWorktree(repository: any): Promise<void> {
-		repository = this.model.getRepository(repository);
-
+	@command('git.createWorktree', { repository: true })
+	async createWorktree(repository?: Repository): Promise<void> {
 		if (!repository) {
 			// Single repository/submodule/worktree
 			if (this.model.repositories.length === 1) {
@@ -3788,9 +3784,9 @@ export class CommandCenter {
 				this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
 			}
 		} catch (err) {
-			if (err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
+			if (err instanceof GitError && err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
 				await this.handleWorktreeAlreadyExists(err);
-			} else if (err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
+			} else if (err instanceof GitError && err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
 				await this.handleWorktreeBranchAlreadyUsed(err);
 			} else {
 				throw err;
@@ -3800,9 +3796,8 @@ export class CommandCenter {
 		}
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private async handleWorktreeBranchAlreadyUsed(err: any): Promise<void> {
-		const match = err.stderr.match(/fatal: '([^']+)' is already used by worktree at '([^']+)'/);
+	private async handleWorktreeBranchAlreadyUsed(err: GitError): Promise<void> {
+		const match = err.stderr?.match(/fatal: '([^']+)' is already used by worktree at '([^']+)'/);
 
 		if (!match) {
 			return;
@@ -3813,9 +3808,8 @@ export class CommandCenter {
 		await this.handleWorktreeConflict(path, message);
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private async handleWorktreeAlreadyExists(err: any): Promise<void> {
-		const match = err.stderr.match(/fatal: '([^']+)'/);
+	private async handleWorktreeAlreadyExists(err: GitError): Promise<void> {
+		const match = err.stderr?.match(/fatal: '([^']+)'/);
 
 		if (!match) {
 			return;

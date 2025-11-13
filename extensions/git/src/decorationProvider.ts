@@ -32,8 +32,7 @@ class GitIgnoreDecorationProvider implements FileDecorationProvider {
 	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const onDidChangeRepository = anyEvent<any>(
+		const onDidChangeRepository = anyEvent<unknown>(
 			filterEvent(workspace.onDidSaveTextDocument, e => /\.gitignore$|\.git\/info\/exclude$/.test(e.uri.path)),
 			model.onDidOpenRepository,
 			model.onDidCloseRepository

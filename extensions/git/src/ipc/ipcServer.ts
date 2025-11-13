@@ -25,8 +25,7 @@ function getIPCHandlePath(id: string): string {
 }
 
 export interface IIPCHandler {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	handle(request: any): Promise<any>;
+	handle(request: unknown): Promise<unknown>;
 }
 
 export async function createIPCServer(context?: string): Promise<IPCServer> {
