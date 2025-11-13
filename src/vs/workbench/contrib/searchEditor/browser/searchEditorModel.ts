@@ -38,9 +38,13 @@ export class SearchEditorModel {
 }
 
 class SearchEditorModelFactory {
-	models = new ResourceMap<{ resolve: () => Promise<SearchEditorData> }>();
+	models = new ResourceMap<{ resolve: () => Promise<SearchEditorData>; config?: SearchConfiguration }>();
 
 	constructor() { }
+
+	getConfigSync(resource: URI): SearchConfiguration | undefined {
+		return this.models.get(resource)?.config;
+	}
 
 	initializeModelFromExistingModel(accessor: ServicesAccessor, resource: URI, config: SearchConfiguration) {
 		if (this.models.has(resource)) {
@@ -55,6 +59,7 @@ class SearchEditorModelFactory {
 		let ongoingResolve: Promise<SearchEditorData> | undefined;
 
 		this.models.set(resource, {
+			config,
 			resolve: () => {
 				if (!ongoingResolve) {
 					ongoingResolve = (async () => {
@@ -88,6 +93,7 @@ class SearchEditorModelFactory {
 		let ongoingResolve: Promise<SearchEditorData> | undefined;
 
 		this.models.set(resource, {
+			config,
 			resolve: () => {
 				if (!ongoingResolve) {
 					ongoingResolve = (async () => {
