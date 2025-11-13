@@ -345,48 +345,31 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 
 					const store = new DisposableStore();
 					const referenceName = toolSet.referenceName ?? toolSet.name;
-
-					// Check if a toolset with the same reference name already exists
 					const existingToolSet = languageModelToolsService.getToolSetByName(referenceName);
+					const mergeExisting = isBuiltinTool && existingToolSet?.source === ToolDataSource.Internal;
 
 					let obj: ToolSet & IDisposable;
-					if (existingToolSet) {
-						// Merge with existing toolset
-						// For built-in extensions (default chat extension), use their metadata (icon, description)
-						// as priority since they define the canonical version of the toolset
+					// Allow built-in tool to update the tool set if it already exists
+					if (mergeExisting) {
 						obj = existingToolSet as ToolSet & IDisposable;
-
-						// If this is a built-in extension, update the toolset's metadata
-						if (isBuiltinTool) {
-							// Update icon if provided
-							if (toolSet.icon) {
-								const icon = ThemeIcon.fromString(toolSet.icon);
-								if (icon) {
-									// Type assertion to allow modifying readonly property - this is intentional
-									// for updating existing toolset metadata from built-in extensions
-									(obj as { -readonly [K in keyof ToolSet]: ToolSet[K] }).icon = icon;
-								}
-							}
-							// Update description if provided
-							if (toolSet.description) {
-								// Type assertion to allow modifying readonly property - this is intentional
-								// for updating existing toolset metadata from built-in extensions
-								(obj as { -readonly [K in keyof ToolSet]: ToolSet[K] }).description = toolSet.description;
-							}
+						obj.description = toolSet.description;
+						const icon = toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined;
+						if (icon) {
+							obj.icon = icon;
 						}
 					} else {
-						// Create new toolset if none exists
 						obj = languageModelToolsService.createToolSet(
 							source,
 							toToolSetKey(extension.description.identifier, toolSet.name),
 							referenceName,
 							{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, description: toolSet.description }
 						);
-						store.add(obj);
 					}
 
-					// Add tools and nested toolsets to the toolset (whether new or existing)
 					transaction(tx => {
+						if (!mergeExisting) {
+							store.add(obj);
+						}
 						tools.forEach(tool => store.add(obj.addTool(tool, tx)));
 						toolSets.forEach(toolSet => store.add(obj.addToolSet(toolSet, tx)));
 					});

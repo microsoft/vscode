@@ -302,9 +302,9 @@ export class ToolSet {
 	constructor(
 		readonly id: string,
 		readonly referenceName: string,
-		readonly icon: ThemeIcon,
+		public icon: ThemeIcon,
 		readonly source: ToolDataSource,
-		readonly description?: string,
+		public description?: string,
 	) {
 
 		this.isHomogenous = derived(r => {
@@ -367,13 +367,13 @@ export interface ILanguageModelToolsService {
 	// tool names in prompt files handling ('qualified names')
 
 	getQualifiedToolNames(): Iterable<string>;
-	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined;
+	getToolByFullName(qualifiedName: string): IToolData | ToolSet | undefined;
 	getQualifiedToolName(tool: IToolData, toolSet?: ToolSet): string;
 	getDeprecatedQualifiedToolNames(): Map<string, string>;
 	mapGithubToolName(githubToolName: string): string;
 
 	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap;
-	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[];
+	toReferenceFullNames(map: IToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
 

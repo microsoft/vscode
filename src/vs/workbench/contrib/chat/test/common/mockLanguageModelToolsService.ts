@@ -108,7 +108,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined {
+	getToolByFullName(qualifiedName: string): IToolData | ToolSet | undefined {
 		throw new Error('Method not implemented.');
 	}
 
@@ -116,7 +116,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[] {
+	toReferenceFullNames(map: IToolAndToolSetEnablementMap): string[] {
 		throw new Error('Method not implemented.');
 	}
 

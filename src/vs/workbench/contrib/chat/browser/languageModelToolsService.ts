@@ -690,7 +690,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return result;
 	}
 
-	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[] {
+	toReferenceFullNames(map: IToolAndToolSetEnablementMap): string[] {
 		const result: string[] = [];
 		const toolsCoveredByEnabledToolSet = new Set<IToolData>();
 		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
@@ -780,27 +780,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private * getPromptReferencableTools(): Iterable<[IToolData | ToolSet, string]> {
-		const coveredByToolSets = new Set<string>(); // Track by ID instead of object reference
+		const coveredByToolSets = new Set<IToolData>();
 		for (const toolSet of this.toolSets.get()) {
 			if (toolSet.source.type !== 'user') {
 				yield [toolSet, getToolSetReferenceName(toolSet)];
-				this._logService.trace(`[LanguageModelToolsService] ToolSet: ${toolSet.referenceName}, qualified: ${getToolSetReferenceName(toolSet)}`);
 				for (const tool of toolSet.getTools()) {
-					const qualifiedName = getToolReferenceName(tool, toolSet);
-					this._logService.trace(`[LanguageModelToolsService]   Tool in set: ${tool.id}, toolReferenceName: ${tool.toolReferenceName}, qualified: ${qualifiedName}`);
-					yield [tool, qualifiedName];
-					coveredByToolSets.add(tool.id); // Store the tool ID
+					yield [tool, getToolReferenceFullName(tool, toolSet)];
+					coveredByToolSets.add(tool);
 				}
 			}
 		}
-		this._logService.trace(`[LanguageModelToolsService] Covered tools: ${Array.from(coveredByToolSets).join(', ')}`);
 		for (const tool of this.getTools()) {
-			const qualifiedName = getToolReferenceName(tool);
-			const isCovered = coveredByToolSets.has(tool.id);
-			this._logService.trace(`[LanguageModelToolsService] Standalone tool: ${tool.id}, toolReferenceName: ${tool.toolReferenceName}, canBeReferenced: ${tool.canBeReferencedInPrompt}, covered: ${isCovered}, qualified: ${qualifiedName}`);
-			if (tool.canBeReferencedInPrompt && !isCovered) {
-				this._logService.trace(`[LanguageModelToolsService]   -> Yielding standalone: ${qualifiedName}`);
-				yield [tool, qualifiedName];
+			if (tool.canBeReferencedInPrompt && !coveredByToolSets.has(tool)) {
+				yield [tool, getToolReferenceFullName(tool)];
 			}
 		}
 	}
@@ -837,29 +829,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			if (qualifiedName === (tool instanceof ToolSet ? tool.referenceName : tool.toolReferenceName ?? tool.displayName)) {
 				return tool;
 			}
-			// check aliases - support both simple names and qualified names with slashes
+			// check for legacy full names
 			if (!(tool instanceof ToolSet) && tool.legacyToolReferenceFullNames) {
-				for (const alias of tool.legacyToolReferenceFullNames) {
+				for (const fullName of tool.legacyToolReferenceFullNames) {
 					// Exact match on the alias
-					if (qualifiedName === alias) {
+					if (qualifiedName === fullName) {
 						return tool;
-					}
-					// If alias contains a slash, also check if it matches as a qualified name pattern
-					if (alias.includes('/')) {
-						// Support aliasing with custom namespace (e.g., "search/readFile" as alias for "extension/readFile")
-						if (qualifiedName === alias) {
-							return tool;
-						}
-					} else if (tool.source.type === 'extension') {
-						// Support simple alias that should be qualified with extension ID
-						const qualifiedAlias = `${tool.source.extensionId.value.toLowerCase()}/${alias}`;
-						if (qualifiedName === qualifiedAlias) {
-							return tool;
-						}
 					}
 				}
 			}
-
 		}
 		return undefined;
 	}
@@ -868,11 +846,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (tool instanceof ToolSet) {
 			return getToolSetReferenceName(tool);
 		}
-		return getToolReferenceName(tool, toolSet);
+		return getToolReferenceFullName(tool, toolSet);
 	}
 }
 
-function getToolReferenceName(tool: IToolData, toolSet?: ToolSet) {
+function getToolReferenceFullName(tool: IToolData, toolSet?: ToolSet) {
 	const toolName = tool.toolReferenceName ?? tool.displayName;
 	if (toolSet) {
 		return `${toolSet.referenceName}/${toolName}`;

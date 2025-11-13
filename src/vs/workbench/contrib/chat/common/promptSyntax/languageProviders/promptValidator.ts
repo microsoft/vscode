@@ -105,7 +105,7 @@ export class PromptValidator {
 						report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Warning));
 					}
 				} else if (headerToolsMap) {
-					const tool = this.languageModelToolsService.getToolByQualifiedName(variable.name);
+					const tool = this.languageModelToolsService.getToolByFullName(variable.name);
 					if (tool && headerToolsMap.get(tool) === false) {
 						report(toMarker(localize('promptValidator.disabledTool', "Tool or toolset '{0}' also needs to be enabled in the header.", variable.name), variable.range, MarkerSeverity.Warning));
 					}
