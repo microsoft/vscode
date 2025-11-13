@@ -17,7 +17,7 @@ export const SearchExtensionsToolId = 'vscode_searchExtensions_internal';
 export const SearchExtensionsToolData: IToolData = {
 	id: SearchExtensionsToolId,
 	toolReferenceName: 'extensions',
-	toolReferenceAliases: ['extensions'],
+	legacyToolReferenceFullNames: ['extensions'],
 	canBeReferencedInPrompt: true,
 	icon: ThemeIcon.fromId(Codicon.extensions.id),
 	displayName: localize('searchExtensionsTool.displayName', 'Search Extensions'),

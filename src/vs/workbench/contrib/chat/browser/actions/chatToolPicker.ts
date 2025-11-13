@@ -211,19 +211,16 @@ export async function showToolsPicker(
 	}
 
 	function computeItems(previousToolsEntries?: ReadonlyMap<ToolSet | IToolData, boolean>) {
-		console.log('[ChatToolPicker] computeItems called');
 		// Create default entries if none provided
 		let toolsEntries = getToolsEntries ? new Map(getToolsEntries()) : undefined;
 		if (!toolsEntries) {
 			const defaultEntries = new Map();
 			for (const tool of toolsService.getTools()) {
 				if (tool.canBeReferencedInPrompt) {
-					console.log('[ChatToolPicker] Adding standalone tool to entries:', tool.id, tool.toolReferenceName);
 					defaultEntries.set(tool, false);
 				}
 			}
 			for (const toolSet of toolsService.toolSets.get()) {
-				console.log('[ChatToolPicker] Adding toolset to entries:', toolSet.referenceName);
 				defaultEntries.set(toolSet, false);
 			}
 			toolsEntries = defaultEntries;
@@ -388,7 +385,6 @@ export async function showToolsPicker(
 			if (!toolsEntries.has(toolSet)) {
 				continue;
 			}
-			console.log('[ChatToolPicker] Processing toolset:', toolSet.referenceName, 'source:', toolSet.source.type);
 			const bucket = getBucket(toolSet.source);
 			if (!bucket) {
 				continue;
@@ -402,7 +398,6 @@ export async function showToolsPicker(
 				}
 				// all mcp tools are part of toolsService.getTools()
 				for (const tool of toolSet.getTools()) {
-					console.log('[ChatToolPicker]   Tool in MCP toolset:', tool.id, tool.toolReferenceName);
 					toolsInToolSets.add(tool.id);
 				}
 			} else {
@@ -410,7 +405,6 @@ export async function showToolsPicker(
 				bucket.children.push(treeItem);
 				const children = [];
 				for (const tool of toolSet.getTools()) {
-					console.log('[ChatToolPicker]   Tool in toolset:', tool.id, tool.toolReferenceName);
 					toolsInToolSets.add(tool.id);
 					const toolChecked = toolSetChecked || toolsEntries.get(tool) === true;
 					const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
@@ -421,19 +415,14 @@ export async function showToolsPicker(
 				}
 			}
 		}
-		console.log('[ChatToolPicker] Tools in toolsets:', Array.from(toolsInToolSets).join(', '));
-		console.log('[ChatToolPicker] Processing standalone tools');
 		for (const tool of toolsService.getTools()) {
 			if (!tool.canBeReferencedInPrompt || !toolsEntries.has(tool)) {
-				console.log('[ChatToolPicker]   Skipping tool:', tool.id, 'canBeReferenced:', tool.canBeReferencedInPrompt, 'inEntries:', toolsEntries.has(tool));
 				continue;
 			}
 			// Skip tools that are already in a toolset
 			if (toolsInToolSets.has(tool.id)) {
-				console.log('[ChatToolPicker]   Skipping tool (in toolset):', tool.id, tool.toolReferenceName);
 				continue;
 			}
-			console.log('[ChatToolPicker]   Adding standalone tool:', tool.id, tool.toolReferenceName);
 			const bucket = getBucket(tool.source);
 			if (!bucket) {
 				continue;

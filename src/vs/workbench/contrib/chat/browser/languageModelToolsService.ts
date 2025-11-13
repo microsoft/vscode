@@ -830,8 +830,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				return tool;
 			}
 			// check aliases - support both simple names and qualified names with slashes
-			if (!(tool instanceof ToolSet) && tool.toolReferenceAliases) {
-				for (const alias of tool.toolReferenceAliases) {
+			if (!(tool instanceof ToolSet) && tool.legacyToolReferenceFullNames) {
+				for (const alias of tool.legacyToolReferenceFullNames) {
 					// Exact match on the alias
 					if (qualifiedName === alias) {
 						return tool;

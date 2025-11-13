@@ -53,10 +53,6 @@
         "name": "renderMermaidDiagram",
         "displayName": "Mermaid Renderer",
         "toolReferenceName": "renderMermaidDiagram",
-        "toolReferenceAliases": [
-          "mermaid",
-          "diagram"
-        ],
         "canBeReferencedInPrompt": true,
         "modelDescription": "Renders a Mermaid diagram from Mermaid.js markup.",
         "userDescription": "Render a Mermaid.js diagrams from markup.",

@@ -80,7 +80,7 @@ export function createManageTodoListToolData(writeOnly: boolean, includeDescript
 	return {
 		id: ManageTodoListToolToolId,
 		toolReferenceName: 'todo',
-		toolReferenceAliases: ['todos'],
+		legacyToolReferenceFullNames: ['todos'],
 		canBeReferencedInPrompt: true,
 		icon: ThemeIcon.fromId(Codicon.checklist.id),
 		displayName: localize('tool.manageTodoList.displayName', 'Manage and track todo items for task planning'),

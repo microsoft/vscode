@@ -6,7 +6,7 @@
 import { isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { transaction } from '../../../../../base/common/observable.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../base/common/strings.js';
@@ -29,7 +29,7 @@ export interface IRawToolContribution {
 	displayName: string;
 	modelDescription: string;
 	toolReferenceName?: string;
-	toolReferenceAliases?: string[];
+	legacyToolReferenceFullNames?: string[];
 	icon?: string | { light: string; dark: string };
 	when?: string;
 	tags?: string[];
@@ -79,8 +79,8 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					type: 'string',
 					pattern: '^[\\w-]+$'
 				},
-				toolReferenceAliases: {
-					markdownDescription: localize('toolReferenceAliases', "An array of alternative names that can also be used to reference this tool in a query. Each alias must not contain whitespace. Aliases can be simple names (e.g., `readFile`) or qualified names with a custom namespace prefix (e.g., `search/readFile`) for backward compatibility."),
+				legacyToolReferenceFullNames: {
+					markdownDescription: localize('legacyToolReferenceFullNames', "An array of deprecated names for backwards compatibility that can also be used to reference this tool in a query. Each name must not contain whitespace. Full names are generally in the format `toolset/toolName` (e.g., `search/readFile`) or just `toolName` when there is no toolset (e.g., `readFile`)."),
 					type: 'array',
 					items: {
 						type: 'string',

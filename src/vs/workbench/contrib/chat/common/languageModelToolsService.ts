@@ -33,7 +33,7 @@ export interface IToolData {
 	id: string;
 	source: ToolDataSource;
 	toolReferenceName?: string;
-	toolReferenceAliases?: string[];
+	legacyToolReferenceFullNames?: string[];
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	when?: ContextKeyExpression;
 	tags?: string[];
