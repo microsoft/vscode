@@ -186,8 +186,8 @@ export interface IPromptsService extends IDisposable {
 	resolvePromptSlashCommand(command: string, token: CancellationToken): Promise<IChatPromptSlashCommand | undefined>;
 
 	/**
-	 * Event that is triggered when slash command -> ParsedPromptFile cache is updated.
-	 * Event handler can call resolvePromptSlashCommandFromCache in case there is new value populated.
+	 * Event that is triggered when the slash command to ParsedPromptFile cache is updated.
+	 * Event handlers can use {@link resolvePromptSlashCommand} to retrieve the latest data.
 	 */
 	readonly onDidChangeSlashCommands: Event<void>;
 
