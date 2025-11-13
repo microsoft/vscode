@@ -4,6 +4,7 @@
     "ChatMCP": "none",
     "ChatPromptFiles": false,
     "ChatToolsAutoApprove": false,
+    "ChatToolsEligibleForAutoApproval": "",
     "McpGalleryServiceUrl": "",
     "AllowedExtensions": "",
     "ExtensionGalleryServiceUrl": "",
