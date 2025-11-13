@@ -70,7 +70,7 @@ const expandedStateByInvocation = new WeakMap<IChatToolInvocation | IChatToolInv
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart implements IChatTerminalToolProgressPart {
 	public readonly domNode: HTMLElement;
 
-	private readonly _actionBar = this._register(new MutableDisposable<ActionBar>());
+	private readonly _actionBar: ActionBar;
 
 	private readonly _outputView: ChatTerminalToolOutputSection;
 	private readonly _terminalOutputContextKey: IContextKey<boolean>;
@@ -157,8 +157,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const actionBarEl = h('.chat-terminal-action-bar@actionBar');
 		elements.title.append(actionBarEl.root);
-		const actionBar = new ActionBar(actionBarEl.actionBar, {});
-		this._actionBar.value = actionBar;
+		this._actionBar = this._register(new ActionBar(actionBarEl.actionBar, {}));
 		this._initializeTerminalActions();
 		this._terminalService.whenConnected.then(() => this._initializeTerminalActions());
 		let pastTenseMessage: string | undefined;
@@ -225,7 +224,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private async _initializeTerminalActions(): Promise<void> {
-		if (!this._actionBar.value || this._store.isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		const terminalToolSessionId = this._terminalData.terminalToolSessionId;
@@ -286,10 +285,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private _addActions(terminalInstance?: ITerminalInstance, terminalToolSessionId?: string): void {
-		if (!this._actionBar.value || this._store.isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
-		const actionBar = this._actionBar.value;
+		const actionBar = this._actionBar;
 		this._removeFocusAction();
 
 		if (terminalInstance) {
@@ -312,7 +311,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private _ensureShowOutputAction(): void {
-		if (!this._actionBar.value) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		const command = this._getResolvedCommand();
@@ -330,7 +329,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 		showOutputAction.syncPresentation(this._outputView.isExpanded);
 
-		const actionBar = this._actionBar.value;
+		const actionBar = this._actionBar;
 		if (this._showOutputActionAdded) {
 			const existingIndex = actionBar.viewItems.findIndex(item => item.action === showOutputAction);
 			if (existingIndex >= 0 && existingIndex !== actionBar.length() - 1) {
@@ -393,7 +392,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 			this._clearCommandAssociation();
 			commandDetectionListener.clear();
-			this._actionBar.value?.clear();
+			if (!this._store.isDisposed) {
+				this._actionBar.clear();
+			}
 			this._removeFocusAction();
 			this._showOutputActionAdded = false;
 			this._showOutputAction.clear();
@@ -403,7 +404,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private _removeFocusAction(): void {
-		const actionBar = this._actionBar.value;
+		if (this._store.isDisposed) {
+			return;
+		}
+		const actionBar = this._actionBar;
 		const focusAction = this._focusAction.value;
 		if (actionBar && focusAction) {
 			const existingIndex = actionBar.viewItems.findIndex(item => item.action === focusAction);
