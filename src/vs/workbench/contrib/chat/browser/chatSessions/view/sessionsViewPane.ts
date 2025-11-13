@@ -14,6 +14,7 @@ import { coalesce } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { truncate } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
@@ -307,7 +308,7 @@ export class SessionsViewPane extends ViewPane {
 		this._register(renderer);
 
 		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {
-			if (element.id === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
+			if (isEqual(element.resource, LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE)) {
 				return null;
 			}
 
@@ -481,7 +482,7 @@ export class SessionsViewPane extends ViewPane {
 				return;
 			}
 
-			if (session.id === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
+			if (isEqual(session.resource, LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE)) {
 				await this.viewsService.openView(ChatViewId);
 				return;
 			}

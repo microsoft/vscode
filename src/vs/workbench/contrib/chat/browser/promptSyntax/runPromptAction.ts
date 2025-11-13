@@ -30,6 +30,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 /**
  * Condition for the `Run Current Prompt` action.
@@ -149,7 +150,7 @@ abstract class RunPromptBaseAction extends Action2 {
 
 		const widget = await showChatView(viewsService, layoutService);
 		if (widget) {
-			widget.setInput(`/${await promptsService.getPromptCommandName(resource)}`);
+			widget.setInput(`/${await promptsService.getPromptSlashCommandName(resource, CancellationToken.None)}`);
 			// submit the prompt immediately
 			await widget.acceptInput();
 		}
@@ -236,7 +237,7 @@ class RunSelectedPromptAction extends Action2 {
 
 		const widget = await showChatView(viewsService, layoutService);
 		if (widget) {
-			widget.setInput(`/${await promptsService.getPromptCommandName(promptFile)}`);
+			widget.setInput(`/${await promptsService.getPromptSlashCommandName(promptFile, CancellationToken.None)}`);
 			// submit the prompt immediately
 			await widget.acceptInput();
 			widget.focusInput();

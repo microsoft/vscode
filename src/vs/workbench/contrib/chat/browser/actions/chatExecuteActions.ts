@@ -965,9 +965,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 	private async generateSummarizedChatHistory(chatRequests: IChatRequestModel[], sessionResource: URI, title: string | undefined, chatAgentService: IChatAgentService, defaultAgent: IChatAgent, summary: string) {
 		const historyEntries: IChatAgentHistoryEntry[] = chatRequests
-			.map(req => ({
+			.map((req): IChatAgentHistoryEntry => ({
 				request: {
 					sessionId: chatSessionResourceToId(sessionResource),
+					sessionResource,
 					requestId: req.id,
 					agentId: req.response?.agent?.id ?? '',
 					message: req.message.text,
@@ -992,6 +993,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		const userPromptEntry: IChatAgentHistoryEntry = {
 			request: {
 				sessionId: chatSessionResourceToId(sessionResource),
+				sessionResource,
 				requestId: generateUuid(),
 				agentId: '',
 				message: userPrompt,

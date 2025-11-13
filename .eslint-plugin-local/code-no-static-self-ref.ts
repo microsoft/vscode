@@ -14,10 +14,10 @@ export = new class implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		function checkProperty(inNode: any) {
+		function checkProperty(inNode: TSESTree.PropertyDefinition) {
 
-			const classDeclaration = context.sourceCode.getAncestors(inNode).find(node => node.type === 'ClassDeclaration');
-			const propertyDefinition = <TSESTree.PropertyDefinition>inNode;
+			const classDeclaration = context.sourceCode.getAncestors(inNode as ESTree.Node).find(node => node.type === 'ClassDeclaration');
+			const propertyDefinition = inNode;
 
 			if (!classDeclaration || !classDeclaration.id?.name) {
 				return;

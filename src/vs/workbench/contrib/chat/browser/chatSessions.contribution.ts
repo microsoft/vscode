@@ -340,7 +340,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private registerContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): IDisposable {
 		if (this._contributions.has(contribution.type)) {
-			this._logService.warn(`Chat session contribution with id '${contribution.type}' is already registered.`);
 			return { dispose: () => { } };
 		}
 
