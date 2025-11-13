@@ -797,6 +797,7 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 		};
 
 		if (this._removed) {
+			this._removed = false;
 			this._editor.addOverlayWidget(this);
 		} else {
 			this._editor.layoutOverlayWidget(this);
