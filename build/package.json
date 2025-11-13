@@ -80,5 +80,8 @@
     "path-scurry": {
       "lru-cache": "11.2.1"
     }
+  },
+  "dependencies": {
+    "event-stream": "^4.0.1"
   }
 }
