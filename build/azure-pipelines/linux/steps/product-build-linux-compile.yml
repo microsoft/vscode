@@ -121,7 +121,7 @@ steps:
         SYSROOT_ARCH="amd64"
       fi
       export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-8.5.0
-      SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node $(Build.SourcesDirectory)/build/runBuildScript.js -e 'import { getVSCodeSysroot } from "../build/linux/debian/install-sysroot.js"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+      SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node $(Build.SourcesDirectory)/build/runBuildScript.js -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.js"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
     env:
       VSCODE_ARCH: $(VSCODE_ARCH)
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
