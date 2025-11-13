@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { ITerminalInstance } from './terminal.js';
 import { asArray } from '../../../../base/common/arrays.js';
-import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import type { IHoverAction } from '../../../../base/browser/ui/hover/hover.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalStatus } from './terminalStatusList.js';
@@ -44,7 +44,7 @@ export function getInstanceHoverInfo(instance: ITerminalInstance, storageService
 	});
 
 	const shellProcessString = getShellProcessTooltip(instance, !!showDetailed);
-	const content = new MarkdownString(instance.title + shellProcessString + statusString, { supportThemeIcons: true, supportHtml: true });
+	const content = new MarkdownString(instance.title + shellProcessString + statusString, { supportThemeIcons: true });
 
 	return { content, actions };
 }
@@ -109,11 +109,15 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 	}
 	const combinedString = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString();
 	if (combinedString !== undefined) {
-		const escapedPromptInput = escapeMarkdownSyntaxTokens(combinedString
-			.replaceAll('<', '&lt;').replaceAll('>', '&gt;') 		 //Prevent escaping from wrapping
-			.replaceAll(/\((.+?)(\|?(?: (?:.+?)?)?)\)/g, '(<$1>$2)') //Escape links as clickable links
-		);
-		detailedAdditions.push(`Prompt input: <code>\n${escapedPromptInput}\n</code>`);
+		if (combinedString.includes('`')) {
+			detailedAdditions.push('Prompt input:' + [
+				'```',
+				combinedString, // No new lines so no need to escape ```
+				'```',
+			].map(e => `\n    ${e}`).join(''));
+		} else {
+			detailedAdditions.push(`Prompt input: \`${combinedString.replaceAll('`', '&#96;')}\``);
+		}
 	}
 	const detailedAdditionsString = detailedAdditions.length > 0
 		? '\n\n' + detailedAdditions.map(e => `- ${e}`).join('\n')
