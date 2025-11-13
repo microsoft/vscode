@@ -4,19 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 
-const es = require('event-stream');
-const vfs = require('vinyl-fs');
-const { stylelintFilter } = require('./filters');
-const { getVariableNameValidator } = require('./lib/stylelint/validateVariableNames');
-
-module.exports = gulpstylelint;
+import es from 'event-stream';
+import vfs from 'vinyl-fs';
+import { stylelintFilter } from './filters.js';
+import { getVariableNameValidator } from './lib/stylelint/validateVariableNames.js';
 
 /**
  * use regex on lines
  *
  * @param {function(string, boolean):void} reporter
  */
-function gulpstylelint(reporter) {
+export default function gulpstylelint(reporter) {
 	const variableValidator = getVariableNameValidator();
 	let errorCount = 0;
 	const monacoWorkbenchPattern = /\.monaco-workbench/;
@@ -68,7 +66,8 @@ function stylelint() {
 		.pipe(es.through(function () { /* noop, important for the stream to end */ }));
 }
 
-if (require.main === module) {
+const normalizeScriptPath = (/** @type {string} */ p) => p.replace(/\.(js|ts)$/, '');
+if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
 	stylelint().on('error', (err) => {
 		console.error();
 		console.error(err);
