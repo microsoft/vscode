@@ -18,8 +18,6 @@ export const enum InlineChatConfigKeys {
 	StartWithOverlayWidget = 'inlineChat.startWithOverlayWidget',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
 	AccessibleDiffView = 'inlineChat.accessibleDiffView',
-	LineEmptyHint = 'inlineChat.lineEmptyHint',
-	LineNLHint = 'inlineChat.lineNaturalLanguageHint',
 	EnableV2 = 'inlineChat.enableV2',
 	notebookAgent = 'inlineChat.notebookAgent',
 }
@@ -47,18 +45,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('accessibleDiffView.on', "The accessible diff viewer is always enabled."),
 				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
 			],
-		},
-		[InlineChatConfigKeys.LineEmptyHint]: {
-			description: localize('emptyLineHint', "Whether empty lines show a hint to generate code with inline chat."),
-			default: false,
-			type: 'boolean',
-			tags: ['experimental'],
-		},
-		[InlineChatConfigKeys.LineNLHint]: {
-			markdownDescription: localize('lineSuffixHint', "Whether lines that are dominated by natural language or pseudo code show a hint to continue with inline chat. For instance, `class Person with name and hobbies` would show a hint to continue with chat."),
-			default: true,
-			type: 'boolean',
-			tags: ['experimental'],
 		},
 		[InlineChatConfigKeys.EnableV2]: {
 			description: localize('enableV2', "Whether to use the next version of inline chat."),

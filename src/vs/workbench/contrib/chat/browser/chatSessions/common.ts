@@ -20,7 +20,6 @@ export const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionE
 
 export type ChatSessionItemWithProvider = IChatSessionItem & {
 	readonly provider: IChatSessionItemProvider;
-	isHistory?: boolean;
 	relativeTime?: string;
 	relativeTimeFullWord?: string;
 	hideRelativeTime?: boolean;
@@ -118,12 +117,14 @@ function applyTimeGrouping(sessions: ChatSessionItemWithProvider[]): void {
 }
 
 // Helper function to process session items with timestamps, sorting, and grouping
-export function processSessionsWithTimeGrouping(sessions: ChatSessionItemWithProvider[]): void {
+export function processSessionsWithTimeGrouping(sessions: ChatSessionItemWithProvider[]): ChatSessionItemWithProvider[] {
+	const sessionsTemp = [...sessions];
 	// Only process if we have sessions with timestamps
 	if (sessions.some(session => session.timing?.startTime !== undefined)) {
-		sortSessionsByTimestamp(sessions);
-		applyTimeGrouping(sessions);
+		sortSessionsByTimestamp(sessionsTemp);
+		applyTimeGrouping(sessionsTemp);
 	}
+	return sessionsTemp;
 }
 
 // Helper function to create context overlay for session items
@@ -135,25 +136,20 @@ export function getSessionItemContextOverlay(
 	editorGroupsService?: IEditorGroupsService
 ): [string, any][] {
 	const overlay: [string, any][] = [];
-	// Do not create an overaly for the show-history node
-	if (session.id === 'show-history') {
-		return overlay;
-	}
-
 	if (provider) {
 		overlay.push([ChatContextKeys.sessionType.key, provider.chatSessionType]);
 	}
 
 	// Mark history items
-	overlay.push([ChatContextKeys.isHistoryItem.key, session.isHistory]);
+	overlay.push([ChatContextKeys.isArchivedItem.key, session.archived]);
 
 	// Mark active sessions - check if session is currently open in editor or widget
 	let isActiveSession = false;
 
-	if (!session.isHistory && provider?.chatSessionType === localChatSessionType) {
+	if (!session.archived && provider?.chatSessionType === localChatSessionType) {
 		// Local non-history sessions are always active
 		isActiveSession = true;
-	} else if (session.isHistory && chatWidgetService && chatService && editorGroupsService) {
+	} else if (session.archived && chatWidgetService && chatService && editorGroupsService) {
 		// Check if session is open in a chat widget
 		const widget = chatWidgetService.getWidgetBySessionResource(session.resource);
 		if (widget) {

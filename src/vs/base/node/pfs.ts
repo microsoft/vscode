@@ -107,9 +107,9 @@ async function readdir(path: string, options?: { withFileTypes: true }): Promise
 	try {
 		return await doReaddir(path, options);
 	} catch (error) {
-		// TODO@bpasero workaround for #252361 that should be removed
-		// once the upstream issue in node.js is resolved. Adds a trailing
-		// dot to a root drive letter path (G:\ => G:\.) as a workaround.
+		// Workaround for #252361 that should be removed once the upstream issue
+		// in node.js is resolved. Adds a trailing dot to a root drive letter path
+		// (G:\ => G:\.) as a workaround.
 		if (error.code === 'ENOENT' && isWindows && isRootOrDriveLetter(path)) {
 			try {
 				return await doReaddir(`${path}.`, options);

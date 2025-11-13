@@ -23,6 +23,7 @@ const _formatRegexp = /{(\d+)}/g;
  * @param value string to which formatting is applied
  * @param args replacements for {n}-entries
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function format(value: string, ...args: any[]): string {
 	if (args.length === 0) {
 		return value;
@@ -322,7 +323,7 @@ export function getIndentationLength(str: string): number {
  * Function that works identically to String.prototype.replace, except, the
  * replace function is allowed to be async and return a Promise.
  */
-export function replaceAsync(str: string, search: RegExp, replacer: (match: string, ...args: any[]) => Promise<string>): Promise<string> {
+export function replaceAsync(str: string, search: RegExp, replacer: (match: string, ...args: unknown[]) => Promise<string>): Promise<string> {
 	const parts: (string | Promise<string>)[] = [];
 
 	let last = 0;

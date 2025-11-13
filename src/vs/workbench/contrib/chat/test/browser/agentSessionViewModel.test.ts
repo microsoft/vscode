@@ -211,7 +211,7 @@ suite('AgentSessionsViewModel', () => {
 						tooltip: 'Session tooltip',
 						iconPath: ThemeIcon.fromId('check'),
 						timing: { startTime, endTime },
-						statistics: { insertions: 10, deletions: 5 }
+						statistics: { files: 1, insertions: 10, deletions: 5 }
 					}
 				]
 			};
@@ -235,7 +235,7 @@ suite('AgentSessionsViewModel', () => {
 			assert.strictEqual(session.status, ChatSessionStatus.Completed);
 			assert.strictEqual(session.timing.startTime, startTime);
 			assert.strictEqual(session.timing.endTime, endTime);
-			assert.deepStrictEqual(session.statistics, { insertions: 10, deletions: 5 });
+			assert.deepStrictEqual(session.statistics, { files: 1, insertions: 10, deletions: 5 });
 		});
 	});
 
@@ -273,12 +273,6 @@ suite('AgentSessionsViewModel', () => {
 				chatSessionType: 'test-type',
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
-					{
-						id: 'show-history',
-						resource: URI.parse('test://show-history'),
-						label: 'Show History',
-						timing: { startTime: Date.now() }
-					},
 					{
 						id: 'workbench.panel.chat.view.copilot',
 						resource: URI.parse('test://copilot'),

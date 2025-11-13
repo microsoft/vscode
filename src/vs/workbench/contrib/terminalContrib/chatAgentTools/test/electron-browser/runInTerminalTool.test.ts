@@ -7,34 +7,37 @@ import { ok, strictEqual } from 'assert';
 import { Separator } from '../../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { isLinux, isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
+import { count } from '../../../../../../base/common/strings.js';
+import type { SingleOrMany } from '../../../../../../base/common/types.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
+import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
+import { IHistoryService } from '../../../../../services/history/common/history.js';
+import { TreeSitterLibraryService } from '../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
+import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
+import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { count } from '../../../../../../base/common/strings.js';
-import { ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
-import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-import { TreeSitterLibraryService } from '../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { Schemas } from '../../../../../../base/common/network.js';
-import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
-import { arch } from '../../../../../../base/common/process.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
-import type { SingleOrMany } from '../../../../../../base/common/types.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -47,14 +50,14 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	}
 }
 
-// TODO: The powershell grammar can cause an OOM crash on Windows/arm https://github.com/microsoft/vscode/issues/273177
-(isWindows && (arch === 'arm' || arch === 'arm64') ? suite.skip : suite)('RunInTerminalTool', () => {
+suite('RunInTerminalTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let fileService: IFileService;
 	let storageService: IStorageService;
+	let workspaceContextService: TestContextService;
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionResource: URI; reason: 'cleared' }>;
 
@@ -62,6 +65,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
+		workspaceContextService = new TestContextService();
 
 		const logService = new NullLogService();
 		fileService = store.add(new FileService(logService));
@@ -77,6 +81,11 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 			fileService: () => fileService,
 		}, store);
 
+		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
+		instantiationService.stub(IHistoryService, {
+			getLastActiveWorkspaceRoot: () => undefined
+		});
+
 		const treeSitterLibraryService = store.add(instantiationService.createInstance(TreeSitterLibraryService));
 		treeSitterLibraryService.isTest = true;
 		instantiationService.stub(ITreeSitterLibraryService, treeSitterLibraryService);
@@ -87,7 +96,8 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 			},
 		});
 		instantiationService.stub(ITerminalService, {
-			onDidDisposeInstance: terminalServiceDisposeEmitter.event
+			onDidDisposeInstance: terminalServiceDisposeEmitter.event,
+			setNextCommandId: async () => { }
 		});
 		instantiationService.stub(IChatService, {
 			onDidDisposeSession: chatServiceDisposeEmitter.event
@@ -838,6 +848,25 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 			assertDropdownActions(result, [
 				'configure',
 			]);
+		});
+
+		test('should prevent auto approval when writing to a file outside the workspace', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
+			setAutoApprove({});
+
+			const workspaceFolder = URI.file(isWindows ? 'C:/workspace/project' : '/workspace/project');
+			const workspace = new Workspace('test', [toWorkspaceFolder(workspaceFolder)]);
+			workspaceContextService.setWorkspace(workspace);
+			instantiationService.stub(IHistoryService, {
+				getLastActiveWorkspaceRoot: () => workspaceFolder
+			});
+
+			const result = await executeToolTest({
+				command: 'echo "abc" > ../file.txt'
+			});
+
+			assertConfirmationRequired(result);
+			strictEqual(result?.confirmationMessages?.terminalCustomActions, undefined, 'Expected no custom actions when file write is blocked');
 		});
 	});
 

@@ -5,6 +5,7 @@
 
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { $, append } from '../../../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
@@ -47,13 +48,17 @@ import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { ChatSessionItemWithProvider, findExistingChatEditorByUri, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
-import { GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
+import { ArchivedSessionItems, GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 
 // Identity provider for session items
 class SessionsIdentityProvider {
-	getId(element: ChatSessionItemWithProvider): string {
+	getId(element: ChatSessionItemWithProvider | ArchivedSessionItems): string {
+		if (element instanceof ArchivedSessionItems) {
+			return 'archived-session-items';
+		}
 		return element.resource.toString();
 	}
+
 }
 
 // Accessibility provider for session items
@@ -62,7 +67,7 @@ class SessionsAccessibilityProvider {
 		return nls.localize('chatSessions', 'Chat Sessions');
 	}
 
-	getAriaLabel(element: ChatSessionItemWithProvider): string | null {
+	getAriaLabel(element: ChatSessionItemWithProvider | ArchivedSessionItems): string | null {
 		return element.label;
 	}
 }
@@ -292,7 +297,7 @@ export class SessionsViewPane extends ViewPane {
 		this.messageElement = append(container, $('.chat-sessions-message'));
 		this.messageElement.style.display = 'none';
 		// Create the tree components
-		const dataSource = new SessionsDataSource(this.provider, this.chatService, this.sessionTracker);
+		const dataSource = new SessionsDataSource(this.provider, this.sessionTracker);
 		const delegate = new SessionsDelegate(this.configurationService);
 		const identityProvider = new SessionsIdentityProvider();
 		const accessibilityProvider = new SessionsAccessibilityProvider();
@@ -328,9 +333,6 @@ export class SessionsViewPane extends ViewPane {
 						}
 					},
 					getDragURI: (element: ChatSessionItemWithProvider) => {
-						if (element.id === LocalChatSessionsProvider.HISTORY_NODE_ID) {
-							return null;
-						}
 						return getResourceForElement(element)?.toString() ?? null;
 					},
 					getDragLabel: (elements: ChatSessionItemWithProvider[]) => {
@@ -349,8 +351,7 @@ export class SessionsViewPane extends ViewPane {
 					getKeyboardNavigationLabel: (session: ChatSessionItemWithProvider) => {
 						const parts = [
 							session.label || '',
-							session.id || '',
-							typeof session.description === 'string' ? session.description : (session.description?.value || '')
+							typeof session.description === 'string' ? session.description : (session.description ? renderAsPlaintext(session.description) : '')
 						];
 						return parts.filter(text => text.length > 0).join(' ');
 					}
@@ -377,7 +378,10 @@ export class SessionsViewPane extends ViewPane {
 
 		// Register context menu event for right-click actions
 		this._register(this.tree.onContextMenu((e) => {
-			if (e.element && e.element.id !== LocalChatSessionsProvider.HISTORY_NODE_ID) {
+			if (e.element && !(e.element instanceof ArchivedSessionItems)) {
+				this.showContextMenu(e);
+			}
+			if (e.element) {
 				this.showContextMenu(e);
 			}
 		}));
@@ -473,9 +477,7 @@ export class SessionsViewPane extends ViewPane {
 			if (this.chatWidgetService.getWidgetBySessionResource(session.resource)) {
 				return;
 			}
-
-			if (session.id === LocalChatSessionsProvider.HISTORY_NODE_ID) {
-				// Don't try to open the "Show history..." node itself
+			if (session instanceof ArchivedSessionItems) {
 				return;
 			}
 

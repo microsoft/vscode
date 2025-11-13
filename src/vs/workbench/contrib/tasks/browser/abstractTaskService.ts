@@ -2172,22 +2172,31 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._taskSystem) {
 			return;
 		}
-		const response = await this._taskSystem.terminate(task);
-		if (response.success) {
-			try {
-				// Before restarting, check if the task still exists and get updated version
-				const updatedTask = await this._findUpdatedTask(task);
-				if (updatedTask) {
-					await this.run(updatedTask);
-				} else {
-					// Task no longer exists, show warning
-					this._notificationService.warn(nls.localize('TaskSystem.taskNoLongerExists', 'Task {0} no longer exists or has been modified. Cannot restart.', task.configurationProperties.name));
-				}
-			} catch {
-				// eat the error, we don't care about it here
+
+		// Check if the task is currently running
+		const isTaskRunning = await this.getActiveTasks().then(tasks => tasks.some(t => t.getMapKey() === task.getMapKey()));
+
+		if (isTaskRunning) {
+			// Task is running, terminate it first
+			const response = await this._taskSystem.terminate(task);
+			if (!response.success) {
+				this._notificationService.warn(nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.configurationProperties.name));
+				return;
 			}
-		} else {
-			this._notificationService.warn(nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.configurationProperties.name));
+		}
+
+		// Task is not running or was successfully terminated, now run it
+		try {
+			// Before restarting, check if the task still exists and get updated version
+			const updatedTask = await this._findUpdatedTask(task);
+			if (updatedTask) {
+				await this.run(updatedTask);
+			} else {
+				// Task no longer exists, show warning
+				this._notificationService.warn(nls.localize('TaskSystem.taskNoLongerExists', 'Task {0} no longer exists or has been modified. Cannot restart.', task.configurationProperties.name));
+			}
+		} catch {
+			// eat the error, we don't care about it here
 		}
 	}
 
@@ -2275,6 +2284,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				} else {
 					return undefined;
 				}
+			},
+			async (taskKey: string) => {
+				// Look up task by its map key across all workspace tasks
+				const taskMap = await this._getGroupedTasks();
+				const allTasks = taskMap.all();
+				for (const task of allTasks) {
+					if (task.getMapKey() === taskKey) {
+						return task;
+					}
+				}
+				return undefined;
 			}
 		);
 	}
@@ -3209,8 +3229,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 
-	rerun(terminalInstanceId: number): void {
-		const task = this._taskSystem?.getTaskForTerminal(terminalInstanceId);
+	async rerun(terminalInstanceId: number): Promise<void> {
+		const task = await this._taskSystem?.getTaskForTerminal(terminalInstanceId);
 		if (task) {
 			this._restart(task);
 		} else {
