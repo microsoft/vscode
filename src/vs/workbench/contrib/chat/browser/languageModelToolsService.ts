@@ -445,9 +445,26 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			prepared = await preparePromise;
 		}
 
+		// TODO: If the user has _previously_ auto-approved this tool, I don't think we make it to this check.
+		const isEligibleForAutoApproval = this.isToolEligibleForAutoApproval(tool.data);
+
+		// Default confirmation messages if tool is not eligible for auto-approval
+		if (!isEligibleForAutoApproval && !prepared?.confirmationMessages?.title) {
+			if (!prepared) {
+				prepared = {};
+			}
+			const toolReferenceName = getToolReferenceName(tool.data);
+			// TODO: This should be more detailed per tool.
+			prepared.confirmationMessages = {
+				title: localize('defaultToolConfirmation.title', 'Allow tool to execute?'),
+				message: localize('defaultToolConfirmation.message', 'Run the "{0}" tool.', toolReferenceName),
+				allowAutoConfirm: false,
+			};
+		}
+
 		if (prepared?.confirmationMessages?.title) {
 			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
-				prepared.confirmationMessages.allowAutoConfirm = true;
+				prepared.confirmationMessages.allowAutoConfirm = isEligibleForAutoApproval;
 			}
 
 			if (!prepared.toolSpecificData && tool.data.alwaysDisplayInputOutput) {
@@ -502,6 +519,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				assertNever(part);
 			}
 		});
+	}
+
+	private isToolEligibleForAutoApproval(toolData: IToolData): boolean {
+		const toolReferenceName = getToolReferenceName(toolData);
+		const eligibilityConfig = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);
+		return eligibilityConfig && typeof eligibilityConfig === 'object' && toolReferenceName
+			? (eligibilityConfig[toolReferenceName] ?? true) // Default to true if not specified
+			: true; // Default to eligible if the setting is not an object or no reference name
 	}
 
 	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown): Promise<ConfirmedReason | undefined> {
