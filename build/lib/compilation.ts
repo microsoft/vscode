@@ -20,9 +20,10 @@ import { Mangler } from './mangle/index.js';
 import { RawSourceMap } from 'source-map';
 import ts from 'typescript';
 import watch from './watch/index.js';
+import bom from 'gulp-bom';
 import * as tsb from './tsb/index.js';
 import sourcemaps from 'gulp-sourcemaps';
-import bom from 'gulp-bom';
+
 
 // --- gulp-tsb: compile and transpile --------------------------------
 

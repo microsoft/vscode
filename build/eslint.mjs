@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-import es from 'event-stream';
+import eventStream from 'event-stream';
 import vfs from 'vinyl-fs';
 import { eslintFilter } from './filters.js';
 import gulpEslint from './gulp-eslint.js';
@@ -17,7 +17,7 @@ function eslint() {
 					throw new Error(`eslint failed with ${results.warningCount + results.errorCount} warnings and/or errors`);
 				}
 			})
-		).pipe(es.through(function () { /* noop, important for the stream to end */ }));
+		).pipe(eventStream.through(function () { /* noop, important for the stream to end */ }));
 }
 
 const normalizeScriptPath = (/** @type {string} */ p) => p.replace(/\.(js|ts)$/, '');

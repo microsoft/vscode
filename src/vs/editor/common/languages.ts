@@ -860,7 +860,6 @@ export interface InlineCompletionHint {
 	range: IRange;
 	style: InlineCompletionHintStyle;
 	content: string;
-	jumpToEdit: boolean;
 }
 
 // TODO: add `| URI | { light: URI; dark: URI }`.
