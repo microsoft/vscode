@@ -192,8 +192,6 @@ export default tseslint.config(
 			'extensions/debug-auto-launch/src/extension.ts',
 			'extensions/emmet/src/updateImageSize.ts',
 			'extensions/emmet/src/util.ts',
-			'extensions/git/src/blame.ts',
-			'extensions/github/src/links.ts',
 			'extensions/github-authentication/src/node/fetch.ts',
 			'extensions/terminal-suggest/src/fig/figInterface.ts',
 			'extensions/terminal-suggest/src/fig/fig-autocomplete-shared/mixins.ts',
