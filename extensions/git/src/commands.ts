@@ -3473,26 +3473,52 @@ export class CommandCenter {
 			}
 		}
 
-		await worktreeRepository.createStash(undefined, true);
-		const stashes = await worktreeRepository.getStashes();
+		const message = l10n.t('There are merge conflicts from migrating changes. Please resolve them before committing.');
+		await this.migrateStashBetweenRepositories(worktreeRepository, repository, message);
+	}
+
+	private async migrateChangesToWorktree(repository: Repository, worktreePath: string): Promise<void> {
+		if (repository.indexGroup.resourceStates.length === 0 &&
+			repository.workingTreeGroup.resourceStates.length === 0 &&
+			repository.untrackedGroup.resourceStates.length === 0) {
+			return;
+		}
+
+		await this.model.openRepository(worktreePath, true, true);
+
+		const worktreeRepository = this.model.getRepository(worktreePath);
+		if (!worktreeRepository || worktreeRepository.kind !== 'worktree') {
+			return;
+		}
+
+		const message = l10n.t('There are merge conflicts from migrating changes to the worktree. Please resolve them before committing.');
+		await this.migrateStashBetweenRepositories(repository, worktreeRepository, message);
+	}
+
+	private async migrateStashBetweenRepositories(
+		sourceRepository: Repository,
+		targetRepository: Repository,
+		conflictMessage: string
+	): Promise<void> {
+		await sourceRepository.createStash(undefined, true);
+		const stashes = await sourceRepository.getStashes();
 
 		try {
-			await repository.applyStash(stashes[0].index);
-			worktreeRepository.dropStash(stashes[0].index);
+			await targetRepository.applyStash(stashes[0].index);
+			sourceRepository.dropStash(stashes[0].index);
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.StashConflict) {
-				await worktreeRepository.popStash();
+				await sourceRepository.popStash();
 				throw err;
 			}
-			repository.isWorktreeMigrating = true;
+			targetRepository.isWorktreeMigrating = true;
 
-			const message = l10n.t('There are merge conflicts from migrating changes. Please resolve them before committing.');
 			const show = l10n.t('Show Changes');
-			const choice = await window.showWarningMessage(message, show);
+			const choice = await window.showWarningMessage(conflictMessage, show);
 			if (choice === show) {
 				await commands.executeCommand('workbench.view.scm');
 			}
-			worktreeRepository.dropStash(stashes[0].index);
+			sourceRepository.dropStash(stashes[0].index);
 		}
 	}
 
@@ -3515,7 +3541,8 @@ export class CommandCenter {
 	@command('git.createWorktreeWithDefaults', { repository: true, repositoryFilter: ['repository'] })
 	async createWorktreeWithDefaults(
 		repository: Repository,
-		commitish: string = 'HEAD'
+		commitish: string = 'HEAD',
+		migrateUncommittedChanges: boolean = false
 	): Promise<string | undefined> {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix', '');
@@ -3568,6 +3595,11 @@ export class CommandCenter {
 					this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
 				}
 
+				// Migrate uncommitted changes if requested
+				if (migrateUncommittedChanges) {
+					await this.migrateChangesToWorktree(repository, finalWorktreePath);
+				}
+
 				return finalWorktreePath;
 			} catch (err) {
 				// Return undefined on failure
@@ -3582,6 +3614,11 @@ export class CommandCenter {
 			const worktreeRoot = path.dirname(defaultWorktreePath);
 			if (worktreeRoot !== defaultWorktreeRoot) {
 				this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
+			}
+
+			// Migrate uncommitted changes if requested
+			if (migrateUncommittedChanges) {
+				await this.migrateChangesToWorktree(repository, defaultWorktreePath);
 			}
 
 			return defaultWorktreePath;
