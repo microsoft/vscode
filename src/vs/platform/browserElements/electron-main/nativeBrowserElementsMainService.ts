@@ -189,11 +189,8 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 						rawData: JSON.stringify(params)
 					};
 				} else if (method === 'Runtime.exceptionThrown') {
-					// Extract exception details
 					const exceptionDetails = params.exceptionDetails;
 					let errorMessage = exceptionDetails?.text || 'Unknown error';
-
-					// The exception.description contains the full error with stack trace
 					if (exceptionDetails?.exception?.description) {
 						errorMessage = exceptionDetails.exception.description;
 					}
@@ -216,10 +213,8 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 					};
 				}
 
-				// Check for duplicates using the raw data
 				if (!current.some(entry => entry.rawData === logEntry.rawData)) {
 					current.push(logEntry);
-					// Keep only the last 5 logs
 					if (current.length > 5) {
 						current.shift();
 					}
