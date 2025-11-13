@@ -136,11 +136,6 @@ export function getSessionItemContextOverlay(
 	editorGroupsService?: IEditorGroupsService
 ): [string, any][] {
 	const overlay: [string, any][] = [];
-	// Do not create an overaly for the show-history node
-	if (session.id === 'show-history') {
-		return overlay;
-	}
-
 	if (provider) {
 		overlay.push([ChatContextKeys.sessionType.key, provider.chatSessionType]);
 	}
