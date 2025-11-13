@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 import { promises as fs } from 'fs';
-import { join, relative } from 'path';
+import path from 'path';
 
 /**
  * @param {string} dir
@@ -15,7 +15,7 @@ async function* getPackageLockFiles(dir) {
 	const files = await fs.readdir(dir);
 
 	for (const file of files) {
-		const fullPath = join(dir, file);
+		const fullPath = path.join(dir, file);
 		const stat = await fs.stat(fullPath);
 
 		if (stat.isDirectory()) {
@@ -44,7 +44,7 @@ async function main(url, dir) {
 	const root = dir ?? process.cwd();
 
 	for await (const file of getPackageLockFiles(root)) {
-		console.log(`Enabling custom NPM registry: ${relative(root, file)}`);
+		console.log(`Enabling custom NPM registry: ${path.relative(root, file)}`);
 		await setup(url, file);
 	}
 }

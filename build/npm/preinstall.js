@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { join } from 'path';
-import { existsSync, readFileSync } from 'fs';
-import { execSync, execFileSync } from 'child_process';
-import { arch } from 'os';
+import path from 'path';
+import * as fs from 'fs';
+import * as child_process from 'child_process';
+import * as os from 'os';
 
 const nodeVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(process.versions.node);
 const majorNodeVersion = parseInt(nodeVersion[1]);
@@ -34,8 +34,8 @@ if (process.platform === 'win32') {
 	installHeaders();
 }
 
-if (process.arch !== arch()) {
-	console.error(`\x1b[1;31m*** ARCHITECTURE MISMATCH: The node.js process is ${process.arch}, but your OS architecture is ${arch()}. ***\x1b[0;0m`);
+if (process.arch !== os.arch()) {
+	console.error(`\x1b[1;31m*** ARCHITECTURE MISMATCH: The node.js process is ${process.arch}, but your OS architecture is ${os.arch()}. ***\x1b[0;0m`);
 	console.error(`\x1b[1;31m*** This can greatly increase the build time of vs code. ***\x1b[0;0m`);
 }
 
@@ -48,7 +48,7 @@ function hasSupportedVisualStudioVersion() {
 	for (const version of supportedVersions) {
 		// Check environment variable first (explicit override)
 		let vsPath = process.env[`vs${version}_install`];
-		if (vsPath && existsSync(vsPath)) {
+		if (vsPath && fs.existsSync(vsPath)) {
 			availableVersions.push(version);
 			break;
 		}
@@ -60,7 +60,7 @@ function hasSupportedVisualStudioVersion() {
 		const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools', 'IntPreview'];
 		if (programFiles64Path) {
 			vsPath = `${programFiles64Path}/Microsoft Visual Studio/${version}`;
-			if (vsTypes.some(vsType => existsSync(join(vsPath, vsType)))) {
+			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath, vsType)))) {
 				availableVersions.push(version);
 				break;
 			}
@@ -68,7 +68,7 @@ function hasSupportedVisualStudioVersion() {
 
 		if (programFiles86Path) {
 			vsPath = `${programFiles86Path}/Microsoft Visual Studio/${version}`;
-			if (vsTypes.some(vsType => existsSync(join(vsPath, vsType)))) {
+			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath, vsType)))) {
 				availableVersions.push(version);
 				break;
 			}
@@ -79,30 +79,30 @@ function hasSupportedVisualStudioVersion() {
 }
 
 function installHeaders() {
-	execSync(`npm.cmd ${process.env['npm_command'] || 'ci'}`, {
+	child_process.execSync(`npm.cmd ${process.env['npm_command'] || 'ci'}`, {
 		env: process.env,
-		cwd: join(import.meta.dirname, 'gyp'),
+		cwd: path.join(import.meta.dirname, 'gyp'),
 		stdio: 'inherit'
 	});
 
 	// The node gyp package got installed using the above npm command using the gyp/package.json
 	// file checked into our repository. So from that point it is save to construct the path
 	// to that executable
-	const node_gyp = join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd');
-	const result = execFileSync(node_gyp, ['list'], { encoding: 'utf8', shell: true });
+	const node_gyp = path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd');
+	const result = child_process.execFileSync(node_gyp, ['list'], { encoding: 'utf8', shell: true });
 	const versions = new Set(result.split(/\n/g).filter(line => !line.startsWith('gyp info')).map(value => value));
 
-	const local = getHeaderInfo(join(import.meta.dirname, '..', '..', '.npmrc'));
-	const remote = getHeaderInfo(join(import.meta.dirname, '..', '..', 'remote', '.npmrc'));
+	const local = getHeaderInfo(path.join(import.meta.dirname, '..', '..', '.npmrc'));
+	const remote = getHeaderInfo(path.join(import.meta.dirname, '..', '..', 'remote', '.npmrc'));
 
 	if (local !== undefined && !versions.has(local.target)) {
 		// Both disturl and target come from a file checked into our repository
-		execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell: true });
+		child_process.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell: true });
 	}
 
 	if (remote !== undefined && !versions.has(remote.target)) {
 		// Both disturl and target come from a file checked into our repository
-		execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell: true });
+		child_process.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell: true });
 	}
 }
 
@@ -111,7 +111,7 @@ function installHeaders() {
  * @returns {{ disturl: string; target: string } | undefined}
  */
 function getHeaderInfo(rcFile) {
-	const lines = readFileSync(rcFile, 'utf8').split(/\r\n?/g);
+	const lines = fs.readFileSync(rcFile, 'utf8').split(/\r\n?/g);
 	let disturl, target;
 	for (const line of lines) {
 		let match = line.match(/\s*disturl=*\"(.*)\"\s*$/);

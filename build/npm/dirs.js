@@ -6,7 +6,7 @@
 import { existsSync } from 'fs';
 
 // Complete list of directories where npm should be executed to install node modules
-const dirs = [
+export const dirs = [
 	'',
 	'build',
 	'build/monaco-editor-playground',
@@ -65,6 +65,3 @@ if (existsSync(`${import.meta.dirname}/../../.build/distro/npm`)) {
 	dirs.push('.build/distro/npm/remote');
 	dirs.push('.build/distro/npm/remote/web');
 }
-
-const _dirs = dirs;
-export { _dirs as dirs };
