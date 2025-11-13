@@ -577,9 +577,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(
-			// if the input has prompt instructions attached, allow submitting requests even
-			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
+			ChatContextKeys.inputHasText,
 			whenNotInProgress,
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
 		);
@@ -967,9 +965,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 	private async generateSummarizedChatHistory(chatRequests: IChatRequestModel[], sessionResource: URI, title: string | undefined, chatAgentService: IChatAgentService, defaultAgent: IChatAgent, summary: string) {
 		const historyEntries: IChatAgentHistoryEntry[] = chatRequests
-			.map(req => ({
+			.map((req): IChatAgentHistoryEntry => ({
 				request: {
 					sessionId: chatSessionResourceToId(sessionResource),
+					sessionResource,
 					requestId: req.id,
 					agentId: req.response?.agent?.id ?? '',
 					message: req.message.text,
@@ -994,6 +993,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		const userPromptEntry: IChatAgentHistoryEntry = {
 			request: {
 				sessionId: chatSessionResourceToId(sessionResource),
+				sessionResource,
 				requestId: generateUuid(),
 				agentId: '',
 				message: userPrompt,
@@ -1017,9 +1017,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(
-			// if the input has prompt instructions attached, allow submitting requests even
-			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
+			ChatContextKeys.inputHasText,
 			whenNotInProgress,
 		);
 
@@ -1064,11 +1062,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 
 class SendToNewChatAction extends Action2 {
 	constructor() {
-		const precondition = ContextKeyExpr.and(
-			// if the input has prompt instructions attached, allow submitting requests even
-			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
-		);
+		const precondition = ChatContextKeys.inputHasText;
 
 		super({
 			id: 'workbench.action.chat.sendToNewChat',

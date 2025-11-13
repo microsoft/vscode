@@ -23,6 +23,13 @@ export function canExpandCompletionItem(item: SimpleCompletionItem | undefined):
 
 export const SuggestDetailsClassName = 'suggest-details';
 
+export const enum SimpleSuggestDetailsPlacement {
+	East = 0,
+	West = 1,
+	South = 2,
+	North = 3
+}
+
 export class SimpleSuggestDetailsWidget {
 
 	readonly domNode: HTMLDivElement;
@@ -280,16 +287,19 @@ export class SimpleSuggestDetailsOverlay {
 	// private _preferAlignAtTop: boolean = true;
 	private _userSize?: dom.Dimension;
 	private _topLeft?: TopLeftPosition;
+	private readonly _preventPlacements?: ReadonlySet<SimpleSuggestDetailsPlacement>;
 
 	constructor(
 		readonly widget: SimpleSuggestDetailsWidget,
 		private _container: HTMLElement,
+		preventPlacements?: readonly SimpleSuggestDetailsPlacement[]
 	) {
 
 		this._resizable = this._disposables.add(new ResizableHTMLElement());
 		this._resizable.domNode.classList.add('suggest-details-container');
 		this._resizable.domNode.appendChild(widget.domNode);
 		this._resizable.enableSashes(false, true, true, false);
+		this._preventPlacements = preventPlacements && preventPlacements.length ? new Set(preventPlacements) : undefined;
 
 		let topLeftNow: TopLeftPosition | undefined;
 		let sizeNow: dom.Dimension | undefined;
@@ -408,16 +418,38 @@ export class SimpleSuggestDetailsOverlay {
 		})();
 
 		// SOUTH
-		const southPacement: Placement = (function () {
+		const southPlacement: Placement = (function () {
 			const left = anchorBox.left;
 			const top = -info.borderWidth + anchorBox.top + anchorBox.height;
 			const maxSizeBottom = new dom.Dimension(anchorBox.width - info.borderHeight, bodyBox.height - anchorBox.top - anchorBox.height - info.verticalPadding);
 			return { top, left, fit: maxSizeBottom.height - size.height, maxSizeBottom, maxSizeTop: maxSizeBottom, minSize: defaultMinSize.with(maxSizeBottom.width) };
 		})();
 
+		// NORTH
+		const northPlacement: Placement = (function () {
+			const width = Math.max(anchorBox.width - info.borderHeight, 0);
+			const left = anchorBox.left;
+			const maxHeightAbove = Math.max(anchorBox.top - info.verticalPadding, 0);
+			const heightForTop = Math.min(size.height, maxHeightAbove);
+			const top = anchorBox.top - info.borderWidth - heightForTop;
+			const maxSize = new dom.Dimension(width, Math.max(maxHeightAbove, 0));
+			return { top, left, fit: maxSize.height - size.height, maxSizeTop: maxSize, maxSizeBottom: maxSize, minSize: defaultMinSize.with(maxSize.width) };
+		})();
+
 		// take first placement that fits or the first with "least bad" fit
-		const placements = [eastPlacement, westPlacement, southPacement];
-		const placement = placements.find(p => p.fit >= 0) ?? placements.sort((a, b) => b.fit - a.fit)[0];
+		const placementEntries: [SimpleSuggestDetailsPlacement, Placement][] = [
+			[SimpleSuggestDetailsPlacement.East, eastPlacement],
+			[SimpleSuggestDetailsPlacement.South, southPlacement],
+			[SimpleSuggestDetailsPlacement.North, northPlacement],
+			[SimpleSuggestDetailsPlacement.West, westPlacement]
+		];
+		const orientations = (this._preventPlacements
+			? placementEntries.filter(([direction]) => !this._preventPlacements!.has(direction))
+			: placementEntries).map(([, entry]) => entry);
+		const candidates = orientations.length ? orientations : placementEntries.map(([, entry]) => entry);
+		const placement = candidates.find(p => p.fit >= 0)
+			?? candidates.reduce<Placement | undefined>((best, current) => !best || current.fit > best.fit ? current : best, undefined)
+			?? eastPlacement;
 
 		// top/bottom placement
 		const bottom = anchorBox.top + anchorBox.height - info.borderHeight;

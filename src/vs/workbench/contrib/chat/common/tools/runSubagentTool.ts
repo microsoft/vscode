@@ -215,6 +215,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			// Build the agent request
 			const agentRequest: IChatAgentRequest = {
 				sessionId: invocation.context.sessionId,
+				sessionResource: invocation.context.sessionResource,
 				requestId: invocation.callId ?? `subagent-${Date.now()}`,
 				agentId: defaultAgent.id,
 				message: args.prompt,

@@ -10,7 +10,8 @@ import { autorun, autorunWithStore, derived, IObservable, observableValue, runOn
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { InlineEditsGutterIndicator } from './components/gutterIndicatorView.js';
-import { IInlineEditHost, IInlineEditModel } from './inlineEditsViewInterface.js';
+import { IInlineEditHost } from './inlineEditsViewInterface.js';
+import { ModelPerInlineEdit } from './inlineEditsModel.js';
 import { InlineEditsCollapsedView } from './inlineEditsViews/inlineEditsCollapsedView.js';
 
 enum UserKind {
@@ -39,7 +40,7 @@ export class InlineEditsOnboardingExperience extends Disposable {
 
 	constructor(
 		private readonly _host: IObservable<IInlineEditHost | undefined>,
-		private readonly _model: IObservable<IInlineEditModel | undefined>,
+		private readonly _model: IObservable<ModelPerInlineEdit | undefined>,
 		private readonly _indicator: IObservable<InlineEditsGutterIndicator | undefined>,
 		private readonly _collapsedView: InlineEditsCollapsedView,
 		@IStorageService private readonly _storageService: IStorageService,

@@ -140,10 +140,6 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		// No-op
 	}
 
-	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
-		// No-op
-	}
-
 	async processBinary(data: string): Promise<void> {
 		// Disabled for extension terminals
 		this._onBinary.fire(data);

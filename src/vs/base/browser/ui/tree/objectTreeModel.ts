@@ -11,7 +11,7 @@ import { Iterable } from '../../../common/iterator.js';
 
 export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>) => void;
 
-export interface IObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> extends ITreeModel<T | null, TFilterData, T | null> {
+export interface IObjectTreeModel<T, TFilterData = void> extends ITreeModel<T | null, TFilterData, T | null> {
 	setChildren(element: T | null, children: Iterable<IObjectTreeElement<T>> | undefined, options?: IObjectTreeModelSetChildrenOptions<T, TFilterData>): void;
 	resort(element?: T | null, recursive?: boolean): void;
 }
@@ -24,7 +24,7 @@ export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModel
 	readonly identityProvider?: IIdentityProvider<T>;
 }
 
-export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements IObjectTreeModel<T, TFilterData> {
+export class ObjectTreeModel<T, TFilterData = void> implements IObjectTreeModel<T, TFilterData> {
 
 	readonly rootRef = null;
 

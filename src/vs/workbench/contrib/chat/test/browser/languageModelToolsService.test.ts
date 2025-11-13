@@ -74,7 +74,10 @@ function registerToolForTest(service: LanguageModelToolsService, store: any, id:
 			toolId: id,
 			tokenBudget: 100,
 			parameters,
-			context,
+			context: context ? {
+				sessionId: context.sessionId,
+				sessionResource: LocalChatSessionUri.forSession(context.sessionId),
+			} : undefined,
 		}),
 	};
 }
@@ -1060,6 +1063,81 @@ suite('LanguageModelToolsService', () => {
 		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
 		const unspecifiedResult = await unspecifiedPromise;
 		assert.strictEqual(unspecifiedResult.content[0].value, 'unspecified');
+	});
+
+	test('eligibleForAutoApproval setting controls tool eligibility', async () => {
+		// Test the new eligibleForAutoApproval setting
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'eligibleToolRef': true,
+			'ineligibleToolRef': false
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool explicitly marked as eligible (using toolReferenceName) - no confirmation needed
+		const eligibleTool = registerToolForTest(testService, store, 'eligibleTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'eligible tool ran' }] })
+		}, {
+			toolReferenceName: 'eligibleToolRef'
+		});
+
+		const sessionId = 'test-eligible';
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Eligible tool should not get default confirmation messages injected
+		const eligibleResult = await testService.invokeTool(
+			eligibleTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(eligibleResult.content[0].value, 'eligible tool ran');
+
+		// Tool explicitly marked as ineligible (using toolReferenceName) - must require confirmation
+		const ineligibleTool = registerToolForTest(testService, store, 'ineligibleTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'ineligible requires confirmation' }] })
+		}, {
+			toolReferenceName: 'ineligibleToolRef'
+		});
+
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId + '2', { requestId: 'req2', capture });
+		const ineligiblePromise = testService.invokeTool(
+			ineligibleTool.makeDto({ test: 2 }, { sessionId: sessionId + '2' }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'ineligible tool should require confirmation');
+		assert.ok(published?.confirmationMessages?.title, 'should have default confirmation title');
+		assert.strictEqual(published?.confirmationMessages?.allowAutoConfirm, false, 'should not allow auto confirm');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const ineligibleResult = await ineligiblePromise;
+		assert.strictEqual(ineligibleResult.content[0].value, 'ineligible requires confirmation');
+
+		// Tool not specified should default to eligible - no confirmation needed
+		const unspecifiedTool = registerToolForTest(testService, store, 'unspecifiedTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'unspecified defaults to eligible' }] })
+		}, {
+			toolReferenceName: 'unspecifiedToolRef'
+		});
+
+		const unspecifiedResult = await testService.invokeTool(
+			unspecifiedTool.makeDto({ test: 3 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(unspecifiedResult.content[0].value, 'unspecified defaults to eligible');
 	});
 
 	test('tool content formatting with alwaysDisplayInputOutput', async () => {

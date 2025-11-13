@@ -152,7 +152,7 @@ let _configDelta: IConfigurationDelta | undefined;
 
 
 // BEGIN VSCode extension point `configurationDefaults`
-const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
+const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IStringDictionary<IStringDictionary<unknown>>>({
 	extensionPoint: 'configurationDefaults',
 	jsonSchema: {
 		$ref: configurationDefaultsSchemaId,
@@ -183,7 +183,7 @@ defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 		const registeredProperties = configurationRegistry.getConfigurationProperties();
 		const allowedScopes = [ConfigurationScope.MACHINE_OVERRIDABLE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE];
 		const addedDefaultConfigurations = added.map<IConfigurationDefaults>(extension => {
-			const overrides: IStringDictionary<any> = objects.deepClone(extension.value);
+			const overrides = objects.deepClone(extension.value);
 			for (const key of Object.keys(overrides)) {
 				const registeredPropertyScheme = registeredProperties[key];
 				if (registeredPropertyScheme?.disallowConfigurationDefault) {
@@ -242,7 +242,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 
 	const seenProperties = new Set<string>();
 
-	function handleConfiguration(node: IConfigurationNode, extension: IExtensionPointUser<any>): IConfigurationNode {
+	function handleConfiguration(node: IConfigurationNode, extension: IExtensionPointUser<unknown>): IConfigurationNode {
 		const configuration = objects.deepClone(node);
 
 		if (configuration.title && (typeof configuration.title !== 'string')) {
@@ -258,7 +258,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 		return configuration;
 	}
 
-	function validateProperties(configuration: IConfigurationNode, extension: IExtensionPointUser<any>): void {
+	function validateProperties(configuration: IConfigurationNode, extension: IExtensionPointUser<unknown>): void {
 		const properties = configuration.properties;
 		const extensionConfigurationPolicy = product.extensionConfigurationPolicy;
 		if (properties) {

@@ -536,6 +536,12 @@ export class InputBox extends Widget {
 		this.state = 'idle';
 	}
 
+	private layoutMessage(): void {
+		if (this.state === 'open' && this.contextViewProvider) {
+			this.contextViewProvider.layout();
+		}
+	}
+
 	private onValueChange(): void {
 		this._onDidChange.fire(this.value);
 
@@ -586,6 +592,7 @@ export class InputBox extends Widget {
 
 	public layout(): void {
 		if (!this.mirror) {
+			this.layoutMessage();
 			return;
 		}
 
@@ -597,6 +604,8 @@ export class InputBox extends Widget {
 			this.input.style.height = this.cachedHeight + 'px';
 			this._onDidHeightChange.fire(this.cachedContentHeight);
 		}
+
+		this.layoutMessage();
 	}
 
 	public insertAtCursor(text: string): void {

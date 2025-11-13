@@ -208,6 +208,10 @@ export class OffsetRange implements IOffsetRange {
 		}
 		return new OffsetRange(this.start, range.endExclusive);
 	}
+
+	public withMargin(margin: number): OffsetRange {
+		return new OffsetRange(this.start - margin, this.endExclusive + margin);
+	}
 }
 
 export class OffsetRangeSet {

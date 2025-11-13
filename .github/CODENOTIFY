@@ -5,6 +5,7 @@ src/vs/base/common/glob.ts @bpasero
 src/vs/base/common/oauth.ts @TylerLeonhardt
 src/vs/base/common/path.ts @bpasero
 src/vs/base/common/stream.ts @bpasero
+src/vs/base/common/uri.ts @jrieken
 src/vs/base/browser/domSanitize.ts @mjbvz
 src/vs/base/browser/** @bpasero
 src/vs/base/node/pfs.ts @bpasero
@@ -45,6 +46,13 @@ src/vs/platform/window/** @bpasero
 src/vs/platform/windows/** @bpasero
 src/vs/platform/workspace/** @bpasero
 src/vs/platform/workspaces/** @bpasero
+src/vs/platform/actions/common/menuService.ts @jrieken
+src/vs/platform/instantiation/** @jrieken
+
+# Editor Core
+src/vs/editor/contrib/snippet/** @jrieken
+src/vs/editor/contrib/suggest/** @jrieken
+src/vs/editor/contrib/format/** @jrieken
 
 # Bootstrap
 src/bootstrap-cli.ts @bpasero
@@ -141,5 +149,6 @@ extensions/git/** @lszomoru
 extensions/git-base/** @lszomoru
 extensions/github/** @lszomoru
 
-# Chat Editing
+# Chat Editing, Inline Chat
 src/vs/workbench/contrib/chat/browser/chatEditing/** @jrieken
+src/vs/workbench/contrib/inlineChat/** @jrieken

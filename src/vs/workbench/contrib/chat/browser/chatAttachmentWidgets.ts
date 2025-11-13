@@ -359,15 +359,6 @@ function createTerminalCommandElements(
 	hint.classList.add('attachment-additional-info');
 	hoverElement.appendChild(hint);
 
-	const separator = dom.$('div.chat-attached-context-url-separator');
-	const openLink = dom.$('a.chat-attached-context-url', {}, localize('chat.terminalCommandHoverOpen', "Open in terminal"));
-	disposable.add(dom.addDisposableListener(openLink, 'click', e => {
-		e.preventDefault();
-		e.stopPropagation();
-		void clickHandler();
-	}));
-	hoverElement.append(separator, openLink);
-
 	disposable.add(hoverService.setupDelayedHover(element, {
 		...commonHoverOptions,
 		content: hoverElement,

@@ -12,7 +12,7 @@ import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
-import { connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, StatusBarAction } from './util.js';
+import { addClassToTwistieElement, connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, StatusBarAction } from './util.js';
 import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
@@ -89,13 +89,8 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	}
 
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
-		// HACK - add .force-twistie class to the twistie element
-		if (container.classList.contains('monaco-tl-contents')) {
-			const twistieElement = container.previousElementSibling;
-			if (twistieElement && twistieElement.classList.contains('monaco-tl-twistie')) {
-				twistieElement.classList.add('force-twistie');
-			}
-		}
+		// HACK - use helper function as there is no tree API
+		addClassToTwistieElement(container, 'force-twistie');
 
 		const provider = append(container, $('.scm-provider'));
 		const icon = append(provider, $('.icon'));
@@ -204,7 +199,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 				menuPrimaryActions = primary;
 				menuSecondaryActions = secondary;
 				updateToolbar();
-			}, 'inline'));
+			}, this.toolbarMenuId === MenuId.SCMTitle ? 'navigation' : 'inline'));
 		}));
 
 		templateData.toolBar.context = repository.provider;

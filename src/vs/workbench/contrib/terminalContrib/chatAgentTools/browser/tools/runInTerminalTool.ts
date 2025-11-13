@@ -50,6 +50,7 @@ import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCd
 import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
+import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
 
 // #region Tool data
 
@@ -254,6 +255,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _terminalToolCreator: ToolTerminalCreator;
 	private readonly _treeSitterCommandParser: TreeSitterCommandParser;
 	private readonly _telemetry: RunInTerminalToolTelemetry;
+	private readonly _commandArtifactCollector: TerminalCommandArtifactCollector;
 	protected readonly _profileFetcher: TerminalProfileFetcher;
 
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
@@ -293,6 +295,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._terminalToolCreator = this._instantiationService.createInstance(ToolTerminalCreator);
 		this._treeSitterCommandParser = this._register(this._instantiationService.createInstance(TreeSitterCommandParser));
 		this._telemetry = this._instantiationService.createInstance(RunInTerminalToolTelemetry);
+		this._commandArtifactCollector = this._instantiationService.createInstance(TerminalCommandArtifactCollector);
 		this._profileFetcher = this._instantiationService.createInstance(TerminalProfileFetcher);
 
 		this._commandLineRewriters = [
@@ -460,6 +463,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}
+		const commandId = toolSpecificData.terminalCommandId;
 		if (toolSpecificData.alternativeRecommendation) {
 			return {
 				content: [{
@@ -528,7 +532,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-				const commandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId, commandId);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
@@ -539,6 +542,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
+
+				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId, pollingResult?.output);
 
 				let resultText = (
 					didUserEditCommand
@@ -627,13 +632,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context, token, command));
 					}
 				}));
-				const commandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
 				const executeResult = await strategy.execute(command, token, commandId);
 				// Reset user input state after command execution completes
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
+
+				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId, executeResult.output);
 
 				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
 				outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
