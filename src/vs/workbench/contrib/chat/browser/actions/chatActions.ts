@@ -767,7 +767,6 @@ export function registerChatActions() {
 											lastMessageDate: 0,
 										},
 										buttons,
-										id: session.id
 									};
 
 									// Check if this agent already exists (update existing or add new)

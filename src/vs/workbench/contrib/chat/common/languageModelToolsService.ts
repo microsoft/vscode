@@ -125,7 +125,7 @@ export namespace ToolDataSource {
 export interface IToolInvocation {
 	callId: string;
 	toolId: string;
-	parameters: Object;
+	parameters: Record<string, any>;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
 	chatRequestId?: string;
@@ -140,11 +140,12 @@ export interface IToolInvocation {
 }
 
 export interface IToolInvocationContext {
-	sessionId: string;
+	readonly sessionId: string;
+	readonly sessionResource: URI;
 }
 
 export function isToolInvocationContext(obj: any): obj is IToolInvocationContext {
-	return typeof obj === 'object' && typeof obj.sessionId === 'string';
+	return typeof obj === 'object' && typeof obj.sessionId === 'string' && URI.isUri(obj.sessionResource);
 }
 
 export interface IToolInvocationPreparationContext {
