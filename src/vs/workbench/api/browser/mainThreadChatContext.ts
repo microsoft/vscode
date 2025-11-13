@@ -34,8 +34,8 @@ export class MainThreadChatContext extends Disposable implements MainThreadChatC
 			resolveChatContext: support.supportsResolve ? (context: IChatContextItem, token: CancellationToken) => {
 				return this._proxy.$resolveChatContext(handle, context, token);
 			} : undefined,
-			provideChatContextForResource: support.supportsResource ? (resource: URI, token: CancellationToken) => {
-				return this._proxy.$provideChatContextForResource(handle, { resource }, token);
+			provideChatContextForResource: support.supportsResource ? (resource: URI, withValue: boolean, token: CancellationToken) => {
+				return this._proxy.$provideChatContextForResource(handle, { resource, withValue }, token);
 			} : undefined
 		});
 	}
