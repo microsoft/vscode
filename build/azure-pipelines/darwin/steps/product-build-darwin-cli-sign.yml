@@ -33,6 +33,10 @@ steps:
         archiveFilePatterns: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/*.zip
         destinationFolder: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
 
+  # Install ts-node so we can run our build scripts with it
+  - script: npm install ts-node --ignore-scripts
+    displayName: Install ts-node
+
   - script: npm run _build-script build/azure-pipelines/common/sign.js $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-darwin $(Build.ArtifactStagingDirectory)/pkg "*.zip"
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)

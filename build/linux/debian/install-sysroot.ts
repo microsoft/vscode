@@ -188,7 +188,7 @@ export async function getChromiumSysroot(arch: DebianArchString): Promise<string
 	if (result.status !== 0) {
 		throw new Error('Cannot retrieve sysroots.json. Stderr:\n' + result.stderr);
 	}
-	const sysrootInfo = await import(sysrootDictLocation);
+	const sysrootInfo = await import(sysrootDictLocation, { with: { type: 'json' } });
 	const sysrootArch = `bullseye_${arch}`;
 	const sysrootDict: SysrootDictEntry = sysrootInfo[sysrootArch];
 	const tarballFilename = sysrootDict['Tarball'];
