@@ -148,10 +148,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 
 		const startOffsetOfRange = this.textModel.getOffsetAt(range.getStartPosition());
 		const endOffsetOfRange = this.textModel.getOffsetAt(range.getEndPosition());
-
-		console.log('startOffsetOfRange : ', startOffsetOfRange);
-		console.log('endOffsetOfRange : ', endOffsetOfRange);
-
 		const _startIndex = binarySearch2(this._fontSegments.length, (index) => {
 			return this._fontSegments[index].startIndex - startOffsetOfRange;
 		});
@@ -161,9 +157,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 
 		const startIndex = (_startIndex > 0 ? _startIndex : - (_startIndex + 1));
 		const endIndex = (_endIndex > 0 ? _endIndex : - (_endIndex + 1));
-
-		console.log('startIndex : ', startIndex);
-		console.log('endIndex : ', endIndex);
 
 		for (let i = startIndex; i <= endIndex; i++) {
 			const fontOption = this._fontSegments[i];
@@ -208,12 +201,26 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			const changeEventStartIndex = this.textModel.getOffsetAt(changeEventRange.getStartPosition());
 			const changeEventEndIndex = this.textModel.getOffsetAt(changeEventRange.getEndPosition());
 			const newLength = changeEvent.text.length;
-			const firstIndexEditAppliedTo = binarySearch2(this._fontSegments.length, (index) => {
+
+			console.log('changeEvent : ', changeEvent);
+			console.log('changeEventRange : ', changeEventRange);
+			console.log('changeEventStartIndex : ', changeEventStartIndex);
+			console.log('changeEventEndIndex : ', changeEventEndIndex);
+			console.log('newLength : ', newLength);
+
+			const _firstIndexEditAppliedTo = binarySearch2(this._fontSegments.length, (index) => {
 				return this._fontSegments[index].startIndex - changeEventStartIndex;
 			});
-			const endIndexEditAppliedTo = binarySearch2(this._fontSegments.length, (index) => {
+			const _endIndexEditAppliedTo = binarySearch2(this._fontSegments.length, (index) => {
 				return this._fontSegments[index].startIndex - changeEventEndIndex;
 			});
+
+			const firstIndexEditAppliedTo = (_firstIndexEditAppliedTo > 0 ? _firstIndexEditAppliedTo : - (_firstIndexEditAppliedTo + 1));
+			const endIndexEditAppliedTo = (_endIndexEditAppliedTo > 0 ? _endIndexEditAppliedTo : - (_endIndexEditAppliedTo + 1));
+
+			console.log('firstIndexEditAppliedTo : ', firstIndexEditAppliedTo);
+			console.log('endIndexEditAppliedTo : ', endIndexEditAppliedTo);
+
 			const firstDecoration = this._fontSegments[firstIndexEditAppliedTo];
 			const lastDecoration = this._fontSegments[endIndexEditAppliedTo];
 			if (changeEventStartIndex > firstDecoration.endIndex && changeEventEndIndex > lastDecoration.endIndex) {
@@ -238,6 +245,9 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 				this._fontSegments[endIndexEditAppliedTo + 1].offset -= (changeEventEndIndex - changeEventStartIndex + newLength);
 			}
 		}
+
+		console.log('this._fontSegments before cleanup : ', JSON.stringify(this._fontSegments));
+
 		const newFontSegments: IFontSegment[] = [];
 		let offset = 0;
 		for (const fontSegment of this._fontSegments) {
@@ -250,6 +260,8 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			newFontSegments.push(fontSegment);
 		}
 		this._fontSegments = newFontSegments;
+
+		console.log('this._fontSegments after cleanup : ', JSON.stringify(this._fontSegments));
 		this._queuedContentChangeEvents = [];
 	}
 }
