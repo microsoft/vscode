@@ -185,16 +185,12 @@ export class TerminalTabbedView extends Disposable {
 			return true;
 		}
 
-		if (this._terminalGroupService.instances.length) {
-			return true;
+		if (hide === 'singleTerminal') {
+			return this._terminalGroupService.instances.length > 1;
 		}
 
-		if (hide === 'singleTerminal' && this._terminalGroupService.instances.length > 1) {
-			return true;
-		}
-
-		if (hide === 'singleGroup' && this._terminalGroupService.groups.length > 1) {
-			return true;
+		if (hide === 'singleGroup') {
+			return this._terminalGroupService.groups.length > 1;
 		}
 
 		return false;
