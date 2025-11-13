@@ -192,11 +192,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	}
 
 	private _getLastActiveProgressPart(): IChatTerminalToolProgressPart | undefined {
-		let result: IChatTerminalToolProgressPart | undefined;
-		for (const part of this._activeProgressParts) {
-			result = part;
-		}
-		return result;
+		return Array.from(this._activeProgressParts).at(-1);
 	}
 
 	private _restoreFromStorage(): void {
