@@ -1560,6 +1560,68 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'userValue');
 	}));
 
+	test('local settings are loaded', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.local.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "localValue" }'));
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'localValue');
+	}));
+
+	test('local settings override workspace settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.local.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "localValue" }'));
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'localValue');
+	}));
+
+	test('local settings override user settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.local.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "localValue" }'));
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'localValue');
+	}));
+
+	test('local settings override both user and workspace settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.local.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "localValue" }'));
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'localValue');
+	}));
+
+	test('creating local settings', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
+		await testObject.reloadConfiguration();
+		await new Promise<void>((c, e) => {
+			const disposable = testObject.onDidChangeConfiguration(e => {
+				assert.ok(e.affectsConfiguration('configurationService.folder.testSetting'));
+				assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'localValue');
+				disposable.dispose();
+				c();
+			});
+			fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.local.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "localValue" }')).catch(e);
+		});
+	}));
+
+	test('deleting local settings', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
+		const localSettingsResource = joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.local.json');
+		await fileService.writeFile(localSettingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "localValue" }'));
+		await testObject.reloadConfiguration();
+		const e = await new Promise<IConfigurationChangeEvent>((c, e) => {
+			Event.once(testObject.onDidChangeConfiguration)(c);
+			fileService.del(localSettingsResource).catch(e);
+		});
+		assert.ok(e.affectsConfiguration('configurationService.folder.testSetting'));
+		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'workspaceValue');
+	}));
+
+	test('local settings override standalone configurations', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'tasks.json'), VSBuffer.fromString('{ "configurationService.tasks.testSetting": "tasksValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.local.json'), VSBuffer.fromString('{ "configurationService.tasks.testSetting": "localValue" }'));
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('configurationService.tasks.testSetting'), 'localValue');
+	}));
+
 	test('restricted setting is read from workspace when workspace is trusted', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		testObject.updateWorkspaceTrust(true);
 

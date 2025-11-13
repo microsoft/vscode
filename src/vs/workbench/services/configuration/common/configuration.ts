@@ -14,6 +14,8 @@ import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/w
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
 export const FOLDER_SETTINGS_PATH = `${FOLDER_CONFIG_FOLDER_NAME}/${FOLDER_SETTINGS_NAME}.json`;
+export const FOLDER_SETTINGS_LOCAL_NAME = 'settings.local';
+export const FOLDER_SETTINGS_LOCAL_PATH = `${FOLDER_CONFIG_FOLDER_NAME}/${FOLDER_SETTINGS_LOCAL_NAME}.json`;
 
 export const defaultSettingsSchemaId = 'vscode://schemas/settings/default';
 export const userSettingsSchemaId = 'vscode://schemas/settings/user';
@@ -21,6 +23,7 @@ export const profileSettingsSchemaId = 'vscode://schemas/settings/profile';
 export const machineSettingsSchemaId = 'vscode://schemas/settings/machine';
 export const workspaceSettingsSchemaId = 'vscode://schemas/settings/workspace';
 export const folderSettingsSchemaId = 'vscode://schemas/settings/folder';
+export const folderSettingsLocalSchemaId = 'vscode://schemas/settings/folder-local';
 export const launchSchemaId = 'vscode://schemas/launch';
 export const tasksSchemaId = 'vscode://schemas/tasks';
 export const mcpSchemaId = 'vscode://schemas/mcp';
