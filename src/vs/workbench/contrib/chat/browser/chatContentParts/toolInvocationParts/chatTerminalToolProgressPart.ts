@@ -305,7 +305,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 		let showOutputAction = this._showOutputAction.value;
 		if (!showOutputAction) {
-			showOutputAction = new ToggleChatTerminalOutputAction(expanded => this._toggleOutput(expanded), this._keybindingService);
+			showOutputAction = this._instantiationService.createInstance(ToggleChatTerminalOutputAction, expanded => this._toggleOutput(expanded));
 			this._showOutputAction.value = showOutputAction;
 			if (command?.exitCode) {
 				this._toggleOutput(true);
