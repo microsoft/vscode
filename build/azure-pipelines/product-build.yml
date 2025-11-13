@@ -149,8 +149,12 @@ variables:
     value: true
   - name: ARTIFACT_PREFIX
     value: ''
+  # IMPORTANT: Update this variable when the major.minor version in package.json changes
+  # This ensures the patch version counter resets for each new major.minor version
+  - name: VSCODE_MAJOR_MINOR_VERSION
+    value: '1.107'
   - name: VSCODE_PATCH_VERSION_COUNTER
-    value: ${{ counter(parameters.VSCODE_QUALITY, 0) }}
+    value: ${{ counter(variables.VSCODE_MAJOR_MINOR_VERSION, 0) }}
 
 name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 
