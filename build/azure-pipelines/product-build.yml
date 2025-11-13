@@ -150,7 +150,7 @@ variables:
   - name: ARTIFACT_PREFIX
     value: ''
   - name: VSCODE_PATCH_VERSION
-    value: ${{ counter(format('{0}_{1}', parameters.VSCODE_QUALITY, variables['Build.SourceBranch']), 0) }}
+    value: ${{ counter(parameters.VSCODE_QUALITY, 0) }}
 
 name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 

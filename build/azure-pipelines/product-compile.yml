@@ -105,6 +105,7 @@ jobs:
           fi
         displayName: Apply auto-incremented patch version
         env:
+          VSCODE_QUALITY: $(VSCODE_QUALITY)
           VSCODE_PATCH_VERSION: $(VSCODE_PATCH_VERSION)
 
       - template: common/install-builtin-extensions.yml@self
