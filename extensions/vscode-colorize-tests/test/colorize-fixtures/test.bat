@@ -9,10 +9,10 @@ pushd %~dp0\..
 if not exist node_modules call npm i
 
 :: Get electron
-npm run _gulp electron
+node .\node_modules\gulp\bin\gulp.js electron
 
 :: Build
-if not exist out npm run _gulp compile
+if not exist out node .\node_modules\gulp\bin\gulp.js compile
 
 :: Configuration
 set NODE_ENV=development
