@@ -23,10 +23,11 @@ steps:
 
   - script: |
       set -e
-      PATCH_VERSION=$(BUILD_ID=$(Build.BuildId) node build/azure-pipelines/common/compute-patch-version.js)
-      echo "Computed patch version: $PATCH_VERSION"
-      echo "##vso[task.setvariable variable=VSCODE_PATCH_VERSION]$PATCH_VERSION"
-    displayName: Compute patch version from package.json
+      BASE_VERSION=$(node -p "require('./package.json').version" | cut -d. -f1,2)
+      echo "Base version from package.json: $BASE_VERSION"
+      echo "Counter value: $(VSCODE_PATCH_VERSION_COUNTER)"
+      echo "##vso[task.setvariable variable=VSCODE_PATCH_VERSION]$(VSCODE_PATCH_VERSION_COUNTER)"
+    displayName: Set patch version from counter
 
   - template: ../../distro/download-distro.yml@self
 

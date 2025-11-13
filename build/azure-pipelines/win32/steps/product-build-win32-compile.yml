@@ -24,12 +24,11 @@ steps:
       versionFilePath: .nvmrc
 
   - powershell: |
-      $PATCH_VERSION = & node build/azure-pipelines/common/compute-patch-version.js
-      Write-Host "Computed patch version: $PATCH_VERSION"
-      Write-Host "##vso[task.setvariable variable=VSCODE_PATCH_VERSION]$PATCH_VERSION"
-    env:
-      BUILD_ID: $(Build.BuildId)
-    displayName: Compute patch version from package.json
+      $BASE_VERSION = (node -p "require('./package.json').version").Split('.')[0..1] -join '.'
+      Write-Host "Base version from package.json: $BASE_VERSION"
+      Write-Host "Counter value: $(VSCODE_PATCH_VERSION_COUNTER)"
+      Write-Host "##vso[task.setvariable variable=VSCODE_PATCH_VERSION]$(VSCODE_PATCH_VERSION_COUNTER)"
+    displayName: Set patch version from counter
 
   - task: UsePythonVersion@0
     inputs:
