@@ -754,7 +754,7 @@ class ToggleChatTerminalOutputAction extends Action implements IAction {
 
 	constructor(
 		private readonly _toggle: (expanded: boolean) => Promise<boolean>,
-		private readonly _keybindingService: IKeybindingService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super(
 			'chat.showTerminalOutput',
