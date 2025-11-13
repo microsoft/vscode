@@ -825,30 +825,30 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const sortedContributions = [...contributions]
 				.filter(contrib => contrib.canDelegate !== false) // Default to true if not specified
 				.sort((a, b) => {
-				// Both have no order - sort by display name
-				if (a.order === undefined && b.order === undefined) {
+					// Both have no order - sort by display name
+					if (a.order === undefined && b.order === undefined) {
+						return a.displayName.localeCompare(b.displayName);
+					}
+
+					// Only a has no order - push it to the end
+					if (a.order === undefined) {
+						return 1;
+					}
+
+					// Only b has no order - push it to the end
+					if (b.order === undefined) {
+						return -1;
+					}
+
+					// Both have orders - compare numerically
+					const orderCompare = a.order - b.order;
+					if (orderCompare !== 0) {
+						return orderCompare;
+					}
+
+					// Same order - sort by display name
 					return a.displayName.localeCompare(b.displayName);
-				}
-
-				// Only a has no order - push it to the end
-				if (a.order === undefined) {
-					return 1;
-				}
-
-				// Only b has no order - push it to the end
-				if (b.order === undefined) {
-					return -1;
-				}
-
-				// Both have orders - compare numerically
-				const orderCompare = a.order - b.order;
-				if (orderCompare !== 0) {
-					return orderCompare;
-				}
-
-				// Same order - sort by display name
-				return a.displayName.localeCompare(b.displayName);
-			});
+				});
 
 			const agent = await this.pickCodingAgent(quickPickService, sortedContributions);
 			if (!agent) {
