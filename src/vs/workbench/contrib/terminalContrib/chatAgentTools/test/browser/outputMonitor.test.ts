@@ -16,6 +16,8 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ChatModel } from '../../../../chat/common/chatModel.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { IToolInvocationContext } from '../../../../chat/common/languageModelToolsService.js';
+import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -84,7 +86,7 @@ suite('OutputMonitor', () => {
 				callCount++;
 				return callCount > 1 ? 'changed output' : 'test output';
 			};
-			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
 			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
@@ -95,7 +97,7 @@ suite('OutputMonitor', () => {
 
 	test('startMonitoring returns cancelled when token is cancelled', async () => {
 		return runWithFakedTimers({}, async () => {
-			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 			cts.cancel();
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
@@ -105,7 +107,7 @@ suite('OutputMonitor', () => {
 	test('startMonitoring returns idle when isActive is false', async () => {
 		return runWithFakedTimers({}, async () => {
 			execution.isActive = async () => false;
-			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
 			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
@@ -121,7 +123,7 @@ suite('OutputMonitor', () => {
 				return callCount > 1 ? 'changed output' : 'test output';
 			};
 			delete execution.isActive;
-			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
 			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
@@ -136,7 +138,7 @@ suite('OutputMonitor', () => {
 				callCount++;
 				return callCount > 1 ? 'changed output' : 'test output';
 			};
-			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
 			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
@@ -168,7 +170,7 @@ suite('OutputMonitor', () => {
 					OutputMonitor,
 					execution,
 					timeoutThenIdle,
-					{ sessionId: '1' },
+					createTestContext('1'),
 					cts.token,
 					'test command'
 				)
@@ -245,3 +247,7 @@ suite('OutputMonitor', () => {
 	});
 
 });
+function createTestContext(id: string): IToolInvocationContext {
+	return { sessionId: id, sessionResource: LocalChatSessionUri.forSession(id) };
+}
+

@@ -435,6 +435,7 @@ function activateLink(mdStr: IMarkdownString, options: MarkdownRenderOptions, ev
 		onUnexpectedError(err);
 	} finally {
 		event.preventDefault();
+		event.stopPropagation();
 	}
 }
 
