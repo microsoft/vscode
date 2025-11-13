@@ -159,8 +159,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		elements.title.append(actionBarEl.root);
 		const actionBar = new ActionBar(actionBarEl.actionBar, {});
 		this._actionBar.value = actionBar;
-		void this._initializeTerminalActions();
-		void this._terminalService.whenConnected.then(() => this._initializeTerminalActions());
+		this._initializeTerminalActions();
+		this._terminalService.whenConnected.then(() => this._initializeTerminalActions());
 		let pastTenseMessage: string | undefined;
 		if (toolInvocation.pastTenseMessage) {
 			pastTenseMessage = `${typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value}`;
