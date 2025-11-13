@@ -3,7 +3,33 @@ parameters:
     type: string
 
 jobs:
+  - job: ReadVersion_Alpine
+    displayName: Read Version
+    pool:
+      name: 1es-ubuntu-22.04-x64
+      os: linux
+    steps:
+      - checkout: self
+        fetchDepth: 1
+        fetchTags: false
+
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+
+      - script: |
+          set -e
+          VERSION=$(node -p "require('./package.json').version")
+          MAJOR_MINOR=$(echo $VERSION | cut -d. -f1,2)
+          echo "Package.json version: $VERSION"
+          echo "Major.Minor version: $MAJOR_MINOR"
+          echo "##vso[task.setvariable variable=VSCODE_MAJOR_MINOR_VERSION;isOutput=true]$MAJOR_MINOR"
+        name: SetVersion
+        displayName: Extract and export major.minor version
+
   - job: Alpine_${{ parameters.VSCODE_ARCH }}
+    dependsOn: ReadVersion_Alpine
     displayName: Alpine (${{ upper(parameters.VSCODE_ARCH) }})
     timeoutInMinutes: 30
     pool:
@@ -12,6 +38,8 @@ jobs:
     variables:
       NPM_ARCH: ${{ parameters.VSCODE_ARCH }}
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+      VSCODE_MAJOR_MINOR_VERSION: $[ dependencies.ReadVersion_Alpine.outputs['SetVersion.VSCODE_MAJOR_MINOR_VERSION'] ]
+      VSCODE_PATCH_VERSION_COUNTER: ${{ counter(variables.VSCODE_MAJOR_MINOR_VERSION, 0) }}
     templateContext:
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:
@@ -57,8 +85,7 @@ jobs:
 
       - script: |
           set -e
-          BASE_VERSION=$(node -p "require('./package.json').version" | cut -d. -f1,2)
-          echo "Base version from package.json: $BASE_VERSION"
+          echo "Major.Minor version: $(VSCODE_MAJOR_MINOR_VERSION)"
           echo "Counter value: $(VSCODE_PATCH_VERSION_COUNTER)"
           echo "##vso[task.setvariable variable=VSCODE_PATCH_VERSION]$(VSCODE_PATCH_VERSION_COUNTER)"
         displayName: Set patch version from counter

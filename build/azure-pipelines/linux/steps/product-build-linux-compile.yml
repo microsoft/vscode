@@ -28,8 +28,7 @@ steps:
 
   - script: |
       set -e
-      BASE_VERSION=$(node -p "require('./package.json').version" | cut -d. -f1,2)
-      echo "Base version from package.json: $BASE_VERSION"
+      echo "Major.Minor version: $(VSCODE_MAJOR_MINOR_VERSION)"
       echo "Counter value: $(VSCODE_PATCH_VERSION_COUNTER)"
       echo "##vso[task.setvariable variable=VSCODE_PATCH_VERSION]$(VSCODE_PATCH_VERSION_COUNTER)"
     displayName: Set patch version from counter

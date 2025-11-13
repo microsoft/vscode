@@ -24,8 +24,7 @@ steps:
       versionFilePath: .nvmrc
 
   - powershell: |
-      $BASE_VERSION = (node -p "require('./package.json').version").Split('.')[0..1] -join '.'
-      Write-Host "Base version from package.json: $BASE_VERSION"
+      Write-Host "Major.Minor version: $(VSCODE_MAJOR_MINOR_VERSION)"
       Write-Host "Counter value: $(VSCODE_PATCH_VERSION_COUNTER)"
       Write-Host "##vso[task.setvariable variable=VSCODE_PATCH_VERSION]$(VSCODE_PATCH_VERSION_COUNTER)"
     displayName: Set patch version from counter
