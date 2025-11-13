@@ -111,7 +111,6 @@ suite('Notebook Outline', function () {
 			['  的时代   ', 'md', CellKind.Markup]
 		], OutlineTarget.OutlinePane, (outline, notebookEditor) => {
 			assert.ok(outline instanceof NotebookCellOutline);
-			outline.entries[0].cell.textBuffer.getLineContent(0);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
 			assert.deepStrictEqual(outline.entries[0].label, '的时代',
 				`cell content: ${notebookEditor.cellAt(0).model.getValue()} did not show up correctly in outline label. \n Cell text buffer line 1: ${outline.entries[0].cell.textBuffer.getLineContent(1)}`
