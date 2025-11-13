@@ -2919,10 +2919,6 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		return this._widgets.find(w => isEqual(w.inputUri, uri));
 	}
 
-	getWidgetBySessionId(sessionId: string): ChatWidget | undefined {
-		return this._widgets.find(w => w.viewModel?.sessionId === sessionId);
-	}
-
 	getWidgetBySessionResource(sessionResource: URI): ChatWidget | undefined {
 		return this._widgets.find(w => isEqual(w.viewModel?.sessionResource, sessionResource));
 	}

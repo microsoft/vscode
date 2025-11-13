@@ -22,10 +22,6 @@ export class MockChatWidgetService implements IChatWidgetService {
 		return undefined;
 	}
 
-	getWidgetBySessionId(sessionId: string): IChatWidget | undefined {
-		return undefined;
-	}
-
 	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined {
 		return undefined;
 	}
