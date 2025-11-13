@@ -792,6 +792,8 @@ export default tseslint.config(
 			'src/vs/workbench/services/authentication/common/authentication.ts',
 			'src/vs/workbench/services/authentication/test/browser/authenticationQueryServiceMocks.ts',
 			'src/vs/workbench/services/commands/common/commandService.ts',
+			'src/vs/workbench/services/configurationResolver/common/configurationResolver.ts',
+			'src/vs/workbench/services/configurationResolver/common/configurationResolverExpression.ts',
 			'src/vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.ts',
 			'src/vs/workbench/services/extensionManagement/browser/webExtensionsScannerService.ts',
 			'src/vs/workbench/services/extensions/common/extensionHostManager.ts',
