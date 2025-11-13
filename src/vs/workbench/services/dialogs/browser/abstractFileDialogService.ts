@@ -62,6 +62,11 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// Check for last active file first...
 		let candidate = this.historyService.getLastActiveFile(schemeFilter, authorityFilter);
 
+		// Exclude user settings schemes from being used as default path
+		if (candidate && this.isUserSettingsScheme(candidate)) {
+			candidate = undefined;
+		}
+
 		// ...then for last active file root
 		if (!candidate) {
 			candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter, authorityFilter);
@@ -84,6 +89,11 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// ...then for last active file
 		if (!candidate) {
 			candidate = this.historyService.getLastActiveFile(schemeFilter, authorityFilter);
+
+			// Exclude user settings schemes from being used as default path
+			if (candidate && this.isUserSettingsScheme(candidate)) {
+				candidate = undefined;
+			}
 		}
 
 		if (!candidate) {
@@ -109,6 +119,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 
 		return this.pathService.userHome({ preferLocal });
+	}
+
+	private isUserSettingsScheme(uri: URI): boolean {
+		return uri.scheme === Schemas.vscodeUserData || uri.scheme === Schemas.vscodeSettings;
 	}
 
 	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {

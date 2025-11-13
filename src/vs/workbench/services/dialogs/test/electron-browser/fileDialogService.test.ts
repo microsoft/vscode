@@ -199,4 +199,76 @@ suite('FileDialogService', function () {
 		await dialogService.defaultFolderPath();
 		assert.deepStrictEqual(getLastActiveWorkspaceRoot.args[1], [Schemas.vscodeRemote, 'testRemote']);
 	});
+
+	test('Excludes user settings schemes from default file path', async function () {
+		class TestSimpleFileDialog implements ISimpleFileDialog {
+			async showOpenDialog(): Promise<URI | undefined> {
+				return testFile;
+			}
+			async showSaveDialog(): Promise<URI | undefined> {
+				return testFile;
+			}
+			dispose(): void { }
+		}
+
+		const userHome = URI.file('/user/home');
+		instantiationService.stub(IPathService, new class {
+			defaultUriScheme: string = Schemas.file;
+			userHome = async () => userHome;
+			fileURI = async (path: string) => URI.file(path);
+			path = Promise.resolve({
+				isAbsolute: (path: string) => path.startsWith('/'),
+				normalize: (path: string) => path
+			});
+		} as any);
+
+		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
+		const historyService = instantiationService.get(IHistoryService);
+
+		// Mock getLastActiveFile to return a settings file URI
+		const settingsUri = URI.from({ scheme: Schemas.vscodeSettings, path: '/settings.json' });
+		sinon.stub(historyService, 'getLastActiveFile').returns(settingsUri);
+		sinon.stub(historyService, 'getLastActiveWorkspaceRoot').returns(undefined);
+
+		const defaultPath = await dialogService.defaultFilePath();
+		
+		// Should fall back to user home instead of using settings file path
+		assert.strictEqual(defaultPath.toString(), userHome.toString());
+	});
+
+	test('Excludes user data schemes from default folder path', async function () {
+		class TestSimpleFileDialog implements ISimpleFileDialog {
+			async showOpenDialog(): Promise<URI | undefined> {
+				return testFile;
+			}
+			async showSaveDialog(): Promise<URI | undefined> {
+				return testFile;
+			}
+			dispose(): void { }
+		}
+
+		const userHome = URI.file('/user/home');
+		instantiationService.stub(IPathService, new class {
+			defaultUriScheme: string = Schemas.file;
+			userHome = async () => userHome;
+			fileURI = async (path: string) => URI.file(path);
+			path = Promise.resolve({
+				isAbsolute: (path: string) => path.startsWith('/'),
+				normalize: (path: string) => path
+			});
+		} as any);
+
+		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
+		const historyService = instantiationService.get(IHistoryService);
+
+		// Mock getLastActiveFile to return a user data file URI
+		const userDataUri = URI.from({ scheme: Schemas.vscodeUserData, path: '/userdata.json' });
+		sinon.stub(historyService, 'getLastActiveWorkspaceRoot').returns(undefined);
+		sinon.stub(historyService, 'getLastActiveFile').returns(userDataUri);
+
+		const defaultPath = await dialogService.defaultFolderPath();
+		
+		// Should fall back to user home instead of using user data file path
+		assert.strictEqual(defaultPath.toString(), userHome.toString());
+	});
 });
