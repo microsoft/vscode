@@ -508,7 +508,8 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration if the value of overriding identifier is not object', () => {
 		const testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': { 'g': 1 } }, [],
-			[{ identifiers: ['c'], contents: 'abc', keys: [] }], [], new NullLogService());
+			// eslint-disable-next-line local/code-no-any-casts
+			[{ identifiers: ['c'], contents: 'abc' as any, keys: [] }], [], new NullLogService());
 
 		assert.deepStrictEqual(testObject.override('c').contents, { 'a': { 'b': 1 }, 'f': { 'g': 1 } });
 	});

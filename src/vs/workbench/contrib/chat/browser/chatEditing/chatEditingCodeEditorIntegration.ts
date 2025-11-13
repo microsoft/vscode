@@ -39,7 +39,6 @@ import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGu
 import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { AcceptHunkAction, RejectHunkAction } from './chatEditingEditorActions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ctxCursorInChangeRange } from './chatEditingEditorContextKeys.js';
 
@@ -712,10 +711,10 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 				arg: this,
 			},
 			actionViewItemProvider: (action, options) => {
-				if (action.id === AcceptHunkAction.ID || action.id === RejectHunkAction.ID) {
+				if (!action.class) {
 					return new class extends ActionViewItem {
 						constructor() {
-							super(undefined, action, { ...options, keybindingNotRenderedWithLabel: true, icon: false, label: true });
+							super(undefined, action, { ...options, keybindingNotRenderedWithLabel: true /* hide keybinding for actions without icon */, icon: false, label: true });
 						}
 					};
 				}
