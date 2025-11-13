@@ -136,8 +136,6 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 		}));
 	}
 
-
-
 	private async _updateDefaultProfile() {
 		const remoteAuthority = this._environmentService.remoteAuthority;
 		const defaultProfile = this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority, os: this._os });
