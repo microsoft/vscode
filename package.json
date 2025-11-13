@@ -9,6 +9,10 @@
   "main": "./out/main.js",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": ">=22.15.1",
+    "npm": ">=10"
+  },
   "scripts": {
     "test": "echo Please run any of the test scripts from the scripts folder.",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
@@ -20,7 +24,7 @@
     "postinstall": "node build/npm/postinstall.js",
     "compile": "node ./node_modules/gulp/bin/gulp.js compile",
     "compile-check-ts-native": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
-    "watch": "npm-run-all -lp watch-client watch-extensions",
+    "watch": "npx npm-run-all -lp watch-client watch-extensions",
     "watchd": "deemon npm run watch",
     "watch-webd": "deemon npm run watch-web",
     "kill-watchd": "deemon --kill npm run watch",
