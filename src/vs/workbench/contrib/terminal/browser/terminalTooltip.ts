@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { ITerminalInstance } from './terminal.js';
 import { asArray } from '../../../../base/common/arrays.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
 import type { IHoverAction } from '../../../../base/browser/ui/hover/hover.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalStatus } from './terminalStatusList.js';
@@ -109,10 +109,10 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 	}
 	const combinedString = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString();
 	if (combinedString !== undefined) {
-		const escapedPromptInput = combinedString
+		const escapedPromptInput = escapeMarkdownSyntaxTokens(combinedString
 			.replaceAll('<', '&lt;').replaceAll('>', '&gt;') 		 //Prevent escaping from wrapping
 			.replaceAll(/\((.+?)(\|?(?: (?:.+?)?)?)\)/g, '(<$1>$2)') //Escape links as clickable links
-			.replaceAll(/([\[\]\(\)\-\*\!\#\`])/g, '\\$1'); 		 //Comment most of the markdown elements to not render them inside
+		);
 		detailedAdditions.push(`Prompt input: <code>\n${escapedPromptInput}\n</code>`);
 	}
 	const detailedAdditionsString = detailedAdditions.length > 0
