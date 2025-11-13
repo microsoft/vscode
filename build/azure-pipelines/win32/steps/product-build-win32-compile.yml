@@ -23,6 +23,14 @@ steps:
       versionSource: fromFile
       versionFilePath: .nvmrc
 
+  - powershell: |
+      $PATCH_VERSION = & node build/azure-pipelines/common/compute-patch-version.js
+      Write-Host "Computed patch version: $PATCH_VERSION"
+      Write-Host "##vso[task.setvariable variable=VSCODE_PATCH_VERSION]$PATCH_VERSION"
+    env:
+      BUILD_ID: $(Build.BuildId)
+    displayName: Compute patch version from package.json
+
   - task: UsePythonVersion@0
     inputs:
       versionSpec: "3.x"

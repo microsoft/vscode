@@ -21,6 +21,13 @@ steps:
       versionSource: fromFile
       versionFilePath: .nvmrc
 
+  - script: |
+      set -e
+      PATCH_VERSION=$(BUILD_ID=$(Build.BuildId) node build/azure-pipelines/common/compute-patch-version.js)
+      echo "Computed patch version: $PATCH_VERSION"
+      echo "##vso[task.setvariable variable=VSCODE_PATCH_VERSION]$PATCH_VERSION"
+    displayName: Compute patch version from package.json
+
   - template: ../../distro/download-distro.yml@self
 
   - task: AzureKeyVault@2
