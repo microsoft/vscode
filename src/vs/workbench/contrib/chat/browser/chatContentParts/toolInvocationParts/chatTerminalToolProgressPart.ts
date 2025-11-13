@@ -8,7 +8,7 @@ import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
@@ -26,7 +26,7 @@ import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatConfiguration, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES } from '../../../common/constants.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -61,24 +61,12 @@ const sanitizerConfig = Object.freeze<DomSanitizerConfig>({
 	}
 });
 
-let lastFocusedProgressPart: ChatTerminalToolProgressPart | undefined;
-const activeTerminalToolProgressParts = new Set<ChatTerminalToolProgressPart>();
-let mostRecentProgressPart: ChatTerminalToolProgressPart | undefined;
-
-function getLastActiveProgressPart(): ChatTerminalToolProgressPart | undefined {
-	let result: ChatTerminalToolProgressPart | undefined;
-	for (const part of activeTerminalToolProgressParts) {
-		result = part;
-	}
-	return result;
-}
-
 /**
  * Remembers whether a tool invocation was last expanded so state survives virtualization re-renders.
  */
 const expandedStateByInvocation = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, boolean>();
 
-export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
+export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart implements IChatTerminalToolProgressPart {
 	public readonly domNode: HTMLElement;
 
 	private readonly _actionBar = this._register(new MutableDisposable<ActionBar>());
@@ -213,12 +201,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
 		this.domNode = progressPart.domNode;
-		activeTerminalToolProgressParts.add(this);
-		mostRecentProgressPart = this;
 
 		if (expandedStateByInvocation.get(toolInvocation)) {
 			void this._toggleOutput(true);
 		}
+		this._register(this._terminalChatService.registerChatTerminalToolProgressPart(this));
 	}
 
 	private async _createActionBar(elements: { actionBar: HTMLElement }): Promise<void> {
@@ -537,7 +524,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private _handleOutputFocus(): void {
 		this._terminalOutputContextKey.set(true);
-		lastFocusedProgressPart = this;
+		this._terminalChatService.setFocusedChatTerminalToolProgressPart(this);
 		this._updateOutputAriaLabel();
 	}
 
@@ -547,22 +534,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return;
 		}
 		this._terminalOutputContextKey.reset();
-		this._clearLastFocusedPart();
+		this._terminalChatService.clearFocusedChatTerminalToolProgressPart(this);
 	}
 
 	private _handleDispose(): void {
 		this._terminalOutputContextKey.reset();
-		this._clearLastFocusedPart();
-		activeTerminalToolProgressParts.delete(this);
-		if (mostRecentProgressPart === this) {
-			mostRecentProgressPart = getLastActiveProgressPart();
-		}
-	}
-
-	private _clearLastFocusedPart(): void {
-		if (lastFocusedProgressPart === this) {
-			lastFocusedProgressPart = undefined;
-		}
+		this._terminalChatService.clearFocusedChatTerminalToolProgressPart(this);
 	}
 
 	private _updateOutputAriaLabel(): void {
@@ -686,14 +663,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 }
 
-export function getFocusedTerminalToolProgressPart(): ChatTerminalToolProgressPart | undefined {
-	return lastFocusedProgressPart;
-}
-
-export function getMostRecentTerminalToolProgressPart(): ChatTerminalToolProgressPart | undefined {
-	return mostRecentProgressPart;
-}
-
 export const focusMostRecentChatTerminalCommandId = 'workbench.action.chat.focusMostRecentChatTerminal';
 export const focusMostRecentChatTerminalOutputCommandId = 'workbench.action.chat.focusMostRecentChatTerminalOutput';
 
@@ -702,8 +671,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ChatContextKeys.inChatSession,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyT,
-	handler: async () => {
-		const part = getMostRecentTerminalToolProgressPart();
+	handler: async (accessor: ServicesAccessor) => {
+		const terminalChatService = accessor.get(ITerminalChatService);
+		const part = terminalChatService.getMostRecentChatTerminalToolProgressPart();
 		if (!part) {
 			return;
 		}
@@ -716,8 +686,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ChatContextKeys.inChatSession,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyO,
-	handler: async () => {
-		const part = getMostRecentTerminalToolProgressPart();
+	handler: async (accessor: ServicesAccessor) => {
+		const terminalChatService = accessor.get(ITerminalChatService);
+		const part = terminalChatService.getMostRecentChatTerminalToolProgressPart();
 		if (!part) {
 			return;
 		}

@@ -106,6 +106,13 @@ export interface ITerminalInstanceService {
  * Service enabling communication between the chat tool implementation in terminal contrib and workbench contribs.
  * Acts as a communication mechanism for chat-related terminal features.
  */
+export interface IChatTerminalToolProgressPart {
+	focusTerminal(): Promise<void>;
+	expandOutputAndFocus(): Promise<void>;
+	focusOutput(): void;
+	getCommandAndOutputAsText(): string | undefined;
+}
+
 export interface ITerminalChatService {
 	readonly _serviceBrand: undefined;
 
@@ -157,6 +164,12 @@ export interface ITerminalChatService {
 	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined;
 
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
+
+	registerChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): IDisposable;
+	setFocusedChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): void;
+	clearFocusedChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): void;
+	getFocusedChatTerminalToolProgressPart(): IChatTerminalToolProgressPart | undefined;
+	getMostRecentChatTerminalToolProgressPart(): IChatTerminalToolProgressPart | undefined;
 }
 
 /**
