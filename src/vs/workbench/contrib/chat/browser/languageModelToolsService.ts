@@ -690,7 +690,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return result;
 	}
 
-	toReferenceFullNames(map: IToolAndToolSetEnablementMap): string[] {
+	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[] {
 		const result: string[] = [];
 		const toolsCoveredByEnabledToolSet = new Set<IToolData>();
 		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {

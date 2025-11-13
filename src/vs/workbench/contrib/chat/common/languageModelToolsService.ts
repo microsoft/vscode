@@ -367,13 +367,13 @@ export interface ILanguageModelToolsService {
 	// tool names in prompt files handling ('qualified names')
 
 	getQualifiedToolNames(): Iterable<string>;
-	getToolByFullName(qualifiedName: string): IToolData | ToolSet | undefined;
+	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined;
 	getQualifiedToolName(tool: IToolData, toolSet?: ToolSet): string;
 	getDeprecatedQualifiedToolNames(): Map<string, string>;
 	mapGithubToolName(githubToolName: string): string;
 
 	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap;
-	toReferenceFullNames(map: IToolAndToolSetEnablementMap): string[];
+	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
 
