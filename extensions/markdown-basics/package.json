@@ -29,7 +29,7 @@
           ".workbook"
         ],
         "filenamePatterns": [
-          "**/.cursor/rules/*.mdc"
+          "**/.cursor/**/*.mdc"
         ],
         "configuration": "./language-configuration.json"
       }
