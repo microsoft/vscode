@@ -13,7 +13,7 @@ import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../s
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
-import { IChatCodeBlockInfo } from '../../chat.js';
+import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { ChatQueryTitlePart } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, type IChatMarkdownContentPartOptions } from '../chatMarkdownContentPart.js';
@@ -77,6 +77,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private _terminalSessionRegistration: IDisposable | undefined;
 	private readonly _elementIndex: number;
 	private readonly _contentIndex: number;
+	private readonly _sessionResource: URI;
 
 	private readonly _showOutputAction = this._register(new MutableDisposable<ToggleChatTerminalOutputAction>());
 	private _showOutputActionAdded = false;
@@ -114,6 +115,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
@@ -121,6 +123,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		this._elementIndex = context.elementIndex;
 		this._contentIndex = context.contentIndex;
+		this._sessionResource = context.element.sessionResource;
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 		this._terminalData = terminalData;
@@ -319,7 +322,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 		let showOutputAction = this._showOutputAction.value;
 		if (!showOutputAction) {
-			showOutputAction = this._instantiationService.createInstance(ToggleChatTerminalOutputAction, (expanded: boolean) => this._toggleOutput(expanded));
+			showOutputAction = this._instantiationService.createInstance(ToggleChatTerminalOutputAction, () => this.toggleOutputAndFocus());
 			this._showOutputAction.value = showOutputAction;
 			if (command?.exitCode) {
 				this._toggleOutput(true);
@@ -455,6 +458,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._outputView.focus();
 	}
 
+	private _focusChatInput(): void {
+		const widget = this._chatWidgetService.getWidgetBySessionResource(this._sessionResource);
+		widget?.focusInput();
+	}
+
 	public async focusTerminal(): Promise<void> {
 		if (this._focusAction.value) {
 			await this._focusAction.value.run();
@@ -472,6 +480,21 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			await this._outputView.ensureRendered();
 		}
 		this.focusOutput();
+	}
+
+	public async toggleOutputAndFocus(): Promise<void> {
+		if (this._outputView.isExpanded) {
+			await this._collapseOutputAndFocusInput();
+			return;
+		}
+		await this.expandOutputAndFocus();
+	}
+
+	private async _collapseOutputAndFocusInput(): Promise<void> {
+		if (this._outputView.isExpanded) {
+			await this._toggleOutput(false);
+		}
+		this._focusChatInput();
 	}
 
 	private _resolveCommand(instance: ITerminalInstance): ITerminalCommand | undefined {
@@ -813,7 +836,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!part) {
 			return;
 		}
-		await part.expandOutputAndFocus();
+		await part.toggleOutputAndFocus();
 	}
 });
 
@@ -874,7 +897,7 @@ class ToggleChatTerminalOutputAction extends Action implements IAction {
 	private _expanded = false;
 
 	constructor(
-		private readonly _toggle: (expanded: boolean) => Promise<boolean>,
+		private readonly _toggle: () => Promise<void>,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super(
@@ -887,8 +910,7 @@ class ToggleChatTerminalOutputAction extends Action implements IAction {
 	}
 
 	public override async run(): Promise<void> {
-		const target = !this._expanded;
-		await this._toggle(target);
+		await this._toggle();
 	}
 
 	public syncPresentation(expanded: boolean): void {
