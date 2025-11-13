@@ -106,7 +106,7 @@ export class TerminalTabbedView extends Disposable {
 		this._tabsListMenu = this._register(menuService.createMenu(MenuId.TerminalTabContext, contextKeyService));
 		this._tabsListEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
 
-		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement, this._register(new DisposableStore())));
+		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement));
 		this._tabListDomElement = this._tabList.getHTMLElement();
 		this._chatEntry = this._register(this._instantiationService.createInstance(TerminalTabsChatEntry, tabListContainer, this._tabContainer));
 
