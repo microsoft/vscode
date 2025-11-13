@@ -59,8 +59,9 @@ const os_1 = __importDefault(require("os"));
 const vinyl_1 = __importDefault(require("vinyl"));
 const task = __importStar(require("./task"));
 const index_1 = require("./mangle/index");
-const ts = require("typescript");
-const watch = require('./watch');
+const typescript_1 = __importDefault(require("typescript"));
+const watch_1 = __importDefault(require("./watch"));
+const gulp_bom_1 = __importDefault(require("gulp-bom"));
 // --- gulp-tsb: compile and transpile --------------------------------
 const reporter = (0, reporter_1.createReporter)();
 function getTypeScriptCompilerOptions(src) {
@@ -91,14 +92,13 @@ function createCompile(src, { build, emitError, transpileOnly, preserveEnglish }
         transpileWithEsbuild: typeof transpileOnly !== 'boolean' && transpileOnly.esbuild
     }, err => reporter(err));
     function pipeline(token) {
-        const bom = require('gulp-bom');
         const tsFilter = util.filter(data => /\.ts$/.test(data.path));
         const isUtf8Test = (f) => /(\/|\\)test(\/|\\).*utf8/.test(f.path);
         const isRuntimeJs = (f) => f.path.endsWith('.js') && !f.path.includes('fixtures');
         const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
         const input = event_stream_1.default.through();
         const output = input
-            .pipe(util.$if(isUtf8Test, bom())) // this is required to preserve BOM in test files that loose it otherwise
+            .pipe(util.$if(isUtf8Test, (0, gulp_bom_1.default)())) // this is required to preserve BOM in test files that loose it otherwise
             .pipe(util.$if(!build && isRuntimeJs, util.appendOwnPathSourceURL()))
             .pipe(tsFilter)
             .pipe(util.loadSourcemaps())
@@ -149,7 +149,7 @@ function compileTask(src, out, build, options = {}) {
             let ts2tsMangler = new index_1.Mangler(compile.projectPath, (...data) => (0, fancy_log_1.default)(ansi_colors_1.default.blue('[mangler]'), ...data), { mangleExports: true, manglePrivateFields: true });
             const newContentsByFileName = ts2tsMangler.computeNewFileContents(new Set(['saveState']));
             mangleStream = event_stream_1.default.through(async function write(data) {
-                const tsNormalPath = ts.normalizePath(data.path);
+                const tsNormalPath = typescript_1.default.normalizePath(data.path);
                 const newContents = (await newContentsByFileName).get(tsNormalPath);
                 if (newContents !== undefined) {
                     data.contents = Buffer.from(newContents.out);
@@ -176,7 +176,7 @@ function watchTask(out, build, srcPath = 'src') {
     const task = () => {
         const compile = createCompile(srcPath, { build, emitError: false, transpileOnly: false, preserveEnglish: false });
         const src = gulp_1.default.src(`${srcPath}/**`, { base: srcPath });
-        const watchSrc = watch(`${srcPath}/**`, { base: srcPath, readDelay: 200 });
+        const watchSrc = (0, watch_1.default)(`${srcPath}/**`, { base: srcPath, readDelay: 200 });
         const generator = new MonacoGenerator(true);
         generator.execute();
         return watchSrc
@@ -333,7 +333,7 @@ exports.watchApiProposalNamesTask = task.define('watch-api-proposal-names', () =
     const task = () => gulp_1.default.src('src/vscode-dts/**')
         .pipe(generateApiProposalNames())
         .pipe(apiProposalNamesReporter.end(true));
-    return watch('src/vscode-dts/**', { readDelay: 200 })
+    return (0, watch_1.default)('src/vscode-dts/**', { readDelay: 200 })
         .pipe(util.debounce(task))
         .pipe(gulp_1.default.dest('src'));
 });

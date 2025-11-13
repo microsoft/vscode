@@ -14,7 +14,7 @@ const gulp_gzip_1 = __importDefault(require("gulp-gzip"));
 const identity_1 = require("@azure/identity");
 const path = require("path");
 const fs_1 = require("fs");
-const azure = require('gulp-azure-storage');
+const gulp_azure_storage_1 = __importDefault(require("gulp-azure-storage"));
 const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new identity_1.ClientAssertionCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], () => Promise.resolve(process.env['AZURE_ID_TOKEN']));
 function main() {
@@ -106,7 +106,7 @@ function main() {
             console.log(`##vso[artifact.upload containerfolder=nlsmetadata;artifactname=${data.basename}]${data.path}`);
             this.emit('data', data);
         }))
-            .pipe(azure.upload({
+            .pipe(gulp_azure_storage_1.default.upload({
             account: process.env.AZURE_STORAGE_ACCOUNT,
             credential,
             container: '$web',
