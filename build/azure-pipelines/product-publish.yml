@@ -94,7 +94,7 @@ jobs:
         displayName: Create build if it hasn't been created before
 
       - pwsh: |
-          $publishAuthTokens = (npm run _build-script build/azure-pipelines/common/getPublishAuthTokens.js)
+          $publishAuthTokens = (npm run --silent _build-script build/azure-pipelines/common/getPublishAuthTokens.js)
           Write-Host "##vso[task.setvariable variable=PUBLISH_AUTH_TOKENS;issecret=true]$publishAuthTokens"
         env:
           AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"

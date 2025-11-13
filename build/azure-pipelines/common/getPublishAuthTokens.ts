@@ -45,15 +45,10 @@ async function main() {
 }
 
 const normalizeScriptPath = (p: string) => p.replace(/\.(js|ts)$/, '');
-console.log('import.meta.filename:', normalizeScriptPath(import.meta.filename));
-console.log('process.argv[1]:', normalizeScriptPath(process.argv[1]));
 if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
-	console.log('running main');
 	main().then(() => {
-		console.log('done');
 		process.exit(0);
 	}, err => {
-		console.log('error', err);
 		console.error(err);
 		process.exit(1);
 	});
