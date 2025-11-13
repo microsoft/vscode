@@ -282,7 +282,7 @@
 			// To debug observables you also need the extension "ms-vscode.debug-value-editor"
 			"type": "chrome",
 			"request": "launch",
-			"name": "Launch VS Code Internal (Dev Debug)",
+			"name": "Launch VS Code Internal (Hot Reload)",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
@@ -298,6 +298,7 @@
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
 				"VSCODE_SKIP_PRELAUNCH": "1",
 				"VSCODE_DEV_DEBUG": "1",
+				"DEV_WINDOW_SRC": "http://localhost:5199/build/monaco-editor-playground/workbench-vite-electron.html",
 				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
 			},
 			"cleanUp": "wholeBrowser",
@@ -322,6 +323,7 @@
 			"presentation": {
 				"hidden": true,
 			},
+			"preLaunchTask": "Launch Monaco Editor Vite"
 		},
 		{
 			"type": "node",
@@ -638,10 +640,10 @@
 			}
 		},
 		{
-			"name": "VS Code (Debug Observables)",
+			"name": "VS Code (Hot Reload)",
 			"stopAll": true,
 			"configurations": [
-				"Launch VS Code Internal (Dev Debug)",
+				"Launch VS Code Internal (Hot Reload)",
 				"Attach to Main Process",
 				"Attach to Extension Host",
 				"Attach to Shared Process",

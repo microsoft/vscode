@@ -273,7 +273,7 @@
 
 	//#region Window Helpers
 
-	async function load<M, T extends ISandboxConfiguration>(esModule: string, options: ILoadOptions<T>): Promise<ILoadResult<M, T>> {
+	async function load<M, T extends ISandboxConfiguration>(options: ILoadOptions<T>): Promise<ILoadResult<M, T>> {
 
 		// Window Configuration from Preload Script
 		const configuration = await resolveWindowConfiguration<T>();
@@ -290,13 +290,20 @@
 		// Compute base URL and set as global
 		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
 		globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
-
-		// Dev only: CSS import map tricks
-		setupCSSImportMaps<T>(configuration, baseUrl);
+		const useCSSImportMap = !process.env.DEV_WINDOW_SRC;
+		if (useCSSImportMap) {
+			// Dev only: CSS import map tricks
+			setupCSSImportMaps<T>(configuration, baseUrl);
+		}
 
 		// ESM Import
 		try {
-			const result = await import(new URL(`${esModule}.js`, baseUrl).href);
+			const importTsSource = !!process.env.DEV_WINDOW_SRC;
+			const result = await import(
+				importTsSource
+					? new URL(`../../../workbench/workbench.desktop.main.ts`, import.meta.url).href
+					: new URL(`vs/workbench/workbench.desktop.main.js`, baseUrl).href
+			);
 
 			if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
 				developerDeveloperKeybindingsDisposable();
@@ -484,7 +491,7 @@
 
 	//#endregion
 
-	const { result, configuration } = await load<IDesktopMain, INativeWindowConfiguration>('vs/workbench/workbench.desktop.main',
+	const { result, configuration } = await load<IDesktopMain, INativeWindowConfiguration>(
 		{
 			configureDeveloperSettings: function (windowConfig) {
 				return {

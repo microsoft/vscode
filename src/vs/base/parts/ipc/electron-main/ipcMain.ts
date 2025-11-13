@@ -119,6 +119,9 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 		if (!url || url === 'about:blank') {
 			return true;
 		}
+		if (url === process.env.DEV_WINDOW_SRC) {
+			return true;
+		}
 
 		let host = 'unknown';
 		try {

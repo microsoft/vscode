@@ -1158,7 +1158,12 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
+		const devWindowUrl = process.env.DEV_WINDOW_SRC;
+		if (devWindowUrl !== undefined) {
+			this._win.loadURL(devWindowUrl);
+		} else {
+			this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
+		}
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;
