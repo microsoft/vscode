@@ -32,6 +32,7 @@ export interface IChatSessionCommandContribution {
 export interface IChatSessionProviderOptionItem {
 	id: string;
 	name: string;
+	locked?: boolean;
 	// [key: string]: any;
 }
 

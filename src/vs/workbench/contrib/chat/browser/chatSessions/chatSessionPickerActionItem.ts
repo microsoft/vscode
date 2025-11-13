@@ -33,7 +33,7 @@ function delegateToWidgetActionsProvider(delegate: IChatSessionPickerDelegate): 
 			return delegate.getAllOptions().map(item => {
 				return {
 					id: item.id,
-					enabled: true,
+					enabled: !item.locked,
 					icon: undefined,
 					checked: item.id === delegate.getCurrentOption()?.id,
 					class: undefined,

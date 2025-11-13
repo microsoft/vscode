@@ -276,6 +276,12 @@ declare module 'vscode' {
 		 * Human-readable name displayed in the UI.
 		 */
 		readonly name: string;
+
+		/**
+		 * When true, the option is displayed in the UI but cannot be selected.
+		 * The quick pick button for this option will be disabled.
+		 */
+		readonly locked?: boolean;
 	}
 
 	/**
