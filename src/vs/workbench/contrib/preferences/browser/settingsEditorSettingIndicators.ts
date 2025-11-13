@@ -507,7 +507,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 			let defaultOverrideHoverContent;
 			if (!Array.isArray(sourceToDisplay)) {
-				defaultOverrideHoverContent = localize('defaultOverriddenDetails', "Default setting value overridden by `{ 0 } `", sourceToDisplay);
+				defaultOverrideHoverContent = localize('defaultOverriddenDetails', "Default setting value overridden by `{0}`", sourceToDisplay);
 			} else {
 				sourceToDisplay = sourceToDisplay.map(source => `\`${source}\``);
 				defaultOverrideHoverContent = localize('multipledefaultOverriddenDetails', "A default values has been set by {0}", sourceToDisplay.slice(0, -1).join(', ') + ' & ' + sourceToDisplay.slice(-1));
