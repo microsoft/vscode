@@ -61,16 +61,16 @@
 	border-bottom-left-radius: 5px;
 }
 
-.mac:not(.fullscreen).macos-bigsur-or-newer .process-explorer .monaco-list:focus::before {
+.mac:not(.fullscreen).macos-rounded-default .process-explorer .monaco-list:focus::before {
 	/* macOS Big Sur increased rounded corners size */
 	border-bottom-right-radius: 10px;
 	border-bottom-left-radius: 10px;
 }
 
-.mac:not(.fullscreen).macos-tahoe-or-newer .process-explorer .monaco-list:focus::before {
+.mac:not(.fullscreen).macos-rounded-tahoe .process-explorer .monaco-list:focus::before {
 	/* macOS Tahoe increased rounded corners size even more */
-	border-bottom-right-radius: 12px;
-	border-bottom-left-radius: 12px;
+	border-bottom-right-radius: 16px;
+	border-bottom-left-radius: 16px;
 }
 
 .process-explorer .monaco-list-row:first-of-type {

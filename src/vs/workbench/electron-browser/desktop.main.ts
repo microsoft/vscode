@@ -45,7 +45,7 @@ import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../platform/workspace/common/workspaceTrust.js';
 import { safeStringify } from '../../base/common/objects.js';
 import { IUtilityProcessWorkerWorkbenchService, UtilityProcessWorkerWorkbenchService } from '../services/utilityProcess/electron-browser/utilityProcessWorkerWorkbenchService.js';
-import { isBigSurOrNewer, isCI, isMacintosh, isTahoeOrNewer } from '../../base/common/platform.js';
+import { isCI, isMacintosh, isTahoeOrNewer } from '../../base/common/platform.js';
 import { Schemas } from '../../base/common/network.js';
 import { DiskFileSystemProvider } from '../services/files/electron-browser/diskFileSystemProvider.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
@@ -154,14 +154,10 @@ export class DesktopMain extends Disposable {
 
 	private getExtraClasses(): string[] {
 		if (isMacintosh) {
-			// TODO: Revisit the border radius values till Electron v40 adoption
-			// Refs https://github.com/electron/electron/issues/47514 and
-			// https://github.com/microsoft/vscode/pull/270236#issuecomment-3379301185
 			if (isTahoeOrNewer(this.configuration.os.release)) {
-				return ['macos-tahoe-or-newer'];
-			}
-			if (isBigSurOrNewer(this.configuration.os.release)) {
-				return ['macos-bigsur-or-newer'];
+				return ['macos-rounded-tahoe'];
+			} else {
+				return ['macos-rounded-default'];
 			}
 		}
 
