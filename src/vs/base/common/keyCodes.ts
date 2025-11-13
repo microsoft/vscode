@@ -738,7 +738,7 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 			scanCodeLowerCaseStrToInt[scanCodeStr.toLowerCase()] = scanCode;
 			if (immutable) {
 				IMMUTABLE_CODE_TO_KEY_CODE[scanCode] = keyCode;
-				if ((keyCode !== KeyCode.Unknown) && !isModifierKey(keyCode)) {
+				if ((keyCode !== KeyCode.Unknown) && (keyCode !== KeyCode.Enter) && !isModifierKey(keyCode)) {
 					IMMUTABLE_KEY_CODE_TO_CODE[keyCode] = scanCode;
 				}
 			}
