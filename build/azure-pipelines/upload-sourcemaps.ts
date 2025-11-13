@@ -11,7 +11,7 @@ import * as util from '../lib/util';
 import { getProductionDependencies } from '../lib/dependencies';
 import { ClientAssertionCredential } from '@azure/identity';
 import Stream from 'stream';
-const azure = require('gulp-azure-storage');
+import azure from 'gulp-azure-storage';
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = process.env['BUILD_SOURCEVERSION'];
