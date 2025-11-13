@@ -445,9 +445,25 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			prepared = await preparePromise;
 		}
 
+		const isEligibleForAutoApproval = this.isToolEligibleForAutoApproval(tool.data);
+
+		// Default confirmation messages if tool is not eligible for auto-approval
+		if (!isEligibleForAutoApproval && !prepared?.confirmationMessages?.title) {
+			if (!prepared) {
+				prepared = {};
+			}
+			const toolReferenceName = getToolReferenceName(tool.data);
+			// TODO: This should be more detailed per tool.
+			prepared.confirmationMessages = {
+				title: localize('defaultToolConfirmation.title', 'Allow tool to execute?'),
+				message: localize('defaultToolConfirmation.message', 'Run the "{0}" tool.', toolReferenceName),
+				allowAutoConfirm: false,
+			};
+		}
+
 		if (prepared?.confirmationMessages?.title) {
 			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
-				prepared.confirmationMessages.allowAutoConfirm = true;
+				prepared.confirmationMessages.allowAutoConfirm = isEligibleForAutoApproval;
 			}
 
 			if (!prepared.toolSpecificData && tool.data.alwaysDisplayInputOutput) {
@@ -504,22 +520,18 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
+	private isToolEligibleForAutoApproval(toolData: IToolData): boolean {
+		const toolReferenceName = getToolReferenceName(toolData);
+		const eligibilityConfig = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);
+		return eligibilityConfig && typeof eligibilityConfig === 'object' && toolReferenceName
+			? (eligibilityConfig[toolReferenceName] ?? true) // Default to true if not specified
+			: true; // Default to eligible if the setting is not an object or no reference name
+	}
+
 	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown): Promise<ConfirmedReason | undefined> {
 		const reason = this._confirmationService.getPreConfirmAction({ toolId, source, parameters });
 		if (reason) {
 			return reason;
-		}
-
-		const tool = this._tools.get(toolId);
-		const toolReferenceName = tool?.data ? getToolReferenceName(tool.data) : undefined;
-		const eligibilityConfig = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);
-		const isEligible = eligibilityConfig && typeof eligibilityConfig === 'object' && toolReferenceName
-			? (eligibilityConfig[toolReferenceName] ?? true) // Default to true if not specified
-			: true; // Default to eligible if the setting is not an object or no reference name
-
-		if (!isEligible) {
-			// Tool is explicitly marked as not eligible for auto-approval
-			return undefined;
 		}
 
 		const config = this._configurationService.inspect<boolean | Record<string, boolean>>(ChatConfiguration.GlobalAutoApprove);
