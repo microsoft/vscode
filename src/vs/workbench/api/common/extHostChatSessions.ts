@@ -167,7 +167,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 	private convertChatSessionItem(sessionType: string, sessionContent: vscode.ChatSessionItem): IChatSessionItem {
 		return {
-			id: sessionContent.resource.toString(),
 			resource: sessionContent.resource,
 			label: sessionContent.label,
 			description: sessionContent.description ? typeConvert.MarkdownString.from(sessionContent.description) : undefined,

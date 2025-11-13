@@ -430,7 +430,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			const sessions = await this._proxy.$provideChatSessionItems(handle, token);
 			return sessions.map(session => ({
 				...session,
-				id: session.id,
 				resource: URI.revive(session.resource),
 				iconPath: session.iconPath,
 				tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined
@@ -449,7 +448,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			}
 			return {
 				...chatSessionItem,
-				id: chatSessionItem.id,
 				resource: URI.revive(chatSessionItem.resource),
 				iconPath: chatSessionItem.iconPath,
 				tooltip: chatSessionItem.tooltip ? this._reviveTooltip(chatSessionItem.tooltip) : undefined,
