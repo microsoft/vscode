@@ -599,11 +599,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return -1;
 		}
-		const validatedPosition = this._modelData.model.validatePosition({
-			lineNumber: lineNumber,
-			column: Number.MAX_SAFE_INTEGER
-		});
-		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, validatedPosition.lineNumber, validatedPosition.column, includeViewZones);
+		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, Number.MAX_SAFE_INTEGER, includeViewZones);
 	}
 
 	public getLineHeightForPosition(position: IPosition): number {
