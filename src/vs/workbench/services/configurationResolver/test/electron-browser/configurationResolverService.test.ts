@@ -1014,9 +1014,9 @@ suite('ConfigurationResolverExpression', () => {
 	test('resolves nested values 2 (#245798)', () => {
 		const expr = ConfigurationResolverExpression.parse({
 			env: {
-				SITE: "${input:site}",
-				TLD: "${input:tld}",
-				HOST: "${input:host}",
+				SITE: '${input:site}',
+				TLD: '${input:tld}',
+				HOST: '${input:host}',
 			},
 		});
 
@@ -1041,7 +1041,7 @@ suite('ConfigurationResolverExpression', () => {
 
 	test('out-of-order key resolution (#248550)', () => {
 		const expr = ConfigurationResolverExpression.parse({
-			'${input:key}': "${input:value}",
+			'${input:key}': '${input:value}',
 		});
 
 		for (const r of expr.unresolved()) {

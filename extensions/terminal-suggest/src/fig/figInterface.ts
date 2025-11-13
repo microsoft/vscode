@@ -341,6 +341,7 @@ export async function collectCompletionItemResult(
 	}
 	if (parsedArguments.suggestionFlags & SuggestionFlag.Options) {
 		await addSuggestions(parsedArguments.completionObj.options, vscode.TerminalCompletionItemKind.Flag, parsedArguments);
+		await addSuggestions(parsedArguments.completionObj.persistentOptions, vscode.TerminalCompletionItemKind.Flag, parsedArguments);
 	}
 
 	return { showFiles, showFolders, fileExtensions };

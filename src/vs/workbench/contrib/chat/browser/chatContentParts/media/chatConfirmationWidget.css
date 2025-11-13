@@ -58,6 +58,10 @@
 		margin-top: -12px;
 		margin-bottom: 12px;
 	}
+
+	.rendered-markdown p {
+		opacity: 0.85;
+	}
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title.expandable {
@@ -246,6 +250,10 @@
 	border-bottom: 1px solid var(--vscode-chat-requestBorder);
 	padding: 6px 9px 0 9px;
 
+	.tool-postconfirm-display {
+		padding-bottom: 6px;
+	}
+
 	p {
 		margin-top: 0;
 		margin-bottom: 9px;
@@ -284,5 +292,15 @@
 			padding: 2px 5px;
 			width: inherit;
 		}
+
+		.monaco-text-button {
+			padding: 2px 10px;
+		}
+	}
+}
+
+.chat-confirmation-widget2 .interactive-result-code-block.compare {
+	.interactive-result-header .monaco-toolbar {
+		display: none; /* Don't show keep/discard for diffs shown within confirmation */
 	}
 }

@@ -9,6 +9,7 @@ const fs = require('fs');
 const dirs = [
 	'',
 	'build',
+	'build/monaco-editor-playground',
 	'extensions',
 	'extensions/configuration-editing',
 	'extensions/css-language-features',
@@ -42,6 +43,7 @@ const dirs = [
 	'extensions/search-result',
 	'extensions/simple-browser',
 	'extensions/tunnel-forwarding',
+	'extensions/terminal-suggest',
 	'extensions/typescript-language-features',
 	'extensions/vscode-api-tests',
 	'extensions/vscode-colorize-tests',

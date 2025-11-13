@@ -28,6 +28,7 @@ import { IAuthorizationTokenResponse } from '../../../base/common/oauth.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
 import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
 
 export interface AuthenticationInteractiveOptions {
 	detail?: string;
@@ -112,6 +113,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	constructor(
 		extHostContext: IExtHostContext,
+		@IProductService private readonly productService: IProductService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IAuthenticationExtensionsService private readonly authenticationExtensionsService: IAuthenticationExtensionsService,
 		@IAuthenticationAccessService private readonly authenticationAccessService: IAuthenticationAccessService,
@@ -153,11 +155,15 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				// Auth Provider Id is a combination of the authorization server and the resource, if provided.
 				const authProviderId = resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
 				const clientDetails = await this.dynamicAuthProviderStorageService.getClientRegistration(authProviderId);
-				const clientId = clientDetails?.clientId;
+				let clientId = clientDetails?.clientId;
 				const clientSecret = clientDetails?.clientSecret;
 				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
 				if (clientId) {
 					initialTokens = await this.dynamicAuthProviderStorageService.getSessionsForDynamicAuthProvider(authProviderId, clientId);
+					// If we don't already have a client id, check if the server supports the Client Id Metadata flow (see docs on the property)
+					// and add the "client id" if so.
+				} else if (serverMetadata.client_id_metadata_document_supported) {
+					clientId = this.productService.authClientIdMetadataUrl;
 				}
 				return await this._proxy.$registerDynamicAuthProvider(
 					authorizationServer,

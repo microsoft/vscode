@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent, MarkdownString, Command } from 'vscode';
+import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent, MarkdownString, Command, commands } from 'vscode';
 import { Repository, Resource } from './repository';
 import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, fromNow, getCommitShortHash, subject, truncate } from './util';
 import { toMultiFileDiffEditorUris } from './uri';
@@ -12,7 +12,7 @@ import { AvatarQuery, AvatarQueryCommit, Branch, LogOptions, Ref, RefType } from
 import { emojify, ensureEmojis } from './emoji';
 import { Commit, CommitShortStat } from './git';
 import { OperationKind, OperationResult } from './operation';
-import { ISourceControlHistoryItemDetailsProviderRegistry, provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
+import { ISourceControlHistoryItemDetailsProviderRegistry, provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import { throttle } from './decorators';
 
 function compareSourceControlHistoryItemRef(ref1: SourceControlHistoryItemRef, ref2: SourceControlHistoryItemRef): number {
@@ -124,7 +124,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 								id: `refs/heads/${this.repository.HEAD.upstream.name}`,
 								name: this.repository.HEAD.upstream.name,
 								revision: this.repository.HEAD.upstream.commit,
-								icon: new ThemeIcon('gi-branch')
+								icon: new ThemeIcon('git-branch')
 							};
 						} else {
 							// Remote branch
@@ -183,6 +183,14 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				this._currentHistoryItemBaseRef = undefined;
 				break;
 			}
+		}
+
+		// Update context keys for HEAD
+		if (this._HEAD?.ahead !== this.repository.HEAD?.ahead) {
+			commands.executeCommand('setContext', 'git.currentHistoryItemIsAhead', (this.repository.HEAD?.ahead ?? 0) > 0);
+		}
+		if (this._HEAD?.behind !== this.repository.HEAD?.behind) {
+			commands.executeCommand('setContext', 'git.currentHistoryItemIsBehind', (this.repository.HEAD?.behind ?? 0) > 0);
 		}
 
 		this._HEAD = this.repository.HEAD;
@@ -282,6 +290,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			const commitAvatars = await provideSourceControlHistoryItemAvatar(
 				this.historyItemDetailProviderRegistry, this.repository, avatarQuery);
 
+			const remoteHoverCommands = await provideSourceControlHistoryItemHoverCommands(this.historyItemDetailProviderRegistry, this.repository) ?? [];
+
 			await ensureEmojis();
 
 			const historyItems: SourceControlHistoryItem[] = [];
@@ -292,6 +302,13 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 				const avatarUrl = commitAvatars?.get(commit.hash);
 				const references = this._resolveHistoryItemRefs(commit);
+
+				const commands: Command[][] = [
+					getHistoryItemHoverCommitHashCommands(Uri.file(this.repository.root), commit.hash),
+					processHistoryItemRemoteHoverCommands(remoteHoverCommands, commit.hash)
+				];
+
+				const tooltip = getHistoryItemHover(avatarUrl, commit.authorName, commit.authorEmail, commit.authorDate ?? commit.commitDate, messageWithLinks, commit.shortStat, commands);
 
 				historyItems.push({
 					id: commit.hash,
@@ -304,7 +321,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					displayId: truncate(commit.hash, this.commitShortHashLength, false),
 					timestamp: commit.authorDate?.getTime(),
 					statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
-					references: references.length !== 0 ? references : undefined
+					references: references.length !== 0 ? references : undefined,
+					tooltip
 				} satisfies SourceControlHistoryItem);
 			}
 
@@ -320,7 +338,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 		const historyItemChangesUri: Uri[] = [];
 		const historyItemChanges: SourceControlHistoryItemChange[] = [];
-		const changes = await this.repository.diffTrees(historyItemParentId, historyItemId);
+		const changes = await this.repository.diffBetween2(historyItemParentId, historyItemId);
 
 		for (const change of changes) {
 			const historyItemUri = change.uri.with({
@@ -616,30 +634,51 @@ export function processHistoryItemRemoteHoverCommands(commands: Command[], hash:
 
 export function getHistoryItemHover(authorAvatar: string | undefined, authorName: string | undefined, authorEmail: string | undefined, authorDate: Date | number | undefined, message: string, shortStats: CommitShortStat | undefined, commands: Command[][] | undefined): MarkdownString {
 	const markdownString = new MarkdownString('', true);
-	markdownString.isTrusted = true;
+	markdownString.isTrusted = {
+		enabledCommands: commands?.flat().map(c => c.command) ?? []
+	};
 
+	// Author
 	if (authorName) {
-		const avatar = authorAvatar ? `![${authorName}](${authorAvatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})` : '$(account)';
-
-		if (authorEmail) {
-			const emailTitle = l10n.t('Email');
-			markdownString.appendMarkdown(`${avatar} [**${authorName}**](mailto:${authorEmail} "${emailTitle} ${authorName}")`);
+		// Avatar
+		if (authorAvatar) {
+			markdownString.appendMarkdown('![');
+			markdownString.appendText(authorName);
+			markdownString.appendMarkdown('](');
+			markdownString.appendText(authorAvatar);
+			markdownString.appendMarkdown(`|width=${AVATAR_SIZE},height=${AVATAR_SIZE})`);
 		} else {
-			markdownString.appendMarkdown(`${avatar} **${authorName}**`);
+			markdownString.appendMarkdown('$(account)');
 		}
 
-		if (authorDate) {
+		// Email
+		if (authorEmail) {
+			markdownString.appendMarkdown(' [**');
+			markdownString.appendText(authorName);
+			markdownString.appendMarkdown('**](mailto:');
+			markdownString.appendText(authorEmail);
+			markdownString.appendMarkdown(')');
+		} else {
+			markdownString.appendMarkdown(' **');
+			markdownString.appendText(authorName);
+			markdownString.appendMarkdown('**');
+		}
+
+		// Date
+		if (authorDate && !isNaN(new Date(authorDate).getTime())) {
 			const dateString = new Date(authorDate).toLocaleString(undefined, {
 				year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric'
 			});
-			markdownString.appendMarkdown(`, $(history) ${fromNow(authorDate, true, true)} (${dateString})`);
+
+			markdownString.appendMarkdown(', $(history)');
+			markdownString.appendText(` ${fromNow(authorDate, true, true)} (${dateString})`);
 		}
 
 		markdownString.appendMarkdown('\n\n');
 	}
 
-	// Subject | Message
-	markdownString.appendMarkdown(`${emojify(message.replace(/\r\n|\r|\n/g, '\n\n'))}\n\n`);
+	// Subject | Message (escape image syntax)
+	markdownString.appendMarkdown(`${emojify(message.replace(/!\[/g, '&#33;&#91;').replace(/\r\n|\r|\n/g, '\n\n'))}\n\n`);
 	markdownString.appendMarkdown(`---\n\n`);
 
 	// Short stats
@@ -663,6 +702,17 @@ export function getHistoryItemHover(authorAvatar: string | undefined, authorName
 		markdownString.appendMarkdown(`\n\n---\n\n`);
 	}
 
+	// References
+	// TODO@lszomoru - move these to core
+	// if (references && references.length > 0) {
+	// 	markdownString.appendMarkdown((references ?? []).map(ref => {
+	// 		console.log(ref);
+	// 		const labelIconId = ref.icon instanceof ThemeIcon ? ref.icon.id : '';
+	// 		return `<span style="color:var(--vscode-scmGraph-historyItemHoverDefaultLabelForeground);background-color:var(--vscode-scmGraph-historyItemHoverDefaultLabelBackground);border-radius:10px;">&nbsp;$(${labelIconId})&nbsp;${ref.name}&nbsp;&nbsp;</span>`;
+	// 	}).join('&nbsp;&nbsp;'));
+	// 	markdownString.appendMarkdown(`\n\n---\n\n`);
+	// }
+
 	// Commands
 	if (commands && commands.length > 0) {
 		for (let index = 0; index < commands.length; index++) {
@@ -675,22 +725,6 @@ export function getHistoryItemHover(authorAvatar: string | undefined, authorName
 			markdownString.appendMarkdown(commandsMarkdown.join('&nbsp;'));
 		}
 	}
-
-	// markdownString.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(documentUri, hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, hash, documentUri]))} "${l10n.t('Open Commit')}")`);
-	// markdownString.appendMarkdown('&nbsp;');
-	// markdownString.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(hash))} "${l10n.t('Copy Commit Hash')}")`);
-
-	// // Remote hover commands
-	// if (commands && commands.length > 0) {
-	// 	markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
-
-	// 	const remoteCommandsMarkdown = commands
-	// 		.map(command => `[${command.title}](command:${command.command}?${encodeURIComponent(JSON.stringify([...command.arguments ?? [], hash]))} "${command.tooltip}")`);
-	// 	markdownString.appendMarkdown(remoteCommandsMarkdown.join('&nbsp;'));
-	// }
-
-	// markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
-	// markdownString.appendMarkdown(`[$(gear)](command:workbench.action.openSettings?%5B%22git.blame%22%5D "${l10n.t('Open Settings')}")`);
 
 	return markdownString;
 }

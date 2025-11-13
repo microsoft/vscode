@@ -162,6 +162,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'inspect-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'export-default-configuration': { type: 'string' },
+	'export-policy-data': { type: 'string', allowEmptyValue: true },
 	'install-source': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },
 	'logExtensionHostCommunication': { type: 'boolean' },
@@ -465,7 +466,7 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 				subcommands.push({ command: optionId, description: o.description });
 			}
 		} else if (o.description && o.cat) {
-			const cat = o.cat as keyof typeof helpCategories;
+			const cat = o.cat;
 			let optionsByCat = optionsByCategory[cat];
 			if (!optionsByCat) {
 				optionsByCategory[cat] = optionsByCat = {};

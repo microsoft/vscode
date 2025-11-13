@@ -18,6 +18,7 @@ import { CellEditState, CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewM
 import { NotebookViewModel } from '../../viewModel/notebookViewModelImpl.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { CellKind, INotebookFindOptions, NotebookCellsChangeType } from '../../../common/notebookCommon.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 
 export class CellFindMatchModel implements CellFindMatchWithIndex {
 	readonly cell: ICellViewModel;
@@ -220,8 +221,8 @@ export class FindModel extends Disposable {
 		const matchesBefore = findMatchIndex === 0 ? 0 : (this._findMatchesStarts?.getPrefixSum(findMatchIndex - 1) ?? 0);
 		this._currentMatch = matchesBefore + index;
 
-		this.highlightCurrentFindMatchDecoration(findMatchIndex, index).then(offset => {
-			this.revealCellRange(findMatchIndex, index, offset);
+		this.highlightCurrentFindMatchDecoration(findMatchIndex, index).then(async offset => {
+			await this.revealCellRange(findMatchIndex, index, offset);
 
 			this._state.changeMatchInfo(
 				this._currentMatch,
@@ -239,14 +240,14 @@ export class FindModel extends Disposable {
 		// let currCell;
 		if (!this._findMatchesStarts) {
 			this.set(this._findMatches, true);
-			if ('index' in option) {
+			if (hasKey(option, { index: true })) {
 				this._currentMatch = option.index;
 			}
 		} else {
 			// const currIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 			// currCell = this._findMatches[currIndex.index].cell;
 			const totalVal = this._findMatchesStarts.getTotalSum();
-			if ('index' in option) {
+			if (hasKey(option, { index: true })) {
 				this._currentMatch = option.index;
 			}
 			else if (this._currentMatch === -1) {
@@ -259,8 +260,8 @@ export class FindModel extends Disposable {
 
 		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 		// const newFocusedCell = this._findMatches[nextIndex.index].cell;
-		this.highlightCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder).then(offset => {
-			this.revealCellRange(nextIndex.index, nextIndex.remainder, offset);
+		this.highlightCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder).then(async offset => {
+			await this.revealCellRange(nextIndex.index, nextIndex.remainder, offset);
 
 			this._state.changeMatchInfo(
 				this._currentMatch,
@@ -270,7 +271,7 @@ export class FindModel extends Disposable {
 		});
 	}
 
-	private revealCellRange(cellIndex: number, matchIndex: number, outputOffset: number | null) {
+	private async revealCellRange(cellIndex: number, matchIndex: number, outputOffset: number | null) {
 		const findMatch = this._findMatches[cellIndex];
 		if (matchIndex >= findMatch.contentMatches.length) {
 			// reveal output range
@@ -288,6 +289,9 @@ export class FindModel extends Disposable {
 			findMatch.cell.isInputCollapsed = false;
 			this._notebookEditor.focusElement(findMatch.cell);
 			this._notebookEditor.setCellEditorSelection(findMatch.cell, match.range);
+			// First ensure the cell is visible in the notebook viewport
+			await this._notebookEditor.revealInView(findMatch.cell);
+			// Then reveal the specific range within the cell editor
 			this._notebookEditor.revealRangeInCenterIfOutsideViewportAsync(findMatch.cell, match.range);
 		}
 	}

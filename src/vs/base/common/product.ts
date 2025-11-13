@@ -212,12 +212,14 @@ export interface IProductConfiguration {
 			readonly id: string;
 			readonly enterpriseProviderId: string;
 			readonly enterpriseProviderConfig: string;
+			readonly enterpriseProviderUriSetting: string;
 			readonly scopes: string[];
 		};
 		readonly tokenEntitlementUrl: string;
 		readonly chatEntitlementUrl: string;
 		readonly mcpRegistryDataUrl: string;
 	};
+	readonly authClientIdMetadataUrl?: string;
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 

@@ -22,6 +22,7 @@ import { isUriComponents, URI } from '../../../../base/common/uri.js';
 import { deepClone } from '../../../../base/common/objects.js';
 import { ITerminalInstanceService } from './terminal.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import type { SingleOrMany } from '../../../../base/common/types.js';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell(remoteAuthority: string | undefined, os: OperatingSystem): Promise<string>;
@@ -156,7 +157,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		return (await this.getDefaultProfile(options)).path;
 	}
 
-	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> {
+	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<SingleOrMany<string>> {
 		return (await this.getDefaultProfile(options)).args || [];
 	}
 
@@ -168,7 +169,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		return this._context.getEnvironment(remoteAuthority);
 	}
 
-	private _getCustomIcon(icon?: unknown): TerminalIcon | undefined {
+	private _getCustomIcon(icon?: TerminalIcon): TerminalIcon | undefined {
 		if (!icon) {
 			return undefined;
 		}
@@ -181,11 +182,8 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		if (URI.isUri(icon) || isUriComponents(icon)) {
 			return URI.revive(icon);
 		}
-		if (typeof icon === 'object' && 'light' in icon && 'dark' in icon) {
-			const castedIcon = (icon as { light: unknown; dark: unknown });
-			if ((URI.isUri(castedIcon.light) || isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || isUriComponents(castedIcon.dark))) {
-				return { light: URI.revive(castedIcon.light), dark: URI.revive(castedIcon.dark) };
-			}
+		if ((URI.isUri(icon.light) || isUriComponents(icon.light)) && (URI.isUri(icon.dark) || isUriComponents(icon.dark))) {
+			return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
 		}
 		return undefined;
 	}
@@ -243,7 +241,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		}
 
 		// Finally fallback to a generated profile
-		let args: string | string[] | undefined;
+		let args: SingleOrMany<string> | undefined;
 		if (options.os === OperatingSystem.Macintosh && path.parse(executable).name.match(/(zsh|bash)/)) {
 			// macOS should launch a login shell by default
 			args = ['--login'];

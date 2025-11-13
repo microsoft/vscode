@@ -355,7 +355,7 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 		// Label
 		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true, hoverDelegate: this.hoverDelegate });
 		data.toDisposeTemplate.add(data.label);
-		data.icon = <HTMLInputElement>dom.prepend(data.label.element, $('.quick-input-list-icon'));
+		data.icon = dom.prepend(data.label.element, $('.quick-input-list-icon'));
 
 		// Keybinding
 		const keybindingContainer = dom.append(row1, $('.quick-input-list-entry-keybinding'));
@@ -421,6 +421,9 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			checkbox = new Checkbox(element.saneLabel, element.checked, { ...defaultCheckboxStyles, size: 15 });
 			data.checkbox.value = checkbox;
 			data.outerLabel.prepend(checkbox.domNode);
+			// Remove checkbox from tab order since tree items are navigable with arrow keys
+			// This prevents the issue where pressing Space toggles both the tabbed checkbox and the focused item
+			checkbox.domNode.tabIndex = -1;
 		} else {
 			checkbox.setTitle(element.saneLabel);
 		}
@@ -1130,6 +1133,7 @@ export class QuickInputList extends Disposable {
 		// https://github.com/microsoft/vscode/issues/211976
 		if (this.accessibilityService.isScreenReaderOptimized()) {
 			setTimeout(() => {
+				// eslint-disable-next-line no-restricted-syntax
 				const focusedElement = this._tree.getHTMLElement().querySelector(`.monaco-list-row.focused`);
 				const parent = focusedElement?.parentNode;
 				if (focusedElement && parent) {

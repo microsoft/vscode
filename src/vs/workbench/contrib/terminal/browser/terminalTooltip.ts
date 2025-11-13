@@ -103,13 +103,21 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 	if (seenSequences.length > 0) {
 		detailedAdditions.push(`Seen sequences: ${seenSequences.map(e => `\`${e}\``).join(', ')}`);
 	}
-	const promptType = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptType;
+	const promptType = instance.capabilities.get(TerminalCapability.PromptTypeDetection)?.promptType;
 	if (promptType) {
 		detailedAdditions.push(`Prompt type: \`${promptType}\``);
 	}
 	const combinedString = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString();
 	if (combinedString !== undefined) {
-		detailedAdditions.push(`Prompt input: \`${combinedString}\``);
+		if (combinedString.includes('`')) {
+			detailedAdditions.push('Prompt input:' + [
+				'```',
+				combinedString, // No new lines so no need to escape ```
+				'```',
+			].map(e => `\n    ${e}`).join(''));
+		} else {
+			detailedAdditions.push(`Prompt input: \`${combinedString.replaceAll('`', '&#96;')}\``);
+		}
 	}
 	const detailedAdditionsString = detailedAdditions.length > 0
 		? '\n\n' + detailedAdditions.map(e => `- ${e}`).join('\n')

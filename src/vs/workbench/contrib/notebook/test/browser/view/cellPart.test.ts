@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from "assert";
-import { ensureNoDisposablesAreLeakedInTestSuite } from "../../../../../../base/test/common/utils.js";
-import { CodeCellRenderTemplate } from "../../../browser/view/notebookRenderingCommon.js";
-import { CodeCellViewModel } from "../../../browser/viewModel/codeCellViewModel.js";
-import { CodeCellLayout } from "../../../browser/view/cellParts/codeCell.js";
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { CodeCellRenderTemplate } from '../../../browser/view/notebookRenderingCommon.js';
+import { CodeCellViewModel } from '../../../browser/viewModel/codeCellViewModel.js';
+import { CodeCellLayout } from '../../../browser/view/cellParts/codeCell.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { CodeCellLayoutInfo, IActiveNotebookEditorDelegate } from '../../../browser/notebookBrowser.js';
 
-suite("CellPart", () => {
+suite('CellPart', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("CodeCellLayout editor visibility states", () => {
+	test('CodeCellLayout editor visibility states', () => {
 		/**
 		 * We construct a very small mock around the parts that `CodeCellLayout` touches. The goal
 		 * is to validate the branching logic that sets `_editorVisibility` without mutating any
@@ -45,65 +45,65 @@ suite("CellPart", () => {
 
 		const scenarios: TestScenario[] = [
 			{
-				name: "Full",
+				name: 'Full',
 				scrollTop: 0,
 				viewportHeight: 400,
 				editorContentHeight: 300,
 				editorHeight: 300,
 				outputContainerOffset: 300, // editorBottom = 100 + 300 = 400, fully inside viewport (scrollBottom=400)
-				expected: "Full",
+				expected: 'Full',
 				elementTop: DEFAULT_ELEMENT_TOP,
 				elementHeight: DEFAULT_ELEMENT_HEIGHT,
 				expectedTop: 0,
 				expectedEditorScrollTop: 0,
 			},
 			{
-				name: "Bottom Clipped",
+				name: 'Bottom Clipped',
 				scrollTop: 0,
 				viewportHeight: 350, // scrollBottom=350 < editorBottom(400)
 				editorContentHeight: 300,
 				editorHeight: 300,
 				outputContainerOffset: 300,
-				expected: "Bottom Clipped",
+				expected: 'Bottom Clipped',
 				elementTop: DEFAULT_ELEMENT_TOP,
 				elementHeight: DEFAULT_ELEMENT_HEIGHT,
 				expectedTop: 0,
 				expectedEditorScrollTop: 0,
 			},
 			{
-				name: "Full (Small Viewport)",
+				name: 'Full (Small Viewport)',
 				scrollTop: DEFAULT_ELEMENT_TOP + TOP_MARGIN + 20, // scrolled into the cell body
 				viewportHeight: 220, // small vs content
 				editorContentHeight: 500, // larger than viewport so we clamp
 				editorHeight: 500,
 				outputContainerOffset: 600, // editorBottom=700 > scrollBottom
-				expected: "Full (Small Viewport)",
+				expected: 'Full (Small Viewport)',
 				elementTop: DEFAULT_ELEMENT_TOP,
 				elementHeight: DEFAULT_ELEMENT_HEIGHT,
 				expectedTop: 19, // (scrollTop - elementTop - topMargin - outlineWidth) = (100+6+20 -100 -6 -1)
 				expectedEditorScrollTop: 19,
 			},
 			{
-				name: "Top Clipped",
+				name: 'Top Clipped',
 				scrollTop: DEFAULT_ELEMENT_TOP + TOP_MARGIN + 40, // scrolled further down but not past bottom
 				viewportHeight: 600, // larger than content height below (forces branch for Top Clipped)
 				editorContentHeight: 200,
 				editorHeight: 200,
 				outputContainerOffset: 450, // editorBottom=550; scrollBottom= scrollTop+viewportHeight = > 550?  (540+600=1140) but we only need scrollTop < editorBottom
-				expected: "Top Clipped",
+				expected: 'Top Clipped',
 				elementTop: DEFAULT_ELEMENT_TOP,
 				elementHeight: DEFAULT_ELEMENT_HEIGHT,
 				expectedTop: 39, // (100+6+40 -100 -6 -1)
 				expectedEditorScrollTop: 40, // contentHeight(200) - computed height(160)
 			},
 			{
-				name: "Invisible",
+				name: 'Invisible',
 				scrollTop: DEFAULT_ELEMENT_TOP + 1000, // well below editor bottom
 				viewportHeight: 400,
 				editorContentHeight: 300,
 				editorHeight: 300,
 				outputContainerOffset: 300, // editorBottom=400 < scrollTop
-				expected: "Invisible",
+				expected: 'Invisible',
 				elementTop: DEFAULT_ELEMENT_TOP,
 				elementHeight: DEFAULT_ELEMENT_HEIGHT,
 				expectedTop: 278, // adjusted after ensuring minimum line height when possibleEditorHeight < LINE_HEIGHT
@@ -129,7 +129,7 @@ suite("CellPart", () => {
 				hasModel: () => true,
 			};
 
-			const editorPart = { style: { top: "" } };
+			const editorPart = { style: { top: '' } };
 			const template: Partial<CodeCellRenderTemplate> = {
 				editor: stubEditor as unknown as ICodeEditor,
 				editorPart: editorPart as unknown as HTMLElement,
@@ -186,14 +186,14 @@ suite("CellPart", () => {
 				{ width: 600, height: s.editorHeight }
 			);
 
-			layout.layoutEditor(s.name);
+			layout.layoutEditor('init');
 			assert.strictEqual(
 				layout.editorVisibility,
 				s.expected,
 				`Scenario '${s.name}' (scrollTop=${s.scrollTop}) expected visibility ${s.expected} but got ${layout.editorVisibility}`
 			);
 			const actualTop = parseInt(
-				(editorPart.style.top || "0").replace(/px$/, "")
+				(editorPart.style.top || '0').replace(/px$/, '')
 			); // style.top always like 'NNNpx'
 			assert.strictEqual(
 				actualTop,
@@ -207,23 +207,23 @@ suite("CellPart", () => {
 			);
 
 			// Basic sanity: style.top should always be set when visible states other than Full (handled) or Invisible.
-			if (s.expected !== "Invisible") {
+			if (s.expected !== 'Invisible') {
 				assert.notStrictEqual(
 					editorPart.style.top,
-					"",
+					'',
 					`Scenario '${s.name}' should set a top style value`
 				);
 			} else {
 				// Invisible still sets a top; just ensure layout ran
 				assert.ok(
 					editorPart.style.top !== undefined,
-					"Invisible scenario still performs a layout"
+					'Invisible scenario still performs a layout'
 				);
 			}
 		}
 	});
 
-	test("Scrolling", () => {
+	test('Scrolling', () => {
 		/**
 		 * Pixel-by-pixel scroll test to validate `CodeCellLayout` calculations for:
 		 *  - editorPart.style.top
@@ -261,7 +261,7 @@ suite("CellPart", () => {
 				top = top - (LINE_HEIGHT - possibleEditorHeight) - CELL_OUTLINE_WIDTH;
 			}
 			let height = EDITOR_CONTENT_HEIGHT;
-			let visibility: string = "Full";
+			let visibility: string = 'Full';
 			let editorScrollTop = 0;
 			if (scrollTop <= ELEMENT_TOP + CELL_TOP_MARGIN) {
 				const minimumEditorHeight = LINE_HEIGHT + 6; // editorTopPadding from configuration stub (6)
@@ -271,7 +271,7 @@ suite("CellPart", () => {
 						minimumEditorHeight,
 						EDITOR_CONTENT_HEIGHT
 					);
-					visibility = "Full";
+					visibility = 'Full';
 				} else {
 					height =
 						clamp(
@@ -280,7 +280,7 @@ suite("CellPart", () => {
 							EDITOR_CONTENT_HEIGHT
 						) +
 						2 * CELL_OUTLINE_WIDTH;
-					visibility = "Bottom Clipped";
+					visibility = 'Bottom Clipped';
 					editorScrollTop = 0;
 				}
 			} else {
@@ -296,7 +296,7 @@ suite("CellPart", () => {
 							EDITOR_CONTENT_HEIGHT - STATUSBAR_HEIGHT
 						) +
 						2 * CELL_OUTLINE_WIDTH;
-					visibility = "Full (Small Viewport)";
+					visibility = 'Full (Small Viewport)';
 					editorScrollTop = top;
 				} else {
 					const minimumEditorHeight = LINE_HEIGHT;
@@ -307,9 +307,9 @@ suite("CellPart", () => {
 						EDITOR_CONTENT_HEIGHT
 					);
 					if (scrollTop > editorBottom) {
-						visibility = "Invisible";
+						visibility = 'Invisible';
 					} else {
-						visibility = "Top Clipped";
+						visibility = 'Top Clipped';
 					}
 					editorScrollTop = EDITOR_CONTENT_HEIGHT - height;
 				}
@@ -337,7 +337,7 @@ suite("CellPart", () => {
 				},
 				hasModel: () => true,
 			};
-			const editorPart = { style: { top: "" } };
+			const editorPart = { style: { top: '' } };
 			const template: Partial<CodeCellRenderTemplate> = {
 				editor: stubEditor as unknown as ICodeEditor,
 				editorPart: editorPart as unknown as HTMLElement,
@@ -380,9 +380,9 @@ suite("CellPart", () => {
 				{ debug: () => { } },
 				{ width: 600, height: EDITOR_HEIGHT }
 			);
-			layout.layoutEditor("scroll");
+			layout.layoutEditor('nbDidScroll');
 			const actualTop = parseInt(
-				(editorPart.style.top || "0").replace(/px$/, "")
+				(editorPart.style.top || '0').replace(/px$/, '')
 			);
 			assert.strictEqual(
 				actualTop,

@@ -1,4 +1,8 @@
 "use strict";
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -6,10 +10,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DeclarationResolver = exports.FSProvider = exports.RECIPE_PATH = void 0;
 exports.run3 = run3;
 exports.execute = execute;
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const fancy_log_1 = __importDefault(require("fancy-log"));
@@ -336,7 +336,7 @@ function generateDeclarationFile(ts, recipe, sourceFileGetter) {
     usage.push(`var b: any;`);
     const generateUsageImport = (moduleId) => {
         const importName = 'm' + (++usageCounter);
-        usageImports.push(`import * as ${importName} from './${moduleId.replace(/\.d\.ts$/, '')}';`);
+        usageImports.push(`import * as ${importName} from './${moduleId}';`);
         return importName;
     };
     const enums = [];
@@ -538,6 +538,9 @@ class DeclarationResolver {
         if (/\.d\.ts$/.test(moduleId)) {
             return path_1.default.join(SRC, moduleId);
         }
+        if (/\.js$/.test(moduleId)) {
+            return path_1.default.join(SRC, moduleId.replace(/\.js$/, '.ts'));
+        }
         return path_1.default.join(SRC, `${moduleId}.ts`);
     }
     _getDeclarationSourceFile(moduleId) {
@@ -555,7 +558,7 @@ class DeclarationResolver {
         const fileMap = new Map([
             ['file.ts', fileContents]
         ]);
-        const service = this.ts.createLanguageService(new typeScriptLanguageServiceHost_1.TypeScriptLanguageServiceHost(this.ts, new Map(), fileMap, {}, 'defaultLib:es5'));
+        const service = this.ts.createLanguageService(new typeScriptLanguageServiceHost_1.TypeScriptLanguageServiceHost(this.ts, fileMap, {}));
         const text = service.getEmitOutput('file.ts', true, true).outputFiles[0].text;
         return new CacheEntry(this.ts.createSourceFile(fileName, text, this.ts.ScriptTarget.ES5), mtime);
     }

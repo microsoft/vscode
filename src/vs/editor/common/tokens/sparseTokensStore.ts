@@ -246,8 +246,15 @@ export class SparseTokensStore {
 	}
 
 	public acceptEdit(range: IRange, eolCount: number, firstLineLength: number, lastLineLength: number, firstCharCode: number): void {
-		for (const piece of this._pieces) {
+		for (let i = 0; i < this._pieces.length; i++) {
+			const piece = this._pieces[i];
 			piece.acceptEdit(range, eolCount, firstLineLength, lastLineLength, firstCharCode);
+
+			if (piece.isEmpty()) {
+				// Remove empty pieces
+				this._pieces.splice(i, 1);
+				i--;
+			}
 		}
 	}
 }

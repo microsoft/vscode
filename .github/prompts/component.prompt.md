@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 'Help author a component specification for an agent.'
 tools: ['edit', 'search', 'usages', 'vscodeAPI', 'fetch', 'extensions', 'todos']
 ---

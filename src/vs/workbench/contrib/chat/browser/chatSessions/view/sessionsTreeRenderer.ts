@@ -7,19 +7,24 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { $, append } from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { InputBox, MessageType } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from '../../../../../../base/browser/ui/tree/tree.js';
 import { timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore, createMatches } from '../../../../../../base/common/filters.js';
 import { createSingleCallFunction } from '../../../../../../base/common/functional.js';
 import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import * as nls from '../../../../../../nls.js';
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
@@ -27,26 +32,22 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
-import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
-import { IWorkbenchLayoutService, Position } from '../../../../../services/layout/browser/layoutService.js';
-import { ViewContainerLocation, IEditableData } from '../../../../../common/views.js';
 import { IResourceLabel, ResourceLabels } from '../../../../../browser/labels.js';
-import { IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { IEditableData, ViewContainerLocation } from '../../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IWorkbenchLayoutService, Position } from '../../../../../services/layout/browser/layoutService.js';
+import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
 import { IChatService } from '../../../common/chatService.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatWidgetService } from '../../chat.js';
 import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.js';
-import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, isLocalChatSessionItem, processSessionsWithTimeGrouping } from '../common.js';
 import '../../media/chatSessions.css';
-import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
+import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, isLocalChatSessionItem, processSessionsWithTimeGrouping } from '../common.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -58,6 +59,25 @@ interface ISessionTemplateData {
 	readonly descriptionLabel: HTMLElement;
 	readonly statisticsLabel: HTMLElement;
 	readonly customIcon: HTMLElement;
+}
+
+export class ArchivedSessionItems {
+	private readonly items: Map<string, ChatSessionItemWithProvider> = new Map();
+	constructor(public readonly label: string) {
+	}
+
+	pushItem(item: ChatSessionItemWithProvider): void {
+		const key = item.resource.toString();
+		this.items.set(key, item);
+	}
+
+	getItems(): ChatSessionItemWithProvider[] {
+		return Array.from(this.items.values());
+	}
+
+	clear(): void {
+		this.items.clear();
+	}
 }
 
 export interface IGettingStartedItem {
@@ -188,17 +208,31 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			default:
 				return Codicon.circleOutline;
 		}
+	}
 
+	private renderArchivedNode(node: ArchivedSessionItems, templateData: ISessionTemplateData): void {
+		templateData.customIcon.className = '';
+		templateData.descriptionRow.style.display = 'none';
+		templateData.timestamp.parentElement!.style.display = 'none';
+
+		const childCount = node.getItems().length;
+		templateData.iconLabel.setLabel(node.label, undefined, {
+			title: childCount === 1 ? nls.localize('chat.sessions.groupNode.single', '1 session') : nls.localize('chat.sessions.groupNode.multiple', '{0} sessions', childCount)
+		});
 	}
 
 	renderElement(element: ITreeNode<IChatSessionItem, FuzzyScore>, index: number, templateData: ISessionTemplateData): void {
-		const session = element.element as ChatSessionItemWithProvider;
+		if (element.element instanceof ArchivedSessionItems) {
+			this.renderArchivedNode(element.element, templateData);
+			return;
+		}
 
+		const session = element.element as ChatSessionItemWithProvider;
 		// Add CSS class for local sessions
 		let editableData: IEditableData | undefined;
 		if (isLocalChatSessionItem(session)) {
 			templateData.container.classList.add('local-session');
-			editableData = this.chatSessionsService.getEditableData(session.id);
+			editableData = this.chatSessionsService.getEditableData(session.resource);
 		} else {
 			templateData.container.classList.remove('local-session');
 		}
@@ -217,13 +251,13 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 		// Handle different icon types
 		let iconTheme: ThemeIcon | undefined;
-		if (!session.iconPath && session.id !== LocalChatSessionsProvider.HISTORY_NODE_ID) {
+		if (!session.iconPath) {
 			iconTheme = this.statusToIcon(session.status);
 		} else {
 			iconTheme = session.iconPath;
 		}
 
-		const renderDescriptionOnSecondRow = this.configurationService.getValue<boolean>(ChatConfiguration.ShowAgentSessionsViewDescription) && session.provider.chatSessionType !== 'local';
+		const renderDescriptionOnSecondRow = this.configurationService.getValue<boolean>(ChatConfiguration.ShowAgentSessionsViewDescription) && session.provider.chatSessionType !== localChatSessionType;
 
 		if (renderDescriptionOnSecondRow && session.description) {
 			templateData.container.classList.toggle('multiline', true);
@@ -281,7 +315,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				templateData.elementDisposable.add(
 					this.hoverService.setupDelayedHover(templateData.container, () => ({
 						content: tooltipContent,
-						appearance: { showPointer: true },
+						style: HoverStyle.Pointer,
 						position: { hoverPosition: this.getHoverPosition() }
 					}), { groupId: 'chat.sessions' })
 				);
@@ -289,7 +323,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				templateData.elementDisposable.add(
 					this.hoverService.setupDelayedHover(templateData.container, () => ({
 						content: tooltipContent.markdown,
-						appearance: { showPointer: true },
+						style: HoverStyle.Pointer,
 						position: { hoverPosition: this.getHoverPosition() }
 					}), { groupId: 'chat.sessions' })
 				);
@@ -310,7 +344,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				templateData.elementDisposable.add(
 					this.hoverService.setupDelayedHover(templateData.timestamp, () => ({
 						content: nls.localize('chat.sessions.lastActivity', 'Last Activity: {0}', fullDateTime),
-						appearance: { showPointer: true },
+						style: HoverStyle.Pointer,
 						position: { hoverPosition: this.getHoverPosition() }
 					}), { groupId: 'chat.sessions' })
 				);
@@ -371,12 +405,14 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 	private renderInputBox(container: HTMLElement, session: IChatSessionItem, editableData: IEditableData): DisposableStore {
 		// Hide the existing resource label element and session content
+		// eslint-disable-next-line no-restricted-syntax
 		const existingResourceLabelElement = container.querySelector('.monaco-icon-label') as HTMLElement;
 		if (existingResourceLabelElement) {
 			existingResourceLabelElement.style.display = 'none';
 		}
 
 		// Hide the session content container to avoid layout conflicts
+		// eslint-disable-next-line no-restricted-syntax
 		const sessionContentElement = container.querySelector('.session-content') as HTMLElement;
 		if (sessionContentElement) {
 			sessionContentElement.style.display = 'none';
@@ -429,6 +465,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			}
 
 			// Restore the session content container
+			// eslint-disable-next-line no-restricted-syntax
 			const sessionContentElement = container.querySelector('.session-content') as HTMLElement;
 			if (sessionContentElement) {
 				sessionContentElement.style.display = '';
@@ -504,96 +541,76 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 }
 
 // Chat sessions item data source for the tree
-export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, ChatSessionItemWithProvider> {
-
+export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, ChatSessionItemWithProvider | ArchivedSessionItems> {
+	// For now call it History until we support archive on all providers
+	private archivedItems = new ArchivedSessionItems(nls.localize('chat.sessions.archivedSessions', 'History'));
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
-		private readonly chatService: IChatService,
 		private readonly sessionTracker: ChatSessionTracker,
 	) {
 	}
 
-	hasChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider): boolean {
-		const isProvider = element === this.provider;
-		if (isProvider) {
+	hasChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider | ArchivedSessionItems): boolean {
+		if (element === this.provider) {
 			// Root provider always has children
 			return true;
 		}
 
-		// Check if this is the "Show history..." node
-		if ('id' in element && element.id === LocalChatSessionsProvider.HISTORY_NODE_ID) {
-			return true;
+		if (element instanceof ArchivedSessionItems) {
+			return element.getItems().length > 0;
 		}
 
 		return false;
 	}
 
-	async getChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider): Promise<ChatSessionItemWithProvider[]> {
+	async getChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider | ArchivedSessionItems): Promise<(ChatSessionItemWithProvider | ArchivedSessionItems)[]> {
 		if (element === this.provider) {
 			try {
 				const items = await this.provider.provideChatSessionItems(CancellationToken.None);
-				const itemsWithProvider = items.map(item => {
-					const itemWithProvider: ChatSessionItemWithProvider = { ...item, provider: this.provider };
-
-					// Extract timestamp using the helper function
-					itemWithProvider.timing = { startTime: extractTimestamp(item) ?? 0 };
-
+				// Clear archived items from previous calls
+				this.archivedItems.clear();
+				let ungroupedItems = items.map(item => {
+					const itemWithProvider = { ...item, provider: this.provider, timing: { startTime: extractTimestamp(item) ?? 0 } };
+					if (itemWithProvider.archived) {
+						this.archivedItems.pushItem(itemWithProvider);
+						return;
+					}
 					return itemWithProvider;
-				});
+				}).filter(item => item !== undefined);
 
-				// Add hybrid local editor sessions for this provider using the centralized service
-				if (this.provider.chatSessionType !== 'local') {
+				// Add hybrid local editor sessions for this provider
+				if (this.provider.chatSessionType !== localChatSessionType) {
 					const hybridSessions = await this.sessionTracker.getHybridSessionsForProvider(this.provider);
-					const existingIds = new Set(itemsWithProvider.map(s => s.id));
+					const existingSessions = new ResourceSet();
+					// Iterate only over the ungrouped items, the only group we support for now is history
+					ungroupedItems.forEach(s => existingSessions.add(s.resource));
 					hybridSessions.forEach(session => {
-						if (!existingIds.has(session.id)) {
-							itemsWithProvider.push(session as ChatSessionItemWithProvider);
-							existingIds.add(session.id);
+						if (!existingSessions.has(session.resource)) {
+							ungroupedItems.push(session as ChatSessionItemWithProvider);
+							existingSessions.add(session.resource);
 						}
 					});
-					processSessionsWithTimeGrouping(itemsWithProvider);
+					ungroupedItems = processSessionsWithTimeGrouping(ungroupedItems);
 				}
 
-				return itemsWithProvider;
+				const result = [];
+				result.push(...ungroupedItems);
+				if (this.archivedItems.getItems().length > 0) {
+					result.push(this.archivedItems);
+				}
+
+				return result;
 			} catch (error) {
 				return [];
 			}
 		}
 
-		// Check if this is the "Show history..." node
-		if ('id' in element && element.id === LocalChatSessionsProvider.HISTORY_NODE_ID) {
-			return this.getHistoryItems();
+		if (element instanceof ArchivedSessionItems) {
+			return processSessionsWithTimeGrouping(element.getItems());
 		}
 
 		// Individual session items don't have children
 		return [];
-	}
-
-	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
-		try {
-			// Get all chat history
-			const allHistory = await this.chatService.getHistory();
-
-			// Create history items with provider reference and timestamps
-			const historyItems = allHistory.map((historyDetail: any): ChatSessionItemWithProvider => ({
-				id: historyDetail.sessionId,
-				label: historyDetail.title,
-				iconPath: Codicon.chatSparkle,
-				provider: this.provider,
-				timing: {
-					startTime: historyDetail.lastMessageDate ?? Date.now()
-				},
-				isHistory: true,
-			}));
-
-			// Apply sorting and time grouping
-			processSessionsWithTimeGrouping(historyItems);
-
-			return historyItems;
-
-		} catch (error) {
-			return [];
-		}
 	}
 }
 
@@ -606,7 +623,7 @@ export class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWit
 
 	getHeight(element: ChatSessionItemWithProvider): number {
 		// Return consistent height for all items (single-line layout)
-		if (element.description && this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && element.provider.chatSessionType !== 'local') {
+		if (element.description && this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && element.provider.chatSessionType !== localChatSessionType) {
 			return SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION;
 		} else {
 			return SessionsDelegate.ITEM_HEIGHT;

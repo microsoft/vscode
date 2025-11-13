@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { GroupModelChangeKind } from '../../../../common/editor.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './common.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider } from '../../common/chatSessionsService.js';
-import { IChatService } from '../../common/chatService.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatModel } from '../../common/chatModel.js';
-import { ChatSessionUri } from '../../common/chatUri.js';
+import { IChatService } from '../../common/chatService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatSessionItemWithProvider, isChatSession } from './common.js';
 
 export class ChatSessionTracker extends Disposable {
 	private readonly _onDidChangeEditors = this._register(new Emitter<{ sessionType: string; kind: GroupModelChangeKind }>());
+	private readonly groupDisposables = this._register(new DisposableMap<number>());
 	readonly onDidChangeEditors = this._onDidChangeEditors.event;
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IChatService private readonly chatService: IChatService
+		@IChatService private readonly chatService: IChatService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		this.setupEditorTracking();
@@ -33,21 +33,26 @@ export class ChatSessionTracker extends Disposable {
 		this.editorGroupsService.groups.forEach(group => {
 			this.registerGroupListeners(group);
 		});
-
 		// Listen for new groups
 		this._register(this.editorGroupsService.onDidAddGroup(group => {
 			this.registerGroupListeners(group);
 		}));
+		// Listen for deleted groups
+		this._register(this.editorGroupsService.onDidRemoveGroup(group => {
+			this.groupDisposables.deleteAndDispose(group.id);
+		}));
 	}
 
 	private registerGroupListeners(group: IEditorGroup): void {
-		this._register(group.onDidModelChange(e => {
-			if (!isChatSession(e.editor)) {
+		this.groupDisposables.set(group.id, group.onDidModelChange(e => {
+			if (!isChatSession(this.chatSessionsService.getContentProviderSchemes(), e.editor)) {
 				return;
 			}
 
 			const editor = e.editor as ChatEditorInput;
-			const sessionType = getChatSessionType(editor);
+			const sessionType = editor.getSessionType();
+
+			this.chatSessionsService.notifySessionItemsChanged(sessionType);
 
 			// Emit targeted event for this session type
 			this._onDidChangeEditors.fire({ sessionType, kind: e.kind });
@@ -59,7 +64,7 @@ export class ChatSessionTracker extends Disposable {
 
 		this.editorGroupsService.groups.forEach(group => {
 			group.editors.forEach(editor => {
-				if (editor instanceof ChatEditorInput && getChatSessionType(editor) === sessionType) {
+				if (editor instanceof ChatEditorInput && editor.getSessionType() === sessionType) {
 					localEditors.push(editor);
 				}
 			});
@@ -69,7 +74,7 @@ export class ChatSessionTracker extends Disposable {
 	}
 
 	async getHybridSessionsForProvider(provider: IChatSessionItemProvider): Promise<IChatSessionItem[]> {
-		if (provider.chatSessionType === 'local') {
+		if (provider.chatSessionType === localChatSessionType) {
 			return []; // Local provider doesn't need hybrid sessions
 		}
 
@@ -85,13 +90,14 @@ export class ChatSessionTracker extends Disposable {
 				return;
 			}
 
-			let status: ChatSessionStatus | undefined;
+			let status: ChatSessionStatus = ChatSessionStatus.Completed;
 			let timestamp: number | undefined;
 
-			if (editor.sessionId) {
-				const model = this.chatService.getSession(editor.sessionId);
-				if (model) {
-					status = this.modelToStatus(model);
+			if (editor.sessionResource) {
+				const model = this.chatService.getSession(editor.sessionResource);
+				const modelStatus = model ? this.modelToStatus(model) : undefined;
+				if (model && modelStatus) {
+					status = modelStatus;
 					const requests = model.getRequests();
 					if (requests.length > 0) {
 						timestamp = requests[requests.length - 1].timestamp;
@@ -99,12 +105,10 @@ export class ChatSessionTracker extends Disposable {
 				}
 			}
 
-			const parsed = ChatSessionUri.parse(editor.resource);
 			const hybridSession: ChatSessionItemWithProvider = {
-				id: parsed?.sessionId || editor.sessionId || `${provider.chatSessionType}-local-${index}`,
+				resource: editor.resource,
 				label: editor.getName(),
-				iconPath: Codicon.chatSparkle,
-				status,
+				status: status,
 				provider,
 				timing: {
 					startTime: timestamp ?? Date.now()

@@ -173,10 +173,10 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		// sortText causes order to change
 		harness.pushDiff({
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { sortText: "z" } }
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { sortText: 'z' } }
 		}, {
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { sortText: "a" } }
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { sortText: 'a' } }
 		});
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'ab' }, { e: 'aa' }] }, { e: 'b' }
@@ -184,20 +184,20 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		// label causes order to change
 		harness.pushDiff({
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { sortText: undefined, label: "z" } }
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { sortText: undefined, label: 'z' } }
 		}, {
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { sortText: undefined, label: "a" } }
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { sortText: undefined, label: 'a' } }
 		});
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'a' }, { e: 'z' }] }, { e: 'b' }
 		]);
 		harness.pushDiff({
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { label: "a2" } }
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { label: 'a2' } }
 		}, {
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { label: "z2" } }
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { label: 'z2' } }
 		});
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'a2' }, { e: 'z2' }] }, { e: 'b' }
@@ -212,7 +212,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		// sortText causes order to change
 		harness.pushDiff({
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { error: "bad" } }
+			item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { error: 'bad' } }
 		});
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a' }, { e: 'b' }
@@ -223,7 +223,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		]);
 		harness.pushDiff({
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { error: "badder" } }
+			item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { error: 'badder' } }
 		});
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'badder' }, { e: 'aa' }, { e: 'ab' }] }, { e: 'b' }

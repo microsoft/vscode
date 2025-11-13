@@ -52,7 +52,7 @@ const GHOST_TEXT_CLASS_NAME = 'ghost-text';
 export class GhostTextView extends Disposable {
 	private readonly _isDisposed;
 	private readonly _editorObs;
-	public static hot = createHotClass(GhostTextView);
+	public static hot = createHotClass(this);
 
 	private _warningState;
 

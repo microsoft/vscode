@@ -79,13 +79,19 @@ export class McpService extends Disposable implements IMcpService {
 			state.set(IAutostartResult.Empty, undefined);
 		}));
 
-		this._autostart(autoStartConfig, state, cts.token).finally(() => store.dispose());
+		this._autostart(autoStartConfig, state, cts.token)
+			.catch(err => {
+				this._logService.error('Error during MCP autostart:', err);
+				state.set(IAutostartResult.Empty, undefined);
+			})
+			.finally(() => store.dispose());
 
 		return state;
 	}
 
 	private async _autostart(autoStartConfig: McpAutoStartValue, state: ISettableObservable<IAutostartResult>, token: CancellationToken) {
-		await this.activateCollections();
+		await this._activateCollections();
+
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -117,6 +123,8 @@ export class McpService extends Disposable implements IMcpService {
 			serversRequiringInteraction: requiringInteraction,
 		}, undefined);
 
+		update();
+
 		await Promise.all([...todo].map(async (server, i) => {
 			try {
 				await startServerAndWaitForLiveTools(server, { interaction, errorOnUserInteraction: true }, token);
@@ -124,11 +132,11 @@ export class McpService extends Disposable implements IMcpService {
 				if (error instanceof UserInteractionRequiredError) {
 					requiringInteraction.push({ id: server.definition.id, label: server.definition.label, errorMessage: error.message });
 				}
-			}
-
-			if (!token.isCancellationRequested) {
+			} finally {
 				todo.delete(server);
-				update();
+				if (!token.isCancellationRequested) {
+					update();
+				}
 			}
 		}));
 	}
@@ -143,23 +151,13 @@ export class McpService extends Disposable implements IMcpService {
 	}
 
 	public async activateCollections(): Promise<void> {
+		await this._activateCollections();
+	}
+
+	private async _activateCollections() {
 		const collections = await this._mcpRegistry.discoverCollections();
-		const collectionIds = new Set(collections.map(c => c.id));
-
 		this.updateCollectedServers();
-
-		// Discover any newly-collected servers with unknown tools
-		const todo: Promise<unknown>[] = [];
-		for (const { object: server } of this._servers.get()) {
-			if (collectionIds.has(server.collection.id)) {
-				const state = server.cacheState.get();
-				if (state === McpServerCacheState.Unknown) {
-					todo.push(server.start());
-				}
-			}
-		}
-
-		await Promise.all(todo);
+		return new Set(collections.map(c => c.id));
 	}
 
 	public updateCollectedServers() {

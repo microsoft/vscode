@@ -56,6 +56,8 @@ import { isResponseVM } from '../../chat/common/chatViewModel.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
 import { HunkInformation, Session } from './inlineChatSession.js';
 import './media/inlineChat.css';
+import { ChatMode } from '../../chat/common/chatModes.js';
+import { isEqual } from '../../../../base/common/resources.js';
 
 export interface InlineChatWidgetViewState {
 	editorViewState: ICodeEditorViewState;
@@ -164,6 +166,7 @@ export class InlineChatWidget {
 					return true;
 				},
 				dndContainer: this._elements.root,
+				defaultMode: ChatMode.Ask,
 				..._options.chatWidgetViewOptions
 			},
 			{
@@ -280,7 +283,7 @@ export class InlineChatWidget {
 		}));
 
 		this._store.add(this._chatService.onDidPerformUserAction(e => {
-			if (e.sessionId === this._chatWidget.viewModel?.model.sessionId && e.action.kind === 'vote') {
+			if (isEqual(e.sessionResource, this._chatWidget.viewModel?.model.sessionResource) && e.action.kind === 'vote') {
 				this.updateStatus(localize('feedbackThanks', "Thank you for your feedback!"), { resetAfter: 1250 });
 			}
 		}));
@@ -448,7 +451,7 @@ export class InlineChatWidget {
 		if (!item) {
 			return;
 		}
-		return viewModel.codeBlockModelCollection.get(viewModel.sessionId, item, codeBlockIndex)?.model;
+		return viewModel.codeBlockModelCollection.get(viewModel.sessionResource, item, codeBlockIndex)?.model;
 	}
 
 	get responseContent(): string | undefined {
@@ -591,6 +594,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 
 	override reset() {
 		this._accessibleViewer.clear();
+		this.chatWidget.setInput();
 		super.reset();
 	}
 

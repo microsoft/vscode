@@ -68,16 +68,15 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 	}
 
 	private updateForState(state: IAutostartResult): void {
-		// Handle working progress state
-		if (state.working && !this.workingProgressPart) {
+		if (!state.working) {
+			this.workingProgressPart?.domNode.remove();
+			this.workingProgressPart = undefined;
+			this.showSpecificServersScheduler.cancel();
+		} else if (!this.workingProgressPart) {
 			if (!this.showSpecificServersScheduler.isScheduled()) {
 				this.showSpecificServersScheduler.schedule();
 			}
-		} else if (!state.working && this.workingProgressPart) {
-			this.workingProgressPart.domNode.remove();
-			this.workingProgressPart = undefined;
-			this.showSpecificServersScheduler.cancel();
-		} else if (state.working && this.workingProgressPart) {
+		} else if (this.workingProgressPart) {
 			this.updateDetailedProgress(state);
 		}
 
@@ -142,7 +141,8 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 				this.context,
 				true, // forceShowSpinner
 				true, // forceShowMessage
-				undefined // icon
+				undefined, // icon
+				undefined, // toolInvocation
 			));
 			this.domNode.appendChild(this.workingProgressPart.domNode);
 		}
@@ -191,6 +191,7 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 			}
 		});
 
+		// eslint-disable-next-line no-restricted-syntax
 		const startLink = [...messageMd.element.querySelectorAll('a')].find(a => !a.getAttribute('data-href')?.startsWith('command:'));
 		if (!startLink) {
 			// Should not happen
