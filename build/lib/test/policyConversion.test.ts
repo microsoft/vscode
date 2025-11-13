@@ -168,7 +168,7 @@ const policies: ExportedPolicyDataDto = {
 			localization: {
 				description: {
 					key: 'chat.tools.eligibleForAutoApproval',
-					value: 'Controls which tools are eligible for automatic approval. This is a key/value store where keys are tool reference names (e.g., `runInTerminal`, `fetch`, `runTask`, `runTest`) and values are booleans.\n\nSet to `true` to allow a tool to be automatically approved (when global auto-approve is enabled), `false` to always require explicit approval for that specific tool.'
+					value: 'Controls which tools are eligible for automatic approval.  Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve.  The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options '
 				}
 			},
 			type: 'object',
