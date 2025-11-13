@@ -26,7 +26,7 @@ export interface IGitHubAPIRequestOptions {
 	/**
 	 * Request body for POST/PUT/PATCH requests
 	 */
-	body?: any;
+	body?: unknown;
 	/**
 	 * Additional headers to include in the request
 	 */
@@ -44,7 +44,7 @@ export interface IGitHubGraphQLRequestOptions {
 	/**
 	 * Variables for the GraphQL query
 	 */
-	variables?: Record<string, any>;
+	variables?: Record<string, unknown>;
 	/**
 	 * The authentication token to use
 	 */
@@ -64,6 +64,7 @@ export interface IGitHubGraphQLRequestOptions {
  * @param token Cancellation token
  * @returns Promise that resolves to the typed response data
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function makeGitHubAPIRequest<T = any>(
 	requestService: IRequestService,
 	logService: ILogService,
@@ -108,6 +109,7 @@ export async function makeGitHubAPIRequest<T = any>(
  * @param token Cancellation token
  * @returns Promise that resolves to the typed GraphQL response
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function makeGitHubGraphQLRequest<T = any>(
 	requestService: IRequestService,
 	logService: ILogService,
@@ -129,6 +131,7 @@ export async function makeGitHubGraphQLRequest<T = any>(
 		};
 
 		const context = await requestService.request(requestOptions, token);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const result = await asJson<{ data: T; errors?: any[] }>(context);
 
 		if (result === null) {
@@ -136,6 +139,7 @@ export async function makeGitHubGraphQLRequest<T = any>(
 		}
 
 		if (result.errors && result.errors.length > 0) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const errorMessage = result.errors.map((e: any) => e.message).join(', ');
 			throw new Error(`GitHub GraphQL API returned errors: ${errorMessage}`);
 		}

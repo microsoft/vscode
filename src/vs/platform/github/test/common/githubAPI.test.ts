@@ -23,8 +23,9 @@ class TestRequestService implements IRequestService {
 				statusCode: 200,
 				headers: {}
 			},
-			stream: {
-				on: (event: string, callback: any) => {
+			// eslint-disable-next-line local/code-no-any-casts
+		stream: {
+				on: (event: string, callback: (data?: Buffer) => void) => {
 					if (event === 'data') {
 						callback(Buffer.from(JSON.stringify(this.mockResponse)));
 					}
