@@ -76,7 +76,7 @@ export interface IChatSessionItem {
 		insertions: number;
 		deletions: number;
 	};
-
+	archived?: boolean;
 }
 
 export type IChatSessionHistoryItem = {

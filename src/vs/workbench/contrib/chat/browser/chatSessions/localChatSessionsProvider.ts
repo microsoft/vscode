@@ -16,6 +16,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { chatSessionResourceToId } from '../../common/chatUri.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -24,7 +25,6 @@ import { ChatSessionItemWithProvider, isChatSession } from './common.js';
 export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.localChatSessionsProvider';
 	static readonly CHAT_WIDGET_VIEW_ID = 'workbench.panel.chat.view.copilot';
-	static readonly HISTORY_NODE_ID = 'show-history';
 	readonly chatSessionType = localChatSessionType;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -241,16 +241,31 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 				}
 			}
 		});
+		const history = await this.getHistoryItems();
+		const existingIds = new Set(sessions.map(s => s.id));
+		sessions.push(...history.filter(h => !existingIds.has(h.id)));
+		return sessions;
+	}
 
-		// TODO: This should not be a session items
-		const historyNode: IChatSessionItem = {
-			id: LocalChatSessionsProvider.HISTORY_NODE_ID,
-			resource: URI.parse(`${Schemas.vscodeLocalChatSession}://history`),
-			label: nls.localize('chat.sessions.showHistory', "History"),
-			timing: { startTime: 0 }
-		};
+	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
+		try {
+			const allHistory = await this.chatService.getLocalSessionHistory();
+			const historyItems = allHistory.map((historyDetail): ChatSessionItemWithProvider => ({
+				id: chatSessionResourceToId(historyDetail.sessionResource),
+				resource: historyDetail.sessionResource,
+				label: historyDetail.title,
+				iconPath: Codicon.chatSparkle,
+				provider: this,
+				timing: {
+					startTime: historyDetail.lastMessageDate ?? Date.now()
+				},
+				archived: true,
+			}));
 
-		// Add "Show history..." node at the end
-		return [...sessions, historyNode];
+			return historyItems;
+
+		} catch (error) {
+			return [];
+		}
 	}
 }

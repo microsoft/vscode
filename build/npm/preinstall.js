@@ -19,7 +19,7 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	}
 }
 
-if (process.env['npm_execpath'].includes('yarn')) {
+if (process.env.npm_execpath?.includes('yarn')) {
 	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo any more, please use `npm i` instead. ***\x1b[0;0m');
 	throw new Error();
 }
@@ -31,8 +31,9 @@ if (process.platform === 'win32') {
 		console.error('\x1b[1;31m*** set vs2022_install=<path> (or vs2019_install for older versions)\x1b[0;0m');
 		throw new Error();
 	}
-	installHeaders();
 }
+
+installHeaders();
 
 if (process.arch !== os.arch()) {
 	console.error(`\x1b[1;31m*** ARCHITECTURE MISMATCH: The node.js process is ${process.arch}, but your OS architecture is ${os.arch()}. ***\x1b[0;0m`);
@@ -79,30 +80,71 @@ function hasSupportedVisualStudioVersion() {
 }
 
 function installHeaders() {
-	child_process.execSync(`npm.cmd ${process.env['npm_command'] || 'ci'}`, {
+	const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+	child_process.execSync(`${npm} ${process.env.npm_command || 'ci'}`, {
 		env: process.env,
 		cwd: path.join(import.meta.dirname, 'gyp'),
 		stdio: 'inherit'
 	});
 
 	// The node gyp package got installed using the above npm command using the gyp/package.json
-	// file checked into our repository. So from that point it is save to construct the path
+	// file checked into our repository. So from that point it is safe to construct the path
 	// to that executable
-	const node_gyp = path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd');
-	const result = child_process.execFileSync(node_gyp, ['list'], { encoding: 'utf8', shell: true });
-	const versions = new Set(result.split(/\n/g).filter(line => !line.startsWith('gyp info')).map(value => value));
+	const node_gyp = process.platform === 'win32'
+		? path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
+		: path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
 
 	const local = getHeaderInfo(path.join(import.meta.dirname, '..', '..', '.npmrc'));
 	const remote = getHeaderInfo(path.join(import.meta.dirname, '..', '..', 'remote', '.npmrc'));
 
-	if (local !== undefined && !versions.has(local.target)) {
+	if (local !== undefined) {
 		// Both disturl and target come from a file checked into our repository
 		child_process.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell: true });
 	}
 
-	if (remote !== undefined && !versions.has(remote.target)) {
+	if (remote !== undefined) {
 		// Both disturl and target come from a file checked into our repository
 		child_process.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell: true });
+	}
+
+	// On Linux, apply a patch to the downloaded headers
+	// Remove dependency on std::source_location to avoid bumping the required GCC version to 11+
+	// Refs https://chromium-review.googlesource.com/c/v8/v8/+/6879784
+	if (process.platform === 'linux') {
+		const homedir = os.homedir();
+		const cachePath = process.env.XDG_CACHE_HOME || path.join(homedir, '.cache');
+		const nodeGypCache = path.join(cachePath, 'node-gyp');
+		const localHeaderPath = path.join(nodeGypCache, local.target, 'include', 'node');
+		if (fs.existsSync(localHeaderPath)) {
+			console.log('Applying v8-source-location.patch to', localHeaderPath);
+			try {
+				child_process.execFileSync('patch', ['-p0', '-i', path.join(__dirname, 'gyp', 'custom-headers', 'v8-source-location.patch')], {
+					cwd: localHeaderPath
+				});
+			} catch (error) {
+				throw new Error(`Error applying v8-source-location.patch: ${error.message}`);
+			};
+		}
+	}
+
+	// On Linux, apply a patch to the downloaded headers
+	// Remove dependency on std::source_location to avoid bumping the required GCC version to 11+
+	// Refs https://chromium-review.googlesource.com/c/v8/v8/+/6879784
+	if (process.platform === 'linux') {
+		const homedir = os.homedir();
+		const cachePath = process.env.XDG_CACHE_HOME || path.join(homedir, '.cache');
+		const nodeGypCache = path.join(cachePath, 'node-gyp');
+		const localHeaderPath = path.join(nodeGypCache, local.target, 'include', 'node');
+		if (fs.existsSync(localHeaderPath)) {
+			console.log('Applying v8-source-location.patch to', localHeaderPath);
+			try {
+				child_process.execFileSync('patch', ['-p0', '-i', path.join(__dirname, 'gyp', 'custom-headers', 'v8-source-location.patch')], {
+					cwd: localHeaderPath
+				});
+			} catch (error) {
+				throw new Error(`Error applying v8-source-location.patch: ${error.message}`);
+			};
+		}
 	}
 }
 
@@ -111,7 +153,7 @@ function installHeaders() {
  * @returns {{ disturl: string; target: string } | undefined}
  */
 function getHeaderInfo(rcFile) {
-	const lines = fs.readFileSync(rcFile, 'utf8').split(/\r\n?/g);
+	const lines = fs.readFileSync(rcFile, 'utf8').split(/\r\n|\n/g);
 	let disturl, target;
 	for (const line of lines) {
 		let match = line.match(/\s*disturl=*\"(.*)\"\s*$/);

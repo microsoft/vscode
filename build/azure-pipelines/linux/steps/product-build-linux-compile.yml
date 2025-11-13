@@ -132,6 +132,10 @@ steps:
 
       source ./build/azure-pipelines/linux/setup-env.sh
 
+      # Run preinstall script before root dependencies are installed
+      # so that v8 headers are patched correctly for native modules.
+      node build/npm/preinstall.js
+
       for i in {1..5}; do # try 5 times
         npm ci && break
         if [ $i -eq 5 ]; then

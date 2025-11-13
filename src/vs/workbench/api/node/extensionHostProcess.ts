@@ -160,6 +160,23 @@ let onTerminate = function (reason: string) {
 	nativeExit();
 };
 
+function readReconnectionValue(envKey: string, fallback: number): number {
+	const raw = process.env[envKey];
+	if (typeof raw !== 'string' || raw.trim().length === 0) {
+		console.log(`[reconnection-grace-time] Extension host: env var ${envKey} not set, using default: ${fallback}ms (${Math.floor(fallback / 1000)}s)`);
+		return fallback;
+	}
+	const parsed = Number(raw);
+	if (!isFinite(parsed) || parsed < 0) {
+		console.log(`[reconnection-grace-time] Extension host: env var ${envKey} invalid value '${raw}', using default: ${fallback}ms (${Math.floor(fallback / 1000)}s)`);
+		return fallback;
+	}
+	const millis = Math.floor(parsed);
+	const result = millis > Number.MAX_SAFE_INTEGER ? Number.MAX_SAFE_INTEGER : millis;
+	console.log(`[reconnection-grace-time] Extension host: read ${envKey}=${raw}ms (${Math.floor(result / 1000)}s)`);
+	return result;
+}
+
 function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 	const extHostConnection = readExtHostConnection(process.env);
 
@@ -195,8 +212,8 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 				onTerminate('VSCODE_EXTHOST_IPC_SOCKET timeout');
 			}, 60000);
 
-			const reconnectionGraceTime = ProtocolConstants.ReconnectionGraceTime;
-			const reconnectionShortGraceTime = ProtocolConstants.ReconnectionShortGraceTime;
+			const reconnectionGraceTime = readReconnectionValue('VSCODE_RECONNECTION_GRACE_TIME', ProtocolConstants.ReconnectionGraceTime);
+			const reconnectionShortGraceTime = reconnectionGraceTime > 0 ? Math.min(ProtocolConstants.ReconnectionShortGraceTime, reconnectionGraceTime) : 0;
 			const disconnectRunner1 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (1)'), reconnectionGraceTime);
 			const disconnectRunner2 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (2)'), reconnectionShortGraceTime);
 
