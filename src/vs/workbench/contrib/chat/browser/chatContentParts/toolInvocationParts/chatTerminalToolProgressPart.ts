@@ -75,6 +75,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _outputView: ChatTerminalToolOutputSection;
 	private readonly _terminalOutputContextKey: IContextKey<boolean>;
 	private _terminalSessionRegistration: IDisposable | undefined;
+	private _currentFocusAction: FocusChatInstanceAction | undefined;
 
 	private readonly _showOutputAction = this._register(new MutableDisposable<ToggleChatTerminalOutputAction>());
 	private _showOutputActionAdded = false;
@@ -274,13 +275,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return;
 		}
 		const actionBar = this._actionBar.value;
-		const existingFocus = this._focusAction.value;
-		if (existingFocus) {
-			const existingIndex = actionBar.viewItems.findIndex(item => item.action === existingFocus);
-			if (existingIndex >= 0) {
-				actionBar.pull(existingIndex);
-			}
-		}
+		this._removeFocusAction();
 
 		const canFocus = !!terminalInstance;
 		if (canFocus) {
@@ -288,9 +283,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const resolvedCommand = this._getResolvedCommand(terminalInstance);
 			const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, resolvedCommand, this._terminalCommandUri, this._storedCommandId, isTerminalHidden);
 			this._focusAction.value = focusAction;
+			this._currentFocusAction = focusAction;
 			actionBar.push(focusAction, { icon: true, label: false, index: 0 });
 		} else {
 			this._focusAction.clear();
+			this._currentFocusAction = undefined;
 		}
 
 		this._ensureShowOutputAction();
@@ -387,12 +384,27 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._clearCommandAssociation();
 			commandDetectionListener.clear();
 			this._actionBar.value?.clear();
-			this._focusAction.clear();
+			this._removeFocusAction();
 			this._showOutputActionAdded = false;
 			this._showOutputAction.clear();
 			this._addActions(undefined, this._terminalData.terminalToolSessionId);
 			instanceListener.dispose();
 		}));
+	}
+
+	private _removeFocusAction(): void {
+		const actionBar = this._actionBar.value;
+		const focusAction = this._currentFocusAction ?? this._focusAction.value;
+		if (actionBar && focusAction) {
+			const existingIndex = actionBar.viewItems.findIndex(item => item.action === focusAction);
+			if (existingIndex >= 0) {
+				actionBar.pull(existingIndex);
+			}
+		}
+		if (this._focusAction.value === focusAction) {
+			this._focusAction.clear();
+		}
+		this._currentFocusAction = undefined;
 	}
 
 	private async _toggleOutput(expanded: boolean): Promise<boolean> {
