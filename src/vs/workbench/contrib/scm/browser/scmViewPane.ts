@@ -2299,6 +2299,10 @@ export class SCMViewPane extends ViewPane {
 		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'), this.disposables)(updateProviderCountVisibility, this, this.disposables);
 		updateProviderCountVisibility();
 
+		const updateHideBranchName = () => this.treeContainer.classList.toggle('hide-branch-name', this.configurationService.getValue<boolean>('scm.hideBranchName'));
+		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.hideBranchName'), this.disposables)(updateHideBranchName, this, this.disposables);
+		updateHideBranchName();
+
 		const viewState = this.loadTreeViewState();
 		this.createTree(this.treeContainer, viewState);
 

@@ -17,6 +17,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -415,6 +416,10 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			treeContainer.classList.toggle('hide-provider-counts', providerCountBadge === 'hidden');
 			treeContainer.classList.toggle('auto-provider-counts', providerCountBadge === 'auto');
 		}));
+
+		const updateHideBranchName = () => treeContainer.classList.toggle('hide-branch-name', this.configurationService.getValue<boolean>('scm.hideBranchName'));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.hideBranchName'))(updateHideBranchName));
+		updateHideBranchName();
 
 		this.createTree(treeContainer);
 

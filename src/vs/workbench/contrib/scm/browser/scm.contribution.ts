@@ -394,6 +394,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.compactFolders', "Controls whether the Source Control view should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element."),
 			default: true
 		},
+		'scm.hideBranchName': {
+			type: 'boolean',
+			description: localize('scm.hideBranchName', "Controls whether the branch name text is hidden in the Source Control view. When enabled, only the branch icon is shown."),
+			default: false
+		},
 		'scm.graph.pageOnScroll': {
 			type: 'boolean',
 			description: localize('scm.graph.pageOnScroll', "Controls whether the Source Control Graph view will load the next page of items when you scroll to the end of the list."),
