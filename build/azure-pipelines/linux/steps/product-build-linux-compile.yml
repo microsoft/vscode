@@ -106,8 +106,6 @@ steps:
         fi
         echo "Npm install failed $i, trying again..."
       done
-
-      node npm/preinstall.js
     workingDirectory: build
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -133,6 +131,10 @@ steps:
       set -e
 
       source ./build/azure-pipelines/linux/setup-env.sh
+
+      # Run preinstall script before root dependencies are installed
+      # so that v8 headers are patched correctly for native modules.
+      node build/npm/preinstall.js
 
       for i in {1..5}; do # try 5 times
         npm ci && break
