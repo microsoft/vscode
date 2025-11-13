@@ -171,11 +171,6 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .split-view-view:has(.integrated-terminal) {
-	/** The suggest widget is a child of the split-view-view element so it needs to match z-index of the terminal to not be obstructed. */
-	z-index: 32;
-}
-
 .monaco-workbench .pane-body.integrated-terminal .split-view-view:first-child .tabs-container {
 	border-right-width: 1px;
 	border-right-style: solid;
