@@ -16,6 +16,7 @@ export enum ChatConfiguration {
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',
 	AutoApproveEdits = 'chat.tools.edits.autoApprove',
 	AutoApprovedUrls = 'chat.tools.urls.autoApprove',
+	EligibleForAutoApproval = 'chat.tools.eligibleForAutoApproval',
 	EnableMath = 'chat.math.enabled',
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
