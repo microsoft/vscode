@@ -20,7 +20,7 @@ export function deepClone<T>(obj: T): T {
 	for (const key of Object.keys(obj as object) as Array<keyof T>) {
 		const value = obj[key];
 		if (value && typeof value === 'object') {
-			(result as T)[key] = deepClone(value as typeof value);
+			(result as T)[key] = deepClone(value);
 		} else {
 			(result as T)[key] = value;
 		}

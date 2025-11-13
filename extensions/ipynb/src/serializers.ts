@@ -42,7 +42,7 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 				.reduce<Record<string, unknown>>((sortedObj, prop) => {
 					sortedObj[prop] = sortObjectPropertiesRecursively(obj[prop]);
 					return sortedObj;
-				}, {}) as Record<string, unknown>
+				}, {})
 		);
 	}
 	return obj;
