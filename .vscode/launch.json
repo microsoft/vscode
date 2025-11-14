@@ -588,11 +588,33 @@
 			]
 		},
 		{
-			"name": "Monaco Editor Playground",
+			"name": "Monaco Editor - Playground",
 			"type": "chrome",
 			"request": "launch",
-			"url": "http://localhost:5001",
-			"preLaunchTask": "Launch Http Server",
+			"url": "https://microsoft.github.io/monaco-editor/playground.html?source=http%3A%2F%2Flocalhost%3A5199%2Fbuild%2Fmonaco-editor-playground%2Findex.ts%3Fesm#example-creating-the-editor-hello-world",
+			"preLaunchTask": "Launch Monaco Editor Vite",
+			"presentation": {
+				"group": "monaco",
+				"order": 4
+			}
+		},
+		{
+			"name": "Monaco Editor - Self Contained Diff Editor",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://localhost:5199/build/monaco-editor-playground/index.html",
+			"preLaunchTask": "Launch Monaco Editor Vite",
+			"presentation": {
+				"group": "monaco",
+				"order": 4
+			}
+		},
+		{
+			"name": "Monaco Editor - Workbench",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://localhost:5199/build/monaco-editor-playground/workbench-vite.html",
+			"preLaunchTask": "Launch Monaco Editor Vite",
 			"presentation": {
 				"group": "monaco",
 				"order": 4

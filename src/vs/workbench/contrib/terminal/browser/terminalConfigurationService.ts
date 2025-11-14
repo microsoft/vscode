@@ -5,12 +5,16 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { EDITOR_FONT_DEFAULTS, type IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { type IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ITerminalConfigurationService, LinuxDistro } from './terminal.js';
 import type { IXtermCore } from './xterm-private.js';
 import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, ITerminalConfiguration, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from '../common/terminal.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { TerminalLocation, TerminalLocationConfigValue } from '../../../../platform/terminal/common/terminal.js';
+import { isString } from '../../../../base/common/types.js';
+import { clamp } from '../../../../base/common/numbers.js';
 
 // #region TerminalConfigurationService
 
@@ -21,6 +25,13 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 
 	protected _config!: Readonly<ITerminalConfiguration>;
 	get config() { return this._config; }
+
+	get defaultLocation(): TerminalLocation {
+		if (this.config.defaultLocation === TerminalLocationConfigValue.Editor) {
+			return TerminalLocation.Editor;
+		}
+		return TerminalLocation.Panel;
+	}
 
 	private readonly _onConfigChanged = new Emitter<void>();
 	get onConfigChanged(): Event<void> { return this._onConfigChanged.event; }
@@ -51,7 +62,7 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 		this._onConfigChanged.fire();
 	}
 
-	private _normalizeFontWeight(input: any, defaultWeight: FontWeight): FontWeight {
+	private _normalizeFontWeight(input: FontWeight, defaultWeight: FontWeight): FontWeight {
 		if (input === 'normal' || input === 'bold') {
 			return input;
 		}
@@ -235,18 +246,14 @@ export class TerminalFontMetrics extends Disposable {
 
 // #region Utils
 
-function clampInt<T>(source: any, minimum: number, maximum: number, fallback: T): number | T {
-	let r = parseInt(source, 10);
+function clampInt<T>(source: string | number, minimum: number, maximum: number, fallback: T): number | T {
+	if (source === null || source === undefined) {
+		return fallback;
+	}
+	const r = isString(source) ? parseInt(source, 10) : source;
 	if (isNaN(r)) {
 		return fallback;
 	}
-	if (typeof minimum === 'number') {
-		r = Math.max(minimum, r);
-	}
-	if (typeof maximum === 'number') {
-		r = Math.min(maximum, r);
-	}
-	return r;
+	return clamp(r, minimum, maximum);
 }
-
 // #endregion Utils

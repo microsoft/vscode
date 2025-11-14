@@ -44,11 +44,21 @@ import { IEditorContribution, IEditorDecorationsCollection } from '../../../../e
 import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { FindDecorations } from '../../../../editor/contrib/find/browser/findDecorations.js';
-import { Memento, MementoObject } from '../../../common/memento.js';
+import { Memento } from '../../../common/memento.js';
 import { Markers } from '../../markers/common/markers.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+
+interface IOutputViewState {
+	filter?: string;
+	showTrace?: boolean;
+	showDebug?: boolean;
+	showInfo?: boolean;
+	showWarning?: boolean;
+	showError?: boolean;
+	categories?: string;
+}
 
 export class OutputViewPane extends FilterViewPane {
 
@@ -60,8 +70,8 @@ export class OutputViewPane extends FilterViewPane {
 	get scrollLock(): boolean { return !!this.scrollLockContextKey.get(); }
 	set scrollLock(scrollLock: boolean) { this.scrollLockContextKey.set(scrollLock); }
 
-	private readonly memento: Memento;
-	private readonly panelState: MementoObject;
+	private readonly memento: Memento<IOutputViewState>;
+	private readonly panelState: IOutputViewState;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -77,14 +87,14 @@ export class OutputViewPane extends FilterViewPane {
 		@IOutputService private readonly outputService: IOutputService,
 		@IStorageService storageService: IStorageService,
 	) {
-		const memento = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService);
+		const memento = new Memento<IOutputViewState>(Markers.MARKERS_VIEW_STORAGE_ID, storageService);
 		const viewState = memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		super({
 			...options,
 			filterOptions: {
 				placeholder: localize('outputView.filter.placeholder', "Filter"),
 				focusContextKey: OUTPUT_FILTER_FOCUS_CONTEXT.key,
-				text: viewState['filter'] || '',
+				text: viewState.filter || '',
 				history: []
 			}
 		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -92,13 +102,13 @@ export class OutputViewPane extends FilterViewPane {
 		this.panelState = viewState;
 
 		const filters = outputService.filters;
-		filters.text = this.panelState['filter'] || '';
-		filters.trace = this.panelState['showTrace'] ?? true;
-		filters.debug = this.panelState['showDebug'] ?? true;
-		filters.info = this.panelState['showInfo'] ?? true;
-		filters.warning = this.panelState['showWarning'] ?? true;
-		filters.error = this.panelState['showError'] ?? true;
-		filters.categories = this.panelState['categories'] ?? '';
+		filters.text = this.panelState.filter || '';
+		filters.trace = this.panelState.showTrace ?? true;
+		filters.debug = this.panelState.showDebug ?? true;
+		filters.info = this.panelState.showInfo ?? true;
+		filters.warning = this.panelState.showWarning ?? true;
+		filters.error = this.panelState.showError ?? true;
+		filters.categories = this.panelState.categories ?? '';
 
 		this.scrollLockContextKey = CONTEXT_OUTPUT_SCROLL_LOCK.bindTo(this.contextKeyService);
 
@@ -180,7 +190,7 @@ export class OutputViewPane extends FilterViewPane {
 		const input = this.createInput(channel);
 		if (!this.editor.input || !input.matches(this.editor.input)) {
 			this.editorPromise?.cancel();
-			this.editorPromise = createCancelablePromise(token => this.editor.setInput(this.createInput(channel), { preserveFocus: true }, Object.create(null), token));
+			this.editorPromise = createCancelablePromise(token => this.editor.setInput(input, { preserveFocus: true }, Object.create(null), token));
 		}
 
 	}
@@ -202,13 +212,13 @@ export class OutputViewPane extends FilterViewPane {
 
 	override saveState(): void {
 		const filters = this.outputService.filters;
-		this.panelState['filter'] = filters.text;
-		this.panelState['showTrace'] = filters.trace;
-		this.panelState['showDebug'] = filters.debug;
-		this.panelState['showInfo'] = filters.info;
-		this.panelState['showWarning'] = filters.warning;
-		this.panelState['showError'] = filters.error;
-		this.panelState['categories'] = filters.categories;
+		this.panelState.filter = filters.text;
+		this.panelState.showTrace = filters.trace;
+		this.panelState.showDebug = filters.debug;
+		this.panelState.showInfo = filters.info;
+		this.panelState.showWarning = filters.warning;
+		this.panelState.showError = filters.error;
+		this.panelState.categories = filters.categories;
 
 		this.memento.saveMemento();
 		super.saveState();
@@ -264,12 +274,12 @@ export class OutputEditor extends AbstractTextResourceEditor {
 			ambiguousCharacters: false,
 		};
 
-		const outputConfig = this.configurationService.getValue<any>('[Log]');
+		const outputConfig = this.configurationService.getValue<{ 'editor.minimap.enabled'?: boolean; 'editor.wordWrap'?: 'off' | 'on' | 'wordWrapColumn' | 'bounded' }>('[Log]');
 		if (outputConfig) {
 			if (outputConfig['editor.minimap.enabled']) {
 				options.minimap = { enabled: true };
 			}
-			if ('editor.wordWrap' in outputConfig) {
+			if (outputConfig['editor.wordWrap']) {
 				options.wordWrap = outputConfig['editor.wordWrap'];
 			}
 		}

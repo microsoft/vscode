@@ -86,19 +86,27 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
 		const keys: (keyof vscode.AuthenticationGetSessionOptions)[] = Object.keys(options) as (keyof vscode.AuthenticationGetSessionOptions)[];
-		const optionsStr = keys.sort().map(key => `${key}:${!!options[key]}`).join(', ');
-
-		// old shape, remove next milestone
-		if (
-			'scopes' in scopesOrRequest
-			&& typeof scopesOrRequest.scopes === 'string'
-			&& !scopesOrRequest.fallbackScopes
-		) {
-			scopesOrRequest = {
-				wwwAuthenticate: scopesOrRequest.wwwAuthenticate,
-				fallbackScopes: scopesOrRequest.scopes
-			};
-		}
+		// TODO: pull this out into a utility function somewhere
+		const optionsStr = keys
+			.map(key => {
+				switch (key) {
+					case 'account':
+						return `${key}:${options.account?.id}`;
+					case 'createIfNone':
+					case 'forceNewSession': {
+						const value = typeof options[key] === 'boolean'
+							? `${options[key]}`
+							: `'${options[key]?.detail}/${options[key]?.learnMore?.toString()}'`;
+						return `${key}:${value}`;
+					}
+					case 'authorizationServer':
+						return `${key}:${options.authorizationServer?.toString(true)}`;
+					default:
+						return `${key}:${!!options[key]}`;
+				}
+			})
+			.sort()
+			.join(', ');
 
 		let singlerKey: string;
 		if (isAuthenticationWwwAuthenticateRequest(scopesOrRequest)) {
@@ -135,7 +143,13 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			}
 			const listener = provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(id, e));
 			this._authenticationProviders.set(id, { label, provider, disposable: listener, options: options ?? { supportsMultipleAccounts: false } });
-			await this._proxy.$registerAuthenticationProvider(id, label, options?.supportsMultipleAccounts ?? false, options?.supportedAuthorizationServers, options?.supportsChallenges);
+			await this._proxy.$registerAuthenticationProvider({
+				id,
+				label,
+				supportsMultipleAccounts: options?.supportsMultipleAccounts ?? false,
+				supportedAuthorizationServers: options?.supportedAuthorizationServers,
+				supportsChallenges: options?.supportsChallenges
+			});
 		});
 
 		// unregister
@@ -306,11 +320,23 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 							clientSecret: provider.clientSecret
 						}))
 					),
-					options: { supportsMultipleAccounts: false }
+					options: { supportsMultipleAccounts: true }
 				}
 			);
-			await this._proxy.$registerDynamicAuthenticationProvider(provider.id, provider.label, provider.authorizationServer, provider.clientId, provider.clientSecret);
+
+			await this._proxy.$registerDynamicAuthenticationProvider({
+				id: provider.id,
+				label: provider.label,
+				supportsMultipleAccounts: true,
+				authorizationServer: authorizationServerComponents,
+				resourceServer: resourceMetadata ? URI.parse(resourceMetadata.resource) : undefined,
+				clientId: provider.clientId,
+				clientSecret: provider.clientSecret
+			});
 		});
+
+
+
 
 		return provider.id;
 	}

@@ -14,7 +14,7 @@ export type UnchangedEditorRegionOptions = {
 		minimumLineCount: number;
 		revealLineCount: number;
 	};
-	onDidChangeEnablement: Event<boolean>;
+	readonly onDidChangeEnablement: Event<boolean>;
 };
 
 export function getUnchangedRegionSettings(configurationService: IConfigurationService): (Readonly<UnchangedEditorRegionOptions> & IDisposable) {

@@ -22,3 +22,4 @@ product.overrides.json
 *.snap.actual
 *.tsbuildinfo
 .vscode-test
+vscode-telemetry-docs/

@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { autorun, IReader, observableValue } from '../../../../base/common/observable.js';
+import { setTimeout0 } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IQuickTree, IQuickTreeItem, IQuickTreeItemButtonEvent, QuickInputType, QuickPickFocus } from '../../common/quickInput.js';
 import { QuickInput, QuickInputUI, Visibilities } from '../quickInput.js';
@@ -22,14 +23,18 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 	private readonly _placeholder = observableValue<string | undefined>('placeholder', undefined);
 	private readonly _matchOnDescription = observableValue('matchOnDescription', false);
 	private readonly _matchOnLabel = observableValue('matchOnLabel', true);
+	private readonly _sortByLabel = observableValue('sortByLabel', true);
 	private readonly _activeItems = observableValue<readonly T[]>('activeItems', []);
 	private readonly _itemTree = observableValue<ReadonlyArray<T>>('itemTree', []);
 
 	readonly onDidChangeValue = Event.fromObservable(this._value, this._store);
 	readonly onDidChangeActive = Event.fromObservable(this._activeItems, this._store);
 
-	private readonly _onDidChangeCheckedLeafItems = new Emitter<T[]>();
-	onDidChangeCheckedLeafItems: Event<T[]> = this._onDidChangeCheckedLeafItems.event;
+	private readonly _onDidChangeCheckedLeafItems = this._register(new Emitter<T[]>());
+	readonly onDidChangeCheckedLeafItems: Event<T[]> = this._onDidChangeCheckedLeafItems.event;
+
+	private readonly _onDidChangeCheckboxState = this._register(new Emitter<T>());
+	readonly onDidChangeCheckboxState: Event<T> = this._onDidChangeCheckboxState.event;
 
 	readonly onDidAccept: Event<void>;
 
@@ -38,6 +43,7 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		this.onDidAccept = ui.onDidAccept;
 		this._registerAutoruns();
 		this._register(ui.tree.onDidChangeCheckedLeafItems(e => this._onDidChangeCheckedLeafItems.fire(e as T[])));
+		this._register(ui.tree.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e.item as T)));
 		// Sync active items with tree focus changes
 		this._register(ui.tree.tree.onDidChangeFocus(e => {
 			this._activeItems.set(ui.tree.getActiveItems() as T[], undefined);
@@ -59,6 +65,9 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 	get matchOnLabel(): boolean { return this._matchOnLabel.get(); }
 	set matchOnLabel(matchOnLabel: boolean) { this._matchOnLabel.set(matchOnLabel, undefined); }
 
+	get sortByLabel(): boolean { return this._sortByLabel.get(); }
+	set sortByLabel(sortByLabel: boolean) { this._sortByLabel.set(sortByLabel, undefined); }
+
 	get activeItems(): readonly T[] { return this._activeItems.get(); }
 	set activeItems(activeItems: readonly T[]) { this._activeItems.set(activeItems, undefined); }
 
@@ -70,6 +79,7 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 	}
 
 	// TODO: Fix the any casting
+	// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 	get checkedLeafItems(): readonly T[] { return this.ui.tree.getCheckedLeafItems() as any as readonly T[]; }
 
 	setItemTree(itemTree: T[]): void {
@@ -80,7 +90,7 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		return this.ui.tree.tree.getParentElement(element) as T ?? undefined;
 	}
 
-	setCheckboxState(element: T, checked: boolean | 'partial'): void {
+	setCheckboxState(element: T, checked: boolean | 'mixed'): void {
 		this.ui.tree.check(element, checked);
 	}
 	expand(element: T): void {
@@ -133,8 +143,11 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		}
 		super.show(); // TODO: Why have show() bubble up while update() trickles down?
 
-		// Intial state
-		this.ui.count.setCount(this.ui.tree.getCheckedLeafItems().length);
+		// Initial state
+		// TODO@TylerLeonhardt: Without this setTimeout, the screen reader will not read out
+		// the final count of checked items correctly. Investigate a better way
+		// to do this. ref https://github.com/microsoft/vscode/issues/258617
+		setTimeout0(() => this.ui.count.setCount(this.ui.tree.getCheckedLeafItems().length));
 		const checkAllState = getParentNodeState([...this.ui.tree.tree.getNode().children]);
 		if (this.ui.checkAll.checked !== checkAllState) {
 			this.ui.checkAll.checked = checkAllState;
@@ -200,6 +213,10 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 			const matchOnLabel = this._matchOnLabel.read(reader);
 			const matchOnDescription = this._matchOnDescription.read(reader);
 			this.ui.tree.updateFilterOptions({ matchOnLabel, matchOnDescription });
+		});
+		this.registerVisibleAutorun((reader) => {
+			const sortByLabel = this._sortByLabel.read(reader);
+			this.ui.tree.sortByLabel = sortByLabel;
 		});
 		this.registerVisibleAutorun((reader) => {
 			const itemTree = this._itemTree.read(reader);

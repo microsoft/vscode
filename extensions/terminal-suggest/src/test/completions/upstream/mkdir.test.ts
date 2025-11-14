@@ -19,7 +19,7 @@ const allOptions = [
 	'-p',
 	'-v',
 ];
-const expectedCompletions = [{ label: 'mkdir', description: (mkdirSpec as any).description }];
+const expectedCompletions = [{ label: 'mkdir', description: (mkdirSpec as Fig.Subcommand).description }];
 export const mkdirTestSuiteSpec: ISuiteSpec = {
 	name: 'mkdir',
 	completionSpecs: mkdirSpec,

@@ -39,6 +39,7 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { IMarker, IMarkerData, IMarkerService } from '../../../platform/markers/common/markers.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { MultiDiffEditorWidget } from '../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
+import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorkerService.js';
 
 /**
  * Create a new editor under `domElement`.
@@ -58,7 +59,7 @@ export function create(domElement: HTMLElement, options?: IStandaloneEditorConst
 export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): IDisposable {
 	const codeEditorService = StandaloneServices.get(ICodeEditorService);
 	return codeEditorService.onCodeEditorAdd((editor) => {
-		listener(<ICodeEditor>editor);
+		listener(editor);
 	});
 }
 
@@ -137,7 +138,7 @@ export function addEditorAction(descriptor: IActionDescriptor): IDisposable {
 	}
 
 	const precondition = ContextKeyExpr.deserialize(descriptor.precondition);
-	const run = (accessor: ServicesAccessor, ...args: any[]): void | Promise<void> => {
+	const run = (accessor: ServicesAccessor, ...args: unknown[]): void | Promise<void> => {
 		return EditorCommand.runEditorCommand(accessor, args, precondition, (accessor, editor, args) => Promise.resolve(descriptor.run(editor, ...args)));
 	};
 
@@ -332,7 +333,7 @@ export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextMo
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
 export function createWebWorker<T extends object>(opts: IInternalWebWorkerOptions): MonacoWebWorker<T> {
-	return actualCreateWebWorker<T>(StandaloneServices.get(IModelService), opts);
+	return actualCreateWebWorker<T>(StandaloneServices.get(IModelService), StandaloneServices.get(IWebWorkerService), opts);
 }
 
 /**
@@ -501,42 +502,70 @@ export function registerEditorOpener(opener: ICodeEditorOpener): IDisposable {
 export function createMonacoEditorAPI(): typeof monaco.editor {
 	return {
 		// methods
+		// eslint-disable-next-line local/code-no-any-casts
 		create: <any>create,
+		// eslint-disable-next-line local/code-no-any-casts
 		getEditors: <any>getEditors,
+		// eslint-disable-next-line local/code-no-any-casts
 		getDiffEditors: <any>getDiffEditors,
+		// eslint-disable-next-line local/code-no-any-casts
 		onDidCreateEditor: <any>onDidCreateEditor,
+		// eslint-disable-next-line local/code-no-any-casts
 		onDidCreateDiffEditor: <any>onDidCreateDiffEditor,
+		// eslint-disable-next-line local/code-no-any-casts
 		createDiffEditor: <any>createDiffEditor,
 
+		// eslint-disable-next-line local/code-no-any-casts
 		addCommand: <any>addCommand,
+		// eslint-disable-next-line local/code-no-any-casts
 		addEditorAction: <any>addEditorAction,
+		// eslint-disable-next-line local/code-no-any-casts
 		addKeybindingRule: <any>addKeybindingRule,
+		// eslint-disable-next-line local/code-no-any-casts
 		addKeybindingRules: <any>addKeybindingRules,
 
+		// eslint-disable-next-line local/code-no-any-casts
 		createModel: <any>createModel,
+		// eslint-disable-next-line local/code-no-any-casts
 		setModelLanguage: <any>setModelLanguage,
+		// eslint-disable-next-line local/code-no-any-casts
 		setModelMarkers: <any>setModelMarkers,
+		// eslint-disable-next-line local/code-no-any-casts
 		getModelMarkers: <any>getModelMarkers,
 		removeAllMarkers: removeAllMarkers,
+		// eslint-disable-next-line local/code-no-any-casts
 		onDidChangeMarkers: <any>onDidChangeMarkers,
+		// eslint-disable-next-line local/code-no-any-casts
 		getModels: <any>getModels,
+		// eslint-disable-next-line local/code-no-any-casts
 		getModel: <any>getModel,
+		// eslint-disable-next-line local/code-no-any-casts
 		onDidCreateModel: <any>onDidCreateModel,
+		// eslint-disable-next-line local/code-no-any-casts
 		onWillDisposeModel: <any>onWillDisposeModel,
+		// eslint-disable-next-line local/code-no-any-casts
 		onDidChangeModelLanguage: <any>onDidChangeModelLanguage,
 
 
+		// eslint-disable-next-line local/code-no-any-casts
 		createWebWorker: <any>createWebWorker,
+		// eslint-disable-next-line local/code-no-any-casts
 		colorizeElement: <any>colorizeElement,
+		// eslint-disable-next-line local/code-no-any-casts
 		colorize: <any>colorize,
+		// eslint-disable-next-line local/code-no-any-casts
 		colorizeModelLine: <any>colorizeModelLine,
+		// eslint-disable-next-line local/code-no-any-casts
 		tokenize: <any>tokenize,
+		// eslint-disable-next-line local/code-no-any-casts
 		defineTheme: <any>defineTheme,
+		// eslint-disable-next-line local/code-no-any-casts
 		setTheme: <any>setTheme,
 		remeasureFonts: remeasureFonts,
 		registerCommand: registerCommand,
 
 		registerLinkOpener: registerLinkOpener,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerEditorOpener: <any>registerEditorOpener,
 
 		// enums
@@ -568,18 +597,27 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		TextDirection: standaloneEnums.TextDirection,
 
 		// classes
+		// eslint-disable-next-line local/code-no-any-casts
 		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,
+		// eslint-disable-next-line local/code-no-any-casts
 		BareFontInfo: <any>BareFontInfo,
+		// eslint-disable-next-line local/code-no-any-casts
 		FontInfo: <any>FontInfo,
+		// eslint-disable-next-line local/code-no-any-casts
 		TextModelResolvedOptions: <any>TextModelResolvedOptions,
+		// eslint-disable-next-line local/code-no-any-casts
 		FindMatch: <any>FindMatch,
+		// eslint-disable-next-line local/code-no-any-casts
 		ApplyUpdateResult: <any>ApplyUpdateResult,
+		// eslint-disable-next-line local/code-no-any-casts
 		EditorZoom: <any>EditorZoom,
 
+		// eslint-disable-next-line local/code-no-any-casts
 		createMultiFileDiffEditor: <any>createMultiFileDiffEditor,
 
 		// vars
 		EditorType: EditorType,
+		// eslint-disable-next-line local/code-no-any-casts
 		EditorOptions: <any>EditorOptions
 
 	};

@@ -248,12 +248,32 @@ function* findAllReferencesInClass(node: ts.Node): Generator<ts.Node> {
 
 // NOTE: The following uses TypeScript internals and are subject to change from version to version.
 
+interface TypeScriptInternals {
+	getTouchingPropertyName(sourceFile: ts.SourceFile, position: number): ts.Node;
+	FindAllReferences: {
+		FindReferencesUse: {
+			References: number;
+		};
+		Core: {
+			getReferencedSymbolsForNode(
+				position: number,
+				node: ts.Node,
+				program: ts.Program,
+				sourceFiles: readonly ts.SourceFile[],
+				cancellationToken: ts.CancellationToken,
+				options: { use: number }
+			): readonly SymbolAndEntries[] | undefined;
+		};
+	};
+}
+
 function findAllReferences(node: ts.Node): readonly SymbolAndEntries[] {
 	const sourceFile = node.getSourceFile();
 	const position = node.getStart();
-	const name: ts.Node = (ts as any).getTouchingPropertyName(sourceFile, position);
-	const options = { use: (ts as any).FindAllReferences.FindReferencesUse.References };
-	return (ts as any).FindAllReferences.Core.getReferencedSymbolsForNode(position, name, program, [sourceFile], cancellationToken, options) ?? [];
+	const tsInternal = ts as unknown as TypeScriptInternals;
+	const name: ts.Node = tsInternal.getTouchingPropertyName(sourceFile, position);
+	const options = { use: tsInternal.FindAllReferences.FindReferencesUse.References };
+	return tsInternal.FindAllReferences.Core.getReferencedSymbolsForNode(position, name, program, [sourceFile], cancellationToken, options) ?? [];
 }
 
 interface SymbolAndEntries {

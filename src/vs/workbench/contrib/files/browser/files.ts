@@ -159,7 +159,7 @@ export function getMultiSelectedResources(commandArg: unknown, listService: ILis
 	}
 
 	const result = getResourceForCommand(commandArg, editorSerice, listService);
-	return !!result ? [result] : [];
+	return result ? [result] : [];
 }
 
 export function getOpenEditorsViewMultiSelection(accessor: ServicesAccessor): Array<IEditorIdentifier> | undefined {

@@ -305,7 +305,7 @@ class TabFocusMode extends Disposable {
 
 		this.registerListeners();
 
-		const tabFocusModeConfig = configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+		const tabFocusModeConfig = configurationService.getValue<boolean>('editor.tabFocusMode') === true;
 		TabFocus.setTabFocusMode(tabFocusModeConfig);
 	}
 
@@ -314,7 +314,7 @@ class TabFocusMode extends Disposable {
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.tabFocusMode')) {
-				const tabFocusModeConfig = this.configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+				const tabFocusModeConfig = this.configurationService.getValue<boolean>('editor.tabFocusMode') === true;
 				TabFocus.setTabFocusMode(tabFocusModeConfig);
 
 				this._onDidChange.fire(tabFocusModeConfig);
@@ -651,7 +651,7 @@ class EditorStatus extends Disposable {
 	}
 
 	private getSelectionLabel(info: IEditorSelectionStatus): string | undefined {
-		if (!info || !info.selections) {
+		if (!info?.selections) {
 			return undefined;
 		}
 
@@ -1145,7 +1145,7 @@ export class ChangeLanguageAction extends Action2 {
 				args: [
 					{
 						name: localize('changeLanguageMode.arg.name', "The name of the language mode to change to."),
-						constraint: (value: any) => typeof value === 'string',
+						constraint: (value: unknown) => typeof value === 'string',
 					}
 				]
 			}
@@ -1225,11 +1225,11 @@ export class ChangeLanguageAction extends Action2 {
 			picks.unshift(configureLanguageAssociations);
 		}
 
-		// Offer to "Auto Detect"
-		const autoDetectLanguage: IQuickPickItem = {
-			label: localize('autoDetect', "Auto Detect")
-		};
-		picks.unshift(autoDetectLanguage);
+		// Offer to "Auto Detect", but only if the document is not empty.
+		const autoDetectLanguage: IQuickPickItem = { label: localize('autoDetect', "Auto Detect") };
+		if (textModel && textModel.getValueLength() > 0) {
+			picks.unshift(autoDetectLanguage);
+		}
 
 		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
 		if (!pick) {
@@ -1374,7 +1374,7 @@ export class ChangeLanguageAction extends Action2 {
 
 				// If the association is already being made in the workspace, make sure to target workspace settings
 				let target = ConfigurationTarget.USER;
-				if (fileAssociationsConfig.workspaceValue && !!(fileAssociationsConfig.workspaceValue as any)[associationKey]) {
+				if (fileAssociationsConfig.workspaceValue?.[associationKey as keyof typeof fileAssociationsConfig.workspaceValue]) {
 					target = ConfigurationTarget.WORKSPACE;
 				}
 

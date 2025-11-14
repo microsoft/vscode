@@ -211,22 +211,22 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	}
 
 	private readonly _transientWatchers = this._register(new DisposableMap<string, ModelTransientSettingWatcher>());
-	private readonly _modelProperties = new Map<string, Map<string, any>>();
+	private readonly _modelProperties = new Map<string, Map<string, unknown>>();
 
-	public setModelProperty(resource: URI, key: string, value: any): void {
+	public setModelProperty(resource: URI, key: string, value: unknown): void {
 		const key1 = resource.toString();
-		let dest: Map<string, any>;
+		let dest: Map<string, unknown>;
 		if (this._modelProperties.has(key1)) {
 			dest = this._modelProperties.get(key1)!;
 		} else {
-			dest = new Map<string, any>();
+			dest = new Map<string, unknown>();
 			this._modelProperties.set(key1, dest);
 		}
 
 		dest.set(key, value);
 	}
 
-	public getModelProperty(resource: URI, key: string): any {
+	public getModelProperty(resource: URI, key: string): unknown {
 		const key1 = resource.toString();
 		if (this._modelProperties.has(key1)) {
 			const innerMap = this._modelProperties.get(key1)!;
@@ -235,7 +235,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return undefined;
 	}
 
-	public setTransientModelProperty(model: ITextModel, key: string, value: any): void {
+	public setTransientModelProperty(model: ITextModel, key: string, value: unknown): void {
 		const uri = model.uri.toString();
 
 		let w = this._transientWatchers.get(uri);
@@ -251,7 +251,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		}
 	}
 
-	public getTransientModelProperty(model: ITextModel, key: string): any {
+	public getTransientModelProperty(model: ITextModel, key: string): unknown {
 		const uri = model.uri.toString();
 
 		const watcher = this._transientWatchers.get(uri);
@@ -262,7 +262,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return watcher.get(key);
 	}
 
-	public getTransientModelProperties(model: ITextModel): [string, any][] | undefined {
+	public getTransientModelProperties(model: ITextModel): [string, unknown][] | undefined {
 		const uri = model.uri.toString();
 
 		const watcher = this._transientWatchers.get(uri);
@@ -297,7 +297,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 export class ModelTransientSettingWatcher extends Disposable {
 	public readonly uri: string;
-	private readonly _values: { [key: string]: any };
+	private readonly _values: { [key: string]: unknown };
 
 	constructor(uri: string, model: ITextModel, owner: AbstractCodeEditorService) {
 		super();
@@ -307,11 +307,11 @@ export class ModelTransientSettingWatcher extends Disposable {
 		this._register(model.onWillDispose(() => owner._removeWatcher(this)));
 	}
 
-	public set(key: string, value: any): void {
+	public set(key: string, value: unknown): void {
 		this._values[key] = value;
 	}
 
-	public get(key: string): any {
+	public get(key: string): unknown {
 		return this._values[key];
 	}
 
@@ -826,7 +826,7 @@ class DecorationCSSRules {
 		return cssTextArr.join('');
 	}
 
-	private collectBorderSettingsCSSText(opts: any, cssTextArr: string[]): boolean {
+	private collectBorderSettingsCSSText(opts: unknown, cssTextArr: string[]): boolean {
 		if (this.collectCSSText(opts, ['border', 'borderColor', 'borderRadius', 'borderSpacing', 'borderStyle', 'borderWidth'], cssTextArr)) {
 			cssTextArr.push(strings.format('box-sizing: border-box;'));
 			return true;
@@ -834,10 +834,10 @@ class DecorationCSSRules {
 		return false;
 	}
 
-	private collectCSSText(opts: any, properties: string[], cssTextArr: string[]): boolean {
+	private collectCSSText(opts: unknown, properties: string[], cssTextArr: string[]): boolean {
 		const lenBefore = cssTextArr.length;
 		for (const property of properties) {
-			const value = this.resolveValue(opts[property]);
+			const value = this.resolveValue((opts as Record<string, unknown>)[property] as string | ThemeColor);
 			if (typeof value === 'string') {
 				cssTextArr.push(strings.format(_CSS_MAP[property], value));
 			}

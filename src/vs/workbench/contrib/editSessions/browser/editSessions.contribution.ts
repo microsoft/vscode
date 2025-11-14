@@ -302,7 +302,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				super(showOutputChannelCommand);
 			}
 
-			run(accessor: ServicesAccessor, ...args: any[]) {
+			run(accessor: ServicesAccessor, ...args: unknown[]) {
 				const outputChannel = accessor.get(IOutputService);
 				void outputChannel.showChannel(editSessionsLogId);
 			}
@@ -1010,8 +1010,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			disposables.add(quickPick.onDidTriggerItemButton(async (e) => {
 				if (e.item.documentation !== undefined) {
-					const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this.commandService.executeCommand(e.item.documentation);
-					void this.openerService.open(uri, { openExternal: true });
+					const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this.commandService.executeCommand<URI>(e.item.documentation);
+					if (uri) {
+						void this.openerService.open(uri, { openExternal: true });
+					}
 				}
 			}));
 		});

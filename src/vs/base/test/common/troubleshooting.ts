@@ -47,9 +47,11 @@ export function endTrackingDisposables(): void {
 }
 
 export function beginLoggingFS(withStacks: boolean = false): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	(<any>self).beginLoggingFS?.(withStacks);
 }
 
 export function endLoggingFS(): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	(<any>self).endLoggingFS?.();
 }

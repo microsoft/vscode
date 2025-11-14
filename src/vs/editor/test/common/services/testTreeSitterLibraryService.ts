@@ -11,14 +11,18 @@ export class TestTreeSitterLibraryService implements ITreeSitterLibraryService {
 	readonly _serviceBrand: undefined;
 
 	getParserClass(): Promise<typeof Parser> {
-		throw new Error('getParserClass is not implemented in TestTreeSitterLibraryService');
+		throw new Error('not implemented in TestTreeSitterLibraryService');
 	}
 
 	supportsLanguage(languageId: string, reader: IReader | undefined): boolean {
 		return false;
 	}
 
-	getLanguage(languageId: string, reader: IReader | undefined): Language | undefined {
+	getLanguage(languageId: string, ignoreSupportsCheck: boolean, reader: IReader | undefined): Language | undefined {
+		return undefined;
+	}
+
+	async getLanguagePromise(languageId: string): Promise<Language | undefined> {
 		return undefined;
 	}
 
@@ -28,5 +32,9 @@ export class TestTreeSitterLibraryService implements ITreeSitterLibraryService {
 
 	getHighlightingQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		return null;
+	}
+
+	async createQuery(language: Language, querySource: string): Promise<Query> {
+		throw new Error('not implemented in TestTreeSitterLibraryService');
 	}
 }

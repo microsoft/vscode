@@ -15,11 +15,13 @@ import { IRemoteUserDataProfilesService } from '../../userDataProfile/common/rem
 import { WorkbenchMcpManagementService as BaseWorkbenchMcpManagementService, IWorkbenchMcpManagementService } from '../common/mcpWorkbenchManagementService.js';
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { IAllowedMcpServersService } from '../../../../platform/mcp/common/mcpManagement.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class WorkbenchMcpManagementService extends BaseWorkbenchMcpManagementService {
 
 	constructor(
 		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
+		@ILogService logService: ILogService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
@@ -29,8 +31,8 @@ export class WorkbenchMcpManagementService extends BaseWorkbenchMcpManagementSer
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 	) {
-		const mcpManagementService = new McpManagementChannelClient(sharedProcessService.getChannel('mcpManagement'), allowedMcpServersService);
-		super(mcpManagementService, allowedMcpServersService, userDataProfileService, uriIdentityService, workspaceContextService, remoteAgentService, userDataProfilesService, remoteUserDataProfilesService, instantiationService);
+		const mcpManagementService = new McpManagementChannelClient(sharedProcessService.getChannel('mcpManagement'), allowedMcpServersService, logService);
+		super(mcpManagementService, allowedMcpServersService, logService, userDataProfileService, uriIdentityService, workspaceContextService, remoteAgentService, userDataProfilesService, remoteUserDataProfilesService, instantiationService);
 		this._register(mcpManagementService);
 	}
 }

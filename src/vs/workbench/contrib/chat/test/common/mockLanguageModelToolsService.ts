@@ -17,16 +17,30 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	constructor() { }
 
-	cancelToolCallsForRequest(requestId: string): void {
-	}
-
-	onDidChangeTools: Event<void> = Event.None;
+	readonly onDidChangeTools: Event<void> = Event.None;
+	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ sessionId: string; toolData: IToolData }> = Event.None;
 
 	registerToolData(toolData: IToolData): IDisposable {
 		return Disposable.None;
 	}
 
 	resetToolAutoConfirmation(): void {
+
+	}
+
+	getToolPostExecutionAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never' {
+		return 'never';
+	}
+
+	resetToolPostExecutionAutoConfirmation(): void {
+
+	}
+
+	flushToolUpdates(): void {
+
+	}
+
+	cancelToolCallsForRequest(requestId: string): void {
 
 	}
 
@@ -82,15 +96,35 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean> {
-		throw new Error('Method not implemented.');
-	}
-
 	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
 		throw new Error('Method not implemented.');
 	}
 
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[] {
+		throw new Error('Method not implemented.');
+	}
+
+	getQualifiedToolNames(): Iterable<string> {
+		throw new Error('Method not implemented.');
+	}
+
+	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined {
+		throw new Error('Method not implemented.');
+	}
+
+	getQualifiedToolName(tool: IToolData, set?: ToolSet): string {
+		throw new Error('Method not implemented.');
+	}
+
+	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[] {
+		throw new Error('Method not implemented.');
+	}
+
+	getDeprecatedQualifiedToolNames(): Map<string, string> {
+		throw new Error('Method not implemented.');
+	}
+
+	mapGithubToolName(githubToolName: string): string {
 		throw new Error('Method not implemented.');
 	}
 }

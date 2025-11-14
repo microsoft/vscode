@@ -43,6 +43,7 @@ suite('EditorAutoSave', () => {
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('files', autoSaveConfig);
 		instantiationService.stub(IConfigurationService, configurationService);
+		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IAccessibilitySignalService, {
 			playSignal: async () => { },
 			isSoundEnabled(signal: unknown) { return false; },

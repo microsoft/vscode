@@ -66,7 +66,7 @@ class ChatEditorOverlayWidget extends Disposable {
 		const requestMessage = derived(r => {
 
 			const session = this._session.read(r);
-			const chatModel = this._chatService.getSession(session?.chatSessionId ?? '');
+			const chatModel = session?.chatSessionResource && this._chatService.getSession(session?.chatSessionResource);
 			if (!session || !chatModel) {
 				return undefined;
 			}
@@ -375,7 +375,7 @@ class ChatEditingOverlayController {
 				return false;
 			}
 
-			const chatModel = chatService.getSession(session.chatSessionId)!;
+			const chatModel = chatService.getSession(session.chatSessionResource)!;
 			return chatModel.requestInProgressObs.read(r);
 		});
 
@@ -390,7 +390,7 @@ class ChatEditingOverlayController {
 
 			const { session, entry } = data;
 
-			if (!session.isGlobalEditingSession && !inlineChatService.hideOnRequest.read(r)) {
+			if (!session.isGlobalEditingSession) {
 				// inline chat - no chat overlay unless hideOnRequest is on
 				hide();
 				return;

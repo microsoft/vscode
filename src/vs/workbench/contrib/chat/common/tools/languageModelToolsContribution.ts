@@ -39,9 +39,9 @@ export interface IRawToolContribution {
 
 const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawToolContribution[]>({
 	extensionPoint: 'languageModelTools',
-	activationEventsGenerator: (contributions: IRawToolContribution[], result) => {
+	activationEventsGenerator: function* (contributions: readonly IRawToolContribution[]) {
 		for (const contrib of contributions) {
-			result.push(`onLanguageModelTool:${contrib.name}`);
+			yield `onLanguageModelTool:${contrib.name}`;
 		}
 	},
 	jsonSchema: {

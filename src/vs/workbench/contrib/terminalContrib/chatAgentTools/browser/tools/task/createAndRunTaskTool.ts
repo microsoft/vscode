@@ -9,6 +9,7 @@ import { localize } from '../../../../../../../nls.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/taskService.js';
+import { TaskRunSource } from '../../../../../tasks/common/tasks.js';
 import { ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, IConfiguredTask, resolveDependencyTasks } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -96,7 +97,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		}
 
 		_progress.report({ message: new MarkdownString(localize('copilotChat.runningTask', 'Running task `{0}`', args.task.label)) });
-		const raceResult = await Promise.race([this._tasksService.run(task), timeout(3000)]);
+		const raceResult = await Promise.race([this._tasksService.run(task, undefined, TaskRunSource.ChatAgent), timeout(3000)]);
 		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
 		const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
@@ -114,7 +115,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			_progress,
 			token,
 			store,
-			() => this._isTaskActive(task),
+			(terminalTask) => this._isTaskActive(terminalTask),
 			dependencyTasks
 		);
 		store.dispose();
@@ -145,7 +146,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 
 	private async _isTaskActive(task: Task): Promise<boolean> {
 		const activeTasks = await this._tasksService.getActiveTasks();
-		return activeTasks?.includes(task) ?? false;
+		return activeTasks?.some((t) => t._id === task._id);
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -177,8 +178,8 @@ export class CreateAndRunTaskTool implements IToolImpl {
 				title: localize('allowTaskCreationExecution', 'Allow task creation and execution?'),
 				message: new MarkdownString(
 					localize(
-						'copilotCreateTask',
-						'Copilot will create the task \`{0}\` with command \`{1}\`{2}.',
+						'createTask',
+						'A task \`{0}\` with command \`{1}\`{2} will be created.',
 						task.label,
 						task.command,
 						task.args?.length ? ` and args \`${task.args.join(' ')}\`` : ''

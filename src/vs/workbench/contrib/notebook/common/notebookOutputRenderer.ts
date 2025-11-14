@@ -72,7 +72,7 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 
 		this.displayName = descriptor.displayName;
 		this.mimeTypes = descriptor.mimeTypes;
-		this.mimeTypeGlobs = this.mimeTypes.map(pattern => glob.parse(pattern));
+		this.mimeTypeGlobs = this.mimeTypes.map(pattern => glob.parse(pattern, { ignoreCase: true }));
 		this.hardDependencies = new DependencyList(descriptor.dependencies ?? Iterable.empty());
 		this.optionalDependencies = new DependencyList(descriptor.optionalDependencies ?? Iterable.empty());
 		this.messaging = descriptor.requiresMessaging ?? RendererMessagingSpec.Never;
