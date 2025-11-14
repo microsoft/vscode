@@ -1537,9 +1537,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	private setAlignment(container: HTMLElement, treeItem: ITreeItem) {
-		// When checkboxes are present, always hide the ::before pseudo-element to avoid extra indentation
+		// When a node has a checkbox, hide the ::before pseudo-element to avoid extra indentation
 		// since the checkbox itself provides the visual alignment
-		const shouldAlign = this._hasCheckbox || this.aligner.alignIconWithTwisty(treeItem);
+		const shouldAlign = !!treeItem.checkbox || this.aligner.alignIconWithTwisty(treeItem);
 		container.parentElement!.classList.toggle('align-icon-with-twisty', shouldAlign);
 	}
 
