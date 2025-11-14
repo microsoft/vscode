@@ -122,8 +122,7 @@ async function main(buildDir?: string): Promise<void> {
 	await retrySignOnKeychainError(() => sign(appOpts));
 }
 
-const normalizeScriptPath = (p: string) => p.replace(/\.(js|ts)$/, '');
-if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
+if (import.meta.main) {
 	main(process.argv[2]).catch(async err => {
 		console.error(err);
 		const tempDir = process.env['AGENT_TEMPDIRECTORY'];

@@ -44,8 +44,7 @@ async function main() {
 	console.log(JSON.stringify({ cosmosDBAccessToken, blobServiceAccessToken }));
 }
 
-const normalizeScriptPath = (p: string) => p.replace(/\.(js|ts)$/, '');
-if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
+if (import.meta.main) {
 	main().then(() => {
 		process.exit(0);
 	}, err => {

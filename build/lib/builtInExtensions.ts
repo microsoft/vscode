@@ -181,8 +181,7 @@ export function getBuiltInExtensions(): Promise<void> {
 	});
 }
 
-const normalizeScriptPath = (p: string) => p.replace(/\.(js|ts)$/, '');
-if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
+if (import.meta.main) {
 	getBuiltInExtensions().then(() => process.exit(0)).catch(err => {
 		console.error(err);
 		process.exit(1);

@@ -67,8 +67,7 @@ async function main(outputDir?: string): Promise<void> {
 	await downloadExplorerDll(outputDir, product.quality, arch);
 }
 
-const normalizeScriptPath = (p: string) => p.replace(/\.(js|ts)$/, '');
-if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
+if (import.meta.main) {
 	main(process.argv[2]).catch(err => {
 		console.error(err);
 		process.exit(1);
