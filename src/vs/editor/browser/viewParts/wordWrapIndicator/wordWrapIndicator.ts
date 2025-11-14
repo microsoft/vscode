@@ -82,18 +82,18 @@ export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 
 			if (lineData.continuesWithWrappedLine) {
 				// This line wraps to the next line, so we should render an indicator
-				this._renderResult[lineIndex] = this._renderWrapIndicator(ctx, lineNumber, lineData.content.length);
+				this._renderResult[lineIndex] = this._renderWrapIndicator(ctx, lineNumber, lineData.maxColumn);
 			} else {
 				this._renderResult[lineIndex] = '';
 			}
 		}
 	}
 
-	private _renderWrapIndicator(ctx: RenderingContext, lineNumber: number, contentLength: number): string {
+	private _renderWrapIndicator(ctx: RenderingContext, lineNumber: number, maxColumn: number): string {
 		const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
 		
-		// Get the position at the end of the line
-		const visibleRange = ctx.visibleRangeForPosition(new Position(lineNumber, contentLength + 1));
+		// Get the position at the end of the line (maxColumn is 1-based)
+		const visibleRange = ctx.visibleRangeForPosition(new Position(lineNumber, maxColumn));
 		if (!visibleRange) {
 			return '';
 		}
