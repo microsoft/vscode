@@ -64,12 +64,12 @@ export class CommentGlyphWidget extends Disposable {
 
 	private createDecorationOptions(): ModelDecorationOptions {
 		// Priority: draft > unresolved > resolved
-		let className: string;
+		let stateClassName: string;
 		if (this._threadHasDraft) {
-			className = 'comment-range-glyph comment-thread-draft';
+			stateClassName = 'comment-thread-draft';
 		} else {
 			const unresolved = this._threadState === CommentThreadState.Unresolved;
-			className = `comment-range-glyph comment-thread${unresolved ? '-unresolved' : ''}`;
+			stateClassName = `comment-thread${unresolved ? '-unresolved' : ''}`;
 		}
 
 		const wordWrap = this._editor.getOption(EditorOption.wordWrap);
@@ -84,10 +84,12 @@ export class CommentGlyphWidget extends Disposable {
 				position: OverviewRulerLane.Center
 			},
 			collapseOnReplaceEdit: true,
-			// When word wrap is enabled, use firstLineDecorationClassName to only show on first line
-			// When word wrap is disabled, use linesDecorationsClassName for the whole line
-			linesDecorationsClassName: isWordWrapEnabled ? undefined : className,
-			firstLineDecorationClassName: isWordWrapEnabled ? className : undefined
+			// When word wrap is enabled:
+			// - linesDecorationsClassName shows the comment bar on all wrapped lines
+			// - firstLineDecorationClassName shows the comment icon only on the first line
+			// When word wrap is disabled, use linesDecorationsClassName for both bar and icon
+			linesDecorationsClassName: isWordWrapEnabled ? 'comment-range-glyph' : `comment-range-glyph ${stateClassName}`,
+			firstLineDecorationClassName: isWordWrapEnabled ? `comment-range-glyph ${stateClassName}` : undefined
 		};
 
 		return ModelDecorationOptions.createDynamic(decorationOptions);

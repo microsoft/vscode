@@ -132,12 +132,16 @@ class CommentingRangeDecorator {
 		const wordWrap = this._editor?.getOption(EditorOption.wordWrap);
 		const isWordWrapEnabled = wordWrap !== 'off';
 
+		const baseClassName = 'comment-range-glyph';
+
 		const decorationOptions: IModelDecorationOptions = {
 			description: CommentingRangeDecorator.description,
 			isWholeLine: true,
-			// When word wrap is enabled, use firstLineDecorationClassName to only show on first line
-			// When word wrap is disabled, use linesDecorationsClassName for the whole line
-			linesDecorationsClassName: isWordWrapEnabled ? undefined : className,
+			// When word wrap is enabled:
+			// - linesDecorationsClassName shows the comment bar on all wrapped lines
+			// - firstLineDecorationClassName shows the comment icon only on the first line
+			// When word wrap is disabled, use linesDecorationsClassName for both bar and icon
+			linesDecorationsClassName: isWordWrapEnabled ? baseClassName : className,
 			firstLineDecorationClassName: isWordWrapEnabled ? className : undefined,
 		};
 
