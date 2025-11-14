@@ -29,7 +29,6 @@ import {
 	IToolResult,
 	ToolDataSource,
 	ToolProgress,
-	VSCodeToolReference,
 } from '../../chat/common/languageModelToolsService.js';
 import { TestId } from './testId.js';
 import { FileCoverage, getTotalCoveragePercent } from './testCoverage.js';

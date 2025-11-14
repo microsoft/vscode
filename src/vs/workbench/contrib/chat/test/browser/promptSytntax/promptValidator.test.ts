@@ -67,6 +67,32 @@ suite('PromptValidator', () => {
 		const prExtTool1 = { id: 'suggestFix', canBeReferencedInPrompt: true, toolReferenceName: 'suggest-fix', modelDescription: 'tool4', displayName: 'Test Tool 4', source: prExtSource, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(prExtTool1));
 
+		const toolWithLegacy = { id: 'newTool', toolReferenceName: 'newToolRef', displayName: 'New Tool', canBeReferencedInPrompt: true, modelDescription: 'New Tool', source: ToolDataSource.External, inputSchema: {}, legacyToolReferenceFullNames: ['oldToolName', 'deprecatedToolName'] } satisfies IToolData;
+		disposables.add(toolService.registerToolData(toolWithLegacy));
+
+		const toolSetWithLegacy = disposables.add(toolService.createToolSet(
+			ToolDataSource.External,
+			'newToolSet',
+			'newToolSetRef',
+			{ description: 'New Tool Set', legacyNames: ['oldToolSet', 'deprecatedToolSet'] }
+		));
+		const toolInSet = { id: 'toolInSet', toolReferenceName: 'toolInSetRef', displayName: 'Tool In Set', canBeReferencedInPrompt: true, modelDescription: 'Tool In Set', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(toolInSet));
+		disposables.add(toolSetWithLegacy.addTool(toolInSet));
+
+		const anotherToolWithLegacy = { id: 'anotherTool', toolReferenceName: 'anotherToolRef', displayName: 'Another Tool', canBeReferencedInPrompt: true, modelDescription: 'Another Tool', source: ToolDataSource.External, inputSchema: {}, legacyToolReferenceFullNames: ['legacyTool'] } satisfies IToolData;
+		disposables.add(toolService.registerToolData(anotherToolWithLegacy));
+
+		const anotherToolSetWithLegacy = disposables.add(toolService.createToolSet(
+			ToolDataSource.External,
+			'anotherToolSet',
+			'anotherToolSetRef',
+			{ description: 'Another Tool Set', legacyNames: ['legacyToolSet'] }
+		));
+		const anotherToolInSet = { id: 'anotherToolInSet', toolReferenceName: 'anotherToolInSetRef', displayName: 'Another Tool In Set', canBeReferencedInPrompt: true, modelDescription: 'Another Tool In Set', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(anotherToolInSet));
+		disposables.add(anotherToolSetWithLegacy.addTool(anotherToolInSet));
+
 		instaService.set(ILanguageModelToolsService, toolService);
 
 		const testModels: ILanguageModelChatMetadata[] = [
@@ -182,6 +208,97 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
+					{ severity: MarkerSeverity.Info, message: `Tool or toolset 'tool3' has been renamed, use 'my.extension/tool3' instead.` },
+				]
+			);
+		});
+
+		test('legacy tool reference names', async () => {
+			// Test using legacy tool reference name
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`tools: ['tool1', 'oldToolName']`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(
+					markers.map(m => ({ severity: m.severity, message: m.message })),
+					[
+						{ severity: MarkerSeverity.Info, message: `Tool or toolset 'oldToolName' has been renamed, use 'newToolRef' instead.` },
+					]
+				);
+			}
+
+			// Test using another legacy tool reference name
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`tools: ['tool1', 'deprecatedToolName']`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(
+					markers.map(m => ({ severity: m.severity, message: m.message })),
+					[
+						{ severity: MarkerSeverity.Info, message: `Tool or toolset 'deprecatedToolName' has been renamed, use 'newToolRef' instead.` },
+					]
+				);
+			}
+		});
+
+		test('legacy toolset names', async () => {
+			// Test using legacy toolset name
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`tools: ['tool1', 'oldToolSet']`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(
+					markers.map(m => ({ severity: m.severity, message: m.message })),
+					[
+						{ severity: MarkerSeverity.Info, message: `Tool or toolset 'oldToolSet' has been renamed, use 'newToolSetRef' instead.` },
+					]
+				);
+			}
+
+			// Test using another legacy toolset name
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`tools: ['tool1', 'deprecatedToolSet']`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(
+					markers.map(m => ({ severity: m.severity, message: m.message })),
+					[
+						{ severity: MarkerSeverity.Info, message: `Tool or toolset 'deprecatedToolSet' has been renamed, use 'newToolSetRef' instead.` },
+					]
+				);
+			}
+		});
+
+		test('multiple legacy names in same tools list', async () => {
+			// Test multiple legacy names together
+			const content = [
+				'---',
+				'description: "Test"',
+				`tools: ['legacyTool', 'legacyToolSet', 'tool3']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Info, message: `Tool or toolset 'legacyTool' has been renamed, use 'anotherToolRef' instead.` },
+					{ severity: MarkerSeverity.Info, message: `Tool or toolset 'legacyToolSet' has been renamed, use 'anotherToolSetRef' instead.` },
 					{ severity: MarkerSeverity.Info, message: `Tool or toolset 'tool3' has been renamed, use 'my.extension/tool3' instead.` },
 				]
 			);

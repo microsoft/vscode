@@ -139,7 +139,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			VSCodeToolReference.vscode,
 			{
 				icon: ThemeIcon.fromId(Codicon.code.id),
-				description: localize('copilot.toolSet.vscode.description', 'Tools for VS Code')
+				description: localize('copilot.toolSet.vscode.description', 'Tools for VS Code'),
+				legacyNames: ['new', 'runNotebooks', 'runTasks']
 			}
 		));
 	}

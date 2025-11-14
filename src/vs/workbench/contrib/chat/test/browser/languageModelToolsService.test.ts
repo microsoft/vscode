@@ -593,7 +593,7 @@ suite('LanguageModelToolsService', () => {
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 9, 'Expected 9 tools to be enabled'); // +1 including the vscode toolset
 
 			const qualifiedNames1 = service.toQualifiedToolNames(result1);
-			const expectedQualifiedNames = ['tool1RefName', 'Tool2 Display Name', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName'];
+			const expectedQualifiedNames = ['tool1RefName', 'Tool2 Display Name', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName', 'vscode'];
 			assert.deepStrictEqual(qualifiedNames1.sort(), expectedQualifiedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
 		}
 		// Test with no enabled tools
@@ -768,6 +768,99 @@ suite('LanguageModelToolsService', () => {
 
 	});
 
+
+	test('toToolAndToolSetEnablementMap with legacy names', () => {
+		// Test that legacy tool reference names and legacy toolset names work correctly
+
+		// Create a tool with legacy reference names
+		const toolWithLegacy: IToolData = {
+			id: 'newTool',
+			toolReferenceName: 'newToolRef',
+			modelDescription: 'New Tool',
+			displayName: 'New Tool',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+			legacyToolReferenceFullNames: ['oldToolName', 'deprecatedToolName']
+		};
+		store.add(service.registerToolData(toolWithLegacy));
+
+		// Create a tool set with legacy names
+		const toolSetWithLegacy = store.add(service.createToolSet(
+			ToolDataSource.Internal,
+			'newToolSet',
+			'newToolSetRef',
+			{ description: 'New Tool Set', legacyNames: ['oldToolSet', 'deprecatedToolSet'] }
+		));
+
+		// Create a tool in the toolset
+		const toolInSet: IToolData = {
+			id: 'toolInSet',
+			toolReferenceName: 'toolInSetRef',
+			modelDescription: 'Tool In Set',
+			displayName: 'Tool In Set',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(toolInSet));
+		store.add(toolSetWithLegacy.addTool(toolInSet));
+
+		// Test 1: Using legacy tool reference name should enable the tool
+		{
+			const result = service.toToolAndToolSetEnablementMap(['oldToolName'], undefined);
+			assert.strictEqual(result.get(toolWithLegacy), true, 'tool should be enabled via legacy name');
+
+			const qualifiedNames = service.toQualifiedToolNames(result);
+			assert.deepStrictEqual(qualifiedNames, ['newToolRef'], 'should return current qualified name, not legacy');
+		}
+
+		// Test 2: Using another legacy tool reference name should also work
+		{
+			const result = service.toToolAndToolSetEnablementMap(['deprecatedToolName'], undefined);
+			assert.strictEqual(result.get(toolWithLegacy), true, 'tool should be enabled via another legacy name');
+
+			const qualifiedNames = service.toQualifiedToolNames(result);
+			assert.deepStrictEqual(qualifiedNames, ['newToolRef'], 'should return current qualified name, not legacy');
+		}
+
+		// Test 3: Using legacy toolset name should enable the entire toolset
+		{
+			const result = service.toToolAndToolSetEnablementMap(['oldToolSet'], undefined);
+			assert.strictEqual(result.get(toolSetWithLegacy), true, 'toolset should be enabled via legacy name');
+			assert.strictEqual(result.get(toolInSet), true, 'tool in set should be enabled when set is enabled via legacy name');
+
+			const qualifiedNames = service.toQualifiedToolNames(result);
+			assert.deepStrictEqual(qualifiedNames, ['newToolSetRef'], 'should return current qualified name, not legacy');
+		}
+
+		// Test 4: Using deprecated toolset name should also work
+		{
+			const result = service.toToolAndToolSetEnablementMap(['deprecatedToolSet'], undefined);
+			assert.strictEqual(result.get(toolSetWithLegacy), true, 'toolset should be enabled via another legacy name');
+			assert.strictEqual(result.get(toolInSet), true, 'tool in set should be enabled when set is enabled via legacy name');
+
+			const qualifiedNames = service.toQualifiedToolNames(result);
+			assert.deepStrictEqual(qualifiedNames, ['newToolSetRef'], 'should return current qualified name, not legacy');
+		}
+
+		// Test 5: Mix of current and legacy names
+		{
+			const result = service.toToolAndToolSetEnablementMap(['newToolRef', 'oldToolSet'], undefined);
+			assert.strictEqual(result.get(toolWithLegacy), true, 'tool should be enabled via current name');
+			assert.strictEqual(result.get(toolSetWithLegacy), true, 'toolset should be enabled via legacy name');
+			assert.strictEqual(result.get(toolInSet), true, 'tool in set should be enabled');
+
+			const qualifiedNames = service.toQualifiedToolNames(result);
+			assert.deepStrictEqual(qualifiedNames.sort(), ['newToolRef', 'newToolSetRef'].sort(), 'should return current qualified names');
+		}
+
+		// Test 6: Using legacy names and current names together (redundant but should work)
+		{
+			const result = service.toToolAndToolSetEnablementMap(['newToolRef', 'oldToolName', 'deprecatedToolName'], undefined);
+			assert.strictEqual(result.get(toolWithLegacy), true, 'tool should be enabled (redundant legacy names should not cause issues)');
+
+			const qualifiedNames = service.toQualifiedToolNames(result);
+			assert.deepStrictEqual(qualifiedNames, ['newToolRef'], 'should return single current qualified name');
+		}
+	});
 
 	test('toToolAndToolSetEnablementMap map Github to VSCode tools', () => {
 		const runCommandsToolData: IToolData = {
