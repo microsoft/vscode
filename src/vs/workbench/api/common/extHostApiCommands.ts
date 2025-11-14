@@ -69,17 +69,17 @@ const newCommands: ApiCommand[] = [
 	// -- formatting
 	new ApiCommand(
 		'vscode.executeFormatDocumentProvider', '_executeFormatDocumentProvider', 'Execute document format provider.',
-		[ApiCommandArgument.Uri, new ApiCommandArgument('options', 'Formatting options', _ => true, v => v)],
+		[ApiCommandArgument.Uri, new ApiCommandArgument<languages.FormattingOptions>('options', 'Formatting options', options => languages.isFormattingOptions(options), v => v)],
 		new ApiCommandResult<languages.TextEdit[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
 	),
 	new ApiCommand(
 		'vscode.executeFormatRangeProvider', '_executeFormatRangeProvider', 'Execute range format provider.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Range, new ApiCommandArgument('options', 'Formatting options', _ => true, v => v)],
+		[ApiCommandArgument.Uri, ApiCommandArgument.Range, new ApiCommandArgument<languages.FormattingOptions>('options', 'Formatting options', options => languages.isFormattingOptions(options), v => v)],
 		new ApiCommandResult<languages.TextEdit[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
 	),
 	new ApiCommand(
 		'vscode.executeFormatOnTypeProvider', '_executeFormatOnTypeProvider', 'Execute format on type provider.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position, new ApiCommandArgument('ch', 'Trigger character', v => typeof v === 'string', v => v), new ApiCommandArgument('options', 'Formatting options', _ => true, v => v)],
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position, new ApiCommandArgument('ch', 'Trigger character', v => typeof v === 'string', v => v), new ApiCommandArgument<languages.FormattingOptions>('options', 'Formatting options', options => languages.isFormattingOptions(options), v => v)],
 		new ApiCommandResult<languages.TextEdit[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
 	),
 	// -- go to symbol (definition, type definition, declaration, impl, references)

@@ -19,7 +19,7 @@ import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { ScrollType } from '../../../common/editorCommon.js';
 import { ITextModel } from '../../../common/model.js';
-import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, FormattingOptions, TextEdit } from '../../../common/languages.js';
+import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, FormattingOptions, isFormattingOptions, TextEdit } from '../../../common/languages.js';
 import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
 import { ITextModelService } from '../../../common/services/resolverService.js';
 import { FormattingEdit } from './formattingEdit.js';
@@ -458,12 +458,6 @@ export function getOnTypeFormattingEdits(
 	return Promise.resolve(providers[0].provideOnTypeFormattingEdits(model, position, ch, options, token)).catch(onUnexpectedExternalError).then(edits => {
 		return workerService.computeMoreMinimalEdits(model.uri, edits);
 	});
-}
-
-function isFormattingOptions(obj: unknown): obj is FormattingOptions {
-	const candidate = obj as FormattingOptions | undefined;
-
-	return !!candidate && typeof candidate === 'object' && typeof candidate.tabSize === 'number' && typeof candidate.insertSpaces === 'boolean';
 }
 
 CommandsRegistry.registerCommand('_executeFormatRangeProvider', async function (accessor, ...args) {

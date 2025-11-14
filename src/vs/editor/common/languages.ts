@@ -1719,6 +1719,12 @@ export interface FormattingOptions {
 	 */
 	insertSpaces: boolean;
 }
+/** @internal */
+export function isFormattingOptions(obj: unknown): obj is FormattingOptions {
+	const candidate = obj as FormattingOptions | undefined;
+
+	return !!candidate && typeof candidate === 'object' && typeof candidate.tabSize === 'number' && typeof candidate.insertSpaces === 'boolean';
+}
 /**
  * The document formatting provider interface defines the contract between extensions and
  * the formatting-feature.
