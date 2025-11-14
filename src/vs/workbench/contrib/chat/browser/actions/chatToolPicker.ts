@@ -166,7 +166,7 @@ function createToolSetTreeItem(toolset: ToolSet, checked: boolean, editorService
 		description: toolset.description,
 		checked,
 		children: undefined,
-		collapsed: true,
+		collapsed: undefined, // Preserve collapse state
 		...iconProps
 	};
 }
@@ -284,8 +284,10 @@ export async function showToolsPicker(
 				}
 				const cacheState = mcpServer.cacheState.get();
 				const children: AnyTreeItem[] = [];
-				let collapsed = true;
+				// Default to preserving collapse state, but force expand if server needs updating
+				let collapsed: boolean | undefined = undefined;
 				if (cacheState === McpServerCacheState.Unknown || cacheState === McpServerCacheState.Outdated) {
+					// Force expand servers that need updating so the "Update Tools" button is visible
 					collapsed = false;
 					children.push({
 						itemType: 'callback',
@@ -335,7 +337,7 @@ export async function showToolsPicker(
 					checked: undefined,
 					children: [],
 					buttons: [],
-					collapsed: true,
+					collapsed: undefined, // Preserve collapse state
 					iconClass: ThemeIcon.asClassName(Codicon.extensions),
 					sortOrder: 3,
 				};
@@ -348,7 +350,7 @@ export async function showToolsPicker(
 					checked: undefined,
 					children: [],
 					buttons: [],
-					collapsed: false,
+					collapsed: undefined, // Preserve collapse state
 					sortOrder: 1,
 				};
 			} else {
@@ -360,7 +362,7 @@ export async function showToolsPicker(
 					checked: undefined,
 					children: [],
 					buttons: [],
-					collapsed: true,
+					collapsed: undefined, // Preserve collapse state
 					sortOrder: 4,
 				};
 			}
