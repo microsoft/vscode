@@ -161,13 +161,12 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 										}
 									}, 500);
 
-									// Track progress by wrapping the stream
-									const originalStream = context.stream;
-									const progressStream = originalStream.on('data', (chunk: any) => {
+									// Track progress by listening to the stream
+									context.stream.on('data', (chunk: any) => {
 										bytesDownloaded += chunk.byteLength;
 									});
 
-									return this.fileService.writeFile(URI.file(downloadPath), progressStream)
+									return this.fileService.writeFile(URI.file(downloadPath), context.stream)
 										.finally(() => clearInterval(progressInterval));
 								})
 								.then(update.sha256hash ? () => checksum(downloadPath, update.sha256hash) : () => undefined)
@@ -293,7 +292,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
 		const update: IUpdate = { version: 'unknown', productVersion: 'unknown' };
 
-		this.setState(State.Downloading);
+		this.setState(State.Downloading());
 		this.availableUpdate = { packagePath };
 		this.setState(State.Downloaded(update));
 
