@@ -31,6 +31,7 @@ jobs:
     templateContext:
       sdl:
         binskim:
+          analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/VSCode-linux-*/**/*.node;+:file|$(Agent.BuildDirectory)/VSCode-linux-*/**/*.so;'
           preReleaseVersion: '4.3.1'
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:
