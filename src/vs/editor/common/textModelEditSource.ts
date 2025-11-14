@@ -98,7 +98,7 @@ export const EditSources = {
 		} as const);
 	},
 
-	rename: () => createEditSource({ source: 'rename' } as const),
+	rename: (oldName: string | undefined, newName: string) => createEditSource({ source: 'rename', oldName, newName } as const),
 
 	chatApplyEdits(data: {
 		modelId: string | undefined;
