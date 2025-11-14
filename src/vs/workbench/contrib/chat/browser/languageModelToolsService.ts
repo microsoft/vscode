@@ -452,7 +452,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			if (!prepared) {
 				prepared = {};
 			}
-			const toolReferenceName = getToolReferenceName(tool.data);
+			const toolReferenceName = getToolReferenceFullName(tool.data);
 			// TODO: This should be more detailed per tool.
 			prepared.confirmationMessages = {
 				title: localize('defaultToolConfirmation.title', 'Allow tool to execute?'),
@@ -521,7 +521,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private isToolEligibleForAutoApproval(toolData: IToolData): boolean {
-		const toolReferenceName = getToolReferenceName(toolData);
+		const toolReferenceName = getToolReferenceFullName(toolData);
 		const eligibilityConfig = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);
 		return eligibilityConfig && typeof eligibilityConfig === 'object' && toolReferenceName
 			? (eligibilityConfig[toolReferenceName] ?? true) // Default to true if not specified

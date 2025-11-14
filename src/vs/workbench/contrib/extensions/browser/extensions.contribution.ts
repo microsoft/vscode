@@ -2026,11 +2026,11 @@ class ExtensionToolsContribution extends Disposable implements IWorkbenchContrib
 		this._register(toolsService.registerTool(SearchExtensionsToolData, searchExtensionsTool));
 
 		// Add to vscode toolset
-		const vscodeToolSet = toolsService.getOrCreateToolSet(
+		const vscodeToolSet = this._register(toolsService.getOrCreateToolSet(
 			ToolDataSource.Internal, 'vscode',
 			VSCodeToolReference.vscode,
 			VSCodeToolReference.vscodeToolSetOptions
-		);
+		));
 		vscodeToolSet.addTool(SearchExtensionsToolData);
 	}
 }
