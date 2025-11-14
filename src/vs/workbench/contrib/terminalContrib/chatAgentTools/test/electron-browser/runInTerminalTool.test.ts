@@ -33,7 +33,7 @@ import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/ch
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
 import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
-import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
@@ -104,6 +104,30 @@ suite('RunInTerminalTool', () => {
 		});
 		instantiationService.stub(ITerminalProfileResolverService, {
 			getDefaultProfile: async () => ({ path: 'bash' } as ITerminalProfile)
+		});
+
+		// Stub ITerminalChatService with basic implementation
+		const sessionAutoApprovalMap = new Map<string, boolean>();
+		instantiationService.stub(ITerminalChatService, {
+			setChatSessionAutoApproval: (sessionId: string, enabled: boolean) => {
+				if (enabled) {
+					sessionAutoApprovalMap.set(sessionId, true);
+				} else {
+					sessionAutoApprovalMap.delete(sessionId);
+				}
+			},
+			hasChatSessionAutoApproval: (sessionId: string) => {
+				return sessionAutoApprovalMap.has(sessionId);
+			},
+			onDidRegisterTerminalInstanceWithToolSession: new Emitter<ITerminalInstance>().event
+		});
+
+		// Clean up session auto approval when session is disposed
+		chatServiceDisposeEmitter.event(e => {
+			const sessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
+			if (sessionId) {
+				sessionAutoApprovalMap.delete(sessionId);
+			}
 		});
 
 		storageService = instantiationService.get(IStorageService);
@@ -985,6 +1009,80 @@ suite('RunInTerminalTool', () => {
 			ok(autoApproveInfo);
 			ok(autoApproveInfo.value.includes('Auto approved by rule '), 'should contain singular "rule", not plural');
 			strictEqual(count(autoApproveInfo.value, 'echo'), 1);
+		});
+	});
+
+	suite('session auto approval', () => {
+		test('should auto approve all commands when session has auto approval enabled', async () => {
+			const sessionId = 'test-session-123';
+			const terminalChatService = instantiationService.get(ITerminalChatService);
+			terminalChatService.setChatSessionAutoApproval(sessionId, true);
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'rm dangerous-file.txt',
+					explanation: 'Remove a file',
+					isBackground: false
+				} as IRunInTerminalInputParams,
+				chatSessionId: sessionId
+			} as IToolInvocationPreparationContext;
+
+			const result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			assertAutoApproved(result);
+
+			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
+			ok(terminalData.autoApproveInfo, 'Expected autoApproveInfo to be defined');
+			ok(terminalData.autoApproveInfo.value.includes('Auto approved for this session'), 'Expected session approval message');
+		});
+
+		test('should require confirmation when session does not have auto approval', async () => {
+			const sessionId = 'test-session-456';
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'rm file.txt',
+					explanation: 'Remove a file',
+					isBackground: false
+				} as IRunInTerminalInputParams,
+				chatSessionId: sessionId
+			} as IToolInvocationPreparationContext;
+
+			const result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			assertConfirmationRequired(result);
+		});
+
+		test('should clean up session auto approval when session is disposed', async () => {
+			const sessionId = 'test-session-789';
+			const terminalChatService = instantiationService.get(ITerminalChatService);
+
+			terminalChatService.setChatSessionAutoApproval(sessionId, true);
+			ok(terminalChatService.hasChatSessionAutoApproval(sessionId), 'Session should have auto approval enabled');
+
+			chatServiceDisposeEmitter.fire({ sessionResource: LocalChatSessionUri.forSession(sessionId), reason: 'cleared' });
+
+			ok(!terminalChatService.hasChatSessionAutoApproval(sessionId), 'Session auto approval should be cleaned up after disposal');
+		});
+
+		test('should bypass rule checking when session has auto approval', async () => {
+			const sessionId = 'test-session-bypass';
+			const terminalChatService = instantiationService.get(ITerminalChatService);
+			terminalChatService.setChatSessionAutoApproval(sessionId, true);
+
+			setAutoApprove({
+				rm: { approve: false }
+			});
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'rm file.txt',
+					explanation: 'Remove a file',
+					isBackground: false
+				} as IRunInTerminalInputParams,
+				chatSessionId: sessionId
+			} as IToolInvocationPreparationContext;
+
+			const result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			assertAutoApproved(result);
 		});
 	});
 
