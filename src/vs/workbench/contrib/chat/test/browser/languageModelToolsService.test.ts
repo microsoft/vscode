@@ -1837,7 +1837,7 @@ suite('LanguageModelToolsService', () => {
 		// Test that policy configuration works for eligibleForAutoApproval
 		// Policy values should be JSON strings for object-type settings
 		const testConfigService = new TestConfigurationService();
-		
+
 		// Simulate policy configuration (would come from policy file)
 		const policyValue = {
 			'toolA': true,
