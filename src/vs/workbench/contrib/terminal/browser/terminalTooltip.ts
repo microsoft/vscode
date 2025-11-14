@@ -116,7 +116,7 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 				'```',
 			].map(e => `\n    ${e}`).join(''));
 		} else {
-			detailedAdditions.push(`Prompt input: \`${combinedString.replaceAll('`', '&#96;')}\``);
+			detailedAdditions.push(`Prompt input: \`${combinedString}\``);
 		}
 	}
 	const detailedAdditionsString = detailedAdditions.length > 0
