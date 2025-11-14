@@ -678,31 +678,50 @@ class ChatCodeActionsProvider {
 	async provideCodeActions(model: ITextModel, range: Range | Selection): Promise<CodeActionList | undefined> {
 		const actions: CodeAction[] = [];
 
+		// "Generate" if the line is whitespace only
 		// "Modify" if there is a selection
-		if (!range.isEmpty()) {
+		let generateOrModifyTitle: string | undefined;
+		let generateOrModifyCommand: Command | undefined;
+		if (range.isEmpty()) {
+			const textAtLine = model.getLineContent(range.startLineNumber);
+			if (/^\s*$/.test(textAtLine)) {
+				generateOrModifyTitle = localize('generate', "Generate");
+				generateOrModifyCommand = AICodeActionsHelper.generate(range);
+			}
+		} else {
+			const textInSelection = model.getValueInRange(range);
+			if (!/^\s*$/.test(textInSelection)) {
+				generateOrModifyTitle = localize('modify', "Modify");
+				generateOrModifyCommand = AICodeActionsHelper.modify(range);
+			}
+		}
+
+		if (generateOrModifyTitle && generateOrModifyCommand) {
 			actions.push({
-				kind: CodeActionKind.RefactorRewrite.value,
+				kind: CodeActionKind.RefactorRewrite.append('copilot').value,
 				isAI: true,
-				title: localize('modify', "Modify"),
-				command: AICodeActionsHelper.modify(range),
+				title: generateOrModifyTitle,
+				command: generateOrModifyCommand,
 			});
 		}
 
-		const markers = AICodeActionsHelper.markersAtRange(this.markerService, model.uri, range);
+		const markers = AICodeActionsHelper.warningOrErrorMarkersAtRange(this.markerService, model.uri, range);
 		if (markers.length > 0) {
 
 			// "Fix" if there are diagnostics in the range
 			actions.push({
-				kind: CodeActionKind.QuickFix.value,
+				kind: CodeActionKind.QuickFix.append('copilot').value,
 				isAI: true,
+				diagnostics: markers,
 				title: localize('fix', "Fix"),
 				command: AICodeActionsHelper.fixMarkers(markers, range)
 			});
 
 			// "Explain" if there are diagnostics in the range
 			actions.push({
-				kind: CodeActionKind.QuickFix.value,
+				kind: CodeActionKind.QuickFix.append('explain').append('copilot').value,
 				isAI: true,
+				diagnostics: markers,
 				title: localize('explain', "Explain"),
 				command: AICodeActionsHelper.explainMarkers(markers)
 			});
@@ -717,10 +736,10 @@ class ChatCodeActionsProvider {
 
 class AICodeActionsHelper {
 
-	static markersAtRange(markerService: IMarkerService, resource: URI, range: Range | Selection): IMarker[] {
+	static warningOrErrorMarkersAtRange(markerService: IMarkerService, resource: URI, range: Range | Selection): IMarker[] {
 		return markerService
 			.read({ resource, severities: MarkerSeverity.Error | MarkerSeverity.Warning })
-			.filter(marker => Range.areIntersecting(range, marker));
+			.filter(marker => range.startLineNumber <= marker.endLineNumber && range.endLineNumber >= marker.startLineNumber);
 	}
 
 	static modify(range: Range): Command {
@@ -737,18 +756,31 @@ class AICodeActionsHelper {
 		};
 	}
 
+	static generate(range: Range): Command {
+		return {
+			id: INLINE_CHAT_START,
+			title: localize('generate', "Generate"),
+			arguments: [
+				{
+					initialSelection: this.rangeToSelection(range),
+					initialRange: range,
+					position: range.getStartPosition()
+				} satisfies { initialSelection: ISelection; initialRange: IRange; position: IPosition }
+			]
+		};
+	}
+
 	private static rangeToSelection(range: Range): ISelection {
 		return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 	}
 
 	static explainMarkers(markers: IMarker[]): Command {
-
 		return {
 			id: CHAT_OPEN_ACTION_ID,
 			title: localize('explain', "Explain"),
 			arguments: [
 				{
-					query: `/explain ${markers.map(marker => marker.message).join(', ')}`
+					query: `@workspace /explain ${markers.map(marker => marker.message).join(', ')}`
 				} satisfies { query: string }
 			]
 		};
@@ -1403,7 +1435,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 								return;
 							}
 
-							const markers = AICodeActionsHelper.markersAtRange(markerService, uri, range);
+							const markers = AICodeActionsHelper.warningOrErrorMarkersAtRange(markerService, uri, range);
 
 							const actualCommand = coreCommand === 'chat.internal.explain'
 								? AICodeActionsHelper.explainMarkers(markers)
