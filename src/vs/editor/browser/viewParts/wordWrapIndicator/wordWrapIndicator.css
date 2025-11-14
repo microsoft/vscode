@@ -9,4 +9,7 @@
 	opacity: 0.6;
 	user-select: none;
 	pointer-events: none;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
