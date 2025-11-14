@@ -103,13 +103,7 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		const createAndRunTaskTool = instantiationService.createInstance(CreateAndRunTaskTool);
 		this._register(toolsService.registerTool(CreateAndRunTaskToolData, createAndRunTaskTool));
 
-		// Get or create the vscode toolset - it may be defined externally by the default chat extension
-		let vscodeToolSet = toolsService.getToolSetByName('vscode');
-		if (!vscodeToolSet) {
-			vscodeToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'vscode', 'vscode', {
-				description: localize('toolset.vscode', 'Tools for working with VS Code workspace features'),
-			}));
-		}
+		const vscodeToolSet = toolsService.getOrCreateToolSet(ToolDataSource.Internal, 'vscode', VSCodeToolReference.vscode);
 		vscodeToolSet.addTool(RunTaskToolData);
 		vscodeToolSet.addTool(GetTaskOutputToolData);
 		vscodeToolSet.addTool(CreateAndRunTaskToolData);

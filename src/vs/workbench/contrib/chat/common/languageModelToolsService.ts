@@ -361,6 +361,7 @@ export interface ILanguageModelToolsService {
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSet(id: string): ToolSet | undefined;
 	getToolSetByName(name: string): ToolSet | undefined;
+	getOrCreateToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
 	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
 
 	// tool names in prompt files handling ('qualified names')
@@ -397,4 +398,5 @@ export namespace GithubCopilotToolReference {
 export namespace VSCodeToolReference {
 	export const shell = 'shell';
 	export const runSubagent = 'runSubagent';
+	export const vscode = 'vscode';
 }

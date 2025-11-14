@@ -69,7 +69,6 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		const runSubagentToolData: IToolData = {
 			id: RunSubagentToolId,
 			toolReferenceName: VSCodeToolReference.runSubagent,
-			legacyToolReferenceFullNames: [VSCodeToolReference.runSubagent],
 			canBeReferencedInPrompt: true,
 			icon: ThemeIcon.fromId(Codicon.organization.id),
 			displayName: localize('tool.runSubagent.displayName', 'Run Subagent'),

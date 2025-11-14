@@ -753,6 +753,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
+	getOrCreateToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable {
+		const existing = this.getToolSet(id);
+		if (existing) {
+			return existing as ToolSet & IDisposable;
+		}
+		return this.createToolSet(source, id, referenceName, options);
+	}
+
 	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable {
 
 		const that = this;
