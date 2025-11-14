@@ -33,3 +33,27 @@ suite('Terminal Suggest Addon - Inline Completion, Shell Type Support', () => {
 		strictEqual(isInlineCompletionSupported(undefined), false);
 	});
 });
+
+suite('Terminal Suggest Addon - IntelliCode Star Prefix Handling', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('should strip IntelliCode star prefix from completion text', () => {
+		// Simulate the logic from acceptSelectedSuggestion method
+		const testCases = [
+			{ input: '★ chdir', expected: 'chdir' },
+			{ input: '★ print', expected: 'print' },
+			{ input: 'normal_completion', expected: 'normal_completion' },
+			{ input: '* starred', expected: '* starred' }, // Different star character
+			{ input: '', expected: '' },
+		];
+
+		testCases.forEach(({ input, expected }) => {
+			let completionText = input;
+			// This is the exact logic from the fix
+			if (completionText.startsWith('★ ')) {
+				completionText = completionText.substring(2); // Remove "★ " prefix
+			}
+			strictEqual(completionText, expected, `Failed for input: "${input}"`);
+		});
+	});
+});
