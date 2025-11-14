@@ -500,6 +500,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['preview'],
 		},
+		[ChatConfiguration.ShowCodeBlockProgressAnimation]: {
+			type: 'boolean',
+			description: nls.localize('chat.codeBlock.showProgressAnimation.description', "When applying edits, show a progress animation in the code block pill. If disabled, shows the progress percentage instead."),
+			default: true,
+			tags: ['experimental'],
+		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
 			enum: ['disabled', 'view', 'single-view'],
