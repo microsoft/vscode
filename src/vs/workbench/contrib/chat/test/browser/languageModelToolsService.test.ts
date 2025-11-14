@@ -538,6 +538,7 @@ suite('LanguageModelToolsService', () => {
 			'mcpToolSetRefName/mcpTool1RefName',
 			'internalToolSetRefName',
 			'internalToolSetRefName/internalToolSetTool1RefName',
+			'vscode'
 		];
 		const numOfTools = allQualifiedNames.length + 1; // +1 for userToolSet which has no qualified name but is a tool set
 
@@ -549,6 +550,7 @@ suite('LanguageModelToolsService', () => {
 		const internalToolSet = service.getToolByQualifiedName('internalToolSetRefName');
 		const internalTool = service.getToolByQualifiedName('internalToolSetRefName/internalToolSetTool1RefName');
 		const userToolSet = service.getToolSet('userToolSet');
+		const vscodeToolSet = service.getToolSet('vscode');
 		assert.ok(tool1);
 		assert.ok(tool2);
 		assert.ok(extTool1);
@@ -557,6 +559,7 @@ suite('LanguageModelToolsService', () => {
 		assert.ok(internalToolSet);
 		assert.ok(internalTool);
 		assert.ok(userToolSet);
+		assert.ok(vscodeToolSet);
 		// Test with enabled tool
 		{
 			const qualifiedNames = ['tool1RefName'];
@@ -587,7 +590,7 @@ suite('LanguageModelToolsService', () => {
 		{
 			const result1 = service.toToolAndToolSetEnablementMap(allQualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
-			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 8, 'Expected 8 tools to be enabled');
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 9, 'Expected 9 tools to be enabled'); // +1 including the vscode toolset
 
 			const qualifiedNames1 = service.toQualifiedToolNames(result1);
 			const expectedQualifiedNames = ['tool1RefName', 'Tool2 Display Name', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName'];
@@ -1770,6 +1773,7 @@ suite('LanguageModelToolsService', () => {
 			'mcpToolSetRefName/mcpTool1RefName',
 			'internalToolSetRefName',
 			'internalToolSetRefName/internalToolSetTool1RefName',
+			'vscode'
 		].sort();
 
 		assert.deepStrictEqual(qualifiedNames, expectedNames, 'getQualifiedToolNames should return correct qualified names');

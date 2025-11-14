@@ -850,22 +850,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				return tool;
 			}
 			// legacy: check for the old name
-			if (tool instanceof ToolSet) {
-				if (qualifiedName === tool.referenceName) {
-					return tool;
-				}
-				// legacy: check for legacy names
-				if (tool.legacyNames?.includes(qualifiedName)) {
-					return tool;
-				}
-			} else {
-				if (qualifiedName === (tool.toolReferenceName ?? tool.displayName)) {
-					return tool;
-				}
-				// legacy: check for legacy tool reference full names
-				if (tool.legacyToolReferenceFullNames?.includes(qualifiedName)) {
-					return tool;
-				}
+			if (qualifiedName === (tool instanceof ToolSet ? tool.referenceName : tool.toolReferenceName ?? tool.displayName)) {
+				return tool;
 			}
 		}
 		return undefined;
