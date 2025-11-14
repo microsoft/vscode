@@ -107,8 +107,10 @@ export interface ITerminalInstanceService {
  * Acts as a communication mechanism for chat-related terminal features.
  */
 export interface IChatTerminalToolProgressPart {
+	readonly elementIndex: number;
+	readonly contentIndex: number;
 	focusTerminal(): Promise<void>;
-	expandOutputAndFocus(): Promise<void>;
+	toggleOutputFromKeyboard(): Promise<void>;
 	focusOutput(): void;
 	getCommandAndOutputAsText(): string | undefined;
 }
