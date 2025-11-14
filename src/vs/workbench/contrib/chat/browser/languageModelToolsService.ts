@@ -675,7 +675,16 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			} else {
 				if (!result.has(tool)) { // already set via an enabled toolset
-					const enabled = toolOrToolSetNames.has(toolReferenceName) || toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName);
+					let enabled = toolOrToolSetNames.has(toolReferenceName) || toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName);
+					// Check legacy names
+					if (!enabled && tool.legacyToolReferenceFullNames) {
+						for (const legacyName of tool.legacyToolReferenceFullNames) {
+							if (toolOrToolSetNames.has(legacyName)) {
+								enabled = true;
+								break;
+							}
+						}
+					}
 					result.set(tool, enabled);
 				}
 			}
@@ -815,6 +824,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				add(tool.referenceName, toolReferenceName);
 			} else {
 				add(tool.toolReferenceName ?? tool.displayName, toolReferenceName);
+				// Add all legacy reference full names
+				if (tool.legacyToolReferenceFullNames) {
+					for (const legacyName of tool.legacyToolReferenceFullNames) {
+						add(legacyName, toolReferenceName);
+					}
+				}
 			}
 		}
 		return result;
@@ -828,15 +843,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			// legacy: check for the old name
 			if (qualifiedName === (tool instanceof ToolSet ? tool.referenceName : tool.toolReferenceName ?? tool.displayName)) {
 				return tool;
-			}
-			// check for legacy full names
-			if (!(tool instanceof ToolSet) && tool.legacyToolReferenceFullNames) {
-				for (const fullName of tool.legacyToolReferenceFullNames) {
-					// Exact match on the alias
-					if (qualifiedName === fullName) {
-						return tool;
-					}
-				}
 			}
 		}
 		return undefined;

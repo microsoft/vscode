@@ -103,7 +103,12 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		const createAndRunTaskTool = instantiationService.createInstance(CreateAndRunTaskTool);
 		this._register(toolsService.registerTool(CreateAndRunTaskToolData, createAndRunTaskTool));
 
-		const vscodeToolSet = toolsService.getOrCreateToolSet(ToolDataSource.Internal, 'vscode', VSCodeToolReference.vscode);
+		// Add to vscode toolset
+		const vscodeToolSet = toolsService.getOrCreateToolSet(
+			ToolDataSource.Internal, 'vscode',
+			VSCodeToolReference.vscode,
+			VSCodeToolReference.vscodeToolSetOptions
+		);
 		vscodeToolSet.addTool(RunTaskToolData);
 		vscodeToolSet.addTool(GetTaskOutputToolData);
 		vscodeToolSet.addTool(CreateAndRunTaskToolData);
