@@ -2729,6 +2729,10 @@ declare namespace monaco.editor {
 		 */
 		setPosition(position: IPosition, source?: string): void;
 		/**
+		 * Scroll vertically or horizontally as necessary and reveal the current cursors.
+		 */
+		revealAllCursors(revealHorizontal: boolean, minimalReveal?: boolean): void;
+		/**
 		 * Scroll vertically as necessary and reveal a line.
 		 */
 		revealLine(lineNumber: number, scrollType?: ScrollType): void;
