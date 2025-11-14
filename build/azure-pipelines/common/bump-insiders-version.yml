@@ -7,7 +7,6 @@ steps:
       VSCODE_INSIDERS_VERSION="${VSCODE_MAJOR_MINOR_VERSION}.${VSCODE_PATCH_VERSION}"
       echo "Setting Insiders version to: $VSCODE_INSIDERS_VERSION"
       node -e "require('fs').writeFileSync('package.json', JSON.stringify({...require('./package.json'), version: process.argv[1]}, null, 2))" $VSCODE_INSIDERS_VERSION
-      cat package.json
     displayName: Override Insiders Version
     condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
 
