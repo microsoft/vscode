@@ -7,7 +7,7 @@ import { $, getWindow } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
-import { Schemas } from '../../../../base/common/network.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -32,11 +32,11 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
-import { IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
+import { IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
+import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
-import { LocalChatSessionUri } from '../common/chatUri.js';
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
@@ -183,8 +183,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	protected override async renderBody(parent: HTMLElement): Promise<void> {
 		super.renderBody(parent);
 
-		this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, this.chatOptions.location));
-
+		const welcomeController = this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, this.chatOptions.location));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		const locationBasedColors = this.getLocationBasedColors();
 		const editorOverflowNode = this.layoutService.getContainer(getWindow(parent)).appendChild($('.chat-editor-overflow.monaco-editor'));
@@ -218,11 +217,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				resultEditorBackground: editorBackground,
 
 			}));
-		this._register(this.onDidChangeBodyVisibility(visible => {
-			this._widget.setVisible(visible);
-		}));
 		this._register(this._widget.onDidClear(() => this.clear()));
 		this._widget.render(parent);
+
+		const updateWidgetVisibility = () => {
+			this._widget.setVisible(this.isBodyVisible() && !welcomeController.isShowingWelcome.get());
+		};
+		this._register(this.onDidChangeBodyVisibility(() => {
+			updateWidgetVisibility();
+		}));
+		this._register(autorun(r => {
+			updateWidgetVisibility();
+		}));
 
 		const info = this.getTransferredOrPersistedSessionInfo();
 		const model = info.sessionId ? await this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(info.sessionId)) : undefined;
@@ -253,15 +259,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		// Handle locking for contributed chat sessions
-		if (sessionId.scheme === Schemas.vscodeLocalChatSession) {
-			const parsed = LocalChatSessionUri.parse(sessionId);
-			if (parsed?.chatSessionType) {
-				await this.chatSessionsService.canResolveChatSession(sessionId);
-				const contributions = this.chatSessionsService.getAllChatSessionContributions();
-				const contribution = contributions.find((c: IChatSessionsExtensionPoint) => c.type === parsed.chatSessionType);
-				if (contribution) {
-					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
-				}
+		// TODO: Is this logic still correct with sessions from different schemes?
+		const local = LocalChatSessionUri.parseLocalSessionId(sessionId);
+		if (local) {
+			await this.chatSessionsService.canResolveChatSession(sessionId);
+			const contributions = this.chatSessionsService.getAllChatSessionContributions();
+			const contribution = contributions.find((c: IChatSessionsExtensionPoint) => c.type === localChatSessionType);
+			if (contribution) {
+				this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
 			}
 		}
 

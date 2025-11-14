@@ -24,7 +24,7 @@ import tsb from './lib/tsb/index.js';
 import sourcemaps from 'gulp-sourcemaps';
 import { fileURLToPath } from 'url';
 
-const __dirname = import.meta.dirname
+const __dirname = import.meta.dirname;
 const { getVersion } = getVersionModule;
 const { createReporter } = reporterModule;
 const root = path.dirname(__dirname);
@@ -168,20 +168,10 @@ const tasks = compilations.map(function (tsconfigFile) {
 		const pipeline = createPipeline(false);
 		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
 		const input = es.merge(nonts, pipeline.tsProjectSrc());
-		const watchInput = watcher(src, { ...srcOpts, ...{ readDelay: 200 } });
+		const watchInput = watcher.default(src, { ...srcOpts, ...{ readDelay: 200 } });
 
 		return watchInput
 			.pipe(util.incremental(pipeline, input))
-			.pipe(gulp.dest(out));
-	}));
-
-	const compileBuildTask = task.define(`compile-build-extension-${name}`, task.series(cleanTask, () => {
-		const pipeline = createPipeline(true, true);
-		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
-		const input = es.merge(nonts, pipeline.tsProjectSrc());
-
-		return input
-			.pipe(pipeline())
 			.pipe(gulp.dest(out));
 	}));
 
@@ -190,7 +180,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 	gulp.task(compileTask);
 	gulp.task(watchTask);
 
-	return { transpileTask, compileTask, watchTask, compileBuildTask };
+	return { transpileTask, compileTask, watchTask };
 });
 
 const transpileExtensionsTask = task.define('transpile-extensions', task.parallel(...tasks.map(t => t.transpileTask)));
@@ -201,9 +191,6 @@ gulp.task(compileExtensionsTask);
 
 export const watchExtensionsTask = task.define('watch-extensions', task.parallel(...tasks.map(t => t.watchTask)));
 gulp.task(watchExtensionsTask);
-
-const compileExtensionsBuildLegacyTask = task.define('compile-extensions-build-legacy', task.parallel(...tasks.map(t => t.compileBuildTask)));
-gulp.task(compileExtensionsBuildLegacyTask);
 
 //#region Extension media
 

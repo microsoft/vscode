@@ -264,7 +264,7 @@ export interface Repository {
 
 	getMergeBase(ref1: string, ref2: string): Promise<string | undefined>;
 
-	tag(name: string, upstream: string): Promise<void>;
+	tag(name: string, message: string, ref?: string | undefined): Promise<void>;
 	deleteTag(name: string): Promise<void>;
 
 	status(): Promise<void>;

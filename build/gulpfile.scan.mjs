@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url';
 
 const { config } = electronConfigModule;
 
-const __dirname = import.meta.dirname
+const __dirname = import.meta.dirname;
 const root = path.dirname(__dirname);
 
 const BUILD_TARGETS = [
@@ -29,7 +29,11 @@ const BUILD_TARGETS = [
 ];
 
 // The following files do not have PDBs downloaded for them during the download symbols process.
-const excludedCheckList = ['d3dcompiler_47.dll'];
+const excludedCheckList = [
+	'd3dcompiler_47.dll',
+	'dxil.dll',
+	'dxcompiler.dll',
+];
 
 BUILD_TARGETS.forEach(buildTarget => {
 	const dashed = (/** @type {string | null} */ str) => (str ? `-${str}` : ``);

@@ -21,7 +21,7 @@ import { fileURLToPath } from 'url';
 
 const { debounce } = utilModule;
 const { createReporter } = reporterModule;
-const __dirname = import.meta.dirname
+const __dirname = import.meta.dirname;
 
 const root = 'cli';
 const rootAbs = path.resolve(__dirname, '..', root);
@@ -148,7 +148,7 @@ const compileCliTask = task.define('compile-cli', () => {
 
 const watchCliTask = task.define('watch-cli', () => {
 	warnIfRustNotInstalled();
-	return watcher(`${src}/**`, { read: false })
+	return watcher.default(`${src}/**`, { read: false })
 		.pipe(debounce(compileCliTask));
 });
 

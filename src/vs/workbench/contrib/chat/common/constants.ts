@@ -15,6 +15,8 @@ export enum ChatConfiguration {
 	EditRequests = 'chat.editRequests',
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',
 	AutoApproveEdits = 'chat.tools.edits.autoApprove',
+	AutoApprovedUrls = 'chat.tools.urls.autoApprove',
+	EligibleForAutoApproval = 'chat.tools.eligibleForAutoApproval',
 	EnableMath = 'chat.math.enabled',
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
@@ -25,6 +27,7 @@ export enum ChatConfiguration {
 	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
+	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 }
 
 /**

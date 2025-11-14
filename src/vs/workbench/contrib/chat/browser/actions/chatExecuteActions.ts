@@ -577,9 +577,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(
-			// if the input has prompt instructions attached, allow submitting requests even
-			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
+			ChatContextKeys.inputHasText,
 			whenNotInProgress,
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
 		);
@@ -823,31 +821,34 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const contributions = chatSessionsService.getAllChatSessionContributions();
 
 			// Sort contributions by order, then alphabetically by display name
-			const sortedContributions = [...contributions].sort((a, b) => {
-				// Both have no order - sort by display name
-				if (a.order === undefined && b.order === undefined) {
+			// Filter out contributions that have canDelegate set to false
+			const sortedContributions = [...contributions]
+				.filter(contrib => contrib.canDelegate !== false) // Default to true if not specified
+				.sort((a, b) => {
+					// Both have no order - sort by display name
+					if (a.order === undefined && b.order === undefined) {
+						return a.displayName.localeCompare(b.displayName);
+					}
+
+					// Only a has no order - push it to the end
+					if (a.order === undefined) {
+						return 1;
+					}
+
+					// Only b has no order - push it to the end
+					if (b.order === undefined) {
+						return -1;
+					}
+
+					// Both have orders - compare numerically
+					const orderCompare = a.order - b.order;
+					if (orderCompare !== 0) {
+						return orderCompare;
+					}
+
+					// Same order - sort by display name
 					return a.displayName.localeCompare(b.displayName);
-				}
-
-				// Only a has no order - push it to the end
-				if (a.order === undefined) {
-					return 1;
-				}
-
-				// Only b has no order - push it to the end
-				if (b.order === undefined) {
-					return -1;
-				}
-
-				// Both have orders - compare numerically
-				const orderCompare = a.order - b.order;
-				if (orderCompare !== 0) {
-					return orderCompare;
-				}
-
-				// Same order - sort by display name
-				return a.displayName.localeCompare(b.displayName);
-			});
+				});
 
 			const agent = await this.pickCodingAgent(quickPickService, sortedContributions);
 			if (!agent) {
@@ -967,9 +968,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 	private async generateSummarizedChatHistory(chatRequests: IChatRequestModel[], sessionResource: URI, title: string | undefined, chatAgentService: IChatAgentService, defaultAgent: IChatAgent, summary: string) {
 		const historyEntries: IChatAgentHistoryEntry[] = chatRequests
-			.map(req => ({
+			.map((req): IChatAgentHistoryEntry => ({
 				request: {
 					sessionId: chatSessionResourceToId(sessionResource),
+					sessionResource,
 					requestId: req.id,
 					agentId: req.response?.agent?.id ?? '',
 					message: req.message.text,
@@ -994,6 +996,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		const userPromptEntry: IChatAgentHistoryEntry = {
 			request: {
 				sessionId: chatSessionResourceToId(sessionResource),
+				sessionResource,
 				requestId: generateUuid(),
 				agentId: '',
 				message: userPrompt,
@@ -1017,9 +1020,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(
-			// if the input has prompt instructions attached, allow submitting requests even
-			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
+			ChatContextKeys.inputHasText,
 			whenNotInProgress,
 		);
 
@@ -1064,11 +1065,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 
 class SendToNewChatAction extends Action2 {
 	constructor() {
-		const precondition = ContextKeyExpr.and(
-			// if the input has prompt instructions attached, allow submitting requests even
-			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
-		);
+		const precondition = ChatContextKeys.inputHasText;
 
 		super({
 			id: 'workbench.action.chat.sendToNewChat',

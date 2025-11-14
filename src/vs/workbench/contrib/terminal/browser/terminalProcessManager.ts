@@ -22,7 +22,7 @@ import { FlowControlConstants, ITerminalLaunchResult, IProcessDataEvent, IProces
 import { TerminalRecorder } from '../../../../platform/terminal/common/terminalRecorder.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from './environmentVariableInfo.js';
-import { ITerminalConfigurationService, ITerminalInstanceService } from './terminal.js';
+import { ITerminalConfigurationService, ITerminalInstanceService, ITerminalService } from './terminal.js';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService } from '../common/environmentVariable.js';
 import { MergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariableCollection.js';
 import { serializeEnvironmentVariableCollections } from '../../../../platform/terminal/common/environmentVariableShared.js';
@@ -156,7 +156,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
 		this._cwdWorkspaceFolder = terminalEnvironment.getWorkspaceForTerminal(cwd, this._workspaceContextService, this._historyService);
@@ -595,10 +596,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
 		await this.ptyProcessReady;
 		const process = this._process;
-		if (!process) {
+		if (!process?.id) {
 			return;
 		}
-		await process.setNextCommandId(commandLine, commandId);
+		await this._terminalService.setNextCommandId(process.id, commandLine, commandId);
 	}
 
 	private _resize(cols: number, rows: number) {

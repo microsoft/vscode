@@ -43,7 +43,7 @@ const { config } = electronModule;
 const { createAsar } = asarModule;
 const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
-const __dirname = import.meta.dirname
+const __dirname = import.meta.dirname;
 const root = path.dirname(__dirname);
 const commit = getVersion(root);
 

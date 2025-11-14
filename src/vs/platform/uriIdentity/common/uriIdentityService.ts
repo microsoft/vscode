@@ -8,9 +8,9 @@ import { URI } from '../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IFileService, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent } from '../../files/common/files.js';
 import { ExtUri, IExtUri, normalizePath } from '../../../base/common/resources.js';
-import { SkipList } from '../../../base/common/skipList.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { quickSelect } from '../../../base/common/arrays.js';
 
 class Entry {
 	static _clock = 0;
@@ -29,7 +29,7 @@ export class UriIdentityService implements IUriIdentityService {
 	readonly extUri: IExtUri;
 
 	private readonly _dispooables = new DisposableStore();
-	private readonly _canonicalUris: SkipList<URI, Entry>;
+	private readonly _canonicalUris: Map<string, Entry>;
 	private readonly _limit = 2 ** 16;
 
 	constructor(@IFileService private readonly _fileService: IFileService) {
@@ -54,12 +54,25 @@ export class UriIdentityService implements IUriIdentityService {
 			_fileService.onDidChangeFileSystemProviderRegistrations,
 			_fileService.onDidChangeFileSystemProviderCapabilities
 		)(e => {
-			// remove from cache
+			const oldIgnorePathCasingValue = schemeIgnoresPathCasingCache.get(e.scheme);
+			if (oldIgnorePathCasingValue === undefined) {
+				return;
+			}
 			schemeIgnoresPathCasingCache.delete(e.scheme);
+			const newIgnorePathCasingValue = ignorePathCasing(URI.from({ scheme: e.scheme }));
+			if (newIgnorePathCasingValue === newIgnorePathCasingValue) {
+				return;
+			}
+			for (const [key, entry] of this._canonicalUris.entries()) {
+				if (entry.uri.scheme !== e.scheme) {
+					continue;
+				}
+				this._canonicalUris.delete(key);
+			}
 		}));
 
 		this.extUri = new ExtUri(ignorePathCasing);
-		this._canonicalUris = new SkipList((a, b) => this.extUri.compare(a, b, true), this._limit);
+		this._canonicalUris = new Map();
 	}
 
 	dispose(): void {
@@ -75,13 +88,14 @@ export class UriIdentityService implements IUriIdentityService {
 		}
 
 		// (2) find the uri in its canonical form or use this uri to define it
-		const item = this._canonicalUris.get(uri);
+		const uriKey = this.extUri.getComparisonKey(uri, true);
+		const item = this._canonicalUris.get(uriKey);
 		if (item) {
 			return item.touch().uri.with({ fragment: uri.fragment });
 		}
 
 		// this uri is first and defines the canonical form
-		this._canonicalUris.set(uri, new Entry(uri));
+		this._canonicalUris.set(uriKey, new Entry(uri));
 		this._checkTrim();
 
 		return uri;
@@ -92,24 +106,21 @@ export class UriIdentityService implements IUriIdentityService {
 			return;
 		}
 
-		// get all entries, sort by time (MRU) and re-initalize
-		// the uri cache and the entry clock. this is an expensive
-		// operation and should happen rarely
-		const entries = [...this._canonicalUris.entries()].sort((a, b) => {
-			if (a[1].time < b[1].time) {
-				return 1;
-			} else if (a[1].time > b[1].time) {
-				return -1;
+		Entry._clock = 1;
+		const times = [...this._canonicalUris.values()].map(e => e.time);
+		const median = quickSelect(
+			Math.floor(times.length / 2),
+			times,
+			(a, b) => a - b);
+		for (const [key, entry] of this._canonicalUris.entries()) {
+			// Its important to remove the median value here (<= not <).
+			// If we have not touched any items since the last trim, the
+			// median will be 0 and no items will be removed otherwise.
+			if (entry.time <= median) {
+				this._canonicalUris.delete(key);
 			} else {
-				return 0;
+				entry.time = 0;
 			}
-		});
-
-		Entry._clock = 0;
-		this._canonicalUris.clear();
-		const newSize = this._limit * 0.5;
-		for (let i = 0; i < newSize; i++) {
-			this._canonicalUris.set(entries[i][0], entries[i][1].touch());
 		}
 	}
 }

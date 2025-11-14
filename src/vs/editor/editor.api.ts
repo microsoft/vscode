@@ -9,9 +9,6 @@ import { createMonacoEditorAPI } from './standalone/browser/standaloneEditor.js'
 import { createMonacoLanguagesAPI } from './standalone/browser/standaloneLanguages.js';
 import { FormattingConflicts } from './contrib/format/browser/format.js';
 import { getMonacoEnvironment } from '../base/browser/browser.js';
-import { WebWorkerDescriptor } from '../base/browser/webWorkerFactory.js';
-
-WebWorkerDescriptor.useBundlerLocationRef();
 
 // Set defaults for standalone editor
 EditorOptions.wrappingIndent.defaultValue = WrappingIndent.None;

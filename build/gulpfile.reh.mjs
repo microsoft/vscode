@@ -40,7 +40,7 @@ const { getVersion } = getVersionModule;
 const { getProductionDependencies } = dependenciesModule;
 const { readISODate } = dateModule;
 const { fetchUrls, fetchGithub } = fetchModule;
-const __dirname = import.meta.dirname
+const __dirname = import.meta.dirname;
 
 const REPO_ROOT = path.dirname(__dirname);
 const commit = getVersion(REPO_ROOT);

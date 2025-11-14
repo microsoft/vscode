@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-const es = require('event-stream');
-const vfs = require('vinyl-fs');
-const { eslintFilter } = require('./filters');
+import eventStream from 'event-stream';
+import { src } from 'vinyl-fs';
+import { eslintFilter } from './filters.js';
+import gulpEslint from './gulp-eslint.js';
 
 function eslint() {
-	const eslint = require('./gulp-eslint');
-	return vfs
-		.src(eslintFilter, { base: '.', follow: true, allowEmpty: true })
+	return src(eslintFilter, { base: '.', follow: true, allowEmpty: true })
 		.pipe(
-			eslint((results) => {
+			gulpEslint((results) => {
 				if (results.warningCount > 0 || results.errorCount > 0) {
 					throw new Error(`eslint failed with ${results.warningCount + results.errorCount} warnings and/or errors`);
 				}
 			})
-		).pipe(es.through(function () { /* noop, important for the stream to end */ }));
+		).pipe(eventStream.through(function () { /* noop, important for the stream to end */ }));
 }
 
-if (require.main === module) {
+const normalizeScriptPath = (/** @type {string} */ p) => p.replace(/\.(js|ts)$/, '');
+if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
 	eslint().on('error', (err) => {
 		console.error();
 		console.error(err);
