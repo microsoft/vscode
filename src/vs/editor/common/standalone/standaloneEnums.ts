@@ -327,7 +327,7 @@ export enum EditorOption {
 	wordWrapBreakAfterCharacters = 150,
 	wordWrapBreakBeforeCharacters = 151,
 	wordWrapColumn = 152,
-	disableAutomaticWrappingForLongLines = 153,
+	wordWrapMinified = 153,
 	wordWrapOverride1 = 154,
 	wordWrapOverride2 = 155,
 	wrappingIndent = 156,

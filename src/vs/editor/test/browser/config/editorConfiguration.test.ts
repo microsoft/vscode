@@ -214,15 +214,15 @@ suite('Common Editor Config', () => {
 		config.dispose();
 	});
 
-	test('disableAutomaticWrappingForLongLines prevents defensive word wrap', () => {
+	test('wordWrapMinified=on prevents defensive word wrap', () => {
 		const config = new TestWrappingConfiguration({
-			disableAutomaticWrappingForLongLines: true,
+			wordWrapMinified: 'on',
 			envConfig: {
 				accessibilitySupport: AccessibilitySupport.Enabled
 			}
 		});
 		config.setIsDominatedByLongLines(true);
-		// Should NOT enable automatic wrapping when the option is disabled
+		// Should NOT enable automatic wrapping when wordWrapMinified is 'on'
 		const wrappingInfo = config.options.get(EditorOption.wrappingInfo);
 		assert.strictEqual(wrappingInfo.isWordWrapMinified, false);
 		assert.strictEqual(wrappingInfo.isViewportWrapping, false);

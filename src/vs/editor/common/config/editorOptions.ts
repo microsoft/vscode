@@ -359,10 +359,12 @@ export interface IEditorOptions {
 	 */
 	wordWrapColumn?: number;
 	/**
-	 * Disable the automatic word wrapping that occurs when a file is dominated by long lines.
-	 * Defaults to false.
+	 * Control automatic word wrapping for minified files.
+	 * When 'off' (default), files dominated by long lines (more than half of the characters in lines longer than 10,000 characters) will automatically enable word wrapping.
+	 * When 'on', automatic word wrapping for such files is disabled.
+	 * Defaults to 'off'.
 	 */
-	disableAutomaticWrappingForLongLines?: boolean;
+	wordWrapMinified?: 'on' | 'off';
 	/**
 	 * Control indentation of wrapped lines. Can be: 'none', 'same', 'indent' or 'deepIndent'.
 	 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
@@ -2908,8 +2910,8 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let isViewportWrapping = false;
 		let wrappingColumn = -1;
 
-		const disableAutomaticWrappingForLongLines = options.get(EditorOption.disableAutomaticWrappingForLongLines);
-		if (!disableAutomaticWrappingForLongLines && options.get(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled && wordWrapOverride1 === 'inherit' && isDominatedByLongLines) {
+		const wordWrapMinified = options.get(EditorOption.wordWrapMinified);
+		if (wordWrapMinified === 'off' && options.get(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled && wordWrapOverride1 === 'inherit' && isDominatedByLongLines) {
 			// Force viewport width wrapping if model is dominated by long lines
 			isWordWrapMinified = true;
 			isViewportWrapping = true;
@@ -5882,7 +5884,7 @@ export const enum EditorOption {
 	wordWrapBreakAfterCharacters,
 	wordWrapBreakBeforeCharacters,
 	wordWrapColumn,
-	disableAutomaticWrappingForLongLines,
+	wordWrapMinified,
 	wordWrapOverride1,
 	wordWrapOverride2,
 	wrappingIndent,
@@ -6772,10 +6774,16 @@ export const EditorOptions = {
 			}, "Controls the wrapping column of the editor when `#editor.wordWrap#` is `wordWrapColumn` or `bounded`.")
 		}
 	)),
-	disableAutomaticWrappingForLongLines: register(new EditorBooleanOption(
-		EditorOption.disableAutomaticWrappingForLongLines, 'disableAutomaticWrappingForLongLines', false,
+	wordWrapMinified: register(new EditorStringEnumOption(
+		EditorOption.wordWrapMinified, 'wordWrapMinified',
+		'off' as 'on' | 'off',
+		['on', 'off'] as const,
 		{
-			markdownDescription: nls.localize('disableAutomaticWrappingForLongLines', "Disables the automatic word wrapping that occurs when a file is dominated by long lines (more than half of the characters in lines longer than 10,000 characters). This is a performance feature to keep the editor responsive when dealing with minified files or other content with very long lines.")
+			markdownEnumDescriptions: [
+				nls.localize('wordWrapMinified.on', "Disables automatic word wrapping for minified files."),
+				nls.localize('wordWrapMinified.off', "Enables automatic word wrapping for minified files (files dominated by long lines).")
+			],
+			markdownDescription: nls.localize('wordWrapMinified', "Controls automatic word wrapping for minified files. When 'off' (default), files dominated by long lines (more than half of the characters in lines longer than 10,000 characters) will automatically enable word wrapping for performance reasons.")
 		}
 	)),
 	wordWrapOverride1: register(new EditorStringEnumOption(

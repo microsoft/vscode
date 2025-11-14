@@ -3505,10 +3505,12 @@ declare namespace monaco.editor {
 		 */
 		wordWrapColumn?: number;
 		/**
-		 * Disable the automatic word wrapping that occurs when a file is dominated by long lines.
-		 * Defaults to false.
+		 * Control automatic word wrapping for minified files.
+		 * When 'off' (default), files dominated by long lines (more than half of the characters in lines longer than 10,000 characters) will automatically enable word wrapping.
+		 * When 'on', automatic word wrapping for such files is disabled.
+		 * Defaults to 'off'.
 		 */
-		disableAutomaticWrappingForLongLines?: boolean;
+		wordWrapMinified?: 'on' | 'off';
 		/**
 		 * Control indentation of wrapped lines. Can be: 'none', 'same', 'indent' or 'deepIndent'.
 		 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
@@ -5219,7 +5221,7 @@ declare namespace monaco.editor {
 		wordWrapBreakAfterCharacters = 150,
 		wordWrapBreakBeforeCharacters = 151,
 		wordWrapColumn = 152,
-		disableAutomaticWrappingForLongLines = 153,
+		wordWrapMinified = 153,
 		wordWrapOverride1 = 154,
 		wordWrapOverride2 = 155,
 		wrappingIndent = 156,
@@ -5402,7 +5404,7 @@ declare namespace monaco.editor {
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
-		disableAutomaticWrappingForLongLines: IEditorOption<EditorOption.disableAutomaticWrappingForLongLines, boolean>;
+		wordWrapMinified: IEditorOption<EditorOption.wordWrapMinified, 'on' | 'off'>;
 		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'on' | 'off' | 'inherit'>;
 		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'on' | 'off' | 'inherit'>;
 		wrapOnEscapedLineFeeds: IEditorOption<EditorOption.wrapOnEscapedLineFeeds, boolean>;
