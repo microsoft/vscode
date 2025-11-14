@@ -56,8 +56,8 @@ suite('PromptValidator', () => {
 		disposables.add(toolService.registerToolData(testTool1));
 		const testTool2 = { id: 'testTool2', displayName: 'tool2', canBeReferencedInPrompt: true, toolReferenceName: 'tool2', modelDescription: 'Test Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(testTool2));
-		const runCommandsTool = { id: 'runCommands', displayName: 'runCommands', canBeReferencedInPrompt: true, toolReferenceName: 'runCommands', modelDescription: 'Run Commands Tool', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
-		disposables.add(toolService.registerToolData(runCommandsTool));
+		const shellTool = { id: 'shell', displayName: 'shell', canBeReferencedInPrompt: true, toolReferenceName: 'shell', modelDescription: 'Runs commands in the terminal', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(shellTool));
 
 		const myExtSource = { type: 'extension', label: 'My Extension', extensionId: new ExtensionIdentifier('My.extension') } satisfies ToolDataSource;
 		const testTool3 = { id: 'testTool3', displayName: 'tool3', canBeReferencedInPrompt: true, toolReferenceName: 'tool3', modelDescription: 'Test Tool 3', source: myExtSource, inputSchema: {} } satisfies IToolData;
@@ -381,7 +381,7 @@ suite('PromptValidator', () => {
 				'---',
 				'description: "VS Code agent"',
 				'target: vscode',
-				`tools: ['tool1', 'shell']`,
+				`tools: ['tool1', 'edit']`,
 				`mcp-servers: {}`,
 				'---',
 				'Body',
@@ -390,11 +390,9 @@ suite('PromptValidator', () => {
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
 				'Attribute \'mcp-servers\' is ignored when running locally in VS Code.',
-				'Unknown tool \'shell\'.',
+				'Unknown tool \'edit\'.',
 			]);
-		});
-
-		test('undefined target with mcp-servers and github-tools', async () => {
+		}); test('undefined target with mcp-servers and github-tools', async () => {
 			const content = [
 				'---',
 				'description: "VS Code agent"',
