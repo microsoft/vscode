@@ -109,15 +109,8 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 	}
 	const combinedString = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString();
 	if (combinedString !== undefined) {
-		if (combinedString.includes('`')) {
-			detailedAdditions.push('Prompt input:' + [
-				'```',
-				combinedString, // No new lines so no need to escape ```
-				'```',
-			].map(e => `\n    ${e}`).join(''));
-		} else {
-			detailedAdditions.push(`Prompt input: \`${combinedString.replaceAll('`', '&#96;')}\``);
-		}
+		// Wrap with triple backticks so that single backticks can show up (command substitution in bash uses backticks, for example)
+		detailedAdditions.push(`Prompt input: \`\`\`${combinedString}\`\`\``);
 	}
 	const detailedAdditionsString = detailedAdditions.length > 0
 		? '\n\n' + detailedAdditions.map(e => `- ${e}`).join('\n')
