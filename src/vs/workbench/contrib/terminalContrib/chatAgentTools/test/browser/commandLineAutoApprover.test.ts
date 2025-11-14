@@ -1114,4 +1114,74 @@ suite('CommandLineAutoApprover', () => {
 			strictEqual(getCommandLineIsDefaultRule('cmd2 arg'), true, 'Object type should match default using structural equality (even though it\'s a deny rule)');
 		});
 	});
+
+	suite('ignoreDefaultAutoApproveRules', () => {
+		function setAutoApproveWithDefaults(userConfig: { [key: string]: boolean }, defaultConfig: { [key: string]: boolean }) {
+			// Set up mock configuration with default values
+			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AutoApprove, userConfig);
+
+			// Mock the inspect method to return default values
+			const originalInspect = configurationService.inspect;
+			const originalGetValue = configurationService.getValue;
+
+			configurationService.inspect = (key: string): any => {
+				if (key === TerminalChatAgentToolsSettingId.AutoApprove) {
+					return {
+						default: { value: defaultConfig },
+						user: { value: userConfig },
+						workspace: undefined,
+						workspaceFolder: undefined,
+						application: undefined,
+						policy: undefined,
+						memory: undefined,
+						value: { ...defaultConfig, ...userConfig }
+					};
+				}
+				return originalInspect.call(configurationService, key);
+			};
+
+			configurationService.getValue = (key: string): any => {
+				if (key === TerminalChatAgentToolsSettingId.AutoApprove) {
+					return { ...defaultConfig, ...userConfig };
+				}
+				return originalGetValue.call(configurationService, key);
+			};
+
+			// Trigger configuration update
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: () => true,
+				affectedKeys: new Set([TerminalChatAgentToolsSettingId.AutoApprove]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
+		}
+
+		function setIgnoreDefaultAutoApproveRules(value: boolean) {
+			setConfig(TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules, value);
+		}
+
+		test('should include default rules when ignoreDefaultAutoApproveRules is false (default behavior)', () => {
+			setAutoApproveWithDefaults(
+				{ 'ls': true },
+				{ 'echo': true, 'cat': true }
+			);
+			setIgnoreDefaultAutoApproveRules(false);
+
+			ok(isAutoApproved('ls -la'), 'User-defined rule should work');
+			ok(isAutoApproved('echo hello'), 'Default rule should work when not ignored');
+			ok(isAutoApproved('cat file.txt'), 'Default rule should work when not ignored');
+		});
+
+		test('should exclude default rules when ignoreDefaultAutoApproveRules is true', () => {
+			setAutoApproveWithDefaults(
+				{ 'ls': true },
+				{ 'echo': true, 'cat': true }
+			);
+			setIgnoreDefaultAutoApproveRules(true);
+
+			ok(isAutoApproved('ls -la'), 'User-defined rule should still work');
+			ok(!isAutoApproved('echo hello'), 'Default rule should be ignored');
+			ok(!isAutoApproved('cat file.txt'), 'Default rule should be ignored');
+		});
+	});
 });

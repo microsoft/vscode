@@ -17,16 +17,30 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	constructor() { }
 
-	cancelToolCallsForRequest(requestId: string): void {
-	}
-
 	readonly onDidChangeTools: Event<void> = Event.None;
+	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ sessionId: string; toolData: IToolData }> = Event.None;
 
 	registerToolData(toolData: IToolData): IDisposable {
 		return Disposable.None;
 	}
 
 	resetToolAutoConfirmation(): void {
+
+	}
+
+	getToolPostExecutionAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never' {
+		return 'never';
+	}
+
+	resetToolPostExecutionAutoConfirmation(): void {
+
+	}
+
+	flushToolUpdates(): void {
+
+	}
+
+	cancelToolCallsForRequest(requestId: string): void {
 
 	}
 
@@ -107,6 +121,10 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 	}
 
 	getDeprecatedQualifiedToolNames(): Map<string, string> {
+		throw new Error('Method not implemented.');
+	}
+
+	mapGithubToolName(githubToolName: string): string {
 		throw new Error('Method not implemented.');
 	}
 }

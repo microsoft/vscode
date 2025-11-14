@@ -19,7 +19,6 @@ export const opts = minimist(args, {
 		'remote',
 		'web',
 		'headless',
-		'tracing',
 		'video',
 		'autostart'
 	],
@@ -31,7 +30,6 @@ export const opts = minimist(args, {
 	remote?: boolean;
 	headless?: boolean;
 	web?: boolean;
-	tracing?: boolean;
 	build?: string;
 	'stable-build'?: string;
 	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome' | undefined;

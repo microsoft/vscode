@@ -23,6 +23,6 @@ export class MockChatModeService implements IChatModeService {
 	}
 
 	findModeByName(name: string): IChatMode | undefined {
-		return this._modes.builtin.find(mode => mode.name === name) ?? this._modes.custom.find(mode => mode.name === name);
+		return this._modes.builtin.find(mode => mode.name.get() === name) ?? this._modes.custom.find(mode => mode.name.get() === name);
 	}
 }

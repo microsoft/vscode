@@ -349,7 +349,7 @@ export class Checkbox extends BaseCheckbox {
 export class TriStateCheckbox extends BaseCheckbox {
 	constructor(
 		title: string,
-		private _state: boolean | 'partial',
+		private _state: boolean | 'mixed',
 		styles: ICheckboxStyles
 	) {
 		let icon: ThemeIcon | undefined;
@@ -357,7 +357,7 @@ export class TriStateCheckbox extends BaseCheckbox {
 			case true:
 				icon = Codicon.check;
 				break;
-			case 'partial':
+			case 'mixed':
 				icon = Codicon.dash;
 				break;
 			case false:
@@ -386,11 +386,11 @@ export class TriStateCheckbox extends BaseCheckbox {
 		}));
 	}
 
-	get checked(): boolean | 'partial' {
+	get checked(): boolean | 'mixed' {
 		return this._state;
 	}
 
-	set checked(newState: boolean | 'partial') {
+	set checked(newState: boolean | 'mixed') {
 		if (this._state !== newState) {
 			this._state = newState;
 			this.checkbox.checked = newState === true;
@@ -403,7 +403,7 @@ export class TriStateCheckbox extends BaseCheckbox {
 			case true:
 				this.checkbox.setIcon(Codicon.check);
 				break;
-			case 'partial':
+			case 'mixed':
 				this.checkbox.setIcon(Codicon.dash);
 				break;
 			case false:

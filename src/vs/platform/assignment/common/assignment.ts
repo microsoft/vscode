@@ -5,7 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import * as platform from '../../../base/common/platform.js';
-import type { IExperimentationFilterProvider } from 'tas-client-umd';
+import type { IExperimentationFilterProvider } from 'tas-client';
 
 export const ASSIGNMENT_STORAGE_KEY = 'VSCode.ABExp.FeatureData';
 export const ASSIGNMENT_REFETCH_INTERVAL = 60 * 60 * 1000; // 1 hour
@@ -136,8 +136,8 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 		}
 	}
 
-	getFilters(): Map<string, any> {
-		const filters: Map<string, any> = new Map<string, any>();
+	getFilters(): Map<string, unknown> {
+		const filters: Map<string, unknown> = new Map<string, unknown>();
 		const filterValues = Object.values(Filters);
 		for (const value of filterValues) {
 			filters.set(value, this.getFilterValue(value));

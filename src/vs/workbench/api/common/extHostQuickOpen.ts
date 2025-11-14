@@ -10,7 +10,7 @@ import { ExtHostCommands } from './extHostCommands.js';
 import { IExtHostWorkspaceProvider } from './extHostWorkspace.js';
 import { InputBox, InputBoxOptions, InputBoxValidationMessage, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
 import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItemOrSeparator } from './extHost.protocol.js';
-import { QuickInputButtons, QuickPickItemKind, InputBoxValidationSeverity } from './extHostTypes.js';
+import { QuickInputButtons, QuickPickItemKind, InputBoxValidationSeverity, QuickInputButtonLocation } from './extHostTypes.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { coalesce } from '../../../base/common/arrays.js';
@@ -399,9 +399,20 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 
 		set buttons(buttons: QuickInputButton[]) {
-			if (buttons.some(button => button.location || button.checked !== undefined)) {
+			if (buttons.some(button =>
+				typeof button.location === 'number' ||
+				typeof button.toggle === 'object' && typeof button.toggle.checked === 'boolean')) {
 				checkProposedApiEnabled(this._extension, 'quickInputButtonLocation');
 			}
+
+			if (buttons.some(button =>
+				typeof button.location === 'number' &&
+				button.location !== QuickInputButtonLocation.Input &&
+				typeof button.toggle === 'object' &&
+				typeof button.toggle.checked === 'boolean')) {
+				throw new Error('QuickInputButtons with toggle set are only supported in the Input location.');
+			}
+
 			this._buttons = buttons.slice();
 			this._handlesToButtons.clear();
 			buttons.forEach((button, i) => {
@@ -414,8 +425,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						iconPathDto: IconPath.from(button.iconPath),
 						tooltip: button.tooltip,
 						handle: button === QuickInputButtons.Back ? -1 : i,
-						location: button.location,
-						checked: button.checked
+						location: typeof button.location === 'number' ? button.location : undefined,
+						checked: typeof button.toggle === 'object' && typeof button.toggle.checked === 'boolean' ? button.toggle.checked : undefined
 					};
 				})
 			});
@@ -448,8 +459,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		_fireDidTriggerButton(handle: number, checked?: boolean) {
 			const button = this._handlesToButtons.get(handle);
 			if (button) {
-				if (checked !== undefined) {
-					button.checked = checked;
+				if (checked !== undefined && button.toggle) {
+					button.toggle.checked = checked;
 				}
 				this._onDidTriggerButtonEmitter.fire(button);
 			}

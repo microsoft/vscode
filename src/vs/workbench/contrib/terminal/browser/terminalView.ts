@@ -52,6 +52,7 @@ import { InstanceContext, TerminalContextActionRunner } from './terminalContextM
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
+import { hasKey } from '../../../../base/common/types.js';
 
 export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
@@ -106,10 +107,7 @@ export class TerminalViewPane extends ViewPane {
 			if (!this._terminalTabbedView) {
 				this._createTabsView();
 			}
-			// If we just opened our first terminal, layout
-			if (this._terminalGroupService.instances.length === 1) {
-				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
-			}
+			this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 		}));
 		this._dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalNewDropdownContext, this._contextKeyService));
 		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalTabContext, this._contextKeyService));
@@ -627,7 +625,7 @@ class TerminalThemeIconStyle extends Themable {
 			let uri = undefined;
 			if (icon instanceof URI) {
 				uri = icon;
-			} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
+			} else if (icon instanceof Object && hasKey(icon, { light: true, dark: true })) {
 				uri = isDark(colorTheme.type) ? icon.dark : icon.light;
 			}
 			const iconClasses = getUriClasses(instance, colorTheme.type);

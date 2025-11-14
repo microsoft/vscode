@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 ---
 
 Read the changes introduced on the current branch, including BOTH:

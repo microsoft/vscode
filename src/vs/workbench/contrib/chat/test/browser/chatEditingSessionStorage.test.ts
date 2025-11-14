@@ -58,17 +58,10 @@ suite('ChatEditingSessionStorage', () => {
 		const initialFileContents = new ResourceMap<string>();
 		for (let i = 0; i < 10; i++) { initialFileContents.set(URI.file(`/foo${i}.js`), `fileContents${Math.floor(i / 2)}`); }
 
-		const r1 = generateUuid();
-		const r2 = generateUuid();
 		return {
 			initialFileContents,
-			pendingSnapshot: makeStop(undefined, 'd', 'e'),
 			recentSnapshot: makeStop(undefined, 'd', 'e'),
-			linearHistoryIndex: 3,
-			linearHistory: [
-				{ startIndex: 0, requestId: r1, stops: [makeStop(r1, 'a', 'b')] },
-				{ startIndex: 1, requestId: r2, stops: [makeStop(r2, 'c', 'd'), makeStop(r2, 'd', 'd')] },
-			]
+			timeline: undefined,
 		};
 	}
 

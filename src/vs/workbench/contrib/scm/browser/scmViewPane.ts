@@ -11,7 +11,7 @@ import { ViewPane, IViewPaneOptions, ViewAction } from '../../../browser/parts/v
 import { append, $, Dimension, trackFocus, clearNode, isPointerEvent, isActiveElement } from '../../../../base/browser/dom.js';
 import { asCSSUrl } from '../../../../base/browser/cssValue.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext, ViewMode } from '../common/scm.js';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext, ViewMode, ISCMRepositorySelectionMode } from '../common/scm.js';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from '../../../browser/labels.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -24,7 +24,7 @@ import { MenuItemAction, IMenuService, registerAction2, MenuId, MenuRegistry, Ac
 import { IAction, ActionRunner, Action, Separator, IActionRunner, toAction } from '../../../../base/common/actions.js';
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IThemeService, IFileIconTheme } from '../../../../platform/theme/common/themeService.js';
-import { isSCMResource, isSCMResourceGroup, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMResourceNode, connectPrimaryMenu } from './util.js';
+import { isSCMResource, isSCMResourceGroup, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMResourceNode, connectPrimaryMenu, addClassToTwistieElement } from './util.js';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from '../../../../platform/list/browser/listService.js';
 import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { disposableTimeout, Sequencer, ThrottledDelayer, Throttler } from '../../../../base/common/async.js';
@@ -191,8 +191,8 @@ export class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActio
 	) { }
 
 	renderTemplate(container: HTMLElement): ActionButtonTemplate {
-		// hack
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+		// HACK - use helper function as there is no tree API
+		addClassToTwistieElement(container, 'force-no-twistie');
 
 		// Use default cursor & disable hover for list item
 		container.parentElement!.parentElement!.classList.add('cursor-default', 'force-no-hover');
@@ -315,8 +315,8 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	) { }
 
 	renderTemplate(container: HTMLElement): InputTemplate {
-		// hack
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+		// HACK - use helper function as there is no tree API
+		addClassToTwistieElement(container, 'force-no-twistie');
 
 		// Disable hover for list item
 		container.parentElement!.parentElement!.classList.add('force-no-hover');
@@ -447,8 +447,8 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
-		// hack
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
+		// HACK - use helper function as there is no tree API
+		addClassToTwistieElement(container, 'force-twistie');
 
 		const element = append(container, $('.resource-group'));
 		const name = append(element, $('.name'));
@@ -986,6 +986,7 @@ export const ContextKeys = {
 	SCMHistoryItemCount: new RawContextKey<number>('scmHistoryItemCount', 0),
 	SCMHistoryViewMode: new RawContextKey<ViewMode>('scmHistoryViewMode', ViewMode.List),
 	SCMCurrentHistoryItemRefHasRemote: new RawContextKey<boolean>('scmCurrentHistoryItemRefHasRemote', false),
+	SCMCurrentHistoryItemRefHasBase: new RawContextKey<boolean>('scmCurrentHistoryItemRefHasBase', false),
 	SCMCurrentHistoryItemRefInFilter: new RawContextKey<boolean>('scmCurrentHistoryItemRefInFilter', false),
 	RepositoryCount: new RawContextKey<number>('scmRepositoryCount', 0),
 	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),
@@ -1155,12 +1156,11 @@ class SetTreeViewModeAction extends ViewAction<SCMViewPane> {
 registerAction2(SetListViewModeAction);
 registerAction2(SetTreeViewModeAction);
 
-abstract class RepositorySortAction extends ViewAction<SCMViewPane> {
+abstract class RepositorySortAction extends Action2 {
 	constructor(private sortKey: ISCMRepositorySortKey, title: string) {
 		super({
 			id: `workbench.scm.action.repositories.setSortKey.${sortKey}`,
 			title,
-			viewId: VIEW_PANE_ID,
 			f1: false,
 			toggled: RepositoryContextKeys.RepositorySortKey.isEqualTo(sortKey),
 			menu: [
@@ -1176,7 +1176,7 @@ abstract class RepositorySortAction extends ViewAction<SCMViewPane> {
 		});
 	}
 
-	runInView(accessor: ServicesAccessor) {
+	run(accessor: ServicesAccessor) {
 		accessor.get(ISCMViewService).toggleSortKey(this.sortKey);
 	}
 }
@@ -1203,6 +1203,50 @@ class RepositorySortByPathAction extends RepositorySortAction {
 registerAction2(RepositorySortByDiscoveryTimeAction);
 registerAction2(RepositorySortByNameAction);
 registerAction2(RepositorySortByPathAction);
+
+abstract class RepositorySelectionModeAction extends Action2 {
+	constructor(private readonly selectionMode: ISCMRepositorySelectionMode, title: string, order: number) {
+		super({
+			id: `workbench.scm.action.repositories.setSelectionMode.${selectionMode}`,
+			title,
+			f1: false,
+			toggled: RepositoryContextKeys.RepositorySelectionMode.isEqualTo(selectionMode),
+			menu: [
+				{
+					id: Menus.Repositories,
+					when: ContextKeyExpr.greater(ContextKeys.RepositoryCount.key, 1),
+					group: '2_selectionMode',
+					order
+				},
+				{
+					id: MenuId.SCMSourceControlTitle,
+					when: ContextKeyExpr.greater(ContextKeys.RepositoryCount.key, 1),
+					group: '2_selectionMode',
+					order
+				},
+			]
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(ISCMViewService).toggleSelectionMode(this.selectionMode);
+	}
+}
+
+class RepositorySingleSelectionModeAction extends RepositorySelectionModeAction {
+	constructor() {
+		super(ISCMRepositorySelectionMode.Single, localize('repositorySingleSelectionMode', "Select Single Repository"), 1);
+	}
+}
+
+class RepositoryMultiSelectionModeAction extends RepositorySelectionModeAction {
+	constructor() {
+		super(ISCMRepositorySelectionMode.Multiple, localize('repositoryMultiSelectionMode', "Select Multiple Repositories"), 2);
+	}
+}
+
+registerAction2(RepositorySingleSelectionModeAction);
+registerAction2(RepositoryMultiSelectionModeAction);
 
 abstract class SetSortKeyAction extends ViewAction<SCMViewPane> {
 	constructor(private sortKey: ViewSortKey, title: string) {

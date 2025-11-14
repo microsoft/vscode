@@ -106,6 +106,7 @@ export const GENERAL_TAG_SETTING_TAG = 'tag:';
 export const POLICY_SETTING_TAG = 'hasPolicy';
 export const WORKSPACE_TRUST_SETTING_TAG = 'workspaceTrust';
 export const REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG = 'requireTrustedWorkspace';
+export const ADVANCED_SETTING_TAG = 'advanced';
 export const KEYBOARD_LAYOUT_OPEN_PICKER = 'workbench.action.openKeyboardLayoutPicker';
 
 export const ENABLE_LANGUAGE_FILTER = true;
@@ -212,6 +213,7 @@ export function compareTwoNullableNumbers(a: number | undefined, b: number | und
 
 export const PREVIEW_INDICATOR_DESCRIPTION = localize('previewIndicatorDescription', "Preview setting: this setting controls a new feature that is still under refinement yet ready to use. Feedback is welcome.");
 export const EXPERIMENTAL_INDICATOR_DESCRIPTION = localize('experimentalIndicatorDescription', "Experimental setting: this setting controls a new feature that is actively being developed and may be unstable. It is subject to change or removal.");
+export const ADVANCED_INDICATOR_DESCRIPTION = localize('advancedIndicatorDescription', "Advanced setting: this setting is intended for advanced scenarios and configurations. Only modify this if you know what it does.");
 
 export const knownAcronyms = new Set<string>();
 [

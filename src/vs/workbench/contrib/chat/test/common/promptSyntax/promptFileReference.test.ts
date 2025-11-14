@@ -23,7 +23,7 @@ import { ChatModeKind } from '../../../common/constants.js';
 import { getPromptFileType } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IMockFolder, MockFilesystem } from './testUtils/mockFilesystem.js';
-import { IBodyFileReference, NewPromptsParser } from '../../../common/promptSyntax/service/newPromptsParser.js';
+import { IBodyFileReference, PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 
 /**
  * Represents a file reference with an expected
@@ -91,7 +91,7 @@ class TestPromptFileReference extends Disposable {
 
 		const content = await this.fileService.readFile(this.rootFileUri);
 
-		const ast = new NewPromptsParser().parse(this.rootFileUri, content.value.toString());
+		const ast = new PromptFileParser().parse(this.rootFileUri, content.value.toString());
 		assert(ast.body, 'Prompt file must have a body');
 
 		// resolve the root file reference including all nested references

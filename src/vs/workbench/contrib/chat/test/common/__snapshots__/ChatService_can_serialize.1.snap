@@ -1,6 +1,4 @@
 {
-  requesterUsername: "test",
-  requesterAvatarIconUri: undefined,
   responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
@@ -33,7 +31,7 @@
               extensionDisplayName: "",
               locations: [ "panel" ],
               modes: [ "ask" ],
-              metadata: { requester: { name: "test" } },
+              metadata: {  },
               slashCommands: [  ],
               disambiguation: [  ]
             },
@@ -86,7 +84,7 @@
         extensionDisplayName: "",
         locations: [ "panel" ],
         modes: [ "ask" ],
-        metadata: { requester: { name: "test" } },
+        metadata: {  },
         slashCommands: [  ],
         disambiguation: [  ]
       },
@@ -159,7 +157,7 @@
         extensionDisplayName: "",
         locations: [ "panel" ],
         modes: [ "ask" ],
-        metadata: { requester: { name: "test" } },
+        metadata: {  },
         slashCommands: [  ],
         disambiguation: [  ],
         isDefault: true

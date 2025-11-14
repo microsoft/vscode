@@ -401,6 +401,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		}
 
 		for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
+			// eslint-disable-next-line no-restricted-syntax
 			const element = templateData.label.element.querySelector(selector);
 			if (element) {
 				if (data.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted || data.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial) {
@@ -423,9 +424,11 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 						templateData.removedSpan.textContent = `-${diffMeta.removed}`;
 						templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', diffMeta.added, diffMeta.removed));
 					}
+					// eslint-disable-next-line no-restricted-syntax
 					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
 				} else if (data.state !== ModifiedFileEntryState.Modified) {
 					templateData.actionBarContainer.classList.remove('modified');
+					// eslint-disable-next-line no-restricted-syntax
 					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.remove('modified');
 				}
 			}

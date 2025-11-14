@@ -6,7 +6,6 @@
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunSelfDisposable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
@@ -23,26 +22,21 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 
 	public abstract codeblocks: IChatCodeBlockInfo[];
 
-	public readonly codeblocksPartId = 'tool-' + (BaseChatToolInvocationSubPart.idPool++);
+	private readonly _codeBlocksPartId = 'tool-' + (BaseChatToolInvocationSubPart.idPool++);
+
+	public get codeblocksPartId() {
+		return this._codeBlocksPartId;
+	}
 
 	constructor(
 		protected readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 	) {
 		super();
-
-		if (toolInvocation.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(toolInvocation)) {
-			this._register(autorunSelfDisposable(reader => {
-				if (IChatToolInvocation.isComplete(toolInvocation, reader)) {
-					this._onNeedsRerender.fire();
-					reader.dispose();
-				}
-			}));
-		}
 	}
 
 	protected getIcon() {
 		const toolInvocation = this.toolInvocation;
-		const confirmState = IChatToolInvocation.isConfirmed(toolInvocation);
+		const confirmState = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation);
 		const isSkipped = confirmState?.type === ToolConfirmKind.Skipped;
 		if (isSkipped) {
 			return Codicon.circleSlash;
