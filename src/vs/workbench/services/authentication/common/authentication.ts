@@ -399,6 +399,13 @@ export interface IAuthenticationProvider {
 	readonly label: string;
 
 	/**
+	 * The resource server that this authentication provider will use. If not defined, no specific resource server is associated.
+	 * TODO@TylerLeonhardt: At some point, this should just be passed in to `getSessions` and `createSession` instead of being a property on the provider.
+	 * This will allow for a single provider to handle multiple resource servers.
+	 */
+	readonly resourceServer?: URI;
+
+	/**
 	 * The resolved authorization servers. These can still contain globs, but should be concrete URIs
 	 */
 	readonly authorizationServers?: ReadonlyArray<URI>;
