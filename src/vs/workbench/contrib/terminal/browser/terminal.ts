@@ -172,6 +172,20 @@ export interface ITerminalChatService {
 	clearFocusedChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): void;
 	getFocusedChatTerminalToolProgressPart(): IChatTerminalToolProgressPart | undefined;
 	getMostRecentChatTerminalToolProgressPart(): IChatTerminalToolProgressPart | undefined;
+
+	/**
+	 * Enable or disable auto approval for all commands in a specific session.
+	 * @param chatSessionId The chat session ID
+	 * @param enabled Whether to enable or disable session auto approval
+	 */
+	setChatSessionAutoApproval(chatSessionId: string, enabled: boolean): void;
+
+	/**
+	 * Check if a session has auto approval enabled for all commands.
+	 * @param chatSessionId The chat session ID
+	 * @returns True if the session has auto approval enabled
+	 */
+	hasChatSessionAutoApproval(chatSessionId: string): boolean;
 }
 
 /**

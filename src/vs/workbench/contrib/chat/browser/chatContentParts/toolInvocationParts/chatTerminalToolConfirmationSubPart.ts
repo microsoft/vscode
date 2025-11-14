@@ -30,6 +30,7 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
+import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
@@ -61,7 +62,8 @@ export type TerminalNewAutoApproveButtonData = (
 	{ type: 'enable' } |
 	{ type: 'configure' } |
 	{ type: 'skip' } |
-	{ type: 'newRule'; rule: ITerminalNewAutoApproveRule | ITerminalNewAutoApproveRule[] }
+	{ type: 'newRule'; rule: ITerminalNewAutoApproveRule | ITerminalNewAutoApproveRule[] } |
+	{ type: 'sessionApproval' }
 );
 
 export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
@@ -87,6 +89,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITerminalChatService private readonly terminalChatService: ITerminalChatService,
 		@ITextModelService textModelService: ITextModelService,
 		@IHoverService hoverService: IHoverService,
 	) {
@@ -300,6 +303,13 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 							query: `@id:${TerminalContribSettingId.AutoApprove}`,
 						});
 						doComplete = false;
+						break;
+					}
+					case 'sessionApproval': {
+						const sessionId = this.context.element.sessionId;
+						this.terminalChatService.setChatSessionAutoApproval(sessionId, true);
+						terminalData.autoApproveInfo = new MarkdownString(localize('sessionApproval', 'All commands will be auto approved for this session'));
+						toolConfirmKind = ToolConfirmKind.UserAction;
 						break;
 					}
 				}
