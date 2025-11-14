@@ -256,3 +256,4 @@ function clampInt<T>(source: string | number, minimum: number, maximum: number, 
 	}
 	return clamp(r, minimum, maximum);
 }
+// #endregion Utils
