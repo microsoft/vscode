@@ -9,6 +9,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/path.js';
+import { isString } from '../../../../base/common/types.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -114,7 +115,7 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 
 			isCustomPtyImplementation: !!slc.customPtyImplementation,
 			isExtensionOwnedTerminal: !!slc.isExtensionOwnedTerminal,
-			isLoginShell: (typeof slc.args === 'string' ? slc.args.split(' ') : slc.args)?.some(arg => arg === '-l' || arg === '--login') ?? false,
+			isLoginShell: (isString(slc.args) ? slc.args.split(' ') : slc.args)?.some(arg => arg === '-l' || arg === '--login') ?? false,
 			isReconnect: !!slc.attachPersistentProcess,
 			hasRemoteAuthority: instance.hasRemoteAuthority,
 

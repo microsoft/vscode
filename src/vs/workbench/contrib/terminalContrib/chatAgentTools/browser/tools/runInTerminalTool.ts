@@ -51,6 +51,7 @@ import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/comm
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
 import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
+import { isNumber, isString } from '../../../../../../base/common/types.js';
 
 // #region Tool data
 
@@ -819,7 +820,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				timeout(5000).then(() => { throw new Error('Timeout'); })
 			]);
 
-			if (typeof pid === 'number') {
+			if (isNumber(pid)) {
 				const storedAssociations = this._storageService.get(TerminalToolStorageKeysInternal.TerminalSession, StorageScope.WORKSPACE, '{}');
 				const associations: Record<number, IStoredTerminalAssociation> = JSON.parse(storedAssociations);
 
@@ -971,7 +972,7 @@ export class TerminalProfileFetcher {
 		if (profile === null || profile === undefined || typeof profile !== 'object') {
 			return false;
 		}
-		if ('path' in profile && typeof (profile as { path: unknown }).path === 'string') {
+		if ('path' in profile && isString((profile as { path: unknown }).path)) {
 			return true;
 		}
 		return false;

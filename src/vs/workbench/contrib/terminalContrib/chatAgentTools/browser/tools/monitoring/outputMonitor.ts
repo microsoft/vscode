@@ -547,7 +547,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _confirmRunInTerminal(token: CancellationToken, suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
-		let suggestedOptionValue = typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option;
+		let suggestedOptionValue = isString(suggestedOption) ? suggestedOption : suggestedOption.option;
 		if (suggestedOptionValue === 'any key') {
 			suggestedOptionValue = 'a';
 		}
@@ -556,7 +556,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			token,
 			execution.sessionId,
 			new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
-			new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}`{2} followed by `Enter` to the terminal?", confirmationPrompt.prompt, suggestedOptionValue, typeof suggestedOption === 'string' ? '' : suggestedOption.description ? ' (' + suggestedOption.description + ')' : '')),
+			new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}`{2} followed by `Enter` to the terminal?", confirmationPrompt.prompt, suggestedOptionValue, isString(suggestedOption) ? '' : suggestedOption.description ? ' (' + suggestedOption.description + ')' : '')),
 			'',
 			localize('poll.terminal.acceptRun', 'Allow'),
 			localize('poll.terminal.rejectRun', 'Focus Terminal'),
@@ -688,7 +688,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] | undefined {
 	const moreActions: IAction[] = [];
-	const moreOptions = confirmationPrompt.options.filter(a => a !== (typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option));
+	const moreOptions = confirmationPrompt.options.filter(a => a !== (isString(suggestedOption) ? suggestedOption : suggestedOption.option));
 	let i = 0;
 	for (const option of moreOptions) {
 		const label = option + (confirmationPrompt.descriptions ? ' (' + confirmationPrompt.descriptions[i] + ')' : '');
