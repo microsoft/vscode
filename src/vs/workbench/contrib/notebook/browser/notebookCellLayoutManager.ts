@@ -5,7 +5,7 @@
 
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ICellViewModel, CellLayoutContext } from './notebookBrowser.js';
+import { ICellViewModel } from './notebookBrowser.js';
 import { NotebookEditorWidget } from './notebookEditorWidget.js';
 import { INotebookCellList } from './view/notebookRenderingCommon.js';
 import * as DOM from '../../../../base/browser/dom.js';
@@ -14,6 +14,7 @@ import { INotebookLoggingService } from '../common/notebookLoggingService.js';
 export class NotebookCellLayoutManager extends Disposable {
 	private _pendingLayouts: WeakMap<ICellViewModel, IDisposable> | null = new WeakMap<ICellViewModel, IDisposable>();
 	private _layoutDisposables: Set<IDisposable> = new Set<IDisposable>();
+	private readonly _layoutStack: string[] = [];
 	private _isDisposed = false;
 	constructor(
 		private notebookWidget: NotebookEditorWidget,
@@ -23,8 +24,16 @@ export class NotebookCellLayoutManager extends Disposable {
 		super();
 	}
 
-	async layoutNotebookCell(cell: ICellViewModel, height: number, context?: CellLayoutContext): Promise<void> {
-		this.loggingService.debug('cell layout', `cell:${cell.handle}, height:${height}`);
+	private checkStackDepth() {
+		if (this._layoutStack.length > 30) {
+			const layoutTrace = this._layoutStack.join(' -> ');
+			throw new Error('NotebookCellLayoutManager: layout stack is too deep: ' + layoutTrace);
+		}
+	}
+
+	async layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void> {
+		const layoutTag = `cell:${cell.handle}, height:${height}`;
+		this.loggingService.debug('cell layout', layoutTag);
 		const viewIndex = this._list.getViewIndex(cell);
 		if (viewIndex === undefined) {
 			// the cell is hidden
@@ -40,6 +49,7 @@ export class NotebookCellLayoutManager extends Disposable {
 			const pendingLayout = this._pendingLayouts?.get(cell);
 			this._pendingLayouts?.delete(cell);
 
+			this._layoutStack.push(layoutTag);
 			try {
 				if (this._isDisposed) {
 					return;
@@ -59,6 +69,7 @@ export class NotebookCellLayoutManager extends Disposable {
 					return;
 				}
 
+				this.checkStackDepth();
 
 				if (!this.notebookWidget.hasEditorFocus()) {
 					// Do not scroll inactive notebook
@@ -76,6 +87,7 @@ export class NotebookCellLayoutManager extends Disposable {
 
 				this._list.updateElementHeight2(cell, height);
 			} finally {
+				this._layoutStack.pop();
 				deferred.complete(undefined);
 				if (pendingLayout) {
 					pendingLayout.dispose();

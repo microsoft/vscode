@@ -12,12 +12,12 @@ export function getUNCHostAllowlist(): string[] {
 	return [];
 }
 
-function processUNCHostAllowlist(): Set<string> {
+function processUNCHostAllowlist(): Set<string> | undefined {
 
 	// The property `process.uncHostAllowlist` is not available in official node.js
 	// releases, only in our own builds, so we have to probe for availability
 
-	return (process as any).uncHostAllowlist;
+	return (process as unknown as { uncHostAllowlist?: Set<string> }).uncHostAllowlist;
 }
 
 export function addUNCHostToAllowlist(allowedHost: string | string[]): void {
@@ -90,7 +90,7 @@ export function disableUNCAccessRestrictions(): void {
 		return;
 	}
 
-	(process as any).restrictUNCAccess = false;
+	(process as unknown as { restrictUNCAccess?: boolean }).restrictUNCAccess = false;
 }
 
 export function isUNCAccessRestrictionsDisabled(): boolean {
@@ -98,5 +98,5 @@ export function isUNCAccessRestrictionsDisabled(): boolean {
 		return true;
 	}
 
-	return (process as any).restrictUNCAccess === false;
+	return (process as unknown as { restrictUNCAccess?: boolean }).restrictUNCAccess === false;
 }

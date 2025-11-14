@@ -101,7 +101,7 @@ import { ExtensionsScannerService } from '../../platform/extensionManagement/nod
 import { UserDataProfilesHandler } from '../../platform/userDataProfile/electron-main/userDataProfilesHandler.js';
 import { ProfileStorageChangesListenerChannel } from '../../platform/userDataProfile/electron-main/userDataProfileStorageIpc.js';
 import { Promises, RunOnceScheduler, runWhenGlobalIdle } from '../../base/common/async.js';
-import { resolveMachineId, resolveSqmId, resolvedevDeviceId, validatedevDeviceId } from '../../platform/telemetry/electron-main/telemetryUtils.js';
+import { resolveMachineId, resolveSqmId, resolveDevDeviceId, validateDevDeviceId } from '../../platform/telemetry/electron-main/telemetryUtils.js';
 import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
 import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
 import { ILoggerMainService } from '../../platform/log/electron-main/loggerService.js';
@@ -168,7 +168,7 @@ export class CodeApplication extends Disposable {
 		const isUrlFromWindow = (requestingUrl?: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`);
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
-		const alwaysAllowedPermissions = new Set(['pointerLock']);
+		const alwaysAllowedPermissions = new Set(['pointerLock', 'notifications']);
 
 		const allowedPermissionsInWebview = new Set([
 			...alwaysAllowedPermissions,
@@ -545,7 +545,7 @@ export class CodeApplication extends Disposable {
 		// See: https://github.com/microsoft/vscode/issues/35361#issuecomment-399794085
 		try {
 			if (isMacintosh && this.configurationService.getValue('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
-				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
+				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true);
 			}
 		} catch (error) {
 			this.logService.error(error);
@@ -565,13 +565,11 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Resolve unique machine ID
-		this.logService.trace('Resolving machine identifier...');
 		const [machineId, sqmId, devDeviceId] = await Promise.all([
 			resolveMachineId(this.stateService, this.logService),
 			resolveSqmId(this.stateService, this.logService),
-			resolvedevDeviceId(this.stateService, this.logService)
+			resolveDevDeviceId(this.stateService, this.logService)
 		]);
-		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 		// Shared process
 		const { sharedProcessReady, sharedProcessClient } = this.setupSharedProcess(machineId, sqmId, devDeviceId);
@@ -692,7 +690,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// macOS: open-url events that were received before the app is ready
-		const protocolUrlsFromEvent = ((<any>global).getOpenUrls() || []) as string[];
+		const protocolUrlsFromEvent = ((global as { getOpenUrls?: () => string[] }).getOpenUrls?.() || []);
 		if (protocolUrlsFromEvent.length > 0) {
 			this.logService.trace(`app#resolveInitialProtocolUrls() protocol urls from macOS 'open-url' event:`, protocolUrlsFromEvent);
 		}
@@ -1299,7 +1297,7 @@ export class CodeApplication extends Disposable {
 			}
 		}
 
-		const macOpenFiles: string[] = (<any>global).macOpenFiles;
+		const macOpenFiles: string[] = (global as { macOpenFiles?: string[] }).macOpenFiles ?? [];
 		const hasCliArgs = args._.length;
 		const hasFolderURIs = !!args['folder-uri'];
 		const hasFileURIs = !!args['file-uri'];
@@ -1469,6 +1467,6 @@ export class CodeApplication extends Disposable {
 
 		// Validate Device ID is up to date (delay this as it has shown significant perf impact)
 		// Refs: https://github.com/microsoft/vscode/issues/234064
-		validatedevDeviceId(this.stateService, this.logService);
+		validateDevDeviceId(this.stateService, this.logService);
 	}
 }

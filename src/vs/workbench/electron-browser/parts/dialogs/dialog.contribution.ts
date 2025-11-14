@@ -20,6 +20,9 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { createNativeAboutDialogDetails } from '../../../../platform/dialogs/electron-browser/dialog.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -38,15 +41,17 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		@ILayoutService layoutService: ILayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService productService: IProductService,
+		@IProductService private productService: IProductService,
 		@IClipboardService clipboardService: IClipboardService,
-		@INativeHostService nativeHostService: INativeHostService,
-		@IOpenerService openerService: IOpenerService
+		@INativeHostService private nativeHostService: INativeHostService,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+		@IOpenerService openerService: IOpenerService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 
-		this.browserImpl = new Lazy(() => new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, productService, clipboardService, openerService));
-		this.nativeImpl = new Lazy(() => new NativeDialogHandler(logService, nativeHostService, productService, clipboardService));
+		this.browserImpl = new Lazy(() => new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, clipboardService, openerService, markdownRendererService));
+		this.nativeImpl = new Lazy(() => new NativeDialogHandler(logService, nativeHostService, clipboardService));
 
 		this.model = (this.dialogService as DialogService).model;
 
@@ -90,10 +95,12 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 
 				// About
 				else {
+					const aboutDialogDetails = createNativeAboutDialogDetails(this.productService, await this.nativeHostService.getOSProperties());
+
 					if (this.useCustomDialog) {
-						await this.browserImpl.value.about();
+						await this.browserImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
 					} else {
-						await this.nativeImpl.value.about();
+						await this.nativeImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
 					}
 				}
 			} catch (error) {
@@ -106,7 +113,9 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 	}
 
 	private get useCustomDialog(): boolean {
-		return this.configurationService.getValue('window.dialogStyle') === 'custom';
+		return this.configurationService.getValue('window.dialogStyle') === 'custom' ||
+			// Use the custom dialog while driven so that the driver can interact with it
+			!!this.environmentService.enableSmokeTestDriver;
 	}
 }
 

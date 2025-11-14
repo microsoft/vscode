@@ -65,7 +65,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		}
 
 		// Last row: source and buttons if we have any
-		if (notification.source || isNonEmptyArray(notification.actions && notification.actions.primary)) {
+		if (notification.source || isNonEmptyArray(notification.actions?.primary)) {
 			expandedHeight += NotificationsListDelegate.ROW_HEIGHT;
 		}
 
@@ -88,7 +88,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		if (notification.canCollapse) {
 			actions++; // expand/collapse
 		}
-		if (isNonEmptyArray(notification.actions && notification.actions.secondary)) {
+		if (isNonEmptyArray(notification.actions?.secondary)) {
 			actions++; // secondary actions
 		}
 		this.offsetHelper.style.width = `${450 /* notifications container width */ - (10 /* padding */ + 30 /* severity icon */ + (actions * 30) /* actions */ - (Math.max(actions - 1, 0) * 4) /* less padding for actions > 1 */)}px`;

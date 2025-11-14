@@ -587,7 +587,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 						});
 
 						if (res.confirmed) {
-							const promises: Promise<any>[] = [];
+							const promises: Promise<unknown>[] = [];
 
 							// If sync is happening wait until it is finished before reload
 							if (userDataSyncService.status === SyncStatus.Syncing) {

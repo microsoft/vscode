@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { ExtensionHost, GitHubTarget, IFlowQuery, getFlows } from '../flows';
 import { Config } from '../config';
+import * as vscode from 'vscode';
 
 const enum Flows {
 	UrlHandlerFlow = 'url handler',
@@ -193,4 +194,68 @@ suite('getFlows', () => {
 			}
 		});
 	}
+
+	suite('preferDeviceCodeFlow configuration', () => {
+		let originalConfig: boolean | undefined;
+
+		suiteSetup(async () => {
+			const config = vscode.workspace.getConfiguration('github-authentication');
+			originalConfig = config.get<boolean>('preferDeviceCodeFlow');
+		});
+
+		suiteTeardown(async () => {
+			const config = vscode.workspace.getConfiguration('github-authentication');
+			await config.update('preferDeviceCodeFlow', originalConfig, vscode.ConfigurationTarget.Global);
+		});
+
+		test('returns device code flow first when preferDeviceCodeFlow is true - VS Code Desktop', async () => {
+			const config = vscode.workspace.getConfiguration('github-authentication');
+			await config.update('preferDeviceCodeFlow', true, vscode.ConfigurationTarget.Global);
+
+			const flows = getFlows({
+				extensionHost: ExtensionHost.Local,
+				isSupportedClient: true,
+				target: GitHubTarget.DotCom
+			});
+
+			// Should return device code flow first, then other flows
+			assert.strictEqual(flows.length, 3, `Expected 3 flows, got ${flows.length}: ${flows.map(f => f.label).join(',')}`);
+			assert.strictEqual(flows[0].label, Flows.DeviceCodeFlow);
+			// Other flows should still be available
+			assert.strictEqual(flows[1].label, Flows.LocalServerFlow);
+			assert.strictEqual(flows[2].label, Flows.UrlHandlerFlow);
+		});
+
+		test('returns device code flow first when preferDeviceCodeFlow is true - Remote', async () => {
+			const config = vscode.workspace.getConfiguration('github-authentication');
+			await config.update('preferDeviceCodeFlow', true, vscode.ConfigurationTarget.Global);
+
+			const flows = getFlows({
+				extensionHost: ExtensionHost.Remote,
+				isSupportedClient: true,
+				target: GitHubTarget.DotCom
+			});
+
+			// Should return device code flow first, then other flows
+			assert.strictEqual(flows.length, 2, `Expected 2 flows, got ${flows.length}: ${flows.map(f => f.label).join(',')}`);
+			assert.strictEqual(flows[0].label, Flows.DeviceCodeFlow);
+			assert.strictEqual(flows[1].label, Flows.UrlHandlerFlow);
+		});
+
+		test('returns normal flows when preferDeviceCodeFlow is true but device code flow is not supported - WebWorker', async () => {
+			const config = vscode.workspace.getConfiguration('github-authentication');
+			await config.update('preferDeviceCodeFlow', true, vscode.ConfigurationTarget.Global);
+
+			const flows = getFlows({
+				extensionHost: ExtensionHost.WebWorker,
+				isSupportedClient: true,
+				target: GitHubTarget.DotCom
+			});
+
+			// WebWorker doesn't support DeviceCodeFlow, so should return normal flows
+			// Based on the original logic, WebWorker + DotCom should return UrlHandlerFlow
+			assert.strictEqual(flows.length, 1, `Expected 1 flow for WebWorker configuration, got ${flows.length}: ${flows.map(f => f.label).join(',')}`);
+			assert.strictEqual(flows[0].label, Flows.UrlHandlerFlow);
+		});
+	});
 });

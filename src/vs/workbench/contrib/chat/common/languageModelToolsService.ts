@@ -3,25 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Separator } from '../../../../base/common/actions.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { derived, IObservable, IReader, ITransaction, ObservableSet } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
+import { localize } from '../../../../nls.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { ByteSize } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
-import { IChatExtensionsContent, IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
+import { UserSelectedTools } from './chatAgents.js';
+import { IVariableReference } from './chatModes.js';
+import { IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, type IChatTerminalToolInvocationData } from './chatService.js';
+import { ChatRequestToolReferenceEntry } from './chatVariableEntries.js';
+import { LanguageModelPartAudience } from './languageModels.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { derived, IObservable, IReader, ITransaction, ObservableSet } from '../../../../base/common/observable.js';
-import { Iterable } from '../../../../base/common/iterator.js';
-import { localize } from '../../../../nls.js';
 
 export interface IToolData {
 	id: string;
@@ -41,12 +47,16 @@ export interface IToolData {
 	 */
 	runsInWorkspace?: boolean;
 	alwaysDisplayInputOutput?: boolean;
+	/** True if this tool might ask for pre-approval */
+	canRequestPreApproval?: boolean;
+	/** True if this tool might ask for post-approval */
+	canRequestPostApproval?: boolean;
 }
 
 export interface IToolProgressStep {
 	readonly message: string | IMarkdownString | undefined;
-	readonly increment?: number;
-	readonly total?: number;
+	/** 0-1 progress of the tool call */
+	readonly progress?: number;
 }
 
 export type ToolProgress = IProgress<IToolProgressStep>;
@@ -60,6 +70,8 @@ export type ToolDataSource =
 	| {
 		type: 'mcp';
 		label: string;
+		serverLabel: string | undefined;
+		instructions: string | undefined;
 		collectionId: string;
 		definitionId: string;
 	}
@@ -71,11 +83,17 @@ export type ToolDataSource =
 	| {
 		type: 'internal';
 		label: string;
+	} | {
+		type: 'external';
+		label: string;
 	};
 
 export namespace ToolDataSource {
 
 	export const Internal: ToolDataSource = { type: 'internal', label: 'Built-In' };
+
+	/** External tools may not be contributed or invoked, but may be invoked externally and described in an IChatToolInvocationSerialized */
+	export const External: ToolDataSource = { type: 'external', label: 'External' };
 
 	export function toKey(source: ToolDataSource): string {
 		switch (source.type) {
@@ -83,6 +101,7 @@ export namespace ToolDataSource {
 			case 'mcp': return `mcp:${source.collectionId}:${source.definitionId}`;
 			case 'user': return `user:${source.file.toString()}`;
 			case 'internal': return 'internal';
+			case 'external': return 'external';
 		}
 	}
 
@@ -94,11 +113,11 @@ export namespace ToolDataSource {
 		if (source.type === 'internal') {
 			return { ordinal: 1, label: localize('builtin', 'Built-In') };
 		} else if (source.type === 'mcp') {
-			return { ordinal: 2, label: localize('mcp', 'MCP Server: {0}', source.label) };
+			return { ordinal: 2, label: source.label };
 		} else if (source.type === 'user') {
 			return { ordinal: 0, label: localize('user', 'User Defined') };
 		} else {
-			return { ordinal: 3, label: localize('ext', 'Extension: {0}', source.label) };
+			return { ordinal: 3, label: source.label };
 		}
 	}
 }
@@ -106,21 +125,28 @@ export namespace ToolDataSource {
 export interface IToolInvocation {
 	callId: string;
 	toolId: string;
-	parameters: Object;
+	parameters: Record<string, any>;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
 	chatRequestId?: string;
 	chatInteractionId?: string;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent;
+	/**
+	 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
+	 */
+	fromSubAgent?: boolean;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 	modelId?: string;
+	userSelectedTools?: UserSelectedTools;
 }
 
 export interface IToolInvocationContext {
-	sessionId: string;
+	/** @deprecated Use {@link sessionResource} instead */
+	readonly sessionId: string;
+	readonly sessionResource: URI;
 }
 
 export function isToolInvocationContext(obj: any): obj is IToolInvocationContext {
-	return typeof obj === 'object' && typeof obj.sessionId === 'string';
+	return typeof obj === 'object' && typeof obj.sessionId === 'string' && URI.isUri(obj.sessionResource);
 }
 
 export interface IToolInvocationPreparationContext {
@@ -130,31 +156,65 @@ export interface IToolInvocationPreparationContext {
 	chatInteractionId?: string;
 }
 
+export type ToolInputOutputBase = {
+	/** Mimetype of the value, optional */
+	mimeType?: string;
+	/** URI of the resource on the MCP server. */
+	uri?: URI;
+	/** If true, this part came in as a resource reference rather than direct data. */
+	asResource?: boolean;
+	/** Audience of the data part */
+	audience?: LanguageModelPartAudience[];
+};
+
+export type ToolInputOutputEmbedded = ToolInputOutputBase & {
+	type: 'embed';
+	value: string;
+	/** If true, value is text. If false or not given, value is base64 */
+	isText?: boolean;
+};
+
+export type ToolInputOutputReference = ToolInputOutputBase & { type: 'ref'; uri: URI };
+
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
-	readonly output: ({
-		value: string;
-		/** If true, value is text. If false or not given, value is base64 */
-		isText?: boolean;
-		/** Mimetype of the value, optional */
-		mimeType?: string;
-		/** URI of the resource on the MCP server. */
-		uri?: URI;
-		/** If true, this part came in as a resource reference rather than direct data. */
-		asResource?: boolean;
-	})[];
+	readonly output: (ToolInputOutputEmbedded | ToolInputOutputReference)[];
 	readonly isError?: boolean;
+}
+
+export interface IToolResultOutputDetails {
+	readonly output: { type: 'data'; mimeType: string; value: VSBuffer };
 }
 
 export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInputOutputDetails {
 	return typeof obj === 'object' && typeof obj?.input === 'string' && (typeof obj?.output === 'string' || Array.isArray(obj?.output));
 }
 
+export function isToolResultOutputDetails(obj: any): obj is IToolResultOutputDetails {
+	return typeof obj === 'object' && typeof obj?.output === 'object' && typeof obj?.output?.mimeType === 'string' && obj?.output?.type === 'data';
+}
+
 export interface IToolResult {
 	content: (IToolResultPromptTsxPart | IToolResultTextPart | IToolResultDataPart)[];
 	toolResultMessage?: string | IMarkdownString;
-	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails;
+	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails;
 	toolResultError?: string;
+	toolMetadata?: unknown;
+	/** Whether to ask the user to confirm these tool results. Overrides {@link IToolConfirmationMessages.confirmResults}. */
+	confirmResults?: boolean;
+}
+
+export function toolContentToA11yString(part: IToolResult['content']) {
+	return part.map(p => {
+		switch (p.kind) {
+			case 'promptTsx':
+				return stringifyPromptTsxPart(p);
+			case 'text':
+				return p.value;
+			case 'data':
+				return localize('toolResultDataPartA11y', "{0} of {1} binary data", ByteSize.formatSize(p.value.data.byteLength), p.value.mimeType || 'unknown');
+		}
+	}).join(', ');
 }
 
 export function toolResultHasBuffers(result: IToolResult): boolean {
@@ -173,6 +233,7 @@ export function stringifyPromptTsxPart(part: IToolResultPromptTsxPart): string {
 export interface IToolResultTextPart {
 	kind: 'text';
 	value: string;
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IToolResultDataPart {
@@ -181,13 +242,33 @@ export interface IToolResultDataPart {
 		mimeType: string;
 		data: VSBuffer;
 	};
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IToolConfirmationMessages {
-	title: string | IMarkdownString;
-	message: string | IMarkdownString;
+	/** Title for the confirmation. If set, the user will be asked to confirm execution of the tool */
+	title?: string | IMarkdownString;
+	/** MUST be set if `title` is also set */
+	message?: string | IMarkdownString;
 	disclaimer?: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
+	terminalCustomActions?: ToolConfirmationAction[];
+	/** If true, confirmation will be requested after the tool executes and before results are sent to the model */
+	confirmResults?: boolean;
+}
+
+export interface IToolConfirmationAction {
+	label: string;
+	disabled?: boolean;
+	tooltip?: string;
+	data: any;
+}
+
+export type ToolConfirmationAction = IToolConfirmationAction | Separator;
+
+export enum ToolInvocationPresentation {
+	Hidden = 'hidden',
+	HiddenAfterComplete = 'hiddenAfterComplete'
 }
 
 export interface IPreparedToolInvocation {
@@ -195,9 +276,8 @@ export interface IPreparedToolInvocation {
 	pastTenseMessage?: string | IMarkdownString;
 	originMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
-	presentation?: 'hidden' | undefined;
-	// When this gets extended, be sure to update `chatResponseAccessibleView.ts` to handle the new properties.
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent;
+	presentation?: ToolInvocationPresentation;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 }
 
 export interface IToolImpl {
@@ -264,30 +344,39 @@ export type CountTokensCallback = (input: string, token: CancellationToken) => P
 
 export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
-	onDidChangeTools: Event<void>;
+	readonly onDidChangeTools: Event<void>;
+	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ readonly sessionId: string; readonly toolData: IToolData }>;
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
+	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
-	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
-	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
-	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean>;
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[] | undefined): IToolAndToolSetEnablementMap;
+	/** Flush any pending tool updates to the extension hosts. */
+	flushToolUpdates(): void;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSet(id: string): ToolSet | undefined;
 	getToolSetByName(name: string): ToolSet | undefined;
 	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
+
+	// tool names in prompt files handling ('qualified names')
+
+	getQualifiedToolNames(): Iterable<string>;
+	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined;
+	getQualifiedToolName(tool: IToolData, toolSet?: ToolSet): string;
+	getDeprecatedQualifiedToolNames(): Map<string, string>;
+	mapGithubToolName(githubToolName: string): string;
+
+	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap;
+	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[];
+	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
 
-export function createToolInputUri(toolOrId: IToolData | string): URI {
-	if (typeof toolOrId !== 'string') {
-		toolOrId = toolOrId.id;
-	}
-	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolOrId}/tool_input.json` });
+export function createToolInputUri(toolCallId: string): URI {
+	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolCallId}/tool_input.json` });
 }
 
 export function createToolSchemaUri(toolOrId: IToolData | string): URI {
@@ -295,4 +384,16 @@ export function createToolSchemaUri(toolOrId: IToolData | string): URI {
 		toolOrId = toolOrId.id;
 	}
 	return URI.from({ scheme: Schemas.vscode, authority: 'schemas', path: `/lm/tool/${toolOrId}` });
+}
+
+export namespace GithubCopilotToolReference {
+	export const shell = 'shell';
+	export const edit = 'edit';
+	export const search = 'search';
+	export const customAgent = 'custom-agent';
+}
+
+export namespace VSCodeToolReference {
+	export const runCommands = 'runCommands';
+	export const runSubagent = 'runSubagent';
 }

@@ -10,8 +10,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createAsar = createAsar;
 const path_1 = __importDefault(require("path"));
 const event_stream_1 = __importDefault(require("event-stream"));
-const pickle = require('chromium-pickle-js');
-const Filesystem = require('asar/lib/filesystem');
+const chromium_pickle_js_1 = __importDefault(require("chromium-pickle-js"));
+const filesystem_js_1 = __importDefault(require("asar/lib/filesystem.js"));
 const vinyl_1 = __importDefault(require("vinyl"));
 const minimatch_1 = __importDefault(require("minimatch"));
 function createAsar(folderPath, unpackGlobs, skipGlobs, duplicateGlobs, destFilename) {
@@ -41,7 +41,7 @@ function createAsar(folderPath, unpackGlobs, skipGlobs, duplicateGlobs, destFile
         }
         return false;
     };
-    const filesystem = new Filesystem(folderPath);
+    const filesystem = new filesystem_js_1.default(folderPath);
     const out = [];
     // Keep track of pending inserts
     let pendingInserts = 0;
@@ -121,10 +121,10 @@ function createAsar(folderPath, unpackGlobs, skipGlobs, duplicateGlobs, destFile
     }, function () {
         const finish = () => {
             {
-                const headerPickle = pickle.createEmpty();
+                const headerPickle = chromium_pickle_js_1.default.createEmpty();
                 headerPickle.writeString(JSON.stringify(filesystem.header));
                 const headerBuf = headerPickle.toBuffer();
-                const sizePickle = pickle.createEmpty();
+                const sizePickle = chromium_pickle_js_1.default.createEmpty();
                 sizePickle.writeUInt32(headerBuf.length);
                 const sizeBuf = sizePickle.toBuffer();
                 out.unshift(headerBuf);

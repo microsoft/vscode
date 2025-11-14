@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { getCleanPromptName, isPromptOrInstructionsFile } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { randomInt } from '../../../../../../../base/common/numbers.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 
@@ -25,7 +24,7 @@ suite('Prompt Constants', () => {
 				'common',
 			);
 
-			const expectedPromptName = `some-${randomInt(1000)}`;
+			const expectedPromptName = `some-3095`;
 			assert.strictEqual(
 				getCleanPromptName(URI.file(`./${expectedPromptName}.prompt.md`)),
 				expectedPromptName,
@@ -64,7 +63,7 @@ suite('Prompt Constants', () => {
 			);
 
 			assert(
-				isPromptOrInstructionsFile(URI.file(`./some-${randomInt(1000)}.prompt.md`)),
+				isPromptOrInstructionsFile(URI.file(`./some-38294.prompt.md`)),
 			);
 
 			assert(
@@ -82,7 +81,7 @@ suite('Prompt Constants', () => {
 			);
 
 			assert(
-				!isPromptOrInstructionsFile(URI.file(`./some-${randomInt(1000)}.txt`)),
+				!isPromptOrInstructionsFile(URI.file(`./some-2530.txt`)),
 			);
 		});
 	});

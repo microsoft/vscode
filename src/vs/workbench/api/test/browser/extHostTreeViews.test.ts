@@ -768,7 +768,7 @@ suite('ExtHostTreeView', function () {
 	function getTreeItem(key: string, highlights?: [number, number][]): TreeItem {
 		const treeElement = getTreeElement(key);
 		return {
-			label: <any>{ label: labels[key] || key, highlights },
+			label: { label: labels[key] || key, highlights },
 			collapsibleState: treeElement && Object.keys(treeElement).length ? TreeItemCollapsibleState.Collapsed : TreeItemCollapsibleState.None
 		};
 	}

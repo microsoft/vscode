@@ -446,7 +446,7 @@ flakySuite('SQLite Storage Library', function () {
 		const corruptDBPath = join(testdir, 'broken.db');
 		await Promises.writeFile(corruptDBPath, 'This is a broken DB');
 
-		let expectedError: any;
+		let expectedError: Error | string | undefined = undefined;
 		await testDBBasics(corruptDBPath, error => {
 			expectedError = error;
 		});

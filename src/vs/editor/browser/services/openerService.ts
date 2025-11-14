@@ -46,7 +46,7 @@ class CommandOpener implements IOpener {
 		}
 
 		// execute as command
-		let args: any = [];
+		let args: unknown[] = [];
 		try {
 			args = parse(decodeURIComponent(target.query));
 		} catch {

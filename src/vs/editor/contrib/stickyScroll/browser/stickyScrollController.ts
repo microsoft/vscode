@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser.js';
+import { ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { EditorOption, RenderLineNumbersType, ConfigurationChangedEvent } from '../../../common/config/editorOptions.js';
@@ -44,7 +44,7 @@ export interface IStickyScrollController {
 	findScrollWidgetState(): StickyScrollWidgetState;
 	dispose(): void;
 	selectEditor(): void;
-	onDidChangeStickyScrollHeight: Event<{ height: number }>;
+	readonly onDidChangeStickyScrollHeight: Event<{ height: number }>;
 }
 
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {
@@ -400,7 +400,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				}
 				this._revealPosition({ lineNumber: position.lineNumber, column: 1 });
 			}
-			this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel().uri, range: this._stickyRangeProjectedOnEditor });
+			this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor, { uri: this._editor.getModel().uri, range: this._stickyRangeProjectedOnEditor });
 		}));
 	}
 
@@ -592,10 +592,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	findScrollWidgetState(): StickyScrollWidgetState {
-		if (!this._editor.hasModel()) {
-			return StickyScrollWidgetState.Empty;
-		}
-		const textModel = this._editor.getModel();
 		const maxNumberStickyLines = Math.min(this._maxStickyLines, this._editor.getOption(EditorOption.stickyScroll).maxLineCount);
 		const scrollTop: number = this._editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
@@ -608,22 +604,19 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			for (const range of candidateRanges) {
 				const start = range.startLineNumber;
 				const end = range.endLineNumber;
-				const isValidRange = textModel.isValidRange({ startLineNumber: start, endLineNumber: end, startColumn: 1, endColumn: 1 });
-				if (isValidRange && end - start > 0) {
-					const topOfElement = range.top;
-					const bottomOfElement = topOfElement + range.height;
-					const topOfBeginningLine = this._editor.getTopForLineNumber(start) - scrollTop;
-					const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
-					if (topOfElement > topOfBeginningLine && topOfElement <= bottomOfEndLine) {
-						startLineNumbers.push(start);
-						endLineNumbers.push(end + 1);
-						if (bottomOfElement > bottomOfEndLine) {
-							lastLineRelativePosition = bottomOfEndLine - bottomOfElement;
-						}
+				const topOfElement = range.top;
+				const bottomOfElement = topOfElement + range.height;
+				const topOfBeginningLine = this._editor.getTopForLineNumber(start) - scrollTop;
+				const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
+				if (topOfElement > topOfBeginningLine && topOfElement <= bottomOfEndLine) {
+					startLineNumbers.push(start);
+					endLineNumbers.push(end + 1);
+					if (bottomOfElement > bottomOfEndLine) {
+						lastLineRelativePosition = bottomOfEndLine - bottomOfElement;
 					}
-					if (startLineNumbers.length === maxNumberStickyLines) {
-						break;
-					}
+				}
+				if (startLineNumbers.length === maxNumberStickyLines) {
+					break;
 				}
 			}
 		}

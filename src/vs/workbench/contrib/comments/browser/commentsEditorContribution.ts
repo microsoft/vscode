@@ -92,7 +92,7 @@ registerAction2(class extends Action2 {
 			}
 		});
 	}
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
 			return;
@@ -129,7 +129,7 @@ registerAction2(class extends Action2 {
 			}
 		});
 	}
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
 			return;
@@ -205,7 +205,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
 			return;
@@ -237,7 +237,7 @@ registerAction2(class extends Action2 {
 			}]
 		});
 	}
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const commentService = accessor.get(ICommentService);
 		const enable = commentService.isCommentingEnabled;
 		commentService.enableCommenting(!enable);
@@ -301,7 +301,7 @@ registerAction2(class extends Action2 {
 			precondition: CommentContextKeys.activeCursorHasComment,
 		});
 	}
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
 			return;
@@ -348,7 +348,7 @@ registerAction2(class extends Action2 {
 			}]
 		});
 	}
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		getActiveController(accessor)?.collapseAll();
 	}
 });
@@ -371,7 +371,7 @@ registerAction2(class extends Action2 {
 			}]
 		});
 	}
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		getActiveController(accessor)?.expandAll();
 	}
 });
@@ -394,7 +394,7 @@ registerAction2(class extends Action2 {
 			}]
 		});
 	}
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		getActiveController(accessor)?.expandUnresolved();
 	}
 });

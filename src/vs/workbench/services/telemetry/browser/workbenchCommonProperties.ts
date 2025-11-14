@@ -28,7 +28,7 @@ export function resolveWorkbenchCommonProperties(
 	remoteAuthority?: string,
 	productIdentifier?: string,
 	removeMachineId?: boolean,
-	resolveAdditionalProperties?: () => { [key: string]: any }
+	resolveAdditionalProperties?: () => { [key: string]: unknown }
 ): ICommonProperties {
 	const result: ICommonProperties = Object.create(null);
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION)!;

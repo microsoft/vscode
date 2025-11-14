@@ -43,9 +43,10 @@ import { DraggedEditorIdentifier, fillEditorsDragData } from '../../dnd.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../labels.js';
 import { BreadcrumbsConfig, IBreadcrumbsService } from './breadcrumbs.js';
 import { BreadcrumbsModel, FileElement, OutlineElement2 } from './breadcrumbsModel.js';
-import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } from './breadcrumbsPicker.js';
+import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker } from './breadcrumbsPicker.js';
 import { IEditorGroupView } from './editor.js';
 import './media/breadcrumbscontrol.css';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -85,7 +86,7 @@ class OutlineItem extends BreadcrumbsItem {
 		const templateId = outline.config.delegate.getTemplateId(element);
 		const renderer = outline.config.renderers.find(renderer => renderer.templateId === templateId);
 		if (!renderer) {
-			container.innerText = '<<NO RENDERER>>';
+			container.textContent = '<<NO RENDERER>>';
 			return;
 		}
 
@@ -101,6 +102,10 @@ class OutlineItem extends BreadcrumbsItem {
 			visible: true,
 			filterData: undefined
 		}, 0, template, undefined);
+
+		if (!this.options.showSymbolIcons) {
+			dom.hide(template.iconClass);
+		}
 
 		this._disposables.add(toDisposable(() => { renderer.disposeTemplate(template); }));
 
@@ -184,7 +189,7 @@ function createBreadcrumbDndObserver(accessor: ServicesAccessor, container: HTML
 					}], event);
 				}
 
-				if (dragEditor && model.editor && model.editor?.input) {
+				if (dragEditor && model.editor?.input) {
 					const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 					editorTransfer.setData([new DraggedEditorIdentifier({ editor: model.editor.input, groupId: model.editor.group.id })], DraggedEditorIdentifier.prototype);
 				}
@@ -215,6 +220,12 @@ export class BreadcrumbsControl {
 		large: 8
 	};
 
+	private static readonly SCROLLBAR_VISIBILITY = {
+		auto: ScrollbarVisibility.Auto,
+		visible: ScrollbarVisibility.Visible,
+		hidden: ScrollbarVisibility.Hidden
+	};
+
 	static readonly Payload_Reveal = {};
 	static readonly Payload_RevealAside = {};
 	static readonly Payload_Pick = {};
@@ -230,6 +241,7 @@ export class BreadcrumbsControl {
 	private readonly _cfUseQuickPick: BreadcrumbsConfig<boolean>;
 	private readonly _cfShowIcons: BreadcrumbsConfig<boolean>;
 	private readonly _cfTitleScrollbarSizing: BreadcrumbsConfig<IEditorPartOptions['titleScrollbarSizing']>;
+	private readonly _cfTitleScrollbarVisibility: BreadcrumbsConfig<IEditorPartOptions['titleScrollbarVisibility']>;
 
 	readonly domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
@@ -267,12 +279,21 @@ export class BreadcrumbsControl {
 		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(configurationService);
 		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(configurationService);
 		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(configurationService);
+		this._cfTitleScrollbarVisibility = BreadcrumbsConfig.TitleScrollbarVisibility.bindTo(configurationService);
 
 		this._labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
 
 		const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
 		const styles = _options.widgetStyles ?? defaultBreadcrumbsWidgetStyles;
-		this._widget = new BreadcrumbsWidget(this.domNode, BreadcrumbsControl.SCROLLBAR_SIZES[sizing], separatorIcon, styles);
+		const visibility = this._cfTitleScrollbarVisibility?.getValue() ?? 'auto';
+
+		this._widget = new BreadcrumbsWidget(
+			this.domNode,
+			BreadcrumbsControl.SCROLLBAR_SIZES[sizing],
+			BreadcrumbsControl.SCROLLBAR_VISIBILITY[visibility],
+			separatorIcon,
+			styles
+		);
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
@@ -296,6 +317,8 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.reset();
 		this._cfUseQuickPick.dispose();
 		this._cfShowIcons.dispose();
+		this._cfTitleScrollbarSizing.dispose();
+		this._cfTitleScrollbarVisibility.dispose();
 		this._widget.dispose();
 		this._labels.dispose();
 		this.domNode.remove();
@@ -388,7 +411,7 @@ export class BreadcrumbsControl {
 				this._widget.setEnabled(false);
 				this._widget.setItems([new class extends BreadcrumbsItem {
 					render(container: HTMLElement): void {
-						container.innerText = localize('empty', "no elements");
+						container.textContent = localize('empty', "no elements");
 					}
 					equals(other: BreadcrumbsItem): boolean {
 						return other === this;
@@ -414,11 +437,16 @@ export class BreadcrumbsControl {
 
 		const updateScrollbarSizing = () => {
 			const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
+			const visibility = this._cfTitleScrollbarVisibility?.getValue() ?? 'auto';
+
 			this._widget.setHorizontalScrollbarSize(BreadcrumbsControl.SCROLLBAR_SIZES[sizing]);
+			this._widget.setHorizontalScrollbarVisibility(BreadcrumbsControl.SCROLLBAR_VISIBILITY[visibility]);
 		};
 		updateScrollbarSizing();
 		const updateScrollbarSizeListener = this._cfTitleScrollbarSizing.onDidChange(updateScrollbarSizing);
+		const updateScrollbarVisibilityListener = this._cfTitleScrollbarVisibility.onDidChange(updateScrollbarSizing);
 		this._breadcrumbsDisposables.add(updateScrollbarSizeListener);
+		this._breadcrumbsDisposables.add(updateScrollbarVisibilityListener);
 
 		// close picker on hide/update
 		this._breadcrumbsDisposables.add({
@@ -472,7 +500,7 @@ export class BreadcrumbsControl {
 		}
 
 		// show picker
-		let picker: BreadcrumbsPicker;
+		let picker: BreadcrumbsFilePicker | BreadcrumbsOutlinePicker;
 		let pickerAnchor: { x: number; y: number };
 
 		interface IHideData { didPick?: boolean; source?: BreadcrumbsControl }
@@ -679,8 +707,10 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const config = accessor.get(IConfigurationService);
-		const value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
-		BreadcrumbsConfig.IsEnabled.bindTo(config).updateValue(!value);
+		const breadCrumbsConfig = BreadcrumbsConfig.IsEnabled.bindTo(config);
+		const value = breadCrumbsConfig.getValue();
+		breadCrumbsConfig.updateValue(!value);
+		breadCrumbsConfig.dispose();
 	}
 
 });
@@ -713,7 +743,7 @@ registerAction2(class FocusAndSelectBreadcrumbs extends Action2 {
 			f1: true
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		focusAndSelectHandler(accessor, true);
 	}
 });
@@ -732,7 +762,7 @@ registerAction2(class FocusBreadcrumbs extends Action2 {
 			f1: true
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		focusAndSelectHandler(accessor, false);
 	}
 });
@@ -753,6 +783,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			await isEnabled.updateValue(true);
 			await timeout(50); // hacky - the widget might not be ready yet...
 		}
+		isEnabled.dispose();
 		return instant.invokeFunction(focusAndSelectHandler, true);
 	}
 });
@@ -909,8 +940,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		// IOutline: check if this the outline and iff so reveal element
 		const input = tree.getInput();
-		if (input && typeof (<IOutline<any>>input).outlineKind === 'string') {
-			return (<IOutline<any>>input).reveal(element, {
+		if (input && typeof (<IOutline<unknown>>input).outlineKind === 'string') {
+			return (<IOutline<unknown>>input).reveal(element, {
 				pinned: true,
 				preserveFocus: false
 			}, true, false);

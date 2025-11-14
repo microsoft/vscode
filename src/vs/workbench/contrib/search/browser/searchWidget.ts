@@ -92,6 +92,7 @@ class ReplaceAllAction extends Action {
 	}
 }
 
+const hoverLifecycleOptions = { groupId: 'search-widget' };
 const ctrlKeyMod = (isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 
 function stopPropagationForMultiLineUpwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
@@ -408,7 +409,8 @@ export class SearchWidget extends Widget {
 			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT,
 			showCommonFindToggles: true,
 			inputBoxStyles: options.inputBoxStyles,
-			toggleStyles: options.toggleStyles
+			toggleStyles: options.toggleStyles,
+			hoverLifecycleOptions,
 		};
 
 		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
@@ -465,7 +467,7 @@ export class SearchWidget extends Widget {
 			isChecked: false,
 			title: appendKeyBindingLabel(nls.localize('showContext', "Toggle Context Lines"), this.keybindingService.lookupKeybinding(ToggleSearchEditorContextLinesCommandId)),
 			icon: searchShowContextIcon,
-			hoverDelegate: getDefaultHoverDelegate('element'),
+			hoverLifecycleOptions,
 			...defaultToggleStyles
 		});
 		this._register(this.showContextToggle.onChange(() => this.onContextLinesChanged()));
@@ -517,7 +519,8 @@ export class SearchWidget extends Widget {
 			flexibleHeight: true,
 			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT,
 			inputBoxStyles: options.inputBoxStyles,
-			toggleStyles: options.toggleStyles
+			toggleStyles: options.toggleStyles,
+			hoverLifecycleOptions
 		}, this.contextKeyService, true));
 
 		this._register(this.replaceInput.onDidOptionChange(viaKeyboard => {
@@ -663,10 +666,12 @@ export class SearchWidget extends Widget {
 		}
 
 		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
+			// eslint-disable-next-line no-restricted-syntax
 			stopPropagationForMultiLineUpwards(keyboardEvent, this.searchInput?.getValue() ?? '', this.searchInput?.domNode.querySelector('textarea') ?? null);
 		}
 
 		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
+			// eslint-disable-next-line no-restricted-syntax
 			stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput?.getValue() ?? '', this.searchInput?.domNode.querySelector('textarea') ?? null);
 		}
 
@@ -745,10 +750,12 @@ export class SearchWidget extends Widget {
 		}
 
 		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
+			// eslint-disable-next-line no-restricted-syntax
 			stopPropagationForMultiLineUpwards(keyboardEvent, this.replaceInput?.getValue() ?? '', this.replaceInput?.domNode.querySelector('textarea') ?? null);
 		}
 
 		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
+			// eslint-disable-next-line no-restricted-syntax
 			stopPropagationForMultiLineDownwards(keyboardEvent, this.replaceInput?.getValue() ?? '', this.replaceInput?.domNode.querySelector('textarea') ?? null);
 		}
 	}

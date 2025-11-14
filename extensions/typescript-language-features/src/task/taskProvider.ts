@@ -57,7 +57,7 @@ class TscTaskProvider extends Disposable implements vscode.TaskProvider {
 			return [];
 		}
 
-		const configPaths: Set<string> = new Set();
+		const configPaths = new Set<string>();
 		const tasks: vscode.Task[] = [];
 		for (const project of await this.getAllTsConfigs(token)) {
 			if (!configPaths.has(project.fsPath)) {

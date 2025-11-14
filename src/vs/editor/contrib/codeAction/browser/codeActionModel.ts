@@ -239,8 +239,12 @@ export class CodeActionModel extends Disposable {
 							return emptyCodeActionSet;
 						}
 
-						// Search for quickfixes in the curret code action set.
-						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new HierarchicalKind(action.action.kind)) : false);
+						// Search for non-AI quickfixes in the current code action set - if AI code actions are the only thing found, continue searching for diagnostics in line.
+						const foundQuickfix = codeActionSet.validActions?.some(action => {
+							return action.action.kind &&
+								CodeActionKind.QuickFix.contains(new HierarchicalKind(action.action.kind)) &&
+								!action.action.isAI;
+						});
 						const allMarkers = this._markerService.read({ resource: model.uri });
 						if (foundQuickfix) {
 							for (const action of codeActionSet.validActions) {
