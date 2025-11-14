@@ -1015,6 +1015,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	executeCommands(source: string | null | undefined, commands: (editorCommon.ICommand | null)[]): void;
 
 	/**
+	 * Scroll vertically or horizontally as necessary and reveal the current cursors.
+	 */
+	revealAllCursors(revealHorizontal: boolean, minimalReveal?: boolean): void;
+
+	/**
 	 * @internal
 	 */
 	_getViewModel(): IViewModel | null;
