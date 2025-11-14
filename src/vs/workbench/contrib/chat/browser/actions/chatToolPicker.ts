@@ -378,9 +378,6 @@ export async function showToolsPicker(
 			return bucket;
 		};
 
-		// Track which tools are covered by toolsets so we don't add them as standalone
-		const toolsInToolSets = new Set<string>();
-
 		for (const toolSet of toolsService.toolSets.get()) {
 			if (!toolsEntries.has(toolSet)) {
 				continue;
@@ -410,18 +407,9 @@ export async function showToolsPicker(
 					treeItem.children = children;
 				}
 			}
-
-			// mark all tools in this toolset as covered
-			for (const tool of toolSet.getTools()) {
-				toolsInToolSets.add(tool.id);
-			}
 		}
 		for (const tool of toolsService.getTools()) {
 			if (!tool.canBeReferencedInPrompt || !toolsEntries.has(tool)) {
-				continue;
-			}
-			// Skip tools that are already in a toolset
-			if (toolsInToolSets.has(tool.id)) {
 				continue;
 			}
 			const bucket = getBucket(tool.source);

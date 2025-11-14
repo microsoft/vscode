@@ -76,6 +76,7 @@ export const globalAutoApproveDescription = localize2(
 
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
+	vscodeToolSet: ToolSet;
 
 	private _onDidChangeTools = this._register(new Emitter<void>());
 	readonly onDidChangeTools = this._onDidChangeTools.event;
@@ -130,6 +131,17 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}));
 
 		this._ctxToolsCount = ChatContextKeys.Tools.toolsCount.bindTo(_contextKeyService);
+
+		// Create the internal VS Code tool set
+		this.vscodeToolSet = this._register(this.createToolSet(
+			ToolDataSource.Internal,
+			'vscode',
+			VSCodeToolReference.vscode,
+			{
+				icon: ThemeIcon.fromId(Codicon.code.id),
+				description: localize('copilot.toolSet.vscode.description', 'Tools for VS Code')
+			}
+		));
 	}
 	override dispose(): void {
 		super.dispose();
@@ -666,7 +678,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		const result = new Map<ToolSet | IToolData, boolean>();
 		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
 			if (tool instanceof ToolSet) {
-				const enabled = toolOrToolSetNames.has(toolReferenceName) || toolOrToolSetNames.has(tool.referenceName);
+				const enabled = Boolean(
+					toolOrToolSetNames.has(toolReferenceName) ||
+					toolOrToolSetNames.has(tool.referenceName) ||
+					tool.legacyNames?.some(name => toolOrToolSetNames.has(name))
+				);
 				result.set(tool, enabled);
 				if (enabled) {
 					for (const memberTool of tool.getTools()) {
@@ -675,16 +691,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			} else {
 				if (!result.has(tool)) { // already set via an enabled toolset
-					let enabled = toolOrToolSetNames.has(toolReferenceName) || toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName);
-					// Check legacy names
-					if (!enabled && tool.legacyToolReferenceFullNames) {
-						for (const legacyName of tool.legacyToolReferenceFullNames) {
-							if (toolOrToolSetNames.has(legacyName)) {
-								enabled = true;
-								break;
-							}
-						}
-					}
+					const enabled = Boolean(
+						toolOrToolSetNames.has(toolReferenceName) ||
+						toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName) ||
+						tool.legacyToolReferenceFullNames?.some(name => toolOrToolSetNames.has(name))
+					);
 					result.set(tool, enabled);
 				}
 			}
@@ -762,15 +773,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	getOrCreateToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable {
-		const existing = this.getToolSet(id);
-		if (existing) {
-			return existing as ToolSet & IDisposable;
-		}
-		return this.createToolSet(source, id, referenceName, options);
-	}
-
-	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable {
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; legacyNames?: string[] }): ToolSet & IDisposable {
 
 		const that = this;
 
@@ -782,7 +785,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 
 			}
-		}(id, referenceName, options?.icon ?? Codicon.tools, source, options?.description);
+		}(id, referenceName, options?.icon ?? Codicon.tools, source, options?.description, options?.legacyNames);
 
 		this._toolSets.add(result);
 		return result;
@@ -822,6 +825,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
 			if (tool instanceof ToolSet) {
 				add(tool.referenceName, toolReferenceName);
+				// Add all legacy names for toolsets
+				if (tool.legacyNames) {
+					for (const legacyName of tool.legacyNames) {
+						add(legacyName, toolReferenceName);
+					}
+				}
 			} else {
 				add(tool.toolReferenceName ?? tool.displayName, toolReferenceName);
 				// Add all legacy reference full names
@@ -841,8 +850,22 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				return tool;
 			}
 			// legacy: check for the old name
-			if (qualifiedName === (tool instanceof ToolSet ? tool.referenceName : tool.toolReferenceName ?? tool.displayName)) {
-				return tool;
+			if (tool instanceof ToolSet) {
+				if (qualifiedName === tool.referenceName) {
+					return tool;
+				}
+				// legacy: check for legacy names
+				if (tool.legacyNames?.includes(qualifiedName)) {
+					return tool;
+				}
+			} else {
+				if (qualifiedName === (tool.toolReferenceName ?? tool.displayName)) {
+					return tool;
+				}
+				// legacy: check for legacy tool reference full names
+				if (tool.legacyToolReferenceFullNames?.includes(qualifiedName)) {
+					return tool;
+				}
 			}
 		}
 		return undefined;

@@ -303,9 +303,10 @@ export class ToolSet {
 	constructor(
 		readonly id: string,
 		readonly referenceName: string,
-		public icon: ThemeIcon,
+		readonly icon: ThemeIcon,
 		readonly source: ToolDataSource,
-		public description?: string,
+		readonly description?: string,
+		readonly legacyNames?: string[],
 	) {
 
 		this.isHomogenous = derived(r => {
@@ -346,6 +347,7 @@ export type CountTokensCallback = (input: string, token: CancellationToken) => P
 
 export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
+	readonly vscodeToolSet: ToolSet;
 	readonly onDidChangeTools: Event<void>;
 	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ readonly sessionId: string; readonly toolData: IToolData }>;
 	registerToolData(toolData: IToolData): IDisposable;
@@ -362,8 +364,7 @@ export interface ILanguageModelToolsService {
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSet(id: string): ToolSet | undefined;
 	getToolSetByName(name: string): ToolSet | undefined;
-	getOrCreateToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
-	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; legacyNames?: string[] }): ToolSet & IDisposable;
 
 	// tool names in prompt files handling ('qualified names')
 
@@ -400,8 +401,4 @@ export namespace VSCodeToolReference {
 	export const shell = 'shell';
 	export const runSubagent = 'runSubagent';
 	export const vscode = 'vscode';
-	export const vscodeToolSetOptions = {
-		icon: ThemeIcon.fromId(Codicon.code.id),
-		description: localize('copilot.toolSet.vscode.description', 'Tools for VS Code')
-	};
 }

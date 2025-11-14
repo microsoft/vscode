@@ -149,6 +149,7 @@ export interface IRawToolSetContribution {
 	 * @deprecated
 	 */
 	referenceName?: string;
+	legacyNames?: string[];
 	description: string;
 	icon?: string;
 	tools: string[];
@@ -176,6 +177,14 @@ const languageModelToolSetsExtensionPoint = extensionsRegistry.ExtensionsRegistr
 					description: localize('toolSetName', "A name for this tool set. Used as reference and should not contain whitespace."),
 					type: 'string',
 					pattern: '^[\\w-]+$'
+				},
+				legacyNames: {
+					markdownDescription: localize('toolSetLegacyNames', "An array of deprecated names for backwards compatibility that can also be used to reference this tool set. Each name must not contain whitespace."),
+					type: 'array',
+					items: {
+						type: 'string',
+						pattern: '^[\\w-]+$'
+					}
 				},
 				description: {
 					description: localize('toolSetDescription', "A description of this tool set."),
@@ -352,17 +361,12 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 					// Allow built-in tool to update the tool set if it already exists
 					if (mergeExisting) {
 						obj = existingToolSet as ToolSet & IDisposable;
-						obj.description = toolSet.description;
-						const icon = toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined;
-						if (icon) {
-							obj.icon = icon;
-						}
 					} else {
 						obj = languageModelToolsService.createToolSet(
 							source,
 							toToolSetKey(extension.description.identifier, toolSet.name),
 							referenceName,
-							{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, description: toolSet.description }
+							{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, description: toolSet.description, legacyNames: toolSet.legacyNames }
 						);
 					}
 

@@ -96,10 +96,6 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	getOrCreateToolSet(): ToolSet & IDisposable {
-		throw new Error('Method not implemented.');
-	}
-
 	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
 		throw new Error('Method not implemented.');
 	}
