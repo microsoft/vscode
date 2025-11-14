@@ -65,11 +65,7 @@
 			display: block;
 		}
 
-		.icon,
-		.icon-label,
-		.label-detail,
-		span.label-added,
-		span.label-removed {
+		.icon, .icon-label, .label-detail, span.label-added, span.label-removed {
 			position: relative;
 			z-index: 1;
 		}
@@ -111,8 +107,7 @@
 			}
 		}
 
-		span.label-added,
-		span.label-removed {
+		span.label-added, span.label-removed {
 			padding-left: 4px;
 			font-size: var(--vscode-chat-font-size-body-s);
 			vertical-align: middle;
