@@ -80,7 +80,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					pattern: '^[\\w-]+$'
 				},
 				legacyToolReferenceFullNames: {
-					markdownDescription: localize('legacyToolReferenceFullNames', "An array of deprecated names for backwards compatibility that can also be used to reference this tool in a query. Each name must not contain whitespace. Full names are generally in the format `toolset/toolName` (e.g., `search/readFile`) or just `toolName` when there is no toolset (e.g., `readFile`)."),
+					markdownDescription: localize('legacyToolReferenceFullNames', "An array of deprecated names for backwards compatibility that can also be used to reference this tool in a query. Each name must not contain whitespace. Full names are generally in the format `toolsetName/toolReferenceName` (e.g., `search/readFile`) or just `toolReferenceName` when there is no toolset (e.g., `readFile`)."),
 					type: 'array',
 					items: {
 						type: 'string',
