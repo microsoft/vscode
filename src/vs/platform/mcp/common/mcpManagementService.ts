@@ -21,15 +21,15 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
-import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IGalleryMcpServerConfiguration, InstallMcpServerEvent, InstallMcpServerResult, RegistryType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer, IAllowedMcpServersService, IMcpServerArgument, IMcpServerKeyValueInput } from './mcpManagement.js';
+import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IGalleryMcpServerConfiguration, InstallMcpServerEvent, InstallMcpServerResult, RegistryType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer, IAllowedMcpServersService, IMcpServerArgument, IMcpServerKeyValueInput, McpServerConfigurationParseResult } from './mcpManagement.js';
 import { IMcpServerVariable, McpServerVariableType, IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 import { IMcpResourceScannerService, McpResourceTarget } from './mcpResourceScannerService.js';
 
 export interface ILocalMcpServerInfo {
 	name: string;
 	version?: string;
-	id?: string;
 	displayName?: string;
+	galleryId?: string;
 	galleryUrl?: string;
 	description?: string;
 	repositoryUrl?: string;
@@ -46,27 +46,49 @@ export interface ILocalMcpServerInfo {
 	licenseUrl?: string;
 }
 
-export abstract class AbstractCommonMcpManagementService extends Disposable {
+export abstract class AbstractCommonMcpManagementService extends Disposable implements IMcpManagementService {
 
 	_serviceBrand: undefined;
 
-	getMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType): Omit<IInstallableMcpServer, 'name'> {
+	abstract onInstallMcpServer: Event<InstallMcpServerEvent>;
+	abstract onDidInstallMcpServers: Event<readonly InstallMcpServerResult[]>;
+	abstract onDidUpdateMcpServers: Event<readonly InstallMcpServerResult[]>;
+	abstract onUninstallMcpServer: Event<UninstallMcpServerEvent>;
+	abstract onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
+
+	abstract getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]>;
+	abstract install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
+	abstract installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
+	abstract updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation?: URI): Promise<ILocalMcpServer>;
+	abstract uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void>;
+	abstract canInstall(server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString;
+
+	constructor(
+		@ILogService protected readonly logService: ILogService
+	) {
+		super();
+	}
+
+	getMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType): McpServerConfigurationParseResult {
 
 		// remote
 		if (packageType === RegistryType.REMOTE && manifest.remotes?.length) {
 			const { inputs, variables } = this.processKeyValueInputs(manifest.remotes[0].headers ?? []);
 			return {
-				config: {
-					type: McpServerType.REMOTE,
-					url: manifest.remotes[0].url,
-					headers: Object.keys(inputs).length ? inputs : undefined,
+				mcpServerConfiguration: {
+					config: {
+						type: McpServerType.REMOTE,
+						url: manifest.remotes[0].url,
+						headers: Object.keys(inputs).length ? inputs : undefined,
+					},
+					inputs: variables.length ? variables : undefined,
 				},
-				inputs: variables.length ? variables : undefined,
+				notices: [],
 			};
 		}
 
 		// local
-		const serverPackage = manifest.packages?.find(p => p.registry_type === packageType) ?? manifest.packages?.[0];
+		const serverPackage = manifest.packages?.find(p => p.registryType === packageType) ?? manifest.packages?.[0];
 		if (!serverPackage) {
 			throw new Error(`No server package found`);
 		}
@@ -74,32 +96,35 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 		const args: string[] = [];
 		const inputs: IMcpServerVariable[] = [];
 		const env: Record<string, string> = {};
+		const notices: string[] = [];
 
-		if (serverPackage.registry_type === RegistryType.DOCKER || serverPackage.registry_type === RegistryType.DOCKER_HUB) {
+		if (serverPackage.registryType === RegistryType.DOCKER) {
 			args.push('run');
 			args.push('-i');
 			args.push('--rm');
 		}
 
-		if (serverPackage.runtime_arguments?.length) {
-			const result = this.processArguments(serverPackage.runtime_arguments ?? []);
+		if (serverPackage.runtimeArguments?.length) {
+			const result = this.processArguments(serverPackage.runtimeArguments ?? []);
 			args.push(...result.args);
 			inputs.push(...result.variables);
+			notices.push(...result.notices);
 		}
 
-		if (serverPackage.environment_variables?.length) {
-			const { inputs: envInputs, variables: envVariables } = this.processKeyValueInputs(serverPackage.environment_variables ?? []);
+		if (serverPackage.environmentVariables?.length) {
+			const { inputs: envInputs, variables: envVariables, notices: envNotices } = this.processKeyValueInputs(serverPackage.environmentVariables ?? []);
 			inputs.push(...envVariables);
+			notices.push(...envNotices);
 			for (const [name, value] of Object.entries(envInputs)) {
 				env[name] = value;
-				if (serverPackage.registry_type === RegistryType.DOCKER || serverPackage.registry_type === RegistryType.DOCKER_HUB) {
+				if (serverPackage.registryType === RegistryType.DOCKER) {
 					args.push('-e');
 					args.push(name);
 				}
 			}
 		}
 
-		switch (serverPackage.registry_type) {
+		switch (serverPackage.registryType) {
 			case RegistryType.NODE:
 				args.push(serverPackage.version ? `${serverPackage.identifier}@${serverPackage.version}` : serverPackage.identifier);
 				break;
@@ -107,32 +132,35 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 				args.push(serverPackage.version ? `${serverPackage.identifier}==${serverPackage.version}` : serverPackage.identifier);
 				break;
 			case RegistryType.DOCKER:
-			case RegistryType.DOCKER_HUB:
 				args.push(serverPackage.version ? `${serverPackage.identifier}:${serverPackage.version}` : serverPackage.identifier);
 				break;
 			case RegistryType.NUGET:
 				args.push(serverPackage.version ? `${serverPackage.identifier}@${serverPackage.version}` : serverPackage.identifier);
 				args.push('--yes'); // installation is confirmed by the UI, so --yes is appropriate here
-				if (serverPackage.package_arguments?.length) {
+				if (serverPackage.packageArguments?.length) {
 					args.push('--');
 				}
 				break;
 		}
 
-		if (serverPackage.package_arguments?.length) {
-			const result = this.processArguments(serverPackage.package_arguments);
+		if (serverPackage.packageArguments?.length) {
+			const result = this.processArguments(serverPackage.packageArguments);
 			args.push(...result.args);
 			inputs.push(...result.variables);
+			notices.push(...result.notices);
 		}
 
 		return {
-			config: {
-				type: McpServerType.LOCAL,
-				command: this.getCommandName(serverPackage.registry_type),
-				args: args.length ? args : undefined,
-				env: Object.keys(env).length ? env : undefined,
-			},
-			inputs: inputs.length ? inputs : undefined,
+			notices,
+			mcpServerConfiguration: {
+				config: {
+					type: McpServerType.LOCAL,
+					command: this.getCommandName(serverPackage.registryType),
+					args: args.length ? args : undefined,
+					env: Object.keys(env).length ? env : undefined,
+				},
+				inputs: inputs.length ? inputs : undefined,
+			}
 		};
 	}
 
@@ -140,7 +168,6 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 		switch (packageType) {
 			case RegistryType.NODE: return 'npx';
 			case RegistryType.DOCKER: return 'docker';
-			case RegistryType.DOCKER_HUB: return 'docker'; // Backward compatibility
 			case RegistryType.PYTHON: return 'uvx';
 			case RegistryType.NUGET: return 'dnx';
 		}
@@ -154,7 +181,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 				id: key,
 				type: value.choices ? McpServerVariableType.PICK : McpServerVariableType.PROMPT,
 				description: value.description ?? '',
-				password: !!value.is_secret,
+				password: !!value.isSecret,
 				default: value.default,
 				options: value.choices,
 			});
@@ -162,7 +189,8 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 		return variables;
 	}
 
-	private processKeyValueInputs(keyValueInputs: ReadonlyArray<IMcpServerKeyValueInput>): { inputs: Record<string, string>; variables: IMcpServerVariable[] } {
+	private processKeyValueInputs(keyValueInputs: ReadonlyArray<IMcpServerKeyValueInput>): { inputs: Record<string, string>; variables: IMcpServerVariable[]; notices: string[] } {
+		const notices: string[] = [];
 		const inputs: Record<string, string> = {};
 		const variables: IMcpServerVariable[] = [];
 
@@ -182,7 +210,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 					id: input.name,
 					type: input.choices ? McpServerVariableType.PICK : McpServerVariableType.PROMPT,
 					description: input.description ?? '',
-					password: !!input.is_secret,
+					password: !!input.isSecret,
 					default: input.default,
 					options: input.choices,
 				});
@@ -192,12 +220,13 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 			inputs[input.name] = value;
 		}
 
-		return { inputs, variables };
+		return { inputs, variables, notices };
 	}
 
-	private processArguments(argumentsList: readonly IMcpServerArgument[]): { args: string[]; variables: IMcpServerVariable[] } {
+	private processArguments(argumentsList: readonly IMcpServerArgument[]): { args: string[]; variables: IMcpServerVariable[]; notices: string[] } {
 		const args: string[] = [];
 		const variables: IMcpServerVariable[] = [];
+		const notices: string[] = [];
 		for (const arg of argumentsList) {
 			const argVariables = arg.variables ? this.getVariables(arg.variables) : [];
 
@@ -211,21 +240,25 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 					if (argVariables.length) {
 						variables.push(...argVariables);
 					}
-				} else if (arg.value_hint && (arg.description || arg.default !== undefined)) {
+				} else if (arg.valueHint && (arg.description || arg.default !== undefined)) {
 					// Create input variable for positional argument without value
 					variables.push({
-						id: arg.value_hint,
+						id: arg.valueHint,
 						type: McpServerVariableType.PROMPT,
 						description: arg.description ?? '',
 						password: false,
 						default: arg.default,
 					});
-					args.push(`\${input:${arg.value_hint}}`);
+					args.push(`\${input:${arg.valueHint}}`);
 				} else {
 					// Fallback to value_hint as literal
-					args.push(arg.value_hint ?? '');
+					args.push(arg.valueHint ?? '');
 				}
 			} else if (arg.type === 'named') {
+				if (!arg.name) {
+					notices.push(`Named argument is missing a name. ${JSON.stringify(arg)}`);
+					continue;
+				}
 				args.push(arg.name);
 				if (arg.value) {
 					let value = arg.value;
@@ -250,7 +283,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 				}
 			}
 		}
-		return { args, variables };
+		return { args, variables, notices };
 	}
 
 }
@@ -282,10 +315,10 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 		@IMcpGalleryService protected readonly mcpGalleryService: IMcpGalleryService,
 		@IFileService protected readonly fileService: IFileService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
-		@ILogService protected readonly logService: ILogService,
+		@ILogService logService: ILogService,
 		@IMcpResourceScannerService protected readonly mcpResourceScannerService: IMcpResourceScannerService,
 	) {
-		super();
+		super(logService);
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.updateLocal(), 50));
 	}
 
@@ -394,6 +427,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 			publisher: mcpServerInfo.publisher,
 			publisherDisplayName: mcpServerInfo.publisherDisplayName,
 			galleryUrl: mcpServerInfo.galleryUrl,
+			galleryId: mcpServerInfo.galleryId,
 			repositoryUrl: mcpServerInfo.repositoryUrl,
 			readmeUrl: mcpServerInfo.readmeUrl,
 			icon: mcpServerInfo.icon,
@@ -441,8 +475,6 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 		}
 	}
 
-	abstract installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
-	abstract updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation: URI): Promise<ILocalMcpServer>;
 	protected abstract getLocalServerInfo(name: string, mcpServerConfig: IMcpServerConfiguration): Promise<ILocalMcpServerInfo | undefined>;
 	protected abstract installFromUri(uri: URI, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer>;
 }
@@ -479,12 +511,12 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 	}
 
 	protected async updateMetadataFromGallery(gallery: IGalleryMcpServer): Promise<IGalleryMcpServerConfiguration> {
-		const manifest = await this.mcpGalleryService.getMcpServerConfiguration(gallery, CancellationToken.None);
+		const manifest = gallery.configuration;
 		const location = this.getLocation(gallery.name, gallery.version);
 		const manifestPath = this.uriIdentityService.extUri.joinPath(location, 'manifest.json');
 		const local: ILocalMcpServerInfo = {
-			id: gallery.id,
-			galleryUrl: gallery.url,
+			galleryUrl: gallery.galleryUrl,
+			galleryId: gallery.id,
 			name: gallery.name,
 			displayName: gallery.displayName,
 			description: gallery.description,
@@ -517,6 +549,13 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 			try {
 				const content = await this.fileService.readFile(manifestLocation);
 				storedMcpServerInfo = JSON.parse(content.value.toString()) as ILocalMcpServerInfo;
+
+				// migrate
+				if (storedMcpServerInfo.galleryUrl?.includes('/v0/')) {
+					storedMcpServerInfo.galleryUrl = storedMcpServerInfo.galleryUrl.substring(0, storedMcpServerInfo.galleryUrl.indexOf('/v0/'));
+					await this.fileService.writeFile(manifestLocation, VSBuffer.fromString(JSON.stringify(storedMcpServerInfo)));
+				}
+
 				storedMcpServerInfo.location = location;
 				readmeUrl = this.uriIdentityService.extUri.joinPath(location, 'README.md');
 				if (!await this.fileService.exists(readmeUrl)) {
@@ -539,14 +578,19 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		throw new Error('Method not supported.');
 	}
 
+	override canInstall(): true | IMarkdownString {
+		throw new Error('Not supported');
+	}
+
 }
 
 export abstract class AbstractMcpManagementService extends AbstractCommonMcpManagementService implements IMcpManagementService {
 
 	constructor(
 		@IAllowedMcpServersService protected readonly allowedMcpServersService: IAllowedMcpServersService,
+		@ILogService logService: ILogService,
 	) {
-		super();
+		super(logService);
 	}
 
 	canInstall(server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString {
@@ -556,18 +600,6 @@ export abstract class AbstractMcpManagementService extends AbstractCommonMcpMana
 		}
 		return true;
 	}
-
-	abstract onInstallMcpServer: Event<InstallMcpServerEvent>;
-	abstract onDidInstallMcpServers: Event<readonly InstallMcpServerResult[]>;
-	abstract onDidUpdateMcpServers: Event<readonly InstallMcpServerResult[]>;
-	abstract onUninstallMcpServer: Event<UninstallMcpServerEvent>;
-	abstract onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
-
-	abstract getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]>;
-	abstract install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
-	abstract installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
-	abstract updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation?: URI): Promise<ILocalMcpServer>;
-	abstract uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void>;
 }
 
 export class McpManagementService extends AbstractMcpManagementService implements IMcpManagementService {
@@ -591,10 +623,11 @@ export class McpManagementService extends AbstractMcpManagementService implement
 
 	constructor(
 		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
+		@ILogService logService: ILogService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
-		super(allowedMcpServersService);
+		super(allowedMcpServersService, logService);
 	}
 
 	private getMcpResourceManagementService(mcpResource: URI): McpUserResourceManagementService {

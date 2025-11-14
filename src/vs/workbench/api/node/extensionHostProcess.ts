@@ -21,7 +21,7 @@ import { boolean } from '../../../editor/common/config/editorOptions.js';
 import product from '../../../platform/product/common/product.js';
 import { ExtensionHostMain, IExitFn } from '../common/extensionHostMain.js';
 import { IHostUtils } from '../common/extHostExtensionService.js';
-import { createURITransformer } from './uriTransformer.js';
+import { createURITransformer } from '../../../base/common/uriTransformer.js';
 import { ExtHostConnectionType, readExtHostConnection } from '../../services/extensions/common/extensionHostEnv.js';
 import { ExtensionHostExitCode, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, IExtHostSocketMessage, IExtensionHostInitData, MessageType, createMessageOfType, isMessageOfType } from '../../services/extensions/common/extensionHostProtocol.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
@@ -42,7 +42,8 @@ if (process.env.VSCODE_DEV) {
 	const warningListeners = process.listeners('warning');
 	process.removeAllListeners('warning');
 	process.on('warning', (warning: any) => {
-		if (warning.code === 'ExperimentalWarning' || warning.name === 'ExperimentalWarning') {
+		if (warning.code === 'ExperimentalWarning' || warning.name === 'ExperimentalWarning' || warning.name === 'DeprecationWarning') {
+			console.debug(warning);
 			return;
 		}
 
@@ -104,6 +105,7 @@ function patchProcess(allowExit: boolean) {
 	} as (code?: number) => never;
 
 	// override Electron's process.crash() method
+	// eslint-disable-next-line local/code-no-any-casts
 	(process as any /* bypass layer checker */).crash = function () {
 		const err = new Error('An extension called process.crash() and this was prevented.');
 		console.warn(err.stack);
@@ -115,10 +117,11 @@ function patchProcess(allowExit: boolean) {
 	// Refs https://github.com/microsoft/vscode/issues/151012#issuecomment-1156593228
 	process.env['ELECTRON_RUN_AS_NODE'] = '1';
 
+	// eslint-disable-next-line local/code-no-any-casts
 	process.on = <any>function (event: string, listener: (...args: any[]) => void) {
 		if (event === 'uncaughtException') {
 			const actualListener = listener;
-			listener = function (...args: any[]) {
+			listener = function (...args: unknown[]) {
 				try {
 					return actualListener.apply(undefined, args);
 				} catch {
@@ -157,6 +160,23 @@ let onTerminate = function (reason: string) {
 	nativeExit();
 };
 
+function readReconnectionValue(envKey: string, fallback: number): number {
+	const raw = process.env[envKey];
+	if (typeof raw !== 'string' || raw.trim().length === 0) {
+		console.log(`[reconnection-grace-time] Extension host: env var ${envKey} not set, using default: ${fallback}ms (${Math.floor(fallback / 1000)}s)`);
+		return fallback;
+	}
+	const parsed = Number(raw);
+	if (!isFinite(parsed) || parsed < 0) {
+		console.log(`[reconnection-grace-time] Extension host: env var ${envKey} invalid value '${raw}', using default: ${fallback}ms (${Math.floor(fallback / 1000)}s)`);
+		return fallback;
+	}
+	const millis = Math.floor(parsed);
+	const result = millis > Number.MAX_SAFE_INTEGER ? Number.MAX_SAFE_INTEGER : millis;
+	console.log(`[reconnection-grace-time] Extension host: read ${envKey}=${raw}ms (${Math.floor(result / 1000)}s)`);
+	return result;
+}
+
 function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 	const extHostConnection = readExtHostConnection(process.env);
 
@@ -167,7 +187,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 			const withPorts = (ports: MessagePortMain[]) => {
 				const port = ports[0];
 				const onMessage = new BufferedEmitter<VSBuffer>();
-				port.on('message', (e) => onMessage.fire(VSBuffer.wrap(e.data)));
+				port.on('message', (e) => onMessage.fire(VSBuffer.wrap(e.data as Uint8Array)));
 				port.on('close', () => {
 					onTerminate('renderer closed the MessagePort');
 				});
@@ -192,8 +212,8 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 				onTerminate('VSCODE_EXTHOST_IPC_SOCKET timeout');
 			}, 60000);
 
-			const reconnectionGraceTime = ProtocolConstants.ReconnectionGraceTime;
-			const reconnectionShortGraceTime = ProtocolConstants.ReconnectionShortGraceTime;
+			const reconnectionGraceTime = readReconnectionValue('VSCODE_RECONNECTION_GRACE_TIME', ProtocolConstants.ReconnectionGraceTime);
+			const reconnectionShortGraceTime = reconnectionGraceTime > 0 ? Math.min(ProtocolConstants.ReconnectionShortGraceTime, reconnectionGraceTime) : 0;
 			const disconnectRunner1 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (1)'), reconnectionGraceTime);
 			const disconnectRunner2 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (2)'), reconnectionShortGraceTime);
 

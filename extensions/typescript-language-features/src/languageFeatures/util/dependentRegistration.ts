@@ -111,3 +111,15 @@ export function requireSomeCapability(
 		client.onDidChangeCapabilities
 	);
 }
+
+export function requireHasVsCodeExtension(
+	extensionId: string
+) {
+	return new Condition(
+		() => {
+			return !!vscode.extensions.getExtension(extensionId);
+		},
+		vscode.extensions.onDidChange
+	);
+}
+

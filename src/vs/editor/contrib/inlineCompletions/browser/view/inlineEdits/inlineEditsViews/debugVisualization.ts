@@ -12,10 +12,19 @@ export interface IVisualizationEffect {
 }
 
 export function setVisualization(data: object, visualization: IVisualizationEffect): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	(data as any)['$$visualization'] = visualization;
 }
 
-export function debugLogRects(rects: Record<string, Rect>, elem: HTMLElement): object {
+export function debugLogRects(rects: Record<string, Rect> | Rect[], elem: HTMLElement): object {
+	if (Array.isArray(rects)) {
+		const record: Record<string, Rect> = {};
+		rects.forEach((rect, index) => {
+			record[index.toString()] = rect;
+		});
+		rects = record;
+	}
+
 	setVisualization(rects, new ManyRectVisualizer(rects, elem));
 	return rects;
 }

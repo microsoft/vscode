@@ -40,7 +40,7 @@ suite('ChatModel', () => {
 	});
 
 	test('removeRequest', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat }));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
 		const text = 'hello';
 		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
@@ -52,8 +52,8 @@ suite('ChatModel', () => {
 	});
 
 	test('adoptRequest', async function () {
-		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.EditorInline }));
-		const model2 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat }));
+		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.EditorInline, canUseTools: true }));
+		const model2 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
 		const text = 'hello';
 		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
@@ -76,7 +76,7 @@ suite('ChatModel', () => {
 	});
 
 	test('addCompleteRequest', async function () {
-		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat }));
+		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
 		const text = 'hello';
 		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, true);
@@ -173,8 +173,6 @@ suite('normalizeSerializableChatData', () => {
 			creationDate: Date.now(),
 			initialLocation: undefined,
 			isImported: false,
-			requesterAvatarIconUri: undefined,
-			requesterUsername: 'me',
 			requests: [],
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
@@ -195,8 +193,6 @@ suite('normalizeSerializableChatData', () => {
 			lastMessageDate: Date.now(),
 			initialLocation: undefined,
 			isImported: false,
-			requesterAvatarIconUri: undefined,
-			requesterUsername: 'me',
 			requests: [],
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
@@ -219,8 +215,6 @@ suite('normalizeSerializableChatData', () => {
 
 			initialLocation: undefined,
 			isImported: false,
-			requesterAvatarIconUri: undefined,
-			requesterUsername: 'me',
 			requests: [],
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
@@ -242,8 +236,6 @@ suite('normalizeSerializableChatData', () => {
 			version: 3,
 			initialLocation: undefined,
 			isImported: false,
-			requesterAvatarIconUri: undefined,
-			requesterUsername: 'me',
 			requests: [],
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',

@@ -24,7 +24,7 @@ export interface IActionViewItemService {
 
 	_serviceBrand: undefined;
 
-	onDidChange: Event<MenuId>;
+	readonly onDidChange: Event<MenuId>;
 
 	register(menu: MenuId, submenu: MenuId, provider: IActionViewItemFactory, event?: Event<unknown>): IDisposable;
 	register(menu: MenuId, commandId: string, provider: IActionViewItemFactory, event?: Event<unknown>): IDisposable;
@@ -36,7 +36,7 @@ export interface IActionViewItemService {
 export class NullActionViewItemService implements IActionViewItemService {
 	_serviceBrand: undefined;
 
-	onDidChange: Event<MenuId> = Event.None;
+	readonly onDidChange: Event<MenuId> = Event.None;
 
 	register(menu: MenuId, commandId: string | MenuId, provider: IActionViewItemFactory, event?: Event<unknown>): IDisposable {
 		return Disposable.None;

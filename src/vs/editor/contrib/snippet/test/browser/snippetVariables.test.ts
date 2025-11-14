@@ -76,6 +76,7 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(resolver, 'TM_FILENAME', 'text.txt');
 		if (!isWindows) {
 			assertVariableResolve(resolver, 'TM_DIRECTORY', '/foo/files');
+			assertVariableResolve(resolver, 'TM_DIRECTORY_BASE', 'files');
 			assertVariableResolve(resolver, 'TM_FILEPATH', '/foo/files/text.txt');
 		}
 
@@ -86,6 +87,7 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(resolver, 'TM_FILENAME', 'ghi');
 		if (!isWindows) {
 			assertVariableResolve(resolver, 'TM_DIRECTORY', '/abc/def');
+			assertVariableResolve(resolver, 'TM_DIRECTORY_BASE', 'def');
 			assertVariableResolve(resolver, 'TM_FILEPATH', '/abc/def/ghi');
 		}
 
@@ -94,6 +96,7 @@ suite('Snippet Variables Resolver', function () {
 			disposables.add(createTextModel('', undefined, undefined, URI.parse('mem:fff.ts')))
 		);
 		assertVariableResolve(resolver, 'TM_DIRECTORY', '');
+		assertVariableResolve(resolver, 'TM_DIRECTORY_BASE', '');
 		assertVariableResolve(resolver, 'TM_FILEPATH', 'fff.ts');
 
 		disposables.dispose();

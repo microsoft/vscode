@@ -91,6 +91,7 @@ suite('Files - ExplorerView', () => {
 			templateDisposables: ds.add(new DisposableStore()),
 			elementDisposables: ds.add(new DisposableStore()),
 			contribs: [],
+			// eslint-disable-next-line local/code-no-any-casts
 			label: <any>{
 				container: label,
 				onDidRender: emitter.event

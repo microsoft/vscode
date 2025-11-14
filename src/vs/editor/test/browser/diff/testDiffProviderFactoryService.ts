@@ -29,5 +29,5 @@ class SyncDocumentDiffProvider implements IDocumentDiffProvider {
 		});
 	}
 
-	onDidChange: Event<void> = () => toDisposable(() => { });
+	readonly onDidChange: Event<void> = () => toDisposable(() => { });
 }

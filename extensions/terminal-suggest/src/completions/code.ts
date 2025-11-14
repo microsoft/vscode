@@ -357,6 +357,10 @@ export const troubleshootingOptions = (cliName: string): Fig.Option[] => [
 		name: '--telemetry',
 		description: 'Shows all telemetry events which VS code collects',
 	},
+	{
+		name: '--transient',
+		description: 'Run with temporary data and extension directories, as if launched for the first time.',
+	},
 ];
 
 export function createCodeGenerators(cliName: string): Fig.Generator {

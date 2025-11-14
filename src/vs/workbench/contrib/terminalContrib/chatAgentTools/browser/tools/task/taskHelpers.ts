@@ -27,20 +27,25 @@ export function toolResultDetailsFromResponse(terminalResults: { output: string;
 	).values());
 }
 
-export function toolResultMessageFromResponse(result: ITaskSummary | undefined, taskLabel: string, toolResultDetails: (URI | Location)[], terminalResults: { output: string; resources?: ILinkLocation[]; state: OutputMonitorState }[]): MarkdownString {
+export function toolResultMessageFromResponse(result: ITaskSummary | undefined, taskLabel: string, toolResultDetails: (URI | Location)[], terminalResults: { output: string; resources?: ILinkLocation[]; state: OutputMonitorState }[], getOutputTool?: boolean): MarkdownString {
 	let resultSummary = '';
 	if (result?.exitCode) {
 		resultSummary = localize('copilotChat.taskFailedWithExitCode', 'Task `{0}` failed with exit code {1}.', taskLabel, result.exitCode);
 	} else {
 		resultSummary += `\`${taskLabel}\` task `;
 		const problemCount = toolResultDetails.length;
-		resultSummary += terminalResults.every(r => r.state === OutputMonitorState.Idle)
-			? (problemCount
-				? `finished with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`
-				: 'finished')
-			: (problemCount
-				? `started and will continue to run in the background with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`
-				: 'started and will continue to run in the background');
+		if (getOutputTool) {
+			return problemCount ? new MarkdownString(`Got output for ${resultSummary} with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`) : new MarkdownString(`Got output for ${resultSummary}`);
+		} else {
+			const problemCount = toolResultDetails.length;
+			resultSummary += terminalResults.every(r => r.state === OutputMonitorState.Idle)
+				? (problemCount
+					? `finished with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`
+					: 'finished')
+				: (problemCount
+					? `started and will continue to run in the background with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`
+					: 'started and will continue to run in the background');
+		}
 	}
 	return new MarkdownString(resultSummary);
 }

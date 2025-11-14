@@ -1,10 +1,10 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.referenceGeneratedDepsByArch = exports.recommendedDeps = exports.additionalDeps = void 0;
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.referenceGeneratedDepsByArch = exports.recommendedDeps = exports.additionalDeps = void 0;
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/debian/additional_deps
 // Additional dependencies not in the dpkg-shlibdeps output.
 exports.additionalDeps = [
@@ -38,7 +38,7 @@ exports.referenceGeneratedDepsByArch = {
         'libdbus-1-3 (>= 1.9.14)',
         'libexpat1 (>= 2.1~beta3)',
         'libgbm1 (>= 17.1.0~rc2)',
-        'libglib2.0-0 (>= 2.37.3)',
+        'libglib2.0-0 (>= 2.39.4)',
         'libgtk-3-0 (>= 3.9.10)',
         'libgtk-3-0 (>= 3.9.10) | libgtk-4-1',
         'libnspr4 (>= 2:4.9-2~)',
@@ -75,7 +75,7 @@ exports.referenceGeneratedDepsByArch = {
         'libdbus-1-3 (>= 1.9.14)',
         'libexpat1 (>= 2.1~beta3)',
         'libgbm1 (>= 17.1.0~rc2)',
-        'libglib2.0-0 (>= 2.37.3)',
+        'libglib2.0-0 (>= 2.39.4)',
         'libgtk-3-0 (>= 3.9.10)',
         'libgtk-3-0 (>= 3.9.10) | libgtk-4-1',
         'libnspr4 (>= 2:4.9-2~)',
@@ -114,7 +114,7 @@ exports.referenceGeneratedDepsByArch = {
         'libdbus-1-3 (>= 1.9.14)',
         'libexpat1 (>= 2.1~beta3)',
         'libgbm1 (>= 17.1.0~rc2)',
-        'libglib2.0-0 (>= 2.37.3)',
+        'libglib2.0-0 (>= 2.39.4)',
         'libgtk-3-0 (>= 3.9.10)',
         'libgtk-3-0 (>= 3.9.10) | libgtk-4-1',
         'libnspr4 (>= 2:4.9-2~)',

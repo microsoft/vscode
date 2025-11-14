@@ -38,7 +38,7 @@ export class HoldToSpeak extends EditorAction2 {
 		});
 	}
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: unknown[]) {
 		const ctrl = InlineChatController.get(editor);
 		if (ctrl) {
 			holdForSpeech(accessor, ctrl, this);

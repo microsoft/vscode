@@ -130,10 +130,16 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		if ((b.completion.kind === TerminalCompletionItemKind.Method || b.completion.kind === TerminalCompletionItemKind.Alias) && (a.completion.kind !== TerminalCompletionItemKind.Method && a.completion.kind !== TerminalCompletionItemKind.Alias)) {
 			return 1; // Methods and aliases should come first
 		}
-		if ((a.completion.kind === TerminalCompletionItemKind.File || a.completion.kind === TerminalCompletionItemKind.Folder) && (b.completion.kind !== TerminalCompletionItemKind.File && b.completion.kind !== TerminalCompletionItemKind.Folder)) {
+		if (a.completion.kind === TerminalCompletionItemKind.Argument && b.completion.kind !== TerminalCompletionItemKind.Argument) {
+			return -1; // Arguments should come before other kinds
+		}
+		if (b.completion.kind === TerminalCompletionItemKind.Argument && a.completion.kind !== TerminalCompletionItemKind.Argument) {
+			return 1; // Arguments should come before other kinds
+		}
+		if (isResourceKind(a.completion.kind) && !isResourceKind(b.completion.kind)) {
 			return 1; // Resources should come last
 		}
-		if ((b.completion.kind === TerminalCompletionItemKind.File || b.completion.kind === TerminalCompletionItemKind.Folder) && (a.completion.kind !== TerminalCompletionItemKind.File && a.completion.kind !== TerminalCompletionItemKind.Folder)) {
+		if (isResourceKind(b.completion.kind) && !isResourceKind(a.completion.kind)) {
 			return -1; // Resources should come last
 		}
 	}
@@ -142,6 +148,12 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 	// all at the top
 	return a.labelLow.localeCompare(b.labelLow, undefined, { ignorePunctuation: true });
 };
+
+const isResourceKind = (kind: TerminalCompletionItemKind | undefined) =>
+	kind === TerminalCompletionItemKind.File ||
+	kind === TerminalCompletionItemKind.Folder ||
+	kind === TerminalCompletionItemKind.SymbolicLinkFile ||
+	kind === TerminalCompletionItemKind.SymbolicLinkFolder;
 
 // TODO: This should be based on the process OS, not the local OS
 // File score boosts for specific file extensions on Windows. This only applies when the file is the

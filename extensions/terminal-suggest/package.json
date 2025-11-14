@@ -24,7 +24,14 @@
         "category": "Terminal",
         "title": "%terminal.integrated.suggest.clearCachedGlobals%"
       }
-    ]
+    ],
+    "terminal": {
+      "completionProviders": [
+        {
+          "description": "Show suggestions for commands, arguments, flags, and file paths based upon the Fig spec."
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "npx gulp compile-extension:terminal-suggest",
@@ -39,5 +46,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.10"
   }
 }

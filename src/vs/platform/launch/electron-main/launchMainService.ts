@@ -138,7 +138,7 @@ export class LaunchMainService implements ILaunchMainService {
 		};
 
 		// Special case extension development
-		if (!!args.extensionDevelopmentPath) {
+		if (args.extensionDevelopmentPath) {
 			await this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, baseConfig);
 		}
 

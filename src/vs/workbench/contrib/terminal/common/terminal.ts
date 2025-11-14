@@ -14,11 +14,12 @@ import * as nls from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IFixedTerminalDimensions, ITerminalLaunchResult, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IProcessReadyWindowsPty, IShellLaunchConfig, ITerminalBackend, ITerminalContributions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalTabAction, ProcessPropertyType, TerminalIcon, TerminalLocationString, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IFixedTerminalDimensions, ITerminalLaunchResult, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IProcessReadyWindowsPty, IShellLaunchConfig, ITerminalBackend, ITerminalContributions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalTabAction, ProcessPropertyType, TerminalIcon, TerminalLocationConfigValue, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { IEnvironmentVariableInfo } from './environmentVariable.js';
 import { IExtensionPointDescriptor } from '../../../services/extensions/common/extensionsRegistry.js';
 import { defaultTerminalContribCommandsToSkipShell } from '../terminalContribExports.js';
+import type { SingleOrMany } from '../../../../base/common/types.js';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -54,7 +55,7 @@ export interface ITerminalProfileResolverService {
 	resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void>;
 	getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile>;
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
-	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
+	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<SingleOrMany<string>>;
 	getDefaultIcon(): TerminalIcon & ThemeIcon;
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
 }
@@ -79,7 +80,7 @@ export interface ITerminalProfileService {
 	refreshAvailableProfiles(): void;
 	getDefaultProfileName(): string | undefined;
 	getDefaultProfile(os?: OperatingSystem): ITerminalProfile | undefined;
-	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
+	readonly onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
 	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
@@ -174,7 +175,6 @@ export interface ITerminalConfiguration {
 		osx: { [key: string]: string };
 		windows: { [key: string]: string };
 	};
-	environmentChangesIndicator: 'off' | 'on' | 'warnonly';
 	environmentChangesRelaunch: boolean;
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
@@ -196,7 +196,7 @@ export interface ITerminalConfiguration {
 		separator: string;
 	};
 	bellDuration: number;
-	defaultLocation: TerminalLocationString;
+	defaultLocation: TerminalLocationConfigValue;
 	customGlyphs: boolean;
 	persistentSessionReviveProcess: 'onExit' | 'onExitAndWindowClose' | 'never';
 	ignoreProcessNames: string[];
@@ -278,6 +278,7 @@ export const isTerminalProcessManager = (t: ITerminalProcessInfo | ITerminalProc
 
 export interface ITerminalProcessManager extends IDisposable, ITerminalProcessInfo {
 	readonly processTraits: IProcessReadyEvent | undefined;
+	readonly processReadyTimestamp: number;
 
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
@@ -287,7 +288,7 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	readonly onProcessData: Event<IProcessDataEvent>;
 	readonly onProcessReplayComplete: Event<void>;
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
-	readonly onDidChangeProperty: Event<IProcessProperty<any>>;
+	readonly onDidChangeProperty: Event<IProcessProperty>;
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onRestoreCommands: Event<ISerializedCommandDetectionCapability>;
 
@@ -302,6 +303,7 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	setDimensions(cols: number, rows: number, sync: true): void;
 	clearBuffer(): Promise<void>;
 	setUnicodeVersion(version: '6' | '11'): Promise<void>;
+	setNextCommandId(commandLine: string, commandId: string): Promise<void>;
 	acknowledgeDataEvent(charCount: number): void;
 	processBinary(data: string): void;
 
@@ -334,17 +336,17 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly instanceId: number;
 
 	emitData(data: string): void;
-	emitProcessProperty(property: IProcessProperty<any>): void;
+	emitProcessProperty(property: IProcessProperty): void;
 	emitReady(pid: number, cwd: string, windowsPty: IProcessReadyWindowsPty | undefined): void;
 	emitExit(exitCode: number | undefined): void;
 
-	onInput: Event<string>;
-	onBinary: Event<string>;
-	onResize: Event<{ cols: number; rows: number }>;
-	onAcknowledgeDataEvent: Event<number>;
-	onShutdown: Event<boolean>;
-	onRequestInitialCwd: Event<void>;
-	onRequestCwd: Event<void>;
+	readonly onInput: Event<string>;
+	readonly onBinary: Event<string>;
+	readonly onResize: Event<{ cols: number; rows: number }>;
+	readonly onAcknowledgeDataEvent: Event<number>;
+	readonly onShutdown: Event<boolean>;
+	readonly onRequestInitialCwd: Event<void>;
+	readonly onRequestCwd: Event<void>;
 }
 
 export interface IStartExtensionTerminalRequest {
@@ -444,6 +446,7 @@ export const enum TerminalCommandId {
 	SizeToContentWidthActiveTab = 'workbench.action.terminal.sizeToContentWidthActiveTab',
 	ResizePaneDown = 'workbench.action.terminal.resizePaneDown',
 	Focus = 'workbench.action.terminal.focus',
+	FocusInstance = 'workbench.action.terminal.focusInstance',
 	FocusNext = 'workbench.action.terminal.focusNext',
 	FocusPrevious = 'workbench.action.terminal.focusPrevious',
 	Paste = 'workbench.action.terminal.paste',
@@ -486,6 +489,7 @@ export const enum TerminalCommandId {
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
 	StartVoice = 'workbench.action.terminal.startVoice',
 	StopVoice = 'workbench.action.terminal.stopVoice',
+	RevealCommand = 'workbench.action.terminal.revealCommand',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
@@ -542,6 +546,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.Toggle,
 	TerminalCommandId.FocusHover,
 	AccessibilityCommandId.OpenAccessibilityHelp,
+	TerminalCommandId.StopVoice,
 	'workbench.action.tasks.rerunForActiveTerminal',
 	'editor.action.toggleTabFocusMode',
 	'notifications.hideList',
@@ -634,10 +639,10 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {
 	extensionPoint: 'terminal',
 	defaultExtensionKind: ['workspace'],
-	activationEventsGenerator: (contribs: ITerminalContributions[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs: readonly ITerminalContributions[]) {
 		for (const contrib of contribs) {
 			for (const profileContrib of (contrib.profiles ?? [])) {
-				result.push(`onTerminalProfile:${profileContrib.id}`);
+				yield `onTerminalProfile:${profileContrib.id}`;
 			}
 		}
 	},
@@ -684,6 +689,26 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 									}
 								}
 							}]
+						},
+					},
+				},
+			},
+			completionProviders: {
+				type: 'array',
+				description: nls.localize('vscode.extension.contributes.terminal.completionProviders', "Defines terminal completion providers that will be registered when the extension activates."),
+				items: {
+					type: 'object',
+					required: ['id'],
+					defaultSnippets: [{
+						body: {
+							id: '$1',
+							description: '$2'
+						}
+					}],
+					properties: {
+						description: {
+							description: nls.localize('vscode.extension.contributes.terminal.completionProviders.description', "A description of what the completion provider does. This will be shown in the settings UI."),
+							type: 'string',
 						},
 					},
 				},

@@ -11,9 +11,10 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { localize } from '../../../../../nls.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { getPromptCommandName } from '../../common/promptSyntax/service/promptsServiceImpl.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { $ } from '../../../../../base/browser/dom.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 export class PromptCodingAgentActionOverlayWidget extends Disposable implements IOverlayWidget {
 
@@ -27,7 +28,8 @@ export class PromptCodingAgentActionOverlayWidget extends Disposable implements 
 		private readonly _editor: ICodeEditor,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IRemoteCodingAgentsService private readonly _remoteCodingAgentService: IRemoteCodingAgentsService
+		@IRemoteCodingAgentsService private readonly _remoteCodingAgentService: IRemoteCodingAgentsService,
+		@IPromptsService private readonly _promptsService: IPromptsService,
 	) {
 		super();
 
@@ -105,7 +107,7 @@ export class PromptCodingAgentActionOverlayWidget extends Disposable implements 
 		this._button.enabled = false;
 		try {
 			const promptContent = model.getValue();
-			const promptName = getPromptCommandName(model.uri.path);
+			const promptName = await this._promptsService.getPromptSlashCommandName(model.uri, CancellationToken.None);
 
 			const agents = this._remoteCodingAgentService.getAvailableAgents();
 			const agent = agents[0]; // Use the first available agent

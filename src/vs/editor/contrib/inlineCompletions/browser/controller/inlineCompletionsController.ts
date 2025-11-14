@@ -23,6 +23,7 @@ import { hotClassGetOriginalInstance } from '../../../../../platform/observable/
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
+import { TriggerInlineEditCommandsRegistry } from '../../../../browser/triggerInlineEditCommandsRegistry.js';
 import { getOuterEditor } from '../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Position } from '../../../../common/core/position.js';
@@ -30,6 +31,8 @@ import { Range } from '../../../../common/core/range.js';
 import { CursorChangeReason } from '../../../../common/cursorEvents.js';
 import { ILanguageFeatureDebounceService } from '../../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { FIND_IDS } from '../../../find/browser/findModel.js';
+import { InsertLineAfterAction, InsertLineBeforeAction } from '../../../linesOperations/browser/linesOperations.js';
 import { InlineSuggestionHintsContentWidget } from '../hintsWidget/inlineCompletionsHintsWidget.js';
 import { TextModelChangeRecorder } from '../model/changeRecorder.js';
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
@@ -42,7 +45,7 @@ import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 export class InlineCompletionsController extends Disposable {
 	private static readonly _instances = new Set<InlineCompletionsController>();
 
-	public static hot = createHotClass(InlineCompletionsController);
+	public static hot = createHotClass(this);
 	public static ID = 'editor.contrib.inlineCompletionsController';
 
 	/**
@@ -162,7 +165,7 @@ export class InlineCompletionsController extends Disposable {
 			if (!model) { return; }
 			const state = model.state.read(reader);
 			if (!state) { return; }
-			if (!this._focusIsInEditorOrMenu.get()) { return; }
+			if (!this._focusIsInEditorOrMenu.read(undefined)) { return; }
 
 			// This controller is in focus, hence reject others.
 			// However if we display a NES that relates to another edit then trigger NES on that related controller
@@ -172,7 +175,7 @@ export class InlineCompletionsController extends Disposable {
 					continue;
 				} else if (nextEditUri && isEqual(nextEditUri, ctrl.editor.getModel()?.uri)) {
 					// The next edit in other edito is related to this controller, trigger it.
-					ctrl.model.get()?.trigger();
+					ctrl.model.read(undefined)?.trigger();
 				} else {
 					ctrl.reject();
 				}
@@ -193,9 +196,9 @@ export class InlineCompletionsController extends Disposable {
 						continue;
 					}
 					// Find the nes from another editor that points to this.
-					const state = ctrl.model.get()?.state.get();
+					const state = ctrl.model.read(undefined)?.state.read(undefined);
 					if (state?.kind === 'inlineEdit' && isEqual(state.nextEditUri, uri)) {
-						ctrl.model.get()?.stop('automatic');
+						ctrl.model.read(undefined)?.stop('automatic');
 					}
 				}
 			}));
@@ -214,16 +217,20 @@ export class InlineCompletionsController extends Disposable {
 			}
 		}));
 
+		// These commands don't trigger onDidType.
+		const triggerCommands = new Set([
+			CoreEditingCommands.Tab.id,
+			CoreEditingCommands.DeleteLeft.id,
+			CoreEditingCommands.DeleteRight.id,
+			inlineSuggestCommitId,
+			'acceptSelectedSuggestion',
+			InsertLineAfterAction.ID,
+			InsertLineBeforeAction.ID,
+			FIND_IDS.NextMatchFindAction,
+			...TriggerInlineEditCommandsRegistry.getRegisteredCommands(),
+		]);
 		this._register(this._commandService.onDidExecuteCommand((e) => {
-			// These commands don't trigger onDidType.
-			const commands = new Set([
-				CoreEditingCommands.Tab.id,
-				CoreEditingCommands.DeleteLeft.id,
-				CoreEditingCommands.DeleteRight.id,
-				inlineSuggestCommitId,
-				'acceptSelectedSuggestion',
-			]);
-			if (commands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
+			if (triggerCommands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
 				let noDelay = false;
 				if (e.commandId === inlineSuggestCommitId) {
 					noDelay = true;
@@ -250,16 +257,16 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(autorun(reader => {
 			const isFocused = this._focusIsInEditorOrMenu.read(reader);
-			const model = this.model.get();
+			const model = this.model.read(undefined);
 			if (isFocused) {
 				// If this model already has an NES for another editor, then leave as is
 				// Else stop other models.
-				const state = model?.state?.get();
+				const state = model?.state.read(undefined);
 				if (!state || state.kind !== 'inlineEdit' || !state.nextEditUri) {
 					transaction(tx => {
 						for (const ctrl of InlineCompletionsController._instances) {
 							if (ctrl !== this) {
-								ctrl.model.get()?.stop('automatic', tx);
+								ctrl.model.read(undefined)?.stop('automatic', tx);
 							}
 						}
 					});
@@ -276,7 +283,7 @@ export class InlineCompletionsController extends Disposable {
 			}
 
 			if (!model) { return; }
-			if (model.state.get()?.inlineCompletion?.isFromExplicitRequest && model.inlineEditAvailable.get()) {
+			if (model.state.read(undefined)?.inlineCompletion?.isFromExplicitRequest && model.inlineEditAvailable.read(undefined)) {
 				// dont hide inline edits on blur when requested explicitly
 				return;
 			}

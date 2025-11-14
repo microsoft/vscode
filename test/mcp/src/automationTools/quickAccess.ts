@@ -23,7 +23,7 @@ export function applyQuickAccessTools(server: McpServer, appService: Application
 		async (args) => {
 			const { command, exactMatch } = args;
 			const app = await appService.getOrCreateApplication();
-			await app.workbench.quickaccess.runCommand(command, { exactLabelMatch: exactMatch });
+			await app.workbench.quickaccess.runCommand(command, { exactLabelMatch: exactMatch, keepOpen: true });
 			return {
 				content: [{
 					type: 'text' as const,

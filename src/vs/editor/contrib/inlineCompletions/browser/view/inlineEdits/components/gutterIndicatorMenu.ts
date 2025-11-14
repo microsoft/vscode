@@ -27,7 +27,7 @@ import { asCssVariable, descriptionForeground, editorActionListForeground, edito
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { hideInlineCompletionId, inlineSuggestCommitId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
-import { IInlineEditModel } from '../inlineEditsViewInterface.js';
+import { ModelPerInlineEdit } from '../inlineEditsModel.js';
 import { FirstFnArg, } from '../utils/utils.js';
 
 export class GutterIndicatorMenuContent {
@@ -35,7 +35,7 @@ export class GutterIndicatorMenuContent {
 	private readonly _inlineEditsShowCollapsed: IObservable<boolean>;
 
 	constructor(
-		private readonly _model: IInlineEditModel,
+		private readonly _model: ModelPerInlineEdit,
 		private readonly _close: (focusEditor: boolean) => void,
 		private readonly _editorObs: ObservableCodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -105,6 +105,13 @@ export class GutterIndicatorMenuContent {
 			}))
 		);
 
+		const snooze = option(createOptionArgs({
+			id: 'snooze',
+			title: localize('snooze', "Snooze"),
+			icon: Codicon.bellSlash,
+			commandId: 'editor.action.inlineSuggest.snooze'
+		}));
+
 		const settings = option(createOptionArgs({
 			id: 'settings',
 			title: localize('settings', "Settings"),
@@ -132,6 +139,7 @@ export class GutterIndicatorMenuContent {
 			reject,
 			toggleCollapsedMode,
 			extensionCommands.length ? separator() : undefined,
+			snooze,
 			settings,
 
 			...extensionCommands,

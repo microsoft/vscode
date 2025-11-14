@@ -296,7 +296,9 @@ export function isTextSearchHeading(obj: any): obj is ITextSearchHeading {
 
 export function isPlainTextSearchHeading(obj: any): obj is IPlainTextSearchHeading {
 	return isTextSearchHeading(obj) &&
+		// eslint-disable-next-line local/code-no-any-casts
 		typeof (<any>obj).replace === 'function' &&
+		// eslint-disable-next-line local/code-no-any-casts
 		typeof (<any>obj).replaceAll === 'function';
 }
 
@@ -313,11 +315,13 @@ export function isSearchTreeFolderMatchWithResource(obj: any): obj is ISearchTre
 
 export function isSearchTreeFolderMatchWorkspaceRoot(obj: any): obj is ISearchTreeFolderMatchWorkspaceRoot {
 	return isSearchTreeFolderMatchWithResource(obj) &&
+		// eslint-disable-next-line local/code-no-any-casts
 		typeof (<any>obj).createAndConfigureFileMatch === 'function';
 }
 
 export function isSearchTreeFolderMatchNoRoot(obj: any): obj is ISearchTreeFolderMatchNoRoot {
 	return isSearchTreeFolderMatch(obj) &&
+		// eslint-disable-next-line local/code-no-any-casts
 		typeof (<any>obj).createAndConfigureFileMatch === 'function';
 }
 

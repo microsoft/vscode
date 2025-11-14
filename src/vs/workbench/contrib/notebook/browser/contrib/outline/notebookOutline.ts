@@ -915,7 +915,7 @@ registerAction2(class ToggleShowMarkdownHeadersOnly extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const configurationService = accessor.get(IConfigurationService);
 		const showMarkdownHeadersOnly = configurationService.getValue<boolean>(NotebookSetting.outlineShowMarkdownHeadersOnly);
 		configurationService.updateValue(NotebookSetting.outlineShowMarkdownHeadersOnly, !showMarkdownHeadersOnly);
@@ -939,7 +939,7 @@ registerAction2(class ToggleCodeCellEntries extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const configurationService = accessor.get(IConfigurationService);
 		const showCodeCells = configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCells);
 		configurationService.updateValue(NotebookSetting.outlineShowCodeCells, !showCodeCells);
@@ -963,7 +963,7 @@ registerAction2(class ToggleCodeCellSymbolEntries extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const configurationService = accessor.get(IConfigurationService);
 		const showCodeCellSymbols = configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
 		configurationService.updateValue(NotebookSetting.outlineShowCodeCellSymbols, !showCodeCellSymbols);

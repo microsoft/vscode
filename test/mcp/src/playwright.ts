@@ -14,6 +14,7 @@ export async function getServer(app?: Application): Promise<Server> {
 		{
 			capabilities: ['core', 'pdf', 'vision']
 		},
+		// eslint-disable-next-line local/code-no-any-casts
 		() => Promise.resolve(application.code.driver.browserContext as any)
 	);
 	application.code.driver.browserContext.on('close', async () => {

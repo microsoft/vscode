@@ -441,13 +441,11 @@ function isChatSessionIndex(data: unknown): data is IChatSessionIndexData {
 }
 
 function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSessionEntryMetadata {
-	const title = session instanceof ChatModel ?
-		session.customTitle || (session.getRequests().length > 0 ? ChatModel.getDefaultTitle(session.getRequests()) : '') :
-		session.customTitle ?? (session.requests.length > 0 ? ChatModel.getDefaultTitle(session.requests) : '');
+	const title = session.customTitle || (session instanceof ChatModel ? session.title : undefined);
 
 	return {
 		sessionId: session.sessionId,
-		title, // Empty string for sessions without content - UI will handle display
+		title: title || localize('newChat', "New Chat"),
 		lastMessageDate: session.lastMessageDate,
 		isImported: session.isImported,
 		initialLocation: session.initialLocation,
