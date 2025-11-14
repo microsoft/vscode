@@ -20,6 +20,7 @@ configurationRegistry.registerConfiguration({
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('adminContactEmail', "Contact email address for the administrator managing this installation. This information is shown to users when they encounter settings managed by system policy."),
+			included: false,
 			policy: {
 				name: 'AdminContactEmail',
 				category: PolicyCategory.General,
@@ -37,6 +38,7 @@ configurationRegistry.registerConfiguration({
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('adminContactUrl', "Contact URL or website for the administrator managing this installation. This information is shown to users when they encounter settings managed by system policy."),
+			included: false,
 			policy: {
 				name: 'AdminContactUrl',
 				category: PolicyCategory.General,
