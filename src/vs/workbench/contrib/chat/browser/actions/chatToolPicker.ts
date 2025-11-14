@@ -397,15 +397,11 @@ export async function showToolsPicker(
 					bucket.checked = toolSetChecked;
 				}
 				// all mcp tools are part of toolsService.getTools()
-				for (const tool of toolSet.getTools()) {
-					toolsInToolSets.add(tool.id);
-				}
 			} else {
 				const treeItem = createToolSetTreeItem(toolSet, toolSetChecked, editorService);
 				bucket.children.push(treeItem);
 				const children = [];
 				for (const tool of toolSet.getTools()) {
-					toolsInToolSets.add(tool.id);
 					const toolChecked = toolSetChecked || toolsEntries.get(tool) === true;
 					const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
 					children.push(toolTreeItem);
@@ -413,6 +409,11 @@ export async function showToolsPicker(
 				if (children.length > 0) {
 					treeItem.children = children;
 				}
+			}
+
+			// mark all tools in this toolset as covered
+			for (const tool of toolSet.getTools()) {
+				toolsInToolSets.add(tool.id);
 			}
 		}
 		for (const tool of toolsService.getTools()) {
