@@ -38,7 +38,8 @@ export default new class implements eslint.Rule.RuleModule {
 
 		const fileDirname = dirname(context.getFilename());
 		const parts = fileDirname.split(/\\|\//);
-		const ruleArgs = context.options[0] as Record<string, string[]>; let config: Config | undefined;
+		const ruleArgs = context.options[0] as Record<string, string[]>;
+		let config: Config | undefined;
 		for (let i = parts.length - 1; i >= 0; i--) {
 			if (ruleArgs[parts[i]]) {
 				config = {
