@@ -359,6 +359,11 @@ export interface IEditorOptions {
 	 */
 	wordWrapColumn?: number;
 	/**
+	 * Disable the automatic word wrapping that occurs when a file is dominated by long lines.
+	 * Defaults to false.
+	 */
+	disableAutomaticWrappingForLongLines?: boolean;
+	/**
 	 * Control indentation of wrapped lines. Can be: 'none', 'same', 'indent' or 'deepIndent'.
 	 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
 	 */
@@ -2903,7 +2908,8 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let isViewportWrapping = false;
 		let wrappingColumn = -1;
 
-		if (options.get(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled && wordWrapOverride1 === 'inherit' && isDominatedByLongLines) {
+		const disableAutomaticWrappingForLongLines = options.get(EditorOption.disableAutomaticWrappingForLongLines);
+		if (!disableAutomaticWrappingForLongLines && options.get(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled && wordWrapOverride1 === 'inherit' && isDominatedByLongLines) {
 			// Force viewport width wrapping if model is dominated by long lines
 			isWordWrapMinified = true;
 			isViewportWrapping = true;
@@ -5876,6 +5882,7 @@ export const enum EditorOption {
 	wordWrapBreakAfterCharacters,
 	wordWrapBreakBeforeCharacters,
 	wordWrapColumn,
+	disableAutomaticWrappingForLongLines,
 	wordWrapOverride1,
 	wordWrapOverride2,
 	wrappingIndent,
@@ -6763,6 +6770,12 @@ export const EditorOptions = {
 					'- \'wordWrapColumn\' and \'bounded\' refer to values the different setting can take and should not be localized.'
 				]
 			}, "Controls the wrapping column of the editor when `#editor.wordWrap#` is `wordWrapColumn` or `bounded`.")
+		}
+	)),
+	disableAutomaticWrappingForLongLines: register(new EditorBooleanOption(
+		EditorOption.disableAutomaticWrappingForLongLines, 'disableAutomaticWrappingForLongLines', false,
+		{
+			markdownDescription: nls.localize('disableAutomaticWrappingForLongLines', "Disables the automatic word wrapping that occurs when a file is dominated by long lines (more than half of the characters in lines longer than 10,000 characters). This is a performance feature to keep the editor responsive when dealing with minified files or other content with very long lines.")
 		}
 	)),
 	wordWrapOverride1: register(new EditorStringEnumOption(

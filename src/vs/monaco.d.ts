@@ -3505,6 +3505,11 @@ declare namespace monaco.editor {
 		 */
 		wordWrapColumn?: number;
 		/**
+		 * Disable the automatic word wrapping that occurs when a file is dominated by long lines.
+		 * Defaults to false.
+		 */
+		disableAutomaticWrappingForLongLines?: boolean;
+		/**
 		 * Control indentation of wrapped lines. Can be: 'none', 'same', 'indent' or 'deepIndent'.
 		 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
 		 */
@@ -5214,26 +5219,27 @@ declare namespace monaco.editor {
 		wordWrapBreakAfterCharacters = 150,
 		wordWrapBreakBeforeCharacters = 151,
 		wordWrapColumn = 152,
-		wordWrapOverride1 = 153,
-		wordWrapOverride2 = 154,
-		wrappingIndent = 155,
-		wrappingStrategy = 156,
-		showDeprecated = 157,
-		inertialScroll = 158,
-		inlayHints = 159,
-		wrapOnEscapedLineFeeds = 160,
-		effectiveCursorStyle = 161,
-		editorClassName = 162,
-		pixelRatio = 163,
-		tabFocusMode = 164,
-		layoutInfo = 165,
-		wrappingInfo = 166,
-		defaultColorDecorators = 167,
-		colorDecoratorsActivatedOn = 168,
-		inlineCompletionsAccessibilityVerbose = 169,
-		effectiveEditContext = 170,
-		scrollOnMiddleClick = 171,
-		effectiveAllowVariableFonts = 172
+		disableAutomaticWrappingForLongLines = 153,
+		wordWrapOverride1 = 154,
+		wordWrapOverride2 = 155,
+		wrappingIndent = 156,
+		wrappingStrategy = 157,
+		showDeprecated = 158,
+		inertialScroll = 159,
+		inlayHints = 160,
+		wrapOnEscapedLineFeeds = 161,
+		effectiveCursorStyle = 162,
+		editorClassName = 163,
+		pixelRatio = 164,
+		tabFocusMode = 165,
+		layoutInfo = 166,
+		wrappingInfo = 167,
+		defaultColorDecorators = 168,
+		colorDecoratorsActivatedOn = 169,
+		inlineCompletionsAccessibilityVerbose = 170,
+		effectiveEditContext = 171,
+		scrollOnMiddleClick = 172,
+		effectiveAllowVariableFonts = 173
 	}
 
 	export const EditorOptions: {
@@ -5396,6 +5402,7 @@ declare namespace monaco.editor {
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
+		disableAutomaticWrappingForLongLines: IEditorOption<EditorOption.disableAutomaticWrappingForLongLines, boolean>;
 		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'on' | 'off' | 'inherit'>;
 		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'on' | 'off' | 'inherit'>;
 		wrapOnEscapedLineFeeds: IEditorOption<EditorOption.wrapOnEscapedLineFeeds, boolean>;
