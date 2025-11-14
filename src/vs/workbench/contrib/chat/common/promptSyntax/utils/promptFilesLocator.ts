@@ -8,10 +8,10 @@ import { isAbsolute } from '../../../../../../base/common/path.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { getPromptFileLocationsConfigKey, PromptsConfig } from '../config/config.js';
-import { basename, dirname, joinPath } from '../../../../../../base/common/resources.js';
+import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { getPromptFileExtension, getPromptFileType } from '../config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -21,13 +21,13 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 
 /**
  * Utility class to locate prompt files.
  */
-export class PromptFilesLocator extends Disposable {
+export class PromptFilesLocator {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -38,7 +38,6 @@ export class PromptFilesLocator extends Disposable {
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 		@ILogService private readonly logService: ILogService
 	) {
-		super();
 	}
 
 	/**
@@ -101,6 +100,10 @@ export class PromptFilesLocator extends Disposable {
 		disposables.add(this.fileService.watch(userDataFolder));
 
 		return { event: eventEmitter.event, dispose: () => disposables.dispose() };
+	}
+
+	public getAgentSourceFolder(): readonly URI[] {
+		return this.toAbsoluteLocations([AGENTS_SOURCE_FOLDER]);
 	}
 
 	/**
@@ -183,6 +186,9 @@ export class PromptFilesLocator extends Disposable {
 
 	private getLocalParentFolders(type: PromptsType): readonly { parent: URI; filePattern?: string }[] {
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+		if (type === PromptsType.agent) {
+			configuredLocations.push(AGENTS_SOURCE_FOLDER);
+		}
 		const absoluteLocations = this.toAbsoluteLocations(configuredLocations);
 		return absoluteLocations.map(firstNonGlobParentAndPattern);
 	}
@@ -275,11 +281,26 @@ export class PromptFilesLocator extends Disposable {
 		return [];
 	}
 
+	public async findCopilotInstructionsMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
+		const result: URI[] = [];
+		const { folders } = this.workspaceService.getWorkspace();
+		for (const folder of folders) {
+			const file = joinPath(folder.uri, `.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
+			if (await this.fileService.exists(file)) {
+				result.push(file);
+			}
+		}
+		return result;
+	}
 
+	/**
+	 * Gets list of `AGENTS.md` files anywhere in the workspace.
+	 */
 	public async findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
 		const result = await Promise.all(this.workspaceService.getWorkspace().folders.map(folder => this.findAgentMDsInFolder(folder.uri, token)));
 		return result.flat(1);
 	}
+
 	private async findAgentMDsInFolder(folder: URI, token: CancellationToken): Promise<URI[]> {
 		const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
 		const getExcludePattern = (folder: URI) => getExcludes(this.configService.getValue<ISearchConfiguration>({ resource: folder })) || {};
@@ -304,6 +325,38 @@ export class PromptFilesLocator extends Disposable {
 		}
 		return [];
 
+	}
+
+	/**
+	 * Gets list of `AGENTS.md` files only at the root workspace folder(s).
+	 */
+	public async findAgentMDsInWorkspaceRoots(token: CancellationToken): Promise<URI[]> {
+		const result: URI[] = [];
+		const { folders } = this.workspaceService.getWorkspace();
+		const resolvedRoots = await this.fileService.resolveAll(folders.map(f => ({ resource: f.uri })));
+		for (const root of resolvedRoots) {
+			if (root.success && root.stat?.children) {
+				const agentMd = root.stat.children.find(c => c.isFile && c.name.toLowerCase() === 'agents.md');
+				if (agentMd) {
+					result.push(agentMd.resource);
+				}
+			}
+		}
+		return result;
+	}
+
+	public getAgentFileURIFromModeFile(oldURI: URI): URI | undefined {
+		if (oldURI.path.endsWith(LEGACY_MODE_FILE_EXTENSION)) {
+			let newLocation;
+			const workspaceFolder = this.workspaceService.getWorkspaceFolder(oldURI);
+			if (workspaceFolder) {
+				newLocation = joinPath(workspaceFolder.uri, AGENTS_SOURCE_FOLDER, getCleanPromptName(oldURI) + AGENT_FILE_EXTENSION);
+			} else if (isEqualOrParent(oldURI, this.userDataService.currentProfile.promptsHome)) {
+				newLocation = joinPath(this.userDataService.currentProfile.promptsHome, getCleanPromptName(oldURI) + AGENT_FILE_EXTENSION);
+			}
+			return newLocation;
+		}
+		return undefined;
 	}
 }
 

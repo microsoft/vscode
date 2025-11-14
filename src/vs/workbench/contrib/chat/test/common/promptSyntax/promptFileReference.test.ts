@@ -23,7 +23,7 @@ import { ChatModeKind } from '../../../common/constants.js';
 import { getPromptFileType } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IMockFolder, MockFilesystem } from './testUtils/mockFilesystem.js';
-import { IBodyFileReference, NewPromptsParser } from '../../../common/promptSyntax/service/newPromptsParser.js';
+import { IBodyFileReference, PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 
 /**
  * Represents a file reference with an expected
@@ -91,7 +91,7 @@ class TestPromptFileReference extends Disposable {
 
 		const content = await this.fileService.readFile(this.rootFileUri);
 
-		const ast = new NewPromptsParser().parse(this.rootFileUri, content.value.toString());
+		const ast = new PromptFileParser().parse(this.rootFileUri, content.value.toString());
 		assert(ast.body, 'Prompt file must have a body');
 
 		// resolve the root file reference including all nested references
@@ -119,7 +119,7 @@ class TestPromptFileReference extends Disposable {
 		const result: any = {};
 		result.promptType = getPromptFileType(this.rootFileUri);
 		if (ast.header) {
-			for (const key of ['tools', 'model', 'mode', 'applyTo', 'description'] as const) {
+			for (const key of ['tools', 'model', 'agent', 'applyTo', 'description'] as const) {
 				if (ast.header[key]) {
 					result[key] = ast.header[key];
 				}
@@ -308,7 +308,7 @@ suite('PromptFileReference', function () {
 								'---',
 								'description: \'Root prompt description.\'',
 								'tools: [\'my-tool1\']',
-								'mode: "agent" ',
+								'agent: "agent" ',
 								'---',
 								'## Files',
 								'\t- this file #file:folder1/file3.prompt.md ',
@@ -340,7 +340,7 @@ suite('PromptFileReference', function () {
 												'---',
 												'tools: [\'my-tool1\', "my-tool2", true, , ]',
 												'something: true',
-												'mode: \'ask\'\t',
+												'agent: \'ask\'\t',
 												'---',
 												'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
 												'',
@@ -406,7 +406,7 @@ suite('PromptFileReference', function () {
 				metadata,
 				{
 					promptType: PromptsType.prompt,
-					mode: 'agent',
+					agent: 'agent',
 					description: 'Root prompt description.',
 					tools: ['my-tool1'],
 				},
@@ -471,7 +471,7 @@ suite('PromptFileReference', function () {
 													'---',
 													'tools: [\'my-tool1\', "my-tool2", true, , \'my-tool3\' , ]',
 													'something: true',
-													'mode: \'agent\'\t',
+													'agent: \'agent\'\t',
 													'---',
 													'',
 													'',
@@ -577,7 +577,7 @@ suite('PromptFileReference', function () {
 													'---',
 													'tools: [\'my-tool1\', "my-tool2", true, , \'my-tool3\' , ]',
 													'something: true',
-													'mode: \'agent\'\t',
+													'agent: \'agent\'\t',
 													'---',
 													'',
 													'',
@@ -627,8 +627,8 @@ suite('PromptFileReference', function () {
 			});
 		});
 
-		suite('tools and mode compatibility', () => {
-			test('ask mode', async function () {
+		suite('tools and agent compatibility', () => {
+			test('ask agent', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = toUri(rootFolder);
@@ -653,7 +653,7 @@ suite('PromptFileReference', function () {
 								contents: [
 									'---',
 									'description: \'Description of my prompt.\'',
-									'mode: "ask" ',
+									'agent: "ask" ',
 									'---',
 									'## Files',
 									'\t- this file #file:folder1/file3.prompt.md ',
@@ -669,7 +669,7 @@ suite('PromptFileReference', function () {
 										contents: [
 											'---',
 											'tools: [ false, \'my-tool1\' , ]',
-											'mode: \'agent\'\t',
+											'agent: \'agent\'\t',
 											'---',
 											' some more\t content',
 										],
@@ -683,7 +683,7 @@ suite('PromptFileReference', function () {
 													'---',
 													'tools: [\'my-tool1\', "my-tool2", true, , ]',
 													'something: true',
-													'mode: \'ask\'\t',
+													'agent: \'ask\'\t',
 													'---',
 													'',
 													'',
@@ -724,14 +724,14 @@ suite('PromptFileReference', function () {
 					metadata,
 					{
 						promptType: PromptsType.prompt,
-						mode: ChatModeKind.Ask,
+						agent: ChatModeKind.Ask,
 						description: 'Description of my prompt.',
 					},
 					'Must have correct metadata.',
 				);
 			});
 
-			test('edit mode', async function () {
+			test('edit agent', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = toUri(rootFolder);
@@ -756,7 +756,7 @@ suite('PromptFileReference', function () {
 								contents: [
 									'---',
 									'description: \'Description of my prompt.\'',
-									'mode:\t\t"edit"\t\t',
+									'agent:\t\t"edit"\t\t',
 									'---',
 									'## Files',
 									'\t- this file #file:folder1/file3.prompt.md ',
@@ -785,7 +785,7 @@ suite('PromptFileReference', function () {
 													'---',
 													'tools: [\'my-tool1\', "my-tool2", true, , ]',
 													'something: true',
-													'mode: \'agent\'\t',
+													'agent: \'agent\'\t',
 													'---',
 													'',
 													'',
@@ -826,7 +826,7 @@ suite('PromptFileReference', function () {
 					metadata,
 					{
 						promptType: PromptsType.prompt,
-						mode: ChatModeKind.Edit,
+						agent: ChatModeKind.Edit,
 						description: 'Description of my prompt.',
 					},
 					'Must have correct metadata.',
@@ -834,7 +834,7 @@ suite('PromptFileReference', function () {
 
 			});
 
-			test('agent mode', async function () {
+			test('agent', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = toUri(rootFolder);
@@ -859,7 +859,7 @@ suite('PromptFileReference', function () {
 								contents: [
 									'---',
 									'description: \'Description of my prompt.\'',
-									'mode: \t\t "agent" \t\t ',
+									'agent: \t\t "agent" \t\t ',
 									'---',
 									'## Files',
 									'\t- this file #file:folder1/file3.prompt.md ',
@@ -888,7 +888,7 @@ suite('PromptFileReference', function () {
 													'---',
 													'tools: [\'my-tool1\', "my-tool2", true, , \'my-tool3\' , ]',
 													'something: true',
-													'mode: \'agent\'\t',
+													'agent: \'agent\'\t',
 													'---',
 													'',
 													'',
@@ -929,7 +929,7 @@ suite('PromptFileReference', function () {
 					metadata,
 					{
 						promptType: PromptsType.prompt,
-						mode: ChatModeKind.Agent,
+						agent: ChatModeKind.Agent,
 						description: 'Description of my prompt.',
 					},
 					'Must have correct metadata.',
@@ -937,7 +937,7 @@ suite('PromptFileReference', function () {
 
 			});
 
-			test('no mode', async function () {
+			test('no agent', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = toUri(rootFolder);
@@ -991,7 +991,7 @@ suite('PromptFileReference', function () {
 													'---',
 													'tools: [\'my-tool1\', "my-tool2", true, , \'my-tool3\' , ]',
 													'something: true',
-													'mode: \'agent\'\t',
+													'agent: \'agent\'\t',
 													'---',
 													'',
 													'',

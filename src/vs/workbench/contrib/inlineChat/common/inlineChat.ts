@@ -18,11 +18,8 @@ export const enum InlineChatConfigKeys {
 	StartWithOverlayWidget = 'inlineChat.startWithOverlayWidget',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
 	AccessibleDiffView = 'inlineChat.accessibleDiffView',
-	LineEmptyHint = 'inlineChat.lineEmptyHint',
-	LineNLHint = 'inlineChat.lineNaturalLanguageHint',
 	EnableV2 = 'inlineChat.enableV2',
 	notebookAgent = 'inlineChat.notebookAgent',
-	HideOnRequest = 'inlineChat.hideOnRequest'
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -49,29 +46,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
 			],
 		},
-		[InlineChatConfigKeys.LineEmptyHint]: {
-			description: localize('emptyLineHint', "Whether empty lines show a hint to generate code with inline chat."),
-			default: false,
-			type: 'boolean',
-			tags: ['experimental'],
-		},
-		[InlineChatConfigKeys.LineNLHint]: {
-			markdownDescription: localize('lineSuffixHint', "Whether lines that are dominated by natural language or pseudo code show a hint to continue with inline chat. For instance, `class Person with name and hobbies` would show a hint to continue with chat."),
-			default: true,
-			type: 'boolean',
-			tags: ['experimental'],
-		},
 		[InlineChatConfigKeys.EnableV2]: {
 			description: localize('enableV2', "Whether to use the next version of inline chat."),
-			default: false,
-			type: 'boolean',
-			tags: ['preview'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
-		[InlineChatConfigKeys.HideOnRequest]: {
-			markdownDescription: localize('hideOnRequest', "Whether to hide the inline chat widget after making a request. When enabled, the widget hides after a request has been made and instead the chat overlay shows. When hidden, the widget can always be shown again with the inline chat keybinding or from the chat overlay widget. *Note* that this setting requires `#inlineChat.enableV2#` to be enabled."),
 			default: false,
 			type: 'boolean',
 			tags: ['preview'],

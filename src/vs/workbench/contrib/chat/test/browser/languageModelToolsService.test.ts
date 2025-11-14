@@ -22,10 +22,15 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
 import { IChatModel } from '../../common/chatModel.js';
-import { IChatService, IChatToolInputInvocationData } from '../../common/chatService.js';
+import { IChatService, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
+import { GithubCopilotToolReference, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet, VSCodeToolReference } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
+import { ChatToolInvocation } from '../../common/chatProgressTypes/chatToolInvocation.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
+import { ILanguageModelToolsConfirmationService } from '../../common/languageModelToolsConfirmationService.js';
+import { MockLanguageModelToolsConfirmationService } from '../common/mockLanguageModelToolsConfirmationService.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -69,7 +74,10 @@ function registerToolForTest(service: LanguageModelToolsService, store: any, id:
 			toolId: id,
 			tokenBudget: 100,
 			parameters,
-			context,
+			context: context ? {
+				sessionId: context.sessionId,
+				sessionResource: LocalChatSessionUri.forSession(context.sessionId),
+			} : undefined,
 		}),
 	};
 }
@@ -79,6 +87,7 @@ function stubGetSession(chatService: MockChatService, sessionId: string, options
 	const capture = options?.capture;
 	const fakeModel = {
 		sessionId,
+		sessionResource: LocalChatSessionUri.forSession(sessionId),
 		getRequests: () => [{ id: requestId, modelId: 'test-model' }],
 		acceptResponseProgress: (_req: any, progress: any) => { if (capture) { capture.invocation = progress; } },
 	} as IChatModel;
@@ -86,7 +95,7 @@ function stubGetSession(chatService: MockChatService, sessionId: string, options
 	return fakeModel;
 }
 
-async function waitForPublishedInvocation(capture: { invocation?: any }, tries = 5): Promise<any> {
+async function waitForPublishedInvocation(capture: { invocation?: any }, tries = 5): Promise<ChatToolInvocation> {
 	for (let i = 0; i < tries && !capture.invocation; i++) {
 		await Promise.resolve();
 	}
@@ -111,6 +120,7 @@ suite('LanguageModelToolsService', () => {
 		contextKeyService = instaService.get(IContextKeyService);
 		chatService = new MockChatService();
 		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		service = store.add(instaService.createInstance(LanguageModelToolsService));
 	});
 
@@ -367,7 +377,7 @@ suite('LanguageModelToolsService', () => {
 
 		const invokeP = service.invokeTool(dto, async () => 0, CancellationToken.None);
 		const published = await waitForPublishedInvocation(capture);
-		published.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
 		const result = await invokeP;
 		assert.strictEqual(result.content[0].value, 'ok');
 	});
@@ -403,7 +413,7 @@ suite('LanguageModelToolsService', () => {
 		assert.deepStrictEqual(published.toolSpecificData?.rawInput, dto.parameters);
 
 		// Confirm to let invoke proceed
-		published.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
 		const result = await invokeP;
 		assert.strictEqual(result.content[0].value, 'done');
 	});
@@ -436,7 +446,7 @@ suite('LanguageModelToolsService', () => {
 		assert.ok(published, 'expected ChatToolInvocation to be published');
 		assert.strictEqual(invoked, false, 'invoke should not run before confirmation');
 
-		published.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
 		const result = await promise;
 		assert.strictEqual(invoked, true, 'invoke should have run after confirmation');
 		assert.strictEqual(result.content[0].value, 'ran');
@@ -550,7 +560,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with enabled tool
 		{
 			const qualifiedNames = ['tool1RefName'];
-			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 1, 'Expected 1 tool to be enabled');
 			assert.strictEqual(result1.get(tool1), true, 'tool1 should be enabled');
@@ -562,7 +572,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with multiple enabled tools
 		{
 			const qualifiedNames = ['my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName/internalToolSetTool1RefName'];
-			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 4, 'Expected 4 tools to be enabled');
 			assert.strictEqual(result1.get(extTool1), true, 'extTool1 should be enabled');
@@ -575,7 +585,7 @@ suite('LanguageModelToolsService', () => {
 		}
 		// Test with all enabled tools, redundant names
 		{
-			const result1 = service.toToolAndToolSetEnablementMap(allQualifiedNames);
+			const result1 = service.toToolAndToolSetEnablementMap(allQualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 8, 'Expected 8 tools to be enabled');
 
@@ -586,7 +596,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with no enabled tools
 		{
 			const qualifiedNames: string[] = [];
-			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 0, 'Expected 0 tools to be enabled');
 
@@ -596,7 +606,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with unknown tool
 		{
 			const qualifiedNames: string[] = ['unknownToolRefName'];
-			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 0, 'Expected 0 tools to be enabled');
 
@@ -606,7 +616,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with legacy tool names
 		{
 			const qualifiedNames: string[] = ['extTool1RefName', 'mcpToolSetRefName', 'internalToolSetTool1RefName'];
-			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 4, 'Expected 4 tools to be enabled');
 			assert.strictEqual(result1.get(extTool1), true, 'extTool1 should be enabled');
@@ -621,7 +631,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with tool in user tool set
 		{
 			const qualifiedNames = ['Tool2 Display Name'];
-			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 2, 'Expected 1 tool and user tool set to be enabled');
 			assert.strictEqual(result1.get(tool2), true, 'tool2 should be enabled');
@@ -648,7 +658,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test enabling the tool set
 		const enabledNames = [toolData1].map(t => service.getQualifiedToolName(t));
-		const result = service.toToolAndToolSetEnablementMap(enabledNames);
+		const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined);
 
 		assert.strictEqual(result.get(toolData1), true, 'individual tool should be enabled');
 
@@ -708,7 +718,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test enabling the tool set
 		const enabledNames = [toolSet, toolData1].map(t => service.getQualifiedToolName(t));
-		const result = service.toToolAndToolSetEnablementMap(enabledNames);
+		const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined);
 
 		assert.strictEqual(result.get(toolData1), true, 'individual tool should be enabled');
 		assert.strictEqual(result.get(toolData2), false);
@@ -743,7 +753,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test with non-existent tool names
 		const enabledNames = [toolData, unregisteredToolData].map(t => service.getQualifiedToolName(t));
-		const result = service.toToolAndToolSetEnablementMap(enabledNames);
+		const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined);
 
 		assert.strictEqual(result.get(toolData), true, 'existing tool should be enabled');
 		// Non-existent tools should not appear in the result map
@@ -752,6 +762,108 @@ suite('LanguageModelToolsService', () => {
 		const qualifiedNames = service.toQualifiedToolNames(result);
 		const expectedNames = [service.getQualifiedToolName(toolData)]; // Only the existing tool
 		assert.deepStrictEqual(qualifiedNames.sort(), expectedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
+
+	});
+
+
+	test('toToolAndToolSetEnablementMap map Github to VSCode tools', () => {
+		const runCommandsToolData: IToolData = {
+			id: VSCodeToolReference.runCommands,
+			toolReferenceName: VSCodeToolReference.runCommands,
+			modelDescription: 'runCommands',
+			displayName: 'runCommands',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+		};
+
+		store.add(service.registerToolData(runCommandsToolData));
+		const runSubagentToolData: IToolData = {
+			id: VSCodeToolReference.runSubagent,
+			toolReferenceName: VSCodeToolReference.runSubagent,
+			modelDescription: 'runSubagent',
+			displayName: 'runSubagent',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(runSubagentToolData));
+
+		const githubMcpDataSource: ToolDataSource = { type: 'mcp', label: 'Github', serverLabel: 'Github MCP Server', instructions: undefined, collectionId: 'githubMCPCollection', definitionId: 'githubMCPDefId' };
+		const githubMcpTool1: IToolData = {
+			id: 'create_branch',
+			toolReferenceName: 'create_branch',
+			modelDescription: 'Test Github MCP Tool 1',
+			displayName: 'Create Branch',
+			source: githubMcpDataSource,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(githubMcpTool1));
+
+		const githubMcpToolSet = store.add(service.createToolSet(
+			githubMcpDataSource,
+			'githubMcpToolSet',
+			'github/github-mcp-server',
+			{ description: 'Github MCP Test ToolSet' }
+		));
+		store.add(githubMcpToolSet.addTool(githubMcpTool1));
+
+		const playwrightMcpDataSource: ToolDataSource = { type: 'mcp', label: 'playwright', serverLabel: 'playwright MCP Server', instructions: undefined, collectionId: 'playwrightMCPCollection', definitionId: 'playwrightMCPDefId' };
+		const playwrightMcpTool1: IToolData = {
+			id: 'browser_click',
+			toolReferenceName: 'browser_click',
+			modelDescription: 'Test playwright MCP Tool 1',
+			displayName: 'Create Branch',
+			source: playwrightMcpDataSource,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(playwrightMcpTool1));
+
+		const playwrightMcpToolSet = store.add(service.createToolSet(
+			playwrightMcpDataSource,
+			'playwrightMcpToolSet',
+			'microsoft/playwright-mcp',
+			{ description: 'playwright MCP Test ToolSet' }
+		));
+		store.add(playwrightMcpToolSet.addTool(playwrightMcpTool1));
+		{
+			const toolNames = [GithubCopilotToolReference.customAgent, GithubCopilotToolReference.shell];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(runSubagentToolData), true, 'runSubagentToolData should be enabled');
+			assert.strictEqual(result.get(runCommandsToolData), true, 'runCommandsToolData should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, [VSCodeToolReference.runCommands, VSCodeToolReference.runSubagent], 'toQualifiedToolNames should return the VS Code tool names');
+		}
+		{
+			const toolNames = ['github/*', 'playwright/*'];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(githubMcpToolSet), true, 'githubMcpToolSet should be enabled');
+			assert.strictEqual(result.get(playwrightMcpToolSet), true, 'playwrightMcpToolSet should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, ['github/github-mcp-server/*', 'microsoft/playwright-mcp/*'], 'toQualifiedToolNames should return the VS Code tool names');
+		}
+
+		{
+			// map the qualified tool names for github and playwright MCP tools
+			const toolNames = ['github/create_branch', 'playwright/browser_click'];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
+			assert.strictEqual(result.get(playwrightMcpTool1), true, 'playwrightMcpTool1 should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, ['github/github-mcp-server/create_branch', 'microsoft/playwright-mcp/browser_click'], 'toQualifiedToolNames should return the VS Code tool names');
+		}
+
+		{
+			// test that already qualified names are not altered
+			const toolNames = ['github/github-mcp-server/create_branch', 'microsoft/playwright-mcp/browser_click'];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
+			assert.strictEqual(result.get(playwrightMcpTool1), true, 'playwrightMcpTool1 should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, ['github/github-mcp-server/create_branch', 'microsoft/playwright-mcp/browser_click'], 'toQualifiedToolNames should return the VS Code tool names');
+		}
 
 	});
 
@@ -777,6 +889,7 @@ suite('LanguageModelToolsService', () => {
 		instaService.stub(IChatService, chatService);
 		instaService.stub(IAccessibilityService, testAccessibilityService);
 		instaService.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		const toolData: IToolData = {
@@ -811,7 +924,7 @@ suite('LanguageModelToolsService', () => {
 		assert.ok(signalCall.options?.customAlertMessage.includes('Chat confirmation required'), 'alert message should include confirmation text');
 
 		// Complete the invocation
-		published.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
 		const result = await promise;
 		assert.strictEqual(result.content[0].value, 'executed');
 	});
@@ -838,6 +951,7 @@ suite('LanguageModelToolsService', () => {
 		instaService.stub(IChatService, chatService);
 		instaService.stub(IAccessibilityService, testAccessibilityService);
 		instaService.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		const toolData: IToolData = {
@@ -876,6 +990,7 @@ suite('LanguageModelToolsService', () => {
 			configurationService: () => testConfigService
 		}, store);
 		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Register a tool that should be auto-approved
@@ -909,6 +1024,7 @@ suite('LanguageModelToolsService', () => {
 			configurationService: () => testConfigService
 		}, store);
 		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Tool explicitly approved
@@ -944,9 +1060,84 @@ suite('LanguageModelToolsService', () => {
 		const published = await waitForPublishedInvocation(capture);
 		assert.ok(published?.confirmationMessages, 'unspecified tool should require confirmation');
 
-		published.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
 		const unspecifiedResult = await unspecifiedPromise;
 		assert.strictEqual(unspecifiedResult.content[0].value, 'unspecified');
+	});
+
+	test('eligibleForAutoApproval setting controls tool eligibility', async () => {
+		// Test the new eligibleForAutoApproval setting
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'eligibleToolRef': true,
+			'ineligibleToolRef': false
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool explicitly marked as eligible (using toolReferenceName) - no confirmation needed
+		const eligibleTool = registerToolForTest(testService, store, 'eligibleTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'eligible tool ran' }] })
+		}, {
+			toolReferenceName: 'eligibleToolRef'
+		});
+
+		const sessionId = 'test-eligible';
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Eligible tool should not get default confirmation messages injected
+		const eligibleResult = await testService.invokeTool(
+			eligibleTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(eligibleResult.content[0].value, 'eligible tool ran');
+
+		// Tool explicitly marked as ineligible (using toolReferenceName) - must require confirmation
+		const ineligibleTool = registerToolForTest(testService, store, 'ineligibleTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'ineligible requires confirmation' }] })
+		}, {
+			toolReferenceName: 'ineligibleToolRef'
+		});
+
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId + '2', { requestId: 'req2', capture });
+		const ineligiblePromise = testService.invokeTool(
+			ineligibleTool.makeDto({ test: 2 }, { sessionId: sessionId + '2' }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'ineligible tool should require confirmation');
+		assert.ok(published?.confirmationMessages?.title, 'should have default confirmation title');
+		assert.strictEqual(published?.confirmationMessages?.allowAutoConfirm, false, 'should not allow auto confirm');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const ineligibleResult = await ineligiblePromise;
+		assert.strictEqual(ineligibleResult.content[0].value, 'ineligible requires confirmation');
+
+		// Tool not specified should default to eligible - no confirmation needed
+		const unspecifiedTool = registerToolForTest(testService, store, 'unspecifiedTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'unspecified defaults to eligible' }] })
+		}, {
+			toolReferenceName: 'unspecifiedToolRef'
+		});
+
+		const unspecifiedResult = await testService.invokeTool(
+			unspecifiedTool.makeDto({ test: 3 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(unspecifiedResult.content[0].value, 'unspecified defaults to eligible');
 	});
 
 	test('tool content formatting with alwaysDisplayInputOutput', async () => {
@@ -1010,6 +1201,7 @@ suite('LanguageModelToolsService', () => {
 		}, store);
 		instaService.stub(IChatService, chatService);
 		instaService.stub(ITelemetryService, testTelemetryService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Test successful invocation telemetry
@@ -1099,6 +1291,7 @@ suite('LanguageModelToolsService', () => {
 		instaService1.stub(IChatService, chatService);
 		instaService1.stub(IAccessibilityService, testAccessibilityService1);
 		instaService1.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		instaService1.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService1 = store.add(instaService1.createInstance(LanguageModelToolsService));
 
 		const tool1 = registerToolForTest(testService1, store, 'soundOnlyTool', {
@@ -1118,7 +1311,7 @@ suite('LanguageModelToolsService', () => {
 		const call1 = testAccessibilitySignalService.signalPlayedCalls[0];
 		assert.strictEqual(call1.options?.modality, undefined, 'should use default modality for sound');
 
-		published1.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published1, { type: ToolConfirmKind.UserAction });
 		await promise1;
 
 		testAccessibilitySignalService.reset();
@@ -1139,6 +1332,7 @@ suite('LanguageModelToolsService', () => {
 		instaService2.stub(IChatService, chatService);
 		instaService2.stub(IAccessibilityService, testAccessibilityService2);
 		instaService2.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		instaService2.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService2 = store.add(instaService2.createInstance(LanguageModelToolsService));
 
 		const tool2 = registerToolForTest(testService2, store, 'autoScreenReaderTool', {
@@ -1159,7 +1353,7 @@ suite('LanguageModelToolsService', () => {
 		assert.ok(call2.options?.customAlertMessage, 'should have custom alert message');
 		assert.strictEqual(call2.options?.userGesture, true, 'should mark as user gesture');
 
-		published2.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published2, { type: ToolConfirmKind.UserAction });
 		await promise2;
 
 		testAccessibilitySignalService.reset();
@@ -1180,6 +1374,7 @@ suite('LanguageModelToolsService', () => {
 		instaService3.stub(IChatService, chatService);
 		instaService3.stub(IAccessibilityService, testAccessibilityService3);
 		instaService3.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		instaService3.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService3 = store.add(instaService3.createInstance(LanguageModelToolsService));
 
 		const tool3 = registerToolForTest(testService3, store, 'offTool', {
@@ -1197,51 +1392,8 @@ suite('LanguageModelToolsService', () => {
 		// No signal should be played
 		assert.strictEqual(testAccessibilitySignalService.signalPlayedCalls.length, 0, 'no signal should be played when both sound and announcement are off');
 
-		published3.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published3, { type: ToolConfirmKind.UserAction });
 		await promise3;
-	});
-
-	test('setToolAutoConfirmation and getToolAutoConfirmation', () => {
-		const toolId = 'testAutoConfirmTool';
-
-		// Initially should be 'never'
-		assert.strictEqual(service.getToolAutoConfirmation(toolId), 'never');
-
-		// Set to workspace scope
-		service.setToolAutoConfirmation(toolId, 'workspace');
-		assert.strictEqual(service.getToolAutoConfirmation(toolId), 'workspace');
-
-		// Set to profile scope
-		service.setToolAutoConfirmation(toolId, 'profile');
-		assert.strictEqual(service.getToolAutoConfirmation(toolId), 'profile');
-
-		// Set to session scope
-		service.setToolAutoConfirmation(toolId, 'session');
-		assert.strictEqual(service.getToolAutoConfirmation(toolId), 'session');
-
-		// Set back to never
-		service.setToolAutoConfirmation(toolId, 'never');
-		assert.strictEqual(service.getToolAutoConfirmation(toolId), 'never');
-	});
-
-	test('resetToolAutoConfirmation', () => {
-		const toolId1 = 'testTool1';
-		const toolId2 = 'testTool2';
-
-		// Set different auto-confirmations
-		service.setToolAutoConfirmation(toolId1, 'workspace');
-		service.setToolAutoConfirmation(toolId2, 'session');
-
-		// Verify they're set
-		assert.strictEqual(service.getToolAutoConfirmation(toolId1), 'workspace');
-		assert.strictEqual(service.getToolAutoConfirmation(toolId2), 'session');
-
-		// Reset all
-		service.resetToolAutoConfirmation();
-
-		// Should all be back to 'never'
-		assert.strictEqual(service.getToolAutoConfirmation(toolId1), 'never');
-		assert.strictEqual(service.getToolAutoConfirmation(toolId2), 'never');
 	});
 
 	test('createToolSet and getToolSet', () => {
@@ -1506,26 +1658,28 @@ suite('LanguageModelToolsService', () => {
 	});
 
 	test('configuration changes trigger tool updates', async () => {
-		let changeEventFired = false;
-		const disposable = service.onDidChangeTools(() => {
-			changeEventFired = true;
+		return runWithFakedTimers({}, async () => {
+			let changeEventFired = false;
+			const disposable = service.onDidChangeTools(() => {
+				changeEventFired = true;
+			});
+			store.add(disposable);
+
+			// Change the correct configuration key
+			configurationService.setUserConfiguration('chat.extensionTools.enabled', false);
+			// Fire the configuration change event manually
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: () => true,
+				affectedKeys: new Set(['chat.extensionTools.enabled']),
+				change: null!,
+				source: ConfigurationTarget.USER
+			} satisfies IConfigurationChangeEvent);
+
+			// Wait a bit for the scheduler
+			await new Promise(resolve => setTimeout(resolve, 800));
+
+			assert.strictEqual(changeEventFired, true, 'onDidChangeTools should fire when configuration changes');
 		});
-		store.add(disposable);
-
-		// Change the correct configuration key
-		configurationService.setUserConfiguration('chat.extensionTools.enabled', false);
-		// Fire the configuration change event manually
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: () => true,
-			affectedKeys: new Set(['chat.extensionTools.enabled']),
-			change: null!,
-			source: ConfigurationTarget.USER
-		} satisfies IConfigurationChangeEvent);
-
-		// Wait a bit for the scheduler
-		await new Promise(resolve => setTimeout(resolve, 800));
-
-		assert.strictEqual(changeEventFired, true, 'onDidChangeTools should fire when configuration changes');
 	});
 
 	test('toToolAndToolSetEnablementMap with MCP toolset enables contained tools', () => {
@@ -1551,7 +1705,7 @@ suite('LanguageModelToolsService', () => {
 		// Enable the MCP toolset
 		{
 			const enabledNames = [mcpToolSet].map(t => service.getQualifiedToolName(t));
-			const result = service.toToolAndToolSetEnablementMap(enabledNames);
+			const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined);
 
 			assert.strictEqual(result.get(mcpToolSet), true, 'MCP toolset should be enabled'); // Ensure the toolset is in the map
 			assert.strictEqual(result.get(mcpTool), true, 'MCP tool should be enabled when its toolset is enabled'); // Ensure the tool is in the map
@@ -1562,7 +1716,7 @@ suite('LanguageModelToolsService', () => {
 		// Enable a tool from the MCP toolset
 		{
 			const enabledNames = [mcpTool].map(t => service.getQualifiedToolName(t, mcpToolSet));
-			const result = service.toToolAndToolSetEnablementMap(enabledNames);
+			const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined);
 
 			assert.strictEqual(result.get(mcpToolSet), false, 'MCP toolset should be disabled'); // Ensure the toolset is in the map
 			assert.strictEqual(result.get(mcpTool), true, 'MCP tool should be enabled'); // Ensure the tool is in the map
@@ -1583,6 +1737,7 @@ suite('LanguageModelToolsService', () => {
 			configurationService: () => testConfigService
 		}, store);
 		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		const workspaceTool = registerToolForTest(testService, store, 'workspaceTool', {
@@ -1676,6 +1831,70 @@ suite('LanguageModelToolsService', () => {
 		assert.ok(toolInSet);
 		assert.strictEqual(toolInSet!.id, 'internalToolSet');
 
+	});
+
+	test('eligibleForAutoApproval setting can be configured via policy', async () => {
+		// Test that policy configuration works for eligibleForAutoApproval
+		// Policy values should be JSON strings for object-type settings
+		const testConfigService = new TestConfigurationService();
+
+		// Simulate policy configuration (would come from policy file)
+		const policyValue = {
+			'toolA': true,
+			'toolB': false
+		};
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', policyValue);
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool A is eligible (true in policy)
+		const toolA = registerToolForTest(testService, store, 'toolA', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'toolA executed' }] })
+		}, {
+			toolReferenceName: 'toolA'
+		});
+
+		// Tool B is ineligible (false in policy)
+		const toolB = registerToolForTest(testService, store, 'toolB', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'toolB executed' }] })
+		}, {
+			toolReferenceName: 'toolB'
+		});
+
+		const sessionId = 'test-policy';
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Tool A should execute without confirmation (eligible)
+		const resultA = await testService.invokeTool(
+			toolA.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(resultA.content[0].value, 'toolA executed');
+
+		// Tool B should require confirmation (ineligible)
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId + '2', { requestId: 'req2', capture });
+		const promiseB = testService.invokeTool(
+			toolB.makeDto({ test: 2 }, { sessionId: sessionId + '2' }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'toolB should require confirmation due to policy');
+		assert.strictEqual(published?.confirmationMessages?.allowAutoConfirm, false, 'should not allow auto confirm');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const resultB = await promiseB;
+		assert.strictEqual(resultB.content[0].value, 'toolB executed');
 	});
 
 

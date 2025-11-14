@@ -47,6 +47,7 @@ import { UserDataProfileService } from '../../../userDataProfile/common/userData
 import { IUserDataProfileService } from '../../../userDataProfile/common/userDataProfile.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../environment/browser/environmentService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { PolicyCategory } from '../../../../../base/common/policy.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -89,7 +90,9 @@ suite('ConfigurationEditing', () => {
 					'default': 'isSet',
 					policy: {
 						name: 'configurationEditing.service.policySetting',
+						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
+						localization: { description: { key: '', value: '' } }
 					}
 				}
 			}

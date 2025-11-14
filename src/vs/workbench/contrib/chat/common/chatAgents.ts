@@ -38,6 +38,19 @@ export interface IChatAgentHistoryEntry {
 	result: IChatAgentResult;
 }
 
+export interface IChatAgentAttachmentCapabilities {
+	supportsFileAttachments?: boolean;
+	supportsToolAttachments?: boolean;
+	supportsMCPAttachments?: boolean;
+	supportsImageAttachments?: boolean;
+	supportsSearchResultAttachments?: boolean;
+	supportsInstructionAttachments?: boolean;
+	supportsSourceControlAttachments?: boolean;
+	supportsProblemAttachments?: boolean;
+	supportsSymbolAttachments?: boolean;
+	supportsTerminalAttachments?: boolean;
+}
+
 export interface IChatAgentData {
 	id: string;
 	name: string;
@@ -63,10 +76,7 @@ export interface IChatAgentData {
 	/** This is only relevant for isDefault agents. Others should have all modes available. */
 	modes: ChatModeKind[];
 	disambiguation: { category: string; description: string; examples: string[] }[];
-	capabilities?: {
-		supportsToolAttachments?: boolean;
-		supportsFileAttachments?: boolean;
-	};
+	capabilities?: IChatAgentAttachmentCapabilities;
 }
 
 export interface IChatWelcomeMessageContent {
@@ -104,15 +114,6 @@ export interface IChatAgentCommand extends IRawChatCommandContribution {
 	followupPlaceholder?: string;
 }
 
-export interface IChatRequesterInformation {
-	name: string;
-
-	/**
-	 * A full URI for the icon of the requester.
-	 */
-	icon?: URI;
-}
-
 export interface IChatAgentMetadata {
 	helpTextPrefix?: string | IMarkdownString;
 	helpTextPostfix?: string | IMarkdownString;
@@ -123,7 +124,6 @@ export interface IChatAgentMetadata {
 	supportIssueReporting?: boolean;
 	followupPlaceholder?: string;
 	isSticky?: boolean;
-	requester?: IChatRequesterInformation;
 	additionalWelcomeMessage?: string | IMarkdownString;
 }
 
@@ -131,7 +131,9 @@ export type UserSelectedTools = Record<string, boolean>;
 
 
 export interface IChatAgentRequest {
+	/** @deprecated Use {@linkcode sessionResource} instead */
 	sessionId: string;
+	sessionResource: URI;
 	requestId: string;
 	agentId: string;
 	command?: string;
@@ -148,6 +150,7 @@ export interface IChatAgentRequest {
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+	isSubagent?: boolean;
 
 	/**
 	 * Summary data for chat sessions context

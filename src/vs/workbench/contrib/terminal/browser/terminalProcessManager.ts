@@ -22,7 +22,7 @@ import { FlowControlConstants, ITerminalLaunchResult, IProcessDataEvent, IProces
 import { TerminalRecorder } from '../../../../platform/terminal/common/terminalRecorder.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from './environmentVariableInfo.js';
-import { ITerminalConfigurationService, ITerminalInstanceService } from './terminal.js';
+import { ITerminalConfigurationService, ITerminalInstanceService, ITerminalService } from './terminal.js';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService } from '../common/environmentVariable.js';
 import { MergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariableCollection.js';
 import { serializeEnvironmentVariableCollections } from '../../../../platform/terminal/common/environmentVariableShared.js';
@@ -44,6 +44,8 @@ import { shouldUseEnvironmentVariableCollection } from '../../../../platform/ter
 import { TerminalContribSettingId } from '../terminalContribExports.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
+import type { MaybePromise } from '../../../../base/common/async.js';
+import { isString } from '../../../../base/common/types.js';
 
 const enum ProcessConstants {
 	/**
@@ -80,6 +82,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	backend: ITerminalBackend | undefined;
 	readonly capabilities = this._register(new TerminalCapabilityStore());
 	readonly shellIntegrationNonce: string;
+	processReadyTimestamp: number = 0;
 
 	private _isDisposed: boolean = false;
 	private _process: ITerminalChildProcess | null = null;
@@ -115,7 +118,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessReplayComplete = this._register(new Emitter<void>());
 	readonly onProcessReplayComplete = this._onProcessReplayComplete.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onEnvironmentVariableInfoChange = this._register(new Emitter<IEnvironmentVariableInfo>());
 	readonly onEnvironmentVariableInfoChanged = this._onEnvironmentVariableInfoChange.event;
@@ -154,7 +157,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
 		this._cwdWorkspaceFolder = terminalEnvironment.getWorkspaceForTerminal(cwd, this._workspaceContextService, this._historyService);
@@ -162,15 +166,15 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._ackDataBufferer = new AckDataBufferer(e => this._process?.acknowledgeDataEvent(e));
 		this._dataFilter = this._register(this._instantiationService.createInstance(SeamlessRelaunchDataFilter));
 		this._register(this._dataFilter.onProcessData(ev => {
-			const data = (typeof ev === 'string' ? ev : ev.data);
+			const data = (isString(ev) ? ev : ev.data);
 			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
 			this._onBeforeProcessData.fire(beforeProcessDataEvent);
 			if (beforeProcessDataEvent.data && beforeProcessDataEvent.data.length > 0) {
 				// This event is used by the caller so the object must be reused
-				if (typeof ev !== 'string') {
+				if (!isString(ev)) {
 					ev.data = beforeProcessDataEvent.data;
 				}
-				this._onProcessData.fire(typeof ev !== 'string' ? ev : { data: beforeProcessDataEvent.data, trackCommit: false });
+				this._onProcessData.fire(!isString(ev) ? ev : { data: beforeProcessDataEvent.data, trackCommit: false });
 			}
 		}));
 
@@ -370,6 +374,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this._processTraits = e;
 				this.shellProcessId = e.pid;
 				this._initialCwd = e.cwd;
+				this.processReadyTimestamp = Date.now();
 				this._onDidChangeProperty.fire({ type: ProcessPropertyType.InitialCwd, value: this._initialCwd });
 				this._onProcessReady.fire(e);
 
@@ -383,7 +388,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			newProcess.onDidChangeProperty(({ type, value }) => {
 				switch (type) {
 					case ProcessPropertyType.HasChildProcesses:
-						this._hasChildProcesses = value;
+						this._hasChildProcesses = value as IProcessPropertyMap[ProcessPropertyType.HasChildProcesses];
 						break;
 					case ProcessPropertyType.FailedShellIntegrationActivation:
 						this._telemetryService?.publicLog2<{}, { owner: 'meganrogge'; comment: 'Indicates shell integration was not activated because of custom args' }>('terminal/shellIntegrationActivationFailureCustomArgs');
@@ -576,7 +581,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	setDimensions(cols: number, rows: number): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: true): void;
-	setDimensions(cols: number, rows: number, sync?: boolean): Promise<void> | void {
+	setDimensions(cols: number, rows: number, sync?: boolean): MaybePromise<void> {
 		if (sync) {
 			this._resize(cols, rows);
 			return;
@@ -587,6 +592,15 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
 		return this._process?.setUnicodeVersion(version);
+	}
+
+	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
+		await this.ptyProcessReady;
+		const process = this._process;
+		if (!process?.id) {
+			return;
+		}
+		await this._terminalService.setNextCommandId(process.id, commandLine, commandId);
 	}
 
 	private _resize(cols: number, rows: number) {
@@ -851,7 +865,7 @@ class SeamlessRelaunchDataFilter extends Disposable {
 
 	private _createRecorder(process: ITerminalChildProcess): [TerminalRecorder, IDisposable] {
 		const recorder = new TerminalRecorder(0, 0);
-		const disposable = process.onProcessData(e => recorder.handleData(typeof e === 'string' ? e : e.data));
+		const disposable = process.onProcessData(e => recorder.handleData(isString(e) ? e : e.data));
 		return [recorder, disposable];
 	}
 

@@ -16,7 +16,7 @@ import { TextModelText } from '../../../../../common/model/textModelText.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineEdit } from '../../model/inlineEdit.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
-import { GhostTextIndicator, InlineEditHost, InlineEditModel } from './inlineEditsModel.js';
+import { GhostTextIndicator, InlineEditHost, ModelPerInlineEdit } from './inlineEditsModel.js';
 import { InlineEditsView } from './inlineEditsView.js';
 import { InlineEditTabAction } from './inlineEditsViewInterface.js';
 
@@ -50,7 +50,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.read(undefined), model.allPositions.read(undefined), inlineEdit.commands, inlineEdit.inlineCompletion);
 	});
 
-	private readonly _inlineEditModel = derived<InlineEditModel | undefined>(this, reader => {
+	private readonly _inlineEditModel = derived<ModelPerInlineEdit | undefined>(this, reader => {
 		const model = this._model.read(reader);
 		if (!model) { return undefined; }
 		const edit = this._inlineEdit.read(reader);
@@ -65,7 +65,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 			return InlineEditTabAction.Inactive;
 		});
 
-		return new InlineEditModel(model, edit, tabAction);
+		return new ModelPerInlineEdit(model, edit, tabAction);
 	});
 
 	private readonly _inlineEditHost = derived<InlineEditHost | undefined>(this, reader => {

@@ -23,7 +23,7 @@ const productService = { applicationName: 'vscode' } as IProductService;
 const defaultEnvironment = {};
 
 function deepStrictEqualIgnoreStableVar(actual: IShellIntegrationConfigInjection | IShellIntegrationInjectionFailure | undefined, expected: IShellIntegrationConfigInjection) {
-	if (actual && 'envMixin' in actual && actual.envMixin) {
+	if (actual?.type === 'injection' && actual.envMixin) {
 		delete actual.envMixin['VSCODE_STABLE'];
 	}
 	deepStrictEqual(actual, expected);

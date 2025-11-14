@@ -52,6 +52,7 @@ import { IUserDataProfileService } from '../../../userDataProfile/common/userDat
 import { TasksSchemaProperties } from '../../../../contrib/tasks/common/tasks.js';
 import { RemoteSocketFactoryService } from '../../../../../platform/remote/common/remoteSocketFactoryService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { PolicyCategory } from '../../../../../base/common/policy.js';
 
 function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifier {
 	return {
@@ -781,7 +782,9 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					'default': 'isSet',
 					policy: {
 						name: 'configurationService.folder.policySetting',
+						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
+						localization: { description: { key: '', value: '' } }
 					}
 				},
 				'configurationService.folder.policyObjectSetting': {
@@ -789,7 +792,9 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					'default': {},
 					policy: {
 						name: 'configurationService.folder.policyObjectSetting',
+						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
+						localization: { description: { key: '', value: '' } }
 					}
 				},
 			}

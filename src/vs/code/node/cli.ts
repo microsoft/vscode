@@ -183,7 +183,7 @@ export async function main(argv: string[]): Promise<void> {
 		try {
 
 			// Check for readonly status and chmod if so if we are told so
-			let targetMode: number = 0;
+			let targetMode = 0;
 			let restoreMode = false;
 			if (args['file-chmod']) {
 				targetMode = statSync(target).mode;

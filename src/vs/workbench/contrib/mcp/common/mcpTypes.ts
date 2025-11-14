@@ -8,11 +8,12 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { IObservable, ObservableMap } from '../../../../base/common/observable.js';
-import { IPager } from '../../../../base/common/paging.js';
+import { IIterativePager } from '../../../../base/common/paging.js';
+import Severity from '../../../../base/common/severity.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
@@ -313,7 +314,6 @@ export namespace McpServerTrust {
 		Unknown,
 	}
 }
-
 
 export interface IMcpServer extends IDisposable {
 	readonly collection: McpCollectionReference;
@@ -679,6 +679,7 @@ export interface IMcpServerEditorOptions extends IEditorOptions {
 }
 
 export const enum McpServerEnablementState {
+	Disabled,
 	DisabledByAccess,
 	Enabled,
 }
@@ -696,14 +697,20 @@ export const enum McpServerEditorTab {
 	Configuration = 'configuration',
 }
 
-export type McpServerRuntimeState = { readonly disabled: boolean; readonly reason?: MarkdownString };
+export type McpServerEnablementStatus = {
+	readonly state: McpServerEnablementState;
+	readonly message?: {
+		readonly severity: Severity;
+		readonly text: IMarkdownString;
+	};
+};
 
 export interface IWorkbenchMcpServer {
 	readonly gallery: IGalleryMcpServer | undefined;
 	readonly local: IWorkbenchLocalMcpServer | undefined;
 	readonly installable: IInstallableMcpServer | undefined;
 	readonly installState: McpServerInstallState;
-	readonly runtimeState: McpServerRuntimeState | undefined;
+	readonly runtimeStatus: McpServerEnablementStatus | undefined;
 	readonly id: string;
 	readonly name: string;
 	readonly label: string;
@@ -732,7 +739,7 @@ export interface IMcpWorkbenchService {
 	readonly local: readonly IWorkbenchMcpServer[];
 	getEnabledLocalMcpServers(): IWorkbenchLocalMcpServer[];
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
-	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IPager<IWorkbenchMcpServer>>;
+	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IWorkbenchMcpServer>>;
 	canInstall(mcpServer: IWorkbenchMcpServer): true | IMarkdownString;
 	install(server: IWorkbenchMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchMcpServer>;
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
@@ -898,8 +905,31 @@ export interface IMcpElicitationService {
 	 * @param elicitation Request to elicit a response.
 	 * @returns A promise that resolves to an {@link ElicitationResult}.
 	 */
-	elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<MCP.ElicitResult>;
+	elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<ElicitResult>;
 }
+
+export const enum ElicitationKind {
+	Form,
+	URL,
+}
+
+export interface IUrlModeElicitResult extends IDisposable {
+	kind: ElicitationKind.URL;
+	value: MCP.ElicitResult;
+	/**
+	 * Waits until the server tells us the elicitation is completed before resolving.
+	 * Rejects with a CancellationError if the server stops before elicitation is
+	 * complete, or if the token is cancelled.
+	 */
+	wait: Promise<void>;
+}
+
+export interface IFormModeElicitResult extends IDisposable {
+	kind: ElicitationKind.Form;
+	value: MCP.ElicitResult;
+}
+
+export type ElicitResult = IUrlModeElicitResult | IFormModeElicitResult;
 
 export const IMcpElicitationService = createDecorator<IMcpElicitationService>('IMcpElicitationService');
 

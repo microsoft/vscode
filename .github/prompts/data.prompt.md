@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 'Answer telemetry questions with data queries'
 tools: ['search', 'runCommands/runInTerminal', 'Azure MCP/kusto_query', 'githubRepo', 'extensions', 'todos']
 ---

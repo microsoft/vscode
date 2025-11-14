@@ -33,6 +33,17 @@ function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState |
 	return getCommentThreadStateBorderColor(thread, theme) ?? theme.getColor(peekViewBorder);
 }
 
+/**
+ * Check if a comment thread has any draft comments
+ */
+function commentThreadHasDraft(commentThread: languages.CommentThread): boolean {
+	const comments = commentThread.comments;
+	if (!comments) {
+		return false;
+	}
+	return comments.some(comment => comment.state === languages.CommentState.Draft);
+}
+
 export enum CommentWidgetFocus {
 	None = 0,
 	Widget = 1,
@@ -159,10 +170,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._globalToDispose.add(this.themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._globalToDispose.add(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
-				this._applyTheme(this.themeService.getColorTheme());
+				this._applyTheme();
 			}
 		}));
-		this._applyTheme(this.themeService.getColorTheme());
+		this._applyTheme();
 
 	}
 
@@ -378,7 +389,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		const lineNumber = this._commentThread.range?.endLineNumber ?? 1;
 		let shouldMoveWidget = false;
 		if (this._commentGlyph) {
-			this._commentGlyph.setThreadState(commentThread.state);
+			const hasDraft = commentThreadHasDraft(commentThread);
+			this._commentGlyph.setThreadState(commentThread.state, hasDraft);
 			if (this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
 				shouldMoveWidget = true;
 				this._commentGlyph.setLineNumber(lineNumber);
@@ -403,7 +415,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	async display(range: IRange | undefined, shouldReveal: boolean) {
 		if (range) {
 			this._commentGlyph = new CommentGlyphWidget(this.editor, range?.endLineNumber ?? -1);
-			this._commentGlyph.setThreadState(this._commentThread.state);
+			const hasDraft = commentThreadHasDraft(this._commentThread);
+			this._commentGlyph.setThreadState(this._commentThread.state, hasDraft);
 			this._globalToDispose.add(this._commentGlyph.onDidChangeLineNumber(async e => {
 				if (!this._commentThread.range) {
 					return;
@@ -506,7 +519,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	private _applyTheme(theme: IColorTheme) {
+	private _applyTheme() {
 		const borderColor = getCommentThreadWidgetStateColor(this._commentThread.state, this.themeService.getColorTheme()) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
@@ -514,8 +527,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		});
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 
-		// Editor decorations should also be responsive to theme changes
-		this._commentThreadWidget.applyTheme(theme, fontInfo);
+		this._commentThreadWidget.applyTheme(fontInfo);
 	}
 
 	override show(rangeOrPos: IRange | IPosition | undefined, heightInLines: number): void {

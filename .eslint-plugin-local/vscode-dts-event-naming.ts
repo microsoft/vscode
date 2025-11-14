@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import * as ESTree from 'estree';
 import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/utils';
 
 export = new class ApiEventNaming implements eslint.Rule.RuleModule {
@@ -30,7 +31,7 @@ export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 		const verbs = new Set(config.verbs);
 
 		return {
-			['TSTypeAnnotation TSTypeReference Identifier[name="Event"]']: (node: any) => {
+			['TSTypeAnnotation TSTypeReference Identifier[name="Event"]']: (node: ESTree.Identifier) => {
 
 				const def = (<TSESTree.Identifier>node).parent?.parent?.parent;
 				const ident = this.getIdent(def);

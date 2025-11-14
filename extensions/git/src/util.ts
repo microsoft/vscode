@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env } from 'vscode';
+import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env, SourceControlHistoryItem } from 'vscode';
 import { dirname, normalize, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
@@ -795,6 +795,12 @@ export function getCommitShortHash(scope: Uri, hash: string): string {
 	const config = workspace.getConfiguration('git', scope);
 	const shortHashLength = config.get<number>('commitShortHashLength', 7);
 	return hash.substring(0, shortHashLength);
+}
+
+export function getHistoryItemDisplayName(historyItem: SourceControlHistoryItem): string {
+	return historyItem.references?.length
+		? historyItem.references[0].name
+		: historyItem.displayId ?? historyItem.id;
 }
 
 export type DiagnosticSeverityConfig = 'error' | 'warning' | 'information' | 'hint' | 'none';

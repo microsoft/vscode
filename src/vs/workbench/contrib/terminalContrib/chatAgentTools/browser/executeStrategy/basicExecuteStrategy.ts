@@ -53,7 +53,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 	) {
 	}
 
-	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {
+	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
 
 		try {
@@ -66,11 +66,18 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 					this._log('onDone 1 of 2 via end event, waiting for short idle prompt');
 					return idlePromptPromise.then(() => {
 						this._log('onDone 2 of 2 via short idle prompt');
-						return e;
+						return {
+							'type': 'success',
+							command: e
+						} as const;
 					});
 				}),
 				Event.toPromise(token.onCancellationRequested as Event<undefined>, store).then(() => {
 					this._log('onDone via cancellation');
+				}),
+				Event.toPromise(this._instance.onDisposed, store).then(() => {
+					this._log('onDone via terminal disposal');
+					return { type: 'disposal' } as const;
 				}),
 				// A longer idle prompt event is used here as a catch all for unexpected cases where
 				// the end event doesn't fire for some reason.
@@ -115,7 +122,12 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 
 			// Wait for the next end execution event - note that this may not correspond to the actual
 			// execution requested
-			const finishedCommand = await onDone;
+			this._log('Waiting for done event');
+			const onDoneResult = await onDone;
+			if (onDoneResult && onDoneResult.type === 'disposal') {
+				throw new Error('The terminal was closed');
+			}
+			const finishedCommand = onDoneResult && onDoneResult.type === 'success' ? onDoneResult.command : undefined;
 
 			// Wait for the terminal to idle
 			this._log('Waiting for idle');

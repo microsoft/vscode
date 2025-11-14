@@ -19,8 +19,10 @@ import { Location } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { ByteSize } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
+import { UserSelectedTools } from './chatAgents.js';
 import { IVariableReference } from './chatModes.js';
 import { IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, type IChatTerminalToolInvocationData } from './chatService.js';
 import { ChatRequestToolReferenceEntry } from './chatVariableEntries.js';
@@ -45,6 +47,10 @@ export interface IToolData {
 	 */
 	runsInWorkspace?: boolean;
 	alwaysDisplayInputOutput?: boolean;
+	/** True if this tool might ask for pre-approval */
+	canRequestPreApproval?: boolean;
+	/** True if this tool might ask for post-approval */
+	canRequestPostApproval?: boolean;
 }
 
 export interface IToolProgressStep {
@@ -107,11 +113,11 @@ export namespace ToolDataSource {
 		if (source.type === 'internal') {
 			return { ordinal: 1, label: localize('builtin', 'Built-In') };
 		} else if (source.type === 'mcp') {
-			return { ordinal: 2, label: localize('mcp', 'MCP Server: {0}', source.label) };
+			return { ordinal: 2, label: source.label };
 		} else if (source.type === 'user') {
 			return { ordinal: 0, label: localize('user', 'User Defined') };
 		} else {
-			return { ordinal: 3, label: localize('ext', 'Extension: {0}', source.label) };
+			return { ordinal: 3, label: source.label };
 		}
 	}
 }
@@ -119,7 +125,7 @@ export namespace ToolDataSource {
 export interface IToolInvocation {
 	callId: string;
 	toolId: string;
-	parameters: Object;
+	parameters: Record<string, any>;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
 	chatRequestId?: string;
@@ -130,14 +136,17 @@ export interface IToolInvocation {
 	fromSubAgent?: boolean;
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 	modelId?: string;
+	userSelectedTools?: UserSelectedTools;
 }
 
 export interface IToolInvocationContext {
-	sessionId: string;
+	/** @deprecated Use {@link sessionResource} instead */
+	readonly sessionId: string;
+	readonly sessionResource: URI;
 }
 
 export function isToolInvocationContext(obj: any): obj is IToolInvocationContext {
-	return typeof obj === 'object' && typeof obj.sessionId === 'string';
+	return typeof obj === 'object' && typeof obj.sessionId === 'string' && URI.isUri(obj.sessionResource);
 }
 
 export interface IToolInvocationPreparationContext {
@@ -191,6 +200,21 @@ export interface IToolResult {
 	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails;
 	toolResultError?: string;
 	toolMetadata?: unknown;
+	/** Whether to ask the user to confirm these tool results. Overrides {@link IToolConfirmationMessages.confirmResults}. */
+	confirmResults?: boolean;
+}
+
+export function toolContentToA11yString(part: IToolResult['content']) {
+	return part.map(p => {
+		switch (p.kind) {
+			case 'promptTsx':
+				return stringifyPromptTsxPart(p);
+			case 'text':
+				return p.value;
+			case 'data':
+				return localize('toolResultDataPartA11y', "{0} of {1} binary data", ByteSize.formatSize(p.value.data.byteLength), p.value.mimeType || 'unknown');
+		}
+	}).join(', ');
 }
 
 export function toolResultHasBuffers(result: IToolResult): boolean {
@@ -222,11 +246,15 @@ export interface IToolResultDataPart {
 }
 
 export interface IToolConfirmationMessages {
-	title: string | IMarkdownString;
-	message: string | IMarkdownString;
+	/** Title for the confirmation. If set, the user will be asked to confirm execution of the tool */
+	title?: string | IMarkdownString;
+	/** MUST be set if `title` is also set */
+	message?: string | IMarkdownString;
 	disclaimer?: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
 	terminalCustomActions?: ToolConfirmationAction[];
+	/** If true, confirmation will be requested after the tool executes and before results are sent to the model */
+	confirmResults?: boolean;
 }
 
 export interface IToolConfirmationAction {
@@ -317,6 +345,7 @@ export type CountTokensCallback = (input: string, token: CancellationToken) => P
 export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	readonly onDidChangeTools: Event<void>;
+	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ readonly sessionId: string; readonly toolData: IToolData }>;
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
@@ -324,10 +353,9 @@ export interface ILanguageModelToolsService {
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
-	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'session' | 'never'): void;
-	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never';
-	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
+	/** Flush any pending tool updates to the extension hosts. */
+	flushToolUpdates(): void;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSet(id: string): ToolSet | undefined;
@@ -340,17 +368,15 @@ export interface ILanguageModelToolsService {
 	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined;
 	getQualifiedToolName(tool: IToolData, toolSet?: ToolSet): string;
 	getDeprecatedQualifiedToolNames(): Map<string, string>;
+	mapGithubToolName(githubToolName: string): string;
 
-	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap;
+	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap;
 	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
 
-export function createToolInputUri(toolOrId: IToolData | string): URI {
-	if (typeof toolOrId !== 'string') {
-		toolOrId = toolOrId.id;
-	}
-	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolOrId}/tool_input.json` });
+export function createToolInputUri(toolCallId: string): URI {
+	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolCallId}/tool_input.json` });
 }
 
 export function createToolSchemaUri(toolOrId: IToolData | string): URI {
@@ -358,4 +384,16 @@ export function createToolSchemaUri(toolOrId: IToolData | string): URI {
 		toolOrId = toolOrId.id;
 	}
 	return URI.from({ scheme: Schemas.vscode, authority: 'schemas', path: `/lm/tool/${toolOrId}` });
+}
+
+export namespace GithubCopilotToolReference {
+	export const shell = 'shell';
+	export const edit = 'edit';
+	export const search = 'search';
+	export const customAgent = 'custom-agent';
+}
+
+export namespace VSCodeToolReference {
+	export const runCommands = 'runCommands';
+	export const runSubagent = 'runSubagent';
 }

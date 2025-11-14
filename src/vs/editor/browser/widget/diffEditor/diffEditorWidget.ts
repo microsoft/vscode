@@ -473,7 +473,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	public override restoreViewState(s: IDiffEditorViewState): void {
 		if (s && s.original && s.modified) {
-			const diffEditorState = s as IDiffEditorViewState;
+			const diffEditorState = s;
 			this._editors.original.restoreViewState(diffEditorState.original);
 			this._editors.modified.restoreViewState(diffEditorState.modified);
 			if (diffEditorState.modelState) {
@@ -578,12 +578,14 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		const model = this._diffModel.get();
 		if (!model || !model.isDiffUpToDate.get()) { return; }
 
+		this._editors.modified.pushUndoStop();
 		this._editors.modified.executeEdits('diffEditor', [
 			{
 				range: diff.modified.toExclusiveRange(),
 				text: model.model.original.getValueInRange(diff.original.toExclusiveRange())
 			}
 		]);
+		this._editors.modified.pushUndoStop();
 	}
 
 	revertRangeMappings(diffs: RangeMapping[]): void {
@@ -595,7 +597,9 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			text: model.model.original.getValueInRange(c.originalRange)
 		}));
 
+		this._editors.modified.pushUndoStop();
 		this._editors.modified.executeEdits('diffEditor', changes);
+		this._editors.modified.pushUndoStop();
 	}
 
 	revertFocusedRangeMappings() {
@@ -615,12 +619,14 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			return d.lineRangeMapping.modified.intersect(selectedRange);
 		});
 
+		modifiedEditor.pushUndoStop();
 		modifiedEditor.executeEdits('diffEditor', diffsToRevert.map(d => (
 			{
 				range: d.lineRangeMapping.modified.toExclusiveRange(),
 				text: model.model.original.getValueInRange(d.lineRangeMapping.original.toExclusiveRange())
 			}
 		)));
+		modifiedEditor.pushUndoStop();
 	}
 
 
