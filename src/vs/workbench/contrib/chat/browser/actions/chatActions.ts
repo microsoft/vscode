@@ -767,7 +767,6 @@ export function registerChatActions() {
 											lastMessageDate: 0,
 										},
 										buttons,
-										id: session.id
 									};
 
 									// Check if this agent already exists (update existing or add new)
@@ -996,16 +995,11 @@ export function registerChatActions() {
 			const menuService = accessor.get(IMenuService);
 
 			const view = await viewsService.openView<ChatViewPane>(ChatViewId);
-			if (!view) {
+			if (!view?.widget.viewModel) {
 				return;
 			}
 
-			const chatSessionId = view.widget.viewModel?.model.sessionId;
-			if (!chatSessionId) {
-				return;
-			}
-
-			const editingSession = view.widget.viewModel?.model.editingSession;
+			const editingSession = view.widget.viewModel.model.editingSession;
 			if (editingSession) {
 				const phrase = localize('switchChat.confirmPhrase', "Switching chats will end your current edit session.");
 				if (!await handleCurrentEditingSession(editingSession, phrase, dialogService)) {

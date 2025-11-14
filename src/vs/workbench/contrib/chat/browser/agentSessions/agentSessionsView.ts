@@ -163,10 +163,7 @@ export class AgentSessionsView extends ViewPane {
 		}
 
 		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService.createOverlay(getSessionItemContextOverlay(
-			{
-				id: session.resource.toString(),
-				...session
-			},
+			session,
 			session.provider,
 			this.chatWidgetService,
 			this.chatService,

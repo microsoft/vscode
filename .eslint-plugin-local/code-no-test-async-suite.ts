@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
+import * as ESTree from 'estree';
+import { TSESTree } from '@typescript-eslint/utils';
 
 function isCallExpression(node: TSESTree.Node): node is TSESTree.CallExpression {
 	return node.type === 'CallExpression';
@@ -17,10 +18,11 @@ function isFunctionExpression(node: TSESTree.Node): node is TSESTree.FunctionExp
 export = new class NoAsyncSuite implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		function hasAsyncSuite(node: any) {
-			if (isCallExpression(node) && node.arguments.length >= 2 && isFunctionExpression(node.arguments[1]) && node.arguments[1].async) {
+		function hasAsyncSuite(node: ESTree.Node) {
+			const tsNode = node as TSESTree.Node;
+			if (isCallExpression(tsNode) && tsNode.arguments.length >= 2 && isFunctionExpression(tsNode.arguments[1]) && tsNode.arguments[1].async) {
 				return context.report({
-					node: node,
+					node: tsNode,
 					message: 'suite factory function should never be async'
 				});
 			}

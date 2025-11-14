@@ -180,6 +180,11 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 							},
 						}
 					}
+				},
+				canDelegate: {
+					description: localize('chatSessionsExtPoint.canDelegate', 'Whether delegation is supported. Defaults to true.'),
+					type: 'boolean',
+					default: true
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
@@ -340,7 +345,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private registerContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): IDisposable {
 		if (this._contributions.has(contribution.type)) {
-			this._logService.warn(`Chat session contribution with id '${contribution.type}' is already registered.`);
 			return { dispose: () => { } };
 		}
 

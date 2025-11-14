@@ -231,10 +231,10 @@ export class ChatRequestParser {
 				}
 			}
 
-			// if there's no agent, check if it's a prompt command
-			const promptCommand = this.promptsService.asPromptSlashCommand(command);
-			if (promptCommand) {
-				return new ChatRequestSlashPromptPart(slashRange, slashEditorRange, promptCommand);
+			// if there's no agent, asume it is a prompt slash command
+			const isPromptCommand = this.promptsService.isValidSlashCommandName(command);
+			if (isPromptCommand) {
+				return new ChatRequestSlashPromptPart(slashRange, slashEditorRange, command);
 			}
 		}
 		return;

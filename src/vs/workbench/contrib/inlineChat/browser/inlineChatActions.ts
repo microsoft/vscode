@@ -30,7 +30,6 @@ import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { HunkInformation } from './inlineChatSession.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
-import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
@@ -653,7 +652,6 @@ export class KeepSessionAction2 extends KeepOrUndoSessionAction {
 				CTX_INLINE_CHAT_VISIBLE,
 				ctxHasRequestInProgress.negate(),
 				ctxHasEditorModification,
-				ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditorInline)
 			),
 			keybinding: [{
 				when: ContextKeyExpr.and(ChatContextKeys.inputHasFocus, ChatContextKeys.inputHasText.negate()),

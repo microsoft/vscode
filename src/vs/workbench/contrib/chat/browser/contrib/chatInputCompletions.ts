@@ -169,7 +169,7 @@ class SlashCommandCompletions extends Disposable {
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'promptSlashCommands',
 			triggerCharacters: [chatSubcommandLeader],
-			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
 					return null;
@@ -192,7 +192,7 @@ class SlashCommandCompletions extends Disposable {
 					return;
 				}
 
-				const promptCommands = await this.promptsService.findPromptSlashCommands();
+				const promptCommands = await this.promptsService.getPromptSlashCommands(token);
 				if (promptCommands.length === 0) {
 					return null;
 				}
@@ -203,12 +203,12 @@ class SlashCommandCompletions extends Disposable {
 
 				return {
 					suggestions: promptCommands.map((c, i): CompletionItem => {
-						const label = `/${c.command}`;
-						const description = c.promptPath ? this.promptsService.getPromptLocationLabel(c.promptPath) : undefined;
+						const label = `/${c.name}`;
+						const description = c.description;
 						return {
 							label: { label, description },
 							insertText: `${label} `,
-							documentation: c.detail,
+							documentation: c.description,
 							range,
 							sortText: 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
